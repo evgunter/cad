@@ -1082,19 +1082,10 @@ pub(super) fn one_curve<T: Decide>(
 /// rounding, and the larger is taken, so the gap does not depend on the
 /// order of the pair.
 ///
-/// **The gap carries its own rounding charge**, so no reading of it is
-/// bare. With `m` a conic's larger semi-axis magnitude, the computed
-/// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
-/// computed `Q`'s columns are unit to within about `4.5u`, and its
-/// products and the norms round by `4u·m` and `5u·g`: within
-/// `12.1u·(m_e + m_f) + 5u·g` of a gap the bound holds for, inside
-/// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
-/// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
-/// is NaN: the reading escalates.
+/// A degenerate side (a zero semi-axis, or `a·b·a′·b′` underflowing)
+/// has no way up, and its gap is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
-    let reach = |k: &Conic<T>| k.semi_u.abs().max(k.semi_v.abs());
-    let gap = (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e));
-    gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
+    (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e))
 }
 
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s

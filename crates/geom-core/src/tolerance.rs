@@ -28,9 +28,9 @@
 //!
 //! # Initialization protocol
 //!
-//! Every door below admits only an ε that is finite and at least
-//! [`EPS_MIN`], the floor the [session box](SESSION_BOX_EXTENT) sets
-//! (D4 ¶4, [`eps_admissible`]); a smaller one is refused typed
+//! Every door below admits only a run (ε, K) whose headroom `(K − 1)·ε`
+//! covers the [`ADMISSION_FLOOR`] the [session box](SESSION_BOX_EXTENT)
+//! sets ([`admissible`]); an ε below it is refused typed
 //! ([`ToleranceError::BelowFloor`], [`ToleranceEnvErrorKind::BelowFloor`]).
 //!
 //! - [`Tolerance::init`] installs an explicit value, exactly once, with
@@ -80,6 +80,8 @@
 use core::fmt;
 use std::sync::OnceLock;
 
+use crate::running::{SHORT_CHAIN_ULPS, UNIT_ROUNDOFF};
+
 /// Environment variable consulted for ε on `get()` self-initialization
 /// (name fixed by CI's multi-ε matrix; M0 L3).
 pub const ENV_EPS: &str = "CAD_TOLERANCE_EPS";
@@ -92,28 +94,52 @@ pub const DEFAULT_EPS: f64 = 1e-9;
 /// larger in magnitude than this.
 pub const SESSION_BOX_EXTENT: f64 = 1e3;
 
-/// **ε_min, the smallest admissible ε** (D4 ¶4): the length f64
-/// resolves at the edge of the [session box](SESSION_BOX_EXTENT),
-/// `SESSION_BOX_EXTENT · 2⁻⁵²` ≈ 2.2e-13 m (`f64::EPSILON` is 2⁻⁵²).
-/// A tolerance below it decides nothing a coordinate in the box can
-/// state, so a run's ε below it is refused ([`ToleranceError::BelowFloor`],
-/// [`ToleranceEnvErrorKind::BelowFloor`]) and no refusal offers to
-/// tighten the tolerance below it.
-pub const EPS_MIN: f64 = SESSION_BOX_EXTENT * f64::EPSILON;
+/// **The admission floor**: the rounding of a short, division-free
+/// chain of operations on in-box coordinates, [`SHORT_CHAIN_ULPS`] unit
+/// roundoffs of the [session box](SESSION_BOX_EXTENT) (≈ 1.8e-12 m).
+/// A run is admitted only where its headroom `(K − 1)·ε`, the room
+/// between "the same point" (within ε) and "definitely apart" (beyond
+/// Kε), covers it ([`admissible`]). That comparison is the one
+/// statement about f64 rounding (DESIGN `[simple.conditioned]`): no
+/// site charges it.
+pub const ADMISSION_FLOOR: f64 = SHORT_CHAIN_ULPS * UNIT_ROUNDOFF * SESSION_BOX_EXTENT;
 
-/// **Whether `eps` may be a run's ε**: finite and no smaller than
-/// [`EPS_MIN`]. The one admission rule, asked by every door that
-/// commits or records an ε.
+/// **The least ε a run at multiplier `k` admits**: the
+/// [`ADMISSION_FLOOR`] over the headroom factor `k − 1`. A smaller K
+/// costs a larger least ε, and K < 2 is allowed at that price.
+#[must_use]
+pub fn eps_min(k: f64) -> f64 {
+    ADMISSION_FLOOR / (k - 1.0)
+}
+
+/// **ε_min at the default K** ([`eps_min`] of [`DEFAULT_K`],
+/// ≈ 2.0e-13 m): the least ε a run at K = 10 admits, and the floor
+/// refusals quote at that K. A run at another K reads [`eps_min`] of
+/// its own.
+pub const EPS_MIN: f64 = ADMISSION_FLOOR / (DEFAULT_K - 1.0);
+
+/// **Whether `(eps, k)` may be a run's tolerance**: ε finite and
+/// positive, K finite and above 1, and the headroom `(k − 1)·eps`
+/// covering the [`ADMISSION_FLOOR`]. The one admission rule, asked by
+/// every door that commits or records a tolerance.
+#[must_use]
+pub fn admissible(eps: f64, k: f64) -> bool {
+    eps.is_finite() && k.is_finite() && k > 1.0 && eps >= eps_min(k)
+}
+
+/// **Whether `eps` may be a run's ε at the default K** ([`admissible`]
+/// at [`DEFAULT_K`]): for a door that records an ε before the run's K
+/// is in hand.
 #[must_use]
 pub fn eps_admissible(eps: f64) -> bool {
-    eps.is_finite() && eps >= EPS_MIN
+    admissible(eps, DEFAULT_K)
 }
 
 /// **What an admissible ε is, and why** — the one sentence every
 /// refusal of a sub-floor or non-finite ε renders after its own head
-/// ("… is not admissible: {EpsFloor}"): a finite length of at least
-/// [`EPS_MIN`], the length f64 resolves at the edge of the
-/// [session box](SESSION_BOX_EXTENT).
+/// ("… is not admissible: {EpsFloor}"): a finite length whose headroom
+/// `(K − 1)·ε` covers the [`ADMISSION_FLOOR`], at least [`EPS_MIN`] at
+/// the default K.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpsFloor;
 
@@ -121,9 +147,10 @@ impl fmt::Display for EpsFloor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "a tolerance is a finite length of at least {EPS_MIN:e} m, the length f64 \
-             resolves at the edge of the {SESSION_BOX_EXTENT:e} m session box (D4 ¶4); a \
-             smaller one decides nothing a coordinate can state"
+            "a tolerance is a finite length whose headroom (K - 1)·eps covers \
+             {ADMISSION_FLOOR:e} m, the rounding of a short chain at the edge of the \
+             {SESSION_BOX_EXTENT:e} m session box (D4 ¶4): at least {EPS_MIN:e} m at the \
+             default K = {DEFAULT_K}; a smaller one decides nothing a coordinate can state"
         )
     }
 }
@@ -189,9 +216,9 @@ pub const DEFAULT_K: f64 = 10.0;
 /// is evaluated at intervals or dual numbers. Units are the kernel's fixed
 /// internal units (D4 ¶4): meters.
 ///
-/// A `Tolerance` value is valid when `eps` is finite and at least
-/// [`EPS_MIN`] ([`eps_admissible`]); [`Tolerance::init`] and the env
-/// path enforce this.
+/// A `Tolerance` value is valid when it is [`admissible`]: its headroom
+/// `(k − 1)·eps` covers the [`ADMISSION_FLOOR`]. [`Tolerance::init`]
+/// and the env path enforce this.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tolerance {
     /// Linear tolerance ε, in meters.
@@ -203,8 +230,9 @@ pub struct Tolerance {
     /// Configured like ε: [`Tolerance::init`] or the [`ENV_K`] env var
     /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Ev-directed
     /// at M2 PR 7; previously the hard `AMBIGUITY_K` const). Any
-    /// finite `K > 1` is accepted and there is no floor:
-    /// below `K ≈ 1.272` `extrude` admits chords the dihedral lever
+    /// finite `K > 1` is accepted whose headroom `(K − 1)·ε` covers the
+    /// [`ADMISSION_FLOOR`] ([`admissible`]), so a K near 1 costs a larger
+    /// least ε ([`eps_min`]). Below `K ≈ 1.272` `extrude` admits chords the dihedral lever
     /// cannot resolve against an admitted tilt, and such bodies refuse
     /// at rest (`SliverDihedral`) rather than at the door. Like ε, K
     /// is expected to become per-model persisted configuration with a
@@ -224,8 +252,9 @@ pub enum ToleranceError {
         /// The rejected value.
         value: f64,
     },
-    /// The attempted `Tolerance`'s `eps` is finite and positive but
-    /// below [`EPS_MIN`].
+    /// The attempted `Tolerance`'s `eps` is finite and positive but its
+    /// headroom `(k − 1)·eps` does not cover the [`ADMISSION_FLOOR`]
+    /// (below [`EPS_MIN`] at the default K).
     BelowFloor {
         /// The rejected value.
         value: f64,
@@ -288,8 +317,8 @@ pub enum ToleranceEnvErrorKind {
         /// The parsed (rejected) value.
         value: f64,
     },
-    /// The value is an ε that parsed, finite and positive, but below
-    /// [`EPS_MIN`].
+    /// The value is an ε that parsed, finite and positive, but whose
+    /// headroom at the run's K does not cover the [`ADMISSION_FLOOR`].
     BelowFloor {
         /// The parsed (rejected) value.
         value: f64,
@@ -324,8 +353,9 @@ impl fmt::Display for ToleranceEnvError {
             ),
             ToleranceEnvErrorKind::Invalid { value } if self.var == ENV_K => write!(
                 f,
-                "tolerance env var {} = {:?} (= {value:e}) must be finite and > 1; \
-                 the compiled default was used instead",
+                "tolerance env var {} = {:?} (= {value:e}) must be finite and > 1, with \
+                 headroom (K - 1)·eps covering {ADMISSION_FLOOR:e} m; the compiled default \
+                 was used instead",
                 self.var, self.raw
             ),
             ToleranceEnvErrorKind::Invalid { value } => write!(
@@ -364,7 +394,7 @@ pub enum EpsilonSource {
     /// value.
     ///
     /// Also the answer when [`ENV_EPS`] was present but **rejected**
-    /// (unparsable, not finite and > 0, or below [`EPS_MIN`]): a
+    /// (unparsable, not finite and > 0, or below the run's floor): a
     /// rejected value never reaches the tolerance, so the compiled
     /// default is what the run is actually deciding at. The rejection itself rides
     /// [`Tolerance::env_init_errors`] and is printed by
@@ -526,28 +556,55 @@ fn resolve_var(
 /// touching the process environment or the global `OnceLock`; the
 /// `OnceLock` wrapper above is a thin shell over this.
 ///
-/// ε ([`ENV_EPS`], [`eps_admissible`]) and K ([`ENV_K`], finite and
-/// above 1) are consulted; the returned `Vec` holds at most one error
+/// K ([`ENV_K`], finite and above 1) and then ε ([`ENV_EPS`],
+/// [`admissible`] at that K) are consulted; the returned `Vec` holds at most one error
 /// per var.
 fn resolve_from_env(
     lookup: impl Fn(&str) -> Option<String>,
 ) -> (Tolerance, Vec<ToleranceEnvError>) {
-    let (eps, eps_err) = resolve_var(&lookup, ENV_EPS, DEFAULT_EPS, refuse_env_eps);
     let (k, k_err) = resolve_var(&lookup, ENV_K, DEFAULT_K, refuse_env_k);
+    let (eps, eps_err) = resolve_var(&lookup, ENV_EPS, DEFAULT_EPS, |v| refuse_env_eps(v, k));
+    let (k, k_err) = admit_env_k(&lookup, eps, k, k_err);
     let env_errors = eps_err.into_iter().chain(k_err).collect();
     (Tolerance { eps, k }, env_errors)
 }
 
-/// Why [`ENV_EPS`]'s parsed `value` is refused, or `None` where it is
-/// admissible.
-fn refuse_env_eps(value: f64) -> Option<ToleranceEnvErrorKind> {
-    match Tolerance::with_eps(value).validate_eps() {
+/// Why [`ENV_EPS`]'s parsed `value` is refused at the run's `k`, or
+/// `None` where it is admissible.
+fn refuse_env_eps(value: f64, k: f64) -> Option<ToleranceEnvErrorKind> {
+    match (Tolerance { eps: value, k }).validate() {
         Ok(()) => None,
         Err(ToleranceError::BelowFloor { value }) => {
             Some(ToleranceEnvErrorKind::BelowFloor { value })
         }
         Err(_) => Some(ToleranceEnvErrorKind::Invalid { value }),
     }
+}
+
+/// [`ENV_K`]'s `k` where the run's `eps` admits it ([`admissible`]),
+/// else the default K and a recorded refusal of `k`: an ε that fell back
+/// to [`DEFAULT_EPS`] (absent, or itself refused) can lack the headroom
+/// an env K near 1 leaves, and the run then keeps the default K, at
+/// which every admissible ε is admitted.
+fn admit_env_k(
+    lookup: &impl Fn(&str) -> Option<String>,
+    eps: f64,
+    k: f64,
+    k_err: Option<ToleranceEnvError>,
+) -> (f64, Option<ToleranceEnvError>) {
+    if k_err.is_some() || admissible(eps, k) {
+        return (k, k_err);
+    }
+    let raw = lookup(ENV_K).unwrap_or_default();
+    let kind = ToleranceEnvErrorKind::Invalid { value: k };
+    (
+        DEFAULT_K,
+        Some(ToleranceEnvError {
+            var: ENV_K,
+            raw,
+            kind,
+        }),
+    )
 }
 
 /// Why [`ENV_K`]'s parsed `value` is refused, or `None` where it is
@@ -564,26 +621,21 @@ impl Tolerance {
         Self { eps, k: DEFAULT_K }
     }
 
-    /// Validates that `eps` is [admissible](eps_admissible): finite and
-    /// strictly positive, else [`ToleranceError::InvalidValue`], and no
-    /// smaller than [`EPS_MIN`], else [`ToleranceError::BelowFloor`].
-    fn validate_eps(self) -> Result<(), ToleranceError> {
+    /// Validates the run's admission rule ([`admissible`]): `eps` finite
+    /// and strictly positive, else [`ToleranceError::InvalidValue`]; `k`
+    /// finite and above 1, else [`ToleranceError::InvalidK`]; and the
+    /// headroom `(k − 1)·eps` covering the [`ADMISSION_FLOOR`], else
+    /// [`ToleranceError::BelowFloor`].
+    fn validate(self) -> Result<(), ToleranceError> {
         let value = self.eps;
         if !(value.is_finite() && value > 0.0) {
             return Err(ToleranceError::InvalidValue { value });
         }
-        if !eps_admissible(value) {
-            return Err(ToleranceError::BelowFloor { value });
-        }
-        Ok(())
-    }
-
-    /// Validates `eps` ([`Self::validate_eps`]) and that `k` is finite
-    /// and strictly greater than 1.
-    fn validate(self) -> Result<(), ToleranceError> {
-        self.validate_eps()?;
         if !(self.k.is_finite() && self.k > 1.0) {
             return Err(ToleranceError::InvalidK { value: self.k });
+        }
+        if !admissible(value, self.k) {
+            return Err(ToleranceError::BelowFloor { value });
         }
         Ok(())
     }
@@ -593,9 +645,9 @@ impl Tolerance {
     /// # Errors
     ///
     /// - [`ToleranceError::InvalidValue`] if `eps` is not finite and
-    ///   strictly positive, [`ToleranceError::BelowFloor`] if it is below
-    ///   [`EPS_MIN`], and [`ToleranceError::InvalidK`] if `k` is not
-    ///   finite and > 1 (all checked before touching the global state, so
+    ///   strictly positive, [`ToleranceError::InvalidK`] if `k` is not
+    ///   finite and > 1, and [`ToleranceError::BelowFloor`] if the pair is
+    ///   not [`admissible`] (all checked before touching the global state, so
     ///   a rejected call leaves initialization for later).
     /// - [`ToleranceError::AlreadyInitialized`] if the global tolerance was
     ///   already committed — by an earlier `init` or by [`Tol::witness`]'s
@@ -640,7 +692,8 @@ impl Tolerance {
     ///
     /// - [`ToleranceError::InvalidValue`] if `eps` is not finite and
     ///   strictly positive, or [`ToleranceError::BelowFloor`] if it is
-    ///   below [`EPS_MIN`] (checked before touching the global).
+    ///   not [`admissible`] at the run's K (checked before touching the
+    ///   global).
     /// - [`ToleranceError::AlreadyInitialized`] if the run's
     ///   tolerance was already committed. The CALLER decides whether
     ///   the committed ε matches the document (bit compare) — a match
@@ -920,15 +973,22 @@ mod tests {
         }
     }
 
-    /// **ε_min is the session box's extent times 2⁻⁵²** (D4 ¶4): 1 km,
-    /// and the f64 spacing at its edge. Red if either constant moves.
+    /// **The admission floor is [`SHORT_CHAIN_ULPS`] unit roundoffs of
+    /// the session box, and ε_min is it over the headroom factor `K − 1`**
+    /// (D4 ¶4). Red if either constant moves, or if the rule stops
+    /// trading K against the least ε.
     #[test]
-    fn the_floor_is_the_f64_spacing_at_the_session_boxs_edge() {
+    fn the_floor_is_a_short_chains_rounding_at_the_session_boxs_edge() {
         assert_eq!(SESSION_BOX_EXTENT, 1e3, "D4 ¶4's session box is 1 km");
-        assert_eq!(EPS_MIN, 1e3 * 2f64.powi(-52), "ε_min = box · 2⁻⁵²");
+        assert_eq!(ADMISSION_FLOOR, 16.0 * 2f64.powi(-53) * 1e3, "16u · box");
+        assert_eq!(
+            EPS_MIN,
+            eps_min(DEFAULT_K),
+            "ε_min is the floor over K − 1 at K = 10"
+        );
         assert!(
-            (2.2e-13..2.3e-13).contains(&EPS_MIN),
-            "ε_min ≈ 2.2e-13 m: {EPS_MIN:e}"
+            (1.9e-13..2.0e-13).contains(&EPS_MIN),
+            "ε_min ≈ 2.0e-13 m: {EPS_MIN:e}"
         );
         assert_eq!(
             test_utils::offer::FLOOR_EPS,
@@ -937,6 +997,44 @@ mod tests {
         );
         assert!(eps_admissible(EPS_MIN) && eps_admissible(DEFAULT_EPS));
         assert!(!eps_admissible(EPS_MIN.next_down()) && !eps_admissible(f64::NAN));
+        // K < 2 is admitted at the price of a larger least ε.
+        let (k, eps) = (1.5, 1e-11);
+        assert!(
+            admissible(eps, k) && admissible(eps_min(k), k),
+            "K = 1.5 at 1e-11"
+        );
+        assert!(!admissible(1e-12, k), "K = 1.5 leaves 1e-12 no headroom");
+        assert!(eps_min(k) > EPS_MIN, "a smaller K costs a larger least ε");
+        assert!(!admissible(DEFAULT_EPS, 1.0) && !admissible(DEFAULT_EPS, f64::NAN));
+    }
+
+    /// **An env K the run's ε lacks the headroom for is refused**,
+    /// recorded, and the run keeps the default K: the default ε at
+    /// K = 1.0001 leaves `1e-13` of room, under the floor.
+    #[test]
+    fn an_env_k_without_headroom_falls_back_to_the_default() {
+        let (t, err) = resolve_from_env(table(&[(ENV_K, "1.0001")]));
+        assert_eq!((t.eps, t.k), (DEFAULT_EPS, DEFAULT_K), "default K kept");
+        let [err] = &err[..] else {
+            panic!("the refused K is recorded (exactly one error): {err:?}");
+        };
+        assert_eq!(err.var, ENV_K);
+        let (t, err) = resolve_from_env(table(&[(ENV_K, "1.5"), (ENV_EPS, "1e-11")]));
+        assert_eq!(
+            (t.eps, t.k, err.len()),
+            (1e-11, 1.5, 0),
+            "1e-11 at K = 1.5 is admitted"
+        );
+        let (t, err) = resolve_from_env(table(&[(ENV_K, "1.5"), (ENV_EPS, "1e-12")]));
+        assert_eq!(
+            (t.eps, t.k),
+            (DEFAULT_EPS, 1.5),
+            "1e-12 at K = 1.5 is refused"
+        );
+        assert!(
+            matches!(err[0].kind, ToleranceEnvErrorKind::BelowFloor { .. }),
+            "{err:?}"
+        );
     }
 
     /// **A run's ε below ε_min is refused at every door**, typed, with a

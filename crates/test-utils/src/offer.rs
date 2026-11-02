@@ -45,11 +45,12 @@ const LONGEST_CHAIN: usize = 12;
 
 /// The smallest tolerance [`execute`] descends to before it calls an
 /// operation one no tolerance gets past (F3): the smallest a run admits,
-/// geom-core's `tolerance::EPS_MIN` (the 1 km session box times 2⁻⁵²,
-/// D4 ¶4), restated here because this crate depends on nothing;
-/// geom-core's `the_floor_is_the_f64_spacing_at_the_session_boxs_edge`
-/// pins the two equal.
-pub const FLOOR_EPS: f64 = 1e3 * f64::EPSILON;
+/// geom-core's `tolerance::EPS_MIN` (sixteen unit roundoffs, 2⁻⁴⁹, of the
+/// 1 km session box over the default K's headroom factor 9, D4 ¶4),
+/// restated here because this crate depends on nothing; geom-core's
+/// `the_floor_is_a_short_chains_rounding_at_the_session_boxs_edge` pins
+/// the two equal.
+pub const FLOOR_EPS: f64 = 1e3 / 562_949_953_421_312.0 / 9.0;
 
 /// The factor [`execute`] descends by past a refusal that offers no
 /// value, looking for the tolerance that passes.

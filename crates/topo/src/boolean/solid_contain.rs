@@ -3405,11 +3405,7 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = crate::sector_shape::point_segment_distance(q, far, at);
-        // The distance is a short chain (differences, a projection, a
-        // norm), each rounding under half an ulp of the lengths it is
-        // read from: the kernel's one charge for such a chain.
-        let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
+        let low = crate::sector_shape::point_segment_distance(q, far, at);
         let along = (at - q).dot(d);
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
