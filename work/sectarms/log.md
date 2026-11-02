@@ -176,3 +176,10 @@ and bodies unchanged. No orchestrator yet.
 - 2026-11-02 10:30 — **PR 6309's fix pass accepted** (all nine must-fix items fixed, two disclosures, four fix-if-small fixed and two filed at P4). Blind coding gave tally 0 (byte 102; nearest miss R2's 6137-row MINOR). The row file is the last commit (`ec8b741`), and the PR awaits CI. **NURBS stage 2 is up as PR 6347** (critical points by Krawczyk + Hessian; the crease pass; F3 wording; C3 untouched). Two mutants survive: Krawczyk containment (no fixture with two near zeros), and crossings (redundant on these fixtures). Single full review dispatched to a cloud session (`session_01VyvYnMFjWLMhPK6A2EqgeE`; local disk ~5.5 GB free).
 
 - 2026-11-02 10:35 — **PR 6309 merged** (cylinder × cylinder ruling sweep; closes `a-near-parallel-pairs-accounting-grows-with-the-operation-region`; dual review tally 0, row PR-6309.md). The cylinder lane's target was freed. Next on the cylinder line: stage 3 (the join reads the value; retire the frame cylinder arm, the `join_reads` gate and the per-arc winds), and cylinder × sphere on the ruling sweep (filed P1).
+
+- 2026-11-02 10:55 — **Cylinder stage 3 plan accepted** (the join reads the value): the `join_reads` gate, the frame lane's cylinder reading and `crossing_cylinder_reading` retire, and `mint_nodes`/`bisectors` read the value. Forks ruled by the orchestrator as re-hosts, not new decisions:
+  - **F1** — a germ at a node takes `SiteFoot::Node(k)`, with its arc chosen by the bisector plane, as the frame lane does today. A first-order tangent reading would be a second reading. Stop if the plane choice needs a margin the value lacks.
+  - **F2** — the winding lives on a `NodeSet { arcs, winds }` on `PairSection`, the direct reading of C5's "claims it of its node-joined set".
+  - **F3** — the parallel lane retires only if the carried lane already cuts open line components at the region; otherwise it stays, narrowed, and a P1 3b row is filed.
+  
+  Rows that move at the lever change are fork 224 applied, with margins quoted. Tier: H, dual review.
