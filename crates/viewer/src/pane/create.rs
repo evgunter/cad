@@ -195,13 +195,15 @@ pub(crate) fn mate_picks_row(ui: &mut egui::Ui, tool: &MateTool, by: Speaker<'_>
 
 /// **The smallest pattern count the form offers.**
 ///
-/// A pattern of zero instances refuses at evaluation
-/// (`CountOutOfRange`, typed, on the node's own badge), so the form
-/// declines to author one — the same rule the bore field follows. There
-/// is deliberately NO upper bound: the property panel imposes none on
-/// the slot afterwards, and a cap here would be a limit the document
-/// does not have.
-pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
+/// A pattern of zero is a family of no member, and fused it is the
+/// empty boolean value: both evaluate, so the form offers it, as the
+/// door does. A count below zero refuses at evaluation
+/// (`IndexCountOutOfRange`, typed, on the family's own badge), so the
+/// form declines to author one — the rule [`MIN_PART_INSTANCE`]
+/// follows. There is deliberately NO upper bound: the property panel
+/// imposes none on the index afterwards, and a cap here would be a
+/// limit the document does not have.
+pub(crate) const MIN_PATTERN_COUNT: i64 = 0;
 
 /// **The "Add part" chooser's window**, as wide as the pane its door
 /// is drawn in (`opener`) and never under
@@ -1506,9 +1508,6 @@ impl ViewerBehavior<'_> {
         });
         ui.horizontal(|ui| {
             ui.label("count");
-            // Clamped at one instance: a count is a structural slot
-            // and a non-positive one refuses at evaluation, so the
-            // form does not offer to author a node that cannot build.
             ui.add(
                 number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
@@ -2024,6 +2023,78 @@ mod tests {
     use crate::theme::Theme;
     use pncad::select::SplitHalf;
     use pncad::topo::BooleanOp;
+
+    /// **The pattern form's floor is the least count a pattern
+    /// evaluates at**, through both doors the form commits by. At
+    /// [`super::MIN_PATTERN_COUNT`] the unfused pattern is a family of
+    /// no member and the fused one the empty boolean value; one below
+    /// it, the family refuses typed on its own badge and the fused
+    /// pattern has no value. So the form offers exactly the counts that
+    /// evaluate, and the door, which judges no count, takes them all.
+    #[test]
+    fn the_pattern_forms_floor_is_the_least_count_that_evaluates() {
+        use crate::session::{DocSession, PatternRuleSpec, SessionOp};
+        use pncad::document::{BooleanValue, NodeErrorKind, NodeResult, ValuePayload};
+        let tol = Tol::witness();
+        let (doc, body) = crate::scene::plate_with_hole(tol).expect("the plate");
+        let floor = super::MIN_PATTERN_COUNT;
+        for fused in [false, true] {
+            for count in [floor, floor - 1] {
+                let mut session = DocSession::inline(doc.clone(), tol);
+                session.pump();
+                let rule = PatternRuleSpec::Linear {
+                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                    spacing: crate::test_support::len(0.05),
+                };
+                let op = if fused {
+                    SessionOp::AddFusedPattern {
+                        input: body.into(),
+                        count,
+                        rule,
+                    }
+                } else {
+                    SessionOp::AddPattern {
+                        input: body.into(),
+                        count,
+                        rule,
+                    }
+                };
+                let outcome = session.perform(op);
+                assert!(
+                    outcome.refusal.is_none(),
+                    "fused {fused}, count {count}: the door admits it: {:?}",
+                    outcome.refusal
+                );
+                let made = outcome.made.expect("the door made a node");
+                session.pump();
+                let eval = session.evaluation().expect("the inline seam landed");
+                let value = eval.value(made).map(|value| &value.payload);
+                match (fused, count == floor) {
+                    (false, true) => assert!(
+                        matches!(value, Some(ValuePayload::Instances(members)) if members.is_empty()),
+                        "the floor is a family of no member: {value:?}"
+                    ),
+                    (true, true) => assert!(
+                        matches!(value, Some(ValuePayload::Boolean(BooleanValue::Empty))),
+                        "the fused floor is the empty boolean value: {value:?}"
+                    ),
+                    (false, false) => assert!(
+                        matches!(
+                            eval.result(made),
+                            Some(NodeResult::Failed(error))
+                                if matches!(error.kind, NodeErrorKind::IndexCountOutOfRange { .. })
+                        ),
+                        "below the floor the family refuses typed: {:?}",
+                        eval.result(made)
+                    ),
+                    (true, false) => assert!(
+                        value.is_none(),
+                        "below the floor the fused pattern has no value: {value:?}"
+                    ),
+                }
+            }
+        }
+    }
 
     /// The end cap `minted` made, picked on the body of `drawn`.
     fn cap_on(minted: u64, drawn: u64) -> FaceSelection {
@@ -2719,7 +2790,11 @@ mod tools_respeak {
             crate::pickindex::PickIndex::build(
                 doc,
                 eval,
-                crate::pickindex::PictureKey::of(generation, crate::test_support::plate_delta()),
+                crate::pickindex::PictureKey::of(
+                    generation,
+                    crate::test_support::plate_delta(),
+                    crate::world::Shown::none(),
+                ),
                 session.tol(),
             )
             .expect("the block indexes")

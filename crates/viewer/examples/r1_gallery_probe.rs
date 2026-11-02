@@ -43,7 +43,7 @@ fn probe_index(session: &viewer::session::DocSession) -> Option<viewer::pickinde
     viewer::pickindex::PickIndex::build(
         doc,
         eval,
-        viewer::pickindex::PictureKey::of(generation, delta),
+        viewer::pickindex::PictureKey::of(generation, delta, viewer::world::Shown::none()),
         session.tol(),
     )
     .ok()
@@ -151,9 +151,9 @@ fn main() {
         let baseline = index_triangles(&session);
         for row in &instances {
             let hide = session
-                .perform(viewer::session::SessionOp::SetBodyHidden {
+                .perform(viewer::session::SessionOp::SetBodyOn {
                     node: row.id,
-                    hidden: true,
+                    on: false,
                 })
                 .refusal;
             match hide {
@@ -176,9 +176,9 @@ fn main() {
                             row.id
                         ));
                     }
-                    session.perform(viewer::session::SessionOp::SetBodyHidden {
+                    session.perform(viewer::session::SessionOp::SetBodyOn {
                         node: row.id,
-                        hidden: false,
+                        on: true,
                     });
                 }
                 Some(refusal) => {

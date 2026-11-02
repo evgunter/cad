@@ -204,6 +204,8 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "view_toggles.rs"]
+mod view_toggles;
 #[path = "whole_rim_pick.rs"]
 mod whole_rim_pick;
 
