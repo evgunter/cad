@@ -441,3 +441,13 @@ row's last section says what moved.
 - 2026-11-02 — Merged 6299 (profile pick), 6302 (the editor holds the authored program) and 6306 (fused-fillet construction marks), each on `gate ok`. Dispatched the rectangle build (`the-rectangle-and-circle-templates-reopen-as-paths`).
   - The on-face build is cut into three units on their owners: doctail (the face-frame pose, the drawn-on-face door, the signed depth), lib (`Doc.sketch_on_face` retires; Python spells boss and pocket in ordinary forms), and vseam (the form draws only; the pick carries its point; the final deletion of the fused act, an authorised deletions-only crossing into doctail).
   - The signed depth is to be lowered in editor-core, so that `crates/sweep` (carve/lathe/strut) stays untouched. (VSEAM)
+- 2026-11-02 — PR 6340 fix pass, orchestrator's read.
+  - Every ruled item is done. The circle census is one: `carrier_radius`.
+  - The part guard is pinned by `a_parts_wall_names_are_not_read_against_the_hosts_circle`. It goes red with the guard deleted, checked by hand.
+  - The negative-side and straddling-Interval refusals are covered.
+  - Filed: `a-parts-circle-wall-is-no-longer-one-carrier` (P2) and `complete-loop-identifiers-are-named-carrier` (P3). (VSEAM)
+- 2026-11-02 — PR 6352 (`a-profile-edited-in-place-is-picked-by-its-undrawn-outline`, P3/E; orchestrator's read, no separate review at E). The first cut made the pick skip the edited node, so a click on the profile you were editing deselected it and dropped the draft. I ruled against that. Now:
+  - `DisplayView::previewed_profile` carries the node and the preview's drawn outline, set once per frame.
+  - The lane, the pick and the selection mark all read it through `PickIndex::drawn_outline`, so a re-click keeps the draft.
+  - The form's free preview stays unpickable.
+  - The selection-mark follow-up was the same fix and is closed in this PR. (VSEAM)

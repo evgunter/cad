@@ -307,12 +307,17 @@ fn both_blends_evaluate_in_one_document() {
 /// the edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+/// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
+/// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every row here reproduces main's value at all three ε
+/// rows, so nothing else moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa849_edde_6a1d_0e11_u64),
-        ("die_chamfer", 0xc9bc_588c_0cb6_a135),
+        ("die_fillet", 0x7acd_376b_b6d9_317d_u64),
+        ("die_chamfer", 0x018f_a268_82df_d471),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -571,13 +576,18 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// the edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+/// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
+/// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every row here reproduces main's value at all three ε
+/// rows, so nothing else moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xa187_0bd9_e3b5_134f_u64),
-        ("heat_sink", 0xa26d_5873_8dc7_6915),
-        ("kiss_carry", 0x2bcf_1c97_70eb_fb7a),
+        ("crossing_slots", 0x97af_3180_7c08_6585_u64),
+        ("heat_sink", 0x4010_8826_71c7_f1f3),
+        ("kiss_carry", 0xc2d4_fb1d_406b_316c),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -734,7 +744,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x53a4_d4cd_70d2_b713,
+        got, 0x9677_fb20_d315_0d6f,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

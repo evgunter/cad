@@ -139,13 +139,14 @@ pub use edit::{
     Recording, SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed,
     cascade_delete_order, measure, sketch_on_face,
 };
-pub use eval::measure::{Observed, ObservedRefusal};
+pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
-    ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
-    EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
-    PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate, traced_faces,
+    ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
+    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError,
+    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault,
+    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
+    traced_faces,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -175,8 +176,8 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, MeasurePrimitive, MeasureUnavailableAt,
-    MeasureVerb, MinClearanceOperand, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, ClearanceSeat,
+    MeasurePrimitive, MeasureVerb, UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};

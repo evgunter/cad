@@ -143,7 +143,7 @@ pub(crate) fn line_edge(
     let hits: Vec<EdgeKey> = body
         .edges()
         .filter(|(e, _)| match carrier(body, *e).0 {
-            Curve3::Line { origin, dir } => pick(origin, dir, same_surface(body, *e)),
+            Curve3::Line(geom::Line { origin, dir }) => pick(origin, dir, same_surface(body, *e)),
             _ => false,
         })
         .map(|(e, _)| e)

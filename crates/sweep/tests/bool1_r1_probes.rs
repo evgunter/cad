@@ -157,7 +157,7 @@ fn coplanar_below_citations_are_all_adjacent() {
                 .unwrap();
             let (t0, t1) = c.params();
             let carrier = match c.carrier() {
-                geom::Curve3::Line { origin, dir } => format!(
+                geom::Curve3::Line(geom::Line { origin, dir }) => format!(
                     "Line o({:016x},{:016x},{:016x}) d({:016x},{:016x},{:016x})",
                     origin.x.to_bits(),
                     origin.y.to_bits(),

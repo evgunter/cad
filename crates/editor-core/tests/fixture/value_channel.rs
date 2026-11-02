@@ -253,11 +253,6 @@ fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
                 // The measured quantity IS a lane value, so it is
                 // digested through the same value-channel bracket
                 // every coordinate takes.
-                // A measure with no value at this scalar digests as
-                // the ABSENCE, at its own tag: two passes that both
-                // failed to measure agree, and neither agrees with
-                // a pass that measured something.
-                ValuePayload::MeasureUnavailable { .. } => d.u64(24),
                 ValuePayload::Measure { value, dim } => {
                     d.u64(21);
                     d.u64(match dim {
@@ -282,6 +277,11 @@ fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
                             d.scalar(*bound);
                         }
                         AssertionVerdict::Unevaluated { .. } => {}
+                        AssertionVerdict::Clearance(report) => {
+                            for b in report.serialize().bytes() {
+                                d.u64(u64::from(b));
+                            }
+                        }
                     }
                 }
                 // A family of no bodies: its members are its own nodes'

@@ -537,7 +537,6 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
         // had without one.
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
-        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_)
         | ValuePayload::Family => None,
     }

@@ -562,7 +562,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
             body.get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)
                 .is_some_and(|c| {
-                    c.authority().is_declared() && matches!(c.carrier(), geom::Curve3::Line { .. })
+                    c.authority().is_declared() && matches!(c.carrier(), geom::Curve3::Line(_))
                 })
         })
         .map(|(k, _)| k)

@@ -133,10 +133,7 @@ impl Cone {
     }
 
     fn generator(&self, dir: V) -> Curve3<f64> {
-        Curve3::Line {
-            origin: pt(self.apex),
-            dir: vt(dir),
-        }
+        Curve3::line(pt(self.apex), vt(dir))
     }
 
     /// The azimuth of `p` in the chart frame.
@@ -172,10 +169,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let p = |q: geom_core::Point3<f64>| pt::<T>([q.x, q.y, q.z]);
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: p(origin),
-            dir: v(dir),
-        },
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
         Curve3::Circle {
             center,
             axis,
@@ -350,10 +344,7 @@ fn generator_off_apex(c: &Cone, d: f64) -> Spec {
     let radial = unit(add(g, c.a, -co));
     let normal = add(add([0.0; 3], radial, co), c.a, -s);
     let mut spec = generator_turned(c, 0.0);
-    spec[0].0 = Curve3::Line {
-        origin: pt(add(c.apex, normal, d)),
-        dir: vt(g),
-    };
+    spec[0].0 = Curve3::line(pt(add(c.apex, normal, d)), vt(g));
     spec
 }
 

@@ -145,7 +145,7 @@ impl<T: Decide> ConicBend<T> {
                 }
             }
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => BendBounds::Unbounded,
-            geom::Curve3::Line { .. } => {
+            geom::Curve3::Line(_) => {
                 unreachable!("`ConicBend::of` reads a curved carrier, not a line")
             }
         };

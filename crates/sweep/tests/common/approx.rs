@@ -288,7 +288,7 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
             .get_curve_geom(body.get_edge(edge).unwrap().curve)
             .and_then(CurveGeom::certified)
             .expect("a box edge carries a certified curve");
-        let Curve3::Line { origin, dir } = *curve.carrier() else {
+        let Curve3::Line(geom::Line { origin, dir }) = *curve.carrier() else {
             panic!("a box edge's carrier is a line");
         };
         let (param_start, param_end) = curve.params();

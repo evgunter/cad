@@ -920,7 +920,7 @@ impl<'a> Resolver<'a> {
                     });
                 }
                 let dir = self.direction(vec_id, as_ref(vec_id, dir_ref, vexpected)?)?;
-                Ok(Curve3::Line { origin, dir })
+                Ok(Curve3::Line(geom::Line { origin, dir }))
             }
             "CIRCLE" => {
                 let expected = "CIRCLE(name, #placement, radius)";

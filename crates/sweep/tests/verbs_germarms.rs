@@ -571,7 +571,7 @@ fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
         panic!("the named edge has no certified curve");
     };
     assert!(
-        matches!(c.carrier(), topo::Curve3::Line { .. }),
+        matches!(c.carrier(), topo::Curve3::Line(_)),
         "the grazing red must refuse on the tangent LINE: {:?}",
         c.carrier()
     );

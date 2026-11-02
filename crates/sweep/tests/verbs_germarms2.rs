@@ -116,7 +116,7 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     else {
         panic!("the named edge has no certified curve");
     };
-    let topo::Curve3::Line { origin, dir } = *c.carrier() else {
+    let topo::Curve3::Line(geom::Line { origin, dir }) = *c.carrier() else {
         panic!("a seam ruling is a Line carrier; got {:?}", c.carrier());
     };
 

@@ -755,7 +755,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
             let carrier = common::certified_carrier(&body, *edge_key);
             let place = || placement(&recs, refs(&a[1])[0]);
             match *carrier {
-                Curve3::Line { .. } => assert_eq!(kw, "LINE", "{name}"),
+                Curve3::Line(_) => assert_eq!(kw, "LINE", "{name}"),
                 Curve3::Circle {
                     center,
                     axis,

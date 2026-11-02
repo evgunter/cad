@@ -781,7 +781,7 @@ fn true_reach(body: &topo::Body<f64>) -> (f64, usize) {
             let (edges, _) = topo::props::loop_edges(body, lk).expect("the loop walks");
             for e in &edges {
                 match &e.carrier {
-                    geom::Curve3::Line { .. } => {
+                    geom::Curve3::Line(_) => {
                         for t in [e.t0, e.t1] {
                             best = best.max((e.carrier.eval(t) - origin).norm());
                         }

@@ -386,7 +386,7 @@ fn r2_ring_anatomy_on_a_drum() {
                     .get_curve_geom(ed.curve)
                     .and_then(|g| g.certified())
                     .map(|c| match c.carrier() {
-                        Curve3::Line { .. } => "line".to_string(),
+                        Curve3::Line(_) => "line".to_string(),
                         Curve3::Circle { center, radius, .. } => {
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)
                         }

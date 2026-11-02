@@ -2,10 +2,11 @@
 id: circle-and-ellipse-frame-arms-re-spell-conic-of
 kind: issue
 title: LoopArc::of and the section outline's Circle and Ellipse arms re-spell geom_brep::Conic::of
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: E
+branch: onehome/conic-frame
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve`, which

@@ -948,10 +948,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
                     pair: geom_brep::SurfacePair::new(wall, key),
                     selector: geom_brep::CurveSelector::Witness(p + (q - p) * 0.5),
                 },
-                carrier: geom::Curve3::Line {
-                    origin: p,
-                    dir: (q - p) / len,
-                },
+                carrier: geom::Curve3::line(p, (q - p) / len),
                 param_start: 0.0,
                 param_end: len,
             };

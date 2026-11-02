@@ -116,7 +116,7 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
             body.get_edge(*k)
                 .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(*c.carrier(), geom::Curve3::Line { .. }))
+                .is_some_and(|c| matches!(*c.carrier(), geom::Curve3::Line(_)))
         })
         .collect()
 }

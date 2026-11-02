@@ -424,7 +424,7 @@ fn split_then_null_lifecycle_on_prism() {
         .edges()
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?.clone();
-            matches!(c.carrier(), geom::Curve3::Line { .. }).then_some((k, c))
+            matches!(c.carrier(), geom::Curve3::Line(_)).then_some((k, c))
         })
         .unwrap();
     let (t0, t1) = curve.params();

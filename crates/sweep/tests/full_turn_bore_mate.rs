@@ -267,7 +267,7 @@ fn split_collar() -> Body<f64> {
     let (seam, origin, dir) = c
         .edges()
         .find_map(|(k, e)| match carrier(&c, e) {
-            Some(geom::Curve3::Line { origin, dir })
+            Some(geom::Curve3::Line(geom::Line { origin, dir }))
                 if c.face_of_half_edge(e.he_plus) == Some(bore)
                     && c.face_of_half_edge(e.he_minus) == Some(bore) =>
             {

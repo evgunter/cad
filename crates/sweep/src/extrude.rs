@@ -694,10 +694,7 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
 /// geometry in a pass whose whole contract is that only the
 /// DESCRIPTION moves.
 fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
-    Curve3::Line {
-        origin: q_bottom,
-        dir: w.normalize(),
-    }
+    Curve3::line(q_bottom, w.normalize())
 }
 
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line

@@ -223,7 +223,7 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
     let axis_edge: EdgeKey = w
         .edges()
         .find(|(e, _)| match carrier(&w, *e).0 {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(geom::Line { origin, dir }) => {
                 axial(origin).0 <= 1e-15 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
             }
             _ => false,
@@ -260,7 +260,7 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
                 return false;
             }
             match carrier(&d, *e).0 {
-                Curve3::Line { origin, dir } => {
+                Curve3::Line(geom::Line { origin, dir }) => {
                     axial(origin).0 > 0.5 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15
                 }
                 _ => false,

@@ -419,7 +419,7 @@ fn r1_cap_rim_widening_measures_the_face_not_the_chart() {
                 continue;
             }
             let (carrier, t0, t1) = carrier_of(&body, he);
-            if !matches!(carrier, Curve3::Line { .. }) {
+            if !matches!(carrier, Curve3::Line(_)) {
                 continue;
             }
             rims += 1;
@@ -814,7 +814,7 @@ fn r1_cap_rim_measured_map_certifies() {
             continue;
         }
         let (carrier, t0, t1) = carrier_of(&body, he);
-        if !matches!(carrier, Curve3::Line { .. }) {
+        if !matches!(carrier, Curve3::Line(_)) {
             continue;
         }
         let Ok(pcurve) = topo::pcurve_of(&body, he, band()) else {

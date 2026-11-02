@@ -26,9 +26,14 @@
 //! kernel defect [`PartFault::NotEntered`], an ask that escaped
 //! [`instantiated`], the one census of the asks.
 //!
-//! The top fills its table in one serial pass
-//! ([`PartStore::enter_census`]) over that census, in document order:
-//! each distinct key evaluated at most once, under a shielding verdict
+//! The top fills its table serially, after its admission has charged
+//! every instance the cost of building its part against the run's
+//! member budget, without building anything
+//! ([`super::EvalOptions::member_budget`], [`PartStore::charge`]: the
+//! descent below, walked with nothing built, charged at every build
+//! the descent makes): each instance the admission admitted is entered
+//! in the schedule's order ([`PartStore::enter`]), each distinct key
+//! evaluated at most once at the top, under a shielding verdict
 //! bracket ([`PartStore::row`]), so its decisions land on no node and
 //! its `probe` samples reach the caller's sink ahead of every node's,
 //! whatever schedule the node map then runs. Each successful row is
@@ -48,8 +53,9 @@
 //! thread's stack at a time, how deep an assembly nests costs heap and
 //! never stack, and every depth either evaluates or refuses typed.
 //!
-//! **Every part a document instantiates is evaluated, whether or not
-//! its instance asks.** The instance that declines to ask is one whose
+//! **Below the top, every part a document instantiates is evaluated,
+//! whether or not its instance asks** (at the top, every instance the
+//! admission admitted). The instance that declines to ask is one whose
 //! placement refused (a mate fault), or a memo hit; its part's row,
 //! failed or not, reaches no node, product or refusal. What it does
 //! reach is what counts or records work as it happens:
@@ -554,8 +560,8 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
 type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 
 /// **The serial part store**: rows filled one at a time, by `&mut`,
-/// outside any node map — the top evaluation's census pass
-/// ([`Self::enter_census`]). A running evaluation reads the [`Reached`]
+/// outside any node map, as the top evaluation enters the instances
+/// its admission admitted ([`Self::enter`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
 pub(crate) struct PartStore<'a, T: topo::AtRestPolicy + Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
@@ -575,6 +581,14 @@ pub(crate) struct PartStore<'a, T: topo::AtRestPolicy + Decide> {
     /// node's [`super::ComputingTwist::for_node`]).
     twist: Option<super::ComputingTwist>,
     rows: Rows<T>,
+    /// The rows entered this run that the next may take up.
+    carried: BTreeMap<(DocRef, u64), PartValue<T>>,
+    /// Each part's charge, as far as one is known: carried from the
+    /// prior, and every part [`Self::charge`] has counted through.
+    costs: Costs,
+    /// The parts the top has charged an instance for: its own builds,
+    /// which its instances share ([`Self::row`]).
+    charged: std::collections::BTreeSet<(DocRef, u64)>,
     /// How many referenced documents this store's descents evaluated,
     /// at every depth — the D-3 sharing evidence. A counter, not a
     /// timing claim. Every document below the top is evaluated by the
@@ -596,6 +610,9 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
             symbols: false,
             twist: None,
             rows: BTreeMap::new(),
+            carried: BTreeMap::new(),
+            costs: Costs::new(),
+            charged: std::collections::BTreeSet::new(),
             evaluations: 0,
         }
     }
@@ -606,6 +623,14 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
         Self { symbols, ..self }
     }
 
+    /// The store, knowing the charges `prior` carried.
+    pub(crate) fn with_costs(self, prior: Option<&Carried<T>>) -> Self {
+        Self {
+            costs: prior.map(|p| p.costs.clone()).unwrap_or_default(),
+            ..self
+        }
+    }
+
     /// The store, its parts evaluated in the run's second computing
     /// frame ([`super::EvalOptions::computing_twist`]).
     pub(crate) fn with_twist(self, twist: Option<super::ComputingTwist>) -> Self {
@@ -613,7 +638,7 @@ impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
     }
 }
 
-/// **The top's parts, entered** ([`PartStore::enter_census`]).
+/// **The top's parts, entered** ([`PartStore::finish`]).
 pub(crate) struct Entry<T: topo::AtRestPolicy + Decide> {
     /// What the evaluation's mate solve and node map read.
     pub reached: Reached<T>,
@@ -652,49 +677,159 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         value
     }
 
-    /// **The top's census, entered**: one row per distinct reference
-    /// `doc` instantiates ([`instantiated`]), in document order, each
-    /// taken from `prior`'s carried rows or evaluated once
-    /// ([`Self::row`]). Serial, and run before the evaluation's node
-    /// map, so which part is evaluated, and where its
-    /// samples land, is a property of the document and not of a
-    /// schedule. The store's rows ARE the table it hands over, so it is
-    /// consumed, and is called on a store fresh from [`Self::new`].
-    ///
-    /// A cancel stops the pass before its next evaluation; the rows it
-    /// did not enter refuse [`PartFault::NotEntered`], and the
-    /// evaluation, canceled, runs no node to ask. A row evaluated while
-    /// `cancel` fired is not carried, nor is a faulted one.
-    pub(crate) fn enter_census<P>(
-        mut self,
-        doc: &crate::Doc<P>,
+    /// **What an instance of `doc_ref` at the top charges**, against
+    /// `remaining` of the run's member budget: nothing where the top has
+    /// charged that part already (its instances share one build,
+    /// [`Self::row`]), and otherwise the part's charge
+    /// ([`Self::charge`]). `None` where it passes `remaining`.
+    pub(crate) fn admit(
+        &mut self,
+        doc_ref: DocRef,
+        remaining: u64,
+        cancel: &super::CancelToken,
+        tol: Tol,
+        own: &mut OwnSteps<'_>,
+    ) -> Result<Option<u64>, super::Canceled> {
+        if !self.charged.insert((doc_ref, self.eps_bits)) {
+            return Ok(Some(0));
+        }
+        self.charge(doc_ref, remaining, cancel, tol, own)
+    }
+
+    /// **A part's charge**: the listing steps of building it, which is
+    /// the descent [`Self::resolve_and_evaluate`] runs, walked here
+    /// with nothing built. Each document the build would evaluate is
+    /// charged its own families' listing steps (`own`, over its nominal
+    /// environment); the parts below it
+    /// are charged where the build builds them — once per document that
+    /// instantiates them, as the descent shares a row within a document
+    /// and not across two. The descent's own refusals (a cycle, a depth
+    /// past [`MAX_DEPTH`], a reference that does not resolve) build, and
+    /// so charge, nothing; a document at another ε builds and lists no
+    /// family. A function of the pinned content, so it is kept per key
+    /// across runs ([`Carried`]) and a known part is not resolved again.
+    /// `None` as soon as the charge passes `remaining`.
+    fn charge(
+        &mut self,
+        doc_ref: DocRef,
+        remaining: u64,
+        cancel: &super::CancelToken,
+        tol: Tol,
+        own: &mut OwnSteps<'_>,
+    ) -> Result<Option<u64>, super::Canceled> {
+        let eps_bits = self.eps_bits;
+        let known = |costs: &Costs, r: DocRef, room: u64| {
+            costs
+                .get(&(r, eps_bits))
+                .map(|&cost| (cost <= room).then_some(cost))
+        };
+        if let Some(known) = known(&self.costs, doc_ref, remaining) {
+            return Ok(known);
+        }
+        let Some(resolver) = self.resolver else {
+            return Ok(Some(0));
+        };
+        // Resolving decides nothing of this run, as the build's own
+        // resolution does not ([`Self::row`]).
+        let _shield = geom_core::k_stats::Bracket::open();
+        if cancel.is_canceled() {
+            return Err(super::Canceled);
+        }
+        let mut path = Vec::new();
+        let Ok(mut current) = Entered::<T>::enter(resolver, &path, &doc_ref, tol) else {
+            return Ok(Some(0));
+        };
+        path.push(doc_ref);
+        let mut held = 0u64;
+        // Each document waiting on its parts, with the steps held when
+        // it was entered: its charge is what is held when it is done,
+        // less that.
+        let mut start = 0u64;
+        let mut waiting: Vec<(Entered<T>, u64)> = Vec::new();
+        loop {
+            if let Some(child) = current.next_unreached(eps_bits) {
+                current.seen.insert((child, eps_bits));
+                if let Some(known) = known(&self.costs, child, remaining - held) {
+                    match known {
+                        Some(cost) => held += cost,
+                        None => return Ok(None),
+                    }
+                    continue;
+                }
+                if cancel.is_canceled() {
+                    return Err(super::Canceled);
+                }
+                if let Ok(entered) = Entered::enter(resolver, &path, &child, tol) {
+                    path.push(child);
+                    waiting.push((core::mem::replace(&mut current, entered), start));
+                    start = held;
+                }
+                continue;
+            }
+            let listed = if super::recorded_at_process_eps(&current.doc, tol) {
+                own(&current.doc, remaining - held)?
+            } else {
+                Some(0)
+            };
+            let Some(listed) = listed else {
+                return Ok(None);
+            };
+            held += listed;
+            self.costs.insert((current.doc_ref, eps_bits), held - start);
+            path.pop();
+            match waiting.pop() {
+                Some((parent, parent_start)) => {
+                    current = parent;
+                    start = parent_start;
+                }
+                None => return Ok(Some(held)),
+            }
+        }
+    }
+
+    /// **One instance's part, entered**: the row for `doc_ref`, from
+    /// this store, from `prior`'s carried rows, or evaluated here
+    /// ([`Self::row`]). The top enters each instance its admission
+    /// admitted, in the schedule's order, once the whole charge fits
+    /// ([`super::evaluate`]), so building a part decides nothing about
+    /// the budget. A row evaluated while `cancel` fired is not carried,
+    /// nor is a faulted one; once `cancel` fires nothing more is
+    /// evaluated, and the evaluation, canceled, runs no node to ask.
+    pub(crate) fn enter(
+        &mut self,
+        doc_ref: DocRef,
         prior: Option<&Carried<T>>,
         cancel: &super::CancelToken,
         tol: Tol,
-    ) -> Entry<T> {
-        let mut carried = BTreeMap::new();
-        for doc_ref in doc.ids().iter().filter_map(|&id| instantiated(doc, id)) {
-            let key = (doc_ref, self.eps_bits);
-            if self.rows.contains_key(&key) {
-                continue;
-            }
-            if let Some(value) = prior.and_then(|p| p.0.get(&key)) {
-                carried.insert(key, value.clone());
-                self.rows.insert(key, Ok(value.clone()));
-                continue;
-            }
-            if cancel.is_canceled() {
-                break;
-            }
-            if let Ok(value) = self.row(&doc_ref, tol, cancel)
-                && !cancel.is_canceled()
-            {
-                carried.insert(key, value);
-            }
+    ) {
+        let key = (doc_ref, self.eps_bits);
+        if self.rows.contains_key(&key) {
+            return;
         }
+        if let Some(value) = prior.and_then(|p| p.rows.get(&key)) {
+            self.carried.insert(key, value.clone());
+            self.rows.insert(key, Ok(value.clone()));
+            return;
+        }
+        if cancel.is_canceled() {
+            return;
+        }
+        if let Ok(value) = self.row(&doc_ref, tol, cancel)
+            && !cancel.is_canceled()
+        {
+            self.carried.insert(key, value);
+        }
+    }
+
+    /// **The top's parts, entered**: the rows [`Self::enter`] took, which
+    /// the evaluation reads, and those it carries for the run after it.
+    pub(crate) fn finish(self) -> Entry<T> {
         Entry {
             reached: Reached(self.rows),
-            carried: Carried(carried),
+            carried: Carried {
+                rows: self.carried,
+                costs: self.costs,
+            },
             evaluations: self.evaluations,
         }
     }
@@ -765,6 +900,15 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         tol: Tol,
     ) -> Result<PartValue<T>, PartFault> {
         self.evaluations += 1;
+        let charged = self
+            .costs
+            .get(&(doc_ref, self.eps_bits))
+            .copied()
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "a part is built only once admission has charged it, and so its descent"
+                )
+            });
         // AQ4: the referenced document evaluates at its OWN parameters
         // — v1 instantiation takes no arguments. Sequentially, with a
         // fresh epoch: this run's identity is its own.
@@ -799,9 +943,20 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // (`ComputingTwist::for_node`), so its product is gathered
             // over operands turned apart.
             computing_twist: self.twist,
+            // Exactly what the instancing run's admission charged for
+            // this build ([`Self::charge`]), which proved it fits.
+            member_budget: charged,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
+        if let super::EvalOutcome::Exhausted { at, held, budget } = evaluation.outcome {
+            unreachable!(
+                "a part's build ran out of the {budget} listing steps admission charged it, at \
+                 {at:?} with {held} held: admission charged this build its own families' steps \
+                 and its parts', and it lists only its own, so only a charge that walked the \
+                 descent apart from the build can run out"
+            );
+        }
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
         // through the product door's own typed refusal — and its
@@ -952,27 +1107,46 @@ impl<T: topo::AtRestPolicy + Decide> Reached<T> {
 }
 
 /// **The successful rows an evaluation carries for the next**
-/// ([`PartStore::enter_census`]): the next run that names it as its
+/// ([`PartStore::finish`]): the next run that names it as its
 /// prior takes each row its own census names from here instead of
 /// evaluating the part again.
-pub(crate) struct Carried<T: topo::AtRestPolicy + Decide>(BTreeMap<(DocRef, u64), PartValue<T>>);
+pub(crate) struct Carried<T: topo::AtRestPolicy + Decide> {
+    rows: BTreeMap<(DocRef, u64), PartValue<T>>,
+    /// Each part's charge ([`PartStore::charge`]), a function of the
+    /// pinned content alone, so a later run charges a part it knows
+    /// without resolving it again.
+    costs: Costs,
+}
+
+/// A document's own families' listing steps against a remainder, `None`
+/// past it ([`super::evaluate`]'s, over the document's nominal
+/// environment): what [`PartStore::charge`] charges each build.
+pub(crate) type OwnSteps<'o> =
+    dyn FnMut(&ProfileDoc, u64) -> Result<Option<u64>, super::Canceled> + 'o;
+
+/// A part's charge by its row's key: the listing steps of building it,
+/// its own families' and every build below it ([`PartStore::charge`]).
+type Costs = BTreeMap<(DocRef, u64), u64>;
 
 impl<T: topo::AtRestPolicy + Decide> Carried<T> {
     /// No row carried: a nested evaluation, or one that entered none.
     pub(crate) fn none() -> Self {
-        Self(BTreeMap::new())
+        Self {
+            rows: BTreeMap::new(),
+            costs: Costs::new(),
+        }
     }
 
     /// The carried rows' keys, in order.
     pub(crate) fn keys(&self) -> impl Iterator<Item = (DocRef, u64)> + '_ {
-        self.0.keys().copied()
+        self.rows.keys().copied()
     }
 }
 
 impl<T: topo::AtRestPolicy + Decide> core::fmt::Debug for Carried<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_set()
-            .entries(self.0.keys().map(|(r, _)| r))
+            .entries(self.rows.keys().map(|(r, _)| r))
             .finish()
     }
 }
@@ -1002,6 +1176,9 @@ struct Entered<T: topo::AtRestPolicy + Decide> {
     refs: Vec<DocRef>,
     next: usize,
     reached: Rows<T>,
+    /// The references the charge counted below this document, which,
+    /// like the rows the build entered, it counts once.
+    seen: std::collections::BTreeSet<(DocRef, u64)>,
 }
 
 impl<T: topo::AtRestPolicy + Decide> Entered<T> {
@@ -1043,15 +1220,17 @@ impl<T: topo::AtRestPolicy + Decide> Entered<T> {
             refs,
             next: 0,
             reached: BTreeMap::new(),
+            seen: std::collections::BTreeSet::new(),
         })
     }
 
     /// The next reference this document instantiates that has no row
-    /// yet.
+    /// yet, nor a charge.
     fn next_unreached(&mut self, eps_bits: u64) -> Option<DocRef> {
         while let Some(r) = self.refs.get(self.next).copied() {
             self.next += 1;
-            if !self.reached.contains_key(&(r, eps_bits)) {
+            let key = (r, eps_bits);
+            if !self.reached.contains_key(&key) && !self.seen.contains(&key) {
                 return Some(r);
             }
         }

@@ -582,7 +582,7 @@ fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
                 && carriers.iter().all(|c| {
                     matches!(
                         c,
-                        geom::Curve3::Line { .. }
+                        geom::Curve3::Line(_)
                             | geom::Curve3::Circle { .. }
                             | geom::Curve3::Ellipse { .. }
                     )

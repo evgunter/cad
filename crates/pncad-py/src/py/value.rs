@@ -36,6 +36,7 @@ use crate::tags::{
     promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
 };
 use crate::validation;
+use pncad::analysis as a;
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
@@ -1010,16 +1011,21 @@ impl Measurement {
 /// **An assertion's verdict** (ERROR-DESIGN E10), REPORT-ONLY.
 ///
 /// Three states, kept three: `holds` is `True`, `False`, or `None`
-/// where the run's tolerance could not separate the measurement from
-/// the bound. Nothing collapses the third into a silent pass — that is
-/// the whole reason the state exists.
+/// where there is no verdict — a value claim whose measurement the
+/// run's tolerance could not separate from its bound (`Unevaluated`),
+/// or a clearance claim the engine refused (`Refused`). Nothing
+/// collapses the third into a silent pass — that is the whole reason
+/// the state exists.
 ///
-/// `measured` and `bound` are present for a decided verdict and `None`
-/// for an undecided one. Reading a verdict changes nothing: a failing
-/// assertion gates no build and moves no product (D10).
+/// A value claim carries `measured` and `bound` when decided. A
+/// clearance claim carries neither, because no clearance value exists:
+/// it carries the `pair` that decided it when one did, and its
+/// refusal's class as `refusal`. `reason` says why there is no
+/// verdict in either case. Reading a verdict changes nothing: a
+/// failing assertion gates no build and moves no product (D10).
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Verdict {
-    /// `"Holds"`, `"Violated"` or `"Unevaluated"`.
+    /// `"Holds"`, `"Violated"`, `"Unevaluated"` or `"Refused"`.
     #[pyo3(get)]
     status: &'static str,
     /// `True`/`False` for a decided verdict, `None` for an undecided
@@ -1032,18 +1038,71 @@ pub(crate) struct Verdict {
     /// What the bound evaluated to, in canonical kernel units.
     #[pyo3(get)]
     bound: Option<f64>,
-    /// Why there is no verdict; `None` when there is one.
+    /// Why there is no verdict, with its recourse; `None` when there
+    /// is one.
     #[pyo3(get)]
     reason: Option<String>,
+    /// A refused clearance's class (`"needs_certifying_lane"`, ...);
+    /// `None` otherwise.
+    #[pyo3(get)]
+    refusal: Option<&'static str>,
+    /// The pair that decided a clearance: closer than its lower bound
+    /// (`Violated`), or within its upper bound (`Holds`). `None` for a
+    /// value claim, a refusal, and a clearance decided over every pair
+    /// at once (a lower bound holding, an upper bound exceeded).
+    #[pyo3(get)]
+    pair: Option<ClearancePair>,
 }
 
 #[pymethods]
 impl Verdict {
     fn __repr__(&self) -> String {
-        match (self.measured, self.bound) {
-            (Some(m), Some(b)) => format!("Verdict({}: {m} vs {b})", self.status),
+        match (self.measured, self.bound, self.refusal, &self.pair) {
+            (Some(m), Some(b), ..) => format!("Verdict({}: {m} vs {b})", self.status),
+            (_, _, Some(refusal), _) => format!("Verdict({}: {refusal})", self.status),
+            (_, _, _, Some(pair)) => {
+                format!(
+                    "Verdict({}: pair at {})",
+                    self.status,
+                    pair.distance.0.meters()
+                )
+            }
             _ => format!("Verdict({})", self.status),
         }
+    }
+}
+
+/// **Two face points and their distance**: the pair a clearance verdict
+/// was decided on, verified at `f64`.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ClearancePair {
+    /// The point on the first seat's face.
+    #[pyo3(get)]
+    a: (Length, Length, Length),
+    /// The point on the second seat's face.
+    #[pyo3(get)]
+    b: (Length, Length, Length),
+    /// Their distance.
+    #[pyo3(get)]
+    distance: Length,
+}
+
+impl ClearancePair {
+    fn of(witness: &a::Witness) -> Self {
+        let g = &witness.geometry;
+        Self {
+            a: lengths(g.a_point),
+            b: lengths(g.b_point),
+            distance: Length(pncad::quantity::Length::from_meters(g.distance)),
+        }
+    }
+}
+
+#[pymethods]
+impl ClearancePair {
+    fn __repr__(&self) -> String {
+        format!("ClearancePair(distance={} m)", self.distance.0.meters())
     }
 }
 
@@ -1208,24 +1267,6 @@ impl Value {
     }
 
     /// The quantity a `Measure` node evaluated to (E3).
-    ///
-    /// **A measure with no value at this scalar refuses by NAME**
-    /// (M10-6, R2's MINOR-4). `min_clearance` is answered by an engine
-    /// that needs an enclosure, so at the `f64` scalar a Python caller
-    /// drives it has no value — a typed ABSENCE, not a failure, which
-    /// is why the node evaluates at all. That absence shares
-    /// `kind_name()` with a taken measurement ("measure"), so the
-    /// generic arm below produced the nonsense "a `measure` value is
-    /// not a measure" and told a caller nothing about what to do.
-    /// `Value.assertion` already carried its reason through; this door
-    /// now does the same.
-    ///
-    /// The absence raises `MeasureUnavailableAt` and not
-    /// `EvaluationError`: it is the kernel's own typed reason, and it
-    /// carries the verb, the scalar this build ran at and the DOOR
-    /// that can answer, so the recourse is in the refusal rather than
-    /// in a reader's memory. `EvaluationError` is for a node that
-    /// FAILED, and this one did not.
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
@@ -1234,9 +1275,6 @@ impl Value {
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
             }),
-            d::ValuePayload::MeasureUnavailable { reason, .. } => {
-                Err(super::measure::measure_unavailable_at_err(py, reason))
-            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
@@ -1257,12 +1295,25 @@ impl Value {
                 self.node,
             ));
         };
-        let (measured, bound, reason) = match verdict {
+        let (measured, bound, reason, refusal, pair) = match verdict {
             d::AssertionVerdict::Holds { measured, bound }
             | d::AssertionVerdict::Violated { measured, bound } => {
-                (Some(*measured), Some(*bound), None)
+                (Some(*measured), Some(*bound), None, None, None)
             }
-            d::AssertionVerdict::Unevaluated { reason } => (None, None, Some(reason.to_string())),
+            d::AssertionVerdict::Unevaluated { reason } => {
+                (None, None, Some(reason.to_string()), None, None)
+            }
+            d::AssertionVerdict::Clearance(report) => match report.verdict() {
+                a::ClearanceVerdict::Holds | a::ClearanceVerdict::Exceeded => {
+                    (None, None, None, None, None)
+                }
+                a::ClearanceVerdict::Within(w) | a::ClearanceVerdict::Violated(w) => {
+                    (None, None, None, None, Some(ClearancePair::of(w)))
+                }
+                a::ClearanceVerdict::Refused(r) => {
+                    (None, None, Some(r.to_string()), Some(r.name()), None)
+                }
+            },
         };
         Ok(Verdict {
             status: verdict.label(),
@@ -1270,6 +1321,8 @@ impl Value {
             measured,
             bound,
             reason,
+            refusal,
+            pair,
         })
     }
 
@@ -1357,9 +1410,8 @@ impl Evaluation {
     /// one reader of an observed value outside an assertion.
     ///
     /// A measure under it that did not land raises as `value` of that
-    /// measure does (`EvaluationError`, `MeasureUnavailableAt` for a
-    /// `min_clearance` at this point scalar); an evaluation over the
-    /// bound values that refuses raises `ExprError`.
+    /// measure does (`EvaluationError`); an evaluation over the bound
+    /// values that refuses raises `ExprError`.
     fn reading(&self, py: Python<'_>, value: super::doc::Evaluand) -> PyResult<Measurement> {
         let formula = match value {
             super::doc::Evaluand::Formula(formula) => self
@@ -1379,15 +1431,12 @@ impl Evaluation {
         };
         let dim = formula.dim();
         match self.inner.reading_formula(&self.doc, &formula) {
-            Ok(d::Observed::Value(value)) => Ok(Measurement {
+            Ok(value) => Ok(Measurement {
                 dimension: measurement_dimension_tag(dim),
                 value,
                 length: (dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(value))),
             }),
-            Ok(d::Observed::Unavailable(reason)) => {
-                Err(super::measure::measure_unavailable_at_err(py, &reason))
-            }
             Err(d::ObservedRefusal::Measure(standing)) => {
                 let node = NodeId(standing.node());
                 match self.value(py, &node) {
@@ -1428,9 +1477,9 @@ impl Evaluation {
         Err(standing_raise(py, &self.doc, &self.inner, *node, standing))
     }
 
-    /// **Whether this run was CANCELED** — the Python shape of the
-    /// kernel's `EvalOutcome`, whose two variants are a yes/no and
-    /// cross as one.
+    /// **Whether this run was CANCELED** — the kernel's
+    /// `EvalOutcome::Canceled`; its other stop, running out of member
+    /// budget, crosses as [`Self::exhausted`].
     ///
     /// `True` means the token passed as [`super::value::evaluate`]'s
     /// `cancel=` was observed set at a yield point, so
@@ -1448,6 +1497,25 @@ impl Evaluation {
     #[getter]
     fn canceled(&self) -> bool {
         self.inner.outcome == d::EvalOutcome::Canceled
+    }
+
+    /// **Where this run ran out of its member budget**, `None` where it
+    /// did not: `(at, held, budget)`, the family whose listing crossed
+    /// the budget, the listing steps the families before it were
+    /// charged, and the budget (`evaluate`'s `member_budget=`). Such a
+    /// run is a PARTIAL ANSWER as a canceled one is: the results hold
+    /// the prefix before `at`, and `at` and every node after it raise
+    /// `node_not_evaluated`. Unlike a cancel, the same document at the
+    /// same budget runs out at the same family again; the recourse is a
+    /// larger `member_budget=` or a smaller count.
+    #[getter]
+    fn exhausted(&self) -> Option<(super::doc::NodeId, u64, u64)> {
+        match self.inner.outcome {
+            d::EvalOutcome::Exhausted { at, held, budget } => {
+                Some((super::doc::NodeId(at), held, budget))
+            }
+            d::EvalOutcome::Completed | d::EvalOutcome::Canceled => None,
+        }
     }
 
     /// **The coincidences `node` decided from values** (D10), in
@@ -2678,21 +2746,28 @@ impl CancelToken {
 /// a recipe out from under a running evaluation. Measured, not
 /// reasoned: `tests/test_cancellation.py` executes it.
 ///
-/// `resolver` is the one `EvalOptions` field this door takes. The
-/// other six are not one kind of thing and the surface census's
-/// options roster says which each is — three are switches the kernel
-/// documents as answer-preserving, three change answers and are
-/// unreachable at this door's scalar rather than harmless. Its
+/// `member_budget` is the run's member budget: the listing steps every
+/// family of the run may take together (one per index value bound while
+/// a family's members are listed). Omitted, the kernel's one default
+/// (`DEFAULT_MEMBER_BUDGET`). A run that runs out returns its prefix
+/// with `Evaluation.exhausted` set.
+///
+/// `resolver` and `member_budget` are the `EvalOptions` fields this
+/// door takes. The others are not one kind of thing, and the surface
+/// census's options roster says which each is: switches the kernel
+/// documents as answer-preserving, and fields that change answers and
+/// are unreachable at this door's scalar rather than harmless. Its
 /// options are a literal naming every field, no `..default()` tail,
 /// which is what holds the door to that roster.
 #[pyfunction]
-#[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
+#[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None, member_budget=None))]
 pub(crate) fn evaluate(
     py: Python<'_>,
     doc: &super::doc::Doc,
     resolver: Option<&super::store::Workspace>,
     prior: Option<&Evaluation>,
     cancel: Option<&CancelToken>,
+    member_budget: Option<u64>,
 ) -> Evaluation {
     let tol = Tol::witness();
     let defaults = d::EvalOptions::default();
@@ -2708,6 +2783,7 @@ pub(crate) fn evaluate(
         symbols: defaults.symbols,
         pin: defaults.pin,
         computing_twist: defaults.computing_twist,
+        member_budget: member_budget.unwrap_or(defaults.member_budget),
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;
@@ -2900,6 +2976,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ValidationFinding>()?;
     m.add_class::<Measurement>()?;
     m.add_class::<Verdict>()?;
+    m.add_class::<ClearancePair>()?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(import_step, m)?)?;
     Ok(())

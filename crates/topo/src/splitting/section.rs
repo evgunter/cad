@@ -491,7 +491,7 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
                     let (start, end) = if forward { (t0, t1) } else { (t1, t0) };
                     HalfCarrier::Conic { conic, start, end }
                 }
-                None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => HalfCarrier::Chord,
+                None if !curve.carrier().is_curved() => HalfCarrier::Chord,
                 None => HalfCarrier::Unread,
             },
         };

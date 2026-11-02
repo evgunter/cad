@@ -1495,7 +1495,7 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
         Node::Measure { .. } => "Measure",
-        Node::Assertion { .. } => "Assertion",
+        Node::Assertion(_) => "Assertion",
     }
 }
 

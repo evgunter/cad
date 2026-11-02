@@ -733,10 +733,11 @@ mod composed {
                 edges: EdgeOverlay::default(),
             };
         };
-        // One tool is open at a time, so the mate tool's two held faces
+        // One tool is open at a time, so the placement editor's active
+        // row's two held faces
         // and the mirror tool's plane share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
-        let mate = tools.mate().map(|tool| tool.state().picks());
+        let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
         let [a, b] = match (mate, tools.mirror()) {
             (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(tool)) => [tool.plane(), None],
@@ -1304,7 +1305,7 @@ impl ViewerBehavior<'_> {
         // vocabulary, and the narrowing travels through `hovered_for`,
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
-        let kinds = self.tools.pick_kinds_choosing(self.drafts.mate_kind());
+        let kinds = self.tools.pick_kinds();
         // **The index the PICTURE was drawn from**, which is the index
         // in hand on every frame but the ones `drawn_index` exists for.
         // Every read of an index below this line asks this one:
@@ -1528,7 +1529,7 @@ impl ViewerBehavior<'_> {
     /// From the landed evaluation, every frame, because a profile node
     /// has no body until something extrudes it and so nothing else
     /// would draw it. Left out: the profile the edit door is
-    /// previewing, if any ([`ViewerBehavior::profile_edited`]) — drawn
+    /// previewing, if any ([`DisplayView::previewed_profile`]) — drawn
     /// by its live preview, or by nothing while that preview has
     /// nothing to draw, and never also as it was committed. The create
     /// door's profile is not a node while it is composed, and comes to
@@ -1542,7 +1543,7 @@ impl ViewerBehavior<'_> {
                 doc,
                 evaluation,
                 self.delta.get(),
-                self.profile_edited,
+                self.display.previewed_node(),
             );
         }
         profiles

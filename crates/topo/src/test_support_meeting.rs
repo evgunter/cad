@@ -451,7 +451,7 @@ pub fn corners_disjoint(body: &Body<f64>, tol: Tol) -> Result<(), String> {
                 .and_then(|h| body.get_edge(h.edge))
                 .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(|c| c.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+                .is_some_and(|c| !c.carrier().is_curved());
             if !straight {
                 return Err(format!(
                     "{fk:?}: {he:?} is not a straight edge: the check reads straight edges"

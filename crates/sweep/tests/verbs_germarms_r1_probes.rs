@@ -236,7 +236,7 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
         panic!("the named edge has no certified curve");
     };
     assert!(
-        matches!(c.carrier(), topo::Curve3::Line { .. }),
+        matches!(c.carrier(), topo::Curve3::Line(_)),
         "the grazing red must refuse on the tangent LINE: {:?}",
         c.carrier()
     );
