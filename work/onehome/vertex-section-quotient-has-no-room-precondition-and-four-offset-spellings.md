@@ -2,11 +2,10 @@
 id: vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings
 kind: issue
 title: The vertex section reading divides by a sine its bound can exceed, charges the wall normal by assertion, and spells offset and side three ways
-status: dispatched
+status: open
 opened: 2026-10-14
 priority: P1
 cost: M
-branch: onehome/vertex-section-room
 ---
 
 Found by the third review of PR 4858 (`cleave/vertex-against-section`,
@@ -61,3 +60,12 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P2 → P1: its items 3 and 4 are five evaluation sites and three Sign→PlaneSide spellings: two implementations of one underlying logic, P1 by `work/README.md` Priority (items 1, 2, 5 and 6 are P2 and travel with them).
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Items 1, 2, 5, 6 (ONEHOME, 2026-11-02, PR 6376)
+
+- **Item 1 (a demonstrated wrong answer, fixed).** A slab tangent at a torus saddle, tilted by 2e-16, decided `vertex_section_clear` Positive by 12.7 m. `Rounded::quotient` now takes a `Divisor` that only `Rounded::divisor()` builds where the bound clears zero. A sine without room leaves the offset's verdict standing (Ev's PR 4812 rule). `ruling.rs`'s `clearance` refuses under the chart's precision row instead of panicking. `Rounded::room()` and `toward_zero()` home five spellings.
+- **Item 2 (wall-normal charge): not changed.** Under `[simple.conditioned]` (PR 6329) the δ/sin ψ reading becomes a tangency pose decided before any division. That is `onehome/run-owns-rounding`'s scope, as are the four rounding charges now homed in `running`.
+- **Item 5:** pins with a premise check (a `k_stats::Bracket` that the reading is reached), mutation-checked at three ε rows.
+- **Item 6:** `VertexRefusal` is split by decision (`Offset` → `VertexOnFace`, `Section` → `VertexOnSection`, `Sector(SectorFaceError)`), and the declaration read is built per question.
+
+Items 3–4 (offset and side spellings) ride stage 3 of `topo::star` (`run-loops-of-split-and-pierce-are-twins`, "Decided"). This row stays open for them.
