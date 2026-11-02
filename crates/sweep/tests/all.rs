@@ -1273,6 +1273,9 @@ mod shell10_r2_dump;
 #[path = "cross_solid_apart.rs"]
 mod cross_solid_apart;
 
+#[path = "holdings_of_a_sunk_boss.rs"]
+mod holdings_of_a_sunk_boss;
+
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;
 
@@ -1362,6 +1365,8 @@ mod a_cone_apex_on_a_plane_through_it;
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
+#[path = "a_saddle_cut_by_its_tangent_plane.rs"]
+mod a_saddle_cut_by_its_tangent_plane;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]

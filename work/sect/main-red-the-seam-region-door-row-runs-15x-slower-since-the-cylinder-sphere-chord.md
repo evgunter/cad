@@ -128,7 +128,7 @@ chords is the price of getting there. Each arc's rung-3 certificate is
 still re-taken five times per operation; that residue is
 `an-operation-retakes-each-carried-chords-rung-3-certificate-five-times`.
 B ∖ A pays everything again in the other operand order
-(`sectrung/a-surface-pairs-section-is-carried-in-operand-order`).
+(`sect/a-surface-pairs-section-is-carried-in-operand-order`).
 
 **Split.** The row is five tests, one per part of the corpus: the rest
 (`the_door_names_the_flipped_face_tier_3_names`, 8.6 s, 2.1 s, 55 s at

@@ -4129,7 +4129,7 @@ pub fn clearance_within(
 /// asked `bound` between two selections at the shipped dials — the door
 /// a document assertion does not replace for rows that read the
 /// selection's own refusals, or a pair no assertion's seats admit
-/// (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
+/// (`work/clear/the-metric-clearance-dials-door-outlives-the-assertion.md`).
 ///
 /// It takes the ENGINE's bound, where [`clearance`] takes the
 /// document's `c`: the two routes cannot be swapped without the

@@ -183,21 +183,7 @@ pub(super) fn overlap_ball<T: geom_core::Real>(
     a: &bvh::Aabb,
     b: &bvh::Aabb,
 ) -> geom_brep::ExtentBall<T> {
-    use geom_core::{Point3, Vec3};
-    let lo = Vec3::new(
-        a.min_x.max(b.min_x),
-        a.min_y.max(b.min_y),
-        a.min_z.max(b.min_z),
-    );
-    let hi = Vec3::new(
-        a.max_x.min(b.max_x),
-        a.max_y.min(b.max_y),
-        a.max_z.min(b.max_z),
-    );
-    geom_brep::ExtentBall::new(
-        Point3::origin() + ((lo + hi) * 0.5).map(T::from_computed),
-        T::from_computed((hi - lo).norm() * 0.5),
-    )
+    geom_brep::ExtentBall::of_overlap(a, b)
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
@@ -340,6 +326,51 @@ pub(crate) fn section_door<T: Decide + Bounds>(
                 rows.push(row((fa, fb), relation, site, margin));
             }
         }
+    }
+    // Each plane×cone surface pair whose faces' boxes meet, read once
+    // for the operation at the surface pair's reach
+    // (`join::surface_pair_reach`), taken over every met face pair on it,
+    // so no one face's extent sets the lever its pieces and siblings
+    // read at. A pair whose reach does not read is not held; the join
+    // reads it face by face, and refuses there.
+    let plane_or_cone = |s: &geom::Surface<T>| {
+        matches!(s, geom::Surface::Plane { .. } | geom::Surface::Cone { .. })
+    };
+    let kept = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        boxed
+            .iter()
+            .filter(|&&(k, _)| plane_or_cone(&surface(body, k).1))
+            .copied()
+            .collect()
+    };
+    let mut met: std::collections::BTreeMap<_, (geom::Surface<T>, geom::Surface<T>, Vec<_>)> =
+        std::collections::BTreeMap::new();
+    for (fa, fb) in pairs_among(&kept(a, &a_boxes), &kept(b, &b_boxes))? {
+        let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
+        if super::join::plane_and_cone(&sa, &sb).is_none() {
+            continue;
+        }
+        met.entry((ka, kb))
+            .or_insert_with(|| (sa, sb, Vec::new()))
+            .2
+            .push((fa, fb));
+    }
+    for ((ka, kb), (sa, sb, faces)) in met {
+        let cone_first = matches!(sa, geom::Surface::Cone { .. });
+        let (bodies, pairs): (_, Vec<(FaceKey, FaceKey)>) = if cone_first {
+            ((a, b), faces)
+        } else {
+            ((b, a), faces.into_iter().map(|(fa, fb)| (fb, fa)).collect())
+        };
+        let Some((plane, cone)) = super::join::plane_and_cone(&sa, &sb) else {
+            continue;
+        };
+        let Ok(reach) = super::join::surface_pair_reach(bodies, &pairs, cone, band) else {
+            continue;
+        };
+        table.read_plane_cone((ka, kb), || {
+            super::join::pk_section(plane, cone, &reach, band)
+        });
     }
     Ok((table.finish(), rows))
 }

@@ -114,9 +114,9 @@
 //! The two lanes end an open branch differently, and the type says
 //! which: [`march`] takes an [`Exit`], and each lane has its own.
 //!
-//! - **The plane × NURBS lane ([`RectExit`])** decides its domain
-//!   boundary before any march (`super::boundary`): the crossings of the
-//!   locus with the wall's knot rectangle are known, certified, and are
+//! - **The chart lanes ([`RectExit`])** decide their domain boundary
+//!   before any march (`super::boundary`, `super::pair`): the crossings
+//!   of the locus with the knot rectangles are known, certified, and are
 //!   the only ends an open branch has. The march leaving the rectangle
 //!   is a structure test on the chart coordinates, not a decision: the
 //!   trace stops at its first state outside and hands back that step,
@@ -134,10 +134,9 @@
 //!   settled seed is decided the same way before it is marched: a seed
 //!   `Negative`, or `Zero` outside the box, is no branch
 //!   ([`super::SsiError::SeedOffDomain`]), and one in the escalation
-//!   zone escalates. The plane × NURBS lane's seed is no branch where it
-//!   settles outside the rectangle, and never escalates: a seed there
-//!   lies on a branch the boundary pass already traced from its
-//!   crossings.
+//!   zone escalates. A chart lane's seed is no branch where it settles
+//!   outside its rectangles, and never escalates: a seed there lies on a
+//!   branch the boundary pass already traced from its crossings.
 //!   The slab is the caller's box, not geometry
 //!   (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`).
 
@@ -149,7 +148,7 @@ use crate::dihedral::{decide, decide_positive};
 use super::enclose::Box3;
 use super::exhaust::{self, ExhaustLane, UvRect};
 use super::section::{BandVerdict, band_verdict};
-use super::system::LocalSystem;
+use super::system::{LocalSystem, SectionSystem};
 use super::{SSI_FIT_DEGREE, SsiError, TraceDecision};
 
 /// The **candidate generator's** step tolerance, in meters.
@@ -660,7 +659,7 @@ pub(crate) trait Exit<const M: usize, const N: usize, S: LocalSystem<M, N>> {
     ) -> Option<Self::End>;
 }
 
-/// The ℝ⁴ lane's exit: the knot rectangles of the state's chart
+/// A chart lane's exit: the knot rectangles of the state's chart
 /// coordinates from `first` on, left by a structure test (module docs).
 /// The plane × NURBS lane bounds the wall's two ([`RectExit::WALL`]),
 /// the NURBS × NURBS lane all four ([`RectExit::PAIR`]).
@@ -670,18 +669,18 @@ pub(crate) struct RectExit {
     pub(crate) first: usize,
 }
 
-/// How a plane × NURBS march ended.
+/// How a march bounded by knot rectangles ended.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum RectEnd {
+pub(crate) enum RectEnd<const N: usize> {
     /// It returned to its seed.
     Closed,
-    /// Its step from `inside` to `outside` left the wall's rectangle.
+    /// Its step from `inside` to `outside` left a rectangle.
     Left {
         /// The last state inside.
-        inside: [f64; 4],
+        inside: [f64; N],
         /// The state the step reached, refined onto the locus where it
         /// settled, outside the rectangle.
-        outside: [f64; 4],
+        outside: [f64; N],
     },
 }
 
@@ -693,25 +692,32 @@ impl RectExit {
     pub(crate) const PAIR: Self = Self { first: 0 };
 
     /// Whether a state's bounded coordinates lie in their rectangles
-    /// (a structure test on the raw coordinates, C6's lane).
-    pub(crate) fn inside(self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
-        (self.first..4).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
+    /// (a structure test on the raw coordinates, C6's lane). An exit
+    /// that bounds no coordinate of the state is a lane wired to the
+    /// wrong system.
+    pub(crate) fn inside<const N: usize>(self, x: &[f64; N], ctx: &MarchContext<N>) -> bool {
+        debug_assert!(
+            self.first < N,
+            "a rectangle exit from coordinate {} bounds nothing of an {N}-coordinate state",
+            self.first
+        );
+        (self.first..N).all(|i| x[i] >= ctx.domain[i][0] && x[i] <= ctx.domain[i][1])
     }
 }
 
-impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
-    type End = RectEnd;
-    const CLOSED: RectEnd = RectEnd::Closed;
+impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Exit<M, N, S> for RectExit {
+    type End = RectEnd<N>;
+    const CLOSED: RectEnd<N> = RectEnd::Closed;
 
-    /// A seed is marched from inside the rectangle only. One that
+    /// A seed is marched from inside the rectangles only. One that
     /// settles outside is no state to march from, and the branch it
-    /// lies on reaches the wall's boundary, where the boundary pass has
-    /// already traced it from its crossings.
+    /// lies on reaches the domain's boundary, where the boundary pass
+    /// has already traced it from its crossings.
     fn seed(
         &self,
         sys: &S,
-        x: &[f64; 4],
-        ctx: &MarchContext<4>,
+        x: &[f64; N],
+        ctx: &MarchContext<N>,
         mode: StepperMode,
         _band: Band,
     ) -> Result<(), SsiError> {
@@ -728,28 +734,28 @@ impl<S: LocalSystem<3, 4>> Exit<3, 4, S> for RectExit {
     fn after_step(
         &self,
         _sys: &S,
-        _states: &mut Vec<[f64; 4]>,
-        inside: [f64; 4],
-        next: [f64; 4],
-        ctx: &MarchContext<4>,
+        _states: &mut Vec<[f64; N]>,
+        inside: [f64; N],
+        next: [f64; N],
+        ctx: &MarchContext<N>,
         _band: Band,
-    ) -> Result<Option<RectEnd>, SsiError> {
+    ) -> Result<Option<RectEnd<N>>, SsiError> {
         Ok((!self.inside(&next, ctx)).then_some(RectEnd::Left {
             inside,
             outside: next,
         }))
     }
 
-    fn holds(&self, x: &[f64; 4], ctx: &MarchContext<4>) -> bool {
+    fn holds(&self, x: &[f64; N], ctx: &MarchContext<N>) -> bool {
         self.inside(x, ctx)
     }
 
     fn unsettled(
         &self,
-        inside: [f64; 4],
-        predicted: [f64; 4],
-        ctx: &MarchContext<4>,
-    ) -> Option<RectEnd> {
+        inside: [f64; N],
+        predicted: [f64; N],
+        ctx: &MarchContext<N>,
+    ) -> Option<RectEnd<N>> {
         (!self.inside(&predicted, ctx)).then_some(RectEnd::Left {
             inside,
             outside: predicted,
@@ -1035,10 +1041,13 @@ pub(crate) fn decide_transversality<const N: usize>(
 ) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-    let (arm, reach) = super::point_arm(sys.max_curvature(x), extent);
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+    let (lever, reach) =
+        super::point_arm(sys.max_curvature(x), geom_core::Lever::unsourced(extent));
+    let arm = lever.length();
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
-    let transversality = Margin::levered(sin_theta, arm);
+    let transversality = Margin::levered(sin_theta, lever);
     // Zero is the sliver band: a tangential (or in-band tangential)
     // contact along the candidate locus, C7's regime. `sin θ · arm` is a
     // magnitude, so a definite negative cannot arise.
@@ -1352,7 +1361,13 @@ where
                     let t0 = seed_tangent.unwrap_or(d1);
                     let cos_phi = dot(&d1, &t0).clamp(-1.0, 1.0);
                     let arc = arc_length(sys, &states);
-                    match decide("ssi_closure_tangent", Margin::levered(cos_phi, arc), band) {
+                    // Unsourced lever: the marched polyline's length, a measure of the march's
+                    // own output rather than a reach of consumed geometry from a pivot.
+                    match decide(
+                        "ssi_closure_tangent",
+                        Margin::levered(cos_phi, geom_core::Lever::unsourced(arc)),
+                        band,
+                    ) {
                         Ok(Sign::Positive) => {
                             // Close exactly onto the seed. If the last
                             // marched state is already essentially the

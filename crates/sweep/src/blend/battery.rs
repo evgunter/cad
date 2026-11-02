@@ -37,7 +37,7 @@
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid};
 use geom_brep::SurfaceSide;
-use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
@@ -293,7 +293,7 @@ pub struct Link<T: Real> {
     /// actually judged — not a fresh quantity sampled at the refusal.
     pub convexity_margin: ClassifiedMargin,
     /// The folded lever arm used by this link's angular predicates.
-    pub arm_len: T,
+    pub arm_len: Lever<T>,
     /// A curved arm's coaxiality, decided from values: the two supports
     /// read as sharing the axis ([`topo::Relation::Coaxial`]) or the
     /// ruling ([`topo::Relation::CoRuled`]) the band is minted on, the
@@ -557,17 +557,11 @@ fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
 /// the schedule spans diametral pairs, so a full circular rim meters
 /// its diameter — and the dihedral is judged at an honest lever
 /// rather than a collapsed one.
-fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
+fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> Lever<T> {
     let pts: Vec<Point3<T>> = (0..CHAIN_SAMPLES)
         .map(|i| carrier.eval(chain_sample_at(t0, t1, i)))
         .collect();
-    let mut best = T::zero();
-    for (i, a) in pts.iter().enumerate() {
-        for b in &pts[(i + 1)..] {
-            best = best.max((*b - *a).norm());
-        }
-    }
-    best
+    geom_brep::points_diameter(&pts)
 }
 
 // ---------------------------------------------------------------
@@ -744,7 +738,7 @@ pub fn wedge_at<T: Decide + Bounds>(
     n_plus: geom_brep::OutwardNormal<T>,
     n_minus: geom_brep::OutwardNormal<T>,
     tau: Vec3<T>,
-    arm: T,
+    arm: geom_core::Lever<T>,
     edge: EdgeKey,
     band: Band,
 ) -> Result<(LinkWedge, ClassifiedMargin), BlendError> {
@@ -785,7 +779,7 @@ pub fn wedge_at<T: Decide + Bounds>(
         // A cusp or slit: the material sides face each other across
         // the tangent plane. Its ball rests away from the edge, where the
         // supports open to 2r, a construction the blend does not make
-        // (`work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
+        // (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
         geom_brep::EdgeWedge::Knife => Err(BlendError::KnifeEdge {
             edge,
             margin: reading(Sign::Zero),
@@ -822,12 +816,17 @@ pub fn wedge_at<T: Decide + Bounds>(
 pub fn chain_g1<T: Decide + Bounds>(
     tau_in: Vec3<T>,
     tau_out: Vec3<T>,
-    arm: T,
+    arm: Lever<T>,
     vertex: VertexKey,
     band: Band,
 ) -> Result<MarginDiag, BlendError> {
     let site = BlendSite::Joint { vertex };
-    classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
+    classify_positive(
+        site,
+        BlendDecision::ChainArm,
+        Margin::of(arm.length()),
+        band,
+    )?;
     let sin_theta = tau_in.normalize().cross(tau_out.normalize()).norm();
     let margin = Margin::levered(sin_theta, arm);
     let decided = classify_reported(site, BlendDecision::ChainG1, margin, band)?;
@@ -840,7 +839,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         sign => Err(BlendError::ChainNotG1 {
             vertex,
             margin: classified(BlendDecision::ChainG1, margin.value(), band, sign),
-            arm: measured(arm),
+            arm: measured(arm.length()),
         }),
     }
 }
@@ -909,7 +908,8 @@ pub fn corner_config<T: Decide + Bounds>(
 
 /// **`fillet3_corner_independence`** at a trivalent vertex: its three
 /// face normals are independent, margin `|det(n₁, n₂, n₃)|` levered at
-/// the band's size. A plane–plane end reads it inside
+/// the blend's radius, the radius of curvature its carriers state. A
+/// plane–plane end reads it inside
 /// [`corner_config`]; a ruled cap at an oblique end face reads it alone
 /// ([`corner_at`]), where dependent normals are the cap nearly
 /// containing the ruling.
@@ -925,7 +925,7 @@ fn corner_independence<T: Decide>(
     band: Band,
 ) -> Result<(), BlendError> {
     let det = normals[0].dot(normals[1].cross(normals[2]));
-    let margin = Margin::levered(det.abs(), radius);
+    let margin = Margin::levered(det.abs(), Lever::curvature_radius(radius));
     match classify(
         BlendSite::Joint { vertex },
         BlendDecision::CornerIndependence,
@@ -1267,7 +1267,7 @@ fn classify_arm<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     p: Point3<T>,
     tau: Vec3<T>,
-    extent: T,
+    extent: Lever<T>,
     radius: T,
     convexity: Convexity,
     edge: EdgeKey,
@@ -1418,7 +1418,7 @@ fn curved_arm<T: Decide + Bounds>(
     convexity: Convexity,
     carrier: &Curve3<T>,
     p: Point3<T>,
-    extent: T,
+    extent: Lever<T>,
     radius: T,
     edge: EdgeKey,
     band: Band,
@@ -1450,7 +1450,7 @@ fn curved_arm<T: Decide + Bounds>(
             let sheet = Ruling {
                 tau: dir.normalize(),
                 rim: p,
-                lever: extent,
+                lever: extent.length(),
             };
             let (Some((ta, da)), Some((tb, db))) = (
                 sheet.trace(sa, convexity.ball_side(senses.0)),
@@ -2589,7 +2589,7 @@ pub fn cap_transverse<T: Decide + Bounds>(
     cap_normal: Vec3<T>,
     ruling: Vec3<T>,
     radius: T,
-    lever: T,
+    lever: Lever<T>,
     band: Band,
 ) -> Result<EndSection<T>, BlendError> {
     let (n, tau) = (cap_normal.normalize(), ruling.normalize());

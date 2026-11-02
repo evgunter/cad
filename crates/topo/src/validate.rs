@@ -513,7 +513,13 @@ pub(crate) fn resolved<T: Decide>(
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
     let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(name, Margin::levered(k, rounding), band) {
+    match decide_reported(
+        name,
+        // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
+        // dimensionless datum is levered across; no extent, curvature or session box is it.
+        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
+        band,
+    ) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
@@ -583,7 +589,7 @@ pub(crate) fn decide_levered<T: Decide>(
 pub(crate) fn decide_at_lever<T: Decide>(
     names: (&'static str, &'static str),
     lever: geom_brep::LeverBounds<T>,
-    margin: impl Fn(T) -> Margin<T>,
+    margin: impl Fn(geom_core::Lever<T>) -> Margin<T>,
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     match lever {
@@ -5858,7 +5864,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     past a turn, or an edge whose carrier's reading cannot cross it;
 ///     a face check 6 refused for its orientation is reported there and not
 ///     read again)
-///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
+///     (`work/restfront/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
 ///   - a ring inside another ring on a plane
 ///     (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`);
 ///   - on a plane, the loops that walk cannot read at a point — a NURBS
@@ -5885,7 +5891,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   against its speed bound settles neither on nor off within its
 ///   budget, or one with no speed bound that holds at every scalar (a
 ///   rational spline among them)
-///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
+///   (`work/restfront/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
 ///   and a face its door does not read or reads with no path settled (the
 ///   region arm's residue above).
 /// - **Shell winding where the witness cannot be read** (check 10's
@@ -6957,7 +6963,7 @@ impl<T: Decide> geom_brep::StationHook<T> for MaterialStations<'_, T> {
         let signed = geom_brep::material_kappa_rel(station.jet.kappa_rel, self.sense_plus);
         let this = match decide_nonzero(
             "material_cusp_side",
-            Margin::sagitta(signed, station.arm),
+            Margin::sagitta(signed, station.arm.length()),
             self.band,
         ) {
             Ok(geom_core::k_stats::NonzeroSign::Positive) => MaterialWedge::Cusp,
@@ -7638,7 +7644,8 @@ pub(crate) fn tier3_local_checks_marked<
     // collected once, and each edge's reach is read once and shared by
     // its re-certification and its dihedral check (`crate::WedgeReach`).
     let wedges = crate::WedgeReach::new(body);
-    let mut reaches: slotmap::SecondaryMap<EdgeKey, T> = slotmap::SecondaryMap::new();
+    let mut reaches: slotmap::SecondaryMap<EdgeKey, geom_core::Lever<T>> =
+        slotmap::SecondaryMap::new();
 
     // ------------------------------------------------------------------
     // Tier 3, check 2: carrier re-certification + description adjacency
@@ -9004,9 +9011,9 @@ impl<T: Real> Departure<T> {
     /// The unit direction `dir` scaled to `lever`.
     pub(crate) fn along(dir: geom_core::Vec3<T>, lever: geom_brep::LeverBounds<T>) -> Self {
         match lever {
-            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm),
+            geom_brep::LeverBounds::Exact(arm) => Self::Exact(dir * arm.length()),
             geom_brep::LeverBounds::Between { below, above } => {
-                Self::Between(dir * below, dir * above)
+                Self::Between(dir * below.length(), dir * above.length())
             }
         }
     }
@@ -10158,7 +10165,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 [carrier.eval(t0), carrier.eval(t1)],
                 carrier.eval(mid),
                 carrier.eval(mid + T::pi()),
-                T::one(),
+                geom_core::InfSpeed::new(T::one()),
                 &RING_OUTER_ARC_TRIM,
                 band,
             ) {
@@ -13548,6 +13555,7 @@ mod tests {
             ("a near-tangent wedge", &floor, &tilted, 1.0, Reads::Angle),
         ];
         for (row, s1, s2, extent, want) in rows {
+            let extent = geom_core::test_support::fixture_lever(extent);
             let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
@@ -13601,7 +13609,7 @@ mod tests {
     /// composing the const passes it; that copy goes unseen until the
     /// clause changes. The SSI march's question is
     /// worded apart, held below until
-    /// `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
+    /// `work/ssiarith/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
     /// lands it.
     #[test]
     fn the_dihedral_arm_is_told_in_one_shape() {
@@ -14953,6 +14961,7 @@ mod tests {
         let geom_brep::LeverBounds::Between { below, above } = lever else {
             panic!("a spline's reach is known from both sides, got {lever:?}");
         };
+        let (below, above) = (below.length(), above.length());
         assert!(
             above > 50.0 * below,
             "the window's bound from above passes the samples' reach many times: {below}, {above}"
@@ -14978,7 +14987,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15015,7 +15024,7 @@ mod tests {
             s,
             t,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15762,7 +15771,7 @@ mod tests {
             start,
             end,
             surfaces,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -16231,7 +16240,7 @@ mod tests {
             start,
             end,
             |_| None,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )

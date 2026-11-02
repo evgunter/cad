@@ -1434,7 +1434,12 @@ pub(crate) fn face_box_rule<T: Decide>(
             ..
         } => {
             let (read, log) = geom_core::k_stats::detached(|| {
-                UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)
+                UnitVec3::levered(
+                    *axis,
+                    BOX_CYLINDER_AXIS,
+                    band,
+                    geom_core::Lever::curvature_radius(*radius),
+                )
             });
             match read {
                 Ok(unit) => {
@@ -1722,7 +1727,10 @@ fn sphere_window<T: Decide>(
             matches!(
                 crate::validate::decide(
                     BOX_SPHERE_SEAM,
-                    Margin::levered(seam.get().dot(unit.get()), *radius),
+                    Margin::levered(
+                        seam.get().dot(unit.get()),
+                        geom_brep::ExtentBall::of_sphere(*center, *radius).lever()
+                    ),
                     band
                 ),
                 Ok(Sign::Zero)
@@ -3350,7 +3358,13 @@ pub(crate) mod tests {
             ] {
                 let what = format!("[{u0}, {u1}] {what}");
                 assert!(
-                    UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius).is_err(),
+                    UnitVec3::levered(
+                        *axis,
+                        BOX_CYLINDER_AXIS,
+                        band,
+                        geom_core::Lever::curvature_radius(*radius)
+                    )
+                    .is_err(),
                     "{what}: the levered axis must not decide, or the row reads the slab"
                 );
                 // Not the band's sweep pad: at these bands it is wider
@@ -4624,7 +4638,7 @@ pub(crate) mod tests {
     #[test]
     fn a_real_torus_faces_box_holds_its_locus_and_stays_near_the_oracle() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],
@@ -5152,7 +5166,7 @@ pub(crate) mod tests {
     #[test]
     fn the_torus_window_is_the_edges_own_span_and_its_chart_box_hull() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],
@@ -5220,7 +5234,7 @@ pub(crate) mod tests {
     #[test]
     fn the_torus_arms_box_is_exactly_the_construction_its_rule_states() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],
@@ -6285,7 +6299,7 @@ pub(crate) mod tests {
     #[test]
     fn the_conic_edge_box_contains_a_dense_sample_of_adversarial_arcs() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: a part near 1 km rounds at its own
-        // extent past the band (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        // extent past the band (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],
@@ -6324,7 +6338,7 @@ pub(crate) mod tests {
     #[test]
     fn the_conic_edge_box_is_the_exact_extremal_construction() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: a part near 1 km rounds at its own
-        // extent past the band (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        // extent past the band (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],
@@ -7353,7 +7367,7 @@ pub(crate) mod sphere_rect_rows {
     #[test]
     fn a_zone_axis_near_a_box_row_keeps_its_radial_share() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: a part near 1 km rounds at its own
-        // extent past the band (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        // extent past the band (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],

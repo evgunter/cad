@@ -4389,7 +4389,7 @@ impl AzimuthRule {
 /// at rest — loud, never silent. Where the room is short (a pole at a
 /// small `K`, a narrow cone's apex), a composition may name another lift
 /// of the same point than a fresh decision does; that too is loud at
-/// rest (`work/topotail/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
+/// rest (`work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
 ///
 /// **So a reset is written in exactly two cases**: a vertex decided on
 /// the singular set (any chart), and a spline chart whose `u` net-level
@@ -4881,7 +4881,12 @@ fn joint_has_room<T: Decide>(
     matches!(
         decide(
             "loop_windings_joint_room",
-            Margin::levered(quarter_chord, lever),
+            Margin::levered(
+                quarter_chord,
+                // Unsourced lever: the joint ends' least distance from the axis, `d − 2ε`, a
+                // band-deflated radius of revolution; no extent read or curvature arm states it.
+                geom_core::Lever::unsourced(lever),
+            ),
             band,
         ),
         Ok(Sign::Positive)
@@ -5847,7 +5852,7 @@ pub(crate) mod staleness_posture {
              across a move onto the same chart and dropped on any other. The edges it \
              re-describes are the listed certified ones, whose rows it keeps on a face that \
              keeps its chart, for the tier-3 pass to re-certify against the new carrier \
-             (`work/restate/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
+             (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
             ),
             (
                 "set_edge_curve",

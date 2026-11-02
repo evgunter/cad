@@ -102,7 +102,7 @@ const CASES: [Case; 6] = [
 /// meridian circles on the torus walls, which limb 2 bounds at about
 /// 5.4e-9 m, the torus composite's conditioning over the circles' own
 /// rounding
-/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
+/// (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
 /// past the band at the default ε and at 1e-12. A full period has no
 /// such circle, and builds at both.
 fn kernel_limit_rows(major: f64, window: Option<(f64, f64)>) -> &'static [f64] {
@@ -447,7 +447,7 @@ mod certified {
                 // At the default ε too, the 1.3 km ring's torus walls bound
                 // past the band at the interval scalar: limb 2's kernel
                 // limit, the torus composite's conditioning
-                // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+                // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
                 Err(e @ TubeError::Revolve(_))
                     if major >= 1000.0
                         && (eps <= 1e-12

@@ -134,6 +134,7 @@ pub mod system;
 
 use std::rc::Rc;
 
+use geom::cover::Lattice;
 use geom::{Collocation, Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
@@ -287,9 +288,11 @@ impl PointLever {
 /// It is not [`crate::folded_lever_arm`], whose arms are each carrier
 /// kind's own length scale and poison on a NURBS carrier; the two agree
 /// where that scale is `1/κ`, on a plane, a sphere or a cylinder.
-pub(crate) fn point_arm<T: Real>(kappa: T, extent: T) -> (T, T) {
-    let reach = kappa * extent;
-    (extent / T::one().max(reach), reach)
+pub(crate) fn point_arm<T: Real>(
+    kappa: T,
+    extent: geom_core::Lever<T>,
+) -> (geom_core::Lever<T>, T) {
+    (extent.within_curvature(kappa), kappa * extent.length())
 }
 
 impl core::fmt::Display for PointLever {
@@ -3467,32 +3470,20 @@ fn finish_r3(
 }
 
 /// **The quadric lane's readout**, at every door that marches an
-/// analytic pair: the domain's `slab`, cut down to the box of each
-/// operand that is bounded. Every state lies on both operands inside the
-/// slab, so their coordinates reach no further than that.
+/// analytic pair: the domain's `slab`, cut down to the box of the meet
+/// of the two operands' whole covers ([`Surface::cover`]), where either
+/// is bounded. Every state lies on both operands inside the slab, so
+/// their coordinates reach no further than that.
 fn quadric_readout(a: &Surface<f64>, b: &Surface<f64>, slab: Box3) -> Readout {
-    let operands = [a, b]
-        .into_iter()
-        .filter_map(analytic_box)
-        .reduce(Box3::meet);
+    let operands = a.cover().meet(b.cover()).ok().map(|cover| {
+        let world = cover.aabb(0.0);
+        Box3 {
+            x: geom_core::Interval::from_bounds(world.min_x, world.max_x),
+            y: geom_core::Interval::from_bounds(world.min_y, world.max_y),
+            z: geom_core::Interval::from_bounds(world.min_z, world.max_z),
+        }
+    });
     Readout::spatial(slab, operands, SSI_QUADRIC_NOISE_ULPS)
-}
-
-/// The box an analytic surface lies in, where it is bounded.
-fn analytic_box(surface: &Surface<f64>) -> Option<Box3> {
-    match *surface {
-        Surface::Sphere { center, radius, .. } => Some(Box3::around(center, radius.abs())),
-        Surface::Torus {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(Box3::around(
-            center,
-            major_radius.abs() + minor_radius.abs(),
-        )),
-        _ => None,
-    }
 }
 
 /// **The spline lane's readout**, at every door that marches a plane ×
@@ -3959,8 +3950,13 @@ mod ending_tests {
             (0.5, 1.0, PointLever::Extent),
             (0.0, 1.0, PointLever::Extent),
         ] {
-            let (got, reach) = point_arm(kappa, 1.0);
-            assert_eq!((got, PointLever::of(reach)), (arm, lever), "κ {kappa}");
+            let metre = geom_core::test_support::fixture_lever(1.0);
+            let (got, reach) = point_arm(kappa, metre);
+            assert_eq!(
+                (got.length(), PointLever::of(reach)),
+                (arm, lever),
+                "κ {kappa}"
+            );
         }
         let band = Band::new(1e-9, 1e-8).unwrap();
         for (lever, words) in [
@@ -4021,16 +4017,19 @@ mod ending_tests {
             rows.push(("sphere", sphere(r), 1.0 / r));
             rows.push(("cylinder", cylinder(r), 1.0 / r));
         }
+        let reach = |e: f64| geom_core::test_support::fixture_lever(e);
         for (kind, s, kappa) in rows {
-            let (point, _) = point_arm(kappa, e);
-            let folded = crate::folded_lever_arm(&s, &plane, o, e);
+            let (point, _) = point_arm(kappa, reach(e));
+            let point = point.length();
+            let folded = crate::folded_lever_arm(&s, &plane, o, reach(e)).length();
             assert!(
                 (point - folded).abs() <= 4.0 * f64::EPSILON * folded,
                 "{kind}, κ = {kappa:e}: point arm {point:e}, folded arm {folded:e}"
             );
         }
-        let (poison_kappa, _) = point_arm(f64::NAN, e);
-        let (poison_extent, _) = point_arm(1.0, f64::NAN);
+        let (poison_kappa, _) = point_arm(f64::NAN, reach(e));
+        let (poison_extent, _) = point_arm(1.0, reach(f64::NAN));
+        let (poison_kappa, poison_extent) = (poison_kappa.length(), poison_extent.length());
         assert!(
             poison_kappa.is_nan(),
             "point arm, κ poison: {poison_kappa:e}"
@@ -4039,10 +4038,10 @@ mod ending_tests {
             poison_extent.is_nan(),
             "point arm, E poison: {poison_extent:e}"
         );
-        let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, f64::NAN);
+        let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, reach(f64::NAN)).length();
         assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
         let nurbs = Surface::nurbs_placeholder();
-        let folded = crate::folded_lever_arm(&nurbs, &plane, o, e);
+        let folded = crate::folded_lever_arm(&nurbs, &plane, o, reach(e)).length();
         assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }
 

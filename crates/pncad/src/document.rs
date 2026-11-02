@@ -93,7 +93,7 @@ pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
     Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
     Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
-    apply_replayed,
+    apply_replayed, slot_admits,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,

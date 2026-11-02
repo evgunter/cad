@@ -91,7 +91,7 @@ pub(super) fn section(
         Phi::Curved(&curved),
         wall.account_floor(),
         band,
-        domain.extent,
+        pose.ball().certified_diameter(),
     ) {
         Sweep::Declined(_) => Err(unbuilt()),
         Sweep::LoopFree(decided) => {

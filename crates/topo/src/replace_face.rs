@@ -1680,7 +1680,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
             .unwrap_or_else(|e| panic!("the corner's edges read: {e}"));
         for inc in incident.into_iter().filter(|i| i.derived) {
             if !out.iter().any(|(e, ..)| *e == inc.edge) {
-                out.push((inc.edge, inc.carrier, inc.extent));
+                out.push((inc.edge, inc.carrier, inc.extent.length()));
             }
         }
     }
@@ -2152,7 +2152,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // re-certifies it against an edge that ends elsewhere and refuses.
     // A vertex in `moved` that lands within the band of where it was
     // keeps a carryable row that this drop loses
-    // (`work/shelf/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
+    // (`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges
         .values()
@@ -2639,7 +2639,7 @@ fn plan_edge<'s, T: Decide>(
             &old_carrier,
             t0,
             t1,
-            old_carrier.eval(t0).distance(old_carrier.eval(t1)),
+            (old_carrier.eval(t0), old_carrier.eval(t1)),
         );
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
@@ -2993,7 +2993,7 @@ fn edge_side_keys<T: Real>(
 fn plan_between_moved<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     (a, b): (&'s MovedChart<'_, T>, &'s MovedChart<'_, T>),
     band: Band,
     tol: Tol,
@@ -3066,7 +3066,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent_inf(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1, (old.eval(t0), old.eval(t1)));
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -3161,8 +3161,8 @@ fn derive_edge<'w, 's, T: Decide>(
         &'s Surface<T>,
         &'s Surface<T>,
     ),
-    extent: T,
-    reach: T,
+    extent: geom_core::Lever<T>,
+    reach: geom_core::Lever<T>,
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
         Option<crate::offset_derive::SectionLane<T>>,
@@ -3745,7 +3745,7 @@ fn plan_reanchors<T: Decide>(
             // measures, so it refuses rather than storing a wrong span
             // unless the carrier passes within ε of itself; a CLOSED
             // spline is where that read misnames its refusal
-            // (`work/shelf/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
+            // (`work/shell/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
             // and `geom_brep`'s `foot_rows` pins that the seed is what
             // picks the foot.
             //
@@ -3994,15 +3994,15 @@ struct Incident<T: Real> {
     derived: bool,
     /// The lever a root along it decides its transversality at
     /// ([`corner_arm`]).
-    extent: T,
+    extent: geom_core::Lever<T>,
 }
 
 /// **The lever a root along `carrier` over `[t0, t1]` is decided at**:
 /// the span's extent. On a derived spline section the span is the
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
-fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    geom_brep::edge_extent_inf(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)))
+fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
+    geom_brep::edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)))
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
@@ -4068,7 +4068,7 @@ fn spline_corner_root<T: Decide>(
     lane: crate::offset_derive::SectionLane<T>,
     surface: &Surface<T>,
     spline: &NurbsCurve3<T>,
-    (seed, extent): (T, T),
+    (seed, extent): (T, geom_core::Lever<T>),
     (vertex, edge, derived): (VertexKey, EdgeKey, bool),
     d: T,
     band: Band,
@@ -4864,7 +4864,8 @@ mod pose_reach_rows {
                 t0: 0.0,
                 t1: 0.5,
             }
-            .lever_from(anchor);
+            .lever_from(anchor)
+            .length();
             for k in 0..=720 {
                 let t = core::f64::consts::TAU * f64::from(k) / 720.0;
                 let far = (e.eval(t) - anchor).norm();
@@ -4902,7 +4903,7 @@ mod pose_reach_rows {
             t0: 0.0,
             t1: 4.0,
         };
-        assert!((span.lever_from(Point3::origin()) - tight).abs() < 1e-12);
+        assert!((span.lever_from(Point3::origin()).length() - tight).abs() < 1e-12);
         // `k = 1.2` is in the band too, and reads Zero if the lever is
         // cut below the endpoints' distance.
         for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
@@ -4979,8 +4980,14 @@ mod pose_reach_rows {
             ("cyl, torus", &general, &torus),
             ("torus, cyl", &torus, &general),
         ] {
-            let derived =
-                crate::offset_derive::section_closed(a, b, &edge, (0.0, 0.1), 0.1, band());
+            let derived = crate::offset_derive::section_closed(
+                a,
+                b,
+                &edge,
+                (0.0, 0.1),
+                super::corner_arm(&edge, 0.0, 0.1),
+                band(),
+            );
             assert!(
                 matches!(
                     derived,
@@ -5016,7 +5023,7 @@ mod pose_reach_rows {
         let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
             &cone,
             cyl,
-            (Point3::new(1.0, 0.0, 1.1) - Point3::origin()).norm(),
+            geom_brep::ExtentBall::point(Point3::origin()).lever_from(Point3::new(1.0, 0.0, 1.1)),
             band(),
         ) {
             Err(geom_brep::SectionError::RoutesToGeneralRung {
@@ -5437,9 +5444,9 @@ mod pair_over_its_span_rows {
             u_ref: Vec3::unit_y(),
         };
         let start = 0.4 * eps * 64.0;
-        let old = geom_brep::Reach::Measured {
-            at: Point3::new(0.0, 0.0, 0.5),
-            lever: 0.5 - 2.0 * start,
+        let old = {
+            let lever = 0.5 - 2.0 * start;
+            geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.5), lever)
         };
         let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
             geom_brep::plane_cone_section(&plane, &cone, &old, band)
@@ -5521,10 +5528,7 @@ mod pair_over_its_span_rows {
                 normal: n,
                 u_ref: Vec3::unit_y(),
             };
-            let old = geom_brep::Reach::Measured {
-                at: Point3::new(0.0, 0.0, 0.75),
-                lever: 0.25,
-            };
+            let old = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.75), 0.25);
             let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
                 geom_brep::plane_cone_section(&plane, &cone, &old, band)
             else {
@@ -5614,7 +5618,7 @@ mod spline_corner {
             SectionLane::f64(),
             surface,
             &segment(),
-            (1.0, 1.0),
+            (1.0, geom_core::test_support::fixture_lever(1.0)),
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
             Band::linear(tol).unwrap(),

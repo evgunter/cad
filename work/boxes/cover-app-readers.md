@@ -17,3 +17,5 @@ Fifth unit of the cover build (`cover-geom-readings` has the order and the ratif
 - its lower `r` bound from `distance_range`'s near end, or kept as a clearance question if that is what it is.
 
 That also retires `bandreach/blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket`; coordinate with BANDREACH. editor-core's `mate::reach::face_reach` and `eval::measure::{reach_of, curve_reach}` read the covers too.
+
+- **`topo::boolean::trace::carrier_extent`** still matches on kind to choose a cover or a literal and returns `None` for splines, which have a cover (PR 6383's review). Its last caller, `editor-core::trace::reach_of`, moves onto the cover here, and the kind match goes.

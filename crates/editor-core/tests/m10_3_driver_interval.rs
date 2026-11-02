@@ -540,7 +540,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     // `dihedral_wedge` at the extrude's wall join (`SliverJoin`): a
     // wall's line carrier has no certified enclosure over the box, and
     // that arrives first. It is what moved the ceiling down
-    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     assert!(
         why.iter()
             .any(|f| f.contains("CarrierEnclosure(CarrierEnclosureRefusal { kind: Line")),
@@ -566,7 +566,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
 /// at 1e-12, measured 2026-09-04. A move this far DOWN is, by this
 /// row's own reading, the tier no longer discharging an identity, and
 /// the mechanism is unread
-/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`):
+/// (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`):
 /// closing that row restores the per-ε ceilings or re-documents the
 /// account above. The band is 2%: wide enough to absorb the last bits
 /// of a bisection search, far too narrow to absorb a change of

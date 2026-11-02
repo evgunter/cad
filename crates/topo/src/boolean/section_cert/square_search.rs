@@ -556,10 +556,12 @@ fn square_pose_at(
     // levered over the torus's own ball, as the section value reads it.
     let lever = geom_brep::pair_section::torus::lever(
         foot,
-        geom_brep::ExtentBall::of_torus(ring.c, ring.big_r, ring.r),
+        geom_brep::ExtentBall::of_cover(
+            &geom::cover::Cover::tube(ring.c, ring.a, ring.b1, ring.big_r, ring.r).unwrap(),
+        ),
     );
     let tilt = if rng.unit() < 0.3 {
-        band().zero() / lever * rng.range(1e-6f64.ln(), 0.25f64.ln()).exp()
+        band().zero() / lever.length() * rng.range(1e-6f64.ln(), 0.25f64.ln()).exp()
     } else {
         0.0
     };
@@ -579,10 +581,10 @@ fn square_pose_at(
 /// The reach every search pose is classified with: a ball about the
 /// torus holding all of it.
 pub(super) fn reach_of(ring: &Ring) -> Reach<f64> {
-    Reach {
-        centre: ring.c,
-        radius: 1.5 * (ring.big_r + ring.r),
-    }
+    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+        ring.c,
+        1.5 * (ring.big_r + ring.r),
+    ))
 }
 
 /// The mismatches of one pose, and how it was read.
@@ -593,7 +595,7 @@ fn check(p: &Pose) -> (Vec<String>, &'static str) {
     let sec = classify(
         &torus,
         &wall,
-        reach,
+        &reach,
         None,
         Some(geom_brep::SsiLane::marched()),
         b,
@@ -601,7 +603,7 @@ fn check(p: &Pose) -> (Vec<String>, &'static str) {
     let back = classify(
         &wall,
         &torus,
-        reach,
+        &reach,
         None,
         Some(geom_brep::SsiLane::marched()),
         b,
@@ -678,7 +680,7 @@ fn the_square_wall_arm_agrees_with_the_traced_section() {
             let sec = classify(
                 &p.ring.surface(),
                 &p.wall.surface(),
-                reach_of(&p.ring),
+                &reach_of(&p.ring),
                 None,
                 Some(geom_brep::SsiLane::marched()),
                 band(),
@@ -717,7 +719,7 @@ pub(super) fn dump_line(what: &str, ring: &Ring, wall: &Wall) -> String {
     let sec = classify(
         &ring.surface(),
         &wall.surface(),
-        reach_of(ring),
+        &reach_of(ring),
         None,
         Some(geom_brep::SsiLane::marched()),
         band(),
