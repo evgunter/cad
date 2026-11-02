@@ -150,7 +150,25 @@ pub enum SectionGermReading {
 
 /// How the section table's reading of a plane against a cone disagrees
 /// with the walk, which read the plane crossing one of the cone's
-/// sub-sectors at its apex ([`SplitReduceError::ApexSection`]).
+/// sub-sectors at its apex: the split's
+/// ([`SplitReduceError::ApexSection`]) and the Boolean's pierce
+/// ([`crate::BooleanError::ApexSection`]) one vocabulary and one
+/// rating, a typed disagreement.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and each refusal's sentence names the disagreement and
+/// states its own recourse: move the face so it passes clear of the
+/// cone's tip, or through it clearly across the cone. Every arm is the
+/// section table and the walk disagreeing, a kernel limit no caller
+/// steers by arm.
+///
+/// **The falsifier is a caller that acts on the arm by itself**: a
+/// driver that nudges a part one way on `ClosedOffApex` and another on
+/// `NoRulingInside`. Then carry it and delete this paragraph and the
+/// disposition row with it.
 #[derive(Debug)]
 pub enum ApexSectionReading {
     /// The table reads the plane's section of the cone as a closed
@@ -166,6 +184,33 @@ pub enum ApexSectionReading {
     /// Both of the table's section rulings lie inside one sub-sector,
     /// across which the walk read the plane's side monotone.
     BothRulingsInside,
+}
+
+impl ApexSectionReading {
+    /// The disagreement in words, completing "a plane passes through the
+    /// tip of a cone, and …": the one wording the split's and the
+    /// Boolean's refusals both read.
+    pub(crate) fn what(&self) -> &'static str {
+        match self {
+            Self::ClosedOffApex => {
+                "the section it cuts in the cone reads as a closed curve clear of the tip"
+            }
+            Self::Refused(section) => match **section {
+                SplitJoinError::OpenConicChord { .. } => {
+                    "the section it cuts in the cone reads as an open curve clear of the tip"
+                }
+                _ => "the section it cuts in the cone does not read there",
+            },
+            Self::NoRulingInside => {
+                "no line of the section it cuts in the cone leaves the tip where the plane \
+                 crosses the cone there"
+            }
+            Self::BothRulingsInside => {
+                "both lines of the section it cuts in the cone leave the tip where the plane \
+                 crosses the cone once there"
+            }
+        }
+    }
 }
 
 /// Why the germs round a vertex fix no corners of the section there
@@ -808,26 +853,7 @@ impl core::fmt::Display for SplitReduceError {
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
             }
             Self::ApexSection { reading, .. } => {
-                let what = match reading {
-                    ApexSectionReading::ClosedOffApex => {
-                        "the section it cuts in the cone reads as a closed curve clear of the tip"
-                    }
-                    ApexSectionReading::Refused(section) => match **section {
-                        SplitJoinError::OpenConicChord { .. } => {
-                            "the section it cuts in the cone reads as an open curve clear of \
-                             the tip"
-                        }
-                        _ => "the section it cuts in the cone does not read there",
-                    },
-                    ApexSectionReading::NoRulingInside => {
-                        "no line of the section it cuts in the cone leaves the tip where the \
-                         plane crosses the cone there"
-                    }
-                    ApexSectionReading::BothRulingsInside => {
-                        "both lines of the section it cuts in the cone leave the tip where the \
-                         plane crosses the cone once there"
-                    }
-                };
+                let what = reading.what();
                 write!(
                     f,
                     "the split plane passes through the tip of a cone, and {what}. Recourse: \
