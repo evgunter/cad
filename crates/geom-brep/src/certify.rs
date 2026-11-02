@@ -1759,7 +1759,7 @@ impl<T: Real> EdgeCurveSpec<T> {
     {
         use geom_core::{Affine3, Point2, Point3};
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             ..
         }) = carrier
         else {

@@ -1329,7 +1329,7 @@ mod tests {
             (
                 "ellipse",
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(frame.0, frame.1, frame.2),
+                    geom::Frame::new(frame.0, frame.1, frame.2),
                     2.0,
                     1.0,
                 )),

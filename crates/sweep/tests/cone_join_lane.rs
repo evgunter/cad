@@ -237,11 +237,11 @@ fn section(
 fn is_conic(chord: &Chord, (centre, normal, a, b): (Point3<f64>, Vec3<f64>, f64, f64)) -> bool {
     let (c, axis, ra, rb) = match chord.carrier {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             radius,
         }) => (center, axis, radius, radius),
         ref e @ Curve3::Ellipse(geom::Ellipse {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             ..
         }) => {
             let frame = e.major_frame().unwrap();
@@ -378,7 +378,7 @@ fn cut_by_plane(chord: &Chord, cone: &Surface<f64>, (q, n): (Point3<f64>, Vec3<f
 /// parameter of a point on it.
 fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -394,7 +394,7 @@ fn ellipse_at(e: &Curve3<f64>, t: f64) -> Point3<f64> {
 
 fn ellipse_param(e: &Curve3<f64>, p: Point3<f64>) -> f64 {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

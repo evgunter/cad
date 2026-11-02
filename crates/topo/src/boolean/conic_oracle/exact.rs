@@ -279,7 +279,7 @@ pub(in crate::boolean) fn truth(
     let (center, axis, (a, b), u_ref) = match *carrier {
         geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -288,7 +288,7 @@ pub(in crate::boolean) fn truth(
         }) => (center, axis, (radius, radius), u_ref),
         geom::Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

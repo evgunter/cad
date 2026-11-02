@@ -93,7 +93,7 @@ pub(super) fn ellipse(c: [f64; 3], n: [f64; 3], u: [f64; 3], a: f64, b: f64) -> 
     let n = Vec3::from_array(n).normalize();
     let u = Vec3::from_array(u);
     geom::Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::from_array(c), n, (u - n * u.dot(n)).normalize()),
+        geom::Frame::new(Point3::from_array(c), n, (u - n * u.dot(n)).normalize()),
         a,
         b,
     ))

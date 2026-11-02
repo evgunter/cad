@@ -746,7 +746,7 @@ mod tests {
             curve:
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
@@ -778,7 +778,7 @@ mod tests {
         let CurveRecognition::Promoted {
             curve:
                 Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { axis, .. },
+                    frame: geom::Frame { axis, .. },
                     ..
                 }),
             ..
@@ -987,7 +987,7 @@ mod tests {
             let CurveRecognition::Promoted {
                 curve:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, axis, .. },
+                        frame: geom::Frame { center, axis, .. },
                         radius: r,
                     }),
                 residual,
@@ -1542,7 +1542,7 @@ mod r2_probes {
             let CurveRecognition::Promoted {
                 curve:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, axis, .. },
+                        frame: geom::Frame { center, axis, .. },
                         radius: r,
                     }),
                 residual,

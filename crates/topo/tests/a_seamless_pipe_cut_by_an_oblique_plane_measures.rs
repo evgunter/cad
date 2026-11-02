@@ -142,7 +142,7 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
         f.v((1.0, 0.0, 0.0)),
     );
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(f.p((0.0, 0.0, z0 + h)), -f.v::<T>(n), f.v(major)),
+        geom::Frame::new(f.p((0.0, 0.0, z0 + h)), -f.v::<T>(n), f.v(major)),
         T::from_f64(r / c),
         T::from_f64(r),
     ));
@@ -584,7 +584,7 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
         f.v((1.0, 0.0, 0.0)),
     );
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(f.p((0.0, 0.0, z0 + h)), -f.v::<T>(n), f.v(major)),
+        geom::Frame::new(f.p((0.0, 0.0, z0 + h)), -f.v::<T>(n), f.v(major)),
         T::from_f64(r / c),
         T::from_f64(r),
     ));

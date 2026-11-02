@@ -23,7 +23,7 @@ fn circle() -> Curve3<f64> {
 
 fn ellipse(a: f64, b: f64) -> Curve3<f64> {
     Curve3::Ellipse(crate::Ellipse::new(
-        crate::ConicFrame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
+        crate::Frame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
         a,
         b,
     ))

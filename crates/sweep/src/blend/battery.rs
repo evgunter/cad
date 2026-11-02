@@ -1365,7 +1365,7 @@ fn curved_arm<T: Decide + Bounds>(
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             ..
         }) => {
             let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;

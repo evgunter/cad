@@ -4807,7 +4807,7 @@ mod tests {
         let k: f64 = 0.4;
         let major_len = (1.0 + k.powi(2)).sqrt();
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::origin(),
                 Vec3::new(-k, 0.0, 1.0).normalize(),
                 Vec3::new(1.0, 0.0, k).normalize(),

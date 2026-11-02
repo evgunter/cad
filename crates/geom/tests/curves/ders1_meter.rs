@@ -70,7 +70,7 @@ fn ders1_meter() {
         (
             "ellipse",
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center, axis, u_ref),
+                geom::Frame::new(center, axis, u_ref),
                 2.5,
                 1.0,
             )),

@@ -263,7 +263,7 @@ fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
 /// arc (Book §7.3, ≤ 90° segments) — the TEST oracle only.
 fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64> {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

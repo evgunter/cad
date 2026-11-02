@@ -5126,7 +5126,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Line { .. } => EdgeArc::Line,
                             geom::Curve3::Circle(geom::Circle {
                                 frame:
-                                    geom::ConicFrame {
+                                    geom::Frame {
                                         center,
                                         ref axis,
                                         u_ref,
@@ -5135,7 +5135,7 @@ fn moved_walls<T: Decide>(
                             }) => conic(center, axis, u_ref, radius, radius),
                             geom::Curve3::Ellipse(geom::Ellipse {
                                 frame:
-                                    geom::ConicFrame {
+                                    geom::Frame {
                                         center,
                                         ref axis,
                                         u_ref,

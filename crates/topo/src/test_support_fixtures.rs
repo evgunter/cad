@@ -1809,7 +1809,7 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
     let tol = Tol::witness();
     let (s, c) = phi.sin_cos();
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(-s, 0.0, c),
             Vec3::new(c, 0.0, s),
@@ -1871,7 +1871,7 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> (Body<T>, FaceKey) {
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -2043,7 +2043,7 @@ mod tests {
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { axis, .. },
+                        frame: geom::Frame { axis, .. },
                         ..
                     }) => Some(axis.to_array()),
                     _ => None,

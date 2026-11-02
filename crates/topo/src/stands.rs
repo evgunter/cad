@@ -419,7 +419,7 @@ fn line_meetings<T: Decide>(
         }
         geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -428,7 +428,7 @@ fn line_meetings<T: Decide>(
         }) => conic(center, axis, u_ref, radius, radius),
         geom::Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

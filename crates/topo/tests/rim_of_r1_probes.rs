@@ -283,7 +283,7 @@ fn stored_axis(body: &Body<f64>, k: EdgeKey) -> [u64; 3] {
         .unwrap();
     match *g.carrier() {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { axis, .. },
+            frame: geom::Frame { axis, .. },
             ..
         }) => [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()],
         ref other => panic!("a rim arc is a circle, got {other:?}"),

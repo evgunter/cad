@@ -2365,7 +2365,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -2374,7 +2374,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         }) => (center, axis, radius, radius, u_ref),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -4567,11 +4567,11 @@ fn plane_through(
     if let [(i, _)] = near.edges.as_slice()
         && let Some((
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             }),
             _,
@@ -6763,7 +6763,7 @@ mod presentation_rows {
                 key: edge(1),
                 arc: Some((
                     Curve3::Ellipse(geom::Ellipse::new(
-                        geom::ConicFrame::new(
+                        geom::Frame::new(
                             origin(),
                             Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
                             Vec3::new(iv0(c), iv0(s), iv0(0.0)),
@@ -6833,7 +6833,7 @@ mod presentation_rows {
                 key: edge(1),
                 arc: Some((
                     Curve3::Ellipse(geom::Ellipse::new(
-                        geom::ConicFrame::new(
+                        geom::Frame::new(
                             origin(),
                             Vec3::new(iv0(0.0), iv0(-0.5 / norm), iv0(1.0 / norm)),
                             Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),

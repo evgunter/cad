@@ -2333,7 +2333,7 @@ fn rim_trim_circles<T: Real>(
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { center: pc, .. },
+        frame: geom::Frame { center: pc, .. },
         radius: pr,
     }) = *first_trim
     else {
@@ -2343,7 +2343,7 @@ fn rim_trim_circles<T: Real>(
         ));
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { center: sc, .. },
+        frame: geom::Frame { center: sc, .. },
         radius: sr,
     }) = *other_trim
     else {
@@ -2569,7 +2569,7 @@ pub(super) fn piece_distance<T: Bounds>(
         }
         Curve3::Ellipse(
             ref e @ geom::Ellipse {
-                frame: geom::ConicFrame { center, .. },
+                frame: geom::Frame { center, .. },
                 ..
             },
         ) => {
@@ -2605,7 +2605,7 @@ pub(super) fn piece_along<T: Bounds>(
         }
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -2647,7 +2647,7 @@ impl<T: Real> CircleFrame<T> {
         match *carrier {
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -3542,7 +3542,7 @@ fn boxed_reach<T: Bounds>(
             match carrier {
                 Curve3::Ellipse(geom::Ellipse {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
@@ -3623,7 +3623,7 @@ fn rim_carrier<T: Decide>(
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { axis, u_ref, .. },
+        frame: geom::Frame { axis, u_ref, .. },
         ..
     }) = *c.carrier()
     else {
@@ -6065,7 +6065,7 @@ mod tests {
         let u = Vec3::new(1.0, 2.0, -2.0) * (1.0 / 3.0);
         let ellipse = |major: f64, minor: f64| {
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(1.0, 0.5, -0.2),
                     Vec3::new(0.0, 0.6, 0.8),
                     Vec3::new(1.0, 0.0, 0.0),
@@ -6200,7 +6200,7 @@ mod tests {
         use core::f64::consts::TAU;
 
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),

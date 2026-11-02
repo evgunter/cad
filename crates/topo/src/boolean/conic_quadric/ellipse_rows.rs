@@ -295,7 +295,7 @@ fn a_graze_is_read_by_its_depth() {
 fn the_subdivision_reads_its_pieces_at_the_top_speed() {
     let band = Band::new(1e-6, 1e-5).expect("a band");
     let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(
                 -0.02690652087259189,
@@ -460,7 +460,7 @@ mod fuzz_rows {
                     (small, big)
                 };
                 let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(
+                    geom::Frame::new(
                         Point3::new(0.0, 0.0, 0.0),
                         n,
                         (u - n * u.dot(n)).normalize(),
@@ -583,7 +583,7 @@ mod graze_rows {
                     geom::Curve3::circle(center, n, major, u_ref)
                 } else {
                     geom::Curve3::Ellipse(geom::Ellipse::new(
-                        geom::ConicFrame::new(center, n, u_ref),
+                        geom::Frame::new(center, n, u_ref),
                         major,
                         minor,
                     ))

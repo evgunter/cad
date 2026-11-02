@@ -174,7 +174,7 @@ fn carrier(rng: &mut fuzz::Rng) -> Curve3<f64> {
         Curve3::circle(center, axis, semi_u, u_ref)
     } else {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, axis, u_ref),
+            geom::Frame::new(center, axis, u_ref),
             semi_u,
             semi_u * rng.log_uniform(1e-4, 1.0),
         ))
@@ -188,7 +188,7 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
     let (center, axis, u, a, b) = match *carrier {
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -197,7 +197,7 @@ fn harmonic_of(carrier: &Curve3<f64>, n: Vec3<f64>) -> (f64, f64, f64, f64) {
         }) => (center, axis, u_ref, radius, radius),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -280,7 +280,7 @@ fn the_box_and_directional_doors_contain_hard_arcs() {
     let u = axis.orthonormal_basis().0;
     let flat = |semi_v: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(-1.0, 0.5, 2.0), axis, u),
+            geom::Frame::new(Point3::new(-1.0, 0.5, 2.0), axis, u),
             5.0,
             semi_v,
         ))

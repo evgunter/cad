@@ -188,7 +188,7 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
     let z = band.zero();
     for ratio in [100.0, 1e3] {
         let thin = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
             ratio,
             1.0,
         ));
@@ -218,7 +218,7 @@ mod review_r2 {
 
     fn ellipse(axis: Vec3<f64>) -> Curve3<f64> {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::origin(), axis, Vec3::unit_x()),
+            geom::Frame::new(Point3::origin(), axis, Vec3::unit_x()),
             3.0,
             1.0,
         ))
@@ -325,7 +325,7 @@ mod review_r2 {
     #[test]
     fn a_round_ellipse_on_the_rim_arc() {
         let round = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             1.0,
             1.0,
         ));

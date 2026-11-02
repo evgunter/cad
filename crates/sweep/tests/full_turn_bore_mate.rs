@@ -291,7 +291,7 @@ fn split_collar() -> Body<f64> {
         .find_map(|(_, e)| match carrier(&c, e) {
             Some(geom::Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,

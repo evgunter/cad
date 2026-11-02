@@ -847,7 +847,7 @@ fn survives_rim_witness_is_bitwise_mid_parameter_antipode() {
         // And it is the start point's antipode, not the start point.
         let start = c.carrier().eval(t0);
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             ..
         }) = c.carrier().clone()
         else {

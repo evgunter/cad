@@ -268,7 +268,7 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
         );
         for k in rims {
             let geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, .. },
+                frame: geom::Frame { center, .. },
                 radius,
             }) = carrier_of(&body, k)
             else {
@@ -746,7 +746,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
         b.edges()
             .filter_map(|(e, _)| match carrier_of(b, e) {
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, .. },
+                    frame: geom::Frame { center, .. },
                     radius,
                 }) if (center.z - H).abs() < 1e-9 => Some(radius),
                 _ => None,

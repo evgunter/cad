@@ -165,7 +165,7 @@ fn two_meetings_found_near_one_plane_root_leave_the_other_roots_meetings() {
     let th = 0.03_f64;
     let big = th.cos() / (1.0 - (c * th.sin()).powi(2) / 0.81).sqrt();
     let b = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(0.0, 1.0, 0.0),

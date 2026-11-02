@@ -752,7 +752,7 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                 );
             }
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, .. },
+                frame: geom::Frame { center, .. },
                 radius,
             }) => {
                 rims += 1;
@@ -1169,7 +1169,7 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                 );
             }
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, .. },
+                frame: geom::Frame { center, .. },
                 radius,
             }) => {
                 rims += 1;

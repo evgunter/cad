@@ -1495,11 +1495,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::B => &ga,
             };
             let (geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             })
             | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             })) = along.carrier
             else {
@@ -1540,7 +1540,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     let radical = match geom_brep::sphere_sphere_section(&ga, &gb, band) {
                         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
                             geom::Circle {
-                                frame: geom::ConicFrame { center, axis, .. },
+                                frame: geom::Frame { center, axis, .. },
                                 ..
                             },
                         ))) => (center, germ_normal(germ_reach(&red.a)?, center, axis)?),
@@ -2814,11 +2814,11 @@ fn germ_section_loops<T: Decide>(
         return match along.carrier {
             geom::Curve3::Line { .. } => Ok(None),
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             })
             | geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             }) => Ok(Some(SectionLoops::conic((center, axis)))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
@@ -3856,7 +3856,7 @@ fn conic_section_frame_at<T: Decide>(
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
                 Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, axis, .. },
+                    frame: geom::Frame { center, axis, .. },
                     ..
                 }))) => Ok(Some((center, axis))),
                 Ok(geom_brep::PlaneSphereSection::Circle(_)) => Err(FrameError::Desync(
@@ -3892,7 +3892,7 @@ fn conic_section_frame_at<T: Decide>(
             return match geom_brep::sphere_sphere_section(sa, sb, band) {
                 Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
                     geom::Circle {
-                        frame: geom::ConicFrame { center, axis, .. },
+                        frame: geom::Frame { center, axis, .. },
                         ..
                     },
                 ))) => Ok(Some((center, axis))),
@@ -3957,12 +3957,12 @@ fn conic_section_frame_at<T: Decide>(
     };
     match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             ..
         })))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse(
             geom::Ellipse {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             },
         ))) => Ok(Some((center, axis))),
@@ -4089,11 +4089,11 @@ fn pk_germ_frame<T: Decide>(
     match geom_brep::plane_cone_section(plane, cone, &reach, band) {
         Ok(
             geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             }))
             | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             })),
         ) => Ok(Some((center, axis))),
@@ -4185,7 +4185,7 @@ fn pt_germ_frame<T: Decide>(
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             ..
         }) => Ok(SectionLoop {
             center,
@@ -4328,7 +4328,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, nodes, .. }) => {
             let plane = |e: &geom::Curve3<T>| match *e {
                 geom::Curve3::Ellipse(geom::Ellipse {
-                    frame: geom::ConicFrame { center, axis, .. },
+                    frame: geom::Frame { center, axis, .. },
                     ..
                 }) => Ok((center, axis)),
                 _ => Err(BooleanError::JoinDesync {
@@ -4420,13 +4420,13 @@ fn intersecting_cylinder_axes<T: Decide>(
             let (
                 geom::Curve3::Ellipse(geom::Ellipse {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center, axis: n1, ..
                         },
                     ..
                 }),
                 geom::Curve3::Ellipse(geom::Ellipse {
-                    frame: geom::ConicFrame { axis: n2, .. },
+                    frame: geom::Frame { axis: n2, .. },
                     ..
                 }),
             ) = (e1, e2)
@@ -6756,7 +6756,7 @@ mod frame_dispatch_tests {
         let tol = Tol::witness();
         let (s, c) = phi.sin_cos();
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(-s, 0.0, c),
                 Vec3::new(c, 0.0, s),
@@ -7387,7 +7387,7 @@ mod frame_dispatch_tests {
             };
             for (ellipse, want) in [(&e1, Branch::Positive), (&e2, Branch::Negative)] {
                 let geom::Curve3::Ellipse(geom::Ellipse {
-                    frame: geom::ConicFrame { axis, .. },
+                    frame: geom::Frame { axis, .. },
                     ..
                 }) = *ellipse
                 else {
@@ -7559,7 +7559,7 @@ mod frame_dispatch_tests {
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
                     let geom::Curve3::Ellipse(geom::Ellipse {
                         frame:
-                            geom::ConicFrame {
+                            geom::Frame {
                                 center,
                                 axis,
                                 u_ref,

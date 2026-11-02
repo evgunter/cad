@@ -55,7 +55,7 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let alpha = 0.5;
     let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
     let on = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(centre, axis, u_ref),
+        geom::Frame::new(centre, axis, u_ref),
         major,
         minor,
     ));
@@ -68,7 +68,7 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     );
     let shift = 2.0 * Tol::witness().k() * eps();
     let moved = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(centre + axis * shift, axis, u_ref),
+        geom::Frame::new(centre + axis * shift, axis, u_ref),
         major,
         minor,
     ));
@@ -137,7 +137,7 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
     off(
         "k3,k4: an ellipse round the axis",
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
             (rho * rho + s).sqrt(),
             (rho * rho - s).sqrt(),
         )),
@@ -242,7 +242,7 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
     let alpha = 0.5;
     let (centre, axis, u_ref, major, minor) = section(alpha, 2.0, 0.3);
     let moved = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(centre + Vec3::unit_z() * (0.5 * eps()), axis, u_ref),
+        geom::Frame::new(centre + Vec3::unit_z() * (0.5 * eps()), axis, u_ref),
         major,
         minor,
     ));
@@ -582,7 +582,7 @@ fn only_an_incidence_reading_ends_as_one() {
     };
     let ellipse = |z: f64, r: f64, d: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x()),
             r,
             r - d,
         ))
@@ -638,7 +638,7 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
         "a thin ellipse along a generator",
         chart_pcurve(
             &Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(Point3::origin() + g * 2.0, Vec3::unit_y(), g),
+                geom::Frame::new(Point3::origin() + g * 2.0, Vec3::unit_y(), g),
                 0.5,
                 0.3 * e,
             )),

@@ -96,7 +96,7 @@ proptest! {
     ) {
         let (axis, u_ref) = unit_frame(seed);
         let major = minor * stretch;
-        let carrier = Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(Point3::new(cx, cy, cz), axis, u_ref), major, minor));
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(Point3::new(cx, cy, cz), axis, u_ref), major, minor));
         let t1 = t0 + dt;
         let (e0, e1) = (carrier.eval(t0), carrier.eval(t1));
         let b = ellipse_arc_aabb(&carrier, t0, t1, e0, e1).unwrap();
@@ -114,7 +114,7 @@ fn ellipse_arc_box_is_span_tight_and_full_period_reaches_extrema() {
     // DISCRIMINATING SPAN [0.1, 0.4] contains no axis extremum: the box
     // is the endpoint hull, far from the full ellipse's ±2 extent.
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -160,7 +160,7 @@ fn wide_bracket_ellipse_box_contains_every_realization() {
     for w in [1e-6, 1e-4, 1e-2, 1e-1] {
         for (t0, t1) in [(0.0, 0.9), (0.0, 1.5), (1.2, 4.0), (-2.0, 0.5), (0.0, 7.0)] {
             let carrier_iv: Curve3<Interval> = Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
                     Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
                     Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
@@ -173,7 +173,7 @@ fn wide_bracket_ellipse_box_contains_every_realization() {
             for i in 0..=8u32 {
                 let d = -w + 2.0 * w * f64::from(i) / 8.0;
                 let real: Curve3<f64> = Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(
+                    geom::Frame::new(
                         Point3::new(1.0, -2.0, 0.5),
                         Vec3::new(0.0, 0.0, 1.0),
                         Vec3::new(d, 1.0, 0.0),

@@ -487,7 +487,7 @@ mod tests {
 
     fn ellipse(major: f64, minor: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), u_ref),
+            geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), u_ref),
             major,
             minor,
         ))

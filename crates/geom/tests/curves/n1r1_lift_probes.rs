@@ -358,7 +358,7 @@ mod interval_probes {
         let lifted = c.map_scalar(Interval::from_f64);
         let Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

@@ -92,7 +92,7 @@ fn an_uncovered_perturbed_section_lies_within_the_sliver() {
             };
             let ellipse = |(center, axis, u_ref, major, minor)| {
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(center, axis, u_ref),
+                    geom::Frame::new(center, axis, u_ref),
                     major,
                     minor,
                 ))

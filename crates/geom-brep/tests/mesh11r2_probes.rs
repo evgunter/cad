@@ -332,7 +332,7 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let t1 = t0 + 2.0 * PI + 2.0 * delta;
         let e = great(0.0, t0, t1, 0, 1);
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { axis: n_c, .. },
+            frame: geom::Frame { axis: n_c, .. },
             ..
         }) = e.carrier
         else {

@@ -7831,12 +7831,12 @@ fn conic_reach<T: Decide>(
             let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
                 geom::Curve3::Line { .. } => continue,
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, axis, .. },
+                    frame: geom::Frame { center, axis, .. },
                     radius,
                 }) => (center, radius * axis.cross(dir).norm()),
                 geom::Curve3::Ellipse(geom::Ellipse {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
@@ -8134,7 +8134,7 @@ fn boundary_cuts<T: Decide>(
                     }
                 }
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, axis, .. },
+                    frame: geom::Frame { center, axis, .. },
                     radius,
                 }) => {
                     let in_plane = conic(center, axis, &mut meetings);
@@ -8151,7 +8151,7 @@ fn boundary_cuts<T: Decide>(
                 }
                 geom::Curve3::Ellipse(geom::Ellipse {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,

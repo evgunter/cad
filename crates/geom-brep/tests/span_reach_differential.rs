@@ -535,7 +535,7 @@ fn oblique_patch(
             Curve3::circle(o + a * v, a, r, x)
         } else {
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(o + a * v, u_ref.cross(y), u_ref),
+                geom::Frame::new(o + a * v, u_ref.cross(y), u_ref),
                 r / f.cos(),
                 r,
             ))

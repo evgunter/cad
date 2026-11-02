@@ -89,7 +89,7 @@ mod closed_form_and_walk {
     fn section_sampled(n: Vec3<f64>, d: f64) -> Curve3<f64> {
         let r = (1.0 - d * d).sqrt();
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.0, 0.0, 0.0) + n * d, n, frame(n)),
+            geom::Frame::new(Point3::new(0.0, 0.0, 0.0) + n * d, n, frame(n)),
             r,
             r,
         ))
@@ -521,7 +521,7 @@ mod sampled_and_fuzzed {
         let u_ref = Vec3::new(-1.0, 0.0, 0.0);
         let axis = u_ref.cross(v_dir);
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(c, axis, u_ref),
+            geom::Frame::new(c, axis, u_ref),
             a.sin(),
             semi_v,
         ));
@@ -630,7 +630,7 @@ mod sampled_and_fuzzed {
                     let ang = |c: &Curve3<f64>, p: Vec3<f64>| {
                         let Curve3::Circle(geom::Circle {
                             frame:
-                                geom::ConicFrame {
+                                geom::Frame {
                                     center,
                                     axis,
                                     u_ref,
@@ -851,7 +851,7 @@ mod sampled_and_fuzzed {
         // The rim's angle-0 point, in its frame.
         let Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -975,7 +975,7 @@ mod small_arc_fuzz {
             t1 += TAU;
         }
         let carrier = if sampled {
-            Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(c, n, u), r, r))
+            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(c, n, u), r, r))
         } else {
             Curve3::circle(c, n, r, u)
         };

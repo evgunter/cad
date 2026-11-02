@@ -656,7 +656,7 @@ fn register_placed_carrier_end<T: Real>(
     tol: Tol,
 ) {
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -1716,7 +1716,7 @@ mod tests {
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);
             let Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,

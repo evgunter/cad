@@ -60,7 +60,7 @@ pub fn half_turn_curve<T: Real>(
         }),
         Curve3::Circle(crate::Circle {
             frame:
-                crate::ConicFrame {
+                crate::Frame {
                     center,
                     axis: n,
                     u_ref,

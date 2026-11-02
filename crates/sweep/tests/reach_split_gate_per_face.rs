@@ -369,7 +369,7 @@ impl Rim {
     ) -> (geom::NurbsCurve3<f64>, geom_brep::EdgeCurveSpec<f64>) {
         let geom::Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

@@ -98,7 +98,7 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
         geom::Curve3::circle(center, axis, major, toward)
     } else {
         geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, axis, toward),
+            geom::Frame::new(center, axis, toward),
             major,
             minor,
         ))
@@ -136,7 +136,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     let carrier = match pose.carrier {
         geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -145,7 +145,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
         }) => geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref)),
         geom::Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -153,7 +153,7 @@ fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
             semi_u,
             semi_v,
         }) => geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
+            geom::Frame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
             at(semi_u),
             at(semi_v),
         )),

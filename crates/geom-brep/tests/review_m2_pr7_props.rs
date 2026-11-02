@@ -243,7 +243,7 @@ fn rim_edge(
     } else {
         LoopEdge::hand_built(
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center,
                     axis,
                     u_ref,

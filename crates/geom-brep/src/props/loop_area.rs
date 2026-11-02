@@ -71,11 +71,11 @@ pub fn loop_vector_area<T: SpanLocate>(
                 a.cross(b) * half
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 radius,
             }) => arc_vector_area(e, ref_point, axis, radius.powi(2)) * half,
             Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 semi_u,
                 semi_v,
             }) => arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half,
@@ -408,7 +408,7 @@ mod tests {
             ),
             (
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(
+                    geom::Frame::new(
                         p(0.0, 0.0),
                         Vec3::new(0.0, 0.0, 1.0),
                         Vec3::new(1.0, 0.0, 0.0),

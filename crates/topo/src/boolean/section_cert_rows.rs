@@ -2405,7 +2405,7 @@ fn torus_iso(
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
         carrier: Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,

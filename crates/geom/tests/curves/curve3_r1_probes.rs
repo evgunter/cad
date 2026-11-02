@@ -303,7 +303,7 @@ fn probe_analytic_arms_at_extreme_parameters() {
         (
             "ellipse",
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center, axis, u_ref),
+                geom::Frame::new(center, axis, u_ref),
                 4.5,
                 0.125,
             )),
@@ -311,7 +311,7 @@ fn probe_analytic_arms_at_extreme_parameters() {
         (
             "ellipse_degenerate",
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center, axis, u_ref),
+                geom::Frame::new(center, axis, u_ref),
                 1e12,
                 1e-12,
             )),

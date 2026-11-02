@@ -10,7 +10,7 @@ const A: f64 = 1e4;
 
 fn conic() -> SectionConic<f64> {
     section_conic(geom::Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         A,
         1.0,
     )))

@@ -240,7 +240,7 @@ fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
             Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                 for (c, want) in [(c1, station), (c2, -station)] {
                     let geom::Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     }) = c
                     else {

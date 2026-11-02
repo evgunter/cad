@@ -393,7 +393,7 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
                 .get_curve_geom(ed.curve)
                 .and_then(topo::null::CurveGeom::certified)?;
             let geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { axis: n, .. },
+                frame: geom::Frame { axis: n, .. },
                 ..
             }) = *c.carrier()
             else {
@@ -573,7 +573,7 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
     let mut planted = base.clone();
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -902,7 +902,7 @@ fn boundary_pick(
             continue;
         };
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { axis: n, .. },
+            frame: geom::Frame { axis: n, .. },
             ..
         }) = *c.carrier()
         else {

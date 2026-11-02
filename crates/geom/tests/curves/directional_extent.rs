@@ -26,7 +26,7 @@ use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -43,7 +43,7 @@ fn ellipse(
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
     Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -91,11 +91,11 @@ fn reading(c: &Curve3<f64>, t: f64, origin: Point3<f64>, n: Vec3<f64>) -> f64 {
 fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
     let (axis, u, a, b) = match *c {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { axis, u_ref, .. },
+            frame: geom::Frame { axis, u_ref, .. },
             radius,
         }) => (axis, u_ref, radius, radius),
         Curve3::Ellipse(geom::Ellipse {
-            frame: geom::ConicFrame { axis, u_ref, .. },
+            frame: geom::Frame { axis, u_ref, .. },
             semi_u,
             semi_v,
         }) => (axis, u_ref, semi_u, semi_v),

@@ -35,7 +35,7 @@ fn circle() -> Curve3<f64> {
 
 fn ellipse() -> Curve3<f64> {
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         3.0,
         0.5,
     ))

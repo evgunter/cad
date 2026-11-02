@@ -291,7 +291,7 @@ fn m10r2_set_edge_curve_on_a_split_child() {
         let mut spec = cert.restated_spec();
         let Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

@@ -270,7 +270,7 @@ fn ellipse() -> Curve3<f64> {
     let k = 0.3_f64;
     let s = (1.0 + k * k).sqrt();
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, 0.4),
             Vec3::new(-k / s, 0.0, 1.0 / s),
             Vec3::new(1.0 / s, 0.0, k / s),
@@ -293,7 +293,7 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
         ("ellipse", ellipse(), {
             let Curve3::Ellipse(geom::Ellipse {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -305,7 +305,7 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
                 unreachable!()
             };
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center + Vec3::new(0.0, 0.0, 1e-3), axis, u_ref),
+                geom::Frame::new(center + Vec3::new(0.0, 0.0, 1e-3), axis, u_ref),
                 semi_u,
                 semi_v,
             ))

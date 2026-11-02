@@ -17396,7 +17396,7 @@ mod tests {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
             let geom::Curve3::Ellipse(geom::Ellipse {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -17511,7 +17511,7 @@ mod tests {
         fn a_steep_ellipse_crossing_near_an_arc_end_is_cut() {
             use std::f64::consts::FRAC_PI_2;
             let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 20.0,
                 1.0,
             ));
@@ -17550,7 +17550,7 @@ mod tests {
             let major = 4.01_f64.sqrt();
             let normal = Vec3::new(-20.0, 0.0, 1.0).normalize();
             let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::origin(),
                     normal,
                     Vec3::new(1.0, 0.0, 20.0).normalize(),
@@ -19921,7 +19921,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::ConicFrame { center, .. }, .. }) if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");

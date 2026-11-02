@@ -719,7 +719,7 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
             let (t0, t1) = c.params();
             let geom::Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -959,7 +959,7 @@ fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
     let u_ref = (p0 - center) / radius;
     let arc = |axis: geom_core::Vec3<f64>| {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,

@@ -581,7 +581,7 @@ mod rows {
         let x = -178.819_660_112_501_03;
         let h = FRAC_1_SQRT_2;
         let a = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(x, -5.0, 95.0),
                 Vec3::new(h, h, 0.0),
                 Vec3::new(-h, h, 0.0),
@@ -821,7 +821,7 @@ mod rows {
         let (c, s) = (0.1 / big, (1.0 - (0.1 / big) * (0.1 / big)).sqrt());
         let u = Vec3::new(c, 0.0, s);
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.1, 0.0, 0.0) - u * big,
                 u.cross(Vec3::new(0.0, 1.0, 0.0)),
                 u,

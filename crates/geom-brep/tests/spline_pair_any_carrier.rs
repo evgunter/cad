@@ -80,7 +80,7 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
         ),
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -89,7 +89,7 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
         }) => arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1)),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -148,7 +148,7 @@ fn ellipse() -> (Curve3<f64>, Surface<f64>) {
     let axis = Vec3::new(-k / s, 0.0, 1.0 / s);
     (
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.4),
                 axis,
                 Vec3::new(1.0 / s, 0.0, k / s),

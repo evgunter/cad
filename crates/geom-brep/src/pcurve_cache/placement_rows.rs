@@ -16,7 +16,7 @@ fn band() -> Band {
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -353,7 +353,7 @@ fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

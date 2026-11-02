@@ -170,7 +170,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
             let Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center, axis: ax, ..
                 },
                 radius: rr,
@@ -504,13 +504,13 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                     .expect("a certified end curve");
                 match *c.carrier() {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     }) => {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
                     }
                     Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::ConicFrame { axis, .. },
+                        frame: geom::Frame { axis, .. },
                         semi_u,
                         semi_v,
                     }) => {
@@ -561,7 +561,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let oblique = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse");
     let EndSection::Ellipse(Curve3::Ellipse(geom::Ellipse {
         frame:
-            geom::ConicFrame {
+            geom::Frame {
                 u_ref: u_major,
                 axis: normal,
                 ..
@@ -593,7 +593,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let sliver = cap_transverse(v, n, tau, R, 1e3, band)
         .expect("levered up, the departure is definite: the ellipse");
     let EndSection::Ellipse(Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame { u_ref: u_major, .. },
+        frame: geom::Frame { u_ref: u_major, .. },
         semi_u,
         semi_v,
     })) = sliver
@@ -648,7 +648,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .unwrap()
         .clone();
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

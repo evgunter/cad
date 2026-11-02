@@ -39,7 +39,7 @@ fn arc_ends() -> (Point3<f64>, Point3<f64>) {
 fn far_centre(x: f64) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec {
         carrier: geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(-x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::new(-x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             x,
             1.0,
         )),

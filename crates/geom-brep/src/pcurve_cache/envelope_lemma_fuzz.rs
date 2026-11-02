@@ -73,7 +73,7 @@ fn sign(s: &mut fuzz::Rng) -> f64 {
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -247,7 +247,7 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             (
                 chart,
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(at + axis * v0, normal, major_dir),
+                    geom::Frame::new(at + axis * v0, normal, major_dir),
                     radius / theta.cos(),
                     radius,
                 )),
@@ -535,7 +535,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         },
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -556,7 +556,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
                     (minor, major, axis.cross(u_ref))
                 };
                 return Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(center, axis, u_ref),
+                    geom::Frame::new(center, axis, u_ref),
                     major,
                     minor,
                 ));
@@ -565,7 +565,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         }
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -576,7 +576,7 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             let axis = (axis + nudge(s, 3)).normalize();
             let u_ref = (u_ref - axis * u_ref.dot(axis)).normalize();
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center + nudge(s, 1), axis, u_ref),
+                geom::Frame::new(center + nudge(s, 1), axis, u_ref),
                 scaled(s, semi_u),
                 scaled(s, semi_v),
             ))
@@ -1810,7 +1810,7 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     let d1 = axis.cross(d0) * image.sense;
     let (x, y) = (d0 * big, d1 * (big * q) + axis * (image.vl * minor));
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin() - d0 * (big * e),
             x.cross(y).normalize(),
             x.normalize(),
@@ -1868,7 +1868,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
         };
         let Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis: n,
                     u_ref,

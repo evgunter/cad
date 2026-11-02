@@ -7720,7 +7720,7 @@ fn run_iso_arc_checks<T: Decide>(
         return Err(PcurveCertifyError::PlaceholderChart);
     }
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -9372,7 +9372,7 @@ fn derive_class<T: Decide>(
                     ))
                 }
                 Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, .. },
+                    frame: geom::Frame { center, .. },
                     ..
                 }) => {
                     // Rim class: carrier plane ⊥ axis (a, b axial parts
@@ -9499,7 +9499,7 @@ fn derive_class<T: Decide>(
                 }
                 Curve3::Ellipse(geom::Ellipse {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis: e_axis,
                             u_ref: seam,
@@ -10399,7 +10399,7 @@ fn torus_oblique_circle<T: Decide>(
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
         &Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center: c, axis: n, ..
             },
             radius,
@@ -11526,7 +11526,7 @@ mod tests {
         // major axis is the tilt direction (cos tilt, 0, -sin tilt)
         // ... with semi-axis r/cos(tilt).
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, h),
                 Vec3::new(tilt.sin(), 0.0, tilt.cos()),
                 Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
@@ -11671,7 +11671,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let carrier = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::new(0.1, -0.2, 0.5), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::new(0.1, -0.2, 0.5), Vec3::unit_z(), Vec3::unit_x()),
             0.7,
             0.3,
         ));
@@ -12094,7 +12094,7 @@ mod tests {
         // `b` short of `a`'s quarter turn by `d`, `a` on the chart: the
         // turning pair off the class circle, the radius's own term.
         let squashed = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             r,
             r - d,
         ));
@@ -12329,7 +12329,7 @@ mod tests {
         // section (uncovered — `tests/chart_incidence.rs` builds one)
         // or off the cone, as this hand-placed one is.
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.2, 0.0, 2.0),
                 Vec3::new(0.3_f64.sin(), 0.0, 0.3_f64.cos()),
                 Vec3::new(0.3_f64.cos(), 0.0, -0.3_f64.sin()),
@@ -12435,7 +12435,7 @@ mod tests {
         };
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -12501,7 +12501,7 @@ mod tests {
                 "an ellipse on a torus",
                 "a torus holds no line",
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                    geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     2.5,
                     2.0,
                 )),
@@ -14097,14 +14097,14 @@ mod limb2_memo_rows {
             let c = match c.map_scalar(lift) {
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
                         },
                     ..
                 }) => Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame {
+                    frame: geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -14288,7 +14288,7 @@ mod limb2_quick_rows {
             let (c, s) = rim(1.25, 1.25);
             let Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -14299,7 +14299,7 @@ mod limb2_quick_rows {
                 unreachable!()
             };
             let c = Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center,
                     axis,
                     u_ref,

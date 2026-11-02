@@ -1083,7 +1083,7 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(-4.0, 0.25, 1.0),
                     Vec3::new(0.0, 0.0, 1.0),
                     Vec3::new(0.6, 0.8, 0.0),
@@ -1193,7 +1193,7 @@ mod tests {
             (
                 "ellipse",
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(center, axis, u_ref),
+                    geom::Frame::new(center, axis, u_ref),
                     1.2,
                     0.4,
                 )),
@@ -1241,7 +1241,7 @@ mod tests {
         let kinds = [
             Curve3::circle(center, axis, 0.8, u_ref),
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center, axis, u_ref),
+                geom::Frame::new(center, axis, u_ref),
                 1.2,
                 0.4,
             )),

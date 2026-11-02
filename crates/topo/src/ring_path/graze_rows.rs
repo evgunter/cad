@@ -52,13 +52,13 @@ fn case(
     let pi = core::f64::consts::PI;
     let arcs = vec![
         LoopArc::Conic(ConicArc::of_frame(
-            geom::ConicFrame::new(centre, x, u1),
+            geom::Frame::new(centre, x, u1),
             (a, a),
             (sv - pi, sv),
             None,
         )),
         LoopArc::Conic(ConicArc::of_frame(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 centre + jitter.0 * jitter.1,
                 (x + jitter.0.cross(x) * (jitter.1 / r)).normalize(),
                 u2,
@@ -380,7 +380,7 @@ fn split_ellipse(
     size: f64,
 ) -> [LoopArc<f64>; 2] {
     let geom::Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -394,13 +394,13 @@ fn split_ellipse(
     let pi = core::f64::consts::PI;
     [
         LoopArc::Conic(ConicArc::of_frame(
-            geom::ConicFrame::new(center, axis, u_ref),
+            geom::Frame::new(center, axis, u_ref),
             (semi_u, semi_v),
             (v - pi, v),
             None,
         )),
         LoopArc::Conic(ConicArc::of_frame(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 center + dir * jitter,
                 (axis + dir.cross(axis) * (jitter / size)).normalize(),
                 u_ref,

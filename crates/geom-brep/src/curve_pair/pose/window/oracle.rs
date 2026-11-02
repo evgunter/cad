@@ -119,7 +119,7 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
     };
     let big_b = big_a * ratio;
     let b = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -160,7 +160,7 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
         // Through `J` with the circle's tangent there: semi-axis `r`
         // along `u`, the other `r·q`.
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(a_centre, ax, u),
+            geom::Frame::new(a_centre, ax, u),
             r,
             r * rng.log_uniform(0.1, 10.0),
         ))
@@ -403,7 +403,7 @@ fn a_level_receding_by_its_bound_holds_on_the_dense_distance() {
     );
     let r = 1.320_731_978_041_859_4;
     let b = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
@@ -426,7 +426,7 @@ fn a_level_receding_by_its_bound_holds_on_the_dense_distance() {
 #[test]
 fn a_level_growing_while_its_distance_falls_is_not_receding() {
     let a = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(
                 0.103_221_581_871_904,
                 -8.271_264_660_191_37,
@@ -444,7 +444,7 @@ fn a_level_growing_while_its_distance_falls_is_not_receding() {
     ));
     let axes = (3.090_776_032_011_832, 0.100_096_878_420_258_31);
     let b = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),

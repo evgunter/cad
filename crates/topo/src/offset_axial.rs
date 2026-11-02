@@ -2103,7 +2103,7 @@ fn mint_carrier<T: Decide>(
     if ca.old_key == cb.old_key {
         if let Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center: cc,
                     axis,
                     u_ref,
@@ -2149,7 +2149,7 @@ fn mint_carrier<T: Decide>(
                 Surface::Sphere { center, .. },
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center: cc,
                             axis,
                             u_ref,
@@ -2183,7 +2183,7 @@ fn mint_carrier<T: Decide>(
                 },
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center: cc,
                             axis,
                             u_ref,
@@ -2399,11 +2399,11 @@ fn mint_carrier<T: Decide>(
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 ..
             }) => Some(axis.normalize()),
             Curve3::Spiric { u_ref, .. } => Some(u_ref.normalize()),
@@ -2461,7 +2461,7 @@ fn mint_carrier<T: Decide>(
         }
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -2758,7 +2758,7 @@ fn param_on<T: Decide>(
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             ..
         }) => {
             let n = axis.normalize();
@@ -2996,7 +2996,7 @@ fn reauthor<T: Decide>(
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
                         let Curve3::Circle(geom::Circle {
-                            frame: geom::ConicFrame { center, .. },
+                            frame: geom::Frame { center, .. },
                             radius,
                         }) = carrier
                         else {

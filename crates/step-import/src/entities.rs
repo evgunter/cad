@@ -942,7 +942,7 @@ impl<'a> Resolver<'a> {
                 };
                 let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(center, axis, u_ref),
+                    geom::Frame::new(center, axis, u_ref),
                     self.as_length(id, major, expected)?,
                     self.as_length(id, minor, expected)?,
                 )))

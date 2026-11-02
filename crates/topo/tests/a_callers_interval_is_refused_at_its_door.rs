@@ -76,7 +76,7 @@ fn every_door_refuses_a_callers_interval_typed() {
     let arc = |r: f64, t1: f64| EdgeCurveSpec::arc_of_circle(circle(r), 0.0, t1).unwrap();
     let ellipse = EdgeCurveSpec {
         carrier: Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             1.0,
             -0.5,
         )),

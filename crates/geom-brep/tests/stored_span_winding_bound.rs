@@ -409,7 +409,7 @@ fn section_arc<T: Real>() -> LoopEdge<T> {
     let major = dot(half, half).sqrt();
     let across = center[2] * HALF.tan();
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             p(center[0], center[1], center[2]),
             v(n[0], n[1], n[2]),
             v(half[0] / major, 0.0, half[2] / major),

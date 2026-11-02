@@ -112,7 +112,7 @@ pub fn ellipse_pcurve_on_plane(
     t1: f64,
 ) -> Result<NurbsCurve2<f64>, PcurveError> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

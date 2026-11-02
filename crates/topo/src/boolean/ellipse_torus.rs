@@ -416,7 +416,7 @@ mod torus_rows {
         };
         let center = Point3::new(0.0, 0.0, 0.0) + out;
         let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, n, (u - n * u.dot(n)).normalize()),
+            geom::Frame::new(center, n, (u - n * u.dot(n)).normalize()),
             major,
             minor,
         ));
@@ -552,7 +552,7 @@ mod torus_rows {
     impl Pose {
         fn build(&self) -> (geom::Curve3<f64>, geom::Surface<f64>) {
             let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(0.0, 0.0, 0.0),
                     Vec3::from_array(self.n),
                     Vec3::from_array(self.u),
@@ -1027,7 +1027,7 @@ mod torus_rows {
                     let (
                         geom::Curve3::Ellipse(geom::Ellipse {
                             frame:
-                                geom::ConicFrame {
+                                geom::Frame {
                                     center,
                                     axis,
                                     u_ref,

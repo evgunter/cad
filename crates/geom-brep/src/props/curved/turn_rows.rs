@@ -139,7 +139,7 @@ fn the_circle_span_doors_agree_with_the_old_pair() {
 /// lands on a band edge): the door the cone asks, on one hand-built arc.
 fn cone_ellipse(span: (f64, f64), band: Band) -> Outcome {
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),

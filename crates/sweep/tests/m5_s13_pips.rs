@@ -152,7 +152,7 @@ fn die_pip_subtract_is_green() {
             continue;
         };
         let &Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             radius,
         }) = curve.carrier()
         else {

@@ -172,11 +172,11 @@ impl<T: Decide + Bounds> EndCut<T> {
             let turn = (foot_a - center).cross(foot_b - center);
             let backward = match placed {
                 Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { axis, .. },
+                    frame: geom::Frame { axis, .. },
                     ..
                 })
                 | Curve3::Ellipse(geom::Ellipse {
-                    frame: geom::ConicFrame { axis, .. },
+                    frame: geom::Frame { axis, .. },
                     ..
                 }) => turn.dot(axis).hi() < 0.0,
                 _ => return Err(unbuilt()),
@@ -393,12 +393,12 @@ impl<T: Bounds> SectionFrame<T> {
                 .scaled(origin + dir * ta - center)
                 .max(self.scaled(origin + dir * tb - center)),
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center: c, .. },
+                frame: geom::Frame { center: c, .. },
                 radius,
             }) => self.scaled(c - center) + radius / self.minor,
             Curve3::Ellipse(
                 ref e @ geom::Ellipse {
-                    frame: geom::ConicFrame { center: c, .. },
+                    frame: geom::Frame { center: c, .. },
                     ..
                 },
             ) => self.scaled(c - center) + e.semi_axes_by_size().0 / self.minor,
@@ -430,12 +430,12 @@ impl<T: Bounds> SectionFrame<T> {
                 ((a.0 + ex * s).powi(2) + (a.1 + ey * s).powi(2)).sqrt()
             }
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center: c, .. },
+                frame: geom::Frame { center: c, .. },
                 radius,
             }) => self.scaled(c - center) - radius / self.minor,
             Curve3::Ellipse(
                 ref e @ geom::Ellipse {
-                    frame: geom::ConicFrame { center: c, .. },
+                    frame: geom::Frame { center: c, .. },
                     ..
                 },
             ) => self.scaled(c - center) - e.semi_axes_by_size().0 / self.minor,
@@ -618,12 +618,12 @@ impl<T: Bounds> CapSliver<T> {
 fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| match *c {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             radius,
         }) => Some((center, radius, radius)),
         Curve3::Ellipse(
             ref e @ geom::Ellipse {
-                frame: geom::ConicFrame { center, .. },
+                frame: geom::Frame { center, .. },
                 ..
             },
         ) => {
@@ -866,7 +866,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle(geom::Circle {
                         frame:
-                            geom::ConicFrame {
+                            geom::Frame {
                                 center,
                                 axis,
                                 u_ref,
@@ -874,7 +874,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                         radius,
                     }) => (center, axis, radius, radius, u_ref),
                     ref ellipse @ Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::ConicFrame { center, axis, .. },
+                        frame: geom::Frame { center, axis, .. },
                         ..
                     }) => {
                         let Some(f) = ellipse.major_frame() else {

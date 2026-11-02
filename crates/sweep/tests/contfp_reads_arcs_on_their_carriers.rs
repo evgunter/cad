@@ -538,7 +538,7 @@ fn a_steep_ellipse_is_off_where_it_is_off() {
                 .certified()
                 .unwrap();
             let geom::Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { center, u_ref, .. },
+                frame: geom::Frame { center, u_ref, .. },
                 ..
             }) = *curve.carrier()
             else {

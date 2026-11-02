@@ -78,7 +78,7 @@ fn the_reported_promotion_is_the_carrier_that_ships() {
     };
     assert_eq!(curves.len(), 1);
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { axis, .. },
+        frame: geom::Frame { axis, .. },
         radius,
     }) = curves[0]
     else {

@@ -1257,7 +1257,7 @@ const ELLIPSE: (f64, f64) = (1e4, 1e-3);
 fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     let (major, minor) = ELLIPSE;
     let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),

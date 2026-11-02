@@ -69,7 +69,7 @@ fn closed_rim_whole_circle_seamed_elsewhere_meets_at_the_vertex() {
 
 fn quarter_ellipse() -> Vec<(Curve3<f64>, (f64, f64))> {
     let e = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         3.0,
         1.0,
     ));
@@ -94,7 +94,7 @@ fn quarter_ellipse() -> Vec<(Curve3<f64>, (f64, f64))> {
 
 fn ellipse(axis: Vec3<f64>) -> Curve3<f64> {
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::origin(), axis, Vec3::unit_x()),
+        geom::Frame::new(Point3::origin(), axis, Vec3::unit_x()),
         3.0,
         1.0,
     ))

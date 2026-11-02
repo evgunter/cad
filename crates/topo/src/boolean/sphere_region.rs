@@ -296,7 +296,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                 continue;
             }
             let geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 radius,
             }) = arc.carrier
             else {
@@ -379,7 +379,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
     ) -> Result<Vec<Landing<T>>, Fault> {
         let geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

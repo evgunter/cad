@@ -1546,14 +1546,8 @@ mod polish_rows {
     fn an_unconverged_polish_refuses() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let a = geom::Circle::new(
-            geom::ConicFrame::new(Point3::new(0.0, -1.0, 0.0), z, x),
-            1.0,
-        );
-        let b = geom::Circle::new(
-            geom::ConicFrame::new(Point3::new(-1.0, 0.0, 0.0), z, x),
-            1.0,
-        );
+        let a = geom::Circle::new(geom::Frame::new(Point3::new(0.0, -1.0, 0.0), z, x), 1.0);
+        let b = geom::Circle::new(geom::Frame::new(Point3::new(-1.0, 0.0, 0.0), z, x), 1.0);
         let polish = |off: f64| Polish {
             a: Side::Conic(&a),
             b: Side::Conic(&b),

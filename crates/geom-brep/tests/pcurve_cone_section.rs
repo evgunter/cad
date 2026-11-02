@@ -64,7 +64,7 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
 /// The same locus traversed backwards (the arc-side rule's cw arm).
 fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -76,7 +76,7 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
         unreachable!()
     };
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(center, -axis, u_ref),
+        geom::Frame::new(center, -axis, u_ref),
         semi_u,
         semi_v,
     ))
@@ -87,7 +87,7 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
 /// odd turn, the semi-axes swapped.
 fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
     let &Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -105,7 +105,7 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
         _ => (-axis.cross(u_ref), semi_v, semi_u),
     };
     Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -344,7 +344,7 @@ fn read_off_the_sum(
     let (
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse(geom::Ellipse {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center, u_ref: e_u, ..
             },
             semi_u,
@@ -495,7 +495,7 @@ fn skew_near_circle(alpha: f64, h: f64, phi: f64, off: f64) -> (Curve3<f64>, Sur
     let (cx, cz) = (center.x, center.z);
     let u_ref = (p1 - p2).normalize();
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             m.transform_point(center + Vec3::unit_y() * off),
             m.transform_vec(u_ref.cross(Vec3::unit_y())),
             m.transform_vec(u_ref),
@@ -742,7 +742,7 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Err(why) => return refused(why),
     };
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -754,7 +754,7 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         unreachable!()
     };
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(center + u_ref * (0.3 * eps()), axis, u_ref),
+        geom::Frame::new(center + u_ref * (0.3 * eps()), axis, u_ref),
         semi_u,
         semi_v,
     ));

@@ -325,7 +325,7 @@ fn carrier_of(body: &Body<f64>, edge: EdgeKey) -> (Carrier, (f64, f64)) {
     let e = body.get_edge(edge).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

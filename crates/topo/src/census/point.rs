@@ -286,7 +286,7 @@ pub(super) fn edge_face<T: Decide>(
     let touch = match (curve, surface(body, face)) {
         (
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 radius,
             }),
             Some(Surface::Plane { origin, normal }),

@@ -1356,7 +1356,7 @@ mod review_probes {
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
                 let pncad::geom::Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::ConicFrame { center, .. },
+                    frame: pncad::geom::Frame { center, .. },
                     radius,
                 }) = *geom.carrier()
                 else {

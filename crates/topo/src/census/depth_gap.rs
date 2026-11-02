@@ -943,7 +943,7 @@ mod tests {
     #[test]
     fn an_ellipse_ring_holds_its_minor_vertices() {
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+            geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
             2.0,
             1.0,
         ));

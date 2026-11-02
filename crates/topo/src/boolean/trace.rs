@@ -279,7 +279,7 @@ pub fn circle_crossings<T: Decide>(
         }
         _ => {
             let circle = Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center,
                     axis,
                     u_ref,

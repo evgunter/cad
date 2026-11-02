@@ -2718,7 +2718,7 @@ pub(crate) mod tests {
         let normal = Vec3::new(alpha.sin(), 0.0, alpha.cos());
         let u_ref = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
         let carrier = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::origin(), normal, u_ref),
+            geom::Frame::new(Point3::origin(), normal, u_ref),
             r / alpha.cos(),
             r,
         ));
@@ -5999,7 +5999,7 @@ pub(crate) mod tests {
         match carrier {
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -6008,7 +6008,7 @@ pub(crate) mod tests {
             }) => (*center, *u_ref * *radius, axis.cross(*u_ref) * *radius),
             Curve3::Ellipse(geom::Ellipse {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -6691,7 +6691,7 @@ pub(crate) mod sphere_rect_rows {
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
             let Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 ..
             }) = carrier
             else {
@@ -6939,7 +6939,7 @@ pub(crate) mod sphere_rect_rows {
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
                 let Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, axis, .. },
+                    frame: geom::Frame { center, axis, .. },
                     ..
                 }) = carrier
                 else {
@@ -7026,7 +7026,7 @@ pub(crate) mod sphere_rect_rows {
             let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
             let base = outer
                 .iter()
-                .find(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { frame: geom::ConicFrame { axis, .. }, .. }) if axis.dot(z) > 0.5))
+                .find(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { frame: geom::Frame { axis, .. }, .. }) if axis.dot(z) > 0.5))
                 .expect("the base rim runs about +ẑ");
             body.set_face_sense(north, base.forward == (hc > h0))
                 .unwrap();

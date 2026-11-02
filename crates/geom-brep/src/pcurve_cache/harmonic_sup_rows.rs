@@ -146,7 +146,7 @@ pub(super) fn circle(
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
     Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -232,7 +232,7 @@ fn cylinder_meridian_a_radial_circle_reads_once() {
     let a = Vec3::new(d, 0.0, rise);
     let u_ref = a.normalize();
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::new(r, 0.0, 1.0), u_ref.cross(Vec3::unit_y()), u_ref),
+        geom::Frame::new(Point3::new(r, 0.0, 1.0), u_ref.cross(Vec3::unit_y()), u_ref),
         a.norm(),
         d,
     ));
@@ -626,7 +626,7 @@ fn projected_circle_a_moved_frame_reads_once() {
 fn projected_circle_an_off_sphere_pair_reads_once() {
     let sphere = unit_sphere();
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { u_ref, axis, .. },
+        frame: geom::Frame { u_ref, axis, .. },
         ..
     }) = general_sphere_circle(Vec3::zero())
     else {

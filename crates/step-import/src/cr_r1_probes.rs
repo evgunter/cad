@@ -175,7 +175,7 @@ fn p5_reported_residual_dominates_measured_deviation() {
     let CurveRecognition::Promoted {
         curve:
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 radius,
             }),
         residual,

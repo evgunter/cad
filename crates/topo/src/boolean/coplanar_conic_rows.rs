@@ -44,7 +44,7 @@ pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
             let curve = body.get_edge(e).unwrap().curve;
             match body.get_curve_geom(curve).unwrap() {
                 crate::CurveGeom::Certified(c) => {
-                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::ConicFrame { center, .. }, .. }) if center.z > 0.5)
+                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z > 0.5)
                 }
                 _ => false,
             }

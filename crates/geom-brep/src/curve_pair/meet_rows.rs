@@ -46,7 +46,7 @@ pub(super) fn ellipse(c: [f64; 3], axis: [f64; 3], u: [f64; 3], a: f64, b: f64) 
     let axis = Vec3::from_array(axis).normalize();
     let u = Vec3::from_array(u);
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::from_array(c),
             axis,
             (u - axis * u.dot(axis)).normalize(),
@@ -73,7 +73,7 @@ pub(super) fn distance(c: &Curve3<f64>, q: Point3<f64>) -> f64 {
             (w - u * w.dot(u)).norm()
         }
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             radius,
         }) => {
             let w = q - center;
@@ -1643,7 +1643,7 @@ fn a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window() {
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let x = -0.758_578_643_762_690_5;
     let rim = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(x, -0.1, 0.9),
             Vec3::new(h, h, 0.0),
             Vec3::new(-h, h, 0.0),
@@ -1889,7 +1889,7 @@ fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let (c, s) = (0.894_427_190_999_916, 0.447_213_595_499_958);
     let rim = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.561_803_398_874_989_5, -0.1, 0.9),
             Vec3::new(h, h, 0.0),
             Vec3::new(-h, h, 0.0),
@@ -1898,7 +1898,7 @@ fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
         0.1,
     ));
     let fillet = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.45, -0.1, 0.9),
             Vec3::new(c, 0.0, -s),
             Vec3::new(s, 0.0, c),
@@ -1940,7 +1940,7 @@ fn a_rim_touching_its_fillet_circles_plane_meets_it_at_the_joint_alone_at_a_fine
     let (c, s) = (0.1 / big, (1.0 - (0.1 / big) * (0.1 / big)).sqrt());
     let u = Vec3::new(c, 0.0, s);
     let rim = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.1, 0.0, 0.0) - u * big,
             u.cross(Vec3::new(0.0, 1.0, 0.0)),
             u,

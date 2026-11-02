@@ -189,7 +189,7 @@ fn circle(c: Point3<f64>, axis: Vec3<f64>, r: f64, u: Vec3<f64>) -> Curve3<f64> 
 }
 
 fn ellipse(c: Point3<f64>, axis: Vec3<f64>, a: f64, b: f64, u: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(c, axis, u), a, b))
+    Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(c, axis, u), a, b))
 }
 
 #[test]
@@ -292,7 +292,7 @@ mod interval_support {
                             let real: Curve3<f64> = match iv_carrier {
                                 Curve3::Circle(geom::Circle {
                                     frame:
-                                        geom::ConicFrame {
+                                        geom::Frame {
                                             center,
                                             axis,
                                             u_ref,
@@ -314,7 +314,7 @@ mod interval_support {
                                 ),
                                 Curve3::Ellipse(geom::Ellipse {
                                     frame:
-                                        geom::ConicFrame {
+                                        geom::Frame {
                                             center,
                                             axis,
                                             u_ref,
@@ -434,7 +434,7 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
     cases.push((
         "tilted ellipse, wide axis".into(),
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                 Vec3::new(ib(0.5, 0.6), iv(0.0), ib(0.8, 0.87)),
                 Vec3::new(ib(0.8, 0.87), iv(0.0), ib(-0.6, -0.5)),

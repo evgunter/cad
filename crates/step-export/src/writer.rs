@@ -403,7 +403,7 @@ impl<'a> Writer<'a> {
             // parameter remapping.
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -433,7 +433,7 @@ impl<'a> Writer<'a> {
             // curve for nothing.
             Curve3::Ellipse(geom::Ellipse {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,

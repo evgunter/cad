@@ -3564,7 +3564,7 @@ mod tests {
                                 geom::Curve3::circle(base + big_n * along_n, u.cross(t), along_n, u)
                             } else {
                                 geom::Curve3::Ellipse(geom::Ellipse::new(
-                                    geom::ConicFrame::new(base + big_n * along_n, u.cross(t), u),
+                                    geom::Frame::new(base + big_n * along_n, u.cross(t), u),
                                     along_n,
                                     along_t,
                                 ))

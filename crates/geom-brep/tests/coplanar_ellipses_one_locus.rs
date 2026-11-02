@@ -58,7 +58,7 @@ fn section(r: f64, tilt: f64, across: f64) -> Curve3<f64> {
     let sin_vec = d.cross(n);
     let minor = sin_vec / sin_vec.norm();
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(centre(), n, minor.cross(n)),
+        geom::Frame::new(centre(), n, minor.cross(n)),
         r / d.dot(n).abs(),
         r,
     ))
@@ -71,7 +71,7 @@ fn turned(a: f64, b: f64, turn: f64, frame: f64, at: Point3<f64>) -> Curve3<f64>
     let (n, e1, e2) = skew_frame();
     let (s, c) = (turn + frame).sin_cos();
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(at, n, (e1 * c + e2 * s).normalize()),
+        geom::Frame::new(at, n, (e1 * c + e2 * s).normalize()),
         a,
         b,
     ))
@@ -154,14 +154,14 @@ fn one_ellipse_in_two_frames_is_one_curve() {
             assert_one(&label("semi-axes swapped"), &e, &swapped, band);
             let (n, ..) = skew_frame();
             let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { u_ref, .. },
+                frame: geom::Frame { u_ref, .. },
                 ..
             }) = e
             else {
                 unreachable!()
             };
             let upside = Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(at, n * -1.0, u_ref * -1.0),
+                geom::Frame::new(at, n * -1.0, u_ref * -1.0),
                 r,
                 0.5 * r,
             ));
@@ -229,7 +229,7 @@ fn from_bits(line: &str) -> (Curve3<f64>, Curve3<f64>) {
     assert_eq!(x.len(), 22, "two conics of eleven numbers: {line}");
     let conic = |x: &[f64]| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(x[0], x[1], x[2]),
                 Vec3::new(x[3], x[4], x[5]),
                 Vec3::new(x[6], x[7], x[8]),
@@ -295,7 +295,7 @@ fn an_ellipse_with_its_frame_an_ulp_off_unit_past_the_zero_of_a_circle_is_not_on
     );
     for (a, b) in [(100.0 + 1e-12, 100.0), (100.0, 100.0 + 1e-12)] {
         let e = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::origin(),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(0.6f64.next_up(), 0.8, 0.0),

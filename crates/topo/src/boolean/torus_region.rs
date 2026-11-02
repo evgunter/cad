@@ -413,7 +413,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
         let geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -602,7 +602,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             (
                 &geom::Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
@@ -634,7 +634,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             }
             (
                 &geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, .. },
+                    frame: geom::Frame { center, .. },
                     radius,
                 }),
                 LegKind::Meridian { radial },
@@ -673,7 +673,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             (
                 &geom::Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
@@ -1158,7 +1158,7 @@ mod tests {
             r#loop: LoopKey::default(),
             cycle: 0,
             carrier: geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center,
                     axis,
                     u_ref,

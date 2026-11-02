@@ -571,7 +571,7 @@ pub(crate) fn conic_plane_candidates<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<[Option<T>; 2], ConicPlaneMeet<T>> {
-    let geom::ConicFrame {
+    let geom::Frame {
         center,
         axis,
         u_ref,
@@ -929,7 +929,7 @@ mod tests {
     #[test]
     fn a_crossing_at_an_end_is_metered_at_the_smaller_semi_axis() {
         let e = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             0.01,
             10.0,
         ));
@@ -1129,7 +1129,7 @@ mod tests {
             (circle(), "conic"),
             (
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                    geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                     2.0,
                     1.0,
                 )),
@@ -1258,7 +1258,7 @@ mod tests {
             for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
                 let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");
                 let conic = geom::Ellipse::new(
-                    geom::ConicFrame::new(
+                    geom::Frame::new(
                         Point3::new(0.0, 0.0, off * e),
                         Vec3::unit_x(),
                         Vec3::unit_z(),

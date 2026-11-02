@@ -221,7 +221,7 @@ fn assert_on_within(
     reach: f64,
 ) {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame { center, .. },
+        frame: geom::Frame { center, .. },
         semi_u,
         semi_v,
     }) = *curve

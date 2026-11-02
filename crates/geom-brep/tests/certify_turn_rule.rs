@@ -42,7 +42,7 @@ fn steep(ratio: f64) -> Steep {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     });
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),

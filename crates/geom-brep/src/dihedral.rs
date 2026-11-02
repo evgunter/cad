@@ -2284,7 +2284,7 @@ mod tests {
             u_ref,
         };
         let equator = geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,

@@ -139,7 +139,7 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             radius,
         }) = c
         else {

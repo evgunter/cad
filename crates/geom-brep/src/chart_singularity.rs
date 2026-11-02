@@ -501,7 +501,7 @@ pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
         Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -1092,7 +1092,7 @@ impl<T: Decide> EdgeShape<T> {
                 height: None,
             },
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { axis: n, .. },
+                frame: geom::Frame { axis: n, .. },
                 radius,
             }) => Self {
                 speed,

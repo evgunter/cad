@@ -50,7 +50,7 @@ fn cylinder() -> Surface<f64> {
 
 fn section() -> Curve3<f64> {
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, H),
             Vec3::new(TILT.sin(), 0.0, TILT.cos()),
             Vec3::new(TILT.cos(), 0.0, -TILT.sin()),

@@ -120,7 +120,7 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
                 CurveKind::Ellipse => AnalyticKind {
                     build: |x| {
                         Curve3::Ellipse(crate::Ellipse::new(
-                            crate::ConicFrame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[8..11])),
+                            crate::Frame::new(pt(&x[0..3]), dir(&x[3..6]), dir(&x[8..11])),
                             x[6],
                             x[7],
                         ))

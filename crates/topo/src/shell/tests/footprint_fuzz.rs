@@ -83,7 +83,7 @@ fn carrier(rng: &mut Rng, kind: usize) -> (geom::Curve3<f64>, (f64, f64)) {
             let (a, b) = (radius(rng), radius(rng));
             (
                 geom::Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(center, axis, u_ref),
+                    geom::Frame::new(center, axis, u_ref),
                     a.max(b),
                     a.min(b),
                 )),

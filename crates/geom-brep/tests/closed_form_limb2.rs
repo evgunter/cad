@@ -72,7 +72,7 @@ fn ellipse_pair(phi: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         u_ref: Vec3::unit_x(),
     };
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::origin(), normal, Vec3::unit_x()),
+        geom::Frame::new(Point3::origin(), normal, Vec3::unit_x()),
         1.0,
         1.0 / c,
     ));
@@ -308,7 +308,7 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -320,7 +320,7 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
         unreachable!("built as an ellipse")
     };
     let moved = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(center, axis, u_ref),
+        geom::Frame::new(center, axis, u_ref),
         semi_u + 1e-4,
         semi_v,
     ));
@@ -385,7 +385,7 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
             u_ref: Vec3::unit_x(),
         };
         let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 moved(Point3::origin(), d),
                 Vec3::new(0.0, -s, c),
                 Vec3::unit_x(),

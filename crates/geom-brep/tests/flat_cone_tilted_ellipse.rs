@@ -88,7 +88,7 @@ impl Pose {
         let (cone, plane) = self.surfaces();
         let Ok(PlaneConeSection::TiltedEllipse(Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -111,7 +111,7 @@ impl Pose {
             (p(origin), w(normal)),
         );
         let miss = cut.ellipse_miss(p(center), w(axis), semi_u, semi_v, w(u_ref));
-        let size = geom::Ellipse::new(geom::ConicFrame::new(center, axis, u_ref), semi_u, semi_v)
+        let size = geom::Ellipse::new(geom::Frame::new(center, axis, u_ref), semi_u, semi_v)
             .semi_axes_by_size()
             .0
             .max(center.distance(Point3::origin()))

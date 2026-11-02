@@ -6564,7 +6564,7 @@ fn sphere_pair_cut<T: Decide>(
     match geom_brep::sphere_sphere_section(x, y, band) {
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center: foot,
                     axis: normal,
                     u_ref,
@@ -6608,7 +6608,7 @@ fn pair_seam<T: Decide>(
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { u_ref, .. },
+            frame: geom::Frame { u_ref, .. },
             ..
         }))) => Ok(u_ref),
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
@@ -7171,7 +7171,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 let (t0, t1) = curve.params();
                 let geom::Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center: cc,
                             axis: ca,
                             u_ref: cu,

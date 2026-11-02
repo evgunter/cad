@@ -111,7 +111,7 @@ fn rims(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
             continue;
         }
         if let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { axis, .. },
+            frame: geom::Frame { axis, .. },
             ..
         }) = curve_of(body, e).carrier()
             && axis.y.abs() > 0.999
@@ -121,7 +121,7 @@ fn rims(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
     }
     let height = |e: &EdgeKey| match curve_of(body, *e).carrier() {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             ..
         }) => center.y,
         _ => unreachable!("a rim is a circle"),
@@ -149,7 +149,7 @@ fn split_at(body: &mut Body<f64>, e: EdgeKey, angle: Option<f64>) -> VertexKey {
 /// The angle of `p` on a circle carrier.
 fn angle_on(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

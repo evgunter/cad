@@ -178,7 +178,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
         },
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -187,7 +187,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
         }) => Curve3::circle(p(center), v(axis), T::from_f64(radius), v(u_ref)),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -195,7 +195,7 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
             semi_u,
             semi_v,
         }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(p(center), v(axis), v(u_ref)),
+            geom::Frame::new(p(center), v(axis), v(u_ref)),
             T::from_f64(semi_u),
             T::from_f64(semi_v),
         )),
@@ -378,7 +378,7 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
     let half = add(p, q, -1.0);
     let major = 0.5 * dot(half, half).sqrt();
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(pt(center), vt(normal), vt(unit(half))),
+        geom::Frame::new(pt(center), vt(normal), vt(unit(half))),
         major,
         ((radius - off) * (radius + off)).sqrt(),
     ))
@@ -388,7 +388,7 @@ fn section_at(c: &Cone, tilt: f64, l: f64) -> Curve3<f64> {
 /// `d` off the cone, as one closed edge.
 fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,
@@ -401,7 +401,7 @@ fn ellipse_stretched(c: &Cone, d: f64) -> Spec {
     };
     let stretched = |k: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, axis, u_ref),
+            geom::Frame::new(center, axis, u_ref),
             semi_u * (1.0 + k),
             semi_v,
         ))
@@ -656,7 +656,7 @@ mod between_samples {
 
         fn curve<T: Real>(&self) -> Curve3<T> {
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     p3(self.c[0], self.c[1], self.c[2]),
                     v3(self.n[0], self.n[1], self.n[2]),
                     v3(self.u[0], self.u[1], self.u[2]),

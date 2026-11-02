@@ -106,7 +106,7 @@ fn n3r2_dispatcher_is_its_two_arms() {
         format!("{:?}", circle_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1)))
     );
     let e: Curve3<f64> = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),

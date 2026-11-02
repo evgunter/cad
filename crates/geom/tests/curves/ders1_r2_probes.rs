@@ -273,7 +273,7 @@ fn tilted_circle<T: Real>() -> Curve3<T> {
 fn tilted_ellipse<T: Real>() -> Curve3<T> {
     let f = T::from_f64;
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(f(-0.5), f(4.0), f(1.25)),
             Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
             Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),

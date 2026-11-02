@@ -371,7 +371,7 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
         .filter(|k| {
             let e = body.get_edge(*k).unwrap();
             let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::ConicFrame { center, .. }, .. })
+            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })
                 if (center.z - 1.0).abs() < 1e-9)
         })
         .collect();

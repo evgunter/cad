@@ -61,7 +61,7 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
                 .and_then(CurveGeom::certified)
                 .is_some_and(|c| match c.carrier() {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { axis, .. },
+                        frame: geom::Frame { axis, .. },
                         ..
                     }) => axis.y.hi().abs() < 0.5,
                     _ => false,

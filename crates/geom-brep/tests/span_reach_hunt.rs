@@ -80,7 +80,7 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             Curve3::circle(center, axis, r, u_ref)
         } else {
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(center, axis, u_ref),
+                geom::Frame::new(center, axis, u_ref),
                 a,
                 b,
             ))

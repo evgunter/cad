@@ -31,7 +31,7 @@
 //!   pcurves are *derived* from that one orientation, never stored as
 //!   peers.
 //! - **The conics are the [`conic`] module's.** A circle and an ellipse
-//!   are two kinds, each holding one [`ConicFrame`] beside its own shape;
+//!   are two kinds, each holding one [`Frame`] beside its own shape;
 //!   what either answers is the [`Conic`] trait ([`Curve3::conic`]), and
 //!   the conic conventions (positive sizes, stored order, the seam, the
 //!   one branch rule) are stated there.
@@ -60,7 +60,7 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, ConicFrame, Ellipse, MajorFrame, on_span_branch};
+pub use conic::{Circle, Conic, Ellipse, Frame, MajorFrame, on_span_branch};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -102,12 +102,12 @@ pub enum Curve3<T: Real> {
         dir: Vec3<T>,
     },
 
-    /// The full circle: a [`ConicFrame`] and a radius. The conic
+    /// The full circle: a [`Frame`] and a radius. The conic
     /// conventions (parameter, winding, seam, positive sizes) are the
     /// [`conic`] module's.
     Circle(Circle<T>),
 
-    /// The full ellipse: a [`ConicFrame`] whose `u_ref` is a principal
+    /// The full ellipse: a [`Frame`] whose `u_ref` is a principal
     /// direction, and the semi-axes along `u_ref` and `axis × u_ref` in
     /// stored order. C1 rung 2 (M5 PR 5): the exact conic carrier of the
     /// common curved-boolean cuts (tilted plane×cylinder, equal-radius
@@ -540,7 +540,7 @@ impl<T: Real> Curve3<T> {
             }
             Curve3::Circle(Circle {
                 frame:
-                    ConicFrame {
+                    Frame {
                         center,
                         axis,
                         u_ref,
@@ -554,7 +554,7 @@ impl<T: Real> Curve3<T> {
             ]),
             Curve3::Ellipse(Ellipse {
                 frame:
-                    ConicFrame {
+                    Frame {
                         center,
                         axis,
                         u_ref,
@@ -696,7 +696,7 @@ impl<T: Decide> Curve3<T> {
         if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
             return Err(EllipseInvalid::SemiAxisNotFinite);
         }
-        let e = Ellipse::new(ConicFrame::new(center, axis, u_ref), semi_u, semi_v);
+        let e = Ellipse::new(Frame::new(center, axis, u_ref), semi_u, semi_v);
         let minor = e.semi_axes_by_size().1;
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
@@ -890,7 +890,7 @@ impl<T: Real> Curve3<T> {
         u_ref: Vec3<T>,
         t: T,
     ) -> Point3<T> {
-        Circle::new(ConicFrame::new(center, axis, u_ref), radius).point_at(t)
+        Circle::new(Frame::new(center, axis, u_ref), radius).point_at(t)
     }
 }
 
@@ -1470,11 +1470,7 @@ mod tests {
         let curves = [
             Curve3::Line { origin: c, dir: u },
             Curve3::circle(c, n, 0.7, u),
-            Curve3::Ellipse(crate::Ellipse::new(
-                crate::ConicFrame::new(c, n, u),
-                0.9,
-                0.4,
-            )),
+            Curve3::Ellipse(crate::Ellipse::new(crate::Frame::new(c, n, u), 0.9, 0.4)),
             Curve3::Spiric {
                 center: c,
                 axis: n,
@@ -1578,7 +1574,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::ConicFrame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1594,7 +1590,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::ConicFrame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1739,7 +1735,7 @@ mod tests {
     fn the_major_frame_is_read_from_the_semi_axes() {
         let at = |semi_u: f64, semi_v: f64| {
             Curve3::Ellipse(crate::Ellipse::new(
-                crate::ConicFrame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
+                crate::Frame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
                 semi_u,
                 semi_v,
             ))
@@ -1787,7 +1783,7 @@ mod tests {
     fn a_reseam_goes_to_the_vertex_its_direction_names() {
         let at = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
             Curve3::Ellipse(crate::Ellipse::new(
-                crate::ConicFrame::new(Point3::new(1.0, 2.0, 3.0), axis, u_ref),
+                crate::Frame::new(Point3::new(1.0, 2.0, 3.0), axis, u_ref),
                 5.0,
                 2.0,
             ))
@@ -1809,7 +1805,7 @@ mod tests {
             (0.0, -0.0, x, 5.0),
         ] {
             let Ellipse {
-                frame: ConicFrame { u_ref, .. },
+                frame: Frame { u_ref, .. },
                 semi_u: u,
                 semi_v: v,
             } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
@@ -1853,12 +1849,12 @@ mod tests {
         let (semi_x, semi_y) = (0.999_999_999_999_999_8, 0.999_999_999_999_999_9);
         let axis = Vec3::unit_z();
         let at_x = Curve3::Ellipse(crate::Ellipse::new(
-            crate::ConicFrame::new(Point3::origin(), normal, along),
+            crate::Frame::new(Point3::origin(), normal, along),
             semi_x,
             semi_y,
         ));
         let at_y = Curve3::Ellipse(crate::Ellipse::new(
-            crate::ConicFrame::new(Point3::origin(), normal, -Vec3::unit_y()),
+            crate::Frame::new(Point3::origin(), normal, -Vec3::unit_y()),
             semi_y,
             semi_x,
         ));
@@ -1876,7 +1872,7 @@ mod tests {
             assert!(e.eval(f.phase).distance(vertex) < 1e-15, "{e:?}");
         }
         let across = Curve3::Ellipse(crate::Ellipse::new(
-            crate::ConicFrame::new(Point3::origin(), axis, Vec3::unit_x()),
+            crate::Frame::new(Point3::origin(), axis, Vec3::unit_x()),
             1.0,
             2.0,
         ));
@@ -1944,7 +1940,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::ConicFrame { center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, u_ref }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let v_ref = axis.cross(u_ref);
@@ -1962,7 +1958,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::ConicFrame { center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, .. }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let p = e.eval(theta);
@@ -2429,7 +2425,7 @@ mod tests {
             let ei = e.map_scalar(geom_core::Interval::from_f64);
             let Curve3::Ellipse(crate::Ellipse {
                 frame:
-                    crate::ConicFrame {
+                    crate::Frame {
                         center,
                         axis,
                         u_ref,
@@ -2810,7 +2806,7 @@ mod tests {
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle(crate::Circle {
-                    frame: crate::ConicFrame { center, axis, .. },
+                    frame: crate::Frame { center, axis, .. },
                     radius,
                 }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),

@@ -5238,7 +5238,7 @@ impl RimSide {
                         "a one-site loop's conic carries no certified curve",
                     ))?;
                 let geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame { center, axis, .. },
+                    frame: geom::Frame { center, axis, .. },
                     radius,
                 }) = *curve.carrier()
                 else {

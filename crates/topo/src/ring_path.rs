@@ -596,7 +596,7 @@ impl ConicArc<f64> {
     /// A test arc over `span` of the conic placed by `frame` with
     /// semi-axes `(a, b)`: a circle where they are equal.
     pub(crate) fn of_frame(
-        frame: geom::ConicFrame<f64>,
+        frame: geom::Frame<f64>,
         (a, b): (f64, f64),
         span: (f64, f64),
         own: Option<ArcLoop<f64>>,
@@ -943,7 +943,7 @@ impl<T: Real> LoopSplit<T> {
             geom_brep::PlaneTorusSection::MeridianCircles {
                 c1:
                     geom::Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     }),
                 ..
@@ -1069,10 +1069,9 @@ impl<T: Decide> Quadric<T> {
                 ..
             },
             geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::ConicFrame {
-                        center: k, axis: n, ..
-                    },
+                frame: geom::Frame {
+                    center: k, axis: n, ..
+                },
                 radius,
             }),
         ) = (*self, carrier)
@@ -1084,7 +1083,7 @@ impl<T: Decide> Quadric<T> {
             return Ok(None);
         };
         let (
-            geom::ConicFrame {
+            geom::Frame {
                 center: c,
                 axis: a,
                 u_ref,
@@ -1920,7 +1919,7 @@ pub(crate) fn tilted_section(h: f64, tilt: f64) -> (geom::Curve3<f64>, Vec3<f64>
     let alpha = tilt.atan();
     let normal = Vec3::new(-alpha.sin(), 0.0, alpha.cos());
     let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, h),
             normal,
             Vec3::new(alpha.cos(), 0.0, alpha.sin()),
@@ -2502,7 +2501,7 @@ mod tests {
             let LoopArc::Conic(conic) = LoopArc::of(&edge.carrier, edge.params).unwrap() else {
                 panic!("a meridian is a conic");
             };
-            let geom::ConicFrame {
+            let geom::Frame {
                 center: centre,
                 axis,
                 u_ref,
@@ -2576,7 +2575,7 @@ mod tests {
     fn crossing_arcs_of_two_circles_are_not_read_apart_by_their_ends() {
         for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e3)]) {
             let conic = ConicArc::of_frame(
-                geom::ConicFrame::new(f.o, f.z, f.x),
+                geom::Frame::new(f.o, f.z, f.x),
                 (f.s, f.s),
                 (0.25, 5.2),
                 None,
@@ -2676,7 +2675,7 @@ mod tests {
         for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e3)]) {
             let conic = |a: f64, b: f64, span| {
                 ConicArc::of_frame(
-                    geom::ConicFrame::new(f.o, f.z, f.x),
+                    geom::Frame::new(f.o, f.z, f.x),
                     (a * f.s, b * f.s),
                     span,
                     None,
@@ -2809,7 +2808,7 @@ mod tests {
         for o in [far, 0.0] {
             let at = |x: f64| Point3::new(o + x, 0.0, 0.0);
             let conic = ConicArc::of_frame(
-                geom::ConicFrame::new(at(0.0), Vec3::unit_z(), Vec3::unit_x()),
+                geom::Frame::new(at(0.0), Vec3::unit_z(), Vec3::unit_x()),
                 (1.0, 1.0),
                 (-1.0, 1.0),
                 None,

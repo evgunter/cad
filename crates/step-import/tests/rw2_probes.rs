@@ -241,7 +241,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
     let surface = geom::Surface::Nurbs(std::sync::Arc::new(nurbs));
 
     let carrier = geom::Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

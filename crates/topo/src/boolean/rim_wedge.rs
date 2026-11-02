@@ -673,7 +673,7 @@ fn curve_sense<T: Decide>(
         (
             Locus::Rim(rim),
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 ..
             }),
         ) => crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band),
@@ -794,7 +794,7 @@ fn crossings<T: Decide>(
         }
         (
             geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 radius,
             }),
             _,
@@ -889,7 +889,7 @@ fn rides<T: Decide>(
             Locus::Rim(rim),
             geom::Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -961,7 +961,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
         .filter_map(|(_, c)| match *c.carrier() {
             geom::Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,

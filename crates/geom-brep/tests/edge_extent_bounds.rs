@@ -93,7 +93,7 @@ fn circle(r: f64) -> Curve3<f64> {
 
 fn ellipse(a: f64, b: f64) -> Curve3<f64> {
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::new(-0.4, 0.2, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+        geom::Frame::new(Point3::new(-0.4, 0.2, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         a,
         b,
     ))

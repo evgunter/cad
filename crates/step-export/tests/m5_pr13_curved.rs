@@ -758,7 +758,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 Curve3::Line { .. } => assert_eq!(kw, "LINE", "{name}"),
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,
@@ -774,7 +774,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                 }
                 Curve3::Ellipse(geom::Ellipse {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,

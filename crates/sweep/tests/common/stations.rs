@@ -33,7 +33,7 @@ pub fn cut_stations(
         Curve3::Line { origin, dir } => points.iter().map(|&p| (p - origin).dot(dir)).collect(),
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -98,7 +98,7 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
         (
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center: c1,
                         axis: a1,
                         ..
@@ -107,7 +107,7 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
             }),
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center: c2,
                         axis: a2,
                         ..

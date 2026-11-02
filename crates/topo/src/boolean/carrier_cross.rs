@@ -330,7 +330,7 @@ mod crossing_rows {
         );
         let k = 1.64f64.sqrt();
         let section = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.5),
                 Vec3::new(-0.8, 0.0, 1.0) * (1.0 / k),
                 Vec3::new(1.0, 0.0, 0.8) * (1.0 / k),
@@ -411,7 +411,7 @@ mod crossing_rows {
         let m = 400.0f64;
         let k = m.hypot(1.0);
         let section = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.5 - m * theta.cos()),
                 Vec3::new(-m, 0.0, 1.0) * (1.0 / k),
                 Vec3::new(1.0, 0.0, m) * (1.0 / k),
@@ -488,7 +488,7 @@ mod crossing_rows {
         let c = 1.0 + m * (1.0 - 0.05f64.cos()) - m;
         let k = m.hypot(1.0);
         let section = Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, c),
                 Vec3::new(-m * a.cos(), -m * a.sin(), 1.0) * (1.0 / k),
                 Vec3::new(a.cos(), a.sin(), m) * (1.0 / k),

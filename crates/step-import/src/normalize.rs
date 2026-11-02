@@ -420,7 +420,7 @@ fn mint_band(
             let coaxial = match spec.carrier {
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center, axis: n, ..
                         },
                     radius,
@@ -760,7 +760,7 @@ fn wall_inversion(
         for use_ in &lp.uses {
             let spec = &solid.edges[&use_.edge];
             let Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { axis: n_c, .. },
+                frame: geom::Frame { axis: n_c, .. },
                 ..
             }) = spec.carrier
             else {

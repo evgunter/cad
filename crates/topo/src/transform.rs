@@ -475,8 +475,8 @@ fn map_carrier<T: Real>(
     hand: Hand,
     c: &Curve3<T>,
 ) -> Result<Curve3<T>, TransformError> {
-    let frame = |f: &geom::ConicFrame<T>| {
-        geom::ConicFrame::new(
+    let frame = |f: &geom::Frame<T>| {
+        geom::Frame::new(
             map.transform_point(f.center),
             hand.axial(map, f.axis),
             map_vec(map, f.u_ref),

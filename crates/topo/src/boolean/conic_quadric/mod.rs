@@ -212,7 +212,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         (
             &geom::Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -506,7 +506,7 @@ mod tests {
         let line = geom::Curve3::Line { origin: o, dir: x };
         let circle = geom::Curve3::circle(o, z, 1.0, x);
         let ellipse =
-            geom::Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(o, z, x), 1.0, 0.5));
+            geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));
         let sphere = geom::Surface::Sphere {
             center: o,
             radius: 1.0,

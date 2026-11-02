@@ -1089,7 +1089,7 @@ fn transport_curve<T: Decide>(
             }
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis: ca,
                         u_ref,
@@ -1128,7 +1128,7 @@ fn transport_curve<T: Decide>(
                 // the slide the mint applies and this arm used to omit.
                 Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis: ca,
                             u_ref,
@@ -1169,7 +1169,7 @@ fn transport_curve<T: Decide>(
         } => match curve {
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center: c,
                         axis: ca,
                         u_ref,
@@ -1258,7 +1258,7 @@ pub(crate) fn translate_curve<T: Real>(
         },
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -1267,7 +1267,7 @@ pub(crate) fn translate_curve<T: Real>(
         }) => Curve3::circle(*center + delta, *axis, *radius, *u_ref),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -1275,7 +1275,7 @@ pub(crate) fn translate_curve<T: Real>(
             semi_u,
             semi_v,
         }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(*center + delta, *axis, *u_ref),
+            geom::Frame::new(*center + delta, *axis, *u_ref),
             *semi_u,
             *semi_v,
         )),
@@ -1311,7 +1311,7 @@ fn homothety<T: Real>(
     Ok(Some(match curve {
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -2335,7 +2335,7 @@ fn cone_v_range<T: Decide>(
         // sub-arc and exact on a closed rim.
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis: ca,
                     u_ref,
@@ -2351,7 +2351,7 @@ fn cone_v_range<T: Decide>(
         }
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis: ca,
                     u_ref,
@@ -4856,7 +4856,7 @@ mod pose_reach_rows {
         let anchor = Point3::new(0.3, -0.2, 0.1);
         for (major, minor, u) in [(0.5, 0.9, 1.0), (0.9, 0.5, -1.0)] {
             let e = Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(0.1, 0.2, 0.0),
                     Vec3::new(0.0, 0.0, 1.0),
                     Vec3::new(u, 0.0, 0.0),

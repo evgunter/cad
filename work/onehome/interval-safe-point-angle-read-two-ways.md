@@ -24,7 +24,7 @@ the cut stays narrow:
   `pose::window`'s foot seed.
 
 Both feed a conic's in-plane components, which the unit now reads as
-`geom::ConicFrame::in_plane`. They differ in the anchor (a seed against
+`geom::Frame::in_plane`. They differ in the anchor (a seed against
 the fixed axis), so one is not plainly the other with an argument, and the
 unit kept both. `geom::Conic::angle_of` is the principal value, which
 neither can use at `Interval`. The question for this row: is there one

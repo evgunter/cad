@@ -92,7 +92,7 @@ impl Fnv {
             }
             Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
@@ -107,7 +107,7 @@ impl Fnv {
             }
             Curve3::Ellipse(geom::Ellipse {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,

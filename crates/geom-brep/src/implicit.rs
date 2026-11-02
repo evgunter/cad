@@ -804,7 +804,7 @@ pub fn circle_arc_residual_range<T: Real>(
 ) -> Option<(T, T)> {
     conic_arc_residual_range(
         s,
-        &geom::Circle::new(geom::ConicFrame::new(center, axis, u_ref), radius),
+        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
         t0,
         t1,
     )
@@ -868,7 +868,7 @@ pub fn circle_residual_extremes<T: Real>(
     }
     conic_residual_extremes(
         s,
-        &geom::Circle::new(geom::ConicFrame::new(center, axis, u_ref), radius),
+        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
     )
 }
 
@@ -902,7 +902,7 @@ pub fn circle_residual_curvature_bound<T: Real>(
 ) -> Option<T> {
     arc_curvature_bound(
         s,
-        &geom::Circle::new(geom::ConicFrame::new(center, axis, u_ref), radius),
+        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
         T::zero(),
         T::tau(),
     )
@@ -2958,7 +2958,7 @@ mod arc_clearance_tests {
             let c = random_torus_arc(&mut rng, i);
             let f2 = arc_curvature_bound(
                 &c.surface,
-                &geom::Circle::new(geom::ConicFrame::new(c.center, c.axis, c.u_ref), c.radius),
+                &geom::Circle::new(geom::Frame::new(c.center, c.axis, c.u_ref), c.radius),
                 c.t0,
                 c.t1,
             )
@@ -3113,7 +3113,7 @@ mod conic_tests {
     #[test]
     fn the_carrier_ceiling_charges_the_frame_defect() {
         let conic = geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.006_142_65, 0.035_256_44, 0.010_196_55),
                 Vec3::new(0.758_923_11, 0.041_698_83, -0.649_843_76),
                 Vec3::new(-0.631_128_01, 0.979_226_32, -0.574_074_24),
@@ -3198,7 +3198,7 @@ mod conic_tests {
         ];
         let mut conics = ellipses();
         conics.push(geom::Ellipse {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 u_ref: Vec3::new(1.0, 0.3, 0.1),
                 ..conics[2].frame
             },
@@ -3259,7 +3259,7 @@ mod conic_tests {
             .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
             .collect();
         conics.push(Box::new(geom::Circle::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.2, 0.1, -0.1),
                 Vec3::new(0.0, 0.6, 0.8),
                 Vec3::new(1.0, 0.0, 0.0),
@@ -3268,7 +3268,7 @@ mod conic_tests {
         )));
         let first = ellipses()[0];
         conics.push(Box::new(geom::Ellipse {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 u_ref: Vec3::new(1.0, 0.003, 0.0),
                 ..first.frame
             },
@@ -3357,7 +3357,7 @@ mod conic_tests {
             .map(|e| Box::new(e) as Box<dyn Conic<f64>>)
             .collect();
         conics.push(Box::new(geom::Circle::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.2, 0.1, -0.1),
                 Vec3::new(0.0, 0.6, 0.8),
                 Vec3::new(1.0, 0.0, 0.0),
@@ -3366,7 +3366,7 @@ mod conic_tests {
         )));
         let first = ellipses()[0];
         conics.push(Box::new(geom::Ellipse {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 u_ref: Vec3::new(1.0, 0.003, 0.0),
                 ..first.frame
             },
@@ -3407,7 +3407,7 @@ mod conic_tests {
         let rho = 1000.0;
         let (big, small) = (1.0, 0.25);
         let graze = geom::Circle::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(big + small + rho, 0.0, 0.0),
                 Vec3::new(0.0, -1.0, 0.0),
                 Vec3::new(-1.0, 0.0, 0.0),
@@ -3463,7 +3463,7 @@ mod conic_tests {
         .map(|(n, u, c, semi_u, semi_v)| {
             let (axis, u_ref) = frame(n, u);
             geom::Ellipse::new(
-                geom::ConicFrame::new(Point3::from_array(c), axis, u_ref),
+                geom::Frame::new(Point3::from_array(c), axis, u_ref),
                 semi_u,
                 semi_v,
             )
@@ -3568,7 +3568,7 @@ mod conic_tests {
                 (small, big)
             };
             let conic = geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(
                         rng.range(-1.0, 1.0),
                         rng.range(-1.0, 1.0),

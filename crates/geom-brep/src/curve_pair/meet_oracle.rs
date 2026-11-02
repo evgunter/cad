@@ -89,11 +89,7 @@ fn through(rng: &mut fuzz::Rng, kind: usize, x: Point3<f64>) -> (Curve3<f64>, f6
     let carrier = if kind == 1 {
         Curve3::circle(center, axis, a, u)
     } else {
-        Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, axis, u),
-            a,
-            b,
-        ))
+        Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(center, axis, u), a, b))
     };
     (carrier, t)
 }
@@ -229,11 +225,7 @@ fn along(
     let carrier = if kind == 1 {
         Curve3::circle(center, n, a, u)
     } else {
-        Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, n, u),
-            a,
-            b,
-        ))
+        Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(center, n, u), a, b))
     };
     (carrier, theta)
 }
@@ -375,7 +367,7 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
         }
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,

@@ -62,7 +62,7 @@ fn wound_negative() -> Curve3<f64> {
 fn center_of(c: &Curve3<f64>) -> Point3<f64> {
     match c {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             ..
         }) => *center,
         _ => panic!("a circle fixture"),
@@ -318,7 +318,7 @@ fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f6
     let (center, axis, u_ref) = match *carrier {
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -485,7 +485,7 @@ fn the_line_arm_is_the_projection_and_ignores_the_anchor() {
 #[test]
 fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::new(0.5, -1.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
+        geom::Frame::new(Point3::new(0.5, -1.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
         2.0,
         1.0,
     ));

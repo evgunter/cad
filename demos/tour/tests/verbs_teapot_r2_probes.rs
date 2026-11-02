@@ -385,7 +385,7 @@ fn r2_ring_anatomy_on_a_drum() {
                     .map(|c| match c.carrier() {
                         Curve3::Line { .. } => "line".to_string(),
                         Curve3::Circle(pncad::geom::Circle {
-                            frame: pncad::geom::ConicFrame { center, .. },
+                            frame: pncad::geom::Frame { center, .. },
                             radius,
                         }) => {
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)

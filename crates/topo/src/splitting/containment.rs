@@ -1639,7 +1639,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 unreachable!("a circle or an ellipse")
             };
             let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::ConicFrame { center, axis, .. } = *conic.frame();
+            let geom::Frame { center, axis, .. } = *conic.frame();
             let n = axis / axis.norm();
             let w = q - center;
             let height = w.dot(n);
@@ -1993,7 +1993,7 @@ fn certify_plane<T: Decide>(
         match step.curve.map(|c| c.carrier()) {
             None | Some(geom::Curve3::Line { .. }) => {}
             Some(&geom::Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame { center, axis, .. },
+                frame: geom::Frame { center, axis, .. },
                 radius,
             })) => margins.extend([off(center), tilt(axis, radius)]),
             Some(geom::Curve3::Ellipse(e)) => {
@@ -2326,7 +2326,7 @@ mod tests {
         let eps = band.zero();
         let (a, b) = (20.0, 1.0);
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
@@ -2365,7 +2365,7 @@ mod tests {
     /// The steep ellipse of [`a_steep_ellipse_reads_the_band_in_metres`].
     fn steep(band: Band, (t0, t1): (f64, f64)) -> Result<Option<ConicArc<f64>>, ConicArcError> {
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
@@ -2435,7 +2435,7 @@ mod tests {
         let eps = band.zero();
         let ellipse = |a: f64| {
             geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(0.0, 0.0, 0.0),
                     Vec3::new(0.0, 0.0, 1.0),
                     Vec3::new(1.0, 0.0, 0.0),
@@ -2501,7 +2501,7 @@ mod tests {
         }
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
@@ -2537,7 +2537,7 @@ mod tests {
         let eps = band.zero();
         let ellipse = |a: f64, b: f64| {
             geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(0.0, 0.0, 0.0),
                     Vec3::new(0.0, 0.0, 1.0),
                     Vec3::new(1.0, 0.0, 0.0),
@@ -2670,7 +2670,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let p = |x: f64| <Probe as geom_core::Real>::from_f64(x);
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(p(0.0), p(0.0), p(0.0)),
                 Vec3::new(p(0.0), p(0.0), p(1.0)),
                 Vec3::new(p(1.0), p(0.0), p(0.0)),
@@ -2722,7 +2722,7 @@ mod tests {
         for a in [1.0, 4.0] {
             let b = (a * eps / 100.0).sqrt();
             let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(0.0, 0.0, 0.0),
                     Vec3::new(0.0, 0.0, 1.0),
                     Vec3::new(1.0, 0.0, 0.0),
@@ -2763,7 +2763,7 @@ mod tests {
     /// turn behind the `a`-in-`major` storage's.
     fn stored_minor_first(a: f64, b: f64) -> geom::Curve3<f64> {
         geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(0.0, 1.0, 0.0),
@@ -3008,7 +3008,7 @@ mod tests {
             )
         };
         let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
@@ -3143,7 +3143,7 @@ mod tests {
             ] {
                 let carrier = if ellipse {
                     geom::Curve3::Ellipse(geom::Ellipse::new(
-                        geom::ConicFrame::new(
+                        geom::Frame::new(
                             Point3::new(0.0, 0.0, 0.0),
                             Vec3::new(0.0, 0.0, 1.0),
                             Vec3::new(1.0, 0.0, 0.0),
@@ -3363,7 +3363,7 @@ mod arc_ball_rows {
         let (a, b) = (1e7, 1.0);
         let center = Point3::new(1.0, 0.0, 0.0) + Vec3::new(0.0, 0.0, a);
         let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)),
+            geom::Frame::new(center, Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)),
             a,
             b,
         ));

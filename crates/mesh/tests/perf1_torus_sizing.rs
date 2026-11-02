@@ -183,7 +183,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
             .certified()
             .unwrap();
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { axis, .. },
+            frame: geom::Frame { axis, .. },
             ..
         }) = *curve.carrier()
         else {

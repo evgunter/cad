@@ -56,7 +56,7 @@ fn ellipse_in(
         (a, b, along)
     };
     Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(center, axis, u_ref),
+        geom::Frame::new(center, axis, u_ref),
         major,
         minor,
     ))
@@ -166,7 +166,7 @@ fn elliptic_edge(b_in_major: bool) -> (Body<f64>, EdgeKey) {
     let (t0, t1) = (param(0.3, b_in_major), param(1.2, b_in_major));
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
     let Curve3::Ellipse(geom::Ellipse {
-        frame: geom::ConicFrame { axis, u_ref, .. },
+        frame: geom::Frame { axis, u_ref, .. },
         ..
     }) = carrier
     else {
@@ -226,7 +226,7 @@ fn an_elliptic_edge_is_not_cleared_of_a_ball_on_it_in_either_storage() {
                 "b_in_major = {b_in_major}: the ball about {at:?} on the arc is cleared of it"
             );
             let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 ..
             }) = reference
             else {

@@ -50,11 +50,11 @@ fn two_sections_read_coplanar_in_band_are_one_curve_only_where_they_are() {
         let (e, f) = (section(m), section(m * (1.0 + d)));
         let (
             Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { axis: n1, .. },
+                frame: geom::Frame { axis: n1, .. },
                 ..
             }),
             Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { axis: n2, .. },
+                frame: geom::Frame { axis: n2, .. },
                 semi_u,
                 ..
             }),
@@ -127,7 +127,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
         for size in [0.01, 1.0] {
             let (major, minor) = (ratio * size, size);
             let e = geom::Ellipse::new(
-                geom::ConicFrame::new(Point3::new(1.0, -2.0, 0.5), n, u),
+                geom::Frame::new(Point3::new(1.0, -2.0, 0.5), n, u),
                 major,
                 minor,
             );
@@ -135,7 +135,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                 let across = n.cross(hinge);
                 let reach = (major * across.dot(u)).hypot(minor * across.dot(v));
                 geom::Ellipse {
-                    frame: geom::ConicFrame {
+                    frame: geom::Frame {
                         axis: turn(n, hinge, d / reach),
                         u_ref: turn(u, hinge, d / reach),
                         ..e.frame
@@ -145,14 +145,14 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
             };
             let pose = |what: &str, d: f64| match what {
                 "centre in the plane" => geom::Ellipse {
-                    frame: geom::ConicFrame {
+                    frame: geom::Frame {
                         center: e.frame().center + (u + v).normalize() * d,
                         ..e.frame
                     },
                     ..e
                 },
                 "centre off the plane" => geom::Ellipse {
-                    frame: geom::ConicFrame {
+                    frame: geom::Frame {
                         center: e.frame().center + n * d,
                         ..e.frame
                     },
@@ -170,7 +170,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                 "tilt about v̂" => tilt(v, d),
                 "tilt about û + v̂" => tilt((u + v).normalize(), d),
                 "turn" => geom::Ellipse {
-                    frame: geom::ConicFrame {
+                    frame: geom::Frame {
                         u_ref: turn(u, n, d / (major - minor)),
                         ..e.frame
                     },
@@ -200,7 +200,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                     let stored = [
                         f,
                         geom::Ellipse {
-                            frame: geom::ConicFrame {
+                            frame: geom::Frame {
                                 u_ref: f.frame.v_ref(),
                                 ..f.frame
                             },
@@ -208,7 +208,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
                             semi_v: f.semi_u,
                         },
                         geom::Ellipse {
-                            frame: geom::ConicFrame {
+                            frame: geom::Frame {
                                 axis: -f.frame.axis,
                                 ..f.frame
                             },
@@ -232,7 +232,7 @@ fn two_ellipses_are_one_curve_only_within_the_band_of_each_other() {
             if ratio == 1.0 {
                 for angle in [0.3, 2.0] {
                     let f = geom::Ellipse {
-                        frame: geom::ConicFrame {
+                        frame: geom::Frame {
                             u_ref: turn(u, n, angle),
                             ..e.frame
                         },
@@ -325,7 +325,7 @@ fn a_conic_read_twice_is_one_curve_at_interval() {
     let v = n.cross(u);
     let conic = |u_ref: Vec3<f64>, (a, c): (f64, f64)| {
         geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(ulps(1.0), ulps(-2.0), ulps(0.5)),
                 iv(n),
                 iv(u_ref),
@@ -385,7 +385,7 @@ fn a_near_circle_at_radius_a_thousand_past_the_zero_is_not_one_curve() {
         .collect();
     let conic = |x: &[f64]| {
         geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(x[0], x[1], x[2]),
                 Vec3::new(x[3], x[4], x[5]),
                 Vec3::new(x[6], x[7], x[8]),

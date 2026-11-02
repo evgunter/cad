@@ -1199,7 +1199,7 @@ fn rim_circle(
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
                 Curve3::Circle(pncad::geom::Circle {
-                    frame: pncad::geom::ConicFrame { center, .. },
+                    frame: pncad::geom::Frame { center, .. },
                     radius,
                 }) => {
                     assert!(

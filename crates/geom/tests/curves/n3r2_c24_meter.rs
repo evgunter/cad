@@ -24,7 +24,7 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
     let (center, u, v, su, sv) = match carrier {
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -33,7 +33,7 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
         }) => (*center, *u_ref, axis.cross(*u_ref), *radius, *radius),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -66,7 +66,7 @@ fn n3r2_c24_meter() {
     let u_ref = axis.cross(helper).normalize();
     let circle = Curve3::circle(Point3::new(0.1, 0.2, 0.3), axis, 1.3, u_ref);
     let ellipse = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::new(0.1, 0.2, 0.3), axis, u_ref),
+        geom::Frame::new(Point3::new(0.1, 0.2, 0.3), axis, u_ref),
         2.1,
         0.7,
     ));

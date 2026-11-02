@@ -214,7 +214,7 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
     let section = edge(
         2,
         geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 1.0),
                 Vec3::new(-0.4, 0.0, 1.0) / s,
                 Vec3::new(1.0, 0.0, 0.4) / s,
@@ -460,7 +460,7 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
     let arc = edge(
         1,
         geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 2.0),
                 Vec3::new(-0.3, 0.0, 1.0) / 1.09_f64.sqrt(),
                 Vec3::new(1.0, 0.0, 0.3) / 1.09_f64.sqrt(),

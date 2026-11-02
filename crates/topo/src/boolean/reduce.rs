@@ -3942,7 +3942,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     // interior question alone decides it.
     let circle = match *curve.carrier() {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, axis, .. },
+            frame: geom::Frame { center, axis, .. },
             radius,
         }) => Some((center, axis, radius)),
         geom::Curve3::Line { .. } | geom::Curve3::Ellipse(..) => None,
@@ -5733,7 +5733,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     // The circle's two preconditions, both of them this site's and
     // neither of them the shared arithmetic's.
     if let geom::Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { center, axis, .. },
+        frame: geom::Frame { center, axis, .. },
         radius,
     }) = *curve.carrier()
     {
@@ -6856,7 +6856,7 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame: geom::ConicFrame { axis: a, center, .. }, .. })
+                            geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis: a, center, .. }, .. })
                                 if a.z.abs() > 0.9 && center.z > 0.1
                         )
                 )
@@ -7123,7 +7123,7 @@ mod edge_span_tests {
     fn a_root_near_an_end_is_metered_at_the_ends_speed() {
         let band = Band::new(1e-9, 1e-8).expect("a band");
         let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, 1.0),
                 Vec3::new(1.0, 0.0, 0.0),
@@ -7560,7 +7560,7 @@ mod clearance_rows {
             0.257_005_206_695_522_7,
         );
         let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(
                     -0.480_548_118_168_072_4,
                     -0.441_016_920_669_073_5,
@@ -7630,7 +7630,7 @@ mod clearance_rows {
             -0.263_090_202_493_364_96,
         );
         let e = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, axis, u_ref),
+            geom::Frame::new(center, axis, u_ref),
             major,
             minor,
         ));
@@ -7715,7 +7715,7 @@ mod clearance_rows {
                     geom::Curve3::circle(center, n, major, u_ref)
                 } else {
                     geom::Curve3::Ellipse(geom::Ellipse::new(
-                        geom::ConicFrame::new(center, n, u_ref),
+                        geom::Frame::new(center, n, u_ref),
                         major,
                         minor,
                     ))
@@ -8494,7 +8494,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::ConicFrame { center, .. }, .. }) if (center.z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if (center.z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -8969,7 +8969,7 @@ mod spline_face_rows {
             };
             let carrier = curve.carrier().clone();
             let Curve3::Ellipse(geom::Ellipse {
-                frame: geom::ConicFrame { axis, .. },
+                frame: geom::Frame { axis, .. },
                 ..
             }) = carrier
             else {

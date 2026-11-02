@@ -912,11 +912,11 @@ impl<T: Real> Reach<T> {
             Self::Span {
                 carrier:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     })
                     | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     })
                     | Curve3::Spiric { center, .. },
@@ -949,11 +949,11 @@ impl<T: Real> Reach<T> {
             Self::Span {
                 carrier:
                     Curve3::Circle(geom::Circle {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     })
                     | Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::ConicFrame { center, .. },
+                        frame: geom::Frame { center, .. },
                         ..
                     })
                     | Curve3::Spiric { center, .. },
@@ -1094,7 +1094,7 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(-1.0, 0.5, 0.2),
                     Vec3::new(0.0, 0.0, 1.0),
                     Vec3::new(1.0, 0.0, 0.0),
@@ -1157,7 +1157,7 @@ mod tests {
             let carriers = [
                 Curve3::circle(off, tilted, r, Vec3::new(0.0, 1.0, 0.0)),
                 Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(off, tilted, Vec3::new(-0.8, 0.0, 0.6)),
+                    geom::Frame::new(off, tilted, Vec3::new(-0.8, 0.0, 0.6)),
                     2.0 * r,
                     0.7 * r,
                 )),
@@ -1186,11 +1186,11 @@ mod tests {
                     let crest_normal = {
                         let (u, k) = match carrier {
                             Curve3::Circle(geom::Circle {
-                                frame: geom::ConicFrame { u_ref, axis, .. },
+                                frame: geom::Frame { u_ref, axis, .. },
                                 ..
                             })
                             | Curve3::Ellipse(geom::Ellipse {
-                                frame: geom::ConicFrame { u_ref, axis, .. },
+                                frame: geom::Frame { u_ref, axis, .. },
                                 ..
                             }) => (u_ref, axis.normalize()),
                             _ => unreachable!(),
@@ -1283,7 +1283,7 @@ mod tests {
                 Vec3::new(0.0, 1.0, 0.0),
             ),
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(-1.0, 0.5, 0.2),
                     tilted,
                     Vec3::new(-0.8, 0.0, 0.6),
@@ -1292,7 +1292,7 @@ mod tests {
                 0.7,
             )),
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     Point3::new(-1.0, 0.5, 0.2),
                     tilted,
                     Vec3::new(-0.8, 0.0, 0.6),

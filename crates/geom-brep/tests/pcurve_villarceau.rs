@@ -429,7 +429,7 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
 
     let Curve3::Circle(geom::Circle {
         frame:
-            geom::ConicFrame {
+            geom::Frame {
                 center: c,
                 axis: n,
                 u_ref: e,
@@ -553,12 +553,11 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let Curve3::Circle(geom::Circle {
-        frame:
-            geom::ConicFrame {
-                center,
-                axis: n,
-                u_ref,
-            },
+        frame: geom::Frame {
+            center,
+            axis: n,
+            u_ref,
+        },
         radius,
     }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
@@ -596,7 +595,7 @@ fn each_villarceau_gate_alone_refuses_typed() {
     ];
     for (gate, center, axis, radius, u_ref) in rows {
         let carrier = Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,

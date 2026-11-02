@@ -5,14 +5,15 @@
 //! not a circle with a stretch. What the two share is named once and
 //! held by each:
 //!
-//! - **The placement**, [`ConicFrame`]: a centre and an oriented
+//! - **The placement**, [`Frame`] (a rigid placement, not a conic's
+//!   alone): a centre and an oriented
 //!   orthonormal basis `(u_ref, v_ref, axis)`, `v_ref = axis × u_ref`
 //!   (computed, never stored, so the frame is right-handed by
 //!   construction). `axis` is the unit plane normal and `u_ref` the unit
 //!   reference direction, `u_ref ⊥ axis`: conventional data, unchecked
 //!   here, certified at rest by tier 3. `u_ref` carries the seam: `θ = 0`
 //!   lives on it. A reading of the placement alone (a point's in-plane
-//!   components, the frame reversed or moved) takes a `&ConicFrame`.
+//!   components, the frame reversed or moved) takes a `&Frame`.
 //! - **The readings either kind answers**, the [`Conic`] trait: the point
 //!   and the derivatives at `θ`, the angle of a point and its parameter on
 //!   a branch, the speed bounds, the major frame. A reader that treats the
@@ -67,10 +68,15 @@ use geom_core::{Point3, Real, Vec3};
 use crate::azimuth;
 use crate::curves::Curve3;
 
-/// **A conic's placement**: its centre and an oriented orthonormal basis,
-/// `v_ref = axis × u_ref`. See the [module docs](self).
+/// **A rigid placement**: a point and an oriented orthonormal basis
+/// `(u_ref, v_ref, axis)`, `v_ref = axis × u_ref` (computed, never
+/// stored). `axis` and `u_ref` are unit and orthogonal by convention,
+/// unchecked here and certified at rest. A circle and an ellipse each hold
+/// one, centred on the conic and seamed at `u_ref` (the
+/// [module docs](self)); the same triple places the plane, cylinder and
+/// cone surfaces, which do not hold it yet.
 #[derive(Clone, Copy, Debug)]
-pub struct ConicFrame<T: Real> {
+pub struct Frame<T: Real> {
     /// The centre.
     pub center: Point3<T>,
     /// The unit normal of the plane (right-hand winding rule;
@@ -81,7 +87,7 @@ pub struct ConicFrame<T: Real> {
     pub u_ref: Vec3<T>,
 }
 
-impl<T: Real> ConicFrame<T> {
+impl<T: Real> Frame<T> {
     /// The frame at `center` with normal `axis` and seam `u_ref`.
     #[must_use]
     pub fn new(center: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>) -> Self {
@@ -117,8 +123,8 @@ impl<T: Real> ConicFrame<T> {
 
     /// The same placement with every scalar mapped by `f`.
     #[must_use]
-    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ConicFrame<U> {
-        ConicFrame {
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Frame<U> {
+        Frame {
             center: self.center.map(&f),
             axis: self.axis.map(&f),
             u_ref: self.u_ref.map(&f),
@@ -139,7 +145,7 @@ impl<T: Real> ConicFrame<T> {
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
     /// The placement.
-    pub frame: ConicFrame<T>,
+    pub frame: Frame<T>,
     /// The radius in metres (positive).
     pub radius: T,
 }
@@ -151,7 +157,7 @@ pub struct Circle<T: Real> {
 pub struct Ellipse<T: Real> {
     /// The placement; `u_ref` is a principal direction, along either
     /// semi-axis.
-    pub frame: ConicFrame<T>,
+    pub frame: Frame<T>,
     /// The semi-axis along `u_ref`, in metres (positive).
     pub semi_u: T,
     /// The semi-axis along `axis × u_ref`, in metres (positive).
@@ -222,7 +228,7 @@ pub fn on_span_branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
 /// this trait builds the very bits [`Curve3::eval`] does.
 pub trait Conic<T: Real>: core::fmt::Debug {
     /// The placement.
-    fn frame(&self) -> &ConicFrame<T>;
+    fn frame(&self) -> &Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
     /// twice.
@@ -316,7 +322,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 /// A borrowed conic reads as the conic, so a `&dyn Conic` held by value
 /// passes where a conic is asked for.
 impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
-    fn frame(&self) -> &ConicFrame<T> {
+    fn frame(&self) -> &Frame<T> {
         (**self).frame()
     }
     fn semi_axes(&self) -> (T, T) {
@@ -372,7 +378,7 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
 impl<T: Real> Circle<T> {
     /// The circle of `radius` placed by `frame`.
     #[must_use]
-    pub fn new(frame: ConicFrame<T>, radius: T) -> Self {
+    pub fn new(frame: Frame<T>, radius: T) -> Self {
         Self { frame, radius }
     }
 
@@ -390,7 +396,7 @@ impl<T: Real> Circle<T> {
 }
 
 impl<T: Real> Conic<T> for Circle<T> {
-    fn frame(&self) -> &ConicFrame<T> {
+    fn frame(&self) -> &Frame<T> {
         &self.frame
     }
 
@@ -459,7 +465,7 @@ impl<T: Real> Ellipse<T> {
     /// `semi_v` along its `v_ref`, unchecked; [`Curve3::ellipse`] is the
     /// deciding door.
     #[must_use]
-    pub fn new(frame: ConicFrame<T>, semi_u: T, semi_v: T) -> Self {
+    pub fn new(frame: Frame<T>, semi_u: T, semi_v: T) -> Self {
         Self {
             frame,
             semi_u,
@@ -511,7 +517,7 @@ impl<T: Real> Ellipse<T> {
     pub fn quarter_turned_where(&self, turn: T) -> Self {
         let f = self.frame;
         Self {
-            frame: ConicFrame {
+            frame: Frame {
                 u_ref: Vec3::select(turn, f.u_ref, f.v_ref().normalize()),
                 ..f
             },
@@ -543,7 +549,7 @@ impl<T: Real> Ellipse<T> {
         let back = T::zero() - turn.select_le_zero(cos, sin);
         let e = self.quarter_turned_where(turn);
         Self {
-            frame: ConicFrame {
+            frame: Frame {
                 u_ref: Vec3::select(back, e.frame.u_ref, -e.frame.u_ref),
                 ..e.frame
             },
@@ -557,7 +563,7 @@ impl<T: Real> Ellipse<T> {
 }
 
 impl<T: Real> Conic<T> for Ellipse<T> {
-    fn frame(&self) -> &ConicFrame<T> {
+    fn frame(&self) -> &Frame<T> {
         &self.frame
     }
 
@@ -631,7 +637,7 @@ impl<T: Real> Curve3<T> {
     /// `u_ref`.
     #[must_use]
     pub fn circle(center: Point3<T>, axis: Vec3<T>, radius: T, u_ref: Vec3<T>) -> Self {
-        Self::Circle(Circle::new(ConicFrame::new(center, axis, u_ref), radius))
+        Self::Circle(Circle::new(Frame::new(center, axis, u_ref), radius))
     }
 
     /// **The carrier read as a conic**: a circle or an ellipse as the
@@ -661,16 +667,8 @@ mod tests {
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         [
             Curve3::circle(c, n, 0.7, u),
-            Curve3::Ellipse(super::Ellipse::new(
-                super::ConicFrame::new(c, n, u),
-                0.9,
-                0.4,
-            )),
-            Curve3::Ellipse(super::Ellipse::new(
-                super::ConicFrame::new(c, n, u),
-                0.4,
-                0.9,
-            )),
+            Curve3::Ellipse(super::Ellipse::new(super::Frame::new(c, n, u), 0.9, 0.4)),
+            Curve3::Ellipse(super::Ellipse::new(super::Frame::new(c, n, u), 0.4, 0.9)),
         ]
     }
 

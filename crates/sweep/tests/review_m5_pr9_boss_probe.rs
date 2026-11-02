@@ -72,7 +72,7 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
             continue;
         };
         if let geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             radius,
         }) = *c.carrier()
             && (center.z - seam_z).abs() < 1e-9

@@ -242,7 +242,7 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
                     .expect("a corner arc is described and certified");
                 let Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center: ac,
                             axis: aa,
                             u_ref: au,

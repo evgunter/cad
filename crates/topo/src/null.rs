@@ -1615,7 +1615,7 @@ mod tests {
                 let c = body.get_curve_geom(data.curve)?.certified()?;
                 let geom::Curve3::Circle(geom::Circle {
                     frame:
-                        geom::ConicFrame {
+                        geom::Frame {
                             center,
                             axis,
                             u_ref,

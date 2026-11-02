@@ -252,7 +252,7 @@ fn a_distance_in_band_is_undecided() {
 fn a_sampled_carrier_through_the_pole_places_it_on_the_edge() {
     let ellipse = |center: Point3<f64>, semi: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(center, Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+            geom::Frame::new(center, Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
             semi,
             semi,
         ))
@@ -473,7 +473,7 @@ fn a_sampled_sliver_beside_a_pole_reads_outside_or_undecided() {
     let delta = 1e-3_f64;
     let ellipse = |dist: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(
+            geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::new(dist.cos(), 0.0, dist.sin()),
                 Vec3::new(-dist.sin(), 0.0, dist.cos()),
@@ -576,7 +576,7 @@ fn a_loop_winding_twice_and_an_unsettled_carrier_are_exempt() {
     let delta = 3e-9;
     let (major, minor) = (1e7, 1.0);
     let grazing = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(
+        geom::Frame::new(
             Point3::new(0.0, 0.0, 1.0 + delta - major),
             Vec3::new(0.0, 1.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
@@ -608,7 +608,7 @@ fn spurs_through_both_poles_leave_their_sides_to_the_rim() {
     use geom_brep::chart_singularity::holds;
     let rim = section(Vec3::new(1.0, 0.0, 0.0), 0.6);
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { center, u_ref, .. },
+        frame: geom::Frame { center, u_ref, .. },
         ..
     }) = rim.clone()
     else {

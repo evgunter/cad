@@ -950,7 +950,7 @@ pub fn arc_rim_measured<T: Decide>(
     band: Band,
 ) -> Vec<Pcurve<T>> {
     let Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame {
+        frame: geom::Frame {
             center,
             axis,
             u_ref,

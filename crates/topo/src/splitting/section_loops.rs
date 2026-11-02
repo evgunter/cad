@@ -102,11 +102,11 @@ fn whole_conic_principal<T: Real>(
     }
     match *curve.carrier() {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { u_ref, .. },
+            frame: geom::Frame { u_ref, .. },
             ..
         })
         | geom::Curve3::Ellipse(geom::Ellipse {
-            frame: geom::ConicFrame { u_ref, .. },
+            frame: geom::Frame { u_ref, .. },
             ..
         }) => Some(u_ref),
         _ => None,

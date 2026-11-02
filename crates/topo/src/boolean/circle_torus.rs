@@ -217,7 +217,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     let (
         &geom::Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -367,7 +367,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let conic = geom::Circle::new(geom::ConicFrame::new(center, axis, u_ref), radius);
+    let conic = geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius);
     let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
@@ -711,7 +711,7 @@ mod tests {
         band: Band,
     ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
         let carrier = geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,

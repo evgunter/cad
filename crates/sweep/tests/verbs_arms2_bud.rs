@@ -219,7 +219,7 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
             .certified()
             .unwrap();
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             radius,
         }) = *c.carrier()
         else {

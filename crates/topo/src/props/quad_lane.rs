@@ -312,7 +312,7 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
         },
         Curve3::Circle(geom::Circle {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -321,7 +321,7 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
         }) => Curve3::circle(shift(center), axis, radius, u_ref),
         Curve3::Ellipse(geom::Ellipse {
             frame:
-                geom::ConicFrame {
+                geom::Frame {
                     center,
                     axis,
                     u_ref,
@@ -329,7 +329,7 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
             semi_u,
             semi_v,
         }) => Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(shift(center), axis, u_ref),
+            geom::Frame::new(shift(center), axis, u_ref),
             semi_u,
             semi_v,
         )),

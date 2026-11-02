@@ -222,7 +222,7 @@ fn a_curves_clearance_is_a_lower_bound_on_its_carriers_distance() {
     let center = p(0.4, -1.1, 2.3);
     for (semi_u, semi_v) in [(2.0, 0.7), (0.5, 1.6)] {
         let e = Curve3::Ellipse(geom::Ellipse {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,
@@ -254,7 +254,7 @@ fn a_curves_clearance_is_a_lower_bound_on_its_carriers_distance() {
         }
     }
     let long = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::origin(), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+        geom::Frame::new(Point3::origin(), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
         1000.0,
         1e-3,
     ));

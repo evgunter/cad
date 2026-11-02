@@ -321,7 +321,7 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
     // A circle through the apex at `θ = 0`: `C(0) = c + ρ·û` is the apex.
     let e = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::ConicFrame { u_ref, .. },
+        frame: geom::Frame { u_ref, .. },
         ..
     }) = e
     else {
@@ -396,7 +396,7 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
     for d in [1e-6, 1e-5] {
         let e = crossing(d);
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             ..
         }) = e
         else {
@@ -481,7 +481,7 @@ fn certified_answers_hold_against_the_quadric_form() {
             } else {
                 let major = if i % 4 == 1 { -big } else { big };
                 geom::Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(on - uref * major, n, uref),
+                    geom::Frame::new(on - uref * major, n, uref),
                     major,
                     small,
                 ))

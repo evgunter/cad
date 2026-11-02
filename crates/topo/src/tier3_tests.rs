@@ -940,7 +940,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     let circle = |axis: Vec3<f64>| Curve3::circle(c, axis, 0.5, -x);
     let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(c, axis, u_ref),
+            geom::Frame::new(c, axis, u_ref),
             major,
             0.3,
         ))
@@ -1035,7 +1035,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let zero = Vec3::new(0.0, 0.0, 0.0);
     let circle = |center, axis, radius, u_ref| {
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,
@@ -1097,11 +1097,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         (
             "ellipse, negative major with u_ref flipped",
-            Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(o, z, -x),
-                -0.5,
-                0.3,
-            )),
+            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, -x), -0.5, 0.3)),
             Some(V::Unrepresentable(D::SemiU, Value, Lower)),
         ),
         (
@@ -1111,7 +1107,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         (
             "ellipse, zero minor",
-            Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(o, z, x), 1.0, 0.0)),
+            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.0)),
             Some(V::Unrepresentable(D::SemiV, Value, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
@@ -1245,7 +1241,7 @@ fn the_frame_lever_is_the_kinds_radius() {
         |r: f64, d: f64| Curve3::circle(o, Vec3::new(0.0, 0.0, long(d)), r, Vec3::unit_x());
     let ellipse = |major: f64, minor: f64, d: f64| {
         Curve3::Ellipse(geom::Ellipse::new(
-            geom::ConicFrame::new(o, Vec3::new(0.0, 0.0, long(d)), Vec3::unit_x()),
+            geom::Frame::new(o, Vec3::new(0.0, 0.0, long(d)), Vec3::unit_x()),
             major,
             minor,
         ))
@@ -1333,7 +1329,7 @@ fn the_elliptic_lever_is_the_larger_semi_axis() {
     let pi = core::f64::consts::PI;
     // `minor > major`, `u_ref` along the minor axis.
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::ConicFrame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z(), -Vec3::unit_x()),
+        geom::Frame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z(), -Vec3::unit_x()),
         0.5,
         0.7,
     ));
@@ -2092,7 +2088,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
             };
             (
                 geom::Curve3::Circle(geom::Circle {
-                    frame: geom::ConicFrame {
+                    frame: geom::Frame {
                         center,
                         axis,
                         u_ref,

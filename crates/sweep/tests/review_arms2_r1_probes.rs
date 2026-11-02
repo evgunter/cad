@@ -124,7 +124,7 @@ fn a_sphere_cone_seam_at_a_second_latitude_fillets_to_its_hand_torus() {
             .certified()
             .unwrap();
         let Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             radius,
         }) = *c.carrier()
         else {

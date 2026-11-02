@@ -1400,7 +1400,7 @@ mod square {
         let line = |origin, dir| Curve3::Line { origin, dir };
         let circle = |center, axis, radius, u_ref| {
             Curve3::Circle(geom::Circle {
-                frame: geom::ConicFrame {
+                frame: geom::Frame {
                     center,
                     axis,
                     u_ref,

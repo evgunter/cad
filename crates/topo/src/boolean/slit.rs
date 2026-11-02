@@ -1399,7 +1399,7 @@ mod torus_rows {
         u_ref: Vec3<f64>,
     ) -> geom::Curve3<f64> {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame {
+            frame: geom::Frame {
                 center,
                 axis,
                 u_ref,
@@ -1474,11 +1474,7 @@ mod torus_rows {
             (
                 "an ellipse of semi-axes 3 and 3.001 in the top plane, through (3, 0, 1)",
                 geom::Curve3::Ellipse(geom::Ellipse::new(
-                    geom::ConicFrame::new(
-                        Point3::new(0.0, 0.0, 1.0),
-                        Vec3::unit_z(),
-                        Vec3::unit_x(),
-                    ),
+                    geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
                     3.0,
                     3.001,
                 )),

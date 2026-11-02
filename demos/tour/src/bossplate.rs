@@ -116,7 +116,7 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64, tol: Tol) -> usize {
             continue;
         };
         let Curve3::Circle(pncad::geom::Circle {
-            frame: pncad::geom::ConicFrame { center, .. },
+            frame: pncad::geom::Frame { center, .. },
             radius,
         }) = *curve.carrier()
         else {

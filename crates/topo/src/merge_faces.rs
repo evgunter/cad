@@ -5245,7 +5245,7 @@ mod winding_arm_tests {
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::chart(t.surface),
                     carrier: geom::Curve3::Ellipse(geom::Ellipse::new(
-                        geom::ConicFrame::new(
+                        geom::Frame::new(
                             Point3::new(0.0, 0.0, 0.0),
                             -Vec3::unit_z(),
                             Vec3::unit_x(),

@@ -712,7 +712,7 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
     match c {
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         Curve3::Circle(geom::Circle {
-            frame: geom::ConicFrame { center, .. },
+            frame: geom::Frame { center, .. },
             radius,
         }) => Some(from(*center) + *radius),
         // The reach is the larger semi-axis, whichever is stored first.
@@ -1707,7 +1707,7 @@ mod tests {
         let center = Point3::new(1.0, 2.0, -0.5);
         for (major, minor) in [(0.5, 3.0), (3.0, 0.5)] {
             let e = Curve3::Ellipse(geom::Ellipse::new(
-                geom::ConicFrame::new(
+                geom::Frame::new(
                     center,
                     geom_core::Vec3::new(0.0, 0.0, 1.0),
                     geom_core::Vec3::new(1.0, 0.0, 0.0),

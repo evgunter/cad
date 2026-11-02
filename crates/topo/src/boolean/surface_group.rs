@@ -139,7 +139,7 @@ fn unmated_boundary<T: Decide>(
             }
             let Some(geom::Curve3::Circle(geom::Circle {
                 frame:
-                    geom::ConicFrame {
+                    geom::Frame {
                         center,
                         axis,
                         u_ref,
