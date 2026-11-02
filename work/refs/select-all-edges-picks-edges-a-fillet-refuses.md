@@ -2,11 +2,13 @@
 id: select-all-edges-picks-edges-a-fillet-refuses
 kind: issue
 title: A blend refuses a requested smooth edge (a bore's strut), so select all edges then fillet fails on any part with a round hole
-status: spec
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: M
 pr: 6344
+closed: 2026-11-02
+branch: reads/smooth-edge-identity
 ---
 
 
@@ -126,3 +128,12 @@ Two designers weighed this (fork `select-all-edges-tangent`) and agreed after on
 - `a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses`.
 
 Review tier: **dual** (it changes a verb's contract on every blend request, and the material-side gate is easy to get subtly wrong). Class M, drawn byte 43 → **sequential** arm.
+
+## Closed (2026-11-02, PR 6344)
+
+A requested smooth edge (decided Zero with aligned normals, a wedge of π) is a silent no-op of the fillet and the chamfer, per Ev's ruling. A knife edge refuses as `KnifeEdge`, an unbuilt case. Your bracket's Select all edges now gets past the bore's struts, and stops at the next wall. That wall and the one after it are on BANDRULE at P0, confirmed by Ev:
+
+- `a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds`;
+- `a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses`.
+
+Also filed: the knife blend (`a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined`, P1), the chain-end corner fold (BANDRULE), and the split finish's composition (ONEDOOR).
