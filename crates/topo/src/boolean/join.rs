@@ -16,9 +16,9 @@
 //! with a frame each ([`SectionLoops`]), of which a germ takes the one
 //! its branch names ([`germ_section_frame`]; the branch is decided where
 //! the germ is minted, [`germ_branch`]). Two cylinders are read on their
-//! section value instead ([`cylinder_read`]): the parallel pose's rulings
-//! plane, the bisector pose's two planes as two loops (the same
-//! [`SectionLoops`] split), and every other pose's carried components.
+//! section value instead ([`cylinder_read`]): the bisector pose's two
+//! planes as two loops (the same [`SectionLoops`] split), and every other
+//! pose's carried components, the parallel pose's rulings among them.
 //! A straight section of two lines through a point — a plane through a
 //! cone's apex — names its lines the same way ([`super::Branch::Line`]):
 //! two germs face only where their branches agree, on a loop or a line
@@ -223,10 +223,6 @@ enum GermLane<T: geom_core::Real> {
     WallPlane((Point3<T>, UnitVec3<T>)),
     /// A sphere pair: both sides' chords lie in the radical plane.
     Radical((Point3<T>, UnitVec3<T>)),
-    /// A cylinder pair with parallel axes: both rulings lie in the
-    /// pair's radical plane, and each side's chord is its own wall's
-    /// ruling in it.
-    Rulings((Point3<T>, UnitVec3<T>)),
     /// An equal cylinder pair with intersecting axes: the segment rides
     /// the ellipse of its germ's branch, which lies in that branch's
     /// bisector plane, and each side's chord is its own wall cut by
@@ -256,7 +252,7 @@ impl<T: geom_core::Real> GermLane<T> {
             Self::Carried(_) => (RingClosure::Chord, RingClosure::Chord),
             Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
             Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
-            Self::Radical(plane) | Self::Rulings(plane) | Self::Bisector(plane) => {
+            Self::Radical(plane) | Self::Bisector(plane) => {
                 (RingClosure::Wall(plane), RingClosure::Wall(plane))
             }
             Self::EdgePlane {
@@ -285,9 +281,6 @@ enum KindArm {
     WallPlane,
     /// [`GermLane::Radical`].
     Spheres,
-    /// [`GermLane::Rulings`]: a cylinder pair, which keeps this arm only
-    /// on parallel axes ([`segment_arm`]).
-    Cylinders,
     /// [`GermLane::Bisector`]: a cylinder pair whose section is the two
     /// bisector-plane ellipses, a germ inside a face of each operand
     /// ([`segment_arm`]).
@@ -306,7 +299,6 @@ fn kind_arm(a: geom::SurfaceKind, b: geom::SurfaceKind) -> KindArm {
         (Plane, Sphere | Cylinder | Cone | Torus) => KindArm::PlaneWall,
         (Sphere | Cylinder | Cone | Torus, Plane) => KindArm::WallPlane,
         (Sphere, Sphere) => KindArm::Spheres,
-        (Cylinder, Cylinder) => KindArm::Cylinders,
         _ => KindArm::None,
     }
 }
@@ -365,16 +357,19 @@ impl<T: Decide> SegmentPair<T> {
             owned(face_surface(&red.a, germ.a_face)?),
             owned(face_surface(&red.b, germ.b_face)?),
         );
-        // A closed-form component (the coaxial pair's circles) is a
-        // coincidence the section door decided, which the join does not
-        // build until the door records it: only a fitted component is
-        // carried.
+        // A component rides the carried lane where its chord can be cut
+        // from it with its evidence of lying on both surfaces
+        // ([`chord_spec_carries`]): a fitted one by its certificate, a
+        // closed form (the parallel pair's rulings, the coaxial cylinder
+        // × sphere pair's circles) by being exact, on a pair with no
+        // torus.
         let carried = match seg.lane {
             SegmentLane::AlongEdge => None,
             SegmentLane::Section => match germ_section(red, germ)? {
                 Some(section) => {
                     let k = branch_component(germ.branch, section)?;
-                    section.components()[k].certificate.is_some().then_some(k)
+                    chord_spec_carries(&section.components()[k], (a.1.kind(), b.1.kind()))
+                        .then_some(k)
                 }
                 None => None,
             },
@@ -403,6 +398,26 @@ impl<T: Decide> SegmentPair<T> {
     }
 }
 
+/// **Whether the carried lane cuts a chord from `component`** of a
+/// section of surfaces of the kinds `kinds`
+/// (`chord_join::carried_chord_spec`): a fitted spline holding its
+/// certificate, or a closed form whose arcs the ring lane reads as they
+/// are, a line, a circle or an ellipse, on a pair with no torus. A
+/// torus pair's closed forms take no lane yet
+/// (`a-torus-pairs-closed-form-circles-take-no-join-lane`), and a spiric
+/// is no closed form the lane cuts.
+fn chord_spec_carries<T: geom_core::Real>(
+    component: &geom_brep::CarriedComponent<T>,
+    kinds: (geom::SurfaceKind, geom::SurfaceKind),
+) -> bool {
+    let torus = kinds.0 == geom::SurfaceKind::Torus || kinds.1 == geom::SurfaceKind::Torus;
+    match component.carrier {
+        geom::Curve3::Nurbs(_) => component.certificate.is_some(),
+        geom::Curve3::Line(_) | geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => !torus,
+        geom::Curve3::Spiric { .. } => false,
+    }
+}
+
 /// The index of the component of `section` a germ's `branch` names: its
 /// site's foot's, read where the germ was minted ([`germ_branch`]).
 fn branch_component<T: Decide>(
@@ -420,7 +435,6 @@ fn branch_component<T: Decide>(
 /// **The kind arm of a segment's germ face pair** ([`kind_arm`]), whose
 /// faces' surfaces are `sa` and `sb`: a cylinder pair reads its arm off
 /// the one reading of its pose, the section table's ([`cylinder_read`]):
-/// [`KindArm::Cylinders`] where the axes are parallel, the rulings lane;
 /// [`KindArm::Bisector`] for a germ inside a face of each operand on the
 /// bisector pose; and for every other pose, or a germ along an edge, no
 /// arm, so the segment rides its carried component or the edge-plane
@@ -430,13 +444,12 @@ fn segment_arm<T: Decide>(
     germ: &HalfGerm<T>,
     (sa, sb): (&geom::Surface<T>, &geom::Surface<T>),
 ) -> Result<KindArm, BooleanError> {
-    let arm = kind_arm(sa.kind(), sb.kind());
-    if arm != KindArm::Cylinders {
-        return Ok(arm);
+    use geom::SurfaceKind::Cylinder;
+    if (sa.kind(), sb.kind()) != (Cylinder, Cylinder) {
+        return Ok(kind_arm(sa.kind(), sb.kind()));
     }
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
     Ok(match cylinder_read(&red.sections, faces.0, faces.1)? {
-        Some(CylinderRead::Rulings(_)) => KindArm::Cylinders,
         Some(CylinderRead::Bisector(_))
             if germ.a_locus.edge().is_none() && germ.b_locus.edge().is_none() =>
         {
@@ -520,8 +533,8 @@ enum AuxDatum {
     /// A copy of the OTHER body's germ face's surface (a partner plane
     /// for a wall-side chord, a partner wall for a planar-side one).
     Partner(FaceKey),
-    /// The radical plane of a sphere pair or a parallel cylinder pair:
-    /// this body's surface and the other body's.
+    /// The radical plane of a sphere pair: this body's surface and the
+    /// other body's.
     Radical {
         own: crate::geometry::SurfaceKey,
         partner: crate::geometry::SurfaceKey,
@@ -1332,8 +1345,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         b_loose.remove(eb);
         b_loose.remove(rb);
         // Curved germ pairs: a pair whose section the operation's
-        // section table carries (cylinder × sphere) cuts both sides'
-        // chords from one carried component, whatever the kinds. Every
+        // section table carries (cylinder × sphere, the parallel
+        // cylinder pair's rulings) cuts both sides' chords from one
+        // carried component, whatever the kinds. Every
         // other pair's chord lane comes
         // from the germ FACE PAIR — plane×plane takes the straight-chord
         // lane with the partner's plane as its section; plane×cylinder,
@@ -1342,8 +1356,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // the planar side against the partner wall), each taking the arc the
         // matched germs' directions name, so both solids take the SAME
         // geometric arc; a sphere pair rides the wall-side lane on both
-        // sides against its radical plane, and so does a parallel
-        // cylinder pair, whose chords there are rulings. Any other pair
+        // sides against its radical plane. Any other pair
         // takes the edge-plane lane where its germ runs along a conic
         // edge of one solid in a curved face of the other, and the rest
         // refuse typed citing their C5 routing (per-arm, C12.1).
@@ -1525,24 +1538,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         Err(_) => return Err(desync("germ pair's section refused at join time")),
                     };
                     GermLane::Radical(radical)
-                }
-                // **A parallel cylinder pair rides its RADICAL PLANE
-                // too**, the pose's rulings plane ([`cylinder_read`]): the
-                // walls meet in two rulings, both in that plane, and the
-                // plane cuts each wall in exactly its two rulings, so
-                // each side's chord is the plane × cylinder ruling arm's
-                // straight chord on its own wall, read at the germ sites
-                // it joins. The kind arm took the pair only on the
-                // parallel pose; walls that meet in no ruling name no
-                // plane, and no germ rides them.
-                KindArm::Cylinders => {
-                    let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
-                    let Some(CylinderRead::Rulings(Some((at, normal)))) =
-                        cylinder_read(&red.sections, faces.0, faces.1)?
-                    else {
-                        return Err(desync("a rulings segment's pair reads no rulings plane"));
-                    };
-                    GermLane::Rulings((at, rulings_normal(normal, band)?))
                 }
                 // **An equal cylinder pair with intersecting axes rides
                 // its germ's BISECTOR PLANE**: the walls meet in two
@@ -1750,37 +1745,6 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         leave_b,
                     )?,
                 )
-            }
-            // Each wall's own section table decides its rulings against
-            // the radical plane ([`rulings_are_straight`]). Its refusals
-            // come after both split lanes have run, which may have minted
-            // an aux plane into either body: a refusal ends the operation
-            // and the reduction is dropped, so nothing reads them.
-            Some(GermLane::Rulings(radical)) => {
-                let datum = |own, partner| AuxDatum::Radical { own, partner };
-                let curves = (
-                    sa.split_curve(
-                        &mut red.a,
-                        &plan_a,
-                        radical,
-                        datum(ka, kb),
-                        germ.branch,
-                        leave_a,
-                    )?,
-                    sb.split_curve(
-                        &mut red.b,
-                        &plan_b,
-                        radical,
-                        datum(kb, ka),
-                        germ.branch,
-                        leave_b,
-                    )?,
-                );
-                rulings_are_straight([
-                    (&curves.0, Operand::A, germ.a_face),
-                    (&curves.1, Operand::B, germ.b_face),
-                ])?;
-                curves
             }
             Some(GermLane::Bisector(plane)) => {
                 let datum = |own, partner| AuxDatum::Bisector {
@@ -2797,7 +2761,6 @@ pub(super) fn face_pair_section_loops<T: Decide>(
     band: Band,
 ) -> Result<Option<SectionLoops<T>>, BooleanError> {
     match cylinder_read(sections, (body_a, face_a), (body_b, face_b))? {
-        Some(CylinderRead::Rulings(_)) => return Ok(None),
         Some(CylinderRead::Bisector(loops)) => return Ok(Some(loops)),
         Some(CylinderRead::Carried) => {
             return Err(BooleanError::JoinDesync {
@@ -3072,56 +3035,6 @@ fn face_reach<T: Decide>(
     crate::splitting::rules::face_reach_from(body, face, at)
         .map(FrameExtent::Reach)
         .map_err(|_| LONE_WALL)
-}
-
-/// **The rulings lane's chords are rulings**: each wall's split lane,
-/// run against the pair's radical plane, minted the straight chord.
-///
-/// A wall the plane only touches has a tangent chord, a line on the
-/// ruling whatever description the must-carry rule gave it: the walls
-/// touch along one ruling, undeclared contact that no arm here takes,
-/// refused `CurvedBooleanUnsupported` naming that wall. Any other curve
-/// is a conic, a plane parallel to both axes as the kind arm read them
-/// ([`segment_arm`]) that a wall's table did not read so, which is a
-/// desync.
-///
-/// No pose is known to reach either refusal through a public door:
-/// walls that touch along a ruling meet the coincidence ladder and the
-/// crossing layer first, and the kind arm reads the axes parallel before
-/// the plane is taken. The rows in `radical_plane_rows` hand it the
-/// curves directly.
-fn rulings_are_straight<T: geom_core::Real>(
-    sides: [(&SegmentCurve<T>, Operand, FaceKey); 2],
-) -> Result<(), BooleanError> {
-    for (curve, operand, face) in sides {
-        match curve.spec().map(|spec| &spec.carrier) {
-            None => {}
-            Some(carrier) if !carrier.is_curved() => {
-                return Err(BooleanError::CurvedBooleanUnsupported {
-                    operand,
-                    face,
-                    kind: geom::SurfaceKind::Cylinder,
-                });
-            }
-            Some(_) => {
-                return Err(BooleanError::JoinDesync {
-                    what: "a parallel cylinder pair's radical plane cut a wall in a conic",
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-/// **The rulings plane's normal as a chart normal**: the pose's unit
-/// offset direction ([`geom_brep::CylinderCylinderPose::rulings_plane`]),
-/// which the pose decided apart from zero (`cc_coaxial`,
-/// `cc_parallel_nest`) before it named the plane, so its unit length
-/// reads definite.
-fn rulings_normal<T: Decide>(n: Vec3<T>, band: Band) -> Result<UnitVec3<T>, BooleanError> {
-    UnitVec3::new(n, "bool_join_cc_rulings_normal", band).map_err(|_| BooleanError::JoinDesync {
-        what: "a parallel cylinder pair's rulings plane has no unit normal",
-    })
 }
 
 /// The Boolean's refusal for a germ pair's frame refusal, the pair
@@ -3410,7 +3323,6 @@ pub(super) fn germ_branch<T: Decide>(
         return Ok(super::Branch::Only);
     }
     match cylinder_read(sections, (body_a, face_a), (body_b, face_b))? {
-        Some(CylinderRead::Rulings(_)) => return Ok(super::Branch::Only),
         Some(CylinderRead::Bisector(loops)) => {
             return loops
                 .branch_at(site, band)?
@@ -3775,15 +3687,11 @@ pub(super) fn section_unbuilt(
 
 /// [`section_unbuilt`] on the faces `fa` of `a` and `fb` of `b`.
 /// **How the join reads a cylinder pair** from the operation's section
-/// table, the one reading of the pair: the parallel pose's rulings in
-/// their plane, the bisector pose's two ellipses in theirs (one loop per
-/// plane, split by the planes as the frame split them), or, for every
-/// other pose, the pair's carried components.
+/// table, the one reading of the pair: the bisector pose's two ellipses
+/// in their planes (one loop per plane, split by the planes as the frame
+/// split them), or, for every other pose, the parallel pose's rulings
+/// among them, the pair's carried components.
 pub(super) enum CylinderRead<T: geom_core::Real> {
-    /// Parallel axes: the rulings' plane, a point of it and its unit
-    /// normal ([`geom_brep::CylinderCylinderPose::rulings_plane`]), none
-    /// where the walls do not meet.
-    Rulings(Option<(Point3<T>, Vec3<T>)>),
     /// The bisector pose: its ellipses' planes as two loops
     /// ([`geom_brep::CylinderCylinderPose::bisector_planes`]).
     Bisector(SectionLoops<T>),
@@ -3831,9 +3739,6 @@ pub(super) fn cylinder_read<T: Decide>(
             what: "two cylinder faces' section holds another pose",
         });
     };
-    if matches!(pose.stance(), geom_brep::CcStance::Parallel { .. }) {
-        return Ok(Some(CylinderRead::Rulings(pose.rulings_plane())));
-    }
     if let Some(planes) = pose.bisector_planes() {
         return Ok(Some(CylinderRead::Bisector(bisector_loops(planes))));
     }
@@ -3870,7 +3775,7 @@ fn rides_carried<T: Decide>(
     b: (&Body<T>, FaceKey),
 ) -> Result<bool, BooleanError> {
     Ok(match cylinder_read(sections, a, b)? {
-        Some(CylinderRead::Rulings(_) | CylinderRead::Bisector(_)) => false,
+        Some(CylinderRead::Bisector(_)) => false,
         Some(CylinderRead::Carried) => true,
         None => sections.held(a, b).is_some(),
     })
@@ -7323,243 +7228,6 @@ mod frame_dispatch_tests {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod radical_plane_rows {
-    use super::*;
-    use geom_core::Tol;
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    fn wall(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> geom::Surface<f64> {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref: axis.orthonormal_basis().0,
-        }
-    }
-
-    /// The reach of the single point `p`.
-    fn at(p: Point3<f64>) -> geom_brep::Reach<f64> {
-        geom_brep::Reach::Ball(geom_brep::ExtentBall::point(p))
-    }
-
-    /// The rulings plane the pose of `own` and `partner` names across
-    /// `reach` ([`geom_brep::CylinderCylinderPose::rulings_plane`]), the
-    /// plane the rulings lane rides.
-    fn rulings_plane(
-        own: &geom::Surface<f64>,
-        partner: &geom::Surface<f64>,
-        reach: &geom_brep::Reach<f64>,
-    ) -> Option<(Point3<f64>, Vec3<f64>)> {
-        geom_brep::CylinderCylinderPose::decide(own, partner, reach, band())
-            .expect("two cylinders")
-            .expect("a decided pose")
-            .rulings_plane()
-    }
-
-    /// **Both rulings lie in the radical plane, and it is parallel to
-    /// both axes.** The rulings are found apart from the plane: the
-    /// cross-section circles' two meeting points, on the axes' common
-    /// perpendicular frame, each checked on both walls. Equal radii,
-    /// either one larger, an axis inside the other wall, both operand
-    /// orders, axes off every coordinate direction, origins slid along
-    /// the axis.
-    #[test]
-    fn both_rulings_lie_in_the_radical_plane() {
-        let axis = Vec3::new(1.0, 2.0, 0.5).normalize();
-        let (e1, e2) = axis.orthonormal_basis();
-        for (r1, r2, d, slide) in [
-            (0.5, 0.2, 0.5, 0.0),
-            (0.5, 0.5, 0.7, 0.3),
-            (0.5, 0.8, 0.9, -1.0),
-            (0.5, 0.2, 0.4, 2.0),
-            (0.3, 0.3, 0.1, 0.0),
-        ] {
-            let tilt = 0.6_f64;
-            let toward = e1 * tilt.cos() + e2 * tilt.sin();
-            let o1 = Point3::new(0.2, -0.1, 0.3);
-            let o2 = o1 + toward * d + axis * slide;
-            let (c1, c2) = (wall(o1, axis, r1), wall(o2, -axis, r2));
-            // The meeting points of the two circles in the section
-            // through o1: x along `toward`, ±h across it.
-            let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
-            let h = (r1 * r1 - x * x).sqrt();
-            let across = axis.cross(toward);
-            let rulings = [o1 + toward * x + across * h, o1 + toward * x - across * h];
-            for (label, own, partner) in [("ab", &c1, &c2), ("ba", &c2, &c1)] {
-                let (p, n) =
-                    rulings_plane(own, partner, &at(o1)).expect("offset axes name a plane");
-                let tag = format!("r {r1}/{r2} d {d} {label}");
-                assert!(n.dot(axis).abs() < 1e-12, "{tag}: parallel to the axes");
-                for q in rulings {
-                    for c in [&c1, &c2] {
-                        let geom::Surface::Cylinder {
-                            origin,
-                            axis: a,
-                            radius,
-                            ..
-                        } = c
-                        else {
-                            unreachable!()
-                        };
-                        let off = q - *origin;
-                        let r = (off - *a * off.dot(*a)).norm();
-                        assert!(
-                            (r - radius).abs() < 1e-12,
-                            "{tag}: the ruling is on both walls"
-                        );
-                    }
-                    for k in [-3.0, 0.0, 5.0] {
-                        let on = q + axis * k;
-                        assert!(
-                            (on - p).dot(n).abs() < 1e-12,
-                            "{tag}: a ruling lies in the plane"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    /// **The rulings lane refuses any chord that is not a ruling, naming
-    /// the wall it came from.** A tangent chord on either side is the
-    /// walls touching, refused naming that side's wall; a conic is a
-    /// desync; two straight chords pass.
-    #[test]
-    fn a_chord_that_is_not_a_ruling_refuses_naming_its_wall() {
-        use crate::chord_join::SegmentCurve;
-        use slotmap::KeyData;
-        let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
-        let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
-        let (fa, fb) = (face(3), face(7));
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let circle = geom::Curve3::circle(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            1.0,
-            Vec3::new(1.0, 0.0, 0.0),
-        );
-        let (s1, s2) = Default::default();
-        let witness = Point3::new(0.0, 0.0, 0.5);
-        let spec = |description, carrier: &geom::Curve3<f64>| geom_brep::EdgeCurveSpec {
-            description,
-            carrier: carrier.clone(),
-            param_start: 0.0,
-            param_end: 1.0,
-        };
-        let curve = |spec| SegmentCurve::of((he(1), he(2)), spec);
-        let straight = curve(None);
-        let ask = |a: &SegmentCurve<f64>, b: &SegmentCurve<f64>| {
-            rulings_are_straight([(a, Operand::A, fa), (b, Operand::B, fb)])
-        };
-        assert!(ask(&straight, &straight).is_ok(), "two rulings pass");
-        // The tangent chord is the ruling under either description the
-        // must-carry rule can give it.
-        let intrinsic = curve(Some(spec(
-            geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                pair: geom_brep::SurfacePair::new(s1, s2),
-                witness,
-            },
-            &line,
-        )));
-        let conventional = curve(Some(spec(geom_brep::EdgeDescriptionSpec::chart(s2), &line)));
-        for (label, got, operand, wall) in [
-            ("A touches", ask(&intrinsic, &straight), Operand::A, fa),
-            ("B touches", ask(&straight, &intrinsic), Operand::B, fb),
-            (
-                "A touches, conventional",
-                ask(&conventional, &straight),
-                Operand::A,
-                fa,
-            ),
-            (
-                "B touches, conventional",
-                ask(&straight, &conventional),
-                Operand::B,
-                fb,
-            ),
-        ] {
-            assert!(
-                matches!(
-                    got,
-                    Err(BooleanError::CurvedBooleanUnsupported {
-                        operand: o,
-                        face: f,
-                        kind: geom::SurfaceKind::Cylinder,
-                    }) if o == operand && f == wall
-                ),
-                "{label}: {got:?}"
-            );
-        }
-        let conic = curve(Some(spec(
-            geom_brep::EdgeDescriptionSpec::Intersection {
-                pair: geom_brep::SurfacePair::new(s1, s2),
-                selector: geom_brep::CurveSelector::Witness(witness),
-            },
-            &circle,
-        )));
-        assert!(
-            matches!(
-                ask(&straight, &conic),
-                Err(BooleanError::JoinDesync {
-                    what: "a parallel cylinder pair's radical plane cut a wall in a conic"
-                })
-            ),
-            "a conic is a desync"
-        );
-    }
-
-    /// **The plane is read at the reach, wherever an origin is stored.**
-    /// A radius-0.5 wall about `z` and a radius-0.3 one whose axis
-    /// passes `(d, 0, 0)` tilted half the zero band toward `y`, read at
-    /// the origin; the partner's origin is stored up to 1000 m along its
-    /// axis. Offset (`d = 0.6`), the plane holds the walls' two meeting
-    /// points in `z = 0` at every stored origin; read at a stored origin
-    /// 1000 m up, the offset carried `1000·θ` across it and the plane
-    /// turned off those points by some hundreds of `zero`. Coaxial (`d = 0`),
-    /// the walls name no plane at every stored origin; read 1000 m up
-    /// the offset was `500·zero`, definite, and named one.
-    #[test]
-    fn the_plane_is_read_at_the_reach_wherever_an_origin_is_stored() {
-        let zero = band().zero();
-        let theta = 0.5 * zero;
-        let tilted = Vec3::new(0.0, theta.sin(), theta.cos());
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let reach = at(Point3::origin());
-        let (r1, r2, d): (f64, f64, f64) = (0.5, 0.3, 0.6);
-        let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
-        let h = (r1 * r1 - x * x).sqrt();
-        let meets = [Point3::new(x, h, 0.0), Point3::new(x, -h, 0.0)];
-        for along in [0.0, 10.0, -10.0, 1000.0, -1000.0] {
-            let own = wall(Point3::origin(), z, r1);
-            let partner = wall(Point3::new(d, 0.0, 0.0) + tilted * along, tilted, r2);
-            for (label, a, b) in [("ab", &own, &partner), ("ba", &partner, &own)] {
-                let (p, n) = rulings_plane(a, b, &reach).expect("offset axes name a plane");
-                for q in meets {
-                    let off = (q - p).dot(n).abs();
-                    assert!(
-                        off < zero,
-                        "stored {along} m along ({label}): the plane holds the walls' meeting \
-                         point {q:?} at the reach, {off:e} off"
-                    );
-                }
-            }
-            let partner = wall(Point3::origin() + tilted * along, tilted, r2);
-            for (label, a, b) in [("ab", &own, &partner), ("ba", &partner, &own)] {
-                let got = rulings_plane(a, b, &reach);
-                assert!(
-                    got.is_none(),
-                    "stored {along} m along ({label}): coaxial at the reach, no plane: {got:?}"
-                );
-            }
-        }
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -7686,7 +7354,6 @@ mod kind_arm_rows {
             ((Cone, Plane), KindArm::WallPlane),
             ((Torus, Plane), KindArm::WallPlane),
             ((Sphere, Sphere), KindArm::Spheres),
-            ((Cylinder, Cylinder), KindArm::Cylinders),
         ];
         for a in kinds {
             for b in kinds {

@@ -3624,11 +3624,12 @@ pub enum BooleanError {
     /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
     ///   dispatch — `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names: a
-    ///   plane against a plane, cylinder, sphere or cone, a sphere pair
-    ///   (on its radical plane) and a cylinder pair with parallel offset
-    ///   axes (on its rulings). Its catch-all raises
+    ///   plane against a plane, cylinder, sphere or cone, and a sphere
+    ///   pair (on its radical plane); a pair the section table carries
+    ///   (two cylinders, a cylinder and a sphere) rides its carried
+    ///   components. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a torus or `(Cylinder, Sphere)` germ lands there too; a
+    ///   and a torus germ the table does not carry lands there too; a
     ///   cone against a curved face refuses one door earlier, at its
     ///   germ frame ([`BooleanError::GermFrameUnsupported`]).
     ///

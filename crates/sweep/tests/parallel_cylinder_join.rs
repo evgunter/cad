@@ -213,6 +213,58 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
+/// **The walls join along their carried rulings**: in every op and
+/// order of the rod with its caps inside the drum, upright and turned
+/// off the coordinate axes, the result's edges between the two walls
+/// are the section value's two rulings, each a straight carrier
+/// described as the two walls' own intersection, citing the two faces
+/// it lies between, both cylinders, and no plane: the chords are cut
+/// from the pair's carried components, not from a plane both walls are
+/// cut by.
+#[test]
+fn the_walls_join_along_their_carried_rulings() {
+    for pose in [
+        upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+        turned(
+            upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+            Vec3::new(1.0, 2.0, 0.5),
+            0.7,
+        ),
+    ] {
+        for (op, got, _) in pose.runs() {
+            let what = format!("{} | {op}", pose.label);
+            let out = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let Some(body) = out.body() else {
+                continue;
+            };
+            let body = &body.body;
+            let mut rulings = 0;
+            for (_, e) in body.edges() {
+                let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    continue;
+                };
+                let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
+                    continue;
+                };
+                let cylinders = pair
+                    .keys()
+                    .iter()
+                    .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })));
+                if !cylinders {
+                    continue;
+                }
+                assert!(
+                    matches!(c.carrier(), geom::Curve3::Line(_)),
+                    "{what}: an edge between the walls is a ruling, not {:?}",
+                    c.carrier()
+                );
+                rulings += 1;
+            }
+            assert_eq!(rulings, 2, "{what}: the two rulings, between the walls");
+        }
+    }
+}
+
 /// **The row's rods build in every op and order.** Their walls join
 /// along the rulings like the poses above. Each build passes tiers 2 and
 /// 3′, the certificate and its closed-form volume, and is a legal

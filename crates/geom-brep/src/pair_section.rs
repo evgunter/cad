@@ -1627,9 +1627,10 @@ impl<T: Decide> PairSection<T> {
     /// carrier's period), and the joined carrier is certified again
     /// against the pose's operands through `lane`, since the shifted
     /// knots are rounded. The seated carrier runs from `at`'s point
-    /// round to it. A component that is open, or whose carrier is a
-    /// closed form, is returned as it is: a closed form's parameter is an
-    /// angle, which a chord reads on any branch.
+    /// round to it. A closed form (a circle or an ellipse, whose
+    /// parameter is an angle) is seated by its span alone, `at` to `at`
+    /// plus a turn, its carrier as it is. A component that is open, or a
+    /// spline holding no certificate, is returned as it is.
     ///
     /// # Errors
     ///
@@ -1643,7 +1644,17 @@ impl<T: Decide> PairSection<T> {
         at: T,
         band: Band,
     ) -> Result<CarriedComponent<T>, CarryError> {
-        if !component.closed() || component.certificate.is_none() {
+        if !component.closed() {
+            return Ok(component.clone());
+        }
+        if matches!(component.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+            let (lo, hi) = component.span;
+            return Ok(CarriedComponent {
+                span: (at, at + (hi - lo)),
+                ..component.clone()
+            });
+        }
+        if component.certificate.is_none() {
             return Ok(component.clone());
         }
         let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
