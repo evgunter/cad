@@ -995,6 +995,116 @@ fn the_pattern_door_declares_an_index_of_its_count() {
     );
 }
 
+/// Each member's offset from member 0 of the family `pattern`
+/// evaluated to, in the space the family stands in.
+fn member_offsets(session: &mut DocSession, pattern: RecipeNodeId) -> Vec<[f64; 3]> {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let ValuePayload::Instances(instances) =
+        &eval.value(pattern).expect("the family evaluated").payload
+    else {
+        panic!("a family evaluates to its members");
+    };
+    instances
+        .iter()
+        .map(|member| {
+            instances[0]
+                .relative(member)
+                .expect("members of one space relate")
+                .map_or([0.0; 3], |motion| {
+                    let o = motion.origin();
+                    [o.x, o.y, o.z]
+                })
+        })
+        .collect()
+}
+
+/// A row of `count` members of a fresh block, stepped `spacing` along
+/// the `typed` direction, and the session holding it; `declare` names a
+/// length variable declared first, at 50 mm, for `spacing` to read.
+fn a_row(
+    typed: [f64; 3],
+    declare: Option<&str>,
+    spacing: Formula,
+    count: i64,
+) -> (DocSession, RecipeNodeId) {
+    let mut session = session(Tol::witness());
+    let body = common::xy_box_in(&mut session, A);
+    if let Some(name) = declare {
+        let declared = session.perform(SessionOp::DeclareVar {
+            name: pncad::document::VarName::new(name).expect("a name"),
+            value: pncad::document::FreeVar::continuous(Dimension::Length, 0.05),
+        });
+        assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    }
+    let row = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body.into(),
+            count,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3(typed),
+                spacing,
+            },
+        },
+    );
+    (session, row)
+}
+
+/// Whether member `k` of the row `row` stands `k·pitch` from member 0
+/// along the unit of `typed`, for every `k`; the message names the
+/// first that does not.
+fn stepped(session: &mut DocSession, row: RecipeNodeId, typed: [f64; 3], pitch: f64) {
+    let norm = typed.iter().map(|c| c * c).sum::<f64>().sqrt();
+    for (k, got) in (0u32..).zip(member_offsets(session, row)) {
+        let want = typed.map(|c| c / norm * pitch * f64::from(k));
+        assert!(
+            got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12),
+            "direction {typed:?}, pitch {pitch}: member {k} stands at {got:?}, not {want:?}"
+        );
+    }
+}
+
+/// **A row along an axis steps its spacing, and its pitch reads the
+/// variable it was typed as**: member `k` stands `k·pitch` along `x`,
+/// and still does after `pitch` is set again.
+#[test]
+fn a_row_along_an_axis_steps_its_spacing_and_reads_its_variable() {
+    let (mut session, row) = a_row([1.0, 0.0, 0.0], None, len(0.05), 3);
+    assert_eq!(member_offsets(&mut session, row).len(), 3, "three members");
+    stepped(&mut session, row, [1.0, 0.0, 0.0], 0.05);
+
+    let pitch_name = pncad::document::VarName::new("pitch").expect("a name");
+    let (mut session, row) = a_row(
+        [1.0, 0.0, 0.0],
+        Some("pitch"),
+        Formula::named(pitch_name, Dimension::Length),
+        2,
+    );
+    let pitch = common::var_of(session.committed_doc(), "pitch");
+    for at in [0.05, 0.08] {
+        let moved = session.perform(SessionOp::SetVariable {
+            var: pitch,
+            value: viewer::props::SlotValue::Continuous(at),
+        });
+        assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+        stepped(&mut session, row, [1.0, 0.0, 0.0], at);
+    }
+}
+
+/// **A row steps its spacing along its direction, whatever the
+/// direction's length**: typed `(1, 1, 0)` and `(0, 3, 4)`, member `k`
+/// stands `k·spacing` along the unit direction, where a slide per
+/// component steps `spacing·√2` and `spacing·5`.
+#[test]
+#[ignore = "disabled red: work/placing/a-linear-patterns-direction-components-land-in-its-slides.md"]
+fn a_row_steps_its_spacing_along_an_oblique_direction() {
+    for typed in [[1.0, 1.0, 0.0], [0.0, 3.0, 4.0]] {
+        let (mut session, row) = a_row(typed, None, len(0.05), 3);
+        stepped(&mut session, row, typed, 0.05);
+    }
+}
+
 /// **The fused door is the affordance the boolean's refusal points
 /// at**: the same form as the pattern door — same prototype, same
 /// count, same rule — minting the family and a `Union` over it, ONE
