@@ -51,6 +51,7 @@ The sweep's residue (§5, "a spelling of the foot or of the carrier gap outside 
   - `contain.rs:1341` (`bool_contact_arc`, `point_on_circle`).
   
   These are on-carrier decisions that do not read `Curve3::on_carrier`. The exact distance is its clearance on a circle.
+  Done in ONEHOME's PR 6327 (2026-11-02): `circle_miss` and `point_on_circle` are gone; `arc_chain_reaches` and `split_other_at_point` read `Curve3::on_carrier`, and `boundary_meets_circle_only_at` reads `curve_pair::meet`. `sphere_region`'s arc clearance spelled the same distance and now reads `Curve3::clearance`.
 - **The census line lane's gap** (`crates/topo/src/census.rs` `on_edge_interior_reading`, `pm_census_ve_line_gap`) and its foot `(q − p0)·dir`: a line's on-carrier reading and foot spelled in place. The FUSE stage-(c3) PR moves it onto `Span::contact`.
 - **The census curved lane's foot search** (`crates/topo/src/census/curved.rs` `feet`/`polish_foot`/`near_pieces`): a second foot search beside `Curve3::foot`. The (c2)/(c3) merge moves it.
 - **`SpiricArc::contact`** (`crates/topo/src/splitting/spiric_arc.rs:226`): the containment walk's spiric boundary reading, with its own gap rows (`SpiricRows`), not `Curve3::on_carrier`.

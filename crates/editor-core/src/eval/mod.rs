@@ -120,7 +120,7 @@ pub struct Evaluation<T: Decide> {
     /// because the question is the same one.
     ///
     /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
-    /// is completed-or-canceled, so the refusal is recorded on the
+    /// is completed, canceled or exhausted, so the refusal is recorded on the
     /// value the caller already reads rather than pushed into an
     /// outcome arm that would mean something else. `None` is both "no
     /// prior" and "a prior of this document".
@@ -130,10 +130,10 @@ pub struct Evaluation<T: Decide> {
     /// lesser id, the node inserted first). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
-    /// Per-node results. On cancelation this holds the completed
-    /// prefix only.
+    /// Per-node results. On cancelation or exhaustion this holds the
+    /// completed prefix only.
     pub nodes: BTreeMap<RecipeNodeId, NodeResult<T>>,
-    /// Completed or canceled (spec D5's typed partial result).
+    /// Completed, canceled or exhausted (spec D5's typed partial result).
     pub outcome: EvalOutcome,
     /// How many nodes actually ran their op this evaluation (spec D4's
     /// acceptance counter: the downstream cone of an edit).
@@ -504,7 +504,8 @@ impl<T: Decide> Evaluation<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NodeStanding {
     /// The node is in this evaluation's order but has no result: the
-    /// run was canceled before it reached the node.
+    /// run was canceled, or ran out of its member budget, before it
+    /// reached the node.
     NotEvaluated {
         /// The node.
         node: RecipeNodeId,
@@ -606,10 +607,13 @@ impl crate::spoken::Say for NodeStanding {
         match *self {
             Self::NotEvaluated { node } => write!(
                 f,
-                "{} has no result in this evaluation: the run was canceled before it \
-                 reached the node. {}",
+                "{} has no result in this evaluation: the run stopped before it reached \
+                 the node, canceled or out of its member budget. {}",
                 by.node(node),
-                Recourse("re-evaluate the document to completion")
+                Recourse(
+                    "re-evaluate the document to completion, under a member budget that \
+                     admits its families"
+                )
             ),
             Self::NotInDocument { node } => write!(
                 f,
@@ -696,6 +700,19 @@ pub enum EvalOutcome {
     /// The cancel token was observed set at a yield point; `nodes`
     /// holds the completed prefix.
     Canceled,
+    /// The run's member budget ([`EvalOptions::member_budget`]) ran out
+    /// at admission: `nodes` holds the completed prefix, the nodes
+    /// before `at` in [`Evaluation::order`], and `at` and every node
+    /// after it hold no result. Running out is the run's, not a fault of
+    /// `at`; the recourse is a larger budget or a smaller count.
+    Exhausted {
+        /// The family whose listing crossed the budget.
+        at: RecipeNodeId,
+        /// The listing steps the families before `at` were charged.
+        held: u64,
+        /// The budget the run was given.
+        budget: u64,
+    },
 }
 
 /// One node's outcome (F2 verbatim, spec D2).
@@ -1663,8 +1680,8 @@ pub enum NodeErrorKind {
         source: EvalError,
     },
     /// **An index's count evaluated outside the counts an index holds**:
-    /// below zero, or past the largest member index the evaluator reads
-    /// into a `u32`.
+    /// below zero, or past `u32::MAX`, which no member index can be.
+    /// A fact about the document, not about any run's cost.
     IndexCountOutOfRange {
         /// The index.
         index: crate::VarId,
@@ -2243,12 +2260,17 @@ impl crate::spoken::Say for NodeErrorKind {
                     by.read(*index)
                 )
             }
+            Self::IndexCountOutOfRange { index, count } if *count < 0 => write!(
+                f,
+                "the count of index {} evaluated to {count}, below zero. Recourse: make it \
+                 evaluate to zero or more",
+                by.read(*index),
+            ),
             Self::IndexCountOutOfRange { index, count } => write!(
                 f,
-                "the count of index {} evaluated to {count}, and an index holds {} to {} \
-                 members. Recourse: make it evaluate within that range",
+                "the count of index {} evaluated to {count}, and a member index is a 32-bit \
+                 value, so no count past {} can name its members. Recourse: lower the count",
                 by.read(*index),
-                crate::MemberCountFault::ADMITS.start(),
                 crate::MemberCountFault::ADMITS.end()
             ),
             // Every role word is already a complete noun phrase for
@@ -3019,7 +3041,24 @@ pub struct EvalOptions {
     /// the row that holds the frame no part of meaning compares both.
     /// `None` — the default — is the evaluation as built.
     pub computing_twist: Option<ComputingTwist>,
+    /// **The run's member budget** (D9): the listing steps every family
+    /// of the run may take together, a listing step being one index
+    /// value bound while a family's members are listed, memo-served or
+    /// not. Families are charged at admission in the schedule's order,
+    /// before anything is built; the first whose charge passes what
+    /// remains stops the run as [`EvalOutcome::Exhausted`]. The budget
+    /// enters no key: a run under it is the same run at any budget.
+    /// [`DEFAULT_MEMBER_BUDGET`] by default.
+    pub member_budget: u64,
 }
+
+/// **The member budget a run has unless its caller states another**
+/// ([`EvalOptions::member_budget`]). A member costs about 17.5 KB and
+/// 1.1 ms in a debug build (a ring of copies of one block), so the
+/// default admits about 1.1 GB and a minute and a quarter of members:
+/// well within a desktop's memory, and short enough that a run nobody
+/// can cancel answers in about a minute.
+pub const DEFAULT_MEMBER_BUDGET: u64 = 65_536;
 
 /// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
 /// ([`EvalOptions::computing_twist`]): a turn of `angle` radians about
@@ -3397,6 +3436,7 @@ impl Default for EvalOptions {
             symbols: false,
             pin: false,
             computing_twist: None,
+            member_budget: DEFAULT_MEMBER_BUDGET,
         }
     }
 }
@@ -3661,6 +3701,13 @@ where
     // built once here, its decisions its own and not this run's. A
     // certifying lane over no box whose document asserts a clearance
     // reads it too: it is the rebuild that verifies the sweep's pairs.
+    // It is a run of its own under the same member budget: at the top a
+    // second pot, so such a document at a lane other than the nominal
+    // one lists up to twice the budget; inside a part, under exactly
+    // what the part's build was charged, which its own admission (the
+    // same charge) fits. Its admission is this
+    // run's (families are listed over the nominal environment either
+    // way), so it runs out at the node this run runs out at.
     let asserts_clearance = T::clearance_lane().is_some() && doc_asserts_a_clearance(doc);
     let nominal_ev = ((doc_reads_a_trace(doc) || (asserts_clearance && opts.param_box.is_none()))
         && T::nominal_results(&BTreeMap::new(), &env, &nominal_env).is_none())
@@ -3730,16 +3777,63 @@ where
     // by the descent below the top, and entered here at the top, in
     // one serial pass that reuses what the prior carried (`parts`
     // module docs).
-    let entry = match reached {
-        Some((reached, _)) => parts::Entry {
+    // Which indices each node reaches, read once off the recipe: a node
+    // reaching any is evaluated once per member of them ([`members`]).
+    let chains = chains_of(doc, &sched.order);
+    // **Admission**, before anything is built: every node charged, in
+    // `sched.order`, its listing steps: a family its own, listed over the
+    // NOMINAL environment whatever the lane (so the charge is the
+    // document's; a lane whose own count disagrees refuses that family
+    // when it evaluates, which no budget decides), and an instance the
+    // charge of building its part, wherever the build builds one
+    // ([`parts::PartStore::admit`]). Only then is any part built, and
+    // only those the admission admitted. A part's own run (`reached`)
+    // charges its own families alone, under exactly what its instancing
+    // run charged it: its parts were charged with it.
+    let mut admission = Admission::new(&sched.order, opts.member_budget);
+    let mut store = reached.is_none().then(|| {
+        parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
+            .with_symbols(opts.symbols)
+            .with_twist(opts.computing_twist)
+            .with_costs(prior.map(|p| &p.parts))
+    });
+    let admitted = admission.admit(|id, remaining| {
+        let parted = match (parts::instantiated(doc, id), &mut store) {
+            (Some(part), Some(store)) => {
+                let mut own = |part: &Doc<ProfileProgram>, room| own_steps(part, room, cancel);
+                match store.admit(part, remaining, cancel, tol, &mut own)? {
+                    Some(steps) => steps,
+                    None => return Ok(None),
+                }
+            }
+            _ => 0,
+        };
+        let listed = match chains.get(&id).and_then(crate::repetition::Reached::chain) {
+            Some(chain) if !chain.is_empty() => {
+                members::listing_steps(doc, &nominal_env, chain, remaining - parted, cancel)?
+            }
+            _ => Some(0),
+        };
+        Ok(listed.map(|listed| listed + parted))
+    });
+    let entry = match (store, reached) {
+        (Some(mut store), _) => {
+            for &id in &sched.order {
+                if !admission.admits(id) {
+                    break;
+                }
+                if let Some(part) = parts::instantiated(doc, id) {
+                    store.enter(part, prior.map(|p| &p.parts), cancel, tol);
+                }
+            }
+            store.finish()
+        }
+        (None, Some((reached, _))) => parts::Entry {
             reached,
             carried: parts::Carried::none(),
             evaluations: 0,
         },
-        None => parts::PartStore::<T>::new(opts.resolver.as_ref(), opts.boolean_sweep, tol)
-            .with_symbols(opts.symbols)
-            .with_twist(opts.computing_twist)
-            .enter_census(doc, prior.map(|p| &p.parts), cancel, tol),
+        (None, None) => unreachable!("a run enters its parts or is handed them"),
     };
     // A placement's bundle is folded where the placement evaluates
     // (INTENT stage 3 C): every pose a mate reads is then a value of
@@ -3757,18 +3851,14 @@ where
             pass_two,
         },
     };
-    // Which indices each node reaches, read once off the recipe: a node
-    // reaching any is evaluated once per member of them ([`members`]).
-    let chains: BTreeMap<RecipeNodeId, crate::repetition::Reached> = if doc.declares_index() {
-        let mut reach = crate::repetition::Reach::new(doc);
-        sched.order.iter().map(|&id| (id, reach.node(id))).collect()
-    } else {
-        BTreeMap::new()
-    };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
     let mut reused = 0usize;
-    let mut outcome = EvalOutcome::Completed;
+    let mut outcome = if admitted.is_err() {
+        EvalOutcome::Canceled
+    } else {
+        EvalOutcome::Completed
+    };
 
     // The level schedule runs only where a decision is thread-portable
     // (`geom_core::sym::decisions_are_thread_portable`): under an
@@ -3785,10 +3875,23 @@ where
         // a schedule-shaped sequence.
         let mut recordings: BTreeMap<RecipeNodeId, geom_core::k_stats::Detached> = BTreeMap::new();
         for level in &sched.levels {
-            if cancel.is_canceled() {
+            if outcome == EvalOutcome::Canceled || cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
                 break;
             }
+            // A level runs the nodes before the crossing node in
+            // `sched.order`, which are what the serial walk runs of it.
+            let admitted: Vec<RecipeNodeId>;
+            let level = if admission.crossed.is_some() {
+                admitted = level
+                    .iter()
+                    .copied()
+                    .filter(|id| admission.admits(*id))
+                    .collect();
+                &admitted
+            } else {
+                level
+            };
             // D6 / D9-addendum idiom 1: an INDEXED parallel map into
             // per-node slots — results land keyed by node id, the
             // combination is positional (one map entry per node),
@@ -3816,8 +3919,11 @@ where
         }
     } else {
         for &id in &sched.order {
-            if cancel.is_canceled() {
+            if outcome == EvalOutcome::Canceled || cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
+                break;
+            }
+            if !admission.admits(id) {
                 break;
             }
             let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
@@ -3828,6 +3934,12 @@ where
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
+    }
+
+    if outcome == EvalOutcome::Completed
+        && let Some(exhausted) = admission.exhausted()
+    {
+        outcome = exhausted;
     }
 
     // Cycle leftovers (unreachable through `apply`): typed refusals,
@@ -3871,6 +3983,110 @@ where
         spaces: Arc::new(doc.spaces()),
         parts: entry.carried,
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
+    }
+}
+
+/// **Which indices each node of `order` reaches**, read off `doc`'s
+/// recipe: what a node is evaluated once per member of ([`members`]).
+fn chains_of(
+    doc: &Doc<ProfileProgram>,
+    order: &[RecipeNodeId],
+) -> BTreeMap<RecipeNodeId, crate::repetition::Reached> {
+    if !doc.declares_index() {
+        return BTreeMap::new();
+    }
+    let mut reach = crate::repetition::Reach::new(doc);
+    order.iter().map(|&id| (id, reach.node(id))).collect()
+}
+
+/// **A part document's own listing steps**: its families', in its
+/// schedule's order, over its nominal environment, as its run's
+/// admission charges them ([`parts::PartStore::charge`]); `None` as soon
+/// as they pass `remaining`.
+fn own_steps(
+    doc: &Doc<ProfileProgram>,
+    remaining: u64,
+    cancel: &CancelToken,
+) -> Result<Option<u64>, Canceled> {
+    let order = schedule::schedule(doc).order;
+    let chains = chains_of(doc, &order);
+    let nominal = doc.var_env::<f64>();
+    let mut held = 0u64;
+    for id in &order {
+        if let Some(chain) = chains
+            .get(id)
+            .and_then(crate::repetition::Reached::chain)
+            .filter(|chain| !chain.is_empty())
+        {
+            match members::listing_steps(doc, &nominal, chain, remaining - held, cancel)? {
+                Some(steps) => held += steps,
+                None => return Ok(None),
+            }
+        }
+    }
+    Ok(Some(held))
+}
+
+/// **A run's member budget, charged at admission** in `order`, the
+/// schedule's order, before any node runs: each node is charged its
+/// listing steps, and the first whose charge passes what remains is
+/// where the run runs out, the same node under either schedule.
+struct Admission<'o> {
+    order: &'o [RecipeNodeId],
+    position: BTreeMap<RecipeNodeId, usize>,
+    /// The steps charged to the nodes before the crossing one: all of
+    /// them, where none crossed.
+    held: u64,
+    budget: u64,
+    /// The position of the node whose charge passed what remained.
+    crossed: Option<usize>,
+}
+
+impl<'o> Admission<'o> {
+    fn new(order: &'o [RecipeNodeId], budget: u64) -> Self {
+        Self {
+            order,
+            position: order.iter().enumerate().map(|(at, &id)| (id, at)).collect(),
+            held: 0,
+            budget,
+            crossed: None,
+        }
+    }
+
+    /// Charges every node in order, stopping at the first whose charge
+    /// passes what remains; `charge` lists a node against the remainder
+    /// and answers its steps, `None` where they pass it.
+    fn admit(
+        &mut self,
+        mut charge: impl FnMut(RecipeNodeId, u64) -> Result<Option<u64>, Canceled>,
+    ) -> Result<(), Canceled> {
+        for (at, &id) in self.order.iter().enumerate() {
+            match charge(id, self.budget - self.held)? {
+                Some(steps) => self.held += steps,
+                None => {
+                    self.crossed = Some(at);
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether `id` stands before the node the budget ran out at.
+    fn admits(&self, id: RecipeNodeId) -> bool {
+        self.crossed.is_none_or(|crossed| {
+            self.position
+                .get(&id)
+                .is_some_and(|&position| position < crossed)
+        })
+    }
+
+    fn exhausted(&self) -> Option<EvalOutcome> {
+        self.crossed.map(|crossed| EvalOutcome::Exhausted {
+            at: self.order[crossed],
+            held: self.held,
+            budget: self.budget,
+        })
     }
 }
 
@@ -4157,7 +4373,7 @@ fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
 /// never reached holds none. Not `coincide::Canceled`, whose `Display`
 /// says the coincidence door was canceled.
 #[derive(Debug)]
-struct Canceled;
+pub(crate) struct Canceled;
 
 struct NodeStep<T: Decide> {
     result: NodeResult<T>,
@@ -5558,11 +5774,28 @@ where
         }
         // A station's moves are slots, fed below; what each one moves
         // along or about is not, so it is written here.
+        // The sections' minted ids: what the loft's names spell (N1),
+        // so two lofts alike but for which sections are which are two
+        // keys.
         Node::Loft {
             first: _,
+            first_id,
             then,
             v_degree: _,
         } => {
+            // Each section's id, `None` (an unminted section, which no
+            // document holds) keyed apart from every id.
+            let mut section_id = |id: &Option<crate::SectionId>| match id {
+                Some(id) => {
+                    h.write_tag(1);
+                    h.write_id(id.0);
+                }
+                None => h.write_tag(0),
+            };
+            section_id(first_id);
+            for section in then {
+                section_id(&section.id);
+            }
             h.write_u64(then.len() as u64);
             for section in then {
                 h.write_u64(section.station.len() as u64);
@@ -6361,8 +6594,6 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CapVertex => 6,
         S::LoftWall => 45,
         S::LoftSeam => 46,
-        S::LoftSlabWall => 53,
-        S::LoftSlabSeam => 54,
         S::LoftSectionEdge => 55,
         S::LoftSectionVertex => 56,
         S::Band => 7,
@@ -6524,36 +6755,24 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         }
         RoleSeg::LoftWall(es) => {
             h.write_u64(es.len() as u64);
-            for e in es {
+            for (s, e) in es {
+                h.write_id(s.0);
                 pe(h, *e);
             }
         }
         RoleSeg::LoftSeam(vs) => {
             h.write_u64(vs.len() as u64);
-            for v in vs {
-                pv(h, *v);
-            }
-        }
-        RoleSeg::LoftSlabWall(s, es) => {
-            h.write_u64(u64::from(*s));
-            h.write_u64(es.len() as u64);
-            for e in es {
-                pe(h, *e);
-            }
-        }
-        RoleSeg::LoftSlabSeam(s, vs) => {
-            h.write_u64(u64::from(*s));
-            h.write_u64(vs.len() as u64);
-            for v in vs {
+            for (s, v) in vs {
+                h.write_id(s.0);
                 pv(h, *v);
             }
         }
         RoleSeg::LoftSectionEdge(s, e) => {
-            h.write_u64(u64::from(*s));
+            h.write_id(s.0);
             pe(h, *e);
         }
         RoleSeg::LoftSectionVertex(s, v) => {
-            h.write_u64(u64::from(*s));
+            h.write_id(s.0);
             pv(h, *v);
         }
         RoleSeg::Band(r) => {

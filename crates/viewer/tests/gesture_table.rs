@@ -288,12 +288,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             origin: len3([0.0; 3]),
             normal: scl3([0.0, 0.0, 1.0]),
         },
-        SessionOp::AddTransform {
-            input: node.into(),
-            translation: common::no_translation(),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
         SessionOp::AddPattern {
             input: node.into(),
             count: 2,
@@ -411,6 +405,11 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             },
         },
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(node.into()),
+            b: viewer::session::ClearedSeat::Body(node.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+        },
     ]
 }
 
@@ -475,7 +474,6 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
         SessionOp::AddSplit { .. } => (34, false),
-        SessionOp::AddTransform { .. } => (35, false),
         SessionOp::AddPattern { .. } => (36, false),
         SessionOp::AddFusedPattern { .. } => (37, false),
         SessionOp::AddFillet { .. } => (38, false),
@@ -515,7 +513,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // The placement editor's two Applies: an insert door and a
         // bundle written, each fenced with every other document edit.
         SessionOp::Place { .. } => (62, false),
-        SessionOp::SetBundle { .. } => (63, false),
+        SessionOp::SetBundle { .. } => (35, false),
         // An insert door, fenced with every other one.
         SessionOp::AddMirror { .. } => (55, false),
         // What the document makes: a document edit, fenced with every
@@ -533,6 +531,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetSpaceHidden { .. } => (60, true),
         // What the document makes, as `SetProduct` is.
         SessionOp::AddToProduct { .. } => (61, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddClearance { .. } => (63, false),
     }
 }
 
@@ -1043,7 +1043,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
+        | SessionOp::AddClearance { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

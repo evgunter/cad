@@ -423,6 +423,12 @@ pub struct Witness {
     pub param: ParamWitness,
     /// The closest-point pair the `f64` rebuild found.
     pub geometry: GeometryWitness,
+    /// **The body each face of the pair is of**: the node each side was
+    /// read at and which of its output bodies — the first side's, then
+    /// the second's. The member a face seat names on a pattern is the
+    /// body it resolved to, so a reader drawing the pair reads it here
+    /// rather than resolving the seat a second time.
+    pub sides: [(RecipeNodeId, u32); 2],
 }
 
 impl Witness {
@@ -1407,7 +1413,12 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 query.tol,
             )
         });
-        let verdict = verdict_of(report.verdict, || witness_point(queried), refused);
+        let verdict = verdict_of(
+            report.verdict,
+            || witness_point(queried),
+            [(a.at, a.body), (b.at, b.body)],
+            refused,
+        );
         ClearanceReport {
             verdict,
             receipt: report.receipt,
@@ -2080,12 +2091,14 @@ pub(crate) fn closest_pair(
 pub(crate) fn verdict_of(
     verdict: BoundVerdict<GeometryWitness>,
     param: impl Fn() -> ParamWitness,
+    sides: [(RecipeNodeId, u32); 2],
     refused: impl FnOnce(EngineRefusal) -> ClearanceRefusal,
 ) -> ClearanceVerdict {
     let at = |geometry| {
         Box::new(Witness {
             param: param(),
             geometry,
+            sides,
         })
     };
     match verdict {

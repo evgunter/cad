@@ -230,3 +230,11 @@ AUTHOR's narrative is recoverable from
 - Correctness: seam, resolver, witness frames, seats-read-where-drawn, row and tool all HOLD; MAJOR — a clearance with a pattern seat crashes the viewer: the submit trigger was `usable()`, the value is a `Family`, and #6292's pncad door `unreachable!`s on it inside a worker whose panic takes the process down. Class note: a door that `unreachable!`s on a document's value violates D9 and only waits for its first reachable caller; the fix pass makes it a typed refusal.
 - Style: mergeable; the equation spelled twice (the kernel's `ClearanceBounds::equation` is unused), stale README counts, the witness gate restating `name_run`'s rule with `ptr::eq`, and two larger copies (a third seam, the tool's own seat handling) to be filed as rows.
 - Seats are read where drawn (a world copy, not the construction): accepted as faithful, not a fork — a clearance is about geometry as it stands; the reviewer found no pick computed in another space than the picture shows.
+## 2026-11-02 11:35 — `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` merges (PR 6354)
+
+- Orchestrator's read: the 0 is read only for the meeting candidate's own station pair; soundness rests on the meeting being topological over the box (the shared point exists at every realization), not on the fixed stations tracking it. Over-broad mutation (every pair 0) reds the non-meeting rows. CI green.
+
+## 2026-11-02 13:30 — P1 `the-gui-has-no-clearance-consumer` merges (PR 6357)
+
+- Style + correctness reviews; fix pass 1 (a pattern seat crashed the viewer via #6292's `unreachable!`; a row could read `certifying…` with nothing certifying; a twice-drawn body refused with the wrong words), fix pass 2 (the witness of a pattern member k ≠ 0 was drawn on member 0 — now carried from the kernel as `Witness::sides`); re-verify 2 says merge. CI green at `fd50108209`.
+- With this, DOORS has no P0 or P1 row left: the sitting hands the program back (`ready`).

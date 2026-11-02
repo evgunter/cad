@@ -337,7 +337,7 @@ fn line_start(pose: &Pose, pair: bool) -> Option<f64> {
 /// apex from the plane, and whether it runs through the apex along a
 /// generator of the cone (to `tol` per unit length).
 fn line_residuals(pose: &Pose, line: &Curve3<f64>, extent: f64, tol: f64) -> (f64, bool) {
-    let Curve3::Line { origin, dir } = *line else {
+    let Curve3::Line(geom::Line { origin, dir }) = *line else {
         panic!("a line outcome carries a line, got {line:?}");
     };
     let gap = pose.realized_gap();
@@ -1022,7 +1022,7 @@ fn apex_outcomes_agree_with_the_oracle() {
                     ));
                 }
             }
-            if let [Curve3::Line { dir, .. }] = lines[..] {
+            if let [Curve3::Line(geom::Line { dir, .. })] = lines[..] {
                 // Both azimuths are read off the normal's part square to
                 // the axis, so each carries `f64::EPSILON/s` of it.
                 let s = pose.axis.cross(pose.normal).norm();

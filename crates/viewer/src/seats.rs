@@ -124,8 +124,6 @@ vocabulary! {
         SubtractTool,
         /// The body a split cuts.
         SplitTarget,
-        /// The body a transform places.
-        TransformBody,
         /// The body a pattern replicates.
         PatternBody,
         /// The pattern a part projects one instance of.
@@ -134,6 +132,10 @@ vocabulary! {
         DuplicateBody,
         /// The body a mirror reflects.
         MirrorBody,
+        /// A clearance requirement's first seat, held as a body.
+        ClearedFirst,
+        /// Its second seat, held as a body.
+        ClearedSecond,
     }
 
     /// Every seat, so a sweep over the vocabulary cannot silently
@@ -166,10 +168,11 @@ impl Seat {
             | Self::SubtractFrom
             | Self::SubtractTool
             | Self::SplitTarget
-            | Self::TransformBody
             | Self::PatternBody
             | Self::DuplicateBody
-            | Self::MirrorBody => NodeKindWanted::Body,
+            | Self::MirrorBody
+            | Self::ClearedFirst
+            | Self::ClearedSecond => NodeKindWanted::Body,
         }
     }
 
@@ -181,11 +184,12 @@ impl Seat {
             Self::SubtractFrom => "body kept",
             Self::SubtractTool => "body removed",
             Self::SplitTarget => "split target",
-            Self::TransformBody => "transformed body",
             Self::PatternBody => "patterned body",
             Self::PartInstance => "pattern to project",
             Self::DuplicateBody => "duplicated body",
             Self::MirrorBody => "mirrored body",
+            Self::ClearedFirst => FaceRole::ClearedFirst.name(),
+            Self::ClearedSecond => FaceRole::ClearedSecond.name(),
         }
     }
 }
@@ -196,6 +200,11 @@ impl Seat {
 pub enum FaceRole {
     /// The face whose plane a mirror reflects across.
     MirrorPlane,
+    /// A clearance requirement's first seat, held as a face — the
+    /// seat [`Seat::ClearedFirst`] holds as a body, and named as it is.
+    ClearedFirst,
+    /// Its second seat, held as a face.
+    ClearedSecond,
 }
 
 impl FaceRole {
@@ -203,6 +212,8 @@ impl FaceRole {
     pub fn name(self) -> &'static str {
         match self {
             Self::MirrorPlane => "mirror plane",
+            Self::ClearedFirst => "first seat",
+            Self::ClearedSecond => "second seat",
         }
     }
 }

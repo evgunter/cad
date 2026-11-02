@@ -333,9 +333,7 @@ fn a_join_refused_in_the_band_leaves_the_body_as_found() {
     let (line, (t0, t1)) = body
         .edges()
         .find_map(|(k, e)| match body.get_curve_geom(e.curve) {
-            Some(topo::CurveGeom::Certified(c))
-                if matches!(c.carrier(), geom::Curve3::Line { .. }) =>
-            {
+            Some(topo::CurveGeom::Certified(c)) if matches!(c.carrier(), geom::Curve3::Line(_)) => {
                 Some((k, c.params()))
             }
             _ => None,

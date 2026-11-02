@@ -2,10 +2,11 @@
 id: inside-out-operand-reading-has-two-homes-and-four-spellings
 kind: issue
 title: The inside-out operand reading has two loops, four spelled-out recourse sentences and convention-held unreachable arms
-status: open
+status: dispatched
 opened: 2026-10-12
 priority: P1
 cost: E
+branch: onehome/small-bundle
 ---
 
 

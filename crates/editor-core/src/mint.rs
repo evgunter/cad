@@ -44,7 +44,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 
-use crate::node::{Node, RecipeNodeId, StepId};
+use crate::node::{Node, RecipeNodeId, SectionId, StepId};
 use crate::program::LoopProgram;
 use crate::var::{VarId, VarKind};
 
@@ -170,6 +170,8 @@ pub enum Minted {
     Var(VarId),
     /// A constraint's id, minted by `AddConstraint`.
     Constraint(crate::node::ConstraintId),
+    /// A loft section's id, minted by `InsertNode` or `SetLoftSections`.
+    Section(SectionId),
 }
 
 impl Minted {
@@ -181,6 +183,7 @@ impl Minted {
             Self::Step(step) => step.0,
             Self::Var(var) => var.0,
             Self::Constraint(c) => c.0,
+            Self::Section(section) => section.0,
         }
     }
 }
@@ -194,6 +197,7 @@ impl core::fmt::Display for Minted {
             Self::Step(step) => write!(f, "step {step}"),
             Self::Var(var) => write!(f, "variable {var}"),
             Self::Constraint(c) => write!(f, "constraint {c}"),
+            Self::Section(section) => write!(f, "section {section}"),
         }
     }
 }
@@ -220,6 +224,14 @@ pub(crate) enum MintingEdit<'a, P, S: crate::Slot = crate::VarId> {
         loops: Vec<LoopProgram<S>>,
         /// The kept ids.
         ids: &'a [Vec<Option<StepId>>],
+    },
+    /// A loft's sections written whole: the loft, and the loft as the
+    /// edit lowered it, each section with the id it keeps or none.
+    SetLoftSections {
+        /// The loft.
+        node: RecipeNodeId,
+        /// The loft as rewritten, kept ids and all.
+        loft: Box<Node<P, S>>,
     },
     /// A variable declared: its KIND, and nothing else. Not its name
     /// (VR2: a name is a label, in neither an id's mint nor a content
@@ -350,12 +362,49 @@ where
     }
 }
 
+/// **Which half of the minted-id rule an id breaks** ([`admit_ids`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IdFault<I> {
+    /// The id is not one the door admits here.
+    Unknown(I),
+    /// The id already stands for another entry.
+    Repeated(I),
+}
+
+/// **The rule every door that writes a list of minted ids holds it
+/// to** — a profile's step ids, a loft's section ids: each id is
+/// `known`, and none stands twice within `seen`. Each id admitted joins
+/// `seen`; the first that is not is the fault.
+///
+/// The doors differ only in what they pass: an edit door (`SetProgram`,
+/// `SetLoftSections`) knows the ids its node holds now and starts
+/// `seen` empty per edit, since a kept id is one of its node's own; the
+/// load door knows the mint log's ids of that kind and shares one
+/// `seen` across the document, since no id stands for two entries
+/// anywhere in it.
+pub(crate) fn admit_ids<I: Ord + Copy>(
+    ids: impl IntoIterator<Item = I>,
+    known: impl Fn(I) -> bool,
+    seen: &mut std::collections::BTreeSet<I>,
+) -> Result<(), IdFault<I>> {
+    for id in ids {
+        if !known(id) {
+            return Err(IdFault::Unknown(id));
+        }
+        if !seen.insert(id) {
+            return Err(IdFault::Repeated(id));
+        }
+    }
+    Ok(())
+}
+
 const EDIT_TAG: &[u8] = b"mint/edit\0";
 const NODE_TAG: &[u8] = b"mint/node\0";
 const STEP_TAG: &[u8] = b"mint/step\0";
 const VAR_TAG: &[u8] = b"mint/var\0";
 const OUTPUT_TAG: &[u8] = b"mint/output\0";
 const CONSTRAINT_TAG: &[u8] = b"mint/constraint\0";
+const SECTION_TAG: &[u8] = b"mint/section\0";
 
 impl Mint {
     /// A document's mint before anything is inserted: the zero chain
@@ -386,7 +435,15 @@ impl Mint {
     pub fn steps(&self) -> impl Iterator<Item = StepId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Step(step) => Some(step),
-            Minted::Node(_) | Minted::Var(_) | Minted::Constraint(_) => None,
+            Minted::Node(_) | Minted::Var(_) | Minted::Constraint(_) | Minted::Section(_) => None,
+        })
+    }
+
+    /// Every loft section id the document has minted, ascending.
+    pub fn sections(&self) -> impl Iterator<Item = SectionId> + '_ {
+        self.log.iter().filter_map(|entry| match *entry {
+            Minted::Section(section) => Some(section),
+            Minted::Node(_) | Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) => None,
         })
     }
 
@@ -395,7 +452,7 @@ impl Mint {
     pub(crate) fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Node(id) => Some(id),
-            Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) => None,
+            Minted::Step(_) | Minted::Var(_) | Minted::Constraint(_) | Minted::Section(_) => None,
         })
     }
 
@@ -444,6 +501,12 @@ impl Mint {
         self.holds(Minted::Step(step))
     }
 
+    /// Whether the document minted `section` as a loft section's id.
+    #[must_use]
+    pub fn has_section(&self, section: SectionId) -> bool {
+        self.holds(Minted::Section(section))
+    }
+
     /// Whether the document minted `var` as a variable's id.
     #[must_use]
     pub fn has_var(&self, var: VarId) -> bool {
@@ -454,7 +517,7 @@ impl Mint {
     pub fn vars(&self) -> impl Iterator<Item = VarId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Var(var) => Some(var),
-            Minted::Node(_) | Minted::Step(_) | Minted::Constraint(_) => None,
+            Minted::Node(_) | Minted::Step(_) | Minted::Constraint(_) | Minted::Section(_) => None,
         })
     }
 
@@ -583,10 +646,85 @@ impl Mint {
     }
 
     /// **The ids for the steps of the profile [`Self::insert`] just
-    /// minted a node for**: one per authored step, `count` in all, in
-    /// loop then step order, each extending the chain once.
+    /// minted a node for**: one per authored step, in loop then step
+    /// order, each extending the chain once.
     pub(crate) fn steps_of_insert(&mut self, shape: &[Vec<Option<StepId>>]) -> Vec<Vec<StepId>> {
-        self.fill(self.chain, shape)
+        let flat: Vec<Option<StepId>> = shape.iter().flatten().copied().collect();
+        let ids = self.fill(self.chain, &flat);
+        into_loops(shape, ids)
+    }
+
+    /// **The ids for the sections of the loft [`Self::insert`] just
+    /// minted a node for**: one per section, `count` in all, first to
+    /// last, each extending the chain once.
+    pub(crate) fn sections_of_insert(&mut self, count: usize) -> Vec<SectionId> {
+        self.fill(self.chain, &vec![None; count])
+    }
+
+    /// **The ids for a `SetLoftSections`' sections**: `loft` is the loft
+    /// as the edit lowered it, each section carrying the id it keeps or
+    /// `None` for one to mint. The chain is extended by the edit's bytes
+    /// (`node` and `loft`, the kept ids with it), and each `None` is
+    /// minted from it in section order; with no `None` nothing moves.
+    pub(crate) fn set_loft_sections<P: Serialize + Clone, S: crate::Slot>(
+        &mut self,
+        node: RecipeNodeId,
+        loft: &Node<P, S>,
+    ) -> Vec<SectionId>
+    where
+        Node<P, S>: Serialize,
+    {
+        let Some(shape) = loft.loft_section_ids() else {
+            unreachable!("SetLoftSections mints for the loft it rewrote, never another node")
+        };
+        self.keep_or_fill(
+            |mint| {
+                mint.extended(&MintingEdit::SetLoftSections {
+                    node,
+                    loft: Box::new(loft.clone()),
+                })
+            },
+            &shape,
+        )
+    }
+
+    /// `shape` as given when it mints nothing; otherwise each `None`
+    /// minted along the chain `edit` extends — what a re-keeping edit
+    /// (`SetProgram`, `SetLoftSections`) mints. `edit` runs only when
+    /// there is something to mint, so an edit that keeps every id
+    /// leaves the chain where it was.
+    fn keep_or_fill<I: MintedKind>(
+        &mut self,
+        edit: impl FnOnce(&Self) -> [u8; 32],
+        shape: &[Option<I>],
+    ) -> Vec<I> {
+        if shape.iter().all(Option::is_some) {
+            return shape.iter().flatten().copied().collect();
+        }
+        let chain = edit(self);
+        self.fill(chain, shape)
+    }
+
+    /// **Mints each `None` of `shape` along `chain`**, in order, under
+    /// `I`'s tag, extending the log; a `Some` passes through. Leaves
+    /// the chain at the last draw. Every id kind an edit keeps or mints
+    /// — a profile's steps, a loft's sections — mints through here.
+    fn fill<I: MintedKind>(&mut self, mut chain: [u8; 32], shape: &[Option<I>]) -> Vec<I> {
+        let ids = shape
+            .iter()
+            .map(|kept| match *kept {
+                Some(id) => id,
+                None => {
+                    let (next, id) = Self::draw(I::TAG, chain, &self.log);
+                    chain = next;
+                    let id = I::from_mint(id);
+                    self.log.push(id.minted());
+                    id
+                }
+            })
+            .collect();
+        self.chain = chain;
+        ids
     }
 
     /// **The ids of the outputs of the node [`Self::insert`] just
@@ -622,40 +760,53 @@ impl Mint {
         loops: &[LoopProgram],
         shape: &[Vec<Option<StepId>>],
     ) -> Vec<Vec<StepId>> {
-        if shape.iter().flatten().all(Option::is_some) {
-            return shape
-                .iter()
-                .map(|lp| lp.iter().flatten().copied().collect())
-                .collect();
-        }
-        self.fill(
-            self.extended(&MintingEdit::set_program(node, loops, shape)),
-            shape,
-        )
+        let flat: Vec<Option<StepId>> = shape.iter().flatten().copied().collect();
+        let ids = self.keep_or_fill(
+            |mint| mint.extended(&MintingEdit::set_program(node, loops, shape)),
+            &flat,
+        );
+        into_loops(shape, ids)
     }
+}
 
-    /// Mints each `None` of `shape` along `chain`, extending the log.
-    fn fill(&mut self, mut chain: [u8; 32], shape: &[Vec<Option<StepId>>]) -> Vec<Vec<StepId>> {
-        let mut ids = Vec::with_capacity(shape.len());
-        for lp in shape {
-            let mut out = Vec::with_capacity(lp.len());
-            for kept in lp {
-                let step = match *kept {
-                    Some(step) => step,
-                    None => {
-                        let (next, id) = Self::draw(STEP_TAG, chain, &self.log);
-                        chain = next;
-                        let step = StepId(id);
-                        self.log.push(Minted::Step(step));
-                        step
-                    }
-                };
-                out.push(step);
-            }
-            ids.push(out);
-        }
-        self.chain = chain;
-        ids
+/// `ids`, one per entry of `shape` in loop then step order, cut back
+/// into `shape`'s loops.
+fn into_loops<T>(shape: &[Vec<Option<StepId>>], ids: Vec<T>) -> Vec<Vec<T>> {
+    let mut ids = ids.into_iter();
+    shape
+        .iter()
+        .map(|lp| ids.by_ref().take(lp.len()).collect())
+        .collect()
+}
+
+/// **An id kind a re-keeping edit mints** ([`Mint::fill`]): its tag on
+/// the chain and its entry in the log.
+trait MintedKind: Copy {
+    /// The tag a draw of this kind hashes under.
+    const TAG: &'static [u8];
+    /// The id a draw gives.
+    fn from_mint(id: MintId) -> Self;
+    /// The log's entry for it.
+    fn minted(self) -> Minted;
+}
+
+impl MintedKind for StepId {
+    const TAG: &'static [u8] = STEP_TAG;
+    fn from_mint(id: MintId) -> Self {
+        Self(id)
+    }
+    fn minted(self) -> Minted {
+        Minted::Step(self)
+    }
+}
+
+impl MintedKind for SectionId {
+    const TAG: &'static [u8] = SECTION_TAG;
+    fn from_mint(id: MintId) -> Self {
+        Self(id)
+    }
+    fn minted(self) -> Minted {
+        Minted::Section(self)
     }
 }
 
@@ -698,7 +849,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::{Mint, MintId, Minted};
-    use crate::node::{Node, RecipeNodeId, StepId};
+    use crate::node::{Node, RecipeNodeId, SectionId, StepId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::var::{VarId, VarKind};
 
@@ -864,6 +1015,58 @@ mod tests {
             "the two new steps, and only they, are logged"
         );
         assert!(m.has_step(ids[0][1]) && m.has_step(ids[1][0]));
+    }
+
+    /// A loft whose one later section slides by the variable `by`.
+    fn loft(by: u64, first_id: Option<SectionId>) -> Node<ProfileProgram> {
+        Node::Loft {
+            first: VarId::new(0, 1),
+            first_id,
+            then: vec![crate::node::LoftSection {
+                profile: VarId::new(0, 2),
+                station: vec![crate::node::StationMove::Slide {
+                    along: crate::node::Axis3::Z,
+                    by: VarId::new(0, by),
+                }],
+                id: None,
+            }],
+            v_degree: VarId::new(0, 9),
+        }
+    }
+
+    /// **A re-keeping edit mints from the chain extended by its own
+    /// bytes**: from one mint, two `SetProgram`s on different nodes, and
+    /// two `SetLoftSections` whose lofts differ only in a station, mint
+    /// different ids, and a kept section's id is handed back where it
+    /// stood. Broken by a re-keeping edit that mints straight off the
+    /// chain (every such edit from one state would mint the same ids, so
+    /// two documents' histories would collide).
+    #[test]
+    fn a_re_keeping_edit_mints_from_its_own_bytes() {
+        let program =
+            |node| flat(Mint::empty().set_program(RecipeNodeId::new(0, node), &[], &new(2)));
+        assert_ne!(program(1), program(2), "SetProgram's node is in its bytes");
+        let sections =
+            |by, first| Mint::empty().set_loft_sections(RecipeNodeId::new(0, 5), &loft(by, first));
+        assert_ne!(
+            sections(3, None),
+            sections(4, None),
+            "a station is in the bytes"
+        );
+        let kept = SectionId::new(0, 77);
+        let mut m = Mint::empty();
+        let ids = m.set_loft_sections(RecipeNodeId::new(0, 5), &loft(3, Some(kept)));
+        assert_eq!(ids[0], kept, "a kept id is handed back where it stood");
+        assert_eq!(
+            m.sections().collect::<Vec<_>>(),
+            vec![ids[1]],
+            "only the new one is logged"
+        );
+        assert_ne!(
+            ids[1],
+            sections(3, None)[1],
+            "the kept id is in the bytes too"
+        );
     }
 
     #[test]
