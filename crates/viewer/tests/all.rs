@@ -161,6 +161,8 @@ mod profile_draw;
 mod profile_edit;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
+#[path = "review_bundle_r1.rs"]
+mod review_bundle_r1;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
