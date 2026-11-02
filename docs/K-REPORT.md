@@ -1021,8 +1021,8 @@ populations stay apart:
 |---|---|
 | `point_in_arc_loop_conic_end` | `ConicRows` field (`WALK_ROWS`, the carrier walk) |
 | `point_in_arc_loop_conic_trim` | `ConicRows` field (`WALK_ROWS`) |
-| `bool_contact_arc_end` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
-| `bool_contact_arc_trim` | `ConicRows` field (`ROWS`) |
+| `bool_contact_arc_span` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
+| `bool_contact_arc_straddle` | `ConicRows` field (`ROWS`) |
 | `bool_contact_edge_length` | `ParityRows` field (`contain`'s `EDGE_ROWS`) |
 | `bool_contact_arc_end_vertex` | a `const` in `contain` (`END_VERTEX`): a conic edge's carrier end against one of its stored vertices, asked only where `q` reads at that end while the vertex pass placed it clear |
 
@@ -1031,9 +1031,8 @@ Notes on the neighbouring names:
   `side` and `advance` fields are never read by `on_segment`, so they
   are never minted.
 - `bool_contact_edge_span` is retired with the span gates it named.
-- `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span`,
-  `bool_contact_arc` and `bool_contact_arc_span` move into `ConicRows`
-  fields.
+- `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span` and
+  `bool_contact_arc_span` move into `ConicRows` fields.
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
@@ -3433,3 +3432,44 @@ read, and `bool_dir_same` is no longer asked there (it stays at
 with the census and the vertex-vertex cone already; a decided zero of
 `link_wedge` where a bound drawn in lies on both rays' lines refuses
 through the nonzero gate (`link::metric::zero_refused`).
+
+## ONEREAD addendum (2026-11-02): a parity arc read out at its reference's reach
+
+**Roster change: one name joins.** `link::Cone::reads_given` and
+`Cone::winds` read each reference at `q`'s distance first, as before
+(`link_arc`: both ends against the plane normal to their bisector,
+unchanged, so its samples go on pooling with `census_touch_arc`).
+Where no reference reads there, each is read again out at its wedge's
+reach where that is farther (`link::ArcReach::Out`), and that reading's
+quantity is new: the segment `q`–`w`'s nearest point's distance from
+`p`, its two ends at two distances. It is a named `const`
+(`LINK_ARC_REACH`), `link_arc_reach`, and does not pool with
+`link_arc` (`docs/predicate-dimension-audit.md`'s row of that name).
+
+## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
+
+**Roster: no name joins or leaves; three names change their door.** The
+one bound-side reading (`topo::bound_side::read`, `Tie::descend`)
+decides its first order and its descent through `link::metric::settle`
+on a `link::metric::Reading` its caller passes, keeping each reading's
+K name on that door: `bool_chord_side` (a line edge's far vertex off
+the plane), `enters_material` (a direction's rise at its reach, its arm
+still gated as `enters_material_arm` by `geom_brep::departure_arm`) and
+`tangent_sector_order2` (a tie's parting, its arm still gated as
+`tangent_sector_order2_arm` by `geom_brep::parting_arm`). The quantities
+and their arithmetic are `geom_brep::rise`'s and `geom_brep::parting`'s,
+unchanged, so their samples pool with the rows of those names as before.
+On the run band alone (every caller but one) a reading is one sample, as
+it was. A cone's reading over its tie (`link::Cone::reading`, read for a
+held face's side at an edge-edge site) decides a definite sign a second
+time, moved by the slack, as `link_plane` does there: such a site adds a
+second sample of the moved distance under the same name. A tie the slack
+made (a first order the band decided and the slack refused) descends by
+its rise and its parting together (`link::metric::Departure::Jet`),
+sampled under `tangent_sector_order2`; and over a slack the curvature
+charge (`bool_pierce_sector_side_curved`) is decided at the same door
+and sampled a second time, less the slack. Where the moved distance lands
+in the band's gap, its sample is an escalation on the log under the
+reading's name (`bool_chord_side`, `enters_material`,
+`bool_pierce_sector_side_curved`), while the reading is no refusal: the
+bound is the slack's tie (`bound_side::TiedBy::Slack`).

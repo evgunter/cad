@@ -76,13 +76,10 @@ fn the_cone(r: f64) -> Region {
     Box::new(move |p: Point3<f64>| (r * (1.0 - p.y) - p.x.hypot(p.z)).min(p.y).min(1.0 - p.y))
 }
 
-/// The half-space `n·(p − NORTH) > 0`, as the cube of side 8 with a face
-/// on its plane, the apex at that face's centre.
-fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
-    let n = n.normalize();
-    let b = topo::test_support::brick((0.0, 8.0), (-4.0, 4.0), (-4.0, 4.0), tol());
+/// The turn taking `+x` onto the unit `n`, about the origin.
+fn turn_onto(n: Vec3<f64>) -> Affine3<f64> {
     let x = Vec3::new(1.0, 0.0, 0.0);
-    let turn = if x.cross(n).norm() < 1e-15 {
+    if x.cross(n).norm() < 1e-15 {
         Affine3::rotation_about_axis(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -94,21 +91,36 @@ fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
             x.cross(n).normalize(),
             x.dot(n).clamp(-1.0, 1.0).acos(),
         )
-    };
-    let m = Affine3::translation(NORTH - Point3::origin()) * turn;
+    }
+}
+
+/// The half-space `n·(p − NORTH) > 0`, as the cube of side 8 with a face
+/// on its plane, the apex at that face's centre.
+fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
+    let n = n.normalize();
+    let b = topo::test_support::brick((0.0, 8.0), (-4.0, 4.0), (-4.0, 4.0), tol());
+    let m = Affine3::translation(NORTH - Point3::origin()) * turn_onto(n);
     let moved =
         topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap();
     finished("the half-space", moved, tol())
 }
 
-/// The half-space's region, cut to its cube.
+/// The half-space's region: [`half_space`]'s cube, its sides along `n`
+/// and the turned `y` and `z`.
 fn the_half_space(n: Vec3<f64>) -> Region {
     let n = n.normalize();
+    let turn = turn_onto(n);
+    let (u, v) = (
+        turn.transform_vec(Vec3::new(0.0, 1.0, 0.0)),
+        turn.transform_vec(Vec3::new(0.0, 0.0, 1.0)),
+    );
     Box::new(move |p: Point3<f64>| {
-        let along = n.dot(p - NORTH);
+        let q = p - NORTH;
+        let along = n.dot(q);
         along
             .min(8.0 - along)
-            .min(4.0 - (p - NORTH - n * along).norm())
+            .min(4.0 - u.dot(q).abs())
+            .min(4.0 - v.dot(q).abs())
     })
 }
 

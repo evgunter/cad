@@ -71,10 +71,7 @@ pub(crate) fn restate<T: geom_core::SpanLocate>(
     ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>>,
     re_ask_chart: impl FnOnce() -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>>,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
-    let declared = || match authority {
-        EdgeAuthority::Derived => Ok(None),
-        EdgeAuthority::Declared(mc) => Ok(Some(carried(mc)?)),
-    };
+    let declared = || authority.declared().map(&carried).transpose();
     Ok(match description {
         EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
             pair,

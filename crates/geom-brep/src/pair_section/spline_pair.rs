@@ -155,6 +155,7 @@ impl<T: Real> SplinePairPose<T> {
             decided: Vec::new(),
             components,
             nodes: Vec::new(),
+            node_sets: Vec::new(),
             lever,
         }
     }
@@ -284,6 +285,7 @@ fn listed(
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(UNCARRIED),
+            cut_ends: None,
         });
     }
     components.extend(reading.regions.iter().map(|region| {
@@ -297,6 +299,7 @@ fn listed(
             witness: None,
             pad: 0.0,
             carrier: ClassCarrier::Unminted(REGION),
+            cut_ends: None,
         }
     }));
     Ok(pose.section(Components::Counted(components)))

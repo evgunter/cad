@@ -156,7 +156,7 @@ fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
 fn k_probe_brackets_the_lofted_leaf_and_the_sepals_at_eps_1e_12() {
     // Pinned since PR 5728: the sweep's `lily` scene stops at 1e-12 on
     // its stem tube's limb-2 kernel limit, so it records no lily volume
-    // (`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
+    // (`work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
     test_utils::pinned_red::row(
         1e-12,
         &[1e-12],

@@ -1728,10 +1728,7 @@ impl<T: Real> EdgeCurveSpec<T> {
                     vec: p1 - p0,
                 },
             )),
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: (p1 - p0) / len,
-            },
+            carrier: Curve3::line(p0, (p1 - p0) / len),
             param_start: T::zero(),
             param_end: len,
         }
@@ -1758,7 +1755,11 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Circle { center, axis, .. } = carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
+            ..
+        }) = carrier
+        else {
             return None;
         };
         let start = carrier.eval(t0);
@@ -1788,9 +1789,9 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Line { .. } = carrier else {
+        if carrier.is_curved() {
             return None;
-        };
+        }
         let start = carrier.eval(t0);
         Some(Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
@@ -1947,13 +1948,12 @@ impl<T: Real> EdgeCurveSpec<T> {
                     angle: T::tau(),
                 },
             )),
-            carrier: Curve3::Circle {
+            carrier: Curve3::circle(
                 center,
-                axis: Vec3::unit_z(),
-                radius: T::one(),
-                // u_ref points from the center back at p.
-                u_ref: Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
-            },
+                Vec3::unit_z(),
+                T::one(),
+                Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
+            ),
             param_start: T::zero(),
             param_end: T::tau(),
         }
@@ -3031,10 +3031,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // both surfaces as its parent did.
                 EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
                     pair,
-                    declared: match self.authority {
-                        EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
-                        EdgeAuthority::Derived => None,
-                    },
+                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
                 },
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
@@ -3047,10 +3044,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     surface: c.surface,
                     image: Some(c.pcurve.clone()),
                     wrap: c.wrap,
-                    declared: match self.authority {
-                        EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
-                        EdgeAuthority::Derived => None,
-                    },
+                    declared: self.authority.declared().map(|mc| mc.restrict(s0, s1)),
                 },
             };
             EdgeCurveSpec {
@@ -3094,9 +3088,9 @@ impl<T: Real> EdgeCurve<T> {
     pub fn restated_in_chart(&self, surface: SurfaceKey) -> EdgeCurveSpec<T> {
         let chart = EdgeDescriptionSpec::chart(surface);
         EdgeCurveSpec {
-            description: match self.authority {
-                EdgeAuthority::Declared(mc) => chart.declared_by(mc),
-                EdgeAuthority::Derived => chart,
+            description: match self.authority.declared() {
+                Some(mc) => chart.declared_by(mc),
+                None => chart,
             },
             ..self.restated_spec()
         }
@@ -3120,12 +3114,11 @@ impl<T: Real> EdgeCurve<T> {
     /// names them.
     #[must_use]
     pub fn restated_on_pair(&self, pair: crate::SurfacePair) -> EdgeCurveSpec<T> {
-        let declared = match self.authority {
-            EdgeAuthority::Declared(mc) => Some(mc),
-            EdgeAuthority::Derived => None,
-        };
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::OnPair { pair, declared },
+            description: EdgeDescriptionSpec::OnPair {
+                pair,
+                declared: self.authority.declared(),
+            },
             ..self.restated_spec()
         }
     }
@@ -3143,10 +3136,7 @@ impl<T: Real> EdgeCurve<T> {
     /// derives a wrap edge's against the moved one).
     #[must_use]
     pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
-        let declared = match self.authority {
-            EdgeAuthority::Declared(mc) => Some(mc),
-            EdgeAuthority::Derived => None,
-        };
+        let declared = self.authority.declared();
         match self.description {
             EdgeDescription::Intersection { pair, ref selector } => {
                 EdgeDescriptionSpec::Intersection {
@@ -3843,22 +3833,20 @@ fn decide_turn<T: Decide>(
     // A periodic carrier's span is forward at the carrier's speed floor
     // (`geom::carrier_speed::speed_floor`, the one spelling the conic
     // readers share): a circle's radius; an ellipse's smaller semi-axis
-    // magnitude (|dP/dθ| ≥ min(a, b), so the span times it is a
-    // certified lower bound on the child's arc length — the semi-axes'
-    // ORDER is not this gate's to decide, `Conic` — with a non-positive
-    // `minor` refused as `IntervalNotForward`, a door's `StatedInterval`,
-    // and a negative `major` (its `u_ref` flipped, the same locus)
-    // admitted as it always has, for tier 3 to refuse on its value); a
-    // spiric's MINOR radius (`|dP/dv| ≥ r`). The winding bound is the
+    // (|dP/dθ| ≥ min(a, b), so the span times it is a certified lower
+    // bound on the child's arc length, in either stored order), so a
+    // non-positive semi-axis, either one, is refused as
+    // `IntervalNotForward`, a door's `StatedInterval`; a spiric's MINOR
+    // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
     Ok(match &spec.carrier {
-        periodic @ (Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. }) => {
+        periodic @ (Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. }) => {
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
             };
             let extent = Extent::forward(FORWARD_ROW, t0, t1, floor, band).map_err(not_forward)?;
-            let turn = if let Curve3::Circle { .. } = periodic {
+            let turn = if let Curve3::Circle(..) = periodic {
                 let rows = TurnRows::exact(WINDING_ROWS.turn);
                 one_turn.turn(rows, extent, Exact::new(floor.get()), band)
             } else {
@@ -3873,7 +3861,7 @@ fn decide_turn<T: Decide>(
                 turn: wound(turn)?,
             })
         }
-        Curve3::Line { .. } => {
+        Curve3::Line(_) => {
             forward(Margin::of(span))?;
             None
         }
@@ -5700,10 +5688,7 @@ mod tests {
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::Line {
-                    origin: p0,
-                    dir: Vec3::unit_z(),
-                },
+                carrier: Curve3::line(p0, Vec3::unit_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -5732,10 +5717,7 @@ mod tests {
         let iso = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, 0.0, len),
-                carrier: Curve3::Line {
-                    origin: q0,
-                    dir: (q1 - q0) / len,
-                },
+                carrier: Curve3::line(q0, (q1 - q0) / len),
                 param_start: 0.0,
                 param_end: len,
             },
@@ -5813,10 +5795,7 @@ mod tests {
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::wrap(keys[0]),
-                carrier: Curve3::Line {
-                    origin: p0,
-                    dir: Vec3::unit_z(),
-                },
+                carrier: Curve3::line(p0, Vec3::unit_z()),
                 param_start: 0.0,
                 param_end: 3.0,
             },
@@ -5858,10 +5837,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: Vec3::unit_z(),
-            },
+            carrier: Curve3::line(p0, Vec3::unit_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -5972,10 +5948,7 @@ mod tests {
         let off = Vec3::zero();
         let iso_spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, anchor, t1),
-            carrier: Curve3::Line {
-                origin: q0 + off - dir * anchor,
-                dir,
-            },
+            carrier: Curve3::line(q0 + off - dir * anchor, dir),
             param_start: anchor,
             param_end: t1,
         };
@@ -6313,10 +6286,7 @@ mod tests {
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let mut spec = line_spec(p0, p1);
         let off = 100.0 * eps();
-        spec.carrier = Curve3::Line {
-            origin: Point3::new(0.0, off, 0.0),
-            dir: Vec3::unit_x(),
-        };
+        spec.carrier = Curve3::line(Point3::new(0.0, off, 0.0), Vec3::unit_x());
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -6340,10 +6310,7 @@ mod tests {
         );
         // An in-band offset (3·ε) escalates instead of passing.
         let mut spec = line_spec(p0, p1);
-        spec.carrier = Curve3::Line {
-            origin: Point3::new(0.0, 3.0 * eps(), 0.0),
-            dir: Vec3::unit_x(),
-        };
+        spec.carrier = Curve3::line(Point3::new(0.0, 3.0 * eps(), 0.0), Vec3::unit_x());
         let err = EdgeCurve::certify(
             spec.clone(),
             p0,
@@ -6404,10 +6371,7 @@ mod tests {
                 pair: SurfacePair::new(src_keys[0], src_keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: Vec3::unit_x(),
-            },
+            carrier: Curve3::line(p0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -6505,10 +6469,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: Vec3::unit_x(),
-            },
+            carrier: Curve3::line(p0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -6526,10 +6487,10 @@ mod tests {
         // Both-surface teeth: a carrier lying ON keys[0] but definitely
         // off keys[1] fails keys[1]'s residual specifically.
         let mut bad = spec.clone();
-        bad.carrier = Curve3::Line {
+        bad.carrier = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.5, 0.0), // on z = 0, off y = 0
             dir: Vec3::unit_x(),
-        };
+        });
         let err = EdgeCurve::certify(
             bad,
             Point3::new(0.0, 0.5, 0.0),
@@ -6623,10 +6584,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: Vec3::unit_x(),
-            },
+            carrier: Curve3::line(p0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -6668,10 +6626,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
             },
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: Vec3::unit_x(),
-            },
+            carrier: Curve3::line(p0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: 1.0,
         };
@@ -6714,10 +6669,7 @@ mod tests {
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::wrap(keys[0]),
-            carrier: Curve3::Line {
-                origin: p0,
-                dir: Vec3::unit_z(),
-            },
+            carrier: Curve3::line(p0, Vec3::unit_z()),
             param_start: 0.0,
             param_end: 3.0,
         };
@@ -6735,10 +6687,7 @@ mod tests {
         let q0 = Point3::new(-r, 0.0, 0.0);
         let q1 = Point3::new(-r, 0.0, 3.0);
         let mut antipode = spec.clone();
-        antipode.carrier = Curve3::Line {
-            origin: q0,
-            dir: Vec3::unit_z(),
-        };
+        antipode.carrier = Curve3::line(q0, Vec3::unit_z());
         let cut = EdgeCurve::certify(
             antipode,
             q0,
@@ -6764,10 +6713,7 @@ mod tests {
             Point3::new(r + 1.0, 0.0, 3.0),
         );
         let mut off = spec.clone();
-        off.carrier = Curve3::Line {
-            origin: o0,
-            dir: Vec3::unit_z(),
-        };
+        off.carrier = Curve3::line(o0, Vec3::unit_z());
         assert!(
             EdgeCurve::certify(off, o0, o1, &lookup, 1.0, band(), NurbsLane::certified()).is_err(),
             "a ruling off the cylinder is no image of it"
@@ -6922,12 +6868,7 @@ mod tests {
                     angle: TAU,
                 },
             )),
-            carrier: Curve3::Circle {
-                center,
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(center, Vec3::unit_z(), 1.0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: TAU,
         };
@@ -6965,12 +6906,12 @@ mod tests {
                     place,
                 },
             )),
-            carrier: Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
             param_start: 0.0,
             param_end: FRAC_PI_2,
         };
@@ -7448,12 +7389,12 @@ mod tests {
     /// refuses it alike.
     #[test]
     fn a_stored_arc_past_a_turn_at_a_callers_finer_band_ends_typed() {
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            1.0,
+            geom_core::Vec3::unit_x(),
+        );
         let t1 = core::f64::consts::TAU + 5e-7;
         let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
@@ -7562,12 +7503,12 @@ mod tests {
                 EdgeCurve::mint(spec, |_| None, band).map(|_| ())
             }),
         ];
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            1.0,
+            geom_core::Vec3::unit_x(),
+        );
         let past = EdgeCurveSpec::arc_of_circle(circle, 0.0, 3.0 * core::f64::consts::PI).unwrap();
         let file = FileCoincidence::new(1e-12);
         let span = "Recourse: move the geometry so this edge runs forward over a clear length";
@@ -7659,12 +7600,12 @@ mod tests {
     fn no_public_door_panics_on_a_span_it_refuses() {
         let fine = Band::new(1e-9, 1e-8).unwrap();
         let coarse = Band::new(1e-6, 1e-5).unwrap();
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: geom_core::Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: geom_core::Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::origin(),
+            geom_core::Vec3::unit_z(),
+            1.0,
+            geom_core::Vec3::unit_x(),
+        );
         let arc = |t1: f64| EdgeCurveSpec::arc_of_circle(circle.clone(), 0.0, t1).unwrap();
         let p = Point3::new(1.0, 2.0, 3.0);
         let slightly_past = core::f64::consts::TAU + 5e-7;
@@ -9005,7 +8946,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(p0 + dir * (reach / 2.0)),
             },
-            carrier: Curve3::Line { origin: p0, dir },
+            carrier: Curve3::Line(geom::Line { origin: p0, dir }),
             param_start: 0.0,
             param_end: 2.0 * reach,
         };
@@ -9292,10 +9233,7 @@ mod tests {
                 pair: SurfacePair::new(keys[0], keys[1]),
                 selector: crate::CurveSelector::Witness(on + Vec3::unit_z() * 0.5),
             },
-            carrier: Curve3::Line {
-                origin: on,
-                dir: Vec3::unit_z(),
-            },
+            carrier: Curve3::line(on, Vec3::unit_z()),
             param_start: 0.0,
             param_end: 1.0,
         };

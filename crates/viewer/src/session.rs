@@ -74,8 +74,9 @@ use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
-    DoorDone, DoorRequest, DoorService, EvalRequest, EvalService, InlineEvaluator, InlineProver,
-    InlineStager, StagedKey, StagedRequest, StagedService,
+    CertifyDone, CertifyRequest, CertifyService, DoorDone, DoorRequest, DoorService, EvalRequest,
+    EvalService, InlineCertifier, InlineEvaluator, InlineProver, InlineStager, StagedKey,
+    StagedRequest, StagedService,
 };
 use crate::g1;
 use crate::generation::Generation;
@@ -83,7 +84,7 @@ use crate::history::{History, HistoryId};
 use crate::layout::{self, Layout, LayoutFault, LayoutReport};
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
-use crate::props::{self, Notation, SlotDriver, SlotValue};
+use crate::props::{self, Notation, SlotDriver, SlotRow, SlotValue};
 use crate::sketch;
 use crate::tree::{self, TreeRow};
 
@@ -93,12 +94,13 @@ pub mod op;
 pub mod probe;
 pub mod refuse;
 pub mod select;
-mod snap;
+pub(crate) mod snap;
 
 pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
+    CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp,
+    ValueGestureName,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -227,27 +229,6 @@ fn gesture_words() -> g1::Refusals<Refusal> {
     }
 }
 
-/// The slot's driver and current value, or the refusal that says the
-/// slot is not there.
-///
-/// Over a document rather than over the session, so a begin's target
-/// check can run inside [`g1::Slot::begin`]'s closure, where the
-/// session's gesture field is already borrowed.
-fn driver_of(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-    slot: SlotId,
-) -> Result<(SlotDriver, Option<SlotValue>), Refusal> {
-    let row = props::slot_rows(doc, node)
-        .into_iter()
-        .find(|row| row.slot == slot)
-        .ok_or_else(|| Refusal::NoSuchSlot {
-            node: doc.spoken(node),
-            slot,
-        })?;
-    Ok((row.driver, row.value.ok().and_then(|r| r.one())))
-}
-
 /// Whether `expr` reads any variable, by id or by name.
 fn reads_a_variable(expr: &Formula) -> bool {
     let (mut ids, mut names) = (Vec::new(), Vec::new());
@@ -256,24 +237,59 @@ fn reads_a_variable(expr: &Formula) -> bool {
     !ids.is_empty() || !names.is_empty()
 }
 
-/// Refuse a numeric edit to a driven slot, with the affordance.
+/// Refuse a numeric edit to a driven slot, with the affordance, or
+/// say the slot is not there.
+///
+/// Over a document rather than over the session, so a begin's target
+/// check can run inside [`g1::Slot::begin`]'s closure, where the
+/// session's gesture field is already borrowed.
 fn guard_driven(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
     notation: Notation,
 ) -> Result<(), Refusal> {
-    let (driver, current) = driver_of(doc, node, slot)?;
-    match driver {
+    let row = props::slot_rows(doc, node)
+        .into_iter()
+        .find(|row| row.slot == slot)
+        .ok_or_else(|| Refusal::NoSuchSlot {
+            node: doc.spoken(node),
+            slot,
+        })?;
+    driven_refusal(node, &row, notation)
+}
+
+/// **A number written over `row`, where an expression drives it**,
+/// refused with the affordance: the driven-slot rule, for a slot the
+/// document holds ([`guard_driven`]) and for an argument a profile
+/// editor's draft holds as a formula.
+pub(crate) fn driven_refusal(
+    node: RecipeNodeId,
+    row: &SlotRow,
+    notation: Notation,
+) -> Result<(), Refusal> {
+    match &row.driver {
         SlotDriver::Literal => Ok(()),
         SlotDriver::Expression { variables } => Err(Refusal::DrivenByExpression {
             node,
-            slot,
-            variables,
-            current,
+            slot: row.slot,
+            variables: variables.clone(),
+            current: row.value.as_ref().ok().and_then(props::Reading::one),
             notation,
         }),
     }
+}
+
+/// **Typed text as an expression over `doc`'s variables** — the one
+/// parse every text door runs: a slot's, a variable's, and a profile
+/// editor's held argument. Its refusal is said in the slot door's
+/// words ([`Refusal::Parse`]).
+///
+/// # Errors
+///
+/// [`Refusal::Parse`], carrying `parse_formula`'s own refusal.
+pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formula, Refusal> {
+    parse_formula(text, &doc.var_scope()).map_err(|error| Refusal::Parse(Box::new(error)))
 }
 
 /// **A profile editor's program with every unmoved argument of every
@@ -395,12 +411,20 @@ pub struct DocSession {
     /// here, at rest, and the next request cancels it
     /// ([`DocSession::request_eval`]).
     door: Box<dyn DoorService>,
+    /// **The certify seam**: a landing that holds a clearance
+    /// requirement has it answered here, at rest, at the certifying
+    /// scalar, and the next request cancels it
+    /// ([`DocSession::request_eval`]).
+    certifier: Box<dyn CertifyService>,
     /// **The staged seam**: an operation staged and not committed runs
     /// here for its verdict ([`DocSession::stage`]).
     stager: Box<dyn StagedService>,
     /// How many stages have been asked for: the next one's key.
     stages: u64,
     generation: Generation,
+    /// Where the current request's run ran out of its member budget,
+    /// once it has landed so; cleared by the next request.
+    exhausted: Option<OutOfBudget>,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
     /// actually answers.
@@ -672,7 +696,9 @@ impl core::fmt::Debug for Derived {
 ///
 /// **These move together or not at all.** Each is a statement about
 /// ONE (document, evaluation) pair, taken from that pair's single
-/// gather in [`DocSession::land`]; one field of this value read beside
+/// gather in [`DocSession::land`] or, for an answer the landing owes,
+/// settled into it later under its generation ([`DocSession::settle`]);
+/// one field of this value read beside
 /// another run's would describe a run that never happened. As one
 /// value, `land` writes exactly what [`Derived::none`] clears, and a
 /// new thing taken at landing cannot be computed at one door and
@@ -714,6 +740,29 @@ struct LandedRun {
     /// instances and their carried lines by. Unscanned for a document that
     /// instantiates nothing, which never asks.
     files: PartFiles,
+    /// **What the certifying scalar said of this pair's clearance
+    /// requirements** ([`Clearances`]): owed by the landing, and settled
+    /// into it when the certify seam answers ([`DocSession::certified`]).
+    clearances: Clearances,
+}
+
+/// **A landing's clearance answers**: none owed, owed, or in.
+///
+/// A landing whose `f64` run holds a clearance requirement owes an
+/// answer only the certifying scalar can give, so it is taken at rest
+/// beside the landing rather than in it, and lands into it later.
+#[derive(Debug)]
+enum Clearances {
+    /// The document holds no clearance requirement.
+    None,
+    /// The certify seam is answering this landing.
+    Certifying,
+    /// The next request stopped the certify job before it answered: the
+    /// landing stands, and nothing is certifying it.
+    Stopped,
+    /// The certifying scalar's answer, one per clearance assertion, in
+    /// document order.
+    Settled(Vec<pncad::analysis::ClearanceAnswer>),
 }
 
 /// What a gather that succeeded left the landing ([`LandedRun::gather`]'s
@@ -758,6 +807,7 @@ impl core::fmt::Debug for LandedRun {
             gather,
             checks,
             files,
+            clearances,
         } = self;
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation);
@@ -768,6 +818,7 @@ impl core::fmt::Debug for LandedRun {
             Err(fault) => out.field("fault", fault),
         };
         out.field("files", files);
+        out.field("clearances", clearances);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -781,6 +832,32 @@ impl core::fmt::Debug for LandedRun {
         };
         out.finish_non_exhaustive()
     }
+}
+
+/// **An answer a landing owes**, run at rest on its own seam and settled
+/// into the landing under its generation ([`DocSession::settle`]).
+#[derive(Debug)]
+pub enum Owed {
+    /// The coincidence door's findings.
+    Door(DoorDone),
+    /// The certifying scalar's clearance answers.
+    Certify(CertifyDone),
+}
+
+/// **A clearance witness, as the picture can draw it**
+/// ([`DocSession::witness`]): the two faces the pair lies on, named in
+/// the run the picture is drawn from, and the two points in the frame
+/// the pair was decided in, which the picture composes into where it
+/// draws them (`crate::pickindex::witness_leg`).
+#[derive(Clone, Debug)]
+pub struct Witnessed<'a> {
+    /// The first seat's face, then the second's.
+    pub faces: [FaceSelection; 2],
+    /// The frame the pair was decided in: the operands' computing frame
+    /// ([`pncad::document::Framed::computing_among`]).
+    pub computing: &'a pncad::document::Framed<f64>,
+    /// The pair's two points, in [`Self::computing`]'s coordinates.
+    pub points: [pncad::geom_core::Point3<f64>; 2],
 }
 
 /// **The at-rest badge for the landed pair**: the at-rest check's
@@ -843,6 +920,41 @@ pub enum Landing {
     /// last good evaluation stays on screen and the session goes on
     /// owing an answer.
     Canceled,
+    /// It answered the current request but ran out of its member budget
+    /// ([`pncad::document::EvalOutcome::Exhausted`]), so it carries a
+    /// prefix as a canceled one does, and the last good evaluation stays.
+    /// Unlike a cancel, evaluating the same document again runs out at
+    /// the same node: the recourse is a smaller count.
+    Exhausted(OutOfBudget),
+}
+
+/// **Where a run ran out of its member budget**
+/// ([`pncad::document::EvalOutcome::Exhausted`]'s fields).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutOfBudget {
+    /// The node whose charge crossed the budget: a family, or an
+    /// instance whose part's listing did.
+    pub at: RecipeNodeId,
+    /// The listing steps the nodes before it were charged.
+    pub held: u64,
+    /// The budget.
+    pub budget: u64,
+}
+
+impl OutOfBudget {
+    /// **What a run that ran out says**, `at` the node it ran out at,
+    /// as `doc` speaks it: where, how much was held, and the recourse,
+    /// a smaller count in the document or a part it instances.
+    #[must_use]
+    pub fn said(&self, doc: &Doc<ProfileProgram>) -> String {
+        format!(
+            "ran out of the member budget at {} ({} of {} listing steps held before it); \
+             lower a count it reaches, here or in a part it instances",
+            doc.spoken(self.at),
+            self.held,
+            self.budget
+        )
+    }
 }
 
 /// What the session owes at one moment: the picture against the
@@ -868,6 +980,11 @@ pub enum Outstanding {
     /// from it, and the state exists so the chrome does not spin over
     /// an idle seam forever.
     Canceled,
+    /// The picture is older than the document and nothing is working
+    /// on it because the current request ran out of its member budget
+    /// ([`Landing::Exhausted`]). Re-evaluating the same document runs
+    /// out again; an edit that lowers a count is the recourse.
+    Exhausted(OutOfBudget),
 }
 
 impl DocSession {
@@ -889,9 +1006,11 @@ impl DocSession {
             gesture: g1::Slot::closed(),
             eval,
             door: Box::new(InlineProver::new()),
+            certifier: Box::new(InlineCertifier::new()),
             stager: Box::new(InlineStager::new()),
             stages: 0,
             generation: Generation::FIRST,
+            exhausted: None,
             derived: Derived::none(),
             path: None,
             display: DisplayState::new(),
@@ -911,6 +1030,17 @@ impl DocSession {
     #[must_use]
     pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
         self.door = door;
+        self
+    }
+
+    /// This session with its clearance requirements certified through
+    /// `certifier`, in place of the inline seam [`DocSession::new`]
+    /// gives it, which certifies a landing inside [`DocSession::pump`].
+    /// Taken before the first pump: a job the replaced seam holds is
+    /// dropped with it.
+    #[must_use]
+    pub fn with_certifier(mut self, certifier: Box<dyn CertifyService>) -> Self {
+        self.certifier = certifier;
         self
     }
 
@@ -983,6 +1113,18 @@ impl DocSession {
             StageAnswer::Made {
                 evaluation: None, ..
             } => Staged::Checking,
+            StageAnswer::Made {
+                doc,
+                evaluation: Some(evaluation),
+                ..
+            } if let pncad::document::EvalOutcome::Exhausted { at, held, budget } =
+                evaluation.outcome =>
+            {
+                Staged::Exhausted {
+                    doc,
+                    out: OutOfBudget { at, held, budget },
+                }
+            }
             StageAnswer::Made {
                 node,
                 doc,
@@ -1225,6 +1367,60 @@ impl DocSession {
                 .map(|run| (run.doc.as_ref(), run.evaluation.as_ref())),
             Names::Abstain => None,
         }
+    }
+
+    /// **The witness pair of the clearance requirement `assertion`**, as
+    /// the picture can draw it: its two faces, each named in the run
+    /// the picture is drawn from, and the pair's two points in the frame
+    /// the pair was decided in ([`Witnessed`]).
+    ///
+    /// `None` unless the certifying scalar's answer for the landing on
+    /// screen has a pair ([`tree::witness_pair`]), and unless names are
+    /// judged by the run the picture is drawn from — the gate every held
+    /// mark asks ([`Self::name_run`], [`Self::names_ahead_of_the_picture`]):
+    /// a verdict of an older document is never drawn over a newer one,
+    /// and while no run answers the shown document the question
+    /// abstains.
+    pub fn witness(&self, assertion: RecipeNodeId) -> Option<Witnessed<'_>> {
+        use editor_core::names::{EntityKey, EntityRef};
+        if self.names_ahead_of_the_picture() {
+            return None;
+        }
+        // Not ahead of the picture, so the run names are judged by is
+        // the landed one.
+        let (_, eval) = self.name_run()?;
+        let run = self.derived.landed.as_ref()?;
+        let Clearances::Settled(answers) = &run.clearances else {
+            return None;
+        };
+        let pair = tree::witness_pair(&answers.iter().find(|a| a.assertion == assertion)?.answer)?;
+        // Each face where the kernel read it: the node and the output
+        // body — a pattern's member, for a face seat on one — that the
+        // seat resolved to and the pair carries, named by its key in
+        // that body's table. The certifying run and this one are runs of
+        // one document, so the key is the same face in both.
+        let seat = |(node, body): (RecipeNodeId, u32), key: pncad::topo::FaceKey| {
+            let framed = eval.value(node)?.payload.output_body(body).ok()?;
+            let (read, entity) = eval.entity_read(
+                node,
+                EntityRef {
+                    body,
+                    key: EntityKey::Face(key),
+                },
+            )?;
+            let name = eval.table(read)?.name_of(&entity)?.clone();
+            Some((FaceSelection { name, node, body }, framed))
+        };
+        let [side_a, side_b] = pair.bodies;
+        let (face_a, framed_a) = seat(side_a, pair.face_a)?;
+        let (face_b, framed_b) = seat(side_b, pair.face_b)?;
+        let computing = pncad::document::Framed::computing_among([framed_a, framed_b])?;
+        let point = |[x, y, z]: [f64; 3]| pncad::geom_core::Point3::new(x, y, z);
+        Some(Witnessed {
+            faces: [face_a, face_b],
+            computing,
+            points: [point(pair.a), point(pair.b)],
+        })
     }
 
     /// **Whether names are judged by a run the picture is not drawn
@@ -1535,6 +1731,8 @@ impl DocSession {
             Outstanding::Current
         } else if self.running() {
             Outstanding::Evaluating
+        } else if let Some(out) = self.exhausted {
+            Outstanding::Exhausted(out)
         } else {
             Outstanding::Canceled
         }
@@ -1553,6 +1751,23 @@ impl DocSession {
         match &self.derived.landed {
             Some(run) => {
                 let mut rows = tree::rows(&run.doc, Some(&run.evaluation), &run.files);
+                // A clearance row reads what the certifying scalar said
+                // of this landing, or that it is still saying it.
+                for row in &mut rows {
+                    let Some(tree::Readout::Clearance(cleared)) = &mut row.readout else {
+                        continue;
+                    };
+                    match &run.clearances {
+                        Clearances::None => {}
+                        Clearances::Certifying => cleared.answer = tree::Certified::Certifying,
+                        Clearances::Stopped => cleared.answer = tree::Certified::Stopped,
+                        Clearances::Settled(answers) => {
+                            if let Some(answer) = answers.iter().find(|a| a.assertion == row.id) {
+                                cleared.answer = tree::Certified::Answered(answer.answer.clone());
+                            }
+                        }
+                    }
+                }
                 // An offer acts on the COMMITTED document, so one read
                 // off a run of an older document is withheld until the
                 // current one lands: the accept it made may already be
@@ -1614,7 +1829,10 @@ impl DocSession {
         }
         self.judge_selection();
         while let Some(done) = self.door.poll() {
-            self.settle(done);
+            self.settle(Owed::Door(done));
+        }
+        while let Some(done) = self.certifier.poll() {
+            self.settle(Owed::Certify(done));
         }
         while let Some(done) = self.stager.poll() {
             if let Some(Stage {
@@ -1632,24 +1850,45 @@ impl DocSession {
         landings
     }
 
-    /// **Settles a door job into the landed report it was split from**
-    /// — only that one: an answer for a landing since replaced, or one
-    /// the next request canceled, is dropped, and a report whose door
-    /// was canceled goes on reading it pending until a landing answers
-    /// again. A second answer for a report already settled is dropped
-    /// too.
-    pub fn settle(&mut self, done: DoorDone) {
-        let Some(run) = self.derived.landed.as_mut() else {
+    /// **Settles an answer the landing owed into it** — the coincidence
+    /// door's into the checks report it was split from, the certified
+    /// clearances into the landing's rows — and only into that landing:
+    /// an answer for a landing since replaced, or one the next request
+    /// canceled, is dropped, and a second answer for one already settled
+    /// is dropped too.
+    pub fn settle(&mut self, owed: Owed) {
+        let generation = match &owed {
+            Owed::Door(done) => done.generation,
+            Owed::Certify(done) => done.generation,
+        };
+        let Some(run) = self
+            .derived
+            .landed
+            .as_mut()
+            .filter(|run| run.generation == generation)
+        else {
             return;
         };
-        if run.generation != done.generation {
-            return;
+        match owed {
+            Owed::Door(done) => {
+                if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+                    && report.pending.contains(&CheckId::UnprovenCoincidence)
+                {
+                    report.settle(findings);
+                }
+            }
+            Owed::Certify(done) => {
+                if let (Clearances::Certifying, Ok(answers)) = (&run.clearances, done.answers) {
+                    run.clearances = Clearances::Settled(answers);
+                }
+            }
         }
-        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
-            && report.pending.contains(&CheckId::UnprovenCoincidence)
-        {
-            report.settle(findings);
-        }
+    }
+
+    /// Whether the landing's clearance requirements are still being
+    /// certified at rest.
+    pub fn certifying(&self) -> bool {
+        self.certifier.busy()
     }
 
     /// Whether a staged run is still running ([`SessionOp::Stage`]).
@@ -1678,6 +1917,13 @@ impl DocSession {
     pub fn land(&mut self, done: crate::evalseam::EvalDone) -> Landing {
         if done.generation != self.generation {
             return Landing::Stale;
+        }
+        if let pncad::document::EvalOutcome::Exhausted { at, held, budget } =
+            done.evaluation.outcome
+        {
+            let out = OutOfBudget { at, held, budget };
+            self.exhausted = Some(out);
+            return Landing::Exhausted(out);
         }
         if !done.completed() {
             return Landing::Canceled;
@@ -1773,6 +2019,21 @@ impl DocSession {
                 job,
             });
         }
+        // **A clearance is certified at rest**: at `f64` it reads the
+        // third state, so the landing owes the certifying scalar's
+        // answer, and its rows read certifying until it settles
+        // ([`DocSession::certified`]).
+        let clearances = if holds_a_clearance(&done.evaluation) {
+            self.certifier.submit(CertifyRequest {
+                generation: done.generation,
+                doc: Arc::clone(&self.requested_doc),
+                resolver: self.requested_resolver.clone(),
+                tol: self.tol,
+            });
+            Clearances::Certifying
+        } else {
+            Clearances::None
+        };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
@@ -1783,6 +2044,7 @@ impl DocSession {
             gather,
             checks,
             files,
+            clearances,
         });
         // **The second prune** (DI5): whether a free-move gesture's copy
         // still evaluates is asked here, of the evaluation and the
@@ -2065,43 +2327,19 @@ impl DocSession {
                 mate,
                 values,
                 into_target_space,
+            } => self.add_mate(placement, &mate, values, into_target_space),
+            SessionOp::SetBundle {
+                placement,
+                base,
+                constraints,
+                into_target_space,
             } => {
-                let (opts, tol) = (self.eval_options(), self.tol);
-                self.commit_run(|run| {
-                    let space = run.doc().operand_space(&mate.to);
-                    if let Some(space) = space.filter(|&space| {
-                        into_target_space && Some(space) != run.doc().node_space(placement)
-                    }) {
-                        into_space(run, placement, space)?;
-                    }
-                    // Where the copy stands before its mate, and the
-                    // evaluation the snap reads its mate's poses off.
-                    let ev: Evaluation<f64> = pncad::document::evaluate(
-                        run.doc(),
-                        None,
-                        &pncad::document::CancelToken::new(),
-                        &opts,
-                        tol,
-                    );
-                    let before =
-                        pncad::document::SolvedPoses::of(run.doc(), &ev).relative(placement);
-                    // The door writes the bundle whole with the mate in it;
-                    // the gesture then writes the orientation and the values
-                    // that stand the copy where the snap puts it, so it moves
-                    // only by the snap, and the values the person named over
-                    // them.
-                    run.apply(DocEdit::AddConstraint {
-                        placement,
-                        mate,
-                        fresh: Vec::new(),
-                    })?;
-                    let snapped = snap::snapped(run.doc(), placement, before, &ev, tol);
-                    if snapped.is_none() && values.is_empty() {
-                        return Ok(());
-                    }
-                    let held = snapped.unwrap_or_else(|| held_bundle(run.doc(), placement));
-                    write_bundle(run, placement, valued(held, values))
-                })
+                if let Some(refusal) =
+                    self.withheld_bundle(placement, &base, &constraints, into_target_space)
+                {
+                    return OpOutcome::refused(refusal);
+                }
+                self.set_bundle(placement, &base, constraints, into_target_space)
             }
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
             SessionOp::IntoOwnSpace { placement } => self.commit_run(|run| {
@@ -2129,7 +2367,8 @@ impl DocSession {
             | SessionOp::AddBoolean { .. }
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
-            | SessionOp::AddTransform { .. }
+            | SessionOp::AddClearance { .. }
+            | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
             | SessionOp::AddFillet { .. }
@@ -2207,12 +2446,12 @@ impl DocSession {
                 normal,
             } => self.add_split(target, &origin, &normal),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
-            SessionOp::AddTransform {
-                input,
-                translation,
-                rotation_axis,
-                rotation_angle,
-            } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
+            SessionOp::AddClearance { a, b, bounds } => self.add_clearance(a, b, bounds),
+            SessionOp::Place {
+                body,
+                target,
+                constraints,
+            } => self.place(body, target, constraints),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
             }
@@ -2584,9 +2823,9 @@ impl DocSession {
     }
 
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_text(self.committed_doc(), text) {
             Ok(expr) => expr,
-            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         // An expression edit is available on a driven slot AND on a
         // literal one — the refusal is about writing a number over a
@@ -2684,9 +2923,9 @@ impl DocSession {
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
     fn set_variable_text(&mut self, var: VarId, text: &str) -> OpOutcome {
-        let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
+        let expr = match parse_text(self.committed_doc(), text) {
             Ok(expr) => expr,
-            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         // Text typed over an index is its count.
         if let Some(edit) = props::index_count_edit(self.committed_doc(), var, expr.clone()) {
@@ -3273,7 +3512,7 @@ impl DocSession {
                 None,
                 &opts,
             )?;
-            Ok((sketched.union, None))
+            Ok(Wrote::one(sketched.union))
         }))
     }
 
@@ -3495,7 +3734,7 @@ impl DocSession {
         Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
-            Ok((node, None))
+            Ok(Wrote::one(node))
         }))
     }
 
@@ -3503,6 +3742,9 @@ impl DocSession {
     /// its tool the plane through `origin` with normal `normal` in the
     /// target's own coordinates, read off the target's geometry
     /// ([`frame_off`] through its `xy`) at the numbers' nominal values.
+    /// Where something reads the target along a seen path, `above ⊔
+    /// below` takes it over there ([`Takeover`]), so each copy shows the
+    /// two halves where it showed the body.
     fn add_split(
         &self,
         target: Operand,
@@ -3512,10 +3754,26 @@ impl DocSession {
         let target = as_body(self.committed_doc(), target);
         self.require_read(&target, NodeKindWanted::Body)?;
         let tool = self.read_off(&target, origin, normal, "split plane", PoseRole::Xy)?;
-        Ok(creating(move |run| {
-            run.insert(Node::Split {
+        let takeover = self.takeover(&target)?;
+        let seen = !takeover.is_empty();
+        Ok(taking_over(takeover, move |run| {
+            let split = run.insert(Node::Split {
                 target: target.into(),
                 tool,
+            })?;
+            if !seen {
+                return Ok(Wrote::one(split));
+            }
+            let halves = pncad::select::SplitHalf::ALL
+                .map(|half| pncad::document::BodyRead::plain(Operand::output(split, half.port())));
+            let both = run.insert(Node::Assemble {
+                members: pncad::document::Bodies::Spelled(halves.to_vec()),
+            })?;
+            Ok(Wrote {
+                made: split,
+                replacement: both,
+                whole: None,
+                intact: run.doc().outputs(split),
             })
         }))
     }
@@ -3539,8 +3797,49 @@ impl DocSession {
             // stays where it stood
             // (`takeovers::the_mirrors_merged_top_keeps_the_old_tops_frame`).
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
-            Ok((part, None))
+            Ok(Wrote::one(part))
         }))
+    }
+
+    /// **Add a clearance requirement** ([`SessionOp::AddClearance`]):
+    /// the assertion between the two seats, through the document's own
+    /// insert door.
+    ///
+    /// **Each seat is read where it is drawn**: a requirement between
+    /// two parts is about the parts as they stand, and two
+    /// constructions share no space a sweep could run in. So a face is
+    /// read on the drawn body it was picked on, never on the body a
+    /// copy places, and a body that one world placement draws is read
+    /// on that copy. A body seat of the wrong kind refuses
+    /// [`Refusal::WrongNodeKind`]; two seats in different spaces refuse
+    /// at the insert door (`EditError::SpaceMismatch`). The bounds are
+    /// written as they came: what is wrong with them is the
+    /// evaluation's to say.
+    fn add_clearance(
+        &self,
+        a: ClearedSeat,
+        b: ClearedSeat,
+        bounds: pncad::document::ClearanceBounds<Formula>,
+    ) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        let read = |seat: ClearedSeat| -> Result<Operand, Refusal> {
+            match seat {
+                ClearedSeat::Body(read) => {
+                    let read = as_body(doc, read);
+                    self.require_read(&read, NodeKindWanted::Body)?;
+                    Ok(drawn_copy(doc, &read).unwrap_or(read))
+                }
+                ClearedSeat::Face(face) => {
+                    let body = crate::world::body_read(doc, face.node, Some(face.body))
+                        .ok_or_else(|| Refusal::NotABodyRead {
+                            read: Box::new(Operand::Node(face.node)),
+                        })?;
+                    Ok(Operand::select(body, vec![face.name]))
+                }
+            }
+        };
+        let node = Node::clearance(read(a)?, read(b)?, bounds);
+        Ok(creating(move |run| run.insert(node)))
     }
 
     /// **A pose read off the geometry of `body`'s space**: the frame
@@ -3590,37 +3889,6 @@ impl DocSession {
         let frame = frame_off(doc, &ev, body, &at, self.tol)
             .map_err(|refusal| Refusal::Frame(Box::new(GestureFrameFault::Geometry(refusal))))?;
         Ok(RoleRead::through(frame, role))
-    }
-
-    /// Insert one rigid move of an existing body
-    /// ([`SessionOp::AddTransform`]): a placement of `input` into the
-    /// space it is in, by values on that space's axes ([`gesture_moves`])
-    /// — rotated by `rotation_angle` about `rotation_axis` through
-    /// `input`'s own origin, then translated — and the body's world
-    /// placements re-pointed to it (A10, Ev's residue 1), in one action.
-    fn add_transform(
-        &self,
-        input: Operand,
-        translation: &[Formula; 3],
-        rotation_axis: &[Formula; 3],
-        rotation_angle: &Formula,
-    ) -> Result<Creating, Refusal> {
-        let input = as_body(self.committed_doc(), input);
-        self.require_placeable(&input)?;
-        let doc = self.committed_doc();
-        let at = gesture_frame(doc, translation, rotation_axis, rotation_angle, self.tol)?;
-        let moves = gesture_moves(doc, translation, rotation_axis, rotation_angle, &at)?;
-        let takeover = self.takeover_by_a_copy(&input);
-        // Into the space the body is in, on that space's axes.
-        let target = self.home_space(&input)?;
-        Ok(taking_over(takeover, move |run| {
-            let placement = run.insert(Node::place(
-                pncad::document::BodyRead::plain(input.clone()),
-                Operand::Var(target),
-                pncad::document::Placed::unmated(moves).bundle(),
-            ))?;
-            Ok((placement, None))
-        }))
     }
 
     /// Insert one pattern of an existing body, fused or not
@@ -3706,13 +3974,18 @@ impl DocSession {
                     } else {
                         None
                     };
-                    Ok((row, whole))
+                    Ok(Wrote {
+                        made: row,
+                        replacement: row,
+                        whole,
+                        intact: Vec::new(),
+                    })
                 }
                 PatternOutputChoice::Fused => {
                     let fused = run.insert(Node::Union {
                         members: pncad::document::Bodies::Family(row.into()),
                     })?;
-                    Ok((fused, None))
+                    Ok(Wrote::one(fused))
                 }
             }
         }))
@@ -3839,7 +4112,7 @@ impl DocSession {
         // restores both.
         Ok(taking_over(takeover, move |run| {
             let result = run.insert(node)?;
-            Ok((result, None))
+            Ok(Wrote::one(result))
         }))
     }
 
@@ -3860,17 +4133,15 @@ impl DocSession {
     /// holds no pieces makes (a feature, a mirror's or a sketch's union,
     /// a pattern).
     fn takeover(&self, read: &Operand) -> Result<Takeover, Refusal> {
-        let takeover = self.takeover_by_a_copy(read);
+        let takeover = self.unchecked_takeover(read);
         takeover.stranded_pick(self.committed_doc())?;
         Ok(takeover)
     }
 
-    /// **The takeover of the body `read` names, by a copy of it** (the
-    /// transform's: a placement of the body it takes over, whose pieces
-    /// its copy carries, so no pick is stranded), reading the result's
-    /// table under the session's runs: their resolver, and
-    /// the landed run as the memo.
-    fn takeover_by_a_copy(&self, read: &Operand) -> Takeover {
+    /// **The takeover of the body `read` names**, not yet asked whether
+    /// it strands a pick, reading the result's table under the
+    /// session's runs: their resolver, and the landed run as the memo.
+    fn unchecked_takeover(&self, read: &Operand) -> Takeover {
         let resolver = self.run_resolver();
         Takeover {
             reads: TakeoverReads {
@@ -3899,7 +4170,7 @@ impl DocSession {
         }
         let mut read = distinct
             .into_iter()
-            .map(|operand| self.takeover_by_a_copy(operand))
+            .map(|operand| self.unchecked_takeover(operand))
             .filter(|takeover| !takeover.is_empty());
         let Some(first) = read.next() else {
             return Ok(Takeover::of_var(doc, None));
@@ -4373,19 +4644,265 @@ impl DocSession {
         }
     }
 
-    /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
-    /// the bundle written whole again without it, by the door's rule
-    /// ([`DocEdit::RemoveConstraint`]) — a mate taken away frees what it
-    /// fixed, and each freedom left unnamed is written `0`, so the copy
-    /// stays pinned.
+    /// **One constraint removed** ([`SessionOp::RemoveConstraint`]): a
+    /// mate struck out of its placement's draft and the bundle written
+    /// as the placement editor writes it ([`Self::drafted`]) — the
+    /// freedoms it frees measured where the copy stands, by the slides
+    /// its geometry leaves. A value is refused: a freedom is always set.
     fn remove_constraint(&mut self, mate: pncad::document::MateRef) -> OpOutcome {
-        self.commit_run(|run| {
-            run.apply(DocEdit::RemoveConstraint {
-                placement: mate.placement,
-                constraint: mate.id,
+        let doc = self.committed_doc();
+        let is_value = held_bundle(doc, mate.placement)
+            .iter()
+            .any(|c| c.id == mate.id && c.value().is_some());
+        if is_value {
+            return OpOutcome::refused(Refusal::ValueNotRemoved {
+                node: doc.spoken(mate.placement),
+            });
+        }
+        let op = crate::matetool::MateTool::edit_striking(doc, mate)
+            .map_err(|error| Refusal::Draft(Box::new(error)))
+            .and_then(|tool| self.drafted(&tool, false));
+        self.perform_bundle(op)
+    }
+
+    /// **A mate added to `placement`'s bundle** ([`SessionOp::AddMate`]):
+    /// the placement editor's Edit door on it, `mate` a row as written
+    /// and `values` typed, applied as the editor applies ([`Self::drafted`]).
+    fn add_mate(
+        &mut self,
+        placement: RecipeNodeId,
+        mate: &pncad::document::Mate<Formula>,
+        values: Vec<(pncad::document::Coord, Formula)>,
+        into_target_space: bool,
+    ) -> OpOutcome {
+        let doc = self.committed_doc();
+        let op = crate::matetool::MateTool::edit(doc, placement)
+            .map(|mut tool| {
+                tool.add_written(doc, mate);
+                for (coord, by) in values {
+                    tool.type_value(coord, by);
+                }
+                tool
             })
-            .map(drop)
+            .map_err(|error| Refusal::Draft(Box::new(error)))
+            .and_then(|tool| self.drafted(&tool, into_target_space));
+        self.perform_bundle(op)
+    }
+
+    /// **The placement editor's Apply for `tool`**, derived against the
+    /// committed document and its evaluation.
+    fn drafted(
+        &self,
+        tool: &crate::matetool::MateTool,
+        into_target_space: bool,
+    ) -> Result<SessionOp, Refusal> {
+        let doc = self.committed_doc();
+        let ev: Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &self.eval_options(),
+            self.tol,
+        );
+        let proposal = tool
+            .proposal(doc, &ev, self.tol)
+            .map_err(|error| Refusal::Draft(Box::new(error)))?;
+        Ok(if into_target_space {
+            proposal.op_into_target_space()
+        } else {
+            proposal.op()
         })
+    }
+
+    /// A drafted [`SessionOp::SetBundle`], performed; its refusal as the
+    /// outcome's.
+    fn perform_bundle(&mut self, op: Result<SessionOp, Refusal>) -> OpOutcome {
+        match op {
+            Ok(SessionOp::SetBundle {
+                placement,
+                base,
+                constraints,
+                into_target_space,
+            }) => self.set_bundle(placement, &base, constraints, into_target_space),
+            Ok(other) => unreachable!("an Edit door drafts a `SetBundle`: {other:?}"),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **`placement`'s bundle written whole** ([`SessionOp::SetBundle`]).
+    fn set_bundle(
+        &mut self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+        into_target_space: bool,
+    ) -> OpOutcome {
+        if let Err(refusal) = self.bundle_fresh(placement, base) {
+            return OpOutcome::refused(refusal);
+        }
+        if !into_target_space && constraints == base {
+            return OpOutcome::default();
+        }
+        self.commit_run(|run| bundle_run(run, placement, constraints, into_target_space))
+    }
+
+    /// The editor's draft is of the bundle `placement` holds.
+    fn bundle_fresh(
+        &self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+    ) -> Result<(), Refusal> {
+        let doc = self.committed_doc();
+        if held_bundle(doc, placement) == base {
+            Ok(())
+        } else {
+            Err(Refusal::BundleStale {
+                node: doc.spoken(placement),
+            })
+        }
+    }
+
+    /// **The placement editor's Apply withheld where its verdict is no
+    /// standing copy** ([`Self::bundle_verdict`]): a placement that would
+    /// evaluate to a fault, or read what does not evaluate, is not
+    /// committed from the editor — the panel says why, and the draft
+    /// stays open. A door's refusal is the door's to give.
+    fn withheld_bundle(
+        &self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+        constraints: &[pncad::document::Constraint<Formula>],
+        into_target_space: bool,
+    ) -> Option<Refusal> {
+        self.withheld(&SessionOp::SetBundle {
+            placement,
+            base: base.to_vec(),
+            constraints: constraints.to_vec(),
+            into_target_space,
+        })
+    }
+
+    /// [`Self::withheld_bundle`] of any Apply.
+    fn withheld(&self, op: &SessionOp) -> Option<Refusal> {
+        match self.bundle_verdict(op) {
+            BundleVerdict::Faults(fault) => Some(Refusal::PlacementFails { fault: Some(fault) }),
+            BundleVerdict::Unsolved => Some(Refusal::PlacementFails { fault: None }),
+            BundleVerdict::Stands(_) | BundleVerdict::Refused(_) => None,
+        }
+    }
+
+    /// **One placement of `body` holding the bundle** ([`SessionOp::Place`]),
+    /// withheld where it would not stand ([`Self::withheld`]).
+    fn place(
+        &self,
+        body: Operand,
+        target: VarId,
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    ) -> Result<Creating, Refusal> {
+        let op = SessionOp::Place {
+            body: body.clone(),
+            target,
+            constraints: constraints.clone(),
+        };
+        if let Some(refusal) = self.withheld(&op) {
+            return Err(refusal);
+        }
+        self.placing(body, target, constraints)
+    }
+
+    /// **The Create door's run**: one placement of `body` holding the
+    /// bundle, taking over what read the body along a seen path — a `⊔`
+    /// operand, the product — never a copy's source.
+    fn placing(
+        &self,
+        body: Operand,
+        target: VarId,
+        constraints: Vec<pncad::document::Constraint<Formula>>,
+    ) -> Result<Creating, Refusal> {
+        let body = as_body(self.committed_doc(), body);
+        let doc = self.committed_doc();
+        // The Create door places a body: a copy moves by its own Edit door.
+        if let Some((node, _)) = crate::world::read_output(doc, &body)
+            && moves_copies(doc, node)
+        {
+            return Err(Refusal::CreateOnACopy {
+                copy: doc.spoken(node),
+            });
+        }
+        self.require_placeable(&body)?;
+        // A body a placement copies moves by that copy's Edit door, and is
+        // never placed a second time.
+        if let Some(var) = crate::world::read_var(doc, &body)
+            && let Some(&copy) = crate::world::placements_reading(doc, var).first()
+        {
+            let body = crate::world::read_output(doc, &body).map_or(copy, |(node, _)| node);
+            return Err(Refusal::BodyPlaced {
+                body: doc.spoken(body),
+                copy: doc.spoken(copy),
+            });
+        }
+        let mut takeover = Takeover::of(doc, &body);
+        takeover.copies.clear();
+        takeover.stranded_pick(doc)?;
+        Ok(taking_over(takeover, move |run| {
+            let placement = run.insert(Node::place(
+                pncad::document::BodyRead::plain(body),
+                Operand::Var(target),
+                constraints,
+            ))?;
+            Ok(Wrote::one(placement))
+        }))
+    }
+
+    /// **What the placement editor's Apply `op` would do, judged before
+    /// it is applied**: the op's edits run on a scratch recording of the
+    /// committed document and the result evaluated, so the panel names
+    /// the door's refusal or the placement's fault — or where the copy
+    /// would stand — while the person can still change the draft.
+    /// Nothing enters the document or the history.
+    #[must_use]
+    pub fn bundle_verdict(&self, op: &SessionOp) -> BundleVerdict {
+        let doc = self.committed_doc();
+        let mut run = Recording::start(doc, self.tol);
+        let staged = match op {
+            SessionOp::SetBundle {
+                placement,
+                base,
+                constraints,
+                into_target_space,
+            } => self.bundle_fresh(*placement, base).and_then(|()| {
+                bundle_run(
+                    &mut run,
+                    *placement,
+                    constraints.clone(),
+                    *into_target_space,
+                )
+                .map(|()| *placement)
+                .map_err(|error| Refusal::Edit(Box::new(error)))
+            }),
+            SessionOp::Place {
+                body,
+                target,
+                constraints,
+            } => self
+                .placing(body.clone(), *target, constraints.clone())
+                .and_then(|creating| {
+                    creating(&mut run, &|_| false)
+                        .map(|made| made.node)
+                        .map_err(|error| Refusal::Edit(Box::new(error)))
+                }),
+            other => unreachable!("only the placement editor's Apply is judged: {other:?}"),
+        };
+        let placement = match staged {
+            Ok(placement) => placement,
+            Err(refusal) => return BundleVerdict::Refused(refusal.respoken(doc)),
+        };
+        let solved = pncad::document::solve_document(run.doc(), &self.eval_options(), self.tol);
+        match (solved.fault(placement), solved.relative(placement)) {
+            (Some(fault), _) => BundleVerdict::Faults(Box::new(fault.clone())),
+            (None, Some(at)) => BundleVerdict::Stands(at),
+            (None, None) => BundleVerdict::Unsolved,
+        }
     }
 
     /// **An action's edits, applied and not yet recorded**, beside what
@@ -4477,6 +4994,7 @@ impl DocSession {
         self.derived.stage = None;
         self.stager.cancel();
         self.generation = self.generation.next();
+        self.exhausted = None;
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
         // seam owns. The second is the seam's vocabulary (`EvalRequest`
@@ -4511,8 +5029,16 @@ impl DocSession {
             _ => Names::Abstain,
         };
         self.requested_resolver = self.run_resolver();
-        // The landing this request will replace no longer wants its door.
+        // The landing this request will replace no longer wants its door,
+        // nor its certified clearances: its rows say certifying stopped,
+        // which stays true if this request is cancelled in turn.
         self.door.cancel();
+        self.certifier.cancel();
+        if let Some(run) = self.derived.landed.as_mut()
+            && matches!(run.clearances, Clearances::Certifying)
+        {
+            run.clearances = Clearances::Stopped;
+        }
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
@@ -4549,6 +5075,15 @@ pub enum Staged<'a> {
     Refused(&'a Refusal),
     /// Its run has not landed.
     Checking,
+    /// Its run ran out of its member budget, at a family or at an
+    /// instance whose part's listing crossed it: the draft is not
+    /// evaluated, and evaluating it again runs out at the same node.
+    Exhausted {
+        /// The staged document.
+        doc: &'a Doc<ProfileProgram>,
+        /// Where its run ran out.
+        out: OutOfBudget,
+    },
     /// Its run landed: the staged document, the node the operation made
     /// in it, and the document's evaluation.
     Evaluated {
@@ -4570,6 +5105,22 @@ struct Insert {
     space: VarId,
     node: RecipeNodeId,
     frame: Option<Frame>,
+}
+
+/// **The placement editor's verdict on its Apply**
+/// ([`DocSession::bundle_verdict`]): where the copy would stand, or why
+/// it would not.
+#[derive(Debug)]
+pub enum BundleVerdict {
+    /// The copy would stand at this relative pose in its target space.
+    Stands(Frame),
+    /// The placement would evaluate to this fault.
+    Faults(Box<pncad::document::MateFault>),
+    /// The door would refuse the Apply.
+    Refused(Refusal),
+    /// The placement would not be solved: something it reads does not
+    /// evaluate.
+    Unsolved,
 }
 
 /// **A creation's run, decided and not yet staged**: what a creating
@@ -4598,21 +5149,46 @@ struct Made {
     seed: Option<crate::evalseam::Seed>,
 }
 
-/// **A creating door's run**: `action` makes the result and answers it,
-/// with the `⊔` a reader of one body reads where the result is several
-/// (`Takeover::repoint`'s `whole`), and `takeover` takes the body's
-/// readers over by it. The one spelling of a creation; one that takes
-/// nothing over is [`creating`].
+/// **What a creating door's action wrote** ([`taking_over`]): the node
+/// it answers, and what the taken body's readers read in its place.
+struct Wrote {
+    /// The node the action made, answered as the creation.
+    made: RecipeNodeId,
+    /// What replaces the taken body: what a copy of it copies, and what
+    /// every other reader reads where `whole` is `None`.
+    replacement: RecipeNodeId,
+    /// What a reader of one body reads where `replacement` is several (a
+    /// pattern's family): a `⊔` over them.
+    whole: Option<RecipeNodeId>,
+    /// The reads the action wrote that hold the taken body's entities
+    /// as themselves (a split's halves): where the kernel's takeover
+    /// looks for a successor beside the body (`Recording::take_over`).
+    intact: Vec<VarId>,
+}
+
+impl Wrote {
+    /// `node`, made and read in the taken body's place by every reader.
+    fn one(node: RecipeNodeId) -> Self {
+        Self {
+            made: node,
+            replacement: node,
+            whole: None,
+            intact: Vec::new(),
+        }
+    }
+}
+
+/// **A creating door's run**: `action` makes the result and answers what
+/// it wrote ([`Wrote`]), and `takeover` takes the body's readers over by
+/// it. The one spelling of a creation; one that takes nothing over is
+/// [`creating`].
 fn taking_over(
     takeover: Takeover,
-    action: impl FnOnce(
-        &mut Recording<'_, ProfileProgram>,
-    ) -> Result<(RecipeNodeId, Option<RecipeNodeId>), EditError>
-    + 'static,
+    action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<Wrote, EditError> + 'static,
 ) -> Creating {
     Box::new(move |run, held| {
-        let (result, whole) = action(run)?;
-        takeover.repoint(run, result, whole, held)
+        let wrote = action(run)?;
+        takeover.repoint(run, wrote, held)
     })
 }
 
@@ -4621,9 +5197,7 @@ fn taking_over(
 fn creating(
     action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<RecipeNodeId, EditError> + 'static,
 ) -> Creating {
-    taking_over(Takeover::nothing(), move |run| {
-        action(run).map(|node| (node, None))
-    })
+    taking_over(Takeover::nothing(), move |run| action(run).map(Wrote::one))
 }
 
 /// **The product slot written as `bodies`**: the one body, a `⊔` of
@@ -4765,7 +5339,7 @@ struct Takeover {
     /// Whether the product slot reads `taken` itself.
     product: bool,
     /// What the kernel's takeover reads the result's table under
-    /// ([`DocSession::takeover_by_a_copy`]).
+    /// ([`DocSession::unchecked_takeover`]).
     reads: TakeoverReads,
     /// Copies of other bodies the action deletes once it has taken
     /// these over: a combine's other operands, whose material is in the
@@ -4838,8 +5412,7 @@ impl Takeover {
     /// result, a mirror's or a sketch's union, a combine and a pattern
     /// hold no pieces, and a pick is never re-pointed, so re-pointing
     /// that reader would leave the pick naming a piece its copy no
-    /// longer holds. The transform's takeover places the body it took,
-    /// whose pieces its copy carries, and asks nothing here.
+    /// longer holds.
     fn stranded_pick(&self, doc: &Doc<ProfileProgram>) -> Result<(), Refusal> {
         let picks: Vec<(VarId, &pncad::document::Pick)> = doc
             .vars()
@@ -4865,7 +5438,7 @@ impl Takeover {
             }
         }
         // What a pick's placement copies — down the whole chain of
-        // copies, a copy of a copy (a transform's) included — and the
+        // copies, a copy of a copy included — and the
         // path to its piece.
         let reads = |held: &pncad::document::Pick| -> Vec<VarId> {
             let mut copied = Vec::new();
@@ -4892,26 +5465,32 @@ impl Takeover {
         Ok(())
     }
 
-    /// **Re-point every reader to `result`** (A10, Ev's residue 1), in
-    /// the action that authored `result`: a `⊔` reads it as its operand
-    /// and the product slot reads it, through the slot door; a copy of
-    /// the body copies it in its place through the kernel's takeover
-    /// (`Recording::take_over`), which rebinds what read the copy where
-    /// the result carries its names, and answers where they moved for
-    /// the picks `held` says are held outside the document. `whole` is
-    /// what a reader of one body reads where `result` is several (a
-    /// pattern's family): a `⊔` over them.
+    /// **Re-point every reader to what the action `wrote`** (A10, Ev's
+    /// residue 1), in the action that authored it: a `⊔` reads it as its
+    /// operand and the product slot reads it, through the slot door, the
+    /// `whole` where there is one; a copy of the body copies
+    /// `replacement` in its place through the kernel's takeover
+    /// (`Recording::take_over`), asked about the `intact` reads beside
+    /// the body,
+    /// which rebinds what read the copy where the result carries its
+    /// names, and answers where they moved for the picks `held` says are
+    /// held outside the document.
     ///
     /// The `⊔` and product re-points come first, so the takeover reads
     /// the document as the action leaves it.
     fn repoint(
         self,
         run: &mut Recording<'_, ProfileProgram>,
-        result: RecipeNodeId,
-        whole: Option<RecipeNodeId>,
+        wrote: Wrote,
         held: &dyn Fn(RecipeNodeId) -> bool,
     ) -> Result<Made, EditError> {
-        let one = whole.unwrap_or(result);
+        let Wrote {
+            made,
+            replacement,
+            whole,
+            intact,
+        } = wrote;
+        let one = whole.unwrap_or(replacement);
         for (node, seat) in self.operands {
             run.apply(DocEdit::SetParam {
                 node,
@@ -4927,7 +5506,8 @@ impl Takeover {
         }
         let mut taken = run.take_over(
             &self.copies,
-            &result.into(),
+            &replacement.into(),
+            &intact,
             &crate::evalseam::options(&self.reads.resolver),
             self.reads.prior.as_deref(),
             held,
@@ -4940,7 +5520,7 @@ impl Takeover {
         // starts from.
         let seed = taken.evaluation.take().map(crate::evalseam::Seed::of);
         Ok(Made {
-            node: result,
+            node: made,
             moved: taken.moved,
             seed,
         })
@@ -4986,7 +5566,7 @@ fn body_outputs(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
 /// halves still refuse at the kind gate. A node's copy was read this way
 /// when a pick reached it through its placement; drawn unplaced, it is
 /// picked on itself.
-fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
+pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
     match read {
         Operand::Node(node)
             if doc.node(node).is_some()
@@ -5006,7 +5586,8 @@ fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
 ///
 /// A construction is placed into the first's space and read through
 /// that placement. A copy placed into its own body's space by values
-/// alone (the transform gesture's) is re-targeted into the first's
+/// alone (the placement editor's Create with no mate, the Transform
+/// tool's on a body nothing placed) is re-targeted into the first's
 /// space with its values as written, so it stands on the first's axes
 /// as it stood on its body's and every variable keeps driving it. An
 /// operand in no space, or a copy whose bundle holds a mate (which
@@ -5070,38 +5651,6 @@ fn in_one_space(
     Ok(read)
 }
 
-/// **`held` with the mate panel's `values` written over it**: each
-/// value of `held` on a freedom `values` sets takes that number, keeping
-/// its id; a freedom `values` sets that `held` holds no value on is
-/// appended, for the door to refuse as the bundle's own
-/// ([`pncad::document::MateFault::Overconstrained`]).
-pub(crate) fn valued(
-    held: Vec<pncad::document::Constraint<Formula>>,
-    values: Vec<(pncad::document::Coord, Formula)>,
-) -> Vec<pncad::document::Constraint<Formula>> {
-    use pncad::document::{Constraint, ConstraintId, Value};
-    let mut values = values;
-    let mut bundle: Vec<Constraint<Formula>> = held
-        .into_iter()
-        .map(|c| {
-            let set = c
-                .value()
-                .and_then(|v| values.iter().position(|(coord, _)| *coord == v.coord));
-            match set {
-                Some(at) => {
-                    let (coord, by) = values.remove(at);
-                    Constraint::of_value(c.id, Value { coord, by })
-                }
-                None => c,
-            }
-        })
-        .collect();
-    bundle.extend((1..).zip(values).map(|(i, (coord, by))| {
-        Constraint::of_value(ConstraintId::placeholder(i), Value { coord, by })
-    }));
-    bundle
-}
-
 /// **`placement`'s bundle as authored**: each constraint re-authored,
 /// so a value keeps reading its variable by id. Empty for a node that
 /// is no placement.
@@ -5137,11 +5686,31 @@ fn write_bundle(
     Ok(())
 }
 
+/// **The placement editor's Edit, applied**: `placement` moved by name
+/// into the space its first mate's `to` reads where that is asked and is
+/// not its target, then `constraints` written whole.
+fn bundle_run(
+    run: &mut Recording<'_, ProfileProgram>,
+    placement: RecipeNodeId,
+    constraints: Vec<pncad::document::Constraint<Formula>>,
+    into_target_space: bool,
+) -> Result<(), EditError> {
+    let space = constraints
+        .iter()
+        .find_map(|c| c.mate())
+        .and_then(|m| run.doc().operand_space(&m.to))
+        .filter(|&space| into_target_space && Some(space) != run.doc().node_space(placement));
+    if let Some(space) = space {
+        into_space(run, placement, space)?;
+    }
+    write_bundle(run, placement, constraints)
+}
+
 /// **`placement` moved into `space` by name**: a bundle holding a mate
 /// first stood by the identity bundle, which reads nothing, so the
 /// re-target strands no mate of the bundle's own, then its `target`
 /// re-pointed there.
-fn into_space(
+pub(crate) fn into_space(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
     space: VarId,
@@ -5201,29 +5770,6 @@ fn nominal(
         .map_err(|error| refused(GestureFrameFault::Unevaluated { field, error }))
 }
 
-/// **The frame the transform gesture's numbers make**: rotated by
-/// `angle` about `axis` through the origin, then translated, at their
-/// nominal values ([`Frame::rotate_then_translate`]).
-fn gesture_frame(
-    doc: &Doc<ProfileProgram>,
-    translation: &[Formula; 3],
-    axis: &[Formula; 3],
-    angle: &Formula,
-    tol: Tol,
-) -> Result<Frame, Refusal> {
-    let translation = nominals(doc, "translation", translation, Dimension::Length)?;
-    let axis = nominals(doc, "rotation axis", axis, Dimension::Scalar)?;
-    let angle = nominal(doc, "rotation angle", angle, Dimension::Angle)?;
-    let band = pncad::geom_core::Band::linear(tol)
-        .unwrap_or_else(|_| unreachable!("the session's tolerance is a band"));
-    Frame::rotate_then_translate(axis, angle, translation, band).map_err(|refusal| {
-        Refusal::Frame(Box::new(GestureFrameFault::Direction {
-            field: "rotation axis",
-            refusal,
-        }))
-    })
-}
-
 /// **The frame at `origin` whose `z` is `direction`**, its `x` the
 /// first world axis off the direction made orthogonal to it — the
 /// frame a plane or an axis given by a point and a direction is read
@@ -5261,57 +5807,14 @@ fn frame_along(
     })
 }
 
-/// **The transform gesture's values** on the axes of the space its body
-/// is in: the slides its translation writes, as written, and the spin
-/// its rotation writes — about the space's own axis, by the angle as
-/// written, where the rotation axis is one of the three, else the chain
-/// of turns about `x`, `y` and `z` that `at` (the frame the gesture's
-/// numbers make, [`gesture_frame`]) turns by ([`moves_of`]).
-fn gesture_moves(
-    doc: &Doc<ProfileProgram>,
-    translation: &[Formula; 3],
-    axis: &[Formula; 3],
-    angle: &Formula,
-    at: &Frame,
-) -> Result<Vec<(pncad::document::Coord, Formula)>, Refusal> {
-    use pncad::document::{Coord, TargetAxis};
-    let about = nominals(doc, "rotation axis", axis, Dimension::Scalar)?;
-    let lone = TargetAxis::ALL
-        .into_iter()
-        .zip(about)
-        .filter(|&(_, c)| c != 0.0);
-    let spins = match lone.collect::<Vec<_>>().as_slice() {
-        [(axis, sense)] => {
-            let by = if *sense > 0.0 {
-                angle.clone()
-            } else {
-                Formula::neg(angle.clone())
-                    .unwrap_or_else(|_| unreachable!("an angle negates to an angle"))
-            };
-            vec![(Coord::Spin(Some(*axis)), by)]
-        }
-        _ => moves_of(&Frame {
-            columns: at.columns,
-            translation: [0.0; 3],
-        }),
-    };
-    let slides = TargetAxis::ALL
-        .into_iter()
-        .zip(translation.iter().cloned())
-        .map(|(axis, by)| (Coord::Slide(axis), by));
-    Ok(spins.into_iter().chain(slides).collect())
-}
-
 /// **The values standing a copy at `at`** on its target space's axes:
 /// the chain of turns about `x`, `y` and `z` its axes make — each a
 /// quarter turn written exactly (`turn/4`) where they are a signed
-/// permutation of the space's, else the angles `atan2` takes off them
-/// (`linear = Rz(γ)·Ry(β)·Rx(α)`) — and the slides its origin makes,
+/// permutation of the space's, else the kernel's chain read of them
+/// (`editor_core::mate::chain_turns`) — and the slides its origin makes,
 /// each turn and slide that is not zero.
 fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
     use pncad::document::{Coord, TargetAxis};
-    // Entry `r(i, j)`: row `i` of column `j`.
-    let r = |i: usize, j: usize| at.columns[j][i];
     let exact = (0..3).all(|j| {
         let column = at.columns[j];
         column.iter().filter(|&&c| c != 0.0).count() == 1
@@ -5327,13 +5830,13 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
             _ => Formula::neg(turn(4)).unwrap_or_else(|_| unreachable!("an angle negates")),
         }
     };
-    let cos_beta = r(0, 0).hypot(r(1, 0));
-    let beta = (-r(2, 0)).atan2(cos_beta);
-    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
-        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
-    } else {
-        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    let col = |j: usize| {
+        let [x, y, z] = at.columns[j];
+        pncad::geom_core::linalg::Vec3::new(x, y, z)
     };
+    let [alpha, beta, gamma] = editor_core::mate::chain_turns(
+        &pncad::geom_core::linalg::Mat3::from_cols(col(0), col(1), col(2)),
+    );
     let spins = [
         (TargetAxis::X, alpha),
         (TargetAxis::Y, beta),
@@ -5400,7 +5903,7 @@ impl core::error::Error for SketchTraceFault {}
 /// (`crate::world::body_of`; a copy carries its body's names, so the
 /// name is the pick's): the node's output by its port where it holds
 /// several, its body output otherwise.
-fn picked_body(
+pub(crate) fn picked_body(
     doc: &Doc<ProfileProgram>,
     pick: &impl crate::tree::PickedEntity,
 ) -> (Operand, StableName) {
@@ -5633,6 +6136,38 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     )
 }
 
+/// **The one world copy that draws `read`**, where exactly one world
+/// placement copies it ([`crate::world::world_copies_of_read`]): the
+/// body as it stands in the world. `None` for a read no world placement
+/// copies, and for one several copy, which names no one of them — the
+/// clearance tool refuses such a pick itself, in its own words
+/// (`crate::combine::ClearanceEvent::SeveralCopies`).
+fn drawn_copy(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<Operand> {
+    match crate::world::world_copies_of_read(doc, read).as_slice() {
+        [copy] => Some(Operand::Var(*copy)),
+        _ => None,
+    }
+}
+
+/// **Whether a landed run holds a clearance requirement the certifying
+/// scalar answers**: a clearance verdict `evaluation` holds — at `f64`,
+/// the third state the certifying scalar decides. One whose seats did
+/// not resolve failed here, and the certifying scalar would fail it the
+/// same way; one lifted over a pattern's members holds a family, which
+/// its row refuses in its own words (`tree`'s `cleared`).
+fn holds_a_clearance(evaluation: &Evaluation<f64>) -> bool {
+    evaluation.order.iter().any(|&id| {
+        evaluation.usable(id).is_ok_and(|value| {
+            matches!(
+                value.payload,
+                pncad::document::ValuePayload::Assertion(
+                    pncad::document::AssertionVerdict::Clearance(_)
+                )
+            )
+        })
+    })
+}
+
 /// Whether a document is assembly-shaped — one of the two conditions
 /// [`AtRestBadge`] names for taking an at-rest badge: a document that
 /// instantiates no part has no cross-instance rest for the badge to
@@ -5671,7 +6206,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Intersect { .. }
         | Node::Assemble { .. }
         | Node::Measure { .. }
-        | Node::Assertion { .. } => false,
+        | Node::Assertion(_) => false,
     }
 }
 
@@ -5702,9 +6237,11 @@ impl core::fmt::Debug for DocSession {
             gesture,
             eval: _,
             door: _,
+            certifier: _,
             stager: _,
             stages: _,
             generation,
+            exhausted,
             requested_doc: _,
             requested_resolver: _,
             derived,
@@ -5717,6 +6254,7 @@ impl core::fmt::Debug for DocSession {
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
+            .field("exhausted", exhausted)
             .field("states", &history.len())
             .field(
                 "gesture",
@@ -5750,6 +6288,8 @@ fn axis_operand(axis: RoleRead<Operand>) -> Operand {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
+
+    use std::sync::Arc;
 
     use super::{DocSession, Refusal};
     use pncad::document::{Doc, Node, ProfileProgram};
@@ -5838,6 +6378,55 @@ mod tests {
                 "node {} is not in the document",
                 test_utils::refusal::tag(instance.0.digest())
             )
+        );
+    }
+
+    /// **No witness is named in a run its pair was not certified for**:
+    /// while a takeover's door run judges the shown document's names
+    /// (`Names::Seeded`), the picture and the certified pair are still
+    /// the landing's, so `witness` abstains — even where that run's
+    /// document reads the same.
+    ///
+    /// Red if `witness` takes the names run without asking whether it is
+    /// the landing's.
+    #[test]
+    fn a_witness_abstains_while_a_door_run_judges_names() {
+        use crate::test_support::len;
+        use pncad::document::ClearanceBounds;
+        let tol = Tol::witness();
+        let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
+        let mut session = DocSession::inline(doc, tol);
+        let added = session.perform(super::SessionOp::AddClearance {
+            a: super::ClearedSeat::Body(blocks[0].into()),
+            b: super::ClearedSeat::Body(blocks[1].into()),
+            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        });
+        let violated = added.made.expect("the requirement is a node");
+        session.pump();
+        assert!(
+            session.witness(violated).is_some(),
+            "the premise: a pair to draw"
+        );
+        // The window a takeover opens: a run of the shown document that
+        // is not the landing's judges its names until the landing.
+        session.request_eval();
+        let (doc, evaluation) = {
+            let run = session.derived.landed.as_ref().expect("landed");
+            (
+                Arc::new(run.doc.as_ref().clone()),
+                Arc::clone(&run.evaluation),
+            )
+        };
+        session.derived.seeded = Some(super::SeededRun {
+            generation: session.generation,
+            doc,
+            evaluation,
+        });
+        session.derived.names = super::Names::Seeded;
+        assert!(session.names_ahead_of_the_picture(), "the premise");
+        assert!(
+            session.witness(violated).is_none(),
+            "no pair is named in a run it was not certified for"
         );
     }
 }

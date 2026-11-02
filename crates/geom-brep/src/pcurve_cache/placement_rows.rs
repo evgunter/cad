@@ -15,12 +15,14 @@ fn band() -> Band {
 }
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 /// A named arm: its chart, its carrier, and an edge's span on it.
@@ -317,28 +319,22 @@ fn line_arms() -> Vec<Arm> {
                 radius: 1.0,
                 u_ref: x,
             },
-            Curve3::Line {
-                origin: Point3::new(phi.cos(), phi.sin(), 0.0),
-                dir: z,
-            },
+            Curve3::line(Point3::new(phi.cos(), phi.sin(), 0.0), z),
             (0.3, 2.0),
         ),
         (
             "cone ruling",
             cone.clone(),
-            Curve3::Line {
-                origin: o + ruling * 0.5,
-                dir: ruling,
-            },
+            Curve3::line(o + ruling * 0.5, ruling),
             (0.2, 1.5),
         ),
         (
             "cone ruling across the apex",
             cone,
-            Curve3::Line {
+            Curve3::Line(geom::Line {
                 origin: o,
                 dir: ruling,
-            },
+            }),
             (-1.0, 1.0),
         ),
     ]
@@ -349,21 +345,21 @@ fn line_arms() -> Vec<Arm> {
 /// carrier at `t − by` is the first at `t`.
 fn restarted(carrier: &Curve3<f64>, by: f64) -> Curve3<f64> {
     match *carrier {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => circle(
+        }) => circle(
             center,
             axis,
             radius,
             u_ref * by.cos() + axis.cross(u_ref) * by.sin(),
         ),
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: origin + dir * by,
-            dir,
-        },
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin + dir * by, dir),
         _ => unreachable!("only circles and lines are restarted here"),
     }
 }
@@ -383,7 +379,7 @@ fn a_carrier_restarted_derives_one_placed_image() {
     let band = band();
     let restartable = arms()
         .into_iter()
-        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle { .. }))
+        .filter(|(_, _, c, _)| matches!(c, Curve3::Circle(..)))
         .chain(line_arms());
     for (name, surface, carrier, (t0, t1)) in restartable {
         let derive = |carrier: &Curve3<f64>, (a, b): (f64, f64)| {

@@ -796,7 +796,7 @@ fn plane_plane<T: Decide>(
     let (d1, d2, d3) = (n1.dot(*q1 - o), n2.dot(*q2 - o), dir.dot(mid - o));
     let det = n1.dot(n2.cross(dir));
     let x = (n2.cross(dir) * d1 + dir.cross(*n1) * d2 + n1.cross(*n2) * d3) / det;
-    Ok(Ok(Curve3::Line { origin: o + x, dir }))
+    Ok(Ok(Curve3::line(o + x, dir)))
 }
 
 /// **The root of an analytic surface along a carrier**, nearest `seed`:
@@ -823,7 +823,7 @@ pub(crate) fn analytic_root<T: Decide>(
             normal: m,
             ..
         },
-        Curve3::Line { origin, dir },
+        Curve3::Line(geom::Line { origin, dir }),
     ) = (surface, carrier)
     {
         let sine = dir.dot(*m);
@@ -1397,12 +1397,16 @@ mod square {
             normal,
             u_ref,
         };
-        let line = |origin, dir| Curve3::Line { origin, dir };
-        let circle = |center, axis, radius, u_ref| Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
+        let line = |origin, dir| Curve3::Line(geom::Line { origin, dir });
+        let circle = |center, axis, radius, u_ref| {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
+                radius,
+            })
         };
         let cylinder = Surface::Cylinder {
             origin: o,
@@ -1597,10 +1601,7 @@ mod regions {
     #[test]
     fn a_corner_region_refuses_by_the_corner() {
         let wall = net(&|i, j| 0.5 * (i + j) as f64);
-        let old = Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt(),
-        };
+        let old = Curve3::line(Point3::origin(), Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt());
         let got = plane_wall_section(
             &ground(),
             Wall {
@@ -1659,10 +1660,7 @@ mod rational_carriers {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         };
-        let old = Curve3::Line {
-            origin: Point3::new(0.0, 0.05, 0.0),
-            dir: Vec3::unit_x(),
-        };
+        let old = Curve3::line(Point3::new(0.0, 0.05, 0.0), Vec3::unit_x());
         let row = match plane_wall_section(
             &plane,
             Wall {

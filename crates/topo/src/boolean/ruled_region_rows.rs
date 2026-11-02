@@ -42,12 +42,7 @@ fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -
 fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> Edge<f64> {
     edge(
         k,
-        geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, z),
-            axis: z_axis(),
-            radius: r,
-            u_ref: x_axis(),
-        },
+        geom::Curve3::circle(Point3::new(0.0, 0.0, z), z_axis(), r, x_axis()),
         span,
         forward,
     )
@@ -57,15 +52,7 @@ fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> Edge<f64> {
 fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     let d = b - a;
     let len = d.norm();
-    edge(
-        k,
-        geom::Curve3::Line {
-            origin: a,
-            dir: d / len,
-        },
-        (0.0, len),
-        true,
-    )
+    edge(k, geom::Curve3::line(a, d / len), (0.0, len), true)
 }
 
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
@@ -218,13 +205,15 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
     let s = 1.16_f64.sqrt();
     let section = edge(
         2,
-        geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(-0.4, 0.0, 1.0) / s,
-            semi_u: s,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.4) / s,
-        },
+        geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::new(-0.4, 0.0, 1.0) / s,
+                Vec3::new(1.0, 0.0, 0.4) / s,
+            ),
+            s,
+            1.0,
+        )),
         (0.0, TAU),
         false,
     );
@@ -427,12 +416,7 @@ fn a_built_wall_reads_its_strut_as_inside_and_its_null_edge_as_nothing() {
 fn the_aim_is_a_point_of_the_surface() {
     let opposite = edge(
         2,
-        geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 1.0),
-            axis: z_axis(),
-            radius: 1.0,
-            u_ref: -x_axis(),
-        },
+        geom::Curve3::circle(Point3::new(0.0, 0.0, 1.0), z_axis(), 1.0, -x_axis()),
         (0.0, TAU),
         false,
     );
@@ -467,13 +451,15 @@ fn the_aim_is_a_point_of_the_surface() {
 fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
     let arc = edge(
         1,
-        geom::Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 2.0),
-            axis: Vec3::new(-0.3, 0.0, 1.0) / 1.09_f64.sqrt(),
-            semi_u: 1.5,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.3) / 1.09_f64.sqrt(),
-        },
+        geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 2.0),
+                Vec3::new(-0.3, 0.0, 1.0) / 1.09_f64.sqrt(),
+                Vec3::new(1.0, 0.0, 0.3) / 1.09_f64.sqrt(),
+            ),
+            1.5,
+            1.0,
+        )),
         (-0.6, 1.8),
         true,
     );

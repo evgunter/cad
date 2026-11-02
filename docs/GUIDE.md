@@ -1264,8 +1264,9 @@ with one spherical pip cut into its top face, then ONE fillet whose
 selection is said twice geometrically — the box edges by carrier
 kind, the pip rim by the plane/sphere pair across it. What is NOT
 selected is the point: the cavity's two meridian seams are sphere on
-BOTH sides (no dihedral wedge — unfilletable at any radius), and
-they match neither filter, so the refusal falls out of the geometry.
+BOTH sides (no dihedral wedge — a fillet would leave them as they
+are), and they match neither filter, so the exclusion falls out of
+the geometry.
 
 ```python
 import math
@@ -1625,9 +1626,9 @@ piece that step drew in the loop you state — 0 the outer one, then the
 holes in the order the profile describes them — so a hole's band is
 spelled exactly like the outer one. A handle's role accessors are its
 verb's roles: `.leg` on a leg, `.run_in`, `.arc` and `.run_out` on a
-fillet, `.piece(k)` on a `circle` or `circle_split`. A piece stays the
-name of what its step draws whatever later moves the segment, which is
-why the doors take it rather than a position. And the text is still
+fillet, `.piece(k)` on a `circle`, `circle_split` or `rectangle`. A
+piece stays the name of what its step draws whatever later moves the
+segment, which is why the doors take it rather than a position. And the text is still
 never read or assembled — you name a ROLE, and the door does the rest.
 
 ```python

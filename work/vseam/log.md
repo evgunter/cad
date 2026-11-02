@@ -441,3 +441,49 @@ row's last section says what moved.
 - 2026-11-02 — Merged 6299 (profile pick), 6302 (the editor holds the authored program) and 6306 (fused-fillet construction marks), each on `gate ok`. Dispatched the rectangle build (`the-rectangle-and-circle-templates-reopen-as-paths`).
   - The on-face build is cut into three units on their owners: doctail (the face-frame pose, the drawn-on-face door, the signed depth), lib (`Doc.sketch_on_face` retires; Python spells boss and pocket in ordinary forms), and vseam (the form draws only; the pick carries its point; the final deletion of the fused act, an authorised deletions-only crossing into doctail).
   - The signed depth is to be lowered in editor-core, so that `crates/sweep` (carve/lathe/strut) stays untouched. (VSEAM)
+- 2026-11-02 — The profile self-reference build (X/30, Ev's 6289 ruling) is cut into six units: U1/U3/U4 on doctail, U2 on profile, U5 on lib, U6 on vseam. The scope is in the row's cut section.
+  - A read-only planning pass found fifteen choices (Q1–Q15) that neither the ruled text nor the code settles. One may be a contradiction between ratified texts: VQ4's `toward(dx,dy)` two scalars against `[variables.poses]`' "a 2-D direction is an angle". Every unit is blocked on that residue.
+  - The residue went to a designer pair. The draws are on `analysis/design-fork/a-profiles-self-reads-residue`, and the fork has two designers.
+  - Flag for Ev: doctail has no orchestrator and is at load 111/45, and U1/U3/U4 add 19 points to it. The README's note that an X row "typically" becomes a program of its own is the alternative. (VSEAM)
+- 2026-11-02 — The self-read residue was weighed by the pair over five rounds; it is fork-log row 241. Rounds 2 and 4 were crossovers. Each later round named the deciding fact, and that is what converged them:
+  - `validate_snapshot` makes §1b's refusals save invariants (Q9);
+  - `geom_core::Angle` keeps a written turn fraction exactly (Q1);
+  - N1 merges by authored order (Q13).
+
+  The pair agrees on all fifteen. The `[ev]` PR 6346 carries Q1 (a written direction is an angle, so `toward` leaves the document), with the residual numberless-axis form as Ev's preference, plus §1b's "constructed" and slide lines. The other thirteen are recorded in the row as build-level. The PR also carries the six-unit cut. (VSEAM)
+- 2026-11-02 — PR 6340 (`the-rectangle-and-circle-templates-reopen-as-paths`; single FULL review): APPROVE WITH FIXES, no MAJOR.
+  - **The soundness repair.** Coincidence used to merge every `Piece(k)` wall into one carrier, which was unsound once a rectangle was added. It now merges only circle forms. This was pinned both ways: forcing the old merge reds the new row, and never merging reds the tangency rows.
+  - **Corpus replay** is byte-identical for every existing entry. Verb tag 44 is fresh.
+  - **Fix pass, dispatched to the builder:**
+    - one census for "is a circle form" (`carrier_radius`);
+    - a row that pins the part guard;
+    - a P2 row for the disclosed loss of DR-394 liveness through parts;
+    - the stale `axis_of` doc;
+    - the negative-side tests and the decision subject;
+    - the PQ4 sentence.
+  - **Class finding, filed as a P3 row and not fixed here:** "carrier" names "complete-loop form" in `RoleList::Carrier`, `CarrierInChain` and Python's `CarrierPieces`. That conflation is what produced the soundness bug. (VSEAM)
+- 2026-11-02 — Ev asked on 6346: "isn't this going to be inexact in the cases that we had toward for?" Partly yes, checked in the code. A typed `180 deg` is stored as radians (`Quantity.value` is canonical f64, minted as a free variable, VR6), so only a written `turn/2` lowers exactly. Pythagorean rays are lost under angle-only. Answered with three options; I recommend angle plus the numberless axis form, with exact degree literals filed as their own row. The designers' "exact at a written fraction of a turn" was true but missed that people type degrees. (VSEAM)
+- 2026-11-02 — PR 6340 fix pass, orchestrator's read.
+  - Every ruled item is done. The circle census is one: `carrier_radius`.
+  - The part guard is pinned by `a_parts_wall_names_are_not_read_against_the_hosts_circle`. It goes red with the guard deleted, checked by hand.
+  - The negative-side and straddling-Interval refusals are covered.
+  - Filed: `a-parts-circle-wall-is-no-longer-one-carrier` (P2) and `complete-loop-identifiers-are-named-carrier` (P3). (VSEAM)
+- 2026-11-02 — PR 6352 (`a-profile-edited-in-place-is-picked-by-its-undrawn-outline`, P3/E; orchestrator's read, no separate review at E). The first cut made the pick skip the edited node, so a click on the profile you were editing deselected it and dropped the draft. I ruled against that. Now:
+  - `DisplayView::previewed_profile` carries the node and the preview's drawn outline, set once per frame.
+  - The lane, the pick and the selection mark all read it through `PickIndex::drawn_outline`, so a re-click keeps the draft.
+  - The form's free preview stays unpickable.
+  - The selection-mark follow-up was the same fix and is closed in this PR. (VSEAM)
+- 2026-11-02 — Ev ruled on `[ev]` 6346, which is merged. Ev's comments:
+  - "another case of a family of different representations with a shared api, like the arcs";
+  - `toward`'s components should be `Length`s;
+  - 3-D has no ray form "yet".
+
+  My restatement after Ev's first question had first retired `toward`, which was wrong. The kernel had already built the family, and the designers had read `[variables.poses]`' FORK-MOVE sentence as binding, when `[recipe.forms]` admits a family. That correction was made on the PR.
+  - The fork-log row is renumbered to 243 after another collision.
+  - The units are unblocked from the residue, and U7 (the revolve's axis line) is filed on doctail.
+- 2026-11-02 — **Track handed back (`ready`).** Its P0/P1 rows are done or blocked on other programs:
+  - the on-face viewer unit waits on doctail and lib;
+  - U6 of the self-reference build waits on doctail U3/U4.
+
+  The open question for Ev is who builds doctail's units: doctail has no orchestrator and is at 111/45, holding U1, U3, U4, U7 and the on-face frame. The P2/P3 tail is a successor's. Merged this sitting: 6119, 6123, 6124, 6125, 6128, 6129, 6135, 6143, 6144, 6145, 6149, 6285, 6286, 6289, 6290, 6295, 6298, 6299, 6302, 6306, 6322, 6340, 6346, 6352. (VSEAM)
+- 2026-11-02 — **FORMS claimed `an-expression-typed-over-held-profile-edits-is-refused`** (moved to `work/forms/`, re-banded P1). It is the prerequisite of FORMS' profile unit, which deletes the add-profile form, so every new profile's steps are unapplied when a formula is typed (`[ev]` PR 6388). Dispatched on `forms/held-expression`; it edits `pane/profile.rs` and the profile edit draft (`drafts.rs`). (FORMS orchestrator)

@@ -68,13 +68,7 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
         let a = Vec3::new(ax, ay, az);
         let u = Vec3::new(ux, uy, uz);
         let door = Curve3::circle_at(c, a, r, u, t);
-        let via = Curve3::Circle {
-            center: c,
-            axis: a,
-            radius: r,
-            u_ref: u,
-        }
-        .eval(t);
+        let via = Curve3::circle(c, a, r, u).eval(t);
         assert_eq!(
             (door.x.to_bits(), door.y.to_bits(), door.z.to_bits()),
             (via.x.to_bits(), via.y.to_bits(), via.z.to_bits()),
@@ -85,13 +79,7 @@ fn r1_circle_at_and_eval_agree_bit_for_bit() {
         let ai = Vec3::new(iv(ax), iv(ay), iv(az));
         let ui = Vec3::new(iv(ux), iv(uy), iv(uz));
         let door_i = Curve3::circle_at(ci, ai, iv(r), ui, iv(t));
-        let via_i = Curve3::Circle {
-            center: ci,
-            axis: ai,
-            radius: iv(r),
-            u_ref: ui,
-        }
-        .eval(iv(t));
+        let via_i = Curve3::circle(ci, ai, iv(r), ui).eval(iv(t));
         assert_eq!(
             format!("{:?}{:?}{:?}", door_i.x, door_i.y, door_i.z),
             format!("{:?}{:?}{:?}", via_i.x, via_i.y, via_i.z),
@@ -258,11 +246,11 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
     let web = MeasurePrimitive::Distance { a: 0, b: 1 };
     let measured = r.measure(&[web], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.0e-3),
         relation: editor_core::AssertionRelation::AtLeast,
-    });
+    }));
     (r.doc, measure, assertion)
 }
 

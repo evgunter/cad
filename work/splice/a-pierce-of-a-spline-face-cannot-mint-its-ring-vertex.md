@@ -73,4 +73,4 @@ it.
   germ frame (`work/sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame`).
   Lily wall 8 moves on, at 1e-9 and 1e-6 alike, to the plane × torus
   spiric germ section of the stem's torus wall against the leaf's
-  lower cap (`work/sectsite/c5-plane-torus-cone-cylinder-arms`).
+  lower cap (`work/sect/c5-plane-torus-cone-cylinder-arms`).

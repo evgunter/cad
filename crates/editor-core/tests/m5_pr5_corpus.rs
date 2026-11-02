@@ -31,7 +31,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<topo::EdgeCurve<f64>> {
     let mut out = Vec::new();
     for (_, edge) in body.edges() {
         if let Some(c) = body.get_curve_geom(edge.curve).and_then(|g| g.certified())
-            && matches!(c.carrier(), Curve3::Ellipse { .. })
+            && matches!(c.carrier(), Curve3::Ellipse(..))
         {
             out.push(c.clone());
         }

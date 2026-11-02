@@ -225,23 +225,18 @@ impl From<CarrierAbsence> for ReadbackError {
     }
 }
 
-/// **The walk to a face's carrier surface** — face, then the surface
-/// its record names — with the surface's key and the face's own
-/// orientation sense beside it, and the refusal that walk can produce,
-/// in one body.
-///
-/// What it guarantees is exactly this and no more: the face doors and
-/// the Boolean's join make ONE walk to a face's geometry between them,
-/// so WHICH lookup came back empty is decided in one place rather than
-/// several. It is the face-side twin of [`edge_carrier_ref`].
+/// **A face's carrier surface, as the read-back doors refuse it**:
+/// [`Body::face_surface`], its one refusal (a stale face key) spelled
+/// [`ReadbackError::Dangling`], with the surface's key and the face's
+/// orientation sense read off the record beside it.
 pub(crate) fn carrier_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(SurfaceKey, &Surface<T>, bool), ReadbackError> {
-    let f = body.get_face(face).ok_or(ReadbackError::Dangling {
+    let surface = body.face_surface(face).ok_or(ReadbackError::Dangling {
         what: EntityId::Face(face),
     })?;
-    let surface = body.face_surface_linked(face, f);
+    let f = crate::live::proven(&body.faces, face, EntityId::Face);
     Ok((f.surface, surface, f.sense))
 }
 
@@ -260,7 +255,7 @@ pub(crate) fn carrier_surface<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face or surface key;
+/// [`ReadbackError::Dangling`] for a stale face key;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 ///
 /// ```
@@ -357,7 +352,7 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face or surface key.
+/// [`ReadbackError::Dangling`] for a stale face key.
 pub fn face_carrier<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -383,8 +378,8 @@ pub fn face_carrier<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face or surface key — the
-/// only refusals: every carrier, NURBS and approximating included,
+/// [`ReadbackError::Dangling`] for a stale face key — the
+/// only refusal: every carrier, NURBS and approximating included,
 /// has a kind.
 ///
 /// ```
@@ -486,9 +481,10 @@ pub fn edge_carrier_ref<T: Real>(
 ///
 /// The edge-side twin of [`face_carrier_kind`], and a tag read rather
 /// than a verdict (rule 1) for the same reason: the answer is which
-/// closed variant the stored carrier is, and "is this edge straight"
-/// is `edge_carrier_kind(..)? == CurveKind::Line`, with no number
-/// consulted on the way. The total flattening
+/// closed variant the stored carrier is, with no number consulted on
+/// the way. "Is this edge straight" is the carrier's own reading,
+/// `!edge_carrier_ref(..)?.is_curved()` ([`Curve3::as_line`]). The
+/// total flattening
 /// [`crate::query::edge_carrier_kind`] reads through this door and
 /// answers `None` where it refuses typed, for the reason
 /// [`face_carrier_kind`] states once for both pairs.
@@ -558,24 +554,19 @@ pub fn edge_carrier_kind<T: Real>(
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
     match edge_carrier_ref(body, edge)? {
-        Curve3::Line { origin, dir } => Ok(Pose {
+        Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {
             origin: *origin,
             axis: *dir,
             u_ref: None,
             sense: true,
         }),
-        ellipse @ Curve3::Ellipse { center, axis, .. } => Ok(Pose {
+        ellipse @ Curve3::Ellipse(geom::Ellipse { frame: geom::Frame { center, axis, .. }, .. }) => Ok(Pose {
             origin: *center,
             axis: *axis,
             u_ref: ellipse.major_frame().map(|f| f.major_dir),
             sense: true,
         }),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        }
+        Curve3::Circle(geom::Circle { frame: geom::Frame { center, axis, u_ref }, .. })
         // The spiric's six fields ARE a canonical frame: the torus
         // centre, its axis and the cutting plane's normal — the frame
         // the model holds, answered as the pose.

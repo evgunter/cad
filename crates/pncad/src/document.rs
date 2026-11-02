@@ -81,7 +81,9 @@
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught; `LoftFault` is the same for
-// `EditError::LoftShape`.
+// `EditError::LoftShape`. `SectionId` and `SectionIdFault` are the same
+// pair for `DocEdit::SetLoftSections` and
+// `EditError::SectionIdsRefused`.
 // `AuthoredStep` is how an author who recorded a step reaches its id
 // and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
 // keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
@@ -90,7 +92,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
     Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
-    Recording, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
+    apply_replayed, slot_admits,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -145,30 +148,24 @@ pub use editor_core::{Label, LabelFault};
 // `Recording::measure`) records one measure per primitive and answers
 // their outputs as `Measured` (in a `MeasureOutcome`). A caller who
 // cannot spell them cannot author one at all; `AssertionRelation` is a field
-// of `Node::Assertion` for the same reason. `Observed` and
-// `ObservedRefusal` are what `Evaluation::reading` answers a measured
-// value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// of `Node::Assertion` for the same reason. `ObservedRefusal` is what
+// `Evaluation::reading` refuses a measured value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `MinSeparationRefusal` (with `Which`, the
-// side its arms name a face by) are carried for the
-// reason a payload's payload always is: they are what
-// `UnevaluatedReason::MeasureUnavailable` and
-// `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
-// name the outer type and not the inner one can see that there is a
-// reason and never read it.
+// `Claim` and `ClearanceBounds` are what `Node::Assertion` holds: a
+// value against a bound, or a clearance between two seats within its
+// bounds.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
-pub use editor_core::clearance::{MinSeparationRefusal, Which};
 pub use editor_core::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, FaceName, MeasureOutcome, MeasurePrimitive,
-    MeasureUnavailableAt, MeasureVerb, Measured, NotAFaceName, Observed, ObservedRefusal,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, FaceName,
+    MeasureOutcome, MeasurePrimitive, MeasureVerb, Measured, NotAFaceName, ObservedRefusal,
     SitedFace, SitedRef, UnevaluatedReason, measure,
 };
 
@@ -329,12 +326,14 @@ pub use editor_core::DocParamField;
 // frame it computed in, which a payload holds wherever it holds a body;
 // `EvalCounters` counts what an evaluation built (a copy builds
 // nothing); `ComputingTwist` is `EvalOptions::computing_twist`'s type,
-// the second computing frame a test runs an evaluation in.
+// the second computing frame a test runs an evaluation in;
+// `DEFAULT_MEMBER_BUDGET` is `EvalOptions::member_budget`'s one default,
+// which a caller raising or lowering the budget reads it against.
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
-    DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
-    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
-    PoseValue, SplitSide, ValuePayload, evaluate,
+    DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
+    Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PoseValue, SplitSide, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
@@ -350,7 +349,7 @@ pub use editor_core::{Carry, Piece, Pieces};
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SelectionBodyFault, SnapshotError, load, save,
+    SectionIdBreak, SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -500,7 +499,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
-    NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
+    NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

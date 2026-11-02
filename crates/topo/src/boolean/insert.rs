@@ -520,13 +520,14 @@ pub(super) fn plan_null_pairs<T: Decide>(
     let branches = survivors
         .iter()
         .zip(&loci)
-        .map(|(r, &l)| {
+        .zip(&dirs)
+        .map(|((r, &l), dir)| {
             super::join::germ_branch(
                 &declared.sections,
                 (a_body, a_sectors[r.a].face),
                 (b_body, b_sectors[r.b].face),
                 l,
-                site,
+                (site, dir.dir),
                 band,
             )
         })
@@ -2470,8 +2471,8 @@ fn record_germ_dir<T: Decide>(
         }
         return germ_dir(sa, sb, read, band);
     }
-    let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
-    let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
+    let s_a = a_body.proven_face_surface(sa.face).clone();
+    let s_b = b_body.proven_face_surface(sb.face).clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
@@ -2966,15 +2967,16 @@ mod tests {
                     end,
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    face: FaceKey::default(),
+                    face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
+                    bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             if twin {
                 let last = secs[secs.len() - 1].clone();
                 secs.push(BoolSector {
-                    end_reach: crate::boolean::sectors::Reach::Bisector(1.0),
+                    end_reach: crate::boolean::sectors::Reach::straight_bisector(1.0),
                     ..last
                 });
             }
@@ -3088,10 +3090,11 @@ mod tests {
                 geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             ),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = vec![
             sector(Reach::Extent(1.0)),
-            sector(Reach::Bisector(1.0)),
+            sector(Reach::straight_bisector(1.0)),
             sector(Reach::Extent(1.0)),
             sector(Reach::Extent(1.0)),
         ];
@@ -3437,9 +3440,10 @@ mod tests {
                     end,
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
-                    face: crate::entity::FaceKey::default(),
+                    face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
+                    bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             (vk, secs)
@@ -3532,6 +3536,7 @@ mod tests {
                 normal, true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let (sa, sb) = (
             sector(Vec3::new(0.0, 0.0, 1.0)),
@@ -3759,6 +3764,7 @@ mod tests {
                             geom_brep::OutwardNormal::from_chart(flat, true),
                         ),
                         arm: lever,
+                        bend: crate::bound_side::FaceBend::Plane,
                     };
                     for psi in [0.0, s30.asin()].into_iter().filter(|_| s30 < 0.5) {
                         let (sy, cy) = psi.sin_cos();
@@ -3828,6 +3834,7 @@ mod tests {
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let mut pairs = 0;
         for alpha in [60.0, 179.0, 181.0, 270.0, 350.0] {
@@ -3893,10 +3900,16 @@ mod tests {
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
-            sector(0.0, Reach::Extent(1.0), 90.0, Reach::Bisector(1.0)),
-            sector(90.0, Reach::Bisector(1.0), 180.0, Reach::Extent(1.0)),
+            sector(0.0, Reach::Extent(1.0), 90.0, Reach::straight_bisector(1.0)),
+            sector(
+                90.0,
+                Reach::straight_bisector(1.0),
+                180.0,
+                Reach::Extent(1.0),
+            ),
         ];
         for inside in [10.0, 45.0, 80.0] {
             let along = Cut::apart(0, up(e));
@@ -4070,6 +4083,7 @@ mod tests {
                 normal, true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let a = [
             sector(x, y, -z, faces[0]),

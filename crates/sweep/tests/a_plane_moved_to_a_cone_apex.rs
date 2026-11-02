@@ -145,7 +145,7 @@ fn a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts() {
             .carrier()
             .clone();
         assert!(
-            matches!(carrier, geom::Curve3::Ellipse { .. }),
+            matches!(carrier, geom::Curve3::Ellipse(..)),
             "{edge:?}: the rim is the cut's ellipse, got {carrier:?}"
         );
         assert!(
@@ -428,7 +428,7 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 // The cap's other edges are against planes: its wall
                 // edge is a generator, a line at the half-angle off the
                 // axis, read here at every height of the wall's span.
-                let geom::Curve3::Line { origin: o, dir } = spec.carrier else {
+                let geom::Curve3::Line(geom::Line { origin: o, dir }) = spec.carrier else {
                     continue;
                 };
                 if (dir.x.hypot(dir.z) - t * dir.y.abs()).abs() > 1e-6 * dir.norm() {

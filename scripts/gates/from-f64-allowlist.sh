@@ -26,9 +26,9 @@
 #
 # EXEMPT BY SHAPE, and nothing else: an argument built only from
 # numeric literals (`0.5`, `-1e-3`, `2_f64`), SCREAMING_CASE constant
-# paths (`f64::consts::PI`, `ARC_SAMPLES`, `geom_core::UNIT_ROUNDOFF`),
+# paths (`f64::consts::PI`, `CLEARANCE_SAMPLES`, `geom_core::UNIT_ROUNDOFF`),
 # `as f64`, parentheses and `+ - * /` — `8.0 * f64::EPSILON`,
-# `ARC_SAMPLES as f64`. Each is a constant at compile time, so it cannot
+# `CLEARANCE_SAMPLES as f64`. Each is a constant at compile time, so it cannot
 # be a laundered value. An argument the statement view cut at a `{` (a
 # block, an `if`) is never exempt, whatever its prefix reads: it is keyed
 # `<block> <prefix>` and listed.

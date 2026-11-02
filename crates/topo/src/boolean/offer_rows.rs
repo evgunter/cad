@@ -380,11 +380,6 @@ cases! {
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
         TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
         transverse_frame(-D);
-    // Two parallel walls whose axes stand a band apart: their radical
-    // plane's normal has no decided length. The coincidence names no
-    // tolerance; the tolerance it withdrew decides the offset.
-    parallel_axes_offset_in_band: "Coincidence(Section)", D, RADICAL_PLANE_SITE,
-        Withdrawn(Because::Passes) => parallel_radical_plane_at(D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
     arc_root_just_outside_its_span: "Crossing(OnEdge)", -D, ROOT_SITE, Valued =>
@@ -489,11 +484,6 @@ const TRANSVERSE_FRAME_SITE: Door = Door::Site(
      surfaces, set directly: a ball whose wall reaches the cylinder's far side within the band \
      crosses it near-tangent, which the crossing layer meets first",
 );
-const RADICAL_PLANE_SITE: Door = Door::Site(
-    "a parallel cylinder pair's radical plane is read on the two surfaces, set directly: two \
-     walls whose axes stand a band apart coincide or nest, which the coincidence ladder and \
-     the crossing layer meet first",
-);
 const ROOT_SITE: Door =
     Door::Site("the conic root lane is asked of a carrier and a plane, set directly");
 const TANGENT_SITE: Door = Door::Site(
@@ -538,14 +528,14 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+    side_code(dir, Reach::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit-radius arc leaving a plane along it, short enough that the
 /// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
 /// `margin`.
 fn conic_bend(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::{FaceShape, pierce_side};
+    use super::super::sectors::pierce_side;
     use geom_brep::{BendBounds, ConicBend};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let extent = 2.0 * (margin / 2.0).sqrt().asin();
@@ -563,7 +553,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         Vec3::new(1.0, 0.0, 0.0),
         Reach::Conic { extent, bend },
         n,
-        FaceShape::Plane,
+        crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
         band(),
     )
@@ -755,7 +745,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
             matches!(
                 x.get_curve_geom(e.curve),
                 Some(crate::null::CurveGeom::Certified(c))
-                    if matches!(c.carrier(), geom::Curve3::Circle { .. })
+                    if matches!(c.carrier(), geom::Curve3::Circle(..))
             )
         })
         .unwrap();
@@ -982,6 +972,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     let sa = [sector(z, x, 1.0, fca), sector(-y, z, 1.0, fca)];
@@ -1027,6 +1018,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::vtxfac::pierce_germ_dir(
         &s,
@@ -1078,6 +1070,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
@@ -1196,20 +1189,6 @@ fn section_site(
         .map_err(super::super::join::site_refusal)
 }
 
-/// The radical plane of a radius-0.5 cylinder about `z` and a
-/// radius-0.3 one about the parallel axis `offset` along `x`.
-fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
-    let wall = |x: f64, radius: f64| geom::Surface::Cylinder {
-        origin: Point3::new(x, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::point(Point3::origin()));
-    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), &reach, band())
-        .map(|_| ())
-}
-
 /// The section door's reading of a germ site on a radius-0.5 cylinder
 /// about `z` and a sphere centred 0.25 off its axis whose radius
 /// reaches `reach` past the cylinder's far side.
@@ -1235,12 +1214,12 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
 /// `x = cos(t)`: a root at `t`, the conic root lane's.
 fn circle_roots(t: f64) -> Result<(), BooleanError> {
-    let circle = geom::Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = geom::Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     conic_roots(&circle, (0.0, 1.0), t.cos())
 }
 
@@ -1256,13 +1235,15 @@ const ELLIPSE: (f64, f64) = (1e4, 1e-3);
 /// window's reduction takes the later root first there).
 fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
     let (major, minor) = ELLIPSE;
-    let ellipse = geom::Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: major,
-        semi_v: minor,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        major,
+        minor,
+    ));
     let half = D / (2.0 * minor);
     let (mid, x) = if beyond {
         (core::f64::consts::PI, -major * half.cos())
@@ -1355,7 +1336,7 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let floor = plane_through(o, y, Vec3::new(0.0, 0.0, 1.0));
     let extent = (2.0 * sagitta).sqrt();
-    let ruling = geom::Curve3::Line { origin: o, dir: y };
+    let ruling = geom::Curve3::Line(geom::Line { origin: o, dir: y });
     super::super::ops::seam_must_carry(
         &floor,
         &resting_cylinder(1.0),
@@ -1485,6 +1466,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let decls = Glue {
         pairs: if rest {
@@ -1555,6 +1537,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(
@@ -2195,7 +2178,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchRaysInAFace
-        | BooleanErrorKind::TangentCrescentUnsupported
         | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::LineMaterialUnread
         | BooleanErrorKind::VertexReadTwice
@@ -2593,8 +2575,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     (
         "join.rs",
-        "crossing_cylinder_reading",
-        "BooleanDecision::Radius",
+        "section_unbuilt",
+        "BooleanDecision::CylinderAxes",
         1,
     ),
     ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
@@ -2605,15 +2587,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "section_undecided", "Coincide::Section", 1),
-    (
-        "join.rs",
-        "cylinder_pair_axes",
-        "BooleanDecision::CylinderAxes",
-        1,
-    ),
     ("join.rs", "join_escalate", "Coincide::Join", 1),
     ("join.rs", "of_join", "BooleanDecision::EdgeOnFaces", 1),
-    ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     (
         "join.rs",
         "ring_winding_order",
@@ -2673,6 +2648,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
+    ("mod.rs", "decision_words", "Coincide::VertexOnSection", 1),
     ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),
     (
         "mod.rs",
@@ -2822,7 +2798,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
-    ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
         "twin_edge",
@@ -2842,7 +2817,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2860,6 +2834,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "vertex_refusal",
+        "Coincide::VertexOnSection",
+        1,
+    ),
     (
         "reduce.rs",
         "wall_crossing",
@@ -2917,7 +2897,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "sectors.rs",
-        "bound_refusal",
+        "read_refusal",
         "BooleanDecision::ConicBend",
         1,
     ),
@@ -2930,7 +2910,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "extreme_directions", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
-    ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
     (
         "sectors.rs",
@@ -2945,10 +2924,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "bound_refusal", "Coincide::SectorSide", 1),
-    ("sectors.rs", "bound_refusal", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "LeverArm::SectorCurving", 1),
+    ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
-    ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
+    ("sectors.rs", "first_order_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentSide", 1),
     (
@@ -3029,7 +3009,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
-    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 2),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 1),
     ("node.rs", "wall_sense", "Coincide::Sectors", 1),
     (
         "node.rs",

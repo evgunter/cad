@@ -12,14 +12,17 @@
 //! `d` is `Zero`, a tangent ruling inside otherwise; crossing axes by the
 //! gap `e` along `a₁ × a₂` against the same two levels, the inner
 //! level's `Zero` a node pose: the bisector ellipses where the radii
-//! decide equal and the axes meet, the pinch otherwise.
+//! decide equal and the axes meet, the pinch otherwise. Where the walls
+//! cross in one loop or two, the thinner wall's ruling sweep counts the
+//! loops and cuts them by the region ([`ruling`]).
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
+use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
-    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
-    SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
+    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeSet, PairPose,
+    PairSection, SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -420,12 +423,16 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.radii
     }
 
-    /// The axes' unit directions, in that order.
+    /// The axes as the operands store them (unit only to their
+    /// rounding), in that order.
     pub fn axes(&self) -> [Vec3<T>; 2] {
         self.lines.map(|(_, a)| a)
     }
 
-    /// The region the pose was read across.
+    /// **The region the pose was read across**, which holds every
+    /// section point the operation can use: the ball the ruling sweep
+    /// cuts the section by and the march ends at, its cube the march's
+    /// domain.
     pub fn region(&self) -> ExtentBall<T> {
         self.region
     }
@@ -435,25 +442,42 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.stance
     }
 
-    /// **The one ball the march's domain is the cube of**: the pair's
-    /// own ball (`(r₁ + r₂)/sin θ` across and `min r + |e|/2` along the
-    /// common perpendicular, about its midpoint) where the region holds
-    /// it, and otherwise the region, which holds every section point the
-    /// operation can use. Either cube holds the pair's ball cut by the
-    /// region, so the domain is a superset of it, not the meet itself.
-    pub fn ball(&self) -> ExtentBall<T> {
-        match self.stance {
-            CcStance::Crossing {
-                foot,
-                normal,
-                sin,
-                gap,
-                ..
-            } if self.placed == RegionPlacement::Inside => {
-                crossing_ball(foot, normal, sin, gap, self.radii)
-            }
-            CcStance::Crossing { .. } | CcStance::Parallel { .. } => self.region,
-        }
+    /// **The thinner wall's rulings against the other** ([`RuledCylinders`]),
+    /// where the axes cross. Which wall is ruled is a selection on
+    /// `r₁ − r₂`, not a decision: either wall's sweep counts the section,
+    /// the thinner's over fewer branch points.
+    pub(crate) fn ruled(&self) -> Option<RuledCylinders<T>> {
+        let CcStance::Crossing {
+            foot, normal, gap, ..
+        } = self.stance
+        else {
+            return None;
+        };
+        let [r1, r2] = self.radii;
+        let [a1, a2] = self.axes();
+        let first = r1 - r2;
+        let pick = |when_first: T, when_second: T| first.select_le_zero(when_first, when_second);
+        let pick3 =
+            |p: Vec3<T>, q: Vec3<T>| Vec3::new(pick(p.x, q.x), pick(p.y, q.y), pick(p.z, q.z));
+        let other = foot + normal * gap;
+        let foot = Point3::new(
+            pick(foot.x, other.x),
+            pick(foot.y, other.y),
+            pick(foot.z, other.z),
+        );
+        let (axis, partner) = (pick3(a1, a2), pick3(a2, a1));
+        let v = axis.cross(normal);
+        Some(RuledCylinders {
+            foot,
+            n: normal,
+            v,
+            axis,
+            rho: pick(r1, r2),
+            r: pick(r2, r1),
+            gap: pick(gap, T::zero() - gap),
+            cos: axis.dot(partner),
+            beta: partner.dot(v),
+        })
     }
 
     /// Where the pair's own ball stands against the region; parallel
@@ -535,6 +559,41 @@ impl<T: Decide> CylinderCylinderPose<T> {
         }
     }
 
+    /// **The bisector planes of the node pose**: the axes' meeting point,
+    /// which both pass through, and their unit normals, along `a₁ − a₂`
+    /// (the first ellipse's) and `a₁ + a₂` (the second's), where the pose
+    /// is the bisector one; `None` otherwise. The planes the counted
+    /// ellipses lie in, and the one reading of them every consumer of the
+    /// pair takes.
+    pub fn bisector_planes(&self) -> Option<(Point3<T>, [Vec3<T>; 2])> {
+        let CcStance::Crossing {
+            foot,
+            node: Some(CcNode::Bisector { .. }),
+            ..
+        } = self.stance
+        else {
+            return None;
+        };
+        let (normals, _) = bisector_normals((self.lines[0].1, self.lines[1].1));
+        Some((foot, normals))
+    }
+
+    /// **The plane the parallel pose's rulings lie in** (their radical
+    /// plane, square to the axes' offset), as a point of it and its unit
+    /// normal, where the axes are parallel and the walls meet in a ruling
+    /// or two; `None` otherwise (walls apart or nested, coaxial ones
+    /// among them, name no plane).
+    pub fn rulings_plane(&self) -> Option<(Point3<T>, Vec3<T>)> {
+        let CcStance::Parallel { foot, across, .. } = self.stance else {
+            return None;
+        };
+        if matches!(self.parallel_section(), Some(ParallelSection::Empty) | None) {
+            return None;
+        }
+        let (at, u, _) = radical_foot(foot, across, self.radii);
+        Some((at, u))
+    }
+
     /// The point where the walls touch at an outer touch, `r₁` along the
     /// common perpendicular from the first axis toward the second.
     fn touch(&self, foot: Point3<T>, normal: Vec3<T>, gap: T) -> Point3<T> {
@@ -543,8 +602,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
     }
 }
 
-/// The pair's own ball for crossing axes (module docs of
-/// [`CylinderCylinderPose::ball`]). A point within `r₁` of the first
+/// **The pair's own ball for crossing axes**, which [`placement`] reads
+/// against the region. A point within `r₁` of the first
 /// axis and `r₂` of the second stands within `(r₁ + r₂)/sin θ` of the
 /// common perpendicular's midpoint across it, and within `min r + |e|/2`
 /// along it.
@@ -565,11 +624,11 @@ fn crossing_ball<T: Real>(
 }
 
 /// **Where `ball` stands against `region`** ([`RegionPlacement`]), the one
-/// reading every listing of the pair takes: the crossing loops are
-/// counted where the region holds the pair's ball, none where it is
-/// clear of it, and marched where it cuts it; a closed-form component
-/// is dropped where its own ball is clear of the region, and carried
-/// whole, flagged cut, where the region cuts it. A choice of listing,
+/// reading every listing of the pair takes: the crossing loops are none
+/// where the region is clear of the pair's ball, and the ruling sweep's
+/// otherwise; a closed-form component is dropped where its own ball is
+/// clear of the region, and carried whole, flagged cut, where the region
+/// cuts it. A choice of listing,
 /// not a decision about the pair, so it reads the margins' signs without
 /// recording them.
 fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) -> RegionPlacement {
@@ -594,19 +653,9 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
 
 /// A closed conic's ball: its centre, out to its larger semi-axis.
 fn conic_ball<T: Real>(curve: &Curve3<T>) -> Option<ExtentBall<T>> {
-    match *curve {
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => Some(ExtentBall::new(
-            center,
-            Curve3::semi_axes_by_size(semi_u, semi_v).0,
-        )),
-        Curve3::Circle { center, radius, .. } => Some(ExtentBall::new(center, radius.abs())),
-        Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
-    }
+    curve
+        .conic()
+        .map(|k| ExtentBall::new(k.frame().center, k.speed_hi()))
 }
 
 /// **The parameter span of the line `origin + t·dir`** (`dir` unit)
@@ -630,6 +679,30 @@ fn region_span<T: Decide>(
     Some((t - half, t + half))
 }
 
+/// **The bisector planes' unit normals** `[n₁, n₂]`, along `a₁ − a₂` and
+/// `a₁ + a₂`, with the half-angle's sine and cosine (module docs of
+/// [`bisector_ellipses`]): the one reading of the two planes, which the
+/// ellipses and [`CylinderCylinderPose::bisector_planes`] both take.
+fn bisector_normals<T: Real>((a1, a2): (Vec3<T>, Vec3<T>)) -> ([Vec3<T>; 2], [T; 2]) {
+    let two = T::from_f64(2.0);
+    let (d, s) = (a1 - a2, a1 + a2);
+    let off_unit = |v: Vec3<T>, w: Vec3<T>| v - w * v.dot(w);
+    let (dn, sn) = (d.normalize(), s.normalize());
+    let d_shorter = d.norm() - s.norm();
+    let pick = |when_le: Vec3<T>, when_gt: Vec3<T>| {
+        Vec3::new(
+            d_shorter.select_le_zero(when_le.x, when_gt.x),
+            d_shorter.select_le_zero(when_le.y, when_gt.y),
+            d_shorter.select_le_zero(when_le.z, when_gt.z),
+        )
+    };
+    let (d, s) = (pick(off_unit(d, sn), d), pick(s, off_unit(s, dn)));
+    (
+        [d.normalize(), s.normalize()],
+        [d.norm() / two, s.norm() / two],
+    )
+}
+
 /// The two bisector-plane ellipses through the axes' meeting point `p`,
 /// `e₁` in the `a₁ − a₂`-normal plane and `e₂` in the `a₁ + a₂`-normal
 /// one: each the tilted plane cut of the first wall, on the second by the
@@ -646,21 +719,7 @@ pub(crate) fn bisector_ellipses<T: Decide>(
     r: T,
     band: Band,
 ) -> Result<[Curve3<T>; 2], SectionError> {
-    let two = T::from_f64(2.0);
-    let (d, s) = (a1 - a2, a1 + a2);
-    let off_unit = |v: Vec3<T>, w: Vec3<T>| v - w * v.dot(w);
-    let (dn, sn) = (d.normalize(), s.normalize());
-    let d_shorter = d.norm() - s.norm();
-    let pick = |when_le: Vec3<T>, when_gt: Vec3<T>| {
-        Vec3::new(
-            d_shorter.select_le_zero(when_le.x, when_gt.x),
-            d_shorter.select_le_zero(when_le.y, when_gt.y),
-            d_shorter.select_le_zero(when_le.z, when_gt.z),
-        )
-    };
-    let (d, s) = (pick(off_unit(d, sn), d), pick(s, off_unit(s, dn)));
-    let (n1, n2) = (d.normalize(), s.normalize());
-    let (sin_half, cos_half) = (d.norm() / two, s.norm() / two);
+    let ([n1, n2], [sin_half, cos_half]) = bisector_normals((a1, a2));
     let mk = |n: Vec3<T>, c: T| -> Result<Curve3<T>, SectionError> {
         let u_major = tilted_section_major(n, a1.cross(n));
         Ok(Curve3::ellipse(p, n, r / c, r, u_major, band)?)
@@ -678,25 +737,39 @@ pub(crate) fn parallel_rulings<T: Real>(
     axis: Vec3<T>,
     [r1, r2]: [T; 2],
 ) -> [Point3<T>; 2] {
+    let (at, u, x) = radical_foot(foot, across, [r1, r2]);
+    let h = (r1.powi(2) - x.powi(2)).max(T::zero()).sqrt();
+    let side = axis.cross(u);
+    [at + side * h, at - side * h]
+}
+
+/// **The parallel pose's radical plane**: its point `x` along `û` from
+/// the first axis's foot, `û`, and `x` ([`parallel_rulings`]).
+fn radical_foot<T: Real>(
+    foot: Point3<T>,
+    across: Vec3<T>,
+    [r1, r2]: [T; 2],
+) -> (Point3<T>, Vec3<T>, T) {
     let d = across.norm();
     let u = across / d;
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d * T::from_f64(2.0));
-    let h = (r1.powi(2) - x.powi(2)).max(T::zero()).sqrt();
-    let side = axis.cross(u);
-    let at = foot + u * x;
-    [at + side * h, at - side * h]
+    (foot + u * x, u, x)
 }
 
 /// **The cylinder pair's section over its decided pose** (module docs),
 /// listed over the domain ([`placement`]): a closed form clear of the
 /// region is not listed, and one the region cuts is carried whole, its
 /// carrier exact past the region, flagged cut; the crossing loops are
-/// counted where the region holds the pair's ball, none where it is
-/// clear of it, and marched where it cuts it.
+/// none where the region is clear of the pair's ball, and otherwise
+/// counted and cut by the region in the ruling sweep ([`ruling`]): each
+/// a loop the region holds or an arc between two cut ends, witnessed,
+/// carried by the march.
 ///
 /// # Errors
 ///
-/// [`SectionError::Carrier`] where a bisector ellipse refuses.
+/// [`SectionError::Carrier`] where a bisector ellipse refuses;
+/// [`SectionError::Escalated`] where the sweep escalates, and
+/// [`SectionError::Unaccounted`] where its readings disagree.
 pub(super) fn cylinder_cylinder<T: Decide>(
     pose: CylinderCylinderPose<T>,
     band: Band,
@@ -717,14 +790,15 @@ pub(super) fn cylinder_cylinder<T: Decide>(
     // A ruling through `p`, cut to the region, where it reaches it.
     let ruling = |p: Point3<T>| {
         region_span(pose.region, p, axis, band).map(|span| {
-            let line = Curve3::Line {
+            let line = Curve3::Line(geom::Line {
                 origin: p,
                 dir: axis,
-            };
+            });
             let witness = line.eval((span.0 + span.1) * T::from_f64(0.5));
             (line, span, witness)
         })
     };
+    let mut set_winds = [false, false];
     let components = match pose.stance {
         CcStance::Parallel { .. } => Components::Counted(match pose.parallel_section() {
             Some(ParallelSection::Rulings(points)) => points
@@ -809,9 +883,8 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                                     ..ComponentEnds::nodes(from, to)
                                 },
                             },
-                            // The two ellipses joined at their nodes,
-                            // each a plane section round both axes.
-                            [true, true],
+                            // The winding is the node-joined set's.
+                            [false, false],
                             Some(curve.eval((span.0 + span.1) * T::from_f64(0.5))),
                             ClassCarrier::Span {
                                 curve: curve.clone(),
@@ -819,6 +892,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                             },
                         ));
                     }
+                    // The two ellipses joined at their nodes, each a plane
+                    // section round both axes.
+                    set_winds = [true, true];
                     Components::Counted(listed)
                 }
                 Some(CcNode::Pinch) | None => Components::Counted(match pose.placed {
@@ -840,50 +916,105 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         .collect(),
                 }),
             },
-            _ => match pose.placed {
-                RegionPlacement::Outside => Components::Counted(Vec::new()),
-                RegionPlacement::Straddles => Components::Marched,
-                // One loop, witnessed on the second wall's ruling on the
-                // first axis's side, where that ruling enters the first
-                // wall.
-                RegionPlacement::Inside if nest.map(|n| n.sign) == Some(Sign::Positive) => {
-                    let (o1, a1) = pose.lines[0];
-                    let (o2, a2) = pose.lines[1];
-                    let q = o2 - normal * r2.copysign(gap);
-                    let (av, bv) = (a2.cross(a1), (q - o1).cross(a1));
-                    let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
-                    let t = ((qb.powi(2) - qa * qc).max(T::zero()).sqrt() - qb) / qa;
-                    Components::Counted(vec![component(
-                        ComponentShape::Loop,
-                        [false, false],
-                        Some(q + a2 * t),
-                        ClassCarrier::General,
-                    )])
-                }
-                // Two loops, each encircling the thinner wall.
-                RegionPlacement::Inside => {
-                    let winds = match thinner {
+            // One loop or two: the ruling sweep counts them and cuts them
+            // by the region, the ball the march ends at.
+            _ => Components::Counted(match pose.placed {
+                RegionPlacement::Outside => Vec::new(),
+                RegionPlacement::Inside | RegionPlacement::Straddles => {
+                    let ruled = pose.ruled().unwrap_or_else(|| {
+                        unreachable!("a crossing stance's pose reads its ruled side")
+                    });
+                    let swept = ruling::sweep(&ruled, pose.region, band).map_err(|e| match e {
+                        SweepRefusal::Escalated(diag) => SectionError::Escalated(diag),
+                        SweepRefusal::Inconsistent(cause) => SectionError::Unaccounted {
+                            cause: cause.to_owned(),
+                        },
+                    })?;
+                    debug_assert_eq!(
+                        swept.loops,
+                        if nest.map(|n| n.sign) == Some(Sign::Positive) {
+                            1
+                        } else {
+                            2
+                        },
+                        "the ruling sweep's arcs of a positive discriminant are the loops the \
+                         pose's nest margin counts: one arc bounded by two branch points where \
+                         the walls cross in one loop, the whole turn where the thinner passes \
+                         through the fatter"
+                    );
+                    let encircling = match thinner {
                         Some(Sign::Negative) => [true, false],
                         _ => [false, true],
                     };
-                    Components::Counted(
-                        (0..2)
-                            .map(|_| {
-                                component(ComponentShape::Loop, winds, None, ClassCarrier::General)
-                            })
-                            .collect(),
-                    )
+                    swept
+                        .components
+                        .into_iter()
+                        .map(|c| SectionComponent {
+                            cut_ends: c.cut_ends,
+                            ..component(
+                                match c.cut_ends {
+                                    Some(_) => cut,
+                                    None => ComponentShape::Loop,
+                                },
+                                if c.encircles {
+                                    encircling
+                                } else {
+                                    [false, false]
+                                },
+                                Some(c.witness),
+                                ClassCarrier::General,
+                            )
+                        })
+                        .collect()
                 }
-            },
+            }),
         },
     };
     decided.extend(pose.tangency());
     let nodes = pose.nodes();
+    let node_sets = match &components {
+        Components::Counted(listed) => node_joined(listed, nodes.len(), set_winds),
+        Components::Marched | Components::Reaching(_) => Vec::new(),
+    };
     Ok(PairSection {
         lever: r1.min(r2),
         nodes,
+        node_sets,
         pose: PairPose::CylinderCylinder(pose),
         decided,
         components,
     })
+}
+
+/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
+/// they share a node, each set claiming `winds`.
+fn node_joined<T: Real>(
+    listed: &[SectionComponent<T>],
+    nodes: usize,
+    winds: [bool; 2],
+) -> Vec<NodeSet> {
+    let ends = |c: &SectionComponent<T>| match c.shape {
+        ComponentShape::Open { ends } => ends.nodes,
+        ComponentShape::Loop | ComponentShape::Point => [None, None],
+    };
+    let mut sets: Vec<NodeSet> = Vec::new();
+    for node in 0..nodes {
+        let arcs: Vec<usize> = (0..listed.len())
+            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
+            .collect();
+        if arcs.is_empty() {
+            continue;
+        }
+        // Merge every set already holding one of these arcs.
+        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
+            .into_iter()
+            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
+        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
+        all.extend(arcs);
+        all.sort_unstable();
+        all.dedup();
+        sets = rest;
+        sets.push(NodeSet { arcs: all, winds });
+    }
+    sets
 }

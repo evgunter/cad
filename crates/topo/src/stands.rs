@@ -46,7 +46,7 @@
 //! rather than the point, and propagates. The first decisive witness
 //! decides. When none does, the [`Tally`] says how many read on a surface
 //! and how many in band, and keeps the refusals ranked as one point's
-//! rays are ([`crate::ray_walk::Evidence`]), limit first; the caller
+//! rays are ([`geom_brep::ladder::Evidence`]), limit first; the caller
 //! decides what that means.
 //!
 //! A block inside another, flush on four walls, reaches the third rung:
@@ -64,7 +64,7 @@ use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 use crate::props::{QuadLane, ShellRole};
-use crate::ray_walk::Ranked;
+use geom_brep::ladder::Ranked;
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -124,9 +124,9 @@ pub(crate) struct Tally {
     /// Witnesses that read [`Witness::InBand`].
     pub(crate) in_band: usize,
     /// What the refused witnesses kept, ranked as one point's rays are
-    /// ([`crate::ray_walk::Evidence`]): a limit before an in-band
+    /// ([`geom_brep::ladder::Evidence`]): a limit before an in-band
     /// reading.
-    pub(crate) kept: crate::ray_walk::Evidence<PointInSolidError>,
+    pub(crate) kept: geom_brep::ladder::Evidence<PointInSolidError>,
 }
 
 /// The ladder's own refusals, which each caller types as its own
@@ -414,22 +414,28 @@ fn line_meetings<T: Decide>(
         vec![(-qb - root) / twice, (-qb + root) / twice]
     };
     match *c {
-        geom::Curve3::Line { origin, dir } => {
+        geom::Curve3::Line(geom::Line { origin, dir }) => {
             vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
         }
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => conic(center, axis, u_ref, radius, radius),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
+        }) => conic(center, axis, u_ref, radius, radius),
+        geom::Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => conic(center, axis, u_ref, semi_u, semi_v),
+        }) => conic(center, axis, u_ref, semi_u, semi_v),
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => Vec::new(),
     }
 }
@@ -634,12 +640,12 @@ mod rung_three_rows {
         // walk refuses to read (a null self-loop is certified so); at
         // rest it is described in the top face's chart.
         let chart = body.get_face(prism.top_face).unwrap().surface;
-        let circle = geom::Curve3::Circle {
+        let circle = geom::Curve3::circle(
             center,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.2,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::TAU)
             .unwrap()
             .at_rest_in_chart(chart, false);

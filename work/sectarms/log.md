@@ -149,6 +149,73 @@ and bodies unchanged. No orchestrator yet.
   - **(F4)** C3 states the 1×2 trace in the present tense with no code yet. That stays untrue until stage 3 or 4. Accepted as drift with a schedule.
   - **(F5)** Fixed: the torus row's stop.
   - **Load:** the slate is now well over budget (the NURBS arm is about 4 H, the cylinder unit's remaining 2 stages, the cone, the conic pairs). A split along the semantic seam (the NURBS arm vs the unbounded analytic pairs) is owed at the next natural seam.
+- 2026-11-02 — **PR 6151 merged** (cylinder stage 2), after a local main merge to clear the log conflict and a fresh green run. **The P0 NURBS arm's stage 1 is dispatched** (`sectarms/nurbs-implicit-arm-build`, dual review): classification for every implicit `f`, in C5's order. The cylinder ruling-sweep stage waits until stage 1's PR is up: the two share `exhaust.rs` and `pair_section.rs`, and disk holds about two lanes. The cylinder lane's target was freed (34% disk).
+- 2026-11-02 — **The cylinder ruling-sweep stage is dispatched** (`sectarms/cylinder-ruling-sweep`, a fresh lane in the old clone, dual review), in parallel with NURBS stage 1. They share `exhaust.rs`'s recursion, so each is told to merge main often and announce a shared function.
+  - **Scope:** one ruling-sweep module (shared with the cone later); the march seeded from the sweep and ending at the region's ball; `account_r3`/`seed_r3` skipped by the pose's statement; one-to-one cardinality in `carry`; the row-5 `debug_assert` coverage; the provisional Counted/Marched split retired; stage 2's eight slow rows measured back.
+- 2026-11-02 — **NURBS stage 1 is open: PR 6304**, frozen at `6f1be80`, CI green.
+  - **Design:** `plane_spline` becomes `spline_implicit`; plane, cylinder, sphere and torus × NURBS run hull, door, pass and sweep in C5's order; `section_cert` routes curved spline pairs through it.
+  - **Rows:** 11 new. Six mutants go red and two survive: the coincidence floor/ceiling, and dropping the `‖∇f‖` division.
+  - **The teapot probe:** all 16 spout × belly pairs are loop-free, reaching the wall's `u = 0` and `u = 1` sides, in 40–57 ms each.
+  - **The dual concurrent review runs in two cloud sessions** (R1 `session_01VyvYnJ3PnFhuUMm5FFxH5V`, R2 `session_01VyvYnMWiB71GTdL4RTvsTU`), with identical briefs on the same frozen head. Disk held only one more local build beside the cylinder lane's 15 GB target. Dispatching with bypassed permissions was refused; they run in the inherited mode. Their reports are read from their transcripts.
+- 2026-11-02 — **The cylinder ruling-sweep stage is open: PR 6309**, frozen at `ba45e0f`, CI green. The dual concurrent review runs in cloud sessions (R1 `session_01VyvYnJBD5H3jHa1e598L5q`, R2 `session_01VyvYnK4qdBYkvQqcZXYVQB`).
+  - **Results:**
+    - every crossing pose counts, and the provisional split is gone;
+    - the march is seeded from the sweep's witnesses and ends at the region's ball (`BallExit`);
+    - one-to-one `ended_by` in `matched`;
+    - the row-5 `coverage` debug_assert is calibrated;
+    - five of stage 2's eight slow rows are back in the fast set;
+    - thin-rods now counts its two cut arcs, but limb 3 still refuses them (filed on SSIMARCH, P2 H);
+    - cylinder × sphere on the ruling sweep is filed as the next ruled pair (P1 M).
+  - **To fix with the review's pass:** C3 says "seeded from the counted cut ends and witnesses", but an open arc is seeded at its witness, since a seed on the sphere can refine off the domain. The cut ends only close the match. That is a re-wording forced by the approved change, and it lands with this PR.
+- 2026-11-02 — **NURBS stage 1 (PR 6304): R1 is in** (APPROVE-WITH-FIXES, no MAJOR). It kills both of the PR's surviving mutants with rows that are not yet written: a refined quarter-cylinder for the coincidence floor, and a 1e-3-scaled leaf for the `‖∇f‖` divisions. R2 is still running.
+
+- 2026-11-02 08:10 — **PR 6309 dual review in** (cloud R1/R2 at ba45e0f, both APPROVE-WITH-FIXES, no MAJOR; tally 0 pending blind coding). Union adjudicated: must-fix — sweep point readings decided on `.lo` alone (both lanes), `ended_by` checks "nearer" not "ends at" (R2, shown by an overshoot mutant), the 6137-named row caught by `distinct` first (R2), Zero cut-end side → escalation not desync, the false "debug builds alone" comment (release has debug-assertions on), the loose `wide_walls` pin and false "swap" claim (both lanes), `straddle_row` catch-all, a saddle-witness assert that cannot go red, and the C3 rewording (witness seeds, cut ends close the match). Disclose: the pose's margins, not the sweep, decide tangency; coverage shares the enclosure arithmetic. Fix-or-file: calibration guard, BallExit/SlabExit copy, `Iv` vocabulary, two-way dependency, identity `ball`, uncalibrated constants. Fix pass sent to the ruling-sweep lane; reviewer sessions archived; reports in private notes.
+
+- 2026-11-02 08:25 — **PR 6304 merged** (P0 NURBS arm stage 1; dual review tally 0, row PR-6304.md). **Stage 2 dispatched** to the NURBS lane on `sectarms/nurbs-implicit-arm-stage2` (H, single full review): critical points by a 2×2 Krawczyk and the Hessian, the crease pass (F1, Klein's half-tube row), and the F3 wording. It runs alongside the 6309 fix pass and is told to stay out of `ruling.rs`/`march.rs` and C3's seeding sentence.
+
+- 2026-11-02 10:30 — **PR 6309's fix pass accepted** (all nine must-fix items fixed, two disclosures, four fix-if-small fixed and two filed at P4). Blind coding gave tally 0 (byte 102; nearest miss R2's 6137-row MINOR). The row file is the last commit (`ec8b741`), and the PR awaits CI. **NURBS stage 2 is up as PR 6347** (critical points by Krawczyk + Hessian; the crease pass; F3 wording; C3 untouched). Two mutants survive: Krawczyk containment (no fixture with two near zeros), and crossings (redundant on these fixtures). Single full review dispatched to a cloud session (`session_01VyvYnMFjWLMhPK6A2EqgeE`; local disk ~5.5 GB free).
+
+- 2026-11-02 10:35 — **PR 6309 merged** (cylinder × cylinder ruling sweep; closes `a-near-parallel-pairs-accounting-grows-with-the-operation-region`; dual review tally 0, row PR-6309.md). The cylinder lane's target was freed. Next on the cylinder line: stage 3 (the join reads the value; retire the frame cylinder arm, the `join_reads` gate and the per-arc winds), and cylinder × sphere on the ruling sweep (filed P1).
+
+- 2026-11-02 10:55 — **Cylinder stage 3 plan accepted** (the join reads the value): the `join_reads` gate, the frame lane's cylinder reading and `crossing_cylinder_reading` retire, and `mint_nodes`/`bisectors` read the value. Forks ruled by the orchestrator as re-hosts, not new decisions:
+  - **F1** — a germ at a node takes `SiteFoot::Node(k)`, with its arc chosen by the bisector plane, as the frame lane does today. A first-order tangent reading would be a second reading. Stop if the plane choice needs a margin the value lacks.
+  - **F2** — the winding lives on a `NodeSet { arcs, winds }` on `PairSection`, the direct reading of C5's "claims it of its node-joined set".
+  - **F3** — the parallel lane retires only if the carried lane already cuts open line components at the region; otherwise it stays, narrowed, and a P1 3b row is filed.
+  
+  Rows that move at the lever change are fork 224 applied, with margins quoted. Tier: H, dual review.
+
+- 2026-11-02 11:40 — **PR 6347 full review in** (cloud, APPROVE-WITH-FIXES at 2799753e, no unsound decision). Fix pass sent to the NURBS lane:
+  - The partner Hessian is unguarded (sphere `frame_hessian` zeroed, all rows green). Add rows for the saddle-under-a-sphere fixture, plus cylinder and torus.
+  - The cluster padding is unpinned.
+  - The Krawczyk survivor's reason is corrected: containment proves existence, not uniqueness.
+  - The crossings survivor rests on `ders` hulling the adjacent span, against a comment saying the opposite. Prefer one-sided reads, making the crossing reading load-bearing.
+  - Stale docs, and a row for the early `Unread`.
+  - Fix-or-file: a global budget across crease pieces, the plane code written twice, a verdict-taking constructor, and the Hessian-sign audit row.
+  - Disclose: the 256 cap, not the Hessian, stops near-flat tops; C5's node sentence vs the pinch is staging until stage 3.
+  
+  Review session archived.
+
+- 2026-11-02 13:05 — **PR 6347 merged** (NURBS arm stage 2; single full review, fix pass accepted).
+  - Every must-fix item was closed, the partner-Hessian rows were added for all three forms, and the crossings read is now load-bearing (one-sided line reads at cut knots).
+  - Two mutants survive, each with a stated reason:
+    - the cluster reach: the covering argument is in code;
+    - Krawczyk containment: it proves existence and is masked by the 256 cap. Filed `no-row-guards-the-krawczyk-existence-test-on-a-spline-critical-point` (P3 M).
+  - Also filed by the lane: the per-piece cell budget (P3 E).
+  - Next on the NURBS line: stage 3, the curved whole reading, listing a node's or a touch's neighbouring arcs. It will be dispatched once cylinder stage 3, which shares the join, is up.
+
+- 2026-11-02 13:30 — **NURBS stage 3 plan accepted, held for cylinder stage 3.** Its node arcs ride the cylinder lane's `NodeSet`/`SiteFoot::Node`. Scope:
+  - a new 1×2 implicit-chart lane (`ImplicitSection`);
+  - limb 1–3 certificates;
+  - metres accounting;
+  - the curved whole reading, which retires `curved::unbuilt` and, where arcs are listed, the pinch.
+
+  Forks ruled as re-uses, not new decisions:
+  - an arc meets a node by marching inward, seeded by rim crossings and accounting, and ends on entering the node's box (C5's node end). No outward null-direction march.
+  - a touch keeps stage 2's pad reach (topo's Touch arm allows the band loop). A certified ring would be new scope.
+  - limb 3 generalises the plane's chart tube over `Phi`, one home.
+
+  Tier: H, dual review.
+- 2026-11-02 — **Cylinder ruling-sweep stage (branch `sectarms/cylinder-ruling-sweep`).** Built the build items of `a-near-parallel-pairs-accounting-grows-with-the-operation-region`, which closes. One ruling-sweep module (`pair_section::ruling`, the `Ruled` shape shared with the cone), a one-to-one cut-end and witness match in the carry, the march ending at the region's ball and seeded from the count, and a row-5 coverage `debug_assert` read from the operands' general quadratic. Filed: cylinder × sphere as the next ruled pair (`cylinder-sphere-reads-its-pose-on-the-ruling-sweep`, P1 M), and the thin-rod row's limb-3 refusal on SSIMARCH.
 - 2026-11-02 — **NURBS stage 1 (PR 6304) reviewed and fixed.** Dual concurrent review in cloud sessions on `6f1be80`; both reviewers APPROVE-WITH-FIXES.
   - **The one MAJOR is bilateral, at divergent severity:** no row pinned a curved partner's metres conversion (fixtures all had R ≈ 1).
   - **Fix pass `32cb604` added:**
@@ -161,3 +228,4 @@ and bodies unchanged. No orchestrator yet.
   - **Filed:** `a-curved-partners-coincidence-ceiling-is-read-per-net` (P3 E) and `the-canonical-implicit-forms-are-spelled-three-times` (P3 M).
   - A wall tangent along a whole side refuses by the cell budget on the plane path too, so it is not new and not filed.
   - **Class to watch:** fixtures at unit scale cannot see a units error. A conversion's rows need a scale far from 1.
+- 2026-11-02 — **Cylinder stage 3 (branch `sectarms/cylinder-join-reads-value`).** The join reads every cylinder pose on the section value, and the frame lane's cylinder readings and the `join_reads` gate retire. The rulings (F3) and bisector lanes stay as plane lanes with their planes from the value, because the carried lane chords only spline components; filed stage 3b (`the-carried-lane-chords-only-spline-components`, P1 H). F1 needed no `SiteFoot::Node`: the bisector germ's branch is its plane, read on the value's planes, and a node germ's branch is set at mint as before. F2: `NodeSet` on `PairSection`, read by `section_cert` and checked per set at the carry. Filed: `the-glue-witness-lane-reads-a-cylinder-pairs-tangency-beside-the-value` (P2 M).

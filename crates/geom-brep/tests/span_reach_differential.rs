@@ -117,10 +117,7 @@ fn ulps(p: Point3<f64>, d: f64) -> f64 {
 
 fn line(p: Point3<f64>, q: Point3<f64>) -> Reach<f64> {
     Reach::Span {
-        carrier: Curve3::Line {
-            origin: p,
-            dir: q - p,
-        },
+        carrier: Curve3::line(p, q - p),
         t0: 0.0,
         t1: 1.0,
     }
@@ -139,12 +136,7 @@ fn patch(
     let y = a.cross(x);
     let at = |u: f64, v: f64| o + (x * u.cos() + y * u.sin()) * r + a * v;
     let rim = |v: f64| Reach::Span {
-        carrier: Curve3::Circle {
-            center: o + a * v,
-            axis: a,
-            radius: r,
-            u_ref: x,
-        },
+        carrier: Curve3::circle(o + a * v, a, r, x),
         t0: u0,
         t1: u0 + du,
     };
@@ -178,12 +170,7 @@ fn sector(
 ) -> Face {
     let at = |rho: f64, t: f64| c + (x * t.cos() + y * t.sin()) * rho;
     let arc = |rho: f64| Reach::Span {
-        carrier: Curve3::Circle {
-            center: c,
-            axis: x.cross(y),
-            radius: rho,
-            u_ref: x,
-        },
+        carrier: Curve3::circle(c, x.cross(y), rho, x),
         t0,
         t1: t0 + dt,
     };
@@ -542,20 +529,13 @@ fn oblique_patch(
     let cut = |v: f64, f: f64| {
         let u_ref = (x - a * f.tan()) * f.cos();
         let carrier = if f == 0.0 {
-            Curve3::Circle {
-                center: o + a * v,
-                axis: a,
-                radius: r,
-                u_ref: x,
-            }
+            Curve3::circle(o + a * v, a, r, x)
         } else {
-            Curve3::Ellipse {
-                center: o + a * v,
-                axis: u_ref.cross(y),
-                semi_u: r / f.cos(),
-                semi_v: r,
-                u_ref,
-            }
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(o + a * v, u_ref.cross(y), u_ref),
+                r / f.cos(),
+                r,
+            ))
         };
         Reach::Span {
             carrier,

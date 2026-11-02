@@ -59,7 +59,7 @@ pub(super) fn nappe_axis<T: Decide>(apex: &ConeApex<T>, like: Vec3<T>) -> Vec3<T
 }
 
 /// **A bound's side of a sector's face** at the base vertex: a plane's
-/// side ([`super::sectors::plane_side_code`]), or a fan's — the side of
+/// side ([`super::sectors::sector_code`]), or a fan's — the side of
 /// the face's nappe its departure ray lies on, read at the bound's reach
 /// ([`nappe_offset`], `bool_fan_side`), In where that is the face's
 /// material ([`ConeApex::material_inside`]).
@@ -81,8 +81,8 @@ pub(super) fn face_side_code<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let apex = match &other.at_vertex {
-        BoolFace::Tangent(normal) => {
-            return super::sectors::plane_side_code(dir, reach, *normal, band);
+        BoolFace::Tangent(_) => {
+            return super::sectors::sector_code(dir, reach, other, band);
         }
         BoolFace::Apex(apex) => apex,
     };
@@ -365,7 +365,7 @@ fn plane_fan<T: Decide>(
     };
     let mut rays = Vec::with_capacity(2);
     for line in lines {
-        let geom::Curve3::Line { dir, .. } = line else {
+        let geom::Curve3::Line(geom::Line { dir, .. }) = line else {
             unreachable!("a cone's section ruling through its apex is a line")
         };
         rays.push(apex.onto_nappe_of(dir, fan.start));
@@ -536,10 +536,11 @@ mod rows {
                 he: HalfEdgeKey::from(key(1)),
                 start,
                 end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
-                start_reach: Reach::Bisector(1.0),
-                end_reach: Reach::Bisector(1.0),
+                start_reach: Reach::straight_bisector(1.0),
+                end_reach: Reach::straight_bisector(1.0),
                 face: FaceKey::from(key(2)),
                 at_vertex: BoolFace::Apex(apex),
+                bend: crate::bound_side::FaceBend::Plane,
                 arm: 1.0,
             };
             let partner = super::super::vtxfac::Partner {

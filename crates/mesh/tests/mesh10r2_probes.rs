@@ -40,7 +40,7 @@ fn split_seam_donut(fracs: &[f64]) -> (Body<f64>, topo::EdgeKey, Vec<topo::EdgeK
         .unwrap()
         .clone();
     assert!(
-        matches!(curve.carrier(), Curve3::Circle { radius, .. } if (*radius - 0.5).abs() < 1e-12),
+        matches!(curve.carrier(), Curve3::Circle(geom::Circle { radius, .. }) if (*radius - 0.5).abs() < 1e-12),
         "the fixture's first edge is the seam minor circle"
     );
     let (t0, t1) = curve.params();
@@ -177,7 +177,7 @@ fn m10r2_split_lineage_after_graft() {
         };
         let ids: Vec<_> = outer
             .iter()
-            .filter(|e| matches!(e.carrier, Curve3::Circle { radius, .. } if (radius - 0.5).abs() < 1e-12))
+            .filter(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { radius, .. }) if (radius - 0.5).abs() < 1e-12))
             .map(|e| (e.forward, e.carrier_id, e.t0, e.t1))
             .collect();
         if !ids.is_empty() {
@@ -289,22 +289,20 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             .unwrap()
             .clone();
         let mut spec = cert.restated_spec();
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = spec.carrier
+        }) = spec.carrier
         else {
             panic!("the seam is a circle")
         };
         let w = axis.cross(u_ref);
-        spec.carrier = Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref: u_ref * phi.cos() + w * phi.sin(),
-        };
+        spec.carrier = Curve3::circle(center, axis, radius, u_ref * phi.cos() + w * phi.sin());
         spec.param_start -= phi;
         spec.param_end -= phi;
         println!(

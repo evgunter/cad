@@ -49,12 +49,12 @@ fn cut_plane(z: f64, up: bool) -> Surface<f64> {
 
 /// The cut circle at height `z` on the unit sphere.
 fn cut_circle(z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: (1.0 - z * z).sqrt(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        (1.0 - z * z).sqrt(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// A unit ball cut by the plane `Z = z`, as two faces sharing the cut
@@ -276,12 +276,12 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
     let delta = 3.0 * tol.eps();
     // The great circle whose normal makes `n·z = sin δ`: it passes `δ`
     // from each pole.
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(delta.cos(), 0.0, delta.sin()),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(delta.cos(), 0.0, delta.sin()),
+        1.0,
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let (a, b) = (Point3::new(0.0, 1.0, 0.0), Point3::new(0.0, -1.0, 0.0));
     let pi = core::f64::consts::PI;
     let mut body = Body::<f64>::new();
@@ -355,12 +355,9 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
 }
 
 /// **A cap whose rim is tilted against its sphere's axis holds a pole
-/// by its region, as `locate` reads it** (DESIGN `[topology.tiers]`, a
-/// chart singularity in a face's closure is a vertex of it, read off the
-/// face's region rather than off a meridian). It pins tier 3's pole
-/// reading, `geom_brep::chart_singularity::locate`'s closed form, which
-/// `work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`
-/// moves onto the doors; the row then pins the doors. The cut stays at `z = 0.5` and the
+/// by its region** (DESIGN `[topology.tiers]`, a chart singularity in a
+/// face's closure is a vertex of it; tier 3 reads the pole's side through
+/// the face's point-in-face door). The cut stays at `z = 0.5` and the
 /// sphere's axis tilts by `tilt` about `y`, so the rim is no parallel of
 /// the chart: at `0.3` the north pole stands at `z = cos 0.3 > 0.5`, in the
 /// cap, and is refused; at `1.2` it stands at `z = cos 1.2 < 0.5`, the
@@ -491,10 +488,8 @@ where
 /// interior to the face; outside, the face holds neither pole and tier 3
 /// says nothing of them. Each pole is off the boundary by far more than
 /// the band, so the reading is a side of the face's region, which no
-/// distance to its boundary decides. Tier 3 reads it by `locate` today
-/// (`work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`
-/// owes the switch); the door's own reading at the pole is pinned beside
-/// it.
+/// distance to its boundary decides: the face's door at the pole, which
+/// tier 3 reads it through, pinned beside tier 3's finding.
 #[test]
 fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars() {
     use geom_core::Interval;

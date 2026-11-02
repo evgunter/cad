@@ -4,10 +4,13 @@
 //! closure ([`locate`]).
 //!
 //! Every chart singularity in a face's closure is a vertex of it (DESIGN
-//! `[topology.tiers]`, tier 3). Two doors read that statement through
-//! [`locate`]: `step-import`'s normalization, which makes each such point
-//! a vertex of the face it lies in, and tier 3, which refuses a face
-//! where one is not. The reading is form-neutral: it never asks whether
+//! `[topology.tiers]`, tier 3). Two doors read that statement:
+//! `step-import`'s normalization, through [`locate`], which makes each
+//! such point a vertex of the face it lies in; and tier 3, which refuses
+//! a face where one is not, placing the point on the boundary by
+//! [`place_on_boundary`] (the one incidence reading, [`locate`]'s first)
+//! and its side by the face's point-in-face door, the one reading of a
+//! point's place in a face. The reading is form-neutral: it never asks whether
 //! a loop has a meridian, since a tilted cap holds a pole with none and
 //! a meridian spur that stops short of the pole has one and still holds
 //! it.
@@ -209,7 +212,9 @@ pub enum SideUnread {
     /// decides it.
     Straddle,
     /// A band decision of the reading is in band: an arc's span within
-    /// the band of a whole turn, read by the closed form.
+    /// the band of a whole turn, read by the closed form, or, at tier 3,
+    /// any reading of the face's point-in-face door in band, carried
+    /// with its escalation.
     Banded(Indeterminate),
 }
 
@@ -253,9 +258,10 @@ pub enum Unread<T> {
     },
 }
 
-/// **A reading in band**, owned: what tier 3 and import refuse a point
-/// [`locate`] could not place on its boundary or a side of it, and the
-/// one ending each refusal carries ([`Undecided::recourse`]). The
+/// **A reading in band**, owned: what import refuses a point [`locate`]
+/// could not place on its boundary or a side of it, and tier 3 one
+/// [`place_on_boundary`] or the face's point-in-face door could not, and
+/// the one ending each refusal carries ([`Undecided::recourse`]). The
 /// exempt readings ([`Unread::Carrier`], [`Unread::Loop`]) are not one.
 /// Not on a curated `pncad` list, argued at [`SideUnread`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -423,7 +429,7 @@ fn locate_one<T: Decide>(
 /// A distance in band ([`Unread::Boundary`]), answered before a sampled
 /// edge that does not settle ([`Unread::Carrier`]), and each only where
 /// no other vertex or edge places `x` on the boundary.
-pub(crate) fn place_on_boundary<T: Decide>(
+pub fn place_on_boundary<T: Decide>(
     loops: &[FaceLoop<'_, T>],
     x: Point3<T>,
     band: Band,
@@ -498,15 +504,9 @@ enum Near<T> {
 /// spelling of the foot, which import's meridian landing cites.
 pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     match *carrier {
-        Curve3::Line { origin, dir } => Some((x - origin).dot(dir) / dir.dot(dir)),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let w = x - center;
-            let t = w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref));
+        Curve3::Line(line) => Some(line.param(x)),
+        Curve3::Circle(ref c) => {
+            let t = geom::Conic::angle_of(c, x);
             Some(from + (t - from).reduce_periodic(T::tau()))
         }
         _ => None,
@@ -521,8 +521,8 @@ pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
 fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T> {
     let (t0, t1) = (e.t0, e.t1);
     let speed = match e.carrier {
-        Curve3::Line { dir, .. } => dir.norm(),
-        Curve3::Circle { radius, .. } => radius,
+        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
+        Curve3::Circle(geom::Circle { radius, .. }) => radius,
         _ => return sampled_near(e, x, band),
     };
     let Some(t) = foot(&e.carrier, x, t0) else {
@@ -1083,17 +1083,18 @@ impl<T: Decide> EdgeShape<T> {
     fn of(carrier: &Curve3<T>, axis: Vec3<T>) -> Option<Self> {
         let speed = speed_bound(carrier)?;
         Some(match *carrier {
-            Curve3::Line { .. } => Self {
+            Curve3::Line(_) => Self {
                 speed,
                 line: true,
                 height: None,
             },
-            Curve3::Circle {
-                axis: n, radius, ..
-            } => Self {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { axis: n, .. },
+                radius,
+            }) => Self {
                 speed,
                 line: false,
-                height: Some(radius.abs() * T::from_f64(2.0) * axis.cross(n / n.norm()).norm()),
+                height: Some(radius * T::from_f64(2.0) * axis.cross(n / n.norm()).norm()),
             },
             _ => Self {
                 speed,

@@ -80,7 +80,7 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
             [true, false],
             "circle {k} winds about the cylinder"
         );
-        let ClassCarrier::Closed(curve @ Curve3::Circle { .. }) = &c.carrier else {
+        let ClassCarrier::Closed(curve @ Curve3::Circle(..)) = &c.carrier else {
             panic!("circle {k}: a closed-form circle, got {:?}", c.carrier);
         };
         for i in 0..6 {

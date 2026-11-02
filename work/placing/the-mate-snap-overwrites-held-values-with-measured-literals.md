@@ -2,11 +2,12 @@
 id: the-mate-snap-overwrites-held-values-with-measured-literals
 kind: issue
 title: committing a mate snaps every held value to a measured literal, so a value that read a variable stops reading it
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 rides_with: mate-tool-commits-one-mate
+closed: 2026-11-02
 ---
 
 
@@ -20,3 +21,7 @@ Found by the PLACING sweep Ev asked for on PR 6281 (2026-11-02): "can you see if
 - So `x = px` on a freedom the new mate leaves becomes `x = 0.0347…` and stops reading `px`. The variable is silently unlinked.
 
 The bundle editor's Apply must not do this. This row rides with that unit, which closes it: a row there commits a mate beside a value reading a variable, and asserts the variable is still read.
+
+## Closed (2026-11-02, PR 6300)
+
+Answered by the bundle editor as merged, with its dual review's fix passes; see `mate-tool-commits-one-mate`'s Closed section and `docs/dual-review-log/rows/PR-6300.md`.

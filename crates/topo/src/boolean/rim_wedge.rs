@@ -44,6 +44,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 use crate::validate::{MaterialArmOutcome, MaterialStations};
 use crate::{Body, FaceKey};
 use geom_brep::MaterialWedge;
+use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -142,50 +143,41 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
-    // A pair decided one answers whatever another pair read; an
-    // undecided pair refuses only where none is.
-    let mut undecided = None;
-    let mut undecided_logs = Vec::new();
-    for ra in face_boundary_circles(a, fa) {
-        for rb in face_boundary_circles(b, fb) {
-            let (read, log) = geom_core::k_stats::detached(|| same_circle(ra, rb, band));
-            match read {
-                Ok(Some(margin)) => {
-                    undecided_logs
-                        .into_iter()
-                        .for_each(geom_core::k_stats::splice_superseded);
-                    geom_core::k_stats::splice(log);
-                    return Ok(Some((ra, margin)));
-                }
-                Ok(None) => geom_core::k_stats::splice(log),
-                Err(diag) => {
-                    undecided_logs.push(log);
-                    undecided.get_or_insert(diag);
-                }
-            }
-        }
-    }
-    undecided_logs
+    // A pair decided one answers whatever another pair read: the ladder
+    // whose answer is a pair decided one. Which pair answers names the
+    // rim, and that it is THE shared rim rests on no earlier pair being
+    // one too (a face pair riding two circles is outside this door), so
+    // an undecided pair ahead of the answer stays live
+    // (`Answering::First`).
+    let bs = face_boundary_circles(b, fb);
+    let pairs = face_boundary_circles(a, fa)
         .into_iter()
-        .for_each(geom_core::k_stats::splice);
-    undecided.map_or(Ok(None), Err)
+        .flat_map(|ra| bs.iter().map(move |&rb| (ra, rb)));
+    match climb(Answering::First, pairs, |(ra, rb)| {
+        match same_circle(ra, rb, band) {
+            Ok(Some(margin)) => Rung::Answers((ra, margin)),
+            Ok(None) => Rung::Passes,
+            Err(diag) => Rung::kept(diag),
+        }
+    }) {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(diag) => Err(diag),
+    }
 }
 
-/// Whether two circles are one, on their own data at `band`, by the
-/// identity ladder's rule ([`super::carrier_eq::identity_data`]): any
-/// datum decided apart answers no, so an in-band radius never hides a
-/// centre decided elsewhere. Radius and centre first, angle last — the
+/// Whether two circles are one, on their own data at `band`: the
+/// identity ladder ([`read_identity`]), so an in-band radius never hides
+/// a centre decided elsewhere. Radius and centre first, angle last — the
 /// two LENGTH data separate almost every non-rim pair definitely and
 /// cheaply. [`shared_rim`]'s docs carry the rest. The circles' one
-/// margin, where every datum decides Zero: the radius row's, standing
-/// jointly for the others.
+/// margin, where every datum decides Zero: the data's, taken jointly.
 fn same_circle<T: Decide>(
     ra: Rim<T>,
     rb: Rim<T>,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
-    use super::carrier_eq::IdentityData;
-    match super::carrier_eq::identity_data(
+    match read_identity(
         [
             ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
             ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
@@ -196,9 +188,9 @@ fn same_circle<T: Decide>(
         ],
         band,
     ) {
-        IdentityData::Distinct => Ok(None),
-        IdentityData::One(margin) => Ok(margin),
-        IdentityData::Undecided(measure) => Err(measure.reported()),
+        IdentityLadder::Apart { .. } => Ok(None),
+        IdentityLadder::Zero(margin) => Ok(margin),
+        IdentityLadder::Undecided(diag) => Err(diag),
     }
 }
 
@@ -565,13 +557,11 @@ fn contains<T: Decide>(
         super::contain::ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
         _ => unread,
     };
-    let f = body.get_face(face).ok_or(unread)?;
-    let read = match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => {
+    let read = match body.proven_face_surface(face) {
+        geom::Surface::Plane { normal, .. } => {
             super::contain::contfp(body, face, *normal, p, band).map(Some)
         }
-        Some(_) => super::contain::curved_face_containment(body, face, p, band),
-        None => return Err(unread),
+        _ => super::contain::curved_face_containment(body, face, p, band),
     };
     // The boundary pass placed the point at an arc's end and clear of
     // its corners, two definite readings no verdict reconciles at this
@@ -678,9 +668,13 @@ fn curve_sense<T: Decide>(
     band: Band,
 ) -> Result<geom_core::Sign, Indeterminate> {
     match (locus, curve.carrier()) {
-        (Locus::Rim(rim), geom::Curve3::Circle { axis, .. }) => {
-            crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band)
-        }
+        (
+            Locus::Rim(rim),
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { axis, .. },
+                ..
+            }),
+        ) => crate::validate::decide("seam_rim_axis_sense", Margin::of(axis.dot(rim.axis)), band),
         _ => Ok(geom_core::Sign::Positive),
     }
 }
@@ -741,7 +735,7 @@ fn crossings<T: Decide>(
     let inside = |m: T| matches!(read(m), Ok(geom_core::Sign::Positive));
     let mut candidates: Vec<Point3<T>> = Vec::new();
     match (curve.carrier(), locus) {
-        (geom::Curve3::Line { .. }, _) => {
+        (geom::Curve3::Line(_), _) => {
             let p1 = curve.carrier().eval(t1);
             let w = p1 - p0;
             match locus {
@@ -797,12 +791,10 @@ fn crossings<T: Decide>(
             Ok(Some(kept))
         }
         (
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
                 radius,
-                ..
-            },
+            }),
             _,
         ) => {
             let (ce, ae, re) = (*center, *axis, *radius);
@@ -822,7 +814,7 @@ fn crossings<T: Decide>(
                         candidates.push(origin + dir * (ae.dot(ce - origin) / ad));
                     }
                     if maybe_zero(ad) && maybe_zero(ae.dot(origin - ce)) {
-                        let foot = origin + dir * (ce - origin).dot(dir);
+                        let foot = geom::Line { origin, dir }.foot(ce);
                         let h = (foot - ce).norm();
                         if maybe_not_positive(h - re) {
                             let half = (re.powi(2) - h.powi(2)).max(T::zero()).sqrt();
@@ -893,12 +885,15 @@ fn rides<T: Decide>(
     match (locus, curve.carrier()) {
         (
             Locus::Rim(rim),
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            },
+            }),
         ) => same_circle(
             Rim {
                 center: *center,
@@ -910,7 +905,7 @@ fn rides<T: Decide>(
             band,
         )
         .map(|one| one.is_some()),
-        (Locus::Line { origin, dir }, geom::Curve3::Line { .. }) => {
+        (Locus::Line { origin, dir }, geom::Curve3::Line(_)) => {
             let (t0, t1) = curve.params();
             for p in [curve.carrier().eval(t0), curve.carrier().eval(t1)] {
                 let d = p - origin;
@@ -962,12 +957,15 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
     face_boundary_arcs(body, face)
         .into_iter()
         .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => Some(Rim {
+            }) => Some(Rim {
                 center,
                 axis,
                 radius,
@@ -1816,21 +1814,11 @@ mod boundary_midpoint_rows {
         };
         for alpha in [0.3, 2.0, 4.0] {
             let e = Vec3::new(alpha.cos(), alpha.sin(), 0.0);
-            let small = geom::Curve3::Circle {
-                center: Point3::origin() + e * 0.5,
-                axis: Vec3::unit_z(),
-                radius: 0.5,
-                u_ref: e,
-            };
+            let small = geom::Curve3::circle(Point3::origin() + e * 0.5, Vec3::unit_z(), 0.5, e);
             let (a, fa) = arc_cap(small, (-1.0, 1.0), Vec3::new(0.0, 0.0, 0.0), tol);
             let got = GAPS.map(|gap| {
                 let beta = (2.0 * gap * zero).sqrt();
-                let unit = geom::Curve3::Circle {
-                    center: rim.center,
-                    axis: rim.axis,
-                    radius: rim.radius,
-                    u_ref: rim.u_ref,
-                };
+                let unit = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
                 let (b, fb) = arc_cap(
                     unit,
                     (alpha - 1.0, alpha + 2.0 * beta),

@@ -48,7 +48,7 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// refuse by name.
 fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
-        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
+        Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => Ok(()),
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
@@ -306,34 +306,30 @@ pub(super) fn translated_surface<T: Decide>(
 pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> Option<Curve3<T>> {
     let shift = |p: Point3<T>| Point3::origin() + (p - by);
     Some(match curve.clone() {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: shift(origin),
-            dir,
-        },
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(shift(origin), dir),
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: shift(center),
-            axis,
-            radius,
-            u_ref,
-        },
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => Curve3::circle(shift(center), axis, radius, u_ref),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => Curve3::Ellipse {
-            center: shift(center),
-            axis,
+        }) => Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(shift(center), axis, u_ref),
             semi_u,
             semi_v,
-            u_ref,
-        },
+        )),
         Curve3::Spiric {
             center,
             axis,
@@ -674,11 +670,11 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
-        Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
-        Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse { semi_u, semi_v, .. } => {
-            (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
-        }
+        Curve3::Line(geom::Line { dir, .. }) => (dir.norm() * Interval::point(span)).mag(),
+        Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
+            Some(k) => (k.speed_hi() * Interval::point(span)).mag(),
+            None => unreachable!("a circle or an ellipse is a conic"),
+        },
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
             .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
@@ -1406,7 +1402,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
     t1: T,
 ) -> Result<f64, PropsError> {
     Ok(match carrier {
-        Curve3::Line { dir, .. } => {
+        Curve3::Line(geom::Line { dir, .. }) => {
             (Interval::from_certified(dir.norm()) * Interval::from_certified(t1 - t0)).mag()
         }
         // The control polygon bounds the spline's arc length
@@ -1421,7 +1417,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
         // An ARC cap rim on a rational wall (M8-3): the metric
         // length is exactly `r·Δθ` — the carrier's own parameter
         // IS the angle, so no bound is needed.
-        Curve3::Circle { radius, .. } => {
+        Curve3::Circle(geom::Circle { radius, .. }) => {
             (Interval::from_certified(*radius) * Interval::from_certified(t1 - t0)).mag()
         }
         _ => {
@@ -1649,10 +1645,7 @@ mod tests {
 
         fn line(a: Point3<Interval>, b: Point3<Interval>, tags: (u32, u32)) -> LoopEdge<Interval> {
             LoopEdge::hand_built(
-                Curve3::Line {
-                    origin: a,
-                    dir: b - a,
-                },
+                Curve3::line(a, b - a),
                 iv(0.0),
                 iv(1.0),
                 true,

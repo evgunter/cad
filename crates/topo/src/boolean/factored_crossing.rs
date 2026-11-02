@@ -74,11 +74,14 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<Option<CurvedEvent<T>>, BooleanError> {
     let walls = [edge.he_plus, edge.he_minus].map(|he| x.face_of_half_edge(he));
-    let Some((wall, planes)) = walls
-        .into_iter()
-        .flatten()
-        .find_map(|wall| node::bisectors((x, x_is, wall), (y, face), band).map(|p| (wall, p)))
-    else {
+    let mut found = None;
+    for wall in walls.into_iter().flatten() {
+        if let Some(p) = node::bisectors(&declared.sections, (x, x_is, wall), (y, face))? {
+            found = Some((wall, p));
+            break;
+        }
+    }
+    let Some((wall, planes)) = found else {
         return Ok(None);
     };
     let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
@@ -114,7 +117,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     // Read off the carrier, not interpolated between the
                     // ends: the ends' two distances share their rounding,
                     // which an enclosure would count twice.
-                    let geom::Curve3::Line { origin, dir } = *carrier else {
+                    let Some(geom::Line { origin, dir }) = carrier.as_line() else {
                         return Ok(None);
                     };
                     roots[i].push((centre - origin).dot(normal) / dir.dot(normal));

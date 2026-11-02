@@ -32,7 +32,11 @@
 //! comes through one door: [`metric`], whose [`metric::Distance`] is
 //! built only from a point and a plane (a point on it and its unit
 //! normal), or from a segment and a round carrier, as its lowest point's
-//! ([`Round`]). Directions — face normals, ray
+//! ([`Round`]), or from a bound's departure off a plane to the order read.
+//! The one bound-side reading decides its signs at the same door, on the
+//! [`metric::Reading`] its caller passes ([`crate::bound_side`]), so a
+//! side handed to a cone is decided on the cone's own reading
+//! ([`Cone::reading`]). Directions — face normals, ray
 //! directions, their bisectors — only PROPOSE planes. One other sign
 //! stays, named where it is made: [`pairing`], of unit normals of
 //! magnitude about 1. Beside the signs, [`Link::lowest_on`] and
@@ -42,8 +46,9 @@
 //! point exactly on the axis as structure, by whether the scalar moves it.
 //! `link::tests::the_link_decides_only_through_its_doors` holds the signs
 //! to the doors by reading this file's source, the census's touch
-//! analysis beside it, and the boolean's gathering of its cone, and says
-//! what such a reading cannot see.
+//! analysis beside it, the boolean's gathering of its cone, and the
+//! bound-side reading's two orders, and says what such a reading cannot
+//! see.
 //!
 //! Each face is read through its PIECE at the point `p`: the part of the
 //! face visible from `p` ([`face_piece`]). The piece is star-shaped from
@@ -65,7 +70,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
-use crate::validate::decide;
 
 /// K name: a point's signed distance from the plane of a link's face
 /// through the touch point `p`, in metres — which side of the face's
@@ -80,9 +84,13 @@ const LINK_WEDGE: &str = "link_wedge";
 /// metres — ahead of `p` or behind it, read no further out than the
 /// ray's point.
 const LINK_AHEAD: &str = "link_ahead";
-/// K name: a parity arc's two ends read against the plane through `p`
-/// normal to their bisector, in metres — the arc under half a turn.
+/// K name: a parity arc's two ends at one distance read against the
+/// plane through `p` normal to their bisector, in metres — the arc under
+/// half a turn.
 const LINK_ARC: &str = "link_arc";
+/// K name: a parity arc's ends at two distances, the segment's nearest
+/// point's distance from `p`, in metres — the arc clear of `p`.
+const LINK_ARC_REACH: &str = "link_arc_reach";
 /// K name, building a face's piece: one edge's crossing of a probe ray
 /// read against another's along the ray, in metres — which edge the ray
 /// meets first.
@@ -108,18 +116,25 @@ const LINK_ROUND: &str = "link_round_offset";
 const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
-/// through.** A [`Distance`] has a private field and two constructors,
-/// from a point and a plane and from a segment and a sphere's or a
-/// cylinder's carrier, so a lever, a product or any other quantity
-/// cannot be decided here as a verdict: it has no way to become a
-/// `Distance`.
+/// through**, and the bound-side reading's ([`crate::bound_side`]). A
+/// [`Distance`] has a private field and three constructors, from a point
+/// and a plane, from a bound's departure off a plane at its reach, and
+/// from a segment and a sphere's or a cylinder's carrier, so a quantity
+/// none of them builds cannot be decided here as a verdict. Two of the
+/// three are not a point's exact distance: a round carrier's is its
+/// lowest point's along the segment, and a bound's departure one order
+/// down is the leading Taylor term of its point's distance from the
+/// face (`κ·l²/2`, [`Departure::Parted`]), in metres and read as that
+/// distance to the order read. The door admits those, and no lever or
+/// product of other quantities.
 ///
 /// What the type cannot hold: that `n` is a unit normal. Every caller
 /// passes a normalized direction or a face's outward normal, and a
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
 pub(crate) mod metric {
-    use super::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Unsettled, Vec3, decide};
+    use super::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+    use geom_core::Decided;
 
     /// A point's signed distance from a plane, in metres.
     #[derive(Clone, Copy, Debug)]
@@ -131,6 +146,51 @@ pub(crate) mod metric {
         pub(crate) fn of(q: Point3<T>, o: Point3<T>, n: Vec3<T>) -> Self {
             Self(n.dot(q - o))
         }
+    }
+
+    impl<T: Decide> Distance<T> {
+        /// **A bound's departure off a face's tangent plane at its reach,
+        /// to the order read** ([`crate::bound_side`]), from the bound's
+        /// vertex on the plane, `n` the plane's unit normal. First order
+        /// (`Rise`): the point `arm` along `dir` from the vertex, its
+        /// signed distance from the plane ([`geom_brep::rise`]). One order
+        /// down (`Parted`), for a bound tied with the face at first order:
+        /// the leading Taylor term of its point's distance from the face
+        /// at arc length `arm`, not that distance itself, `bend` its bend
+        /// past the face's normal section along it
+        /// ([`geom_brep::parting`]). Both together (`Jet`), for a bound a
+        /// slack tied: the point's distance to second order.
+        pub(crate) fn departure(d: Departure<T>, n: Vec3<T>, arm: T) -> Self {
+            Self(match d {
+                Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),
+                Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),
+                Departure::Jet(dir, bend) => {
+                    geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()
+                }
+                Departure::Charge { slope, lever } => {
+                    crate::bound_side::sagitta_charge(slope, lever, arm)
+                }
+            })
+        }
+    }
+
+    /// What a bound departs a face's tangent plane by
+    /// ([`Distance::departure`]).
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Departure<T: Real> {
+        /// Its direction, at first order.
+        Rise(Vec3<T>),
+        /// Its bend past the face's normal section along it, one order down.
+        Parted(Vec3<T>),
+        /// Its direction and its bend: the rise and the parting together,
+        /// for a bound whose first order a slack hid.
+        Jet(Vec3<T>, Vec3<T>),
+        /// Its tangent ray's least separation from a curved face within
+        /// the reach `arm`, the ray leaving at `slope` (a sine) past a
+        /// bend of radius `lever`: the curvature charge
+        /// ([`crate::bound_side::sagitta_charge`]), which the plane's
+        /// normal does not enter.
+        Charge { slope: T, lever: T },
     }
 
     impl<T: Decide> Distance<T> {
@@ -159,7 +219,7 @@ pub(crate) mod metric {
     /// distance, not drawn in to the ray's real point first — the cone's
     /// own reading, for a point the cone is carried out to
     /// ([`Link::offset`](super::Link::offset)); the census reads drawn in.
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub(crate) struct Reading<T> {
         pub(crate) band: Band,
         pub(crate) slack: Option<T>,
@@ -195,6 +255,15 @@ pub(crate) mod metric {
             }
         }
 
+        /// **The reading on the run band alone**: no slack, drawn in.
+        pub(crate) fn plain(band: Band) -> Reading<T> {
+            Reading {
+                band,
+                slack: None,
+                own: false,
+            }
+        }
+
         /// The slack as a distance: zero where there is none.
         pub(crate) fn slack(&self) -> T {
             self.slack.unwrap_or(T::zero())
@@ -218,27 +287,54 @@ pub(crate) mod metric {
         settle(name, d, r).ok()
     }
 
-    /// [`sign_over`], keeping why it read nothing ([`Unsettled`]): the
-    /// escalation of a reading in band, or [`Unsettled::Slack`] where the
-    /// band decided it and the slack moved it to another reading.
+    /// **Why a distance read nothing** ([`settle`]): the two of a cone's
+    /// reasons ([`Unsettled`](super::Unsettled)) a distance alone can give.
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Refusal {
+        /// In band: the gate's escalation, on the log.
+        InBand(Indeterminate),
+        /// Decided by the band, as this, and read another way over the
+        /// slack: no escalation.
+        Slack(Decided),
+        /// Decided by the band, as `decided`, and in band once the slack
+        /// moved it: the moved reading's escalation.
+        Moved {
+            decided: Decided,
+            why: Indeterminate,
+        },
+    }
+
+    /// [`sign_over`], keeping why it read nothing ([`Refusal`]): the
+    /// escalation of a reading in band, or, where the band decided it
+    /// and the slack moved it to another reading, [`Refusal::Slack`] (a
+    /// decided one) or [`Refusal::Moved`] (in band).
     pub(crate) fn settle<T: Decide>(
         name: &'static str,
         d: Distance<T>,
         r: Reading<T>,
-    ) -> Result<Sign, Unsettled<T>> {
-        let s = decided(name, d.0, r.band).map_err(Unsettled::InBand)?;
+    ) -> Result<Sign, Refusal> {
+        settle_reported(name, d, r).map(|decided| decided.sign)
+    }
+
+    /// [`settle`], keeping the margin the band decided the sign on.
+    pub(crate) fn settle_reported<T: Decide>(
+        name: &'static str,
+        d: Distance<T>,
+        r: Reading<T>,
+    ) -> Result<Decided, Refusal> {
+        let got = decided(name, d.0, r.band).map_err(Refusal::InBand)?;
         let Some(slack) = r.slack else {
-            return Ok(s);
+            return Ok(got);
         };
-        let moved = match s {
-            Sign::Zero => return Ok(Sign::Zero),
+        let moved = match got.sign {
+            Sign::Zero => return Ok(got),
             Sign::Positive => d.0 - slack,
             Sign::Negative => d.0 + slack,
         };
         match decided(name, moved, r.band) {
-            Ok(m) if m == s => Ok(s),
-            Ok(_) => Err(Unsettled::Slack),
-            Err(why) => Err(Unsettled::InBand(why)),
+            Ok(m) if m.sign == got.sign => Ok(got),
+            Ok(_) => Err(Refusal::Slack(got)),
+            Err(why) => Err(Refusal::Moved { decided: got, why }),
         }
     }
 
@@ -265,11 +361,11 @@ pub(crate) mod metric {
     }
 
     fn read<T: Decide>(name: &'static str, v: T, band: Band) -> Option<Sign> {
-        decided(name, v, band).ok()
+        decided(name, v, band).ok().map(|d| d.sign)
     }
 
-    fn decided<T: Decide>(name: &'static str, v: T, band: Band) -> Result<Sign, Indeterminate> {
-        decide(name, margin(v), band)
+    fn decided<T: Decide>(name: &'static str, v: T, band: Band) -> Result<Decided, Indeterminate> {
+        crate::validate::decide_reported(name, margin(v), band)
     }
 
     /// A distance as the margin the gates read: the door's one.
@@ -279,6 +375,17 @@ pub(crate) mod metric {
 }
 
 use metric::{Distance, Reading};
+
+impl<T> From<metric::Refusal> for Unsettled<T> {
+    fn from(why: metric::Refusal) -> Unsettled<T> {
+        match why {
+            metric::Refusal::InBand(diag) | metric::Refusal::Moved { why: diag, .. } => {
+                Unsettled::InBand(diag)
+            }
+            metric::Refusal::Slack(_) => Unsettled::Slack,
+        }
+    }
+}
 
 /// What the local analysis of one touch between two solids decided.
 #[derive(Debug, PartialEq, Eq)]
@@ -447,21 +554,10 @@ pub(crate) struct Cone<T: Real> {
     /// The farthest a sector's apex stands from `p`: zero but where a
     /// corner on another key of the point was decided one point with it.
     pub(crate) tie: T,
+    /// The index of the first whole plane [`Cone::gathered`] took
+    /// (`inside`); the cone's length where it took none.
+    inside: usize,
 }
-
-/// **A sector of a gathered cone that is its whole plane**
-/// ([`Cone::gathered`]'s `inside`): the one kind of sector a side may be
-/// given for ([`Cone::reads_given`]). Its index is private, so only
-/// [`Cone::whole_planes`] names one.
-///
-/// A given side stands for `q`'s distance from the sector's plane, and
-/// [`Cone::crossing`] places the arc's crossing of the plane by that
-/// distance and `w`'s. Where the given sign is not the plane distance's
-/// own (a curved face's tie read one order down), that point can leave
-/// the arc; only a whole plane holds every point of it, so only there
-/// does the crossing not depend on where on the plane it falls.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct WholePlane(usize);
 
 /// **One face's corner at a point of a cone, as a fan of rays**: rays
 /// from `apex` in the plane through it of outward unit normal `outward`,
@@ -533,6 +629,9 @@ pub(crate) enum Unsettled<T> {
     /// bounds, or meets its plane, in band, on a stretch that does not
     /// miss the sector ([`Cone::crossing`]).
     Unplaced,
+    /// `q`'s side of the sector's plane was given, and the cone's own
+    /// reading decided another ([`Cone::reads_given`]).
+    Contradicted,
 }
 
 /// **Why a cone read nothing of a direction to `q`**
@@ -543,19 +642,26 @@ pub(crate) enum Unread<T> {
     Side { sector: usize, why: Unsettled<T> },
     /// `q` on this sector's plane: where in the sector it lies.
     Place { sector: usize, why: Unsettled<T> },
-    /// The parity arc from `q` to a reference: its two ends under half a
-    /// turn (`sector` `None`), or its crossing of this sector; the first
-    /// reference's, every reference passed over.
+    /// The parity arc from `q` to a reference: its clearance of the apex
+    /// (`sector` `None`), or its crossing of this sector; the first
+    /// reference's at `q`'s distance, every reference passed over.
     Arc {
         sector: Option<usize>,
         why: Unsettled<T>,
     },
-    /// No reference to read by: the cone has no wedge, or every
-    /// reference's arc to `q` is decidedly over half a turn.
+    /// No reference to read by: the cone has no wedge, no plane `q`'s
+    /// side of is decided, or every reference's arc to `q` decidedly
+    /// meets the apex.
     NoReference,
 }
 
 impl<T: Decide> Unread<T> {
+    /// Whether the refusal is a given side the cone's own reading
+    /// decided against ([`Unsettled::Contradicted`]).
+    pub(crate) fn contradicted(&self) -> bool {
+        matches!(self.why(), Some(Unsettled::Contradicted))
+    }
+
     /// The sector the refusing reading was of, where it was one's.
     pub(crate) fn sector(&self) -> Option<usize> {
         match *self {
@@ -579,7 +685,7 @@ impl<T: Decide> Unread<T> {
         match self.why()? {
             Unsettled::InBand(why) => why.predicate,
             Unsettled::Zero(name, _) => Some(name),
-            Unsettled::Slack | Unsettled::Unplaced => None,
+            Unsettled::Slack | Unsettled::Unplaced | Unsettled::Contradicted => None,
         }
     }
 
@@ -592,7 +698,7 @@ impl<T: Decide> Unread<T> {
         match *self.why()? {
             Unsettled::InBand(why) => Some(why),
             Unsettled::Zero(name, d) => metric::zero_refused(name, d, band),
-            Unsettled::Slack | Unsettled::Unplaced => None,
+            Unsettled::Slack | Unsettled::Unplaced | Unsettled::Contradicted => None,
         }
     }
 }
@@ -966,7 +1072,7 @@ fn wedge_settle<T: Decide>(
     x: Point3<T>,
     rd: Reading<T>,
 ) -> Result<Sign, Unsettled<T>> {
-    metric::settle(LINK_WEDGE, wedge_distance(p, m, r, x, rd), rd)
+    metric::settle(LINK_WEDGE, wedge_distance(p, m, r, x, rd), rd).map_err(Into::into)
 }
 
 /// The distance [`wedge_side`] reads.
@@ -998,7 +1104,7 @@ fn ahead_settle<T: Decide>(
     x: Point3<T>,
     rd: Reading<T>,
 ) -> Result<Sign, Unsettled<T>> {
-    metric::settle(LINK_AHEAD, ahead_distance(p, r, x, rd), rd)
+    metric::settle(LINK_AHEAD, ahead_distance(p, r, x, rd), rd).map_err(Into::into)
 }
 
 /// The distance [`ahead`] reads.
@@ -1022,14 +1128,80 @@ fn within<T: Real>(p: Point3<T>, q: Point3<T>, r: T) -> Point3<T> {
     p + (q - p) * (r / (q - p).norm()).min(T::from_f64(1.0))
 }
 
-/// `p`'s distance from the segment `a`–`b`: from its foot on the
+/// The point of the segment `a`–`b` nearest `p`: its foot on the
 /// segment's line, held to the segment.
-pub(crate) fn to_segment<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> T {
+fn foot<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> Point3<T> {
     let ab = b - a;
     let t = ((p - a).dot(ab) / ab.dot(ab))
         .max(T::zero())
         .min(T::from_f64(1.0));
-    (a + ab * t - p).norm()
+    a + ab * t
+}
+
+/// `p`'s distance from the segment `a`–`b` ([`foot`]).
+pub(crate) fn to_segment<T: Real>(p: Point3<T>, seg: Segment<T>) -> T {
+    (foot(p, seg) - p).norm()
+}
+
+/// **Where a parity arc's reference is read** ([`Cone::reads_given`],
+/// [`Cone::winds`]): carried along its ray to `q`'s distance, or out to
+/// its own reach where that is farther. Each reading is sound alone; the
+/// far one is taken only where the near one reads nothing, so it adds
+/// readings and takes none away.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ArcReach {
+    /// At `q`'s distance, both ends read against the plane through `p`
+    /// normal to their bisector (`LINK_ARC`).
+    Near,
+    /// At the reference's own reach where it stands farther than `q`,
+    /// the segment's clearance of `p` read (`LINK_ARC_REACH`).
+    Out,
+}
+
+impl ArcReach {
+    /// The reference along `c` from `p`, its own reach `ray`.
+    fn reference<T: Real>(self, p: Point3<T>, q: Point3<T>, c: Vec3<T>, ray: T) -> Point3<T> {
+        let at = match self {
+            Self::Near => (q - p).norm(),
+            Self::Out => (q - p).norm().max(ray),
+        };
+        p + c * (at / c.norm())
+    }
+
+    /// **Whether the arc from `q` to `w` reads**: the segment `q`–`w`
+    /// clear of `p`, so seen from `p` it is the minor arc between its
+    /// ends' directions, and parity along it is the arc's. Any segment
+    /// not through `p` is; what the reading guards is a move of `p` by
+    /// the band or the slack (a corner off the point by its tie), which
+    /// a segment passing nearer `p` than that could cross, turning the
+    /// arc the other way round. At one distance both ends ahead of the
+    /// plane normal to their bisector is that clearance; with the ends
+    /// at two distances it is the segment's nearest point's
+    /// ([`foot`]). `Ok(false)` where it decidedly does not clear; the
+    /// escalation where it is in band.
+    fn clears<T: Decide>(
+        self,
+        p: Point3<T>,
+        q: Point3<T>,
+        w: Point3<T>,
+        rd: Reading<T>,
+    ) -> Result<bool, Unsettled<T>> {
+        let ends = |name, d: Distance<T>| match metric::settle(name, d, rd)? {
+            Sign::Positive => Ok(true),
+            _ => Ok(false),
+        };
+        match self {
+            Self::Near => {
+                let half = ((q - p).normalize() + (w - p).normalize()).normalize();
+                Ok(ends(LINK_ARC, Distance::of(q, p, half))?
+                    && ends(LINK_ARC, Distance::of(w, p, half))?)
+            }
+            Self::Out => {
+                let m = foot(p, (q, w));
+                ends(LINK_ARC_REACH, Distance::of(m, p, (m - p).normalize()))
+            }
+        }
+    }
 }
 
 /// The point of the segment `x`–`y` where a quantity affine along it,
@@ -1283,7 +1455,21 @@ impl<T: Decide> Cone<T> {
             .iter()
             .map(|s| (s.apex - p).norm())
             .fold(T::zero(), |r, l| r.max(l));
-        Ok(Self { p, sectors, tie })
+        let inside = sectors.len();
+        Ok(Self {
+            p,
+            sectors,
+            tie,
+            inside,
+        })
+    }
+
+    /// **The sector of the `k`th whole plane [`Cone::gathered`] took**
+    /// (`inside`, in its order), the handle a side given for that plane's
+    /// face is keyed by ([`Cone::reads_given`]); `None` past them.
+    pub(crate) fn inside(&self, k: usize) -> Option<usize> {
+        let at = self.inside + k;
+        (at < self.sectors.len()).then_some(at)
     }
 
     /// **The cone of a solid at `p`, gathered across the keys the point
@@ -1312,18 +1498,19 @@ impl<T: Decide> Cone<T> {
             wedges: Vec::new(),
             closed: true,
         });
-        Self::of(p, fans.chain(discs).collect())
+        let fans: Vec<_> = fans.collect();
+        let first = fans.len();
+        Self::of(p, fans.into_iter().chain(discs).collect()).map(|cone| Self {
+            inside: first,
+            ..cone
+        })
     }
 
-    /// The cone's whole-plane sectors, in the order [`Cone::gathered`]
-    /// took them (`inside`).
-    pub(crate) fn whole_planes(&self) -> Vec<WholePlane> {
-        self.sectors
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.whole())
-            .map(|(k, _)| WholePlane(k))
-            .collect()
+    /// **The reading every reading of a gathered cone is taken on**: the
+    /// run band, over the cone's tie ([`metric::Reading::tied`]). A side
+    /// given to [`Cone::reads_tied`] is read on it too.
+    pub(crate) fn reading(&self, band: Band) -> Reading<T> {
+        Reading::tied(band, self.tie)
     }
 
     /// The cone where it closes ([`Cone::closes`]): its sectors bound a
@@ -1350,7 +1537,7 @@ impl<T: Decide> Cone<T> {
         q: Point3<T>,
         rd: Reading<T>,
     ) -> Result<Sign, Unsettled<T>> {
-        metric::settle(LINK_PLANE, Distance::of(q, self.p, s.outward), rd)
+        metric::settle(LINK_PLANE, Distance::of(q, self.p, s.outward), rd).map_err(Into::into)
     }
 
     /// **Whether the cone closes**: every sector bound is the bound of an
@@ -1470,15 +1657,14 @@ impl<T: Decide> Cone<T> {
     /// ([`Cone::crossing`]). Otherwise `q` is
     /// read along the minor arc to a reference `w`, a wedge's centroid on
     /// one sector `T` (or, where that reads nothing, its rays' bisector)
-    /// carried out to `q`'s distance (planes are read at
-    /// one scale; rays at their own, [`wedge_side`]), where the link's
+    /// carried to `q`'s distance, or, where no reference reads there, out
+    /// to the wedge's shorter ray's reach ([`ArcReach`]), where the link's
     /// material is the side behind `T`:
     /// the material holds `q` iff `q` lies behind `T` and the arc crosses
     /// the other sectors an even number of times, or in front and odd.
-    /// The arc is the segment `q`–`w` seen from `p`, under half a turn
-    /// (both ends ahead of the plane normal to their bisector), so it
-    /// meets each plane through `p` at most once and `T`'s only at `w`,
-    /// and each other sector is read as [`Cone::crossing`] reads it.
+    /// The arc is the segment `q`–`w` seen from `p`, clear of `p`
+    /// ([`ArcReach::clears`]), so it meets `T`'s plane only at `w`, and
+    /// each other sector is read as [`Cone::crossing`] reads it.
     /// Parity is the material only where the cone's winding takes two
     /// values ([`rest::one_material`]). A reference any reading of which
     /// is in band, on a sector's bound, or on a second sector at `w` is
@@ -1505,10 +1691,10 @@ impl<T: Decide> Cone<T> {
     pub(crate) fn reads_tied(
         &self,
         q: Point3<T>,
-        given: &[(WholePlane, Sign)],
+        given: &[(usize, Sign)],
         band: Band,
     ) -> Result<Material, Unread<T>> {
-        let rd = Reading::tied(band, self.tie);
+        let rd = self.reading(band);
         debug_assert_ne!(
             self.closes(rd),
             Some(false),
@@ -1517,15 +1703,20 @@ impl<T: Decide> Cone<T> {
         self.reads_given(q, given, rd)
     }
 
-    /// **[`Cone::reads_over`], `q`'s side of some whole planes' faces
-    /// given**: for each `(k, side)` of `given`, `q`'s side of whole
-    /// plane `k`'s face as that face's own reading decided it (positive
-    /// in front of the face, zero on it) stands for `q`'s distance from
-    /// the sector's plane. Only a whole plane takes one ([`WholePlane`]).
-    /// That reading is a reading of the whole edge `q` stands for, and
-    /// its signs are decided at its own door, not here: a pierce's side
-    /// code against the face it touches, read to the order its curvature
-    /// needs. Every other reading is the cone's own.
+    /// **[`Cone::reads_over`], `q`'s side of some sectors' faces given**:
+    /// for each `(k, side)` of `given`, `q`'s side of sector `k`'s face
+    /// as that face's own reading decided it (positive in front of the
+    /// face, zero on it), a reading of the whole bound `q` stands for,
+    /// decided at its own door to the order the face's curvature needs
+    /// ([`crate::bound_side`]), on this reading. One rule takes it: where
+    /// the cone's own reading of `q`'s side of the sector's plane decided
+    /// the given sign, that sign; where it read Zero, in band, or
+    /// refused over the slack, the given sign, its crossing placed by
+    /// [`Cone::crossing`] at `q`'s distance from the plane taken on that
+    /// side; where it decided another sign, nothing
+    /// ([`Unsettled::Contradicted`]). A sector whose sign the cone's own
+    /// reading did not decide is no parity arc's reference sector. Every
+    /// other reading is the cone's own.
     ///
     /// Where it reads nothing it says which reading refused ([`Unread`]):
     /// `q`'s side of a sector's plane, or its place on it; the first
@@ -1534,24 +1725,35 @@ impl<T: Decide> Cone<T> {
     pub(crate) fn reads_given(
         &self,
         q: Point3<T>,
-        given: &[(WholePlane, Sign)],
+        given: &[(usize, Sign)],
         rd: Reading<T>,
     ) -> Result<Material, Unread<T>> {
         let p = self.p;
         // Every sector is read before any answer is taken, so the answer
-        // does not depend on the sectors' order.
-        let against: Vec<Against<T>> = self
+        // does not depend on the sectors' order; each with whether the
+        // cone's own reading decided its side.
+        let (against, own): (Vec<Against<T>>, Vec<bool>) = self
             .sectors
             .iter()
             .enumerate()
             .map(|(k, s)| {
-                let side = match given.iter().find(|&&(WholePlane(j), _)| j == k) {
-                    Some(&(_, side)) => Ok(side),
-                    None => self.settle_side(s, q, rd),
+                let read = self.settle_side(s, q, rd);
+                let (side, own) = match (given.iter().find(|&&(j, _)| j == k), read) {
+                    (None, read) => (read, true),
+                    (Some(&(_, side)), Ok(sign)) if sign == side => (Ok(side), true),
+                    (Some(&(_, side)), Ok(Sign::Zero) | Err(_)) => (Ok(side), false),
+                    (Some(_), Ok(_)) => {
+                        return Err(Unread::Side {
+                            sector: k,
+                            why: Unsettled::Contradicted,
+                        });
+                    }
                 };
-                self.against_on(k, q, side, rd)
+                Ok((self.against_on(k, q, side, rd)?, own))
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
         let mut on = against
             .iter()
             .enumerate()
@@ -1575,47 +1777,55 @@ impl<T: Decide> Cone<T> {
         // The first refusal of a reference, which a reading that ends
         // with none names.
         let mut first: Option<Unread<T>> = None;
-        for (t, s0) in self.sectors.iter().enumerate() {
-            let Some(base) = sides[t] else { continue };
-            // Each wedge's centroid, then its rays' bisector: a needle
-            // wedge's centroid lies along its long ray, within the band
-            // of the sector across it.
-            let references = s0
-                .wedges
-                .iter()
-                .flat_map(|&(a, b)| [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()]);
-            'reference: for c in references {
-                // Carried along its ray to `q`'s distance: a plane is a
-                // surface, read at one scale for both ends of the arc.
-                let w = p + c * ((q - p).norm() / c.norm());
-                let half = ((q - p).normalize() + (w - p).normalize()).normalize();
-                for x in [q, w] {
-                    match metric::settle(LINK_ARC, Distance::of(x, p, half), rd) {
-                        Ok(Sign::Positive) => {}
-                        Ok(_) => continue 'reference,
+        // Every reference is read at `q`'s distance first; only where
+        // none reads there is each read again out at its wedge's reach
+        // ([`ArcReach::Out`]), so no reading taken at `q`'s distance is lost,
+        // and a refusal names the first reading at `q`'s distance.
+        for arc in [ArcReach::Near, ArcReach::Out] {
+            for (t, s0) in self.sectors.iter().enumerate() {
+                let Some(base) = sides[t].filter(|_| own[t]) else {
+                    continue;
+                };
+                // Each wedge's centroid, then its rays' bisector: a needle
+                // wedge's centroid lies along its long ray, within the band
+                // of the sector across it.
+                let references = s0.wedges.iter().flat_map(|&(a, b)| {
+                    let ray = (a - p).norm().min((b - p).norm());
+                    [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()].map(|c| (c, ray))
+                });
+                'reference: for (c, ray) in references {
+                    let w = arc.reference(p, q, c, ray);
+                    let mut refused = |why| {
+                        if arc == ArcReach::Near {
+                            first.get_or_insert(why);
+                        }
+                    };
+                    match arc.clears(p, q, w, rd) {
+                        Ok(true) => {}
+                        Ok(false) => continue 'reference,
                         Err(why) => {
-                            first.get_or_insert(Unread::Arc { sector: None, why });
+                            refused(Unread::Arc { sector: None, why });
                             continue 'reference;
                         }
                     }
-                }
-                let mut held = base == Sign::Negative;
-                for (k, s) in self.sectors.iter().enumerate() {
-                    if k == t {
-                        continue;
-                    }
-                    match self.crossing(s, sides[k], q, w, reach[k], rd) {
-                        Ok(crossed) => held ^= crossed != 0,
-                        Err(why) => {
-                            first.get_or_insert(Unread::Arc {
-                                sector: Some(k),
-                                why,
-                            });
-                            continue 'reference;
+                    let mut held = base == Sign::Negative;
+                    for (k, s) in self.sectors.iter().enumerate() {
+                        if k == t {
+                            continue;
+                        }
+                        match self.crossing(s, sides[k], q, w, reach[k], rd) {
+                            Ok(crossed) => held ^= crossed != 0,
+                            Err(why) => {
+                                refused(Unread::Arc {
+                                    sector: Some(k),
+                                    why,
+                                });
+                                continue 'reference;
+                            }
                         }
                     }
+                    return Ok(if held { Material::In } else { Material::Out });
                 }
-                return Ok(if held { Material::In } else { Material::Out });
             }
         }
         Err(first.unwrap_or(Unread::NoReference))
@@ -1625,7 +1835,9 @@ impl<T: Decide> Cone<T> {
     /// adds: `1` where it crosses `s` into the material behind it, `-1`
     /// where it crosses out, `0` where it does not cross. `sq` is `q`'s
     /// strict side of `s`'s plane, `None` for `q` on the plane outside
-    /// the sector. On one side, not crossed; on opposite sides, crossed
+    /// the sector; `q`'s distance from the plane is read on that side
+    /// (a given side, [`Cone::reads_given`]). On one side, not crossed;
+    /// on opposite sides, crossed
     /// iff the arc's point on the plane lies inside the sector. An end
     /// read Zero lies within `zero` of the plane on either side (the
     /// band's zero, the slack added, or `reach` where [`Cone::reads_over`]
@@ -1645,6 +1857,11 @@ impl<T: Decide> Cone<T> {
         let p = self.p;
         let at_w = self.settle_side(s, w, rd)?;
         let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
+        let oq = match sq {
+            Some(Sign::Positive) => oq.abs(),
+            Some(Sign::Negative) => -oq.abs(),
+            _ => oq,
+        };
         let zero = reach.unwrap_or(T::from_computed(rd.band.zero()) + rd.slack());
         let at = |t: T| q + (w - q) * t;
         let missed = |hit: bool| if hit { Ok(0) } else { Err(Unsettled::Unplaced) };
@@ -1672,11 +1889,12 @@ impl<T: Decide> Cone<T> {
     /// winding just in front of sector `from` at `w`**, each point
     /// strictly inside its own sector: the signed sum of
     /// [`Cone::crossing`] along the minor arc from `w` to `q`, `w`
-    /// carried along its ray to `q`'s distance as [`Cone::reads_over`]
-    /// carries its reference. The arc leaves `from` on `q`'s side and
-    /// reaches `on` from `w`'s, and the material behind a sector winds
-    /// one more than the side in front of it. `None` where a reading is
-    /// in band, the arc is not under half a turn, an end lies on the
+    /// carried along its ray to `q`'s distance, or, where that reads
+    /// nothing, at its own distance where farther ([`ArcReach`]). The
+    /// arc leaves `from` on `q`'s side and reaches `on` from `w`'s, and
+    /// the material behind a sector winds one more than the side in
+    /// front of it. `None` where a reading is in band, the arc does not
+    /// clear the apex ([`ArcReach::clears`]), an end lies on the
     /// other's plane, or `q` lies on a third sector, or on its bound. A
     /// third plane `q` lies in band of, decidedly outside its sector, is
     /// read as [`Cone::reads_over`] reads it ([`Cone::against`]): the
@@ -1691,13 +1909,20 @@ impl<T: Decide> Cone<T> {
             return None;
         }
         let p = self.p;
-        let w = p + (w - p) * ((q - p).norm() / (w - p).norm());
-        let half = ((q - p).normalize() + (w - p).normalize()).normalize();
-        for x in [q, w] {
-            if metric::sign_over(LINK_ARC, Distance::of(x, p, half), rd) != Some(Sign::Positive) {
-                return None;
-            }
-        }
+        [ArcReach::Near, ArcReach::Out].into_iter().find_map(|arc| {
+            let w = arc.reference(p, q, w - p, (w - p).norm());
+            arc.clears(p, q, w, rd).ok()?.then_some(())?;
+            self.winds_from((on, q), (from, w), rd)
+        })
+    }
+
+    /// [`Cone::winds`] along the arc to `w` where it is read.
+    fn winds_from(
+        &self,
+        (on, q): (usize, Point3<T>),
+        (from, w): (usize, Point3<T>),
+        rd: Reading<T>,
+    ) -> Option<i32> {
         let behind = |sign: Sign| match sign {
             Sign::Negative => Some(1),
             Sign::Positive => Some(0),
@@ -1851,10 +2076,7 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body
-            .get_surface(face.surface)
-            .cloned()
-            .ok_or(TouchUnread::Corrupt)?;
+        let surface = body.face_surface_linked(f, face).clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Unreadable);
         }
@@ -1924,10 +2146,7 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
     ) -> Result<Vec<Self>, TouchUnread> {
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body
-            .get_surface(face.surface)
-            .cloned()
-            .ok_or(TouchUnread::Corrupt)?;
+        let surface = body.face_surface_linked(f, face).clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
             return Err(TouchUnread::Unreadable);
         };
@@ -2062,7 +2281,7 @@ pub(crate) fn clearance<T: Decide>(
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
         .ok_or(TouchUnread::Unreadable)?;
-    if let geom::Curve3::Line { .. } = curve.carrier() {
+    if !curve.carrier().is_curved() {
         let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
         return Ok(to_segment(
             p,
@@ -3894,6 +4113,346 @@ mod tests {
         );
     }
 
+    /// **A point square to a face's plane, at a reach its side clears,
+    /// reads that side**: the line cone of one face the line runs inside
+    /// (its plane's two halves about the line, material behind), and `q`
+    /// at `1.2·Kε` square to the plane, as a `Kε`-wide fin's flank stands
+    /// on a face across the fin's foot. Every reference stands a quarter
+    /// turn from `q`, so the segment from `q` to a reference carried in to
+    /// `q`'s distance clears the apex by only `q`'s reach over √2, in band;
+    /// out at the reference's own reach it clears by about `q`'s reach.
+    /// At `0.5·Kε` `q`'s own side is in band and nothing reads.
+    #[test]
+    fn a_point_square_to_a_face_reads_its_side_at_a_reach_its_side_clears() {
+        let band = band();
+        let k_eps = band.escalate();
+        let r = 0.25;
+        let fan = |rays: Vec<Point3<f64>>| Fan {
+            outward: v(0.0, 0.0, 1.0),
+            apex: O,
+            rays,
+        };
+        let cone = Cone::gathered(
+            O,
+            [
+                fan(vec![p(0.0, -r, 0.0), p(r, 0.0, 0.0), p(0.0, r, 0.0)]),
+                fan(vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)]),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let t = 1.2 * k_eps;
+        assert_eq!(
+            cone.reads_tied(p(0.0, 0.0, t), &[], band).ok(),
+            Some(Material::Out),
+            "in front of the face at 1.2·Kε"
+        );
+        assert_eq!(
+            cone.reads_tied(p(0.0, 0.0, -t), &[], band).ok(),
+            Some(Material::In),
+            "behind the face at 1.2·Kε"
+        );
+        assert!(
+            matches!(
+                cone.reads_tied(p(0.0, 0.0, 0.5 * k_eps), &[], band),
+                Err(Unread::Side { .. })
+            ),
+            "in band of the face at 0.5·Kε"
+        );
+    }
+
+    /// **The winding between two sectors a quarter turn apart reads at a
+    /// reach its sides clear**: `q` on a floor at `1.2·Kε` from the
+    /// apex, `w` on a wall square to it at its own reach. Carried in to
+    /// `q`'s distance, the segment would clear the apex by `q`'s reach
+    /// over √2, in band.
+    #[test]
+    fn a_winding_a_quarter_turn_across_reads_at_a_reach_its_sides_clear() {
+        let band = band();
+        let r = 0.25;
+        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
+            outward,
+            apex: O,
+            rays,
+        };
+        let cone = Cone::gathered(
+            O,
+            [
+                fan(
+                    v(0.0, 0.0, 1.0),
+                    vec![p(0.0, -r, 0.0), p(r, 0.0, 0.0), p(0.0, r, 0.0)],
+                ),
+                fan(
+                    v(1.0, 0.0, 0.0),
+                    vec![p(0.0, r, 0.0), p(0.0, 0.0, r), p(0.0, -r, 0.0)],
+                ),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let rd = metric::Reading::tied(band, cone.tie);
+        let q = p(1.2 * band.escalate(), 0.0, 0.0);
+        assert_eq!(
+            cone.winds((0, q), (1, p(0.0, 0.0, 0.1)), rd),
+            Some(0),
+            "both in front of the other's plane, nothing between"
+        );
+    }
+
+    /// **A bend in band at the reference's reach still reads behind
+    /// both halves**: a sheet bent along the line by an angle that puts
+    /// one half's far ray `2√2·zero` off the other half's plane at the
+    /// rays' reach. Read at `q`'s distance the bend reads zero, and the
+    /// arc misses the bent half; read at the reach it would be in band.
+    /// The reference is read at `q`'s distance first, so the reading
+    /// taken there stands.
+    #[test]
+    fn a_bend_in_band_at_the_references_reach_still_reads_behind_both() {
+        let band = band();
+        let (zero, k_eps) = (band.zero(), band.escalate());
+        let r = 0.25;
+        let alpha = 2.0 * 2f64.sqrt() * zero / r;
+        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
+            outward,
+            apex: O,
+            rays,
+        };
+        let cone = Cone::gathered(
+            O,
+            [
+                fan(
+                    v(-alpha, 0.0, 1.0).normalize(),
+                    vec![p(0.0, -r, 0.0), p(r, 0.0, alpha * r), p(0.0, r, 0.0)],
+                ),
+                fan(
+                    v(0.0, 0.0, 1.0),
+                    vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)],
+                ),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        for t in [3.0, 10.0, 100.0] {
+            assert_eq!(
+                cone.reads_tied(p(0.0, 0.0, -t * k_eps), &[], band).ok(),
+                Some(Material::In),
+                "behind both halves at {t}·Kε"
+            );
+        }
+    }
+
+    /// **A sector whose side only a given reading decided is no parity
+    /// reference**: a floor of two halves, `q` within the band's zero of
+    /// it over the `−x` half and given behind that half. The other half's
+    /// plane `q` lies in band of, outside it, so no sector the cone's own
+    /// reading decided is left to read from: no reference. Read from the
+    /// given half, the arc would run along the floor to the other half,
+    /// unplaced there.
+    #[test]
+    fn a_sector_only_given_its_side_is_no_reference() {
+        let band = band();
+        let r = 0.25;
+        let half = |rays: Vec<Point3<f64>>| Fan {
+            outward: v(0.0, 0.0, 1.0),
+            apex: O,
+            rays,
+        };
+        let cone = Cone::gathered(
+            O,
+            [
+                half(vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)]),
+                half(vec![p(0.0, -r, 0.0), p(r, 0.0, 0.0), p(0.0, r, 0.0)]),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let q = p(-1.0, 0.3, 0.3 * band.zero());
+        assert!(
+            matches!(
+                cone.reads_given(q, &[(0, Sign::Negative)], Reading::plain(band)),
+                Err(Unread::NoReference)
+            ),
+            "no reference: {:?}",
+            cone.reads_given(q, &[(0, Sign::Negative)], Reading::plain(band))
+        );
+    }
+
+    /// **A given side's crossing stretch is read from `q`'s distance on
+    /// that side**: `q` `0.5·zero` above a plane whose sector (a thin
+    /// wedge round `−x`) it is given behind, and `w` on the plane outside
+    /// the sector. The arc meets the plane on the stretch from where `q`
+    /// stands within the band's zero of it, read on the given side, to
+    /// `w`: that stretch decidedly misses the sector. Read on `q`'s own
+    /// side of the plane, the stretch runs back past `q` into the
+    /// sector, and the crossing is unplaced.
+    #[test]
+    fn a_given_sides_crossing_stretch_is_read_on_the_given_side() {
+        let band = band();
+        let r = 0.25;
+        let ray = |deg: f64| p(r * deg.to_radians().cos(), r * deg.to_radians().sin(), 0.0);
+        let cone = Cone::of(
+            O,
+            vec![Sector {
+                outward: v(0.0, 0.0, 1.0),
+                apex: O,
+                wedges: vec![(ray(170.0), ray(190.0))],
+                closed: false,
+            }],
+        )
+        .expect("a cone");
+        let q = p(-1.0, 0.3, 0.5 * band.zero());
+        let w = p(1.0, 0.3, 0.0);
+        assert_eq!(
+            cone.crossing(
+                &cone.sectors[0],
+                Some(Sign::Negative),
+                q,
+                w,
+                None,
+                Reading::plain(band)
+            )
+            .ok(),
+            Some(0),
+            "given behind the plane, the stretch to w misses the sector"
+        );
+    }
+
+    /// **A given side is taken where the cone's own reading did not decide
+    /// against it**: a quarter of space behind a floor (`z = 0`) and a
+    /// wall (`x = 0`), `q` far behind the wall and its side of the floor
+    /// given. Decided by the cone the same way, the cone's sign; decided
+    /// the other way (or given on the floor where the cone puts `q` off
+    /// it), refused `Contradicted`; in band, or decided by the band and
+    /// refused over a slack, the given side is taken, and the floor's
+    /// crossing is read on that side: given in front of the floor `q` is
+    /// out of the quarter, given behind it in.
+    #[test]
+    fn a_given_side_is_taken_where_the_cones_reading_did_not_decide_against_it() {
+        let band = band();
+        let r = 0.25;
+        let cone = Cone::gathered(
+            O,
+            [
+                Fan {
+                    outward: v(0.0, 0.0, 1.0),
+                    apex: O,
+                    rays: vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)],
+                },
+                Fan {
+                    outward: v(1.0, 0.0, 0.0),
+                    apex: O,
+                    rays: vec![p(0.0, -r, 0.0), p(0.0, 0.0, -r), p(0.0, r, 0.0)],
+                },
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let plain = Reading::plain(band);
+        let read = |h: f64, given: Sign, rd: Reading<f64>| {
+            cone.reads_given(p(-1.0, 0.3, h), &[(0, given)], rd)
+        };
+        let contradicted = |got: Result<Material, Unread<f64>>| {
+            matches!(
+                got,
+                Err(Unread::Side {
+                    sector: 0,
+                    why: Unsettled::Contradicted
+                })
+            )
+        };
+        assert_eq!(
+            cone.reads_given(p(-1.0, 0.3, 0.5), &[], plain).ok(),
+            Some(Material::Out),
+            "above the floor"
+        );
+        assert_eq!(
+            read(0.5, Sign::Positive, plain).ok(),
+            Some(Material::Out),
+            "given as decided"
+        );
+        for given in [Sign::Negative, Sign::Zero] {
+            assert!(
+                contradicted(read(0.5, given, plain)),
+                "given {given:?} against a decided side"
+            );
+        }
+        let in_band = 0.3 * band.zero();
+        assert_eq!(
+            cone.reads_given(p(-1.0, 0.3, in_band), &[], plain).ok(),
+            Some(Material::On(0)),
+            "on the floor, to the band"
+        );
+        let slack_refused = 2.0 * band.escalate();
+        let tied = Reading::tied(band, 2.0 * band.escalate());
+        for (h, rd, what) in [
+            (in_band, plain, "in band"),
+            (slack_refused, tied, "over the slack"),
+        ] {
+            assert_eq!(
+                read(h, Sign::Positive, rd).ok(),
+                Some(Material::Out),
+                "{what}: given in front"
+            );
+            assert_eq!(
+                read(h, Sign::Negative, rd).ok(),
+                Some(Material::In),
+                "{what}: given behind"
+            );
+            assert_eq!(
+                read(h, Sign::Zero, rd).ok(),
+                Some(Material::On(0)),
+                "{what}: given on the floor"
+            );
+        }
+        assert!(
+            cone.reads_given(p(-1.0, 0.3, slack_refused), &[], tied)
+                .is_err(),
+            "over the slack, ungiven: the floor's side is not read"
+        );
+    }
+
+    /// **The arc's clearance holds over the tie**: one thin wedge's
+    /// reference at its reach `R`, and `q` at height `1.8·Kε` above its
+    /// plane, `R/2` behind the apex from it, so the arc nearly opposes
+    /// the reference. At `q`'s distance it clears the apex by about
+    /// `0.9·Kε`, in band; out at the reference's reach by about
+    /// `1.2·Kε`, and it reads. With the cone's corners off the point by a
+    /// tie whose slack is `0.3·Kε`, `q`'s side still clears its plane,
+    /// but the arc's clearance does not: a move of the apex by the slack
+    /// could pass the segment across it.
+    #[test]
+    fn the_arcs_clearance_holds_over_the_tie() {
+        let band = band();
+        let k_eps = band.escalate();
+        let r = 0.25;
+        let half = |apex: Point3<f64>| Fan {
+            outward: v(0.0, 0.0, 1.0),
+            apex,
+            rays: vec![p(r, -0.1 * r, 0.0), p(r, 0.1 * r, 0.0)],
+        };
+        let q = p(-0.5 * r, 0.0, 1.8 * k_eps);
+        let untied = Cone::gathered(O, [half(O)], Vec::new()).expect("a cone");
+        assert_eq!(
+            untied
+                .reads_given(q, &[], metric::Reading::tied(band, 0.0))
+                .ok(),
+            Some(Material::Out),
+            "clear of the apex at the reference's reach"
+        );
+        let tie = 0.15 * k_eps;
+        let tied = Cone::gathered(O, [half(p(0.0, tie, 0.0))], Vec::new()).expect("a cone");
+        let rd = metric::Reading::tied(band, tied.tie);
+        assert!(
+            metric::sign_over(LINK_PLANE, Distance::of(q, O, v(0.0, 0.0, 1.0)), rd)
+                == Some(Sign::Positive),
+            "q's side clears its plane over the tie"
+        );
+        assert!(
+            tied.reads_given(q, &[], rd).is_err(),
+            "the arc does not clear the apex over the tie"
+        );
+    }
+
     /// **A corner off the point by its tie reads nothing in band**: an
     /// octant's corner standing `0.9·zero` below the point read about,
     /// in a band whose gap is narrow (`K = 1.5`). A probe `0.7·zero`
@@ -4234,10 +4793,13 @@ mod tests {
             "`Distance`'s field is private"
         );
         let of = body("\n        pub(crate) fn of(");
+        let departure = body("\n        pub(crate) fn departure(");
         let off = body("\n        pub(crate) fn off(");
         assert!(
-            metric.contains(&of.start) && metric.contains(&off.start),
-            "`Distance::of` and `Distance::off` are in `mod metric`"
+            [&of, &departure, &off]
+                .iter()
+                .all(|r| metric.contains(&r.start)),
+            "`Distance::of`, `Distance::departure` and `Distance::off` are in `mod metric`"
         );
         let builds: Vec<usize> = module
             .match_indices("Self(")
@@ -4246,11 +4808,54 @@ mod tests {
             .filter(|i| metric.contains(i))
             .collect();
         assert!(
-            builds.len() == 2 && of.contains(&builds[0]) && off.contains(&builds[1]),
-            "`Distance` is built twice, once inside `Distance::of` from a plane and once \
-             inside `Distance::off` from a round carrier: {} builds",
+            builds.len() == 3
+                && of.contains(&builds[0])
+                && departure.contains(&builds[1])
+                && off.contains(&builds[2]),
+            "`Distance` is built three times, inside `Distance::of` from a plane, inside \
+             `Distance::departure` from a bound's departure off a plane, and inside \
+             `Distance::off` from a round carrier: {} builds",
             builds.len()
         );
+        assert!(
+            door[departure.start - metric.start..departure.end - metric.start].contains(
+                "Departure::Rise(dir) => geom_brep::rise(dir, n, arm).value(),\n                \
+                 Departure::Parted(bend) => geom_brep::parting(bend, n, arm).value(),"
+            ),
+            "`Distance::departure` is a first-order rise or a second-order parting, and \
+             nothing else"
+        );
+        assert!(
+            door[departure.start - metric.start..departure.end - metric.start].contains(
+                "Departure::Jet(dir, bend) => {\n                    \
+                 geom_brep::rise(dir, n, arm).value() + geom_brep::parting(bend, n, arm).value()"
+            ),
+            "`Distance::departure`'s jet is the rise and the parting together, and nothing else"
+        );
+        // A bound's side of a face is decided at the metric's door at both
+        // orders: no gate of its own in the first order or the descent.
+        let bound_side = include_str!("bound_side.rs");
+        for anchor in ["\nfn first_order<", "\n    pub(crate) fn descend("] {
+            let reading = item(bound_side, anchor);
+            for needle in [
+                "decide(",
+                "decide_reported(",
+                "Margin::",
+                "departure_side_reported(",
+                "parting_side(",
+                "enters_material(",
+                "metric::sign(",
+            ] {
+                assert!(
+                    !reading.contains(needle),
+                    "bound_side's `{anchor}` decides through `{needle}`, outside the metric door"
+                );
+            }
+            assert!(
+                reading.contains("metric::settle"),
+                "bound_side's `{anchor}` decides through `metric::settle`"
+            );
+        }
         assert!(
             door[off.start - metric.start..off.end - metric.start]
                 .contains("match round.lowest_on(seg) {\n                Ok(d) => Some(Self(d)),"),
@@ -4260,9 +4865,9 @@ mod tests {
             door.matches("-> Self").count()
                 + door.matches("-> Option<Self>").count()
                 + door.matches("-> Distance").count(),
-            2,
-            "`Distance::of` and `Distance::off` are `mod metric`'s only functions returning a \
-             `Distance`"
+            3,
+            "`Distance::of`, `Distance::departure` and `Distance::off` are `mod metric`'s only \
+             functions returning a `Distance`"
         );
     }
 }

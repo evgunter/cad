@@ -36,7 +36,7 @@ own tangent.
   assembly: `Escalated { check: ParamSpan, predicate: "nurbs_span_meter" }`.
 
 This is the same root as
-`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents.md`
+`work/lathe/a-half-turn-spine-sweeps-only-off-its-exact-tangents.md`
 (the documented C6 anti-parallel knife edge): the frame law measures
 everything from `t₀`.
 
@@ -74,7 +74,7 @@ frame law stops spinning the section.
 
 ## A P0 waits on this (2026-10-25)
 
-`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents.md`
+`work/lathe/a-half-turn-spine-sweeps-only-off-its-exact-tangents.md`
 is now P0, and its first ask is this row's frame. Any planar U-turn spine
 refuses `PathTangentReversal` at its half-turn station, so the klein
 scene lofts its loop as a workaround (wall 9). Linked on request in
