@@ -151,3 +151,38 @@ The designers' weighing of step 2 is decided: one bound-side reading for every p
 ## Unparked (2026-11-02)
 
 Its blocker, the one bound-side reading, landed (PRs 6217, 6253). Steps 3–4 were measured with ties read `On`; re-measure them first on the new reading: with `crescent_refusal` bypassed, does each crescent bound now read `Leaves` (or `Unresolved`, in which case the witness row stands in front of this one), and what does the join refuse next?
+
+## Lane finding (2026-11-02, `tangrim/tangent-crescent`): re-measured on the one reading
+
+Measured on `acd4cd8e79` (PRs 6217 and 6253 in), the six tangent-inside
+poses of `a_boss_over_a_hole_by_pose`, one segment and two arcs,
+through and pocket, `A ∪ B` and `B ∪ A`, default ε, with
+`crescent_refusal` bypassed:
+
+- **The bounds decide; none reads `Unresolved`.** At the touch, every
+  rim bound against the partner's coplanar plane face (the boss's rim
+  against the plate's top, the hole's rim against the boss's floor)
+  reads `Rides` (492 reads), and every rim bound against the partner's
+  curved wall (the hole's rim against the boss's cylinder, the boss's
+  rim against the hole's) reads `Leaves(Below)`, `In` (192 reads). The
+  `On` the 2026-10-27 plan found left in each crossing record is gone:
+  `sectors::pair_codes` now reads wall × top `sa = (Out, On)`,
+  `sb = (In, Out)` and floor × hole wall `sa = (Out, In)`,
+  `sb = (On, Out)`, the remaining `On` the rim riding the coplanar face.
+- **The crescent pair is still `touching`** (`pair_search`, floor × top
+  on each side of the shared tangent), so no record carries it. The
+  four crossing records survive `recl_sectors` (`intersect: true`) and
+  every one ends `intersect: false` after `recl_edges`. The join then
+  refuses `UnpairedLooseEnds { count: 4 }` (two arcs, and one segment
+  with neither vertex at the touch), `UnpairedLooseEnds { count: 2 }`
+  (one segment, one vertex at the touch), and, one segment with both
+  vertices at the touch, `EdgeInFace { gap: Tangent }` (`slit.rs`).
+- **With step 1 alone the join builds.** Recording each crescent
+  half as a coplanar `(On, On)` record (`sectors::crescent`, the
+  existing parting read, in every op): `recl_sectors` reads the two
+  crescent records `(In, In)` and drops them, the four crossing
+  records survive `recl_edges`, and all 48 union cells build `SOUND`
+  at their closed form, one shell through and two pocketed. Steps 3
+  and 4 (two one-site loops at a site, the pinch) need nothing new:
+  the join already closes them. ∩ is empty and both differences
+  `SOUND` in all 96 of those cells.
