@@ -186,3 +186,16 @@ through and pocket, `A ∪ B` and `B ∪ A`, default ε, with
   and 4 (two one-site loops at a site, the pinch) need nothing new:
   the join already closes them. ∩ is empty and both differences
   `SOUND` in all 96 of those cells.
+
+## Built (2026-11-02, `tangrim/tangent-crescent`)
+
+Step 1 as measured above: `sectors::crescent_records` records each
+crescent half between two opposed plane faces as a coplanar `(On, On)`
+pair, read by `sectors::crescent` (`geom_brep::parting`) in every op.
+Steps 3 and 4 needed no change. Step 5: `crescent_refusal` and
+`TangentCrescentUnsupported` are gone; `a_boss_over_a_hole_by_pose`'s
+tangent-inside cells read `Sound(1)` through and `Sound(2)` pocketed at
+the default ε, 1e-6 and 1e-12, and so does the turned row;
+`short_arcs_at_a_crescents_tip`'s "one side" row builds (one shell). The
+aligned crescent stays read as a touch:
+`a-crescent-between-aligned-faces-is-read-as-a-touch`.
