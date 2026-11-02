@@ -559,7 +559,11 @@ fn the_seams_traffic_is_send() {
 fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
     let (doc, _) = session.landed_pair().expect("a landed pair");
     IndexRequest {
-        key: PictureKey::of(generation, common::plate_delta()),
+        key: PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
@@ -583,14 +587,25 @@ fn the_index_seam_answers_with_the_key_it_was_asked_with() {
     assert!(seam.busy(), "asked, and not yet answered");
     let done = seam.poll().expect("the inline seam answers inside poll");
     assert!(!seam.busy());
-    assert_eq!(done.key, PictureKey::of(generation, common::plate_delta()));
+    assert_eq!(
+        done.key,
+        PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )
+    );
     let index = done.index.expect("the plate indexes");
     assert_eq!(
         index.generation(),
         generation,
         "the index is stamped with the generation the answer is filed under",
     );
-    assert!(index.current_for(Some(PictureKey::of(generation, common::plate_delta()))));
+    assert!(index.current_for(Some(PictureKey::of(
+        generation,
+        common::plate_delta(),
+        viewer::world::Shown::none()
+    ))));
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }
 
@@ -686,6 +701,7 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     other.key = PictureKey::of(
         generation,
         common::plate_delta().scaled(2.0).expect("a positive delta"),
+        viewer::world::Shown::none(),
     );
     seam.submit(other);
     seam.submit(index_request(&broken, generation));
@@ -695,7 +711,11 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     assert_eq!(results.len(), 1, "one answer for one picture");
     assert_eq!(
         results[0].key,
-        PictureKey::of(generation, common::plate_delta())
+        PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )
     );
     assert!(
         results[0]

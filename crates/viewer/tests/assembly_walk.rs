@@ -90,9 +90,9 @@ fn the_exit_demo_walk() {
         .expect("a scene")
         .stats()
         .triangles;
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_a,
-        hidden: true,
+        on: false,
     });
     let view = session.display_view();
     assert!(
@@ -282,14 +282,14 @@ fn the_exit_demo_walk() {
     // round-trips, every row re-resolves, and the solved placement is
     // reproduced.
     assert!(
-        !session.display().hidden_bodies().is_empty(),
+        !session.display().toggled().is_empty(),
         "the walk still holds layer-3 state at save time"
     );
     let outcome = session.perform(SessionOp::Save(bench.asm_path.clone()));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let reopened = asm::open_bench(&bench, tol);
     assert!(
-        reopened.display().hidden_bodies().is_empty(),
+        reopened.display().toggled().is_empty(),
         "hide died with the session (documentation, not a gate — see above)"
     );
     assert!(

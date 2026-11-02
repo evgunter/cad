@@ -1172,7 +1172,7 @@ impl ViewerBehavior<'_> {
         // pass's answer read back through an id map, and — since Ev's
         // 2026-09-15 ruling — the pick itself, which would otherwise
         // answer about geometry the screen is not showing.
-        let on_screen = drawn_index(self.index, self.scene_key);
+        let on_screen = drawn_index(self.index, self.scene_key.clone());
         // Read before the loop spends `actions`: whether a pick action
         // below asks the ray at this frame's cursor, and so words its
         // refusal itself ([`cursor_news`] reads it).
@@ -1846,12 +1846,18 @@ mod tests {
         let generation = session
             .landed_generation()
             .expect("a landed evaluation has a generation");
-        PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
-            .expect("the plate indexes")
+        PickIndex::build(
+            doc,
+            eval,
+            PictureKey::of(generation, delta, crate::world::Shown::none()),
+            session.tol(),
+        )
+        .expect("the plate indexes")
     }
 
-    /// **The picture's alphabet is `(generation, δ)`, and the guard
-    /// holds both halves.**
+    /// **The picture's alphabet is its whole key — generation, δ and
+    /// the shows — and the guard holds the δ part a generation-only
+    /// check would drop.**
     ///
     /// The half a generation-only check would drop is δ: a δ typed
     /// while the document stands rebuilds the index at the SAME
@@ -2630,7 +2636,7 @@ mod tests {
         let landed = plate_index(&session, a_delta(0.05));
         let picture = drawn.key();
         assert!(
-            drawn_index(Some(&landed), Some(picture)).is_none(),
+            drawn_index(Some(&landed), Some(picture.clone())).is_none(),
             "the index in hand describes a rebuild the picture is not"
         );
 

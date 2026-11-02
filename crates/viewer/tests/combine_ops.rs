@@ -1320,7 +1320,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
 
 /// **The authored path admits any count, and the evaluation judges it**
 /// — the door does not judge the count: the form declines to offer a
-/// count below one, and the op vocabulary is not narrowed to what the
+/// count below zero, and the op vocabulary is not narrowed to what the
 /// form offers, because the index's count can be written to the same
 /// number afterwards. A count of zero is a family of no member, which
 /// evaluates; a count below zero refuses typed on the family's own
