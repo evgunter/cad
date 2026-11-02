@@ -1083,15 +1083,15 @@ fn to_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
     (picked, read)
 }
 
-/// **Whether the value `id` of `placement`'s bundle writes a constant**:
-/// a number, or an anonymous variable holding one ([`Doc::written`]) —
-/// what a typed field mints. A value reading a named variable or an
-/// expression is the person's, and no snap writes over it.
+/// **Whether the value `id` of `placement`'s bundle is a number**: the
+/// anonymous variable a typed field mints ([`Doc::is_typed_value`]), or
+/// a constant as written (the `0` a bundle door fills in). A value
+/// reading a named variable or an expression is the person's, and no
+/// snap writes over it.
 fn written_constant(
     doc: &Doc<ProfileProgram>,
     placement: Option<RecipeNodeId>,
     id: ConstraintId,
-    coord: Coord,
 ) -> bool {
     let Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) =
         placement.and_then(|p| doc.node(p))
@@ -1103,9 +1103,11 @@ fn written_constant(
         .find(|c| c.id == id)
         .and_then(|c| c.value())
         .is_some_and(|v| {
-            doc.written(&pncad::document::Expr::var(v.by, coord.dimension()))
-                .literal_value()
-                .is_some()
+            doc.is_typed_value(v.by)
+                || doc
+                    .written(&pncad::document::Expr::var(v.by, v.coord.dimension()))
+                    .literal_value()
+                    .is_some()
         })
 }
 
@@ -1748,7 +1750,7 @@ impl MateTool {
                     Some((id, v))
                         if chart_kept
                             || measured.is_none()
-                            || !written_constant(doc, placement, id, coord) =>
+                            || !written_constant(doc, placement, id) =>
                     {
                         ValueRow {
                             coord,

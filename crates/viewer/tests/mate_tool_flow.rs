@@ -412,7 +412,7 @@ fn shelf_on(
     tool.pick(session.doc(), target.clone());
     let mut choice = asm::seat_choice();
     choice.values = Vec::new();
-    common::proposed(&session, &tool, choice).expect("the shelf's rest proposes")
+    common::proposed(session, &tool, choice).expect("the shelf's rest proposes")
 }
 
 /// **The name a target pick on a placement's copy carries**: the
