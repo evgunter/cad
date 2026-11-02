@@ -2,8 +2,9 @@
 //! reproduced through the public façade as an outside consumer would.
 //!
 //! The PR body claims, on the tour's lily lantern: (a) wall 6 as
-//! authored — EVERY edge requested — still refuses
-//! `TangentialEdge { margin: 0.0 }` before any closed-rim door;
+//! authored — EVERY edge requested — leaves the co-surface chart seams
+//! as they are (smooth seams, margin exactly zero) and carves the four
+//! rims;
 //! (b) requested one rim at a time, the three transverse rims at
 //! carrier radii ~0.090, ~0.183, ~0.052 fillet whole at r = 0.02
 //! through the new door; (c) the fourth (~0.253, the mouth) is CONCAVE
@@ -108,24 +109,50 @@ fn carrier_radius(body: &Body<f64>, edge: EdgeKey) -> f64 {
     }
 }
 
-/// Wall 6 as authored: every edge, one call — the battery refuses the
-/// co-surface chart seams at margin exactly zero, before any door.
+/// Wall 6 as authored: every edge, one call — the co-surface chart
+/// seams are smooth seams the fillet leaves as they are, and the four
+/// rims carve, one band each.
 #[test]
-fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
+fn t1_wall_6_as_authored_leaves_the_seams_and_carves_the_rims() {
     let tol = Tol::witness();
     let (lant, _) = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&finished("lant", lant.clone(), tol), &all, 0.02, tol).map_err(|r| r.error) {
-        Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "a co-surface seam, not a near-tangency"
-            );
-        }
-        other => panic!("wall 6 as authored refuses tangential, got {other:?}"),
-    }
+    let surface = |f| lant.get_face(f).expect("a face").surface;
+    let mut seams: Vec<EdgeKey> = all
+        .iter()
+        .copied()
+        .filter(|&k| {
+            let (a, b) = pncad::topo::readback::edge_sides(&lant, k)
+                .expect("an edge")
+                .faces();
+            surface(a) == surface(b)
+        })
+        .collect();
+    seams.sort_unstable();
+    assert!(!seams.is_empty(), "a full revolve mints chart seams");
+    let out = fillet_edges(&finished("lant", lant.clone(), tol), &all, 0.02, tol)
+        .unwrap_or_else(|e| panic!("wall 6 as authored carves, got {e:?}"));
+    let rims: Vec<EdgeKey> = all.iter().copied().filter(|e| !seams.contains(e)).collect();
+    let without = fillet_edges(&finished("lant", lant.clone(), tol), &rims, 0.02, tol)
+        .unwrap_or_else(|e| panic!("the four rims alone carve, got {e:?}"));
+    let keys = |b: &Body<f64>| {
+        (
+            b.faces().map(|(k, _)| k).collect::<Vec<_>>(),
+            b.edges().map(|(k, _)| k).collect::<Vec<_>>(),
+        )
+    };
+    assert_eq!(
+        (keys(&out.body), &out.band_faces),
+        (keys(&without.body), &without.band_faces),
+        "the chart seams are a silent no-op: every edge carves what the rims alone do"
+    );
+    assert_eq!(
+        out.band_faces.len(),
+        4,
+        "the four rims carve, one band each"
+    );
+    pncad::topo::validate_geometric(&out.body, tol)
+        .unwrap_or_else(|e| panic!("wall 6 carves tier-3 valid, got {e:?}"));
 }
 
 /// One rim at a time: the three transverse convex rims the PR names

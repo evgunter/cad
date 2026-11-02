@@ -66,7 +66,7 @@ fn pick(body: &Body<f64>, which: &str) -> (EdgeKey, (f64, f64)) {
                 .unwrap();
             matches!(
                 (which, c.carrier()),
-                ("rim", Curve3::Circle { .. }) | ("meridian", Curve3::Line { .. })
+                ("rim", Curve3::Circle { .. }) | ("meridian", Curve3::Line(_))
             )
         })
         .map(|(e, _)| e)

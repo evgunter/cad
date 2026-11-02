@@ -868,10 +868,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             geom_brep::EdgeDescription::OnPair { pair } => geom_brep::EdgeDescriptionSpec::OnPair {
                 pair: pair
                     .map(|s| image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")),
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
+                declared: curve.authority().declared(),
             },
             // The image travels verbatim (chart COORDINATES); only
             // the handle moves. The authority record travels beside
@@ -886,10 +883,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
                 ),
                 image: Some(c.pcurve.clone()),
                 wrap: c.wrap,
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
+                declared: curve.authority().declared(),
             },
             geom_brep::EdgeDescription::Scaffold(_) => continue, // no surface keys
         };

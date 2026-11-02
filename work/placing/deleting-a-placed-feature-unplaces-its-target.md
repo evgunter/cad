@@ -2,13 +2,11 @@
 id: deleting-a-placed-feature-unplaces-its-target
 kind: issue
 title: Add a fillet then delete it and the body leaves the world: the add gesture re-points the target's placement, the delete cascades it
-status: dispatched
+status: open
 opened: 2026-10-08
 priority: P1
 cost: M
-branch: placing/gesture-placements
 pr: 6280
-design: true
 ---
 
 Found by the review of INTENT stage 2 C (PR #4359, MINOR-4); filed on
@@ -73,3 +71,11 @@ The two rows are one question, answered together.
 - **Split, put to Ev:** a feature on a body picked as itself (in the tree) that has copies. Either re-point every copy (two designers), or write nothing and offer an explicit replace door (one designer).
 
 The `[ev]` PR carries the three designers' texts. PR 6280's attempt is superseded; its review's probe rows are kept for the build.
+
+## Ev's answer (2026-11-02, `[ev]` PR 6353; fork row 245, renumbered from the 241 cited above)
+
+- **Picked on a copy in the viewport:** the feature reads that placed copy only (`fillet(C)`, in the copy's space). No placement's source is written. The UI makes clear the result belongs to that placed copy, and gives an easy way to go to the original body.
+- **Body picked as itself:** the feature makes a new body (`F = fillet(B)`) and offers, as one explicit step, to re-point the variable the body's placements share onto `F`. It never re-points silently.
+- **Delete:** a splice by continuation (DM6 as narrowed in the PR). The deleted node's readers are handed to the body it continues, with nothing recorded.
+
+The PR 6280 draft is superseded. Its review's probe rows are kept for the build.

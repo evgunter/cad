@@ -68,6 +68,24 @@ its own. TWICE's `extent-ball-and-reach-are-two-statements-of-one-extent`
 and ONEHOME's cluster C (`three-readings-of-a-points-rounding-charge-it-three-ways`)
 are the same gap seen from the verdict side; the step-2 survey reads them.
 
+## 2026-11-02 — the extent-home fork goes to Ev (PR 6334)
+
+(BOXES orchestrator) Three designers (fork row 239) converged in three
+rounds: one cover per entity, a reading under `[one-way.readings]`, its
+shapes as methods, `Uncovered` typed with meet/hull defined on the
+`Result`. PR 6334 carries the DESIGN edit and asks Ev to ratify. Units
+wait on the ruling. Implementation notes the designers asked the units
+to carry: `glue::overlap_ball`'s NaN-dropping `f64::max`/`min` is the
+first consumer onto `meet` (it gets poison ∩ X = X today by accident);
+`Uncovered`'s reason combines on Err ∧ Err; the cylinder arm's
+`splice_superseded` branch goes (an undecided axis is an absent slab);
+`held_reach_in`'s pole narrowing folds into the sphere arm; the
+`ConeSlab` "jurisdiction" fence comes down; a parameter-window type
+survives as data in `geom`. Rows to fold under the design beyond
+BOXES': `apex/face-reach-misses-an-interior-far-point-on-a-sphere-torus-or-cone-face`,
+`tang/whole-turn-conic-reach-…`, `lever/germ-takes-the-span-bounded-face-reach-alone`,
+`hone/splitting-face-extent-lever-reads-vertices-not-arcs`,
+`twice/extent-ball-and-reach-are-two-statements-of-one-extent`.
 ## 2026-11-02 — the extent survey (main `b3448a04bd`)
 
 (BOXES orchestrator) A read-only survey of every door that answers *what region can a face or an edge occupy*, verbatim as delivered. It is the evidence the extent-home design fork is dispatched on; it asserts a class, so it lives here rather than in a session.
@@ -265,3 +283,38 @@ undoes. That is the reason they are not this sitting's easy tail.
 The token counts for row 239 come from the harness's per-agent usage. The
 first report and the total are A 141727 / 174465, B 187149 / 239850,
 C 137607 / 178525 (first report / last reply).
+
+- 2026-11-02 — The extent-home fork row is **241**, not 239: main took 239 for another fork before PR 6334 landed. The entries above that say 239 mean 241. (BOXES orchestrator)
+
+## 2026-11-02 — Ev ratifies the cover (PR 6334); the build is cut
+
+(BOXES orchestrator) Ev, on PR 6334: *"the idea is good! we'll have to
+see how the implementation pans out, i guess. we can accept this for
+now and if it needs to be revised because of issues encountered when
+implementing then that's ok"*. Fork row 241's second half is filled
+in (all three first reports matched), and the ruling item is closed.
+
+Merging main brought in a `[one-way.places]` row ratified the same day
+on PR 6329: *f64 rounding, a verdict's lever arm, and the extent it is
+consumed over* lives in `crates/geom-core/README.md`, "Float rounding".
+That section names `geom_brep::Reach` as the one consumed-extent type.
+Both rows stand. They ask different questions: where a region lies,
+and what extent a verdict's margin levers over. `cover-levers` builds
+`Reach` from cover queries, and carries the seam explicitly.
+
+The build, cut into six units (bodies carry the spec):
+1. `cover-geom-readings` (H, dual review): `Cover`, `Uncovered`, meet and hull, the methods, and geom's carrier readings.
+2. `cover-edge-doors` (H).
+3. `cover-topo-faces` (H).
+4. `cover-levers` (H).
+5. `cover-app-readers` (M).
+6. `cover-kind-match-gate` (M).
+
+Each later unit is parked on its predecessors. Re-parked onto them:
+- `an-edges-extent-has-four-dispatchers` → `cover-edge-doors`;
+- `D280`, `sphere-operand-box-is-the-whole-ball` and nine P3/P4 arm rows → `cover-topo-faces`;
+- `a-sphere-or-torus-pair-extent-skips-the-face-box-rule` → `cover-levers`;
+- `torus-extent-overreaches-…` → `cover-geom-readings`;
+- `box-door-census-misses-a-point-free-read` → `cover-kind-match-gate`.
+
+`sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log` banded P3/E. The track is `active` again, at 8/30.

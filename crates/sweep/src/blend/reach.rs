@@ -651,8 +651,11 @@ fn sheet_fn<T: Decide + Bounds>(
             radius,
             ..
         } => {
-            let b = axis.normalize();
-            let foot = *origin + b * (centre - *origin).dot(b);
+            let foot = geom::Line {
+                origin: *origin,
+                dir: *axis,
+            }
+            .foot(centre);
             (
                 SheetFn::Line {
                     alpha: one,
@@ -829,7 +832,7 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
 /// trimline or spine); `None` for any other carrier.
 fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match *curve {
-        Curve3::Line { origin, dir } => Some(origin + dir * ((p - origin).dot(dir) / dir.dot(dir))),
+        Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle {
             center,
             axis,
@@ -982,7 +985,7 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             axis,
             radius,
             ..
-        } => foot_on(&Curve3::Line { origin, dir: axis }, p).map(|c| (c, radius)),
+        } => foot_on(&Curve3::Line(geom::Line { origin, dir: axis }), p).map(|c| (c, radius)),
         Surface::Torus {
             center,
             axis,
@@ -1223,7 +1226,11 @@ fn straight_reach<T: Decide + Bounds>(
     // The box: the spine's window, widened by the cross-section's reach
     // from its spine point (the edge point's for a chamfer).
     let axis_pt = st.c.map_or(st.p, |(c, _)| c);
-    let base = axis_pt + tau * (start - axis_pt).dot(tau);
+    let base = geom::Line {
+        origin: axis_pt,
+        dir: tau,
+    }
+    .foot(start);
     let (a, b) = (base + tau * w_lo, base + tau * w_hi);
     Ok(Reach {
         bounds,
@@ -1479,14 +1486,14 @@ fn corner_reach<T: Decide + Bounds>(
                     .filter_map(|l| l.trim_on(*f).map(|t| &t.0))
                     .collect();
                 let [
-                    Curve3::Line {
+                    Curve3::Line(geom::Line {
                         origin: o1,
                         dir: d1,
-                    },
-                    Curve3::Line {
+                    }),
+                    Curve3::Line(geom::Line {
                         origin: o2,
                         dir: d2,
-                    },
+                    }),
                 ] = trims[..]
                 else {
                     return Ok(None);
@@ -1787,7 +1794,7 @@ fn sheet_clip<T: Decide + Bounds>(
             let carrier = cert.carrier();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
             let aabb = match carrier {
-                Curve3::Line { .. } => {
+                Curve3::Line(_) => {
                     let lo = |k: fn(&Point3<T>) -> T| k(&p0).min(k(&p1));
                     let hi = |k: fn(&Point3<T>) -> T| k(&p0).max(k(&p1));
                     [
@@ -1874,7 +1881,7 @@ fn sheet_clip<T: Decide + Bounds>(
                         (T::zero(), e, (z_far + d_mer) * e, T::zero())
                     }
                 }
-                Curve3::Line { .. } => {
+                Curve3::Line(_) => {
                     // A segment clear of the axis turns through the
                     // angle between its ends' radial directions.
                     let (v0, v1) = (p0 - o, p1 - o);
@@ -2327,7 +2334,7 @@ fn prism_inside<T: Decide>(
                 .half_edge_end(he)
                 .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
             let carrier = carrier_of(body, edge)?;
-            if let Curve3::Line { dir, .. } = carrier.0 {
+            if let Some(geom::Line { dir, .. }) = carrier.0.as_line() {
                 lines.push((carrier, u, w, dir));
                 continue;
             }
@@ -3071,13 +3078,11 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
 ) -> Result<(), BlendError> {
     let mut links = Vec::with_capacity(req.edges.len());
     for edge in &req.edges {
-        links.push(super::battery::resolve_link(
-            req.body,
-            *edge,
-            req.size,
-            band,
-            BlendKind::Fillet,
-        )?);
+        if let super::battery::Resolved::Link(link) =
+            super::battery::resolve_link(req.body, *edge, req.size, band, BlendKind::Fillet)?
+        {
+            links.push(link);
+        }
     }
     let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;

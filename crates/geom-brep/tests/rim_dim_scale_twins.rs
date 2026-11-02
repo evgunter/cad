@@ -83,10 +83,7 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
     };
     let meridian = |u: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Line {
-                origin: p(0.0, 0.0, 0.0),
-                dir: gen_dir(u),
-            },
+            Curve3::line(p(0.0, 0.0, 0.0), gen_dir(u)),
             Probe(t0),
             Probe(t1),
             forward,
@@ -364,10 +361,10 @@ fn cone_trunc_loop(scale: f64, verts: &[(f64, f64)]) -> Vec<LoopEdge<Probe>> {
                 (vb, va, false)
             };
             LoopEdge::hand_built(
-                Curve3::Line {
-                    origin: p(0.0, 0.0, 0.0),
-                    dir: v3(ua.cos() * sin_a, ua.sin() * sin_a, cos_a),
-                },
+                Curve3::line(
+                    p(0.0, 0.0, 0.0),
+                    v3(ua.cos() * sin_a, ua.sin() * sin_a, cos_a),
+                ),
                 Probe(t0),
                 Probe(t1),
                 forward,

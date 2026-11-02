@@ -450,6 +450,7 @@ fn a_loft_section_stands_at_its_station() {
     let (doc, a) = insert(doc, square());
     let (doc, b) = insert(doc, square());
     let section = |station| LoftSection {
+        id: None,
         profile: Operand::from(b),
         station,
     };
@@ -462,6 +463,7 @@ fn a_loft_section_stands_at_its_station() {
                 by: len(1.0),
             }])],
             v_degree: Formula::count(1),
+            first_id: None,
         },
     );
     let points = vertices(&slid, loft);
@@ -487,6 +489,7 @@ fn a_loft_section_stands_at_its_station() {
                 },
             ])],
             v_degree: Formula::count(1),
+            first_id: None,
         },
     );
     let top: Vec<[f64; 3]> = vertices(&spun, loft)

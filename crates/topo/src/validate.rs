@@ -4154,7 +4154,7 @@ pub(crate) fn classify_point_in_solid(
             "a solid the check read holds the side at infinity in its material, so it is \
              inside-out"
                 .into(),
-            "Recourse: build it with its faces pointing outward, or revert it".into(),
+            format!("Recourse: {}", S::INSIDE_OUT_RECOURSE).into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -4628,9 +4628,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
-            Self::SliverInsideOut { .. } => f.write_str(
+            Self::SliverInsideOut { .. } => write!(
+                f,
                 "a solid is inside-out: a ray from outside it crosses into its material. \
-                 Recourse: build it with its faces pointing outward, or revert it",
+                 Recourse: {}",
+                crate::boolean::PointInSolidError::INSIDE_OUT_RECOURSE
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
@@ -9201,7 +9203,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
         vertex_point(body, body.half_edge_end(he)?)?,
     );
     let departure = match curve.carrier() {
-        geom::Curve3::Line { .. } => Some(Departure::Exact(p1 - p0)),
+        geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. } => {
@@ -9797,7 +9799,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
     let edge = body.half_edges.get(he)?.edge;
     let geom = certified_carrier(body, edge)?;
     let segment = match *geom.carrier() {
-        geom::Curve3::Line { .. } => {
+        geom::Curve3::Line(_) => {
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
@@ -9862,7 +9864,7 @@ fn segments_meet<T: Decide>(
             let e = (b - a).normalize();
             // The foot of the centre on the line, and the half-chord
             // either side of it.
-            let foot = a + e * (center - a).dot(e);
+            let foot = geom::Line { origin: a, dir: e }.foot(center);
             let h = (center - foot).norm();
             let half_chord = ((radius - h) * (radius + h)).max(T::zero()).sqrt();
             let (existence, candidates) =
@@ -10358,7 +10360,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
     match carrier {
         // `dir` is unit by convention, so the rejection is the residual
         // of the projection.
-        geom::Curve3::Line { origin, dir } => {
+        geom::Curve3::Line(geom::Line { origin, dir }) => {
             let d = p - *origin;
             Some((d - *dir * d.dot(*dir)).norm())
         }
@@ -10382,10 +10384,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
 /// A loop's half-edge cycle, or `None` for an empty loop (which bounds
 /// nothing and can meet nothing).
 fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
-        return None;
-    };
-    body.loop_cycle(first)
+    body.loop_halves(r#loop).filter(|cycle| !cycle.is_empty())
 }
 
 /// The point a vertex stands at.
@@ -10748,9 +10747,11 @@ impl Unfinished {
     /// What every door refusing an inside-out operand says after naming
     /// the operand: true of a solid check 7 decides negative and of a
     /// shell check 10 finds bounding negative material.
-    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
-        its shells, so faces there point into its material and bound negative volume, and \
-        it is refused. Recourse: build it with its faces pointing outward, or revert it";
+    pub const INSIDE_OUT_REFUSAL: &'static str = concat!(
+        "is inside-out, as a whole or in one of its shells, so faces there point into its \
+         material and bound negative volume, and it is refused. Recourse: ",
+        crate::boolean::solid_contain::inside_out_recourse!()
+    );
     /// What every door refusing an operand that holds a joinable vertex
     /// says after naming the operand: a body every finisher would have
     /// joined, or one whose join reads in the sliver band (its finding

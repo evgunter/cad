@@ -538,14 +538,14 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+    side_code(dir, Reach::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit-radius arc leaving a plane along it, short enough that the
 /// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
 /// `margin`.
 fn conic_bend(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::{FaceShape, pierce_side};
+    use super::super::sectors::pierce_side;
     use geom_brep::{BendBounds, ConicBend};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let extent = 2.0 * (margin / 2.0).sqrt().asin();
@@ -563,7 +563,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         Vec3::new(1.0, 0.0, 0.0),
         Reach::Conic { extent, bend },
         n,
-        FaceShape::Plane,
+        crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
         band(),
     )
@@ -982,6 +982,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     let sa = [sector(z, x, 1.0, fca), sector(-y, z, 1.0, fca)];
@@ -1027,6 +1028,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::vtxfac::pierce_germ_dir(
         &s,
@@ -1078,6 +1080,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
@@ -1355,7 +1358,7 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let floor = plane_through(o, y, Vec3::new(0.0, 0.0, 1.0));
     let extent = (2.0 * sagitta).sqrt();
-    let ruling = geom::Curve3::Line { origin: o, dir: y };
+    let ruling = geom::Curve3::Line(geom::Line { origin: o, dir: y });
     super::super::ops::seam_must_carry(
         &floor,
         &resting_cylinder(1.0),
@@ -1485,6 +1488,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let decls = Glue {
         pairs: if rest {
@@ -1555,6 +1559,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             true,
         )),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(
@@ -2664,6 +2669,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
+    ("mod.rs", "decision_words", "Coincide::VertexOnSection", 1),
     ("mod.rs", "of_lever_rung", "BooleanDecision::of_lever", 1),
     (
         "mod.rs",
@@ -2813,7 +2819,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::WallRoots",
         1,
     ),
-    ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
     (
         "reduce.rs",
         "twin_edge",
@@ -2833,7 +2838,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "sweep_direction", "Coincide::EdgeOnPlane", 3),
-    ("reduce.rs", "sweep_direction", "Coincide::VertexOnFace", 3),
     (
         "reduce.rs",
         "vertex_on_curved_face_at",
@@ -2851,6 +2855,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "vertex_refusal",
+        "Coincide::VertexOnSection",
+        1,
+    ),
     (
         "reduce.rs",
         "wall_crossing",
@@ -2908,7 +2918,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "sectors.rs",
-        "bound_refusal",
+        "read_refusal",
         "BooleanDecision::ConicBend",
         1,
     ),
@@ -2936,8 +2946,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "bound_refusal", "Coincide::SectorSide", 1),
-    ("sectors.rs", "bound_refusal", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "LeverArm::SectorCurving", 1),
+    ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
     ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),

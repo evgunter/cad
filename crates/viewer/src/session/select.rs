@@ -413,7 +413,7 @@ impl Selection {
     /// answers differ exactly where it matters to a tool. The feature
     /// that minted a face is upstream of every node that carried it:
     /// a face on a moved copy was minted by the original's extrude
-    /// (a transform mints no name), and a flat on a filleted body by
+    /// (a placement mints no name), and a flat on a filleted body by
     /// the feature the fillet consumed. A tool fed that feature would
     /// author against a body sitting somewhere the user did not click,
     /// or against geometry the picture no longer shows. So the tree's

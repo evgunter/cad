@@ -350,11 +350,6 @@ fn nearest<T: Real>(d: T, levels: [T; 2]) -> T {
     (d - levels[0]).abs().min((d - levels[1]).abs())
 }
 
-/// `x` shrunk toward zero by `by`, zero where `x ± by` holds it.
-fn shrunk<T: Real>(x: T, by: T) -> T {
-    (x - by).max(T::zero()) + (x + by).min(T::zero())
-}
-
 /// One sweep's frame: what it reads and at which band.
 struct Sweep<'a, T: Real> {
     core: Core<T>,
@@ -421,7 +416,14 @@ impl<T: Decide> Sweep<'_, T> {
         let r = read(self.core, self.spine, far, phi);
         match decide(
             self.rows.turn,
-            self.slope(shrunk(r.g1, r.err.g1), r.d + r.err.d),
+            self.slope(
+                geom_core::Rounded {
+                    value: r.g1,
+                    error: r.err.g1,
+                }
+                .toward_zero(),
+                r.d + r.err.d,
+            ),
             self.band,
         ) {
             Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),

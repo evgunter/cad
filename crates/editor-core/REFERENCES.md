@@ -274,8 +274,11 @@ carry that cost on top of its own. So the chain goes, not the link:
   twenty rims survive. The pip the union no longer reads is still
   defined, and out of the product because no placement names it;
   deleting it too is tidiness, not a requirement. An intersect's
-  argument, a placement's shape list and `Loft`'s `profiles` are the same
-  shape and take the same edit; nothing else in the vocabulary is a list.
+  argument and a placement's shape list are the same shape and take the
+  same edit. `Loft`'s sections (`first`, then `then`) are re-pointed by it
+  too, one read per section and the count kept; adding, dropping or
+  reordering them is `SetLoftSections`, since each section after the first
+  carries a station. Nothing else in the vocabulary is a list.
 - The viewer's combining doors take a union or intersect seat of N body
   picks, and a subtract's two (not yet built).
 
