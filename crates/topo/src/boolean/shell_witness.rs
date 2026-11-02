@@ -158,6 +158,11 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
 /// whose own selection, read as given, holds `q`'s side at infinity
 /// ([`crate::ValidationError::SliverInsideOut`]: the at-rest gate passes
 /// an inside-out solid only where its `V/A` is in band).
+///
+/// # Panics
+///
+/// Where a solid's faces do not select: they are a part of the whole
+/// operand's, which selected before the witness read it inside-out.
 pub(super) fn inside_out_operand<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     operand: Operand,
@@ -165,24 +170,23 @@ pub(super) fn inside_out_operand<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> BooleanError {
-    let errors = body
-        .solids()
-        .filter(|&(solid, _)| {
-            super::solid_contain::SolidFaces::of(body, solid).is_ok_and(|sel| {
-                matches!(
-                    super::solid_contain::point_in_solid_faces(
-                        body,
-                        &sel.read_as_given(),
-                        q,
-                        band,
-                        tol
-                    ),
-                    Err(PointInSolidError::InsideOut)
-                )
-            })
-        })
-        .map(|(solid, _)| crate::ValidationError::SliverInsideOut { solid })
-        .collect();
+    use super::solid_contain::{SolidFaces, point_in_solid_faces};
+    let mut errors = Vec::new();
+    for (solid, _) in body.solids() {
+        let sel = match SolidFaces::of(body, solid) {
+            Ok(sel) => sel.read_as_given(),
+            Err(e) => unreachable!(
+                "{operand:?} operand's solid {solid:?}, a key of its own, does not select ({e:?}), \
+                 where the whole operand's faces selected"
+            ),
+        };
+        if matches!(
+            point_in_solid_faces(body, &sel, q, band, tol),
+            Err(PointInSolidError::InsideOut)
+        ) {
+            errors.push(crate::ValidationError::SliverInsideOut { solid });
+        }
+    }
     BooleanError::InsideOutOperand { operand, errors }
 }
 

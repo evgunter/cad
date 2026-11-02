@@ -2223,6 +2223,24 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
         self.rows().into_iter().map(|(slot, _)| slot).collect()
     }
 
+    /// **A slot's name on this node**: [`SlotId::label`], except that a
+    /// value's number is named by the freedom it sets
+    /// ([`crate::mate::Coord::value_label`]), which its address does not
+    /// carry.
+    pub fn slot_label(&self, slot: SlotId) -> String {
+        let value = match slot {
+            SlotId::ValueSlide { constraint } | SlotId::ValueSpin { constraint } => {
+                crate::mate::solve::bundle_of(self)
+                    .into_iter()
+                    .flatten()
+                    .find(|c| c.id == constraint)
+                    .and_then(crate::mate::Constraint::value)
+            }
+            _ => None,
+        };
+        value.map_or_else(|| slot.label(), |value| value.coord.value_label())
+    }
+
     /// The expression in a named slot, `None` if this node type does
     /// not carry that slot (named access only, spec D5).
     pub fn expr(&self, slot: SlotId) -> Option<&S> {

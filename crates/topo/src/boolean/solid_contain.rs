@@ -438,7 +438,24 @@ pub enum PointInSolidError {
     },
 }
 
+/// [`PointInSolidError::INSIDE_OUT_RECOURSE`], as a literal so a refusal
+/// spelled as one `&'static str` can end in it.
+macro_rules! inside_out_recourse {
+    () => {
+        "build it with its faces pointing outward, or revert it"
+    };
+}
+pub(crate) use inside_out_recourse;
+
 impl PointInSolidError {
+    /// **What a solid read inside-out is owed**, whichever reader found
+    /// its material holding the side at infinity: this door
+    /// ([`Self::InsideOut`]), the Boolean's per-solid read of an operand
+    /// ([`crate::ValidationError::SliverInsideOut`]), or an unverdicted
+    /// door's check 7 and check 10 ([`crate::Unfinished::InsideOut`]). The
+    /// lever is the solid's orientation, so every such refusal ends in it.
+    pub const INSIDE_OUT_RECOURSE: &'static str = inside_out_recourse!();
+
     /// Is this refusal **inconclusive about the one point asked**, so
     /// that another point can still decide: a reading about where the
     /// point stands ([`Self::in_band`]), a limit the door met near it
@@ -582,7 +599,8 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "the solid is inside-out: a test ray from the point met none of its \
                  boundary and left the point in its material, so its faces point into \
-                 it. Recourse: build it with its faces pointing outward, or revert it"
+                 it. Recourse: {}",
+                Self::INSIDE_OUT_RECOURSE
             ),
             Self::CorruptFace { .. } => write!(
                 f,
@@ -2561,7 +2579,11 @@ impl<T: Decide> Centred<T> {
         let [a, b, _] = self.coeffs;
         let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
             + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
-        disc.select_le_zero((disc + e).min(T::zero()), (disc - e).max(T::zero()))
+        geom_core::Rounded {
+            value: disc,
+            error: e,
+        }
+        .toward_zero()
     }
 
     /// **Both roots in the line's own parameter, and a bound on either's

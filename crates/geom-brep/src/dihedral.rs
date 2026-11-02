@@ -1141,6 +1141,22 @@ impl<T: Real> MustCarryDescription<T> {
             Self::Conventional => rest.spec(),
         }
     }
+
+    /// The description restated over `curve`, an edge at rest whose
+    /// description the rule demands anew: the intrinsic tangency, or the
+    /// conventional one restated where the edge rests, its declaration
+    /// carried ([`crate::EdgeCurve::restated_at`]).
+    #[must_use]
+    pub fn restated(
+        self,
+        curve: &crate::EdgeCurve<T>,
+        rest: RestLocus,
+    ) -> crate::EdgeDescriptionSpec<T> {
+        match self {
+            Self::Intrinsic(description) => description,
+            Self::Conventional => curve.restated_at(rest).description,
+        }
+    }
 }
 
 /// **Where a conventional edge between two faces rests** (D2): in the
