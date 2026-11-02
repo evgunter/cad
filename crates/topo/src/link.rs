@@ -32,7 +32,11 @@
 //! comes through one door: [`metric`], whose [`metric::Distance`] is
 //! built only from a point and a plane (a point on it and its unit
 //! normal), or from a segment and a round carrier, as its lowest point's
-//! ([`Round`]). Directions — face normals, ray
+//! ([`Round`]), or from a bound's departure off a plane to the order read.
+//! The one bound-side reading decides its signs at the same door, on the
+//! [`metric::Reading`] its caller passes ([`crate::bound_side`]), so a
+//! side handed to a cone is decided on the cone's own reading
+//! ([`Cone::reading`]). Directions — face normals, ray
 //! directions, their bisectors — only PROPOSE planes. One other sign
 //! stays, named where it is made: [`pairing`], of unit normals of
 //! magnitude about 1. Beside the signs, [`Link::lowest_on`] and
@@ -42,8 +46,9 @@
 //! point exactly on the axis as structure, by whether the scalar moves it.
 //! `link::tests::the_link_decides_only_through_its_doors` holds the signs
 //! to the doors by reading this file's source, the census's touch
-//! analysis beside it, and the boolean's gathering of its cone, and says
-//! what such a reading cannot see.
+//! analysis beside it, the boolean's gathering of its cone, and the
+//! bound-side reading's two orders, and says what such a reading cannot
+//! see.
 //!
 //! Each face is read through its PIECE at the point `p`: the part of the
 //! face visible from `p` ([`face_piece`]). The piece is star-shaped from
@@ -111,11 +116,13 @@ const LINK_ROUND: &str = "link_round_offset";
 const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
-/// through.** A [`Distance`] has a private field and two constructors,
-/// from a point and a plane and from a segment and a sphere's or a
-/// cylinder's carrier, so a lever, a product or any other quantity
-/// cannot be decided here as a verdict: it has no way to become a
-/// `Distance`.
+/// through**, and the bound-side reading's ([`crate::bound_side`]). A
+/// [`Distance`] has a private field and three constructors, from a point
+/// and a plane, from a bound's departure off a plane at its reach (its
+/// rise, or a tie's parting one order down), and from a segment and a
+/// sphere's or a cylinder's carrier, so a lever, a product or any other
+/// quantity cannot be decided here as a verdict: it has no way to become
+/// a `Distance`.
 ///
 /// What the type cannot hold: that `n` is a unit normal. Every caller
 /// passes a normalized direction or a face's outward normal, and a
@@ -4166,6 +4173,100 @@ mod tests {
                 "behind both halves at {t}·Kε"
             );
         }
+    }
+
+    /// **A given side is taken where the cone's own reading did not decide
+    /// against it**: a quarter of space behind a floor (`z = 0`) and a
+    /// wall (`x = 0`), `q` far behind the wall and its side of the floor
+    /// given. Decided by the cone the same way, the cone's sign; decided
+    /// the other way (or given on the floor where the cone puts `q` off
+    /// it), refused `Contradicted`; in band, or decided by the band and
+    /// refused over a slack, the given side is taken, and the floor's
+    /// crossing is read on that side: given in front of the floor `q` is
+    /// out of the quarter, given behind it in.
+    #[test]
+    fn a_given_side_is_taken_where_the_cones_reading_did_not_decide_against_it() {
+        let band = band();
+        let r = 0.25;
+        let cone = Cone::gathered(
+            O,
+            [
+                Fan {
+                    outward: v(0.0, 0.0, 1.0),
+                    apex: O,
+                    rays: vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)],
+                },
+                Fan {
+                    outward: v(1.0, 0.0, 0.0),
+                    apex: O,
+                    rays: vec![p(0.0, -r, 0.0), p(0.0, 0.0, -r), p(0.0, r, 0.0)],
+                },
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let plain = Reading::plain(band);
+        let read = |h: f64, given: Sign, rd: Reading<f64>| {
+            cone.reads_given(p(-1.0, 0.3, h), &[(0, given)], rd)
+        };
+        let contradicted = |got: Result<Material, Unread<f64>>| {
+            matches!(
+                got,
+                Err(Unread::Side {
+                    sector: 0,
+                    why: Unsettled::Contradicted
+                })
+            )
+        };
+        assert_eq!(
+            cone.reads_given(p(-1.0, 0.3, 0.5), &[], plain).ok(),
+            Some(Material::Out),
+            "above the floor"
+        );
+        assert_eq!(
+            read(0.5, Sign::Positive, plain).ok(),
+            Some(Material::Out),
+            "given as decided"
+        );
+        for given in [Sign::Negative, Sign::Zero] {
+            assert!(
+                contradicted(read(0.5, given, plain)),
+                "given {given:?} against a decided side"
+            );
+        }
+        let in_band = 0.3 * band.zero();
+        assert_eq!(
+            cone.reads_given(p(-1.0, 0.3, in_band), &[], plain).ok(),
+            Some(Material::On(0)),
+            "on the floor, to the band"
+        );
+        let slack_refused = 2.0 * band.escalate();
+        let tied = Reading::tied(band, 2.0 * band.escalate());
+        for (h, rd, what) in [
+            (in_band, plain, "in band"),
+            (slack_refused, tied, "over the slack"),
+        ] {
+            assert_eq!(
+                read(h, Sign::Positive, rd).ok(),
+                Some(Material::Out),
+                "{what}: given in front"
+            );
+            assert_eq!(
+                read(h, Sign::Negative, rd).ok(),
+                Some(Material::In),
+                "{what}: given behind"
+            );
+            assert_eq!(
+                read(h, Sign::Zero, rd).ok(),
+                Some(Material::On(0)),
+                "{what}: given on the floor"
+            );
+        }
+        assert!(
+            cone.reads_given(p(-1.0, 0.3, slack_refused), &[], tied)
+                .is_err(),
+            "over the slack, ungiven: the floor's side is not read"
+        );
     }
 
     /// **The arc's clearance holds over the tie**: one thin wedge's

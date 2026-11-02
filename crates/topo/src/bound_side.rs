@@ -31,6 +31,14 @@
 //! A consumer that keys on the first-order tie reads [`read`] and keeps
 //! the [`Tie`] whole; one that wants the side reads
 //! [`Tie::descend`] too.
+//!
+//! Both orders are decided at the link's metric door
+//! ([`crate::link::metric::settle`]) on the [`Reading`] the caller
+//! passes: the run band alone about the bound's own vertex, or a cone's
+//! reading over its tie where the side is handed to that cone
+//! ([`crate::link::Cone::reading`]). Over a slack, a side the band decides
+//! and the slack does not is a tie, and a descent that does not clear
+//! the slack is [`Unresolved::Slack`].
 
 use geom_brep::recourse::Refused;
 use geom_brep::{ConicBend, EntersMaterial, LeverEscalation, OutwardNormal, ReferenceNormal};
@@ -996,6 +1004,123 @@ mod tests {
                 Err(ReadFault::Parting(_))
             ),
             "a cone's apex has no jet: it refuses"
+        );
+    }
+
+    /// A cone of one whole plane about the origin whose apex stands
+    /// `tie` off it, and the reading every reading of it is taken on
+    /// ([`crate::link::Cone::reading`]).
+    fn tied_reading(tie: f64, band: Band) -> Reading<f64> {
+        let cone = crate::link::Cone::of(
+            Point3::origin(),
+            vec![crate::link::Sector {
+                outward: Vec3::new(0.0, 0.0, 1.0),
+                apex: Point3::new(0.0, tie, 0.0),
+                wedges: Vec::new(),
+                closed: true,
+            }],
+        )
+        .unwrap();
+        cone.reading(band)
+    }
+
+    /// **A tie's parting read for a cone clears the cone's slack too**: a
+    /// unit line in a ball's tangent plane parts from it by `1.5·zero`,
+    /// read for a cone whose partner apex stands `0.9·zero` off the
+    /// point. With `K = 1.4` the band decides the parting, which the
+    /// slack (`1.8·zero`) does not: it reads no side. With `K = 3` the
+    /// same parting is in the band's gap on the band alone, and one that
+    /// clears the slack past `K·zero` leaves.
+    #[test]
+    fn a_ties_parting_read_for_a_cone_clears_the_cones_slack() {
+        let zero = 1e-9;
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let line = Reach::Chord {
+            base: Point3::origin(),
+            far: Point3::new(1.0, 0.0, 0.0),
+        };
+        let descent = |margin: f64, rd: Reading<f64>| {
+            let radius = 0.5 / margin;
+            let face = FaceDatum::of_face(
+                OutwardNormal::from_chart(z, true),
+                FaceBend::ball(z, radius),
+                radius,
+            );
+            match read_side(x, line, face, rd).unwrap() {
+                BoundSide::Tied(descent) => descent,
+                off => panic!("a line in the tangent plane ties at first order: {off:?}"),
+            }
+        };
+        let k14 = Band::new(zero, 1.4 * zero).unwrap();
+        assert_eq!(
+            descent(1.5 * zero, Reading::plain(k14)),
+            Descent::Leaves(Side::Above),
+            "K 1.4, on the band alone: the parting is decided"
+        );
+        assert_eq!(
+            descent(1.5 * zero, tied_reading(0.9 * zero, k14)),
+            Descent::Unresolved(Unresolved::Slack),
+            "K 1.4, over the cone's slack: no side"
+        );
+        let k3 = Band::new(zero, 3.0 * zero).unwrap();
+        for rd in [Reading::plain(k3), tied_reading(0.9 * zero, k3)] {
+            assert_eq!(
+                descent(1.5 * zero, rd),
+                Descent::Unresolved(Unresolved::Gap),
+                "K 3: the parting in the band's gap, slack {:?}",
+                rd.slack
+            );
+        }
+        assert_eq!(
+            descent(5.0 * zero, tied_reading(0.9 * zero, k3)),
+            Descent::Leaves(Side::Above),
+            "K 3, a parting clear of the slack past K·zero leaves"
+        );
+    }
+
+    /// **A slope hidden in a cone's tie is no side, at either order**: a
+    /// straight bound rising at slope `5e-5` over a reach of `1e-3` m
+    /// against a hollow bending `−0.02`/m, read for a cone whose tie is
+    /// `1e-7`. On the band alone the rise (`5e-8`) decides it above the
+    /// face. Over the slack (`2e-7`) it is a tie the slack made, and its
+    /// parting (`−1e-8`, below) does not clear the slack: unresolved, so
+    /// the boolean reads it `On` — not `Below`, which the parting read on
+    /// the band alone would say.
+    #[test]
+    fn a_slope_hidden_in_a_cones_tie_reads_no_side() {
+        let band = Band::new(1e-9, 5e-9).unwrap();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let dir = Vec3::new(1.0, 0.0, 5e-5);
+        let reach = Reach::Extent(1e-3);
+        let hollow = FaceDatum::of_face(
+            OutwardNormal::from_chart(z, true),
+            FaceBend::ball(-z, 50.0),
+            50.0,
+        );
+        assert_eq!(
+            read_side(dir, reach, hollow, Reading::plain(band)).unwrap(),
+            BoundSide::Off(Side::Above),
+            "on the band alone: the rise decides it"
+        );
+        let FirstOrder::Tied(tie) = read(dir, reach, hollow, tied_reading(1e-7, band)).unwrap()
+        else {
+            panic!("over the slack the rise is a tie");
+        };
+        assert_eq!(
+            tie.decided.sign,
+            Sign::Positive,
+            "the tie is the slack's: the band decided the rise"
+        );
+        assert_eq!(
+            tie.descend(Reading::plain(band)).unwrap(),
+            Descent::Leaves(Side::Below),
+            "the parting on the band alone reads the wrong side"
+        );
+        assert_eq!(
+            tie.descend(tied_reading(1e-7, band)).unwrap(),
+            Descent::Unresolved(Unresolved::Slack),
+            "over the slack: unresolved"
         );
     }
 

@@ -3445,3 +3445,22 @@ quantity is new: the segment `q`–`w`'s nearest point's distance from
 `p`, its two ends at two distances. It is a named `const`
 (`LINK_ARC_REACH`), `link_arc_reach`, and does not pool with
 `link_arc` (`docs/predicate-dimension-audit.md`'s row of that name).
+
+## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
+
+**Roster: no name joins or leaves; three names change their door.** The
+one bound-side reading (`topo::bound_side::read`, `Tie::descend`)
+decides its first order and its descent through `link::metric::settle`
+on a `link::metric::Reading` its caller passes, keeping each reading's
+K name on that door: `bool_chord_side` (a line edge's far vertex off
+the plane), `enters_material` (a direction's rise at its reach, its arm
+still gated as `enters_material_arm` by `geom_brep::departure_arm`) and
+`tangent_sector_order2` (a tie's parting, its arm still gated as
+`tangent_sector_order2_arm` by `geom_brep::parting_arm`). The quantities
+and their arithmetic are `geom_brep::rise`'s and `geom_brep::parting`'s,
+unchanged, so their samples pool with the rows of those names as before.
+On the run band alone (every caller but one) a reading is one sample, as
+it was. A cone's reading over its tie (`link::Cone::reading`, read for a
+held face's side at an edge-edge site) decides a definite sign a second
+time, moved by the slack, as `link_plane` does there: such a site adds a
+second sample of the moved distance under the same name.

@@ -3019,6 +3019,125 @@ mod tests {
         );
     }
 
+    /// **A held face's side decided within the line cone's tie is no
+    /// side**: A's narrow wedge above a face of A's holding the line `z`
+    /// (outward `+y`), and B's corner below it with one flank dipped under
+    /// the face by `d`, B's vertex `tie` up the line from A's. The flank's
+    /// side of the face is read on the cone's own reading, over its
+    /// tie's slack. With the vertices at one point, or `d` clear of the
+    /// slack, the dipped flank reads under the face and the pass builds.
+    /// With `d = 2·Kε` inside a slack of `4·Kε`, the band decides the
+    /// side and the slack does not: the flank reads on the face, and the
+    /// pass refuses typed, where the face's side taken on the band alone
+    /// built.
+    #[test]
+    fn a_held_faces_side_decided_within_the_cones_tie_is_no_side() {
+        use super::super::sectors::{PierceLever, Reach};
+        use super::super::vtxfac::PierceDatum;
+        use crate::boolean::{Glue, GluedPairs};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let zero = Band::linear(Tol::witness()).unwrap().zero();
+        let band = Band::new(zero, 1.4 * zero).unwrap();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let (u, v) = (1.0 / 5f64.sqrt(), 2.0 / 5f64.sqrt());
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let sector =
+            |o: Point3<f64>, start: Vec3<f64>, end: Vec3<f64>, normal: Vec3<f64>| BoolSector {
+                he: crate::entity::HalfEdgeKey::default(),
+                start,
+                end,
+                start_reach: Reach::Chord {
+                    base: o,
+                    far: o + start,
+                },
+                end_reach: Reach::Chord {
+                    base: o,
+                    far: o + end,
+                },
+                face: crate::entity::FaceKey::default(),
+                at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                    normal, true,
+                )),
+                arm: 1.0,
+                bend: crate::bound_side::FaceBend::Plane,
+            };
+        let corner = |o, p: Vec3<f64>, q: Vec3<f64>, np: Vec3<f64>, nq: Vec3<f64>| {
+            [sector(o, z, p, np), sector(o, q, z, nq)]
+        };
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let above = corner(
+            o,
+            Vec3::new(-u, v, 0.0),
+            Vec3::new(u, v, 0.0),
+            Vec3::new(-v, -u, 0.0),
+            Vec3::new(v, -u, 0.0),
+        );
+        let dipped = |tie: f64, d: f64| {
+            let flank = Vec3::new(1.0, -d, 0.0).normalize();
+            corner(
+                o + z * tie,
+                flank,
+                Vec3::new(-h, -h, 0.0),
+                Vec3::new(-flank.y, flank.x, 0.0),
+                Vec3::new(-h, h, 0.0),
+            )
+        };
+        let held = HeldFace {
+            datum: PierceDatum {
+                normal: OutwardNormal::from_chart(Vec3::new(0.0, 1.0, 0.0), true),
+                bend: crate::bound_side::FaceBend::Plane,
+                lever: PierceLever::Everywhere(super::super::sectors::NO_CURVATURE()),
+            },
+            operand: Operand::B,
+            vertex: crate::entity::VertexKey::default(),
+            face: crate::entity::FaceKey::default(),
+            partner: crate::entity::VertexKey::default(),
+        };
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let body = crate::body::Body::<f64>::new();
+        let run = |tie: f64, d: f64| {
+            let b = dipped(tie, d);
+            let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
+            let mut first_read = records.clone();
+            let mut touches = Vec::new();
+            recl_edges(
+                &mut records,
+                &mut first_read,
+                &above,
+                &b,
+                &body,
+                &body,
+                BooleanOp::Subtract,
+                &declared,
+                band,
+                &Reversed::default(),
+                [Some(held), None],
+                &mut touches,
+                &Default::default(),
+            )
+            .map(|()| touches.len())
+        };
+        let one_point = run(0.0, 1.5 * zero).expect("the vertices at one point");
+        assert_eq!(
+            run(0.9 * zero, 1e-3).expect("the dip clear of the slack"),
+            one_point,
+            "a dip clear of the slack reads as at one point"
+        );
+        // Its side unresolved, the flank rides the face to the orders read.
+        let err = run(0.9 * zero, 1.5 * zero).expect_err("a dip within the slack");
+        assert!(
+            matches!(
+                err,
+                BooleanError::PartnerAlongFace {
+                    along: super::super::AlongFace::Flush,
+                    ..
+                }
+            ),
+            "a dip within the slack refuses as a flank on the face: {err:?}"
+        );
+    }
+
     /// **A solid with an edge and a face on one line holds the half-turn
     /// under the face as well as its edge's wedge**
     /// (`work/tang/an-edge-along-a-partners-ray-through-a-touch-has-no-record.md`).

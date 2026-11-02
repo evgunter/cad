@@ -5311,7 +5311,7 @@ impl core::fmt::Display for BooleanError {
                     }
                     LineUnread::Contradicted => {
                         "a face's edge reads on one side of a face of the other solid along \
-                         the edge and on the other at its end"
+                         itself and on the other at its end"
                     }
                 }
             ),
