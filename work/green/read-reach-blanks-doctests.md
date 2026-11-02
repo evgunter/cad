@@ -4,6 +4,8 @@ kind: issue
 title: The read reach blanks doc comments, so a doctest that reads outside its crate is no read edge
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 

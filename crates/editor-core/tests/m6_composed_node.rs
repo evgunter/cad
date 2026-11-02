@@ -6,8 +6,7 @@
 //! nothing to go stale under a bump. A pipped cube's edge set includes
 //! the cap's MERIDIAN seam edges — two half-cap faces on ONE sphere
 //! surface — and a co-surface seam has no dihedral wedge, so the
-//! battery honestly refused `TangentialEdge` at exactly zero margin,
-//! at any radius. This file pinned that refusal, executed, and said:
+//! battery refused it at exactly zero margin, at any radius. This file pinned that refusal, executed, and said:
 //! the day `Node::Fillet` can name a subset, the pin flips and
 //! `die_composed` joins `documents()`.
 //!
@@ -20,9 +19,9 @@
 //! the interval lane, save/load/replay, latency) carry it for free.
 //! What is left here is what membership does not check:
 //!
-//! - the refusal is still REAL — the two meridians still refuse
-//!   `TangentialEdge` at zero margin, and the document builds because
-//!   it leaves them OUT, not because anything got looser;
+//! - a selection of every edge builds too, name for name what the
+//!   authored selection builds: the two meridians are smooth seams, a
+//!   silent no-op;
 //! - the authored selection is exactly the target's edge set minus
 //!   those two names (provenance in `corpus/die_composed.rs`);
 //! - the surgery's table is TOTAL and its names are COVARIANT under
@@ -41,8 +40,8 @@ use std::collections::BTreeSet;
 
 use corpus::die_composed;
 use editor_core::{
-    CancelToken, DocEdit, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult, RoleSeg,
-    StableName, apply, evaluate,
+    CancelToken, DocEdit, EntityKind, EvalOptions, Node, NodeResult, RoleSeg, StableName, apply,
+    evaluate,
 };
 use geom_core::Tol;
 
@@ -76,6 +75,17 @@ fn selection_of(
 ) -> Vec<StableName> {
     match doc.node(fillet) {
         Some(Node::Fillet { selection, .. }) => crate::fixture::selected(doc, *selection),
+        other => panic!("expected a fillet node, got {other:?}"),
+    }
+}
+
+/// The read through which a fillet node reads its target.
+fn selection_read(
+    doc: &editor_core::ProfileDoc,
+    fillet: editor_core::RecipeNodeId,
+) -> editor_core::VarId {
+    match doc.node(fillet) {
+        Some(Node::Fillet { selection, .. }) => *selection,
         other => panic!("expected a fillet node, got {other:?}"),
     }
 }
@@ -138,18 +148,16 @@ fn the_composed_die_recipe_evaluates() {
     }
 }
 
-/// **The refusal is still real, and still typed.** Adding either
-/// cavity meridian to the selection reproduces the original blocker
-/// verbatim: `TangentialEdge` at a margin of exactly zero. The
-/// document builds because it EXCLUDES a co-surface seam, not because
-/// the battery got looser.
+/// **Every edge selected: the cavity meridians are a silent no-op.** A
+/// cavity meridian is a smooth seam (two half-cap faces on ONE sphere),
+/// so a fillet selecting the target's every edge builds what the
+/// authored fourteen-edge selection (every edge but the two meridians)
+/// builds, name for name, and no band of its output is named for a
+/// meridian.
 #[test]
-fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
+fn every_edge_selected_builds_what_the_selection_without_the_meridians_builds() {
     let doc = die_composed::document();
     let (fillet, target) = fillet_and_target(&doc.doc);
-    // The ball's names ride its placement as `Placed` names, so the
-    // `FromB` payloads name the revolve node under the pip's placement
-    // — recovered here from the target's own table rather than restated.
     let ev0 = eval(&doc.doc);
     let tool = tool_read(&doc.doc, target);
     let ball = edge_names(&ev0, target)
@@ -159,41 +167,98 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
             _ => None,
         })
         .expect("the cavity contributes FromB edges");
-
-    let selection = selection_of(&doc.doc, fillet);
-    for meridian in die_composed::excluded_meridians(&doc.doc, &ev0, ball, target) {
-        // Grown the ONLY way a selection grows: an explicit `Rebind`
-        // swapping one selected box edge for the meridian.
-        let d = apply(
-            &doc.doc,
-            &DocEdit::Rebind {
-                body: doc.doc.output(target, 0),
-                from: selection[0].clone(),
-                to: meridian.clone(),
-            },
-            Tol::witness(),
-        )
-        .expect("rebinding a selected edge onto a cavity meridian")
-        .doc;
-        let ev = eval(&d);
-        let Some(NodeResult::Failed(e)) = ev.nodes.get(&fillet) else {
-            panic!("selecting {meridian:?} must refuse");
-        };
-        match &e.kind {
-            NodeErrorKind::Blend {
-                error: sweep::blend::BlendError::TangentialEdge { margin, .. },
-                ..
-            } => {
-                assert_eq!(margin.predicate, "fillet3_convexity_sign");
-                assert_eq!(
-                    margin.reading.diagnostic_f64_for_error_text().value(),
-                    Some(0.0),
-                    "a co-surface seam has exactly no wedge"
-                );
-            }
-            other => panic!("expected the battery's TangentialEdge refusal, got {other:?}"),
-        }
+    let mut meridians = die_composed::excluded_meridians(&doc.doc, &ev0, ball, target);
+    meridians.sort();
+    assert_eq!(meridians.len(), 2, "the cavity has two meridians");
+    let every = editor_core::all_edges(&ev0, target);
+    assert!(
+        meridians.iter().all(|m| every.contains(m)),
+        "every edge includes the meridians"
+    );
+    let applied = apply(
+        &doc.doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::fillet(
+                target,
+                crate::fixture::len(die_composed::R),
+                every,
+            )),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("inserting a fillet of every edge");
+    let all_round = applied.record.minted.expect("an insert mints an id");
+    let ev = eval(&applied.doc);
+    let Some(NodeResult::Ok(_)) = ev.nodes.get(&all_round) else {
+        panic!(
+            "the fillet of every edge must build, got {:?}",
+            ev.nodes.get(&all_round)
+        );
+    };
+    let bands: Vec<String> = ev
+        .table_at(all_round)
+        .expect("the fillet's table")
+        .iter()
+        .filter(|(n, _)| {
+            n.kind == EntityKind::Face
+                && matches!(
+                    n.path.first(),
+                    Some(RoleSeg::BlendFace(_) | RoleSeg::BandFace(_))
+                )
+        })
+        .map(|(n, _)| format!("{n:?}"))
+        .collect();
+    assert!(!bands.is_empty(), "the fillet names its bands");
+    for meridian in &meridians {
+        let spelled = format!("{meridian:?}");
+        assert!(
+            bands.iter().all(|b| !b.contains(&spelled)),
+            "no band is named for the left-alone {meridian}"
+        );
     }
+    // The authored selection builds the same body, name for name: the
+    // meridians cost the all-round request nothing. Each node roots its
+    // own names and reads its target through its own read, and a name
+    // can carry either anywhere in its path (a merged edge names its
+    // pieces under the node), so the two tables are compared as
+    // spelled, with the all-round node and its read spelled as the
+    // authored ones; every name is otherwise the same birth.
+    let as_authored = [
+        (format!("{all_round:?}"), format!("{fillet:?}")),
+        (
+            format!("{:?}", selection_read(&applied.doc, all_round)),
+            format!("{:?}", selection_read(&doc.doc, fillet)),
+        ),
+    ];
+    let names = |id| -> BTreeSet<String> {
+        ev.table_at(id)
+            .expect("a fillet's table")
+            .iter()
+            .map(|(n, _)| {
+                as_authored
+                    .iter()
+                    .fold(format!("{n:?}"), |spelled, (from, to)| {
+                        spelled.replace(from, to)
+                    })
+            })
+            .collect()
+    };
+    let (all_round_names, authored_names) = (names(all_round), names(fillet));
+    assert!(
+        !authored_names.is_empty(),
+        "the authored fillet names its body"
+    );
+    let only_all_round: Vec<_> = all_round_names.difference(&authored_names).collect();
+    let only_authored: Vec<_> = authored_names.difference(&all_round_names).collect();
+    assert!(
+        only_all_round.is_empty() && only_authored.is_empty(),
+        "the all-round fillet names what the authored one names ({} and {} names); \
+         only the all-round names {only_all_round:#?}; only the authored names \
+         {only_authored:#?}",
+        all_round_names.len(),
+        authored_names.len(),
+    );
 }
 
 /// **The selection is exactly the target's edges minus the two

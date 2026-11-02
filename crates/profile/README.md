@@ -78,8 +78,9 @@ author (`tests/common/mod.rs::pinned`).
 **V2 — Expression binding.** In the document form (`editor-core`'s
 `ProgramStep`, the mirror of `Step`) every continuous scalar is an
 `Expr`: coordinates, lengths and radii are Length; `angle`, `turn` and
-the `circle_split` phase are Angle; bulges and `toward` director
-components are Scalar. Structural data (the verb tag, `Start`,
+the `circle_split` phase are Angle; a ray director's components are
+Length; bulges are Scalar. A director holds one `Direction2` (PATHS-DESIGN
+§1b), written as an angle or as a ray. Structural data (the verb tag, `Start`,
 side/winding tags, the `circle_split` count) stays literal; no slot edit
 changes it.
 
@@ -228,8 +229,12 @@ independent closed-form oracles.
 - **VQ2 — Derived segments are not persisted.** See V3.
 - **VQ3 — Edit addressing is (loop, step, argument role).** The Expr
   sub-path mechanism (`Expr::descend`) is reused unchanged.
-- **VQ4 — Exact directors.** `toward(dx, dy)` stores the normalized ray
-  verbatim; `angle(θ)` stays for genuinely angular authoring.
+- **VQ4 — Exact directors.** `toward(dx, dy)` stores the ray's
+  components as written and normalizes them at lowering; `angle(θ)`
+  stays for genuinely angular authoring. Both are forms of one
+  `Direction2` whose value is the unit ray, and a heading read off a
+  piece is that piece's ray, never normalized again; against it is the
+  exact negation.
 - **VQ5 — A step keeps what was written.** A step's arguments are the
   variables its author wrote, numbers or 2-D poses (PATHS-DESIGN §1b);
   the document's program stores them as such,

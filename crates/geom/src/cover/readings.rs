@@ -75,28 +75,17 @@ impl<T: Real> Curve3<T> {
                 Cover::segment(*origin + *dir * window.lo, *origin + *dir * window.hi)
                     .ok_or_else(non_finite)
             }
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Cover::arc(
-                *center,
-                (*u_ref, axis.cross(*u_ref)),
-                (*radius, *radius),
+            Curve3::Circle(circle) => Cover::arc(
+                circle.frame.center,
+                (circle.frame.u_ref, circle.frame.v_ref()),
+                (circle.radius, circle.radius),
                 window,
             )
             .ok_or_else(non_finite),
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Cover::arc(
-                *center,
-                (*u_ref, axis.cross(*u_ref)),
-                (*semi_u, *semi_v),
+            Curve3::Ellipse(ellipse) => Cover::arc(
+                ellipse.frame.center,
+                (ellipse.frame.u_ref, ellipse.frame.v_ref()),
+                (ellipse.semi_u, ellipse.semi_v),
                 window,
             )
             .ok_or_else(non_finite),

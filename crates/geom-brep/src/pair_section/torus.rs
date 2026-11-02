@@ -327,12 +327,12 @@ impl<T: Real> Ring<T> {
 
     /// The parallel of radius `rho` at height `z`.
     fn parallel(self, rho: T, z: T) -> Curve3<T> {
-        Curve3::Circle {
-            center: self.center + self.axis * z,
-            axis: self.axis,
-            u_ref: geom::square_frame(self.axis, self.u_ref).u_ref,
-            radius: rho,
-        }
+        Curve3::circle(
+            self.center + self.axis * z,
+            self.axis,
+            rho,
+            geom::square_frame(self.axis, self.u_ref).u_ref,
+        )
     }
 }
 

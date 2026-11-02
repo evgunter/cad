@@ -1429,7 +1429,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
-        BlendError::TangentialEdge { .. } => "tangential_edge",
+        BlendError::KnifeEdge { .. } => "knife_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
@@ -1507,7 +1507,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
-        BooleanErrorKind::TangentCrescentUnsupported => "tangent_crescent_unsupported",
         BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
         BooleanErrorKind::LineMaterialUnread => "line_material_unread",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
@@ -1778,6 +1777,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
+        NamingError::UnsupportedUnjudgedGlue { .. } => "unsupported_unjudged_glue",
         NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.

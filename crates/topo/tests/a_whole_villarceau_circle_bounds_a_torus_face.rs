@@ -24,12 +24,7 @@ fn a_whole_villarceau_circle_closes_one_edge_on_a_torus_face() {
     for family in [1.0_f64, -1.0] {
         let lean = x.cross(z) * tilt.cos() + z * (family * tilt.sin());
         let center = Point3::new(r, 0.0, 0.0);
-        let carrier = geom::Curve3::Circle {
-            center,
-            axis: x.cross(lean),
-            radius: big,
-            u_ref: x,
-        };
+        let carrier = geom::Curve3::circle(center, x.cross(lean), big, x);
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(center + x * big, true).unwrap();
         body.set_face_surface(

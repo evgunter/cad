@@ -94,24 +94,26 @@ fn spans(phi: f64) -> Vec<(String, f64, f64)> {
 /// refuses the two non-conic kinds.
 #[test]
 fn n3r2_dispatcher_is_its_two_arms() {
-    let c: Curve3<f64> = Curve3::Circle {
-        center: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 2.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let c: Curve3<f64> = Curve3::circle(
+        Point3::new(1.0, 2.0, 3.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        2.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let (t0, t1) = (0.2, 2.0);
     assert_eq!(
         format!("{:?}", conic_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1))),
         format!("{:?}", circle_arc_aabb(&c, t0, t1, c.eval(t0), c.eval(t1)))
     );
-    let e: Curve3<f64> = Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: 2.0,
-        semi_v: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let e: Curve3<f64> = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        2.0,
+        0.5,
+    ));
     assert_eq!(
         format!("{:?}", conic_arc_aabb(&e, t0, t1, e.eval(t0), e.eval(t1))),
         format!("{:?}", ellipse_arc_aabb(&e, t0, t1, e.eval(t0), e.eval(t1)))
@@ -132,18 +134,13 @@ fn n3r2_dual_box_contains_a_dense_sample() {
     for &r in &[1e-4_f64, 1.0, 1e4] {
         for oct in 0..8u32 {
             let (axis, u_ref) = frame(0.4, 0.7, f64::from(oct) * core::f64::consts::FRAC_PI_4);
-            let carrier_d: Curve3<Dual64> = Curve3::Circle {
-                center: Point3::new(d(0.0), d(0.0), d(0.0)),
-                axis: axis.map(d),
-                radius: Dual64::variable(r),
-                u_ref: u_ref.map(d),
-            };
-            let real: Curve3<f64> = Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis,
-                radius: r,
-                u_ref,
-            };
+            let carrier_d: Curve3<Dual64> = Curve3::circle(
+                Point3::new(d(0.0), d(0.0), d(0.0)),
+                axis.map(d),
+                Dual64::variable(r),
+                u_ref.map(d),
+            );
+            let real: Curve3<f64> = Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, r, u_ref);
             let v_ref = axis.cross(u_ref);
             let phi = (v_ref.z * r).atan2(u_ref.z * r);
             for (name, t0, t1) in spans(phi) {
@@ -192,28 +189,28 @@ fn n3r2_interval_box_dominates_every_realization_ascending() {
                 ] {
                     let t0 = Interval::from_bounds(t0c - w, t0c + w);
                     let t1 = Interval::from_bounds(t1c - w, t1c + w);
-                    let carrier: Curve3<Interval> = Curve3::Circle {
-                        center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                        axis: axis.map(iv),
-                        radius: Interval::from_bounds(r * (1.0 - w), r * (1.0 + w)),
-                        u_ref: Vec3::new(
+                    let carrier: Curve3<Interval> = Curve3::circle(
+                        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                        axis.map(iv),
+                        Interval::from_bounds(r * (1.0 - w), r * (1.0 + w)),
+                        Vec3::new(
                             Interval::from_bounds(u0.x - w, u0.x + w),
                             iv(u0.y),
                             iv(u0.z),
                         ),
-                    };
+                    );
                     let b = conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1))
                         .unwrap();
                     for i in 0..=6u32 {
                         let f = f64::from(i) / 6.0;
                         let ux = u0.x - w + 2.0 * w * f;
                         let rr = r * (1.0 - w) + 2.0 * r * w * f;
-                        let real: Curve3<f64> = Curve3::Circle {
-                            center: Point3::new(0.0, 0.0, 0.0),
+                        let real: Curve3<f64> = Curve3::circle(
+                            Point3::new(0.0, 0.0, 0.0),
                             axis,
-                            radius: rr,
-                            u_ref: Vec3::new(ux, u0.y, u0.z),
-                        };
+                            rr,
+                            Vec3::new(ux, u0.y, u0.z),
+                        );
                         // Every realization of the two span ends.
                         for (ra, rb) in [(t0.lo(), t1.hi()), (t0.hi(), t1.lo()), (t0.lo(), t1.lo())]
                         {
@@ -251,19 +248,14 @@ fn n3r2_interval_box_dominates_every_realization_descending() {
         let hi_c = core::f64::consts::FRAC_PI_2;
         let t0 = Interval::from_bounds(hi_c - w, hi_c + w); // start (larger)
         let t1 = Interval::from_bounds(0.2 - w, 0.2 + w); // end (smaller)
-        let carrier: Curve3<Interval> = Curve3::Circle {
-            center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            axis: axis.map(iv),
-            radius: iv(1.0),
-            u_ref: u0.map(iv),
-        };
+        let carrier: Curve3<Interval> = Curve3::circle(
+            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+            axis.map(iv),
+            iv(1.0),
+            u0.map(iv),
+        );
         let b = conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
-        let real: Curve3<f64> = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis,
-            radius: 1.0,
-            u_ref: u0,
-        };
+        let real: Curve3<f64> = Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, u0);
         // The widest realization: from t1.lo() up to t0.hi().
         for j in 0..=4000u32 {
             let t = t1.lo() + (t0.hi() - t1.lo()) * f64::from(j) / 4000.0;
@@ -293,12 +285,7 @@ fn n3r2_extremal_angle_exactly_pi_stays_sound_and_is_tight() {
             let u_ref = Vec3::new(flip * alpha.cos(), 0.0, -flip * alpha.sin());
             let v_ref = axis.cross(u_ref);
             assert!(v_ref.x == 0.0 && v_ref.z == 0.0, "v is along y: {v_ref:?}");
-            let carrier: Curve3<f64> = Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis,
-                radius: 1.0,
-                u_ref,
-            };
+            let carrier: Curve3<f64> = Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, u_ref);
             for (name, t0, t1) in spans(core::f64::consts::PI) {
                 let b =
                     circle_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
@@ -341,32 +328,32 @@ fn n3r2_bracket_rectangles_on_the_axes_stay_sound() {
         (-0.3, -0.3), // zero width, negative
     ] {
         for &(vy_lo, vy_hi) in &[(0.0, 0.0), (-0.2, 0.2), (0.0, 0.5), (-0.5, 0.0)] {
-            let carrier: Curve3<Interval> = Curve3::Circle {
-                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                radius: iv(1.0),
-                u_ref: Vec3::new(
+            let carrier: Curve3<Interval> = Curve3::circle(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                iv(1.0),
+                Vec3::new(
                     Interval::from_bounds(ux_lo, ux_hi),
                     Interval::from_bounds(vy_lo, vy_hi),
                     iv(0.0),
                 ),
-            };
+            );
             for &(t0c, t1c) in &[(0.0, 1.0), (1.0, 4.0), (2.5, 3.8), (0.0, 6.3), (3.0, 3.2)] {
                 let (t0, t1) = (iv(t0c), iv(t1c));
                 let b =
                     conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
                 for i in 0..=8u32 {
                     let f = f64::from(i) / 8.0;
-                    let real: Curve3<f64> = Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: Vec3::new(0.0, 0.0, 1.0),
-                        radius: 1.0,
-                        u_ref: Vec3::new(
+                    let real: Curve3<f64> = Curve3::circle(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        1.0,
+                        Vec3::new(
                             ux_lo + (ux_hi - ux_lo) * f,
                             vy_lo + (vy_hi - vy_lo) * f,
                             0.0,
                         ),
-                    };
+                    );
                     for j in 0..=1000u32 {
                         let t = t0c + (t1c - t0c) * f64::from(j) / 1000.0;
                         assert!(

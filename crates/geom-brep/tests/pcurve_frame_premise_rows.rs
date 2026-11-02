@@ -112,12 +112,12 @@ fn a_cone_frame_off_convention_refuses_over_the_box() {
         "the cone is at rest"
     );
     let h = 1.0;
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, h),
-        axis: Vec3::unit_z(),
-        radius: h * half_angle.tan(),
-        u_ref: Vec3::unit_x(),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        h * half_angle.tan(),
+        Vec3::unit_x(),
+    );
     let ((box_ok, point_ok, env, sup), names_frame) =
         run_named("cone frame", &cone, &rim, 0.0, 3.0);
     assert!(

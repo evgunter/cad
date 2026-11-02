@@ -885,12 +885,12 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let equator = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let equator = geom::Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let err = tangent_locus_relation(
             &sphere,
             true,
@@ -1089,12 +1089,12 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (near, far) = (torus(0.0), torus(2.0));
-        let meridian = geom::Curve3::Circle {
-            center: Point3::new(1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: 0.1,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let meridian = geom::Curve3::circle(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.1,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let tau = core::f64::consts::TAU;
         let whole = geom_brep::tangent_span_bounds(&near, &far, &meridian, 0.0, tau)
             .unwrap()
@@ -1184,12 +1184,12 @@ mod tests {
             inward.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
         );
         let bend = torus(bend_center, bend_axis, 1.5, 0.5 + 0.6 * e);
-        let rim = geom::Curve3::Circle {
-            center: Point3::new(2.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let rim = geom::Curve3::circle(
+            Point3::new(2.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let pose = geom_brep::TorusTorusPose::decide(&first, &bend, b).expect("two tori");
         assert!(
             matches!(pose, Ok(ref p) if matches!(p.gap(), geom_brep::TorusGap::Tangent { .. })),

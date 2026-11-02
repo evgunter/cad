@@ -467,12 +467,12 @@ fn try_circle(curve: &NurbsCurve3<f64>, eps_in: f64) -> Result<Option<(Curve3<f6
     if !covers_one_full_turn(curve, center, axis, u_ref) {
         return Ok(None);
     }
-    let circle = Curve3::Circle {
-        center: plus_zero_point(center),
-        axis: plus_zero(axis),
+    let circle = Curve3::circle(
+        plus_zero_point(center),
+        plus_zero(axis),
         radius,
-        u_ref: plus_zero(u_ref),
-    };
+        plus_zero(u_ref),
+    );
     Ok(Some((circle, residual)))
 }
 
@@ -741,12 +741,15 @@ mod tests {
         let curve = rational_circle(0.005, false);
         let CurveRecognition::Promoted {
             curve:
-                Curve3::Circle {
-                    center,
-                    axis,
+                Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     radius,
-                    u_ref,
-                },
+                }),
             residual,
             kind,
         } = recognize(&curve, EPS_IN)
@@ -770,7 +773,11 @@ mod tests {
     #[test]
     fn c2_winding_survives_the_promotion() {
         let CurveRecognition::Promoted {
-            curve: Curve3::Circle { axis, .. },
+            curve:
+                Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                }),
             ..
         } = recognize(&rational_circle(0.005, true), EPS_IN)
         else {
@@ -976,12 +983,10 @@ mod tests {
             .unwrap();
             let CurveRecognition::Promoted {
                 curve:
-                    Curve3::Circle {
-                        center,
-                        axis,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, axis, .. },
                         radius: r,
-                        ..
-                    },
+                    }),
                 residual,
                 ..
             } = recognize(&curve, EPS_IN)
@@ -1533,12 +1538,10 @@ mod r2_probes {
             let outcome = recognize(&curve, EPS_IN);
             let CurveRecognition::Promoted {
                 curve:
-                    Curve3::Circle {
-                        center,
-                        axis,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, axis, .. },
                         radius: r,
-                        ..
-                    },
+                    }),
                 residual,
                 ..
             } = outcome

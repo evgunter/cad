@@ -1501,6 +1501,10 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The kernel's own refusal.
         error: sweep::blend::BlendError,
+        /// The name, in the operand's table, of the edge the refusal is
+        /// about ([`sweep::blend::BlendError::edge`]); `None` where it
+        /// names no edge, or one the table does not name.
+        edge: Option<Box<StableName>>,
     },
     /// The boolean op refused.
     Boolean(BooleanError),
@@ -2124,7 +2128,16 @@ impl crate::spoken::Say for NodeErrorKind {
                     )
                 )
             }
-            Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
+            Self::Blend {
+                verb,
+                error,
+                edge: Some(edge),
+            } => write!(f, "the {verb} op refused at {edge}: {error}"),
+            Self::Blend {
+                verb,
+                error,
+                edge: None,
+            } => write!(f, "the {verb} op refused: {error}"),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),

@@ -562,21 +562,17 @@ fn a_curves_cover_over_a_span_holds_it() {
             ts
         };
         let r = scale * rng.range(0.2, 1.0) * if rng.unit() < 0.2 { -1.0 } else { 1.0 };
-        let circle = Curve3::Circle {
-            center,
-            axis,
-            radius: r,
-            u_ref,
-        };
+        let circle = Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(center, axis, u_ref),
+            r,
+        ));
         run("circle", circle, conic_extremes(r, r));
         let (a, b) = (scale, scale * rng.range(0.1, 1.0));
-        let ellipse = Curve3::Ellipse {
-            center,
-            axis,
-            semi_u: a,
-            semi_v: b,
-            u_ref,
-        };
+        let ellipse = Curve3::Ellipse(crate::Ellipse::new(
+            crate::Frame::new(center, axis, u_ref),
+            a,
+            b,
+        ));
         run("ellipse", ellipse, conic_extremes(a, b));
         let (big, small) = (scale, scale * rng.range(0.1, 0.5));
         let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
@@ -1034,12 +1030,10 @@ fn a_dual_and_a_symbolic_cover_read_the_f64_bounds() {
     let f = [
         torus.cover().unwrap(),
         spiric.cover_over(window).unwrap(),
-        Curve3::Circle {
-            center: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::unit_y(),
-            radius: 1.5,
-            u_ref: Vec3::unit_z(),
-        }
+        Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(Point3::new(0.0, 1.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            1.5,
+        ))
         .cover_over(window)
         .unwrap(),
     ];
@@ -1049,12 +1043,10 @@ fn a_dual_and_a_symbolic_cover_read_the_f64_bounds() {
         lift(&spiric)
             .cover_over(ParamWindow::new(Dual::constant(0.3), Dual::constant(2.9)))
             .unwrap(),
-        lift(&Curve3::Circle {
-            center: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::unit_y(),
-            radius: 1.5,
-            u_ref: Vec3::unit_z(),
-        })
+        lift(&Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(Point3::new(0.0, 1.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            1.5,
+        )))
         .cover_over(ParamWindow::new(Dual::constant(0.3), Dual::constant(2.9)))
         .unwrap(),
     ];
@@ -1065,12 +1057,10 @@ fn a_dual_and_a_symbolic_cover_read_the_f64_bounds() {
             .map_scalar(sym)
             .cover_over(ParamWindow::new(sym(0.3), sym(2.9)))
             .unwrap(),
-        Curve3::Circle {
-            center: Point3::new(0.0, 1.0, 0.0),
-            axis: Vec3::unit_y(),
-            radius: 1.5,
-            u_ref: Vec3::unit_z(),
-        }
+        Curve3::Circle(crate::Circle::new(
+            crate::Frame::new(Point3::new(0.0, 1.0, 0.0), Vec3::unit_y(), Vec3::unit_z()),
+            1.5,
+        ))
         .map_scalar(sym)
         .cover_over(ParamWindow::new(sym(0.3), sym(2.9)))
         .unwrap(),
@@ -1224,22 +1214,15 @@ fn a_non_finite_datum_builds_no_cover() {
     );
     for (curve, kind) in [
         (
-            Curve3::Circle {
-                center: o,
-                axis: z,
-                radius: nan,
-                u_ref: x,
-            },
+            Curve3::Circle(crate::Circle::new(crate::Frame::new(o, z, x), nan)),
             crate::CurveKind::Circle,
         ),
         (
-            Curve3::Ellipse {
-                center: Point3::new(inf, 0.0, 0.0),
-                axis: z,
-                semi_u: 2.0,
-                semi_v: 1.0,
-                u_ref: x,
-            },
+            Curve3::Ellipse(crate::Ellipse::new(
+                crate::Frame::new(Point3::new(inf, 0.0, 0.0), z, x),
+                2.0,
+                1.0,
+            )),
             crate::CurveKind::Ellipse,
         ),
     ] {
@@ -1370,12 +1353,7 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
         c + y * (r + delta),
         r,
     ));
-    let circle = Curve3::Circle {
-        center: c,
-        axis: z,
-        radius: r,
-        u_ref: x,
-    };
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), r));
     let t = 0.4_f64;
     let q = circle.eval(t) + (x * t.cos() + y * t.sin()) * delta;
     cases.push((

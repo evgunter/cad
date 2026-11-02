@@ -59,12 +59,12 @@ fn gasket_band(va: f64, vb: f64, wobble: f64) -> (Surface<f64>, Vec<LoopEdge<f64
     };
     let rim = |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, MINOR * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: MAJOR + MINOR * v.cos(),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, MINOR * v.sin()),
+                v3(0.0, 0.0, 1.0),
+                MAJOR + MINOR * v.cos(),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             a,
@@ -73,12 +73,12 @@ fn gasket_band(va: f64, vb: f64, wobble: f64) -> (Surface<f64>, Vec<LoopEdge<f64
     };
     let mer = |u: f64, v0: f64, v1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(MAJOR * u.cos(), MAJOR * u.sin(), 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: MINOR,
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
+            Curve3::circle(
+                p3(MAJOR * u.cos(), MAJOR * u.sin(), 0.0),
+                v3(u.sin(), -u.cos(), 0.0),
+                MINOR,
+                v3(u.cos(), u.sin(), 0.0),
+            ),
             v0,
             v1,
             a,

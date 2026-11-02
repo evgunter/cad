@@ -244,8 +244,8 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
-        subject: "impl<T: Bounds> ConicFrame<T>",
-        why: Payload("`lift` over a conic's frame"),
+        subject: "fn lifted<T: Bounds>",
+        why: Payload("`lift` over a conic carrier, before its readings"),
     },
     Site {
         path: "crates/geom/src/curves/projection.rs",

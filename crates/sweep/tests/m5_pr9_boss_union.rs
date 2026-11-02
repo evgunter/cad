@@ -48,7 +48,10 @@ fn the_boss_union_lands_end_to_end() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if let geom::Curve3::Circle { center, radius, .. } = *c.carrier()
+        if let geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            radius,
+        }) = *c.carrier()
             && (center.z - 1.0).abs() < 1e-9
             && (radius - 0.5).abs() < 1e-9
         {

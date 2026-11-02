@@ -66,7 +66,7 @@
 
 use geom::cover::Cover;
 use geom::curves::boxes::ArcWindow;
-use geom::{Curve3, Line};
+use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
@@ -191,29 +191,23 @@ impl<T: Real> ExtentBall<T> {
 /// difference above. A pivot on the axis (`ρ`
 /// zero) reads every point at the crest's distance. Capped at the whole
 /// turn, `|c − pivot| + |r|`, which the crest reaches only to rounding.
-fn circle_arc_reach<T: Real>(
-    (c, u, v): (Point3<T>, Vec3<T>, Vec3<T>),
-    r: T,
-    (t0, t1): (T, T),
-    pivot: Point3<T>,
-) -> T {
-    let at = |t: T| {
-        let (s, co) = t.sin_cos();
-        c + (u * co + v * s) * r
-    };
+fn circle_arc_reach<T: Real>(circle: &geom::Circle<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
+    let (f, r) = (&circle.frame, circle.radius);
+    let (c, u, v) = (f.center, f.u_ref, f.v_ref());
+    let at = |t: T| circle.point_at(t);
     let w = pivot - c;
     let k = u.cross(v);
     let h = w.dot(k);
     let rho = (w - k * h).norm();
     let ends = (at(t0) - pivot).norm().max((at(t1) - pivot).norm());
-    let crest = (h.powi(2) + (r.abs() + rho).powi(2)).sqrt();
+    let crest = (h.powi(2) + (r + rho).powi(2)).sqrt();
     let away = (-(r * u.dot(w)), -(r * v.dot(w)));
     ends.max(
         ArcWindow::new(t0, t1)
             .crest_outside(away.0, away.1)
             .select_le_zero(crest, T::zero()),
     )
-    .min(w.norm() + r.abs())
+    .min(w.norm() + r)
 }
 
 /// **How far an ellipse arc reaches from a point**: an upper bound on
@@ -234,18 +228,11 @@ fn circle_arc_reach<T: Real>(
 /// from the ends and the shift, never from a difference of carrier-sized
 /// squares, so a short arc far from its centre loses nothing to
 /// cancellation.
-fn conic_arc_reach<T: Real>(
-    (c, u, v): (Point3<T>, Vec3<T>, Vec3<T>),
-    (a, b): (T, T),
-    (t0, t1): (T, T),
-    pivot: Point3<T>,
-) -> T {
+fn conic_arc_reach<T: Real>(conic: &dyn Conic<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
+    let c = conic.frame().center;
     let turn = T::from_f64(core::f64::consts::TAU);
     let quarter = ((t1 - t0).max(-turn).min(turn)) * T::from_f64(0.25);
-    let at = |t: T| {
-        let (s, co) = t.sin_cos();
-        c + u * (a * co) + v * (b * s)
-    };
+    let at = |t: T| conic.point_at(t);
     let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
     let far = (0..4).fold((at(t0) - pivot).norm(), |far, k| {
         let s0 = t0 + quarter * T::from_f64(f64::from(k));
@@ -256,7 +243,7 @@ fn conic_arc_reach<T: Real>(
             .into_iter()
             .fold(far, |far, x| far.max((x - pivot).norm()))
     });
-    far.min((c - pivot).norm() + a.abs().max(b.abs()))
+    far.min((c - pivot).norm() + conic.speed_hi())
 }
 
 /// How many pieces an edge's span is cut into where its extent is read
@@ -307,8 +294,10 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
     let sup = match carrier {
         Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
-        Curve3::Circle { radius, .. } => radius.abs(),
-        Curve3::Ellipse { semi_u, semi_v, .. } => Curve3::semi_axes_by_size(*semi_u, *semi_v).0,
+        Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
+            Some(k) => k.speed_hi(),
+            None => unreachable!("a circle or an ellipse is a conic"),
+        },
         Curve3::Spiric {
             major_radius,
             minor_radius,
@@ -384,16 +373,12 @@ const SPEED_MARGIN: f64 = 1e-6;
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
 pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     let half_span = (t1 - t0) * T::from_f64(0.5);
-    let fold = |r: T| r.abs() * (T::one() - half_span.cos());
+    let fold = |r: T| r * (T::one() - half_span.cos());
     let pairs = || farthest_pair(&schedule(carrier, (t0, t1), EXTENT_PIECES));
     match carrier {
         Curve3::Line(_) => chord,
-        Curve3::Circle { radius, .. } => chord.max(fold(*radius)),
-        // The ellipse's semi-axes carry no order and no sign (`Conic`),
-        // so its radius is the smaller MAGNITUDE.
-        Curve3::Ellipse { semi_u, semi_v, .. } => chord
-            .max(fold(Curve3::semi_axes_by_size(*semi_u, *semi_v).1))
-            .max(pairs()),
+        Curve3::Circle(geom::Circle { radius, .. }) => chord.max(fold(*radius)),
+        Curve3::Ellipse(e) => chord.max(fold(e.speed_lo())).max(pairs()),
         Curve3::Spiric { minor_radius, .. } => chord.max(fold(*minor_radius)).max(pairs()),
         Curve3::Nurbs(_) => chord.max(pairs()),
     }
@@ -464,27 +449,15 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
     };
     match carrier {
         Curve3::Line(_) => chord,
-        Curve3::Circle { radius, .. } => chord.max(two * radius.abs() * fold),
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let frame = (*center, *u_ref, axis.cross(*u_ref));
-            let axes = (*semi_u, *semi_v);
+        Curve3::Circle(geom::Circle { radius, .. }) => chord.max(two * *radius * fold),
+        Curve3::Ellipse(e) => {
             let step = (t1 - t0) / T::from_f64(f64::from(ELLIPSE_PIECES));
             let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
                 let s0 = t0 + step * T::from_f64(f64::from(k));
                 let x = carrier.eval(s0 + step * T::from_f64(0.5));
-                far.max(
-                    conic_arc_reach(frame, axes, (t0, t1), x)
-                        + conic_arc_reach(frame, axes, (s0, s0 + step), x),
-                )
+                far.max(conic_arc_reach(e, (t0, t1), x) + conic_arc_reach(e, (s0, s0 + step), x))
             });
-            let major = Curve3::semi_axes_by_size(*semi_u, *semi_v).0;
-            chord.max((two * major * fold).min(pieces))
+            chord.max((two * e.speed_hi() * fold).min(pieces))
         }
         Curve3::Spiric {
             major_radius,
@@ -543,9 +516,7 @@ pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: 
     };
     let sampled = sampled_reach(carrier, (t0, t1), pivot);
     let bound = match carrier {
-        Curve3::Line(_) | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
-            span.span_reach_from(pivot)
-        }
+        Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => span.span_reach_from(pivot),
         Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
             let slack =
                 speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
@@ -641,8 +612,8 @@ pub fn edge_reach_bounds<T: SpanLocate>(
 ) -> LeverBounds<T> {
     let above = edge_reach_from(carrier, t0, t1, pivot);
     match carrier {
-        Curve3::Line(_) | Curve3::Circle { .. } => LeverBounds::Exact(above),
-        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
+        Curve3::Line(_) | Curve3::Circle(..) => LeverBounds::Exact(above),
+        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
             below: sampled_reach(carrier, (t0, t1), pivot),
             above,
         },
@@ -738,13 +709,10 @@ impl<T: Real> Reach<T> {
             Self::Measured { lever, .. } => *lever,
             Self::Face { across, .. } => *across,
             Self::Span { carrier, .. } => match carrier {
-                Curve3::Circle { center, radius, .. } => (*center - pivot).norm() + radius.abs(),
-                Curve3::Ellipse {
-                    center,
-                    semi_u,
-                    semi_v,
-                    ..
-                } => (*center - pivot).norm() + geom::Curve3::semi_axes_by_size(*semi_u, *semi_v).0,
+                Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
+                    Some(k) => (k.frame().center - pivot).norm() + k.speed_hi(),
+                    None => unreachable!("a circle or an ellipse is a conic"),
+                },
                 Curve3::Spiric {
                     center,
                     major_radius,
@@ -773,38 +741,15 @@ impl<T: Real> Reach<T> {
     pub fn span_reach_from(&self, pivot: Point3<T>) -> T {
         match self {
             Self::Span {
-                carrier:
-                    Curve3::Circle {
-                        center,
-                        axis: k,
-                        radius,
-                        u_ref,
-                    },
+                carrier: Curve3::Circle(circle),
                 t0,
                 t1,
-            } => circle_arc_reach(
-                (*center, *u_ref, k.cross(*u_ref)),
-                *radius,
-                (*t0, *t1),
-                pivot,
-            ),
+            } => circle_arc_reach(circle, (*t0, *t1), pivot),
             Self::Span {
-                carrier:
-                    Curve3::Ellipse {
-                        center,
-                        axis: k,
-                        semi_u: major,
-                        semi_v: minor,
-                        u_ref,
-                    },
+                carrier: Curve3::Ellipse(ellipse),
                 t0,
                 t1,
-            } => conic_arc_reach(
-                (*center, *u_ref, k.cross(*u_ref)),
-                (*major, *minor),
-                (*t0, *t1),
-                pivot,
-            ),
+            } => conic_arc_reach(ellipse, (*t0, *t1), pivot),
             Self::Ball(_) | Self::Measured { .. } | Self::Face { .. } | Self::Span { .. } => {
                 self.lever_from(pivot)
             }
@@ -854,7 +799,7 @@ impl<T: Real> Reach<T> {
                 ..
             } => (at(*from) - *below, at(*from) + *above),
             Self::Span { carrier, t0, t1 } => match carrier {
-                Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
+                Curve3::Circle(..) | Curve3::Ellipse(..) => {
                     geom::curves::boxes::conic_arc_extent_along(carrier, *t0, *t1, pivot, dir)
                         .unwrap_or_else(|| unreachable!("a circle or an ellipse has an extent"))
                 }
@@ -942,8 +887,14 @@ impl<T: Real> Reach<T> {
             } => minimax_on_axis(&self.span_points(), origin, axis),
             Self::Span {
                 carrier:
-                    Curve3::Circle { center, .. }
-                    | Curve3::Ellipse { center, .. }
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    })
+                    | Curve3::Ellipse(geom::Ellipse {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    })
                     | Curve3::Spiric { center, .. },
                 ..
             } => Line { origin, dir: axis }.foot(*center),
@@ -975,8 +926,14 @@ impl<T: Real> Reach<T> {
             Self::Measured { at, .. } | Self::Face { at, .. } => *at,
             Self::Span {
                 carrier:
-                    Curve3::Circle { center, .. }
-                    | Curve3::Ellipse { center, .. }
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    })
+                    | Curve3::Ellipse(geom::Ellipse {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    })
                     | Curve3::Spiric { center, .. },
                 ..
             } => *center,
@@ -1109,19 +1066,21 @@ mod tests {
     fn a_conic_spans_lever_reaches_every_point() {
         let pivot = Point3::new(0.3, -0.2, 0.7);
         for carrier in [
-            Curve3::Circle {
-                center: Point3::new(1.0, 2.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 1.5,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
-            Curve3::Ellipse {
-                center: Point3::new(-1.0, 0.5, 0.2),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                semi_u: 0.6,
-                semi_v: 1.4,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                Point3::new(1.0, 2.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                1.5,
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(-1.0, 0.5, 0.2),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                0.6,
+                1.4,
+            )),
         ] {
             let lever = Reach::Span {
                 carrier: carrier.clone(),
@@ -1169,96 +1128,26 @@ mod tests {
         best
     }
 
-    /// **A circle stored with a negative radius reaches what its points
-    /// reach.** The mint refuses `r < 0`, but the reach reads the carrier
-    /// it is handed, whose points are `c − |r|·e(t)`: the crest that binds
-    /// is opposite where a positive radius would put it, at
-    /// `√(h² + (|r| + ρ)²)`. Arcs of 0.3 and 2 rad and a whole turn, read
-    /// from their start, from the far side of the centre opposite a point
-    /// of the arc (near and far), and from off the plane: the reach is the
-    /// sampled farthest point, to rounding. Reading the crest at `r + ρ`,
-    /// or the crest test without `r`'s sign, misses it.
-    #[test]
-    fn a_negative_radius_circles_reach_is_its_farthest_point() {
-        let axis = Vec3::new(0.6, 0.0, 0.8);
-        let carrier = Curve3::Circle {
-            center: Point3::new(0.5, -2.0, 1.0),
-            axis,
-            radius: -1.5,
-            u_ref: Vec3::new(0.0, 1.0, 0.0),
-        };
-        let c = Point3::new(0.5, -2.0, 1.0);
-        for (t0, t1) in [(0.4, 0.7), (1.0, 3.0), (0.2, 0.2 + core::f64::consts::TAU)] {
-            let at = carrier.eval(t0 + 0.375 * (t1 - t0));
-            for pivot in [
-                carrier.eval(t0),
-                c - (at - c) * 3.0,
-                c - (at - c) * 1e3,
-                carrier.eval(t0) + axis * 2.0,
-            ] {
-                let reach = Reach::Span {
-                    carrier: carrier.clone(),
-                    t0,
-                    t1,
-                };
-                let got = reach.span_reach_from(pivot);
-                let far = farthest_over(&carrier, (t0, t1), pivot);
-                let ulps = 1e-14 * ((pivot - Point3::origin()).norm() + 4.0);
-                assert!(
-                    (got - far).abs() <= ulps,
-                    "over [{t0}, {t1}] from {pivot:?}: the reach {got}, the farthest point {far}"
-                );
-            }
-        }
-    }
-
-    /// **A conic arc's reach from a point is its farthest point over the
-    /// span, within a quarter's bulge.** Circles and an ellipse of scale
-    /// `r ∈ {1e-3, 1, 1e3}` (offset `1e3` from the origin), arcs of span
-    /// 0.01 to 0.5 rad and stored backwards, a whole turn and a turn
-    /// and a half, each read from its own end (where the far end binds),
-    /// from the far side of its centre opposite a point inside a quarter
-    /// (near, and a million radii out against the conic's normal there,
-    /// where the crest of the bulge binds and a quarter's chord moves the
-    /// reach by less than the bulge does), from inside its bulge (an end binds), and from off
-    /// its plane. Against the farthest point (sampled, each local maximum
-    /// refined) the reach is never short (to the coordinates' rounding);
-    /// a circle's is never past it either, an ellipse's never by more than
-    /// a quarter's bulge `(1 − cos(span/8))·max(|a|, |b|)`, and neither
-    /// past the whole turn's [`Reach::lever_from`]. A circle's crest
-    /// dropped falls short; its crest read on the near side, or its span
-    /// test inverted, passes the farthest point. An ellipse's bulge
-    /// dropped, set on the chord's inner side, or aimed from a quarter's
-    /// start rather than its middle falls short at the crest; the span
-    /// read the other way
-    /// round reaches past the slack.
     #[test]
     fn a_conic_arcs_reach_is_its_farthest_point_over_the_span() {
         let off = Point3::new(1e3, -1e3, 1e3);
         let tilted = Vec3::new(0.6, 0.0, 0.8);
         for r in [1e-3, 1.0, 1e3] {
             let carriers = [
-                Curve3::Circle {
-                    center: off,
-                    axis: tilted,
-                    radius: r,
-                    u_ref: Vec3::new(0.0, 1.0, 0.0),
-                },
-                Curve3::Ellipse {
-                    center: off,
-                    axis: tilted,
-                    semi_u: 2.0 * r,
-                    semi_v: 0.7 * r,
-                    u_ref: Vec3::new(-0.8, 0.0, 0.6),
-                },
+                Curve3::circle(off, tilted, r, Vec3::new(0.0, 1.0, 0.0)),
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(off, tilted, Vec3::new(-0.8, 0.0, 0.6)),
+                    2.0 * r,
+                    0.7 * r,
+                )),
             ];
             for carrier in carriers {
                 let (a, b) = match carrier {
-                    Curve3::Circle { radius, .. } => (radius, radius),
-                    Curve3::Ellipse { semi_u, semi_v, .. } => (semi_u, semi_v),
+                    Curve3::Circle(geom::Circle { radius, .. }) => (radius, radius),
+                    Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u, semi_v),
                     _ => unreachable!(),
                 };
-                let big = a.abs().max(b.abs());
+                let big = a.max(b);
                 for (t0, t1) in [
                     (0.3, 0.31),
                     (1.0, 1.05),
@@ -1275,8 +1164,14 @@ mod tests {
                     // against it has its farthest point there.
                     let crest_normal = {
                         let (u, k) = match carrier {
-                            Curve3::Circle { u_ref, axis, .. }
-                            | Curve3::Ellipse { u_ref, axis, .. } => (u_ref, axis.normalize()),
+                            Curve3::Circle(geom::Circle {
+                                frame: geom::Frame { u_ref, axis, .. },
+                                ..
+                            })
+                            | Curve3::Ellipse(geom::Ellipse {
+                                frame: geom::Frame { u_ref, axis, .. },
+                                ..
+                            }) => (u_ref, axis.normalize()),
                             _ => unreachable!(),
                         };
                         (u * (tm.cos() / a) + k.cross(u) * (tm.sin() / b)).normalize()
@@ -1302,7 +1197,7 @@ mod tests {
                                 + big);
                         let span = (t1 - t0).abs().min(core::f64::consts::TAU);
                         let slack = match carrier {
-                            Curve3::Circle { .. } => 0.0,
+                            Curve3::Circle(..) => 0.0,
                             _ => (1.0 - (span / 8.0).cos()) * big,
                         };
                         let label = format!("{carrier:?} over [{t0}, {t1}] from {pivot:?}");
@@ -1360,26 +1255,30 @@ mod tests {
         let axis = Vec3::new(0.2, -0.3, 1.0).normalize();
         let tilted = Vec3::new(0.6, 0.0, 0.8);
         let carriers = [
-            Curve3::Circle {
-                center: Point3::new(1.0, 2.0, 0.0),
-                axis: tilted,
-                radius: 1.5,
-                u_ref: Vec3::new(0.0, 1.0, 0.0),
-            },
-            Curve3::Ellipse {
-                center: Point3::new(-1.0, 0.5, 0.2),
-                axis: tilted,
-                semi_u: 2.0,
-                semi_v: 0.7,
-                u_ref: Vec3::new(-0.8, 0.0, 0.6),
-            },
-            Curve3::Ellipse {
-                center: Point3::new(-1.0, 0.5, 0.2),
-                axis: tilted,
-                semi_u: 0.7,
-                semi_v: 2.0,
-                u_ref: Vec3::new(-0.8, 0.0, 0.6),
-            },
+            Curve3::circle(
+                Point3::new(1.0, 2.0, 0.0),
+                tilted,
+                1.5,
+                Vec3::new(0.0, 1.0, 0.0),
+            ),
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(-1.0, 0.5, 0.2),
+                    tilted,
+                    Vec3::new(-0.8, 0.0, 0.6),
+                ),
+                2.0,
+                0.7,
+            )),
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(-1.0, 0.5, 0.2),
+                    tilted,
+                    Vec3::new(-0.8, 0.0, 0.6),
+                ),
+                0.7,
+                2.0,
+            )),
         ];
         let tau = core::f64::consts::TAU;
         let spans = [

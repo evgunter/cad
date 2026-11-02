@@ -803,12 +803,7 @@ mod tests {
             t.dot(bend).abs() < 1e-15,
             "the bend is square to the tangent"
         );
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin() + bend,
-            axis: t.cross(bend),
-            radius: 1.0,
-            u_ref: -bend,
-        };
+        let carrier = geom::Curve3::circle(Point3::origin() + bend, t.cross(bend), 1.0, -bend);
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
@@ -1060,12 +1055,8 @@ mod tests {
                         let radius = 1.0 / k;
                         let center = p + toward * radius;
                         let u_ref = (p - center).normalize();
-                        let carrier = geom::Curve3::Circle {
-                            center,
-                            axis: u_ref.cross(d).normalize(),
-                            radius,
-                            u_ref,
-                        };
+                        let carrier =
+                            geom::Curve3::circle(center, u_ref.cross(d).normalize(), radius, u_ref);
                         let span = 0.5 * k;
                         let chord = 2.0 * radius * (span / 2.0).sin();
                         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
@@ -1157,12 +1148,7 @@ mod tests {
         // toward unit `c`, over `span` radians.
         let arc = |p: Point3<f64>, t: Vec3<f64>, c: Vec3<f64>, radius: f64, span: f64| {
             let u_ref = -c;
-            let carrier = geom::Curve3::Circle {
-                center: p + c * radius,
-                axis: u_ref.cross(t),
-                radius,
-                u_ref,
-            };
+            let carrier = geom::Curve3::circle(p + c * radius, u_ref.cross(t), radius, u_ref);
             let chord = 2.0 * radius * (span / 2.0).sin();
             let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
             let tangent = carrier.deriv(0.0);

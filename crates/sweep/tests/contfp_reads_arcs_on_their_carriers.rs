@@ -384,7 +384,7 @@ fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
                 let c = body.get_edge(e).and_then(|e| body.get_curve_geom(e.curve));
                 matches!(
                     c.and_then(|c| c.certified()).map(|c| c.carrier()),
-                    Some(geom::Curve3::Ellipse { .. })
+                    Some(geom::Curve3::Ellipse(..))
                 )
             })
             .collect();
@@ -537,7 +537,11 @@ fn a_steep_ellipse_is_off_where_it_is_off() {
                 .unwrap()
                 .certified()
                 .unwrap();
-            let geom::Curve3::Ellipse { center, u_ref, .. } = *curve.carrier() else {
+            let geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, u_ref, .. },
+                ..
+            }) = *curve.carrier()
+            else {
                 panic!("an ellipse");
             };
             let (t0, t1) = curve.params();

@@ -135,6 +135,7 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
+use geom::Conic;
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -1296,23 +1297,12 @@ pub(crate) struct CarriedCtx<T: Real> {
     pub(crate) lever: T,
 }
 
-/// The section conic's frame — the curve both chord lanes take an arc
+/// The section conic — the curve both chord lanes take an arc
 /// of.
 #[derive(Clone)]
 pub(crate) struct SectionConic<T: Real> {
-    /// The conic's centre.
-    center: Point3<T>,
-    /// The section plane's normal — the conic's own axis, about which
-    /// its parameter runs ccw.
-    normal: Vec3<T>,
-    /// The seam direction, a principal direction: `θ = 0` is at
-    /// `center + seam·sa`.
-    seam: Vec3<T>,
-    /// The semi-axis along `seam` (the radius, for a circle).
-    sa: T,
-    /// The semi-axis along `normal × seam`.
-    sb: T,
-    /// The carrier itself.
+    /// The carrier, a circle or an ellipse in the section plane, whose
+    /// axis is the plane's normal and about which its parameter runs ccw.
     carrier: geom::Curve3<T>,
     /// Whether the table stood this circle in for the plane's own
     /// section, square to the wall's axis by a Zero of its trilean
@@ -1323,16 +1313,21 @@ pub(crate) struct SectionConic<T: Real> {
 }
 
 impl<T: Real> SectionConic<T> {
-    /// The eccentric anomaly of a point on the conic: `θ` with
-    /// `p = center + sa·cos θ·seam + sb·sin θ·(normal × seam)`.
+    /// The carrier read as a conic.
+    pub(crate) fn conic(&self) -> &dyn Conic<T> {
+        self.carrier
+            .conic()
+            .unwrap_or_else(|| unreachable!("a section conic is a circle or an ellipse"))
+    }
+
+    /// The eccentric anomaly of a point on the conic, its principal angle.
     pub(crate) fn param(&self, p: Point3<T>) -> T {
-        let d = p - self.center;
-        (d.dot(self.normal.cross(self.seam)) / self.sb).atan2(d.dot(self.seam) / self.sa)
+        self.conic().angle_of(p)
     }
 
     /// The conic's derivative in `θ` (metres per radian).
     pub(crate) fn tangent(&self, theta: T) -> Vec3<T> {
-        self.normal.cross(self.seam) * (self.sb * theta.cos()) - self.seam * (self.sa * theta.sin())
+        self.conic().derivative_at(theta)
     }
 
     /// **The same conic seamed at the principal vertex nearest `theta`**,
@@ -1408,7 +1403,7 @@ impl<T: Real> SectionCurve<T> {
     /// semi-axis, whichever its seam lies along, an oval's own extent.
     fn lever(&self) -> T {
         match self {
-            Self::Conic(c) => geom::Curve3::semi_axes_by_size(c.sa, c.sb).0,
+            Self::Conic(c) => c.conic().speed_hi(),
             Self::Oval(o) => o.extent,
         }
     }
@@ -1425,7 +1420,7 @@ impl<T: Real> SectionCurve<T> {
     /// conic's seam direction (a principal one), an oval's torus axis.
     fn in_plane(&self) -> Vec3<T> {
         match self {
-            Self::Conic(c) => c.seam,
+            Self::Conic(c) => c.conic().frame().u_ref,
             Self::Oval(o) => match o.carrier {
                 geom::Curve3::Spiric { axis, .. } => axis,
                 _ => unreachable!(
@@ -1496,10 +1491,11 @@ fn section_loop<T: Decide>(
         Some(crate::boolean::Branch::Positive) => return Ok(positive),
         Some(crate::boolean::Branch::Negative) => return Ok(negative),
         Some(crate::boolean::Branch::Only) | None => {}
-        Some(crate::boolean::Branch::Component(_)) => {
+        Some(crate::boolean::Branch::Component(_) | crate::boolean::Branch::Line(_)) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a germ riding a carried section's component reached a two-loop frame",
+                what: "a germ riding a carried section's component or a straight section's line \
+                       reached a two-loop frame",
             });
         }
     }
@@ -1706,23 +1702,12 @@ fn plane_wall_case<T: Decide>(
                 ));
             }
         };
-        let &geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } = &circle
-        else {
+        let geom::Curve3::Circle(_) = circle else {
             return Err(invariant(
                 "plane×sphere classification carried a non-circle",
             ));
         };
         return Ok(SectionCase::Conic(SectionConic {
-            center,
-            normal: axis,
-            seam: u_ref,
-            sa: radius,
-            sb: radius,
             carrier: circle,
             square: false,
         }));
@@ -1875,31 +1860,11 @@ fn plane_wall_case<T: Decide>(
     }
 }
 
-/// The frame of a section carrier: an ellipse's own axes, a circle's
-/// radius twice. `None` for any other kind.
+/// A section carrier as a [`SectionConic`]; `None` for any kind but a
+/// circle or an ellipse.
 pub(crate) fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
-    let (center, normal, seam, sa, sb) = match carrier {
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => (center, axis, u_ref, semi_u, semi_v),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => (center, axis, u_ref, radius, radius),
-        _ => return None,
-    };
+    carrier.conic()?;
     Some(SectionConic {
-        center,
-        normal,
-        seam,
-        sa,
-        sb,
         carrier,
         square: false,
     })
@@ -3403,7 +3368,7 @@ fn between_edge_is_section<T: Decide>(
                     .map_err(|_| corrupt_edge(he_data.edge))?,
             })
         }
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => {
             let margin = Margin::of((curve.mid_point() - ctx.origin).dot(ctx.normal.get()));
             match decide("split_conic_inplane_mid", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(true)),
@@ -3922,7 +3887,7 @@ fn pole_lever<T: Decide>(
     (center, radius, axis): (geom_core::Point3<T>, T, geom_core::Vec3<T>),
     pole_height: T,
 ) -> Option<T> {
-    let geom::Curve3::Circle { radius: r, .. } = *carrier else {
+    let geom::Curve3::Circle(geom::Circle { radius: r, .. }) = *carrier else {
         return None;
     };
     let swept = (far_t - pole_t).max(T::zero() - T::pi()).min(T::pi());
@@ -4182,10 +4147,10 @@ fn quadric_loop_arc<T: Decide>(
     band: Band,
 ) -> Result<Option<LoopArc<T>>, Indeterminate> {
     Ok(match (quadric, carrier) {
-        (Quadric::Sphere { .. }, geom::Curve3::Circle { .. })
+        (Quadric::Sphere { .. }, geom::Curve3::Circle(..))
         | (
             Quadric::Cylinder { .. } | Quadric::Cone { .. },
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } | geom::Curve3::Line(_),
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Line(_),
         ) => LoopArc::of(carrier, params),
         (Quadric::Torus { .. }, geom::Curve3::Spiric { .. }) => {
             quadric.torus_spiric_arc(carrier, params)
@@ -4662,7 +4627,7 @@ fn along_edge_spec<T: Decide>(
         .ok_or_else(|| corrupt_face(face))?
         .surface;
     let copy = match curve.carrier() {
-        geom::Curve3::Circle { .. } => {
+        geom::Curve3::Circle(..) => {
             let (t0, t1) = curve.params();
             EdgeCurveSpec::arc_of_circle(curve.carrier().clone(), t0, t1).ok_or(
                 SplitJoinError::SectionInvariant {
@@ -4731,7 +4696,7 @@ fn closed_edge_spec<T: Decide>(
 pub(crate) fn copies_closed_edge<T: Real>(carrier: &geom::Curve3<T>) -> bool {
     matches!(
         carrier,
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+        geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..)
     )
 }
 
@@ -5268,12 +5233,10 @@ impl RimSide {
                     .ok_or(invariant(
                         "a one-site loop's conic carries no certified curve",
                     ))?;
-                let geom::Curve3::Circle {
-                    center,
-                    axis,
+                let geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } = *curve.carrier()
+                }) = *curve.carrier()
                 else {
                     return Err(invariant(
                         "a one-site loop's conic on a sphere is not a circle",
@@ -6098,12 +6061,7 @@ mod tests {
     /// interval must be forward and shorter than a period (the ordinary
     /// certification gates).
     fn rim_run(body: &mut crate::Body<f64>, t0: f64, t1: f64) -> crate::entity::HalfEdgeKey {
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let carrier = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
         // The seed solid first: `mvfs` asserts tier-1 validity, and a
         // surface nothing references yet is an orphan.
         let seed = body.mvfs(carrier.eval(t0), true).unwrap();
@@ -6642,12 +6600,7 @@ mod tests {
     #[test]
     fn a_face_at_one_station_is_cut_by_a_plane_across_the_axis_in_a_conic() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let carrier = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
         let base = carrier.eval(0.0);
         let mut body = crate::Body::<f64>::new();
         let seed = body.mvfs(base, true).unwrap();
@@ -7111,7 +7064,8 @@ mod section_case_pair_tests {
             let SectionCase::Conic(c) = got else {
                 panic!("a square cut names a rim circle");
             };
-            assert!((c.sa - 1.0).abs() < 1e-12 && (c.sb - 1.0).abs() < 1e-12);
+            let (sa, sb) = c.conic().semi_axes();
+            assert!((sa - 1.0).abs() < 1e-12 && (sb - 1.0).abs() < 1e-12);
         }
     }
 
@@ -7723,7 +7677,7 @@ mod torn_hop_rows {
                 let e = body.get_edge(body.get_half_edge(h).unwrap().edge).unwrap();
                 body.get_curve_geom(e.curve)
                     .and_then(super::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .unwrap();
         assert_eq!(
@@ -7870,7 +7824,7 @@ mod torn_hop_rows {
             .find(|&e| {
                 body.get_curve_geom(body.get_edge(e).unwrap().curve)
                     .and_then(super::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .unwrap();
         let he = body.get_edge(edge).unwrap().he_plus;
@@ -8259,13 +8213,12 @@ mod pole_branch_rows {
     fn meridian<T: Real>(phi: f64) -> geom::Curve3<T> {
         let f = T::from_f64;
         let (s, c) = phi.sin_cos();
-        geom::Curve3::Circle {
-            center: Point3::new(f(0.0), f(0.0), f(0.0)),
-            // `axis × u_ref` is the azimuth direction's meridian tangent.
-            axis: Vec3::new(f(-s), f(c), f(0.0)),
-            radius: f(1.0),
-            u_ref: Vec3::new(f(0.0), f(0.0), f(1.0)),
-        }
+        geom::Curve3::circle(
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Vec3::new(f(-s), f(c), f(0.0)),
+            f(1.0),
+            Vec3::new(f(0.0), f(0.0), f(1.0)),
+        )
     }
 
     /// The circle through the north pole cut by the plane whose normal
@@ -8275,12 +8228,12 @@ mod pole_branch_rows {
     /// from it.
     fn small_circle(beta: f64) -> geom::Curve3<f64> {
         let (s, c) = beta.sin_cos();
-        geom::Curve3::Circle {
-            center: Point3::new(s * c, 0.0, c * c),
-            axis: Vec3::new(s, 0.0, c),
-            radius: s,
-            u_ref: Vec3::new(-c, 0.0, s),
-        }
+        geom::Curve3::circle(
+            Point3::new(s * c, 0.0, c * c),
+            Vec3::new(s, 0.0, c),
+            s,
+            Vec3::new(-c, 0.0, s),
+        )
     }
 
     fn joint<T: geom_core::Decide>(gap: T, same_edge: bool) -> PoleJoint<T> {
