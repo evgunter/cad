@@ -99,3 +99,16 @@ Each site's door rows need a pose with an in-band gate ahead of a
 definite refusal. Construct one where none exists, and check first
 whether the site's own earlier gates make that order unreachable, as
 the Villarceau incidence test does on most poses.
+
+## 2026-11-02: the polarity-aware ladder exists (ONEHOME)
+
+`geom_brep::ladder::climb` is the first option above: each rung's reader
+returns `Rung::Answers`, `Passes`, or a kept `InBand` / `Blocked`
+reading (`Rung::decide` reads a banded margin, `Rung::kept` sorts an
+`Indeterminate`), with the held recording and `Evidence`'s ranking. The
+caller declares an `Answering`: `Any` where every answering gate gives
+the same refusal (a kept run ahead of it is superseded), `First` where
+which gate answers chooses the answer (it stays live). `read_identity`
+is `climb` over banded data under `Any`. A port of each site here
+chooses its polarity: which sign answers, which passes, and whether its
+answers are alike.
