@@ -267,7 +267,7 @@ fn the_chain_read_turns_as_the_rotation_does_at_and_near_its_pole() {
         about(Vec3::unit_z(), z) * about(Vec3::unit_y(), y) * about(Vec3::unit_x(), x)
     };
     for off in [0.0, 1.0e-6, 1.0e-3] {
-        let r = chain([0.4, -std::f64::consts::FRAC_PI_2 + off, 0.5236]);
+        let r = chain([0.4, -std::f64::consts::FRAC_PI_2 + off, 0.7]);
         let read = editor_core::mate::chain_turns(&r);
         let back = chain(read);
         let gap = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]

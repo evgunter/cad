@@ -93,6 +93,10 @@ fn unplaced(pose: PoseValue<f64>, r: Mat3<f64>, t: Vec3<f64>, tol: Tol) -> Optio
     })
 }
 
+/// One mate's two poses read where the copy stands, `on` in the copy's
+/// own coordinates, and whether its `to` reads the opposite sense.
+type BoundMate = (PoseValue<f64>, PoseValue<f64>, bool);
+
 /// **Where a draft's copy stands snapped onto its mates**: the copy's
 /// relative pose, the orientation nearest its snapped turn for the mate
 /// fixing a direction, the slides that mate leaves, and the chart's two
@@ -229,7 +233,7 @@ pub(crate) fn draft_snap(
     // Each mate's two poses, `on` in the copy's own coordinates: an
     // instance's `on` reads its own output, which stands where the copy
     // stood, so it is carried back.
-    let read: Option<Vec<(ConstraintId, PoseValue<f64>, PoseValue<f64>, bool)>> = raw
+    let read: Option<Vec<BoundMate>> = raw
         .iter()
         .filter(|c| c.mate().is_some())
         .map(|c| {
@@ -241,13 +245,13 @@ pub(crate) fn draft_snap(
                 on
             };
             let to = bind(c.id, MateSide::To, m.to)?;
-            Some((c.id, on, to, editor_core::mate::flipped(doc, m.to)))
+            Some((on, to, editor_core::mate::flipped(doc, m.to)))
         })
         .collect();
     let Some(read) = read else {
         return Some(unsnapped);
     };
-    let point = read.iter().find_map(|(_, on, to, _)| match (on, to) {
+    let point = read.iter().find_map(|(on, to, _)| match (on, to) {
         (PoseValue::Point { position: o }, PoseValue::Point { position: t }) => Some((
             *o - pncad::geom_core::linalg::Point3::origin(),
             *t - pncad::geom_core::linalg::Point3::origin(),
@@ -256,7 +260,7 @@ pub(crate) fn draft_snap(
     });
     let Some((on, to, to_flipped, seat)) = read
         .iter()
-        .find_map(|(_, on, to, flipped)| Some((on, to, *flipped, mated_direction(on, to)?)))
+        .find_map(|(on, to, flipped)| Some((on, to, *flipped, mated_direction(on, to)?)))
     else {
         // No mate fixes a direction: a point mate carries the copy's
         // point onto the target's, and nothing turns it.
