@@ -140,7 +140,7 @@ fn split_seam_donut(fracs: &[f64]) -> (topo::Body<f64>, (f64, f64)) {
         .certified()
         .unwrap();
     assert!(
-        matches!(curve.carrier(), geom::Curve3::Circle { radius, .. } if (*radius - 0.5).abs() < 1e-12),
+        matches!(curve.carrier(), geom::Curve3::Circle(geom::Circle { radius, .. }) if (*radius - 0.5).abs() < 1e-12),
         "the fixture's first edge is the seam minor circle"
     );
     let (t0, t1) = curve.params();
@@ -345,7 +345,7 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         // traversed once in each direction; take its forward chain.
         let seam0 = outer0
             .iter()
-            .find(|e| e.forward && matches!(e.carrier, geom::Curve3::Circle { radius, .. } if (radius - 0.5).abs() < 1e-12))
+            .find(|e| e.forward && matches!(e.carrier, geom::Curve3::Circle(geom::Circle { radius, .. }) if (radius - 0.5).abs() < 1e-12))
             .expect("the unsplit seam, forward");
         assert!(
             seam0.carrier_id.is_some(),

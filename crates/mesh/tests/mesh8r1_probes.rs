@@ -127,17 +127,14 @@ fn pole_crossing_half_cap() -> Body<f64> {
     let r = (1.0 - z * z).sqrt();
     let a = Point3::new(r, 0.0, z);
     let b = Point3::new(-r, 0.0, z);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(-r, 0.0, z),
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let great = |axis: Vec3<f64>| {
+        Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, Vec3::new(-r, 0.0, z))
     };
     let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
@@ -268,17 +265,21 @@ fn the_pole_crossing_body_at_delta_half_is_not_announced_by_the_deleted_assertio
 fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
     let tol = Tol::witness();
     let on = |theta: f64, z: f64| Point3::new(theta.cos(), theta.sin(), z);
-    let rim = |z: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim = |z: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
-    let rim_back = |z: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, -1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim_back = |z: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, -1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let th = 0.8_f64;
     let (v0, v1, v2, v3_) = (on(0.0, 0.0), on(th, 0.0), on(th, 1.0), on(0.0, 1.0));
@@ -290,12 +291,7 @@ fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
     let c = m - w * 1.0;
     let rr = 1.25_f64.sqrt();
     let u_ref = (v3_ - c) * (1.0 / rr);
-    let make = |axis: Vec3<f64>| Curve3::Circle {
-        center: c,
-        axis,
-        radius: rr,
-        u_ref,
-    };
+    let make = |axis: Vec3<f64>| Curve3::circle(c, axis, rr, u_ref);
     let n = Vec3::new(0.0, 0.0, 1.0).cross(w);
     let mut circ = make(n);
     let mut t0 = circ.param_near(v0, 0.0).unwrap();

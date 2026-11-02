@@ -80,7 +80,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
     };
     match c.carrier() {
         topo::Curve3::Line(_) => "line",
-        topo::Curve3::Circle { .. } => "circle",
+        topo::Curve3::Circle(..) => "circle",
         _ => "other",
     }
 }

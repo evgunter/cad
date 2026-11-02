@@ -49,7 +49,7 @@ fn rim_names(t: &NameTable, body: &Body<f64>, z: f64) -> Vec<StableName> {
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle { center, .. }) if (center.z - z).abs() < 1e-9
+                Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })) if (center.z - z).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)

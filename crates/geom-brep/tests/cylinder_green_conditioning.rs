@@ -40,12 +40,7 @@ fn rectangle(
     };
     let rim = |v: f64, a: f64, b: f64, s: u32, e: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(p3(0.0, 0.0, v), v3(0.0, 0.0, 1.0), r, v3(1.0, 0.0, 0.0)),
             a,
             b,
             s,
@@ -153,18 +148,7 @@ fn framed(
     };
     let build = move |(u0, u1): (f64, f64), (v0, v1): (f64, f64), ccw: bool, tag: u32| {
         let rim = |v: f64, s: f64, e: f64, t0: u32, t1: u32| {
-            edge(
-                Curve3::Circle {
-                    center: o + a * v,
-                    axis: a,
-                    radius: r,
-                    u_ref: x,
-                },
-                s,
-                e,
-                t0,
-                t1,
-            )
+            edge(Curve3::circle(o + a * v, a, r, x), s, e, t0, t1)
         };
         let ruling = |u: f64, s: f64, e: f64, t0: u32, t1: u32| {
             edge(
@@ -259,12 +243,7 @@ fn a_band_reads_its_holes_by_winding_in_any_loop_order() {
     let (surface, build) = framed(1.0, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let rim = |v: f64, a: f64, b: f64, tag: u32| {
         vec![edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: 1.0,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(p3(0.0, 0.0, v), v3(0.0, 0.0, 1.0), 1.0, v3(1.0, 0.0, 0.0)),
             a,
             b,
             tag,
