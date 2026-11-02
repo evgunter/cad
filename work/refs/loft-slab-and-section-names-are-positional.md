@@ -2,11 +2,12 @@
 id: loft-slab-and-section-names-are-positional
 kind: issue
 title: A degree-1 loft's slab and section names count from the start section: key them on each section's input identity
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: H
 pr: 6341
+closed: 2026-11-02
 ---
 
 
@@ -95,3 +96,12 @@ minted ids":
 Review tier: **dual** (naming architecture that every later loft name
 builds on, so hard to change later). Class H, so the protocol runs a
 concurrent pair.
+
+## Closed (2026-11-02, PR 6341)
+
+Every loft section carries a minted `SectionId` on the section itself, and the slab, seam and ring names key on it. Inserting, deleting or reordering an earlier section leaves later names intact, and two sections of one profile are named apart. Names README N1's placeholder sentence is gone. Follow-ups filed by the unit:
+
+- `a-loft-station-slot-addresses-its-section-by-position`;
+- `a-loft-reshape-reports-no-stranded-name`;
+- `step-id-faults-span-three-doors-and-seg-rewrite-defaults-pass-step-ids`;
+- INLANE's `under-the-apart-move-loft-prism-parts-at-an-exactly-parallel-edge-pair`, a pre-existing main red.
