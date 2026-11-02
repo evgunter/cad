@@ -1523,8 +1523,9 @@ def _all_tier(root: str, files: list[str] | None = None) -> dict[str, str]:
 # readers are DERIVED ON EVERY RUN, for the edited script, by
 # `_script_reader_members`. A reader it can account for is one of two:
 #   a python file under a member that opens the script by a `ROOT / "scripts"
-#     / "<name>"` chain (the `_markdown_python_readers` shape): its member is
-#     seeded, and with it the member's whole suite;
+#     / "<name>"` chain (the `_markdown_python_readers` shape), when that
+#     member is one whose seeding runs ci.yml's python job (its `flag python
+#     "seeded <member>"` line, read on the run): the member is seeded;
 #   a line of ci.yml's `lint` job, which runs on every tier.
 # ANY OTHER LIVE MENTION OF THE SCRIPT'S STEM ANYWHERE A HOSTED JOB CAN READ —
 # Rust code, a doc-comment code block (a doctest) or an attribute under any
@@ -1536,6 +1537,8 @@ def _all_tier(root: str, files: list[str] | None = None) -> dict[str, str]:
 #
 # BLIND SPOT: a reader that never writes the stem (a glob over `scripts/`, a
 # name assembled from parts) is not seen; none runs in a PR job today.
+_PYTHON_FLAG_RE = re.compile(r'^\s*flag python "([^"]*)"\s*$', re.M)
+_SEEDED_ONLY_RE = re.compile(r"seeded [A-Za-z0-9_-]+(?: \|\| seeded [A-Za-z0-9_-]+)*")
 _SCRIPT_SCAN_PRUNE = frozenset({".git", "target", "__pycache__", "node_modules"})
 
 
@@ -1582,6 +1585,18 @@ def _script_reader_members(
             raise Bail(f"cannot parse {rel}: {exc}") from exc
         return tree, live
 
+    def python_run_members() -> set[str]:
+        # The members whose seeding runs ci.yml's python job, read off that
+        # job's flag. A condition of any other shape cannot be read here.
+        try:
+            with open(os.path.join(root, GATE_WORKFLOW), encoding="utf-8") as fh:
+                flags = [m.group(1) for m in _PYTHON_FLAG_RE.finditer(fh.read())]
+        except OSError as exc:
+            raise Bail(f"cannot read {GATE_WORKFLOW}: {exc}") from exc
+        if len(flags) != 1 or not _SEEDED_ONLY_RE.fullmatch(flags[0]):
+            raise Bail(f"{GATE_WORKFLOW}'s python flag is not one `seeded <member>` condition: {flags}")
+        return set(re.findall(r"seeded ([A-Za-z0-9_-]+)", flags[0]))
+
     readers: set[str] = set()
     for rel, text in sorted(hits.items()):
         if rel.endswith(".py") and rel.startswith("crates/") and rel != _SELF:
@@ -1591,6 +1606,8 @@ def _script_reader_members(
             joined = ("/".join(c) for c in chains if c)
             if any(j == script or j.endswith("/" + script) for j in joined):
                 if (member := _own_member(rel, dir_of)) is not None:
+                    if member not in python_run_members():
+                        raise unaccounted(rel, "opens, from a member whose python seeding it does not run,")
                     readers.add(member)
 
     visible = bool(readers)
@@ -3481,11 +3498,13 @@ _FIXTURE_SCRIPT_READERS = {
         "/**\n * ```\n * let s = include_str!(\"../../../scripts/rung-block.py\");\n * ```\n */\npub fn h() {}\n"
     ),
     "crates/ghost/tests/test_rung.py": 'SWEEP = ROOT / "scripts" / "rung-ghost.py"\n',
+    "crates/verbs/tests/test_rung.py": 'SWEEP = ROOT / "scripts" / "rung-pyjob.py"\n',
     ".github/workflows/ci.yml": (
-        "jobs:\n  lint:\n    steps:\n"
+        "jobs:\n  filter:\n    steps:\n      - run: |\n          flag python \"seeded stl\"\n"
+        "  lint:\n    steps:\n"
         "      - run: python3 scripts/pinned-sweep.py --check\n"
         "      - run: python3 scripts/slow_set.py --selftest\n"
-        "      - run: for s in rung-code rung-doctest rung-block rung-ghost rung-wf; do python3 scripts/$s.py; done\n"
+        "      - run: for s in rung-code rung-doctest rung-block rung-ghost rung-pyjob rung-wf; do python3 scripts/$s.py; done\n"
         "  test:\n    steps:\n      # pinned-sweep.py, in a comment\n      - run: python3 scripts/rung-wf.py\n"
     ),
 }
@@ -3493,7 +3512,7 @@ _FIXTURE_SCRIPT_READERS = {
 
 def _plant_script_readers(t: str) -> None:
     for name in ("pinned-sweep", "rung-code", "rung-doctest", "rung-block", "rung-ghost",
-                 "rung-wf", "rung-orphan"):
+                 "rung-pyjob", "rung-wf", "rung-orphan"):
         open(os.path.join(t, "scripts", f"{name}.py"), "w").close()
     for rel, text in _FIXTURE_SCRIPT_READERS.items():
         os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
@@ -3705,6 +3724,8 @@ def selftest() -> None:
             ("a script a /// doctest names", ["scripts/rung-doctest.py", "crates/topo/src/lib.rs"], "all"),
             ("a script a /** */ doctest names", ["scripts/rung-block.py", "crates/topo/src/lib.rs"], "all"),
             ("a script a non-member's python opens", ["scripts/rung-ghost.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script python opens from a member the python job does not run",
+             ["scripts/rung-pyjob.py", "crates/topo/src/lib.rs"], "all"),
             ("a script a non-lint job runs", ["scripts/rung-wf.py", "crates/topo/src/lib.rs"], "all"),
             ("a script nothing visibly reads", ["scripts/rung-orphan.py", "crates/topo/src/lib.rs"], "all"),
             ("a script the filter imports", ["scripts/slow_set.py", "crates/topo/src/lib.rs"], "all"),
