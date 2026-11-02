@@ -293,7 +293,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             )
             .map_err(|r| r.error);
             assert!(
-                !sweep::test_support::read_as_tangent(&v),
+                !sweep::test_support::read_as_tangent(&body, &rims[..1], 0.05 * a, &v, tol()),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
                  got {v:?}; {}",
                 fuzz::replay()
@@ -451,7 +451,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
     )
     .map_err(|r| r.error);
     assert!(
-        !sweep::test_support::read_as_tangent(&v),
+        !sweep::test_support::read_as_tangent(&body, &corner[..1], 0.05, &v, tol()),
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(

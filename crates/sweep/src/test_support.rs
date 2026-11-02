@@ -279,24 +279,123 @@ pub fn lune(tol: Tol) -> ProfileLoop<f64> {
         .into()
 }
 
-/// **Whether a blend read a requested edge as tangent**: a knife edge
-/// refused, or a smooth seam left as it is. Either is a dihedral that
-/// decided Zero, so a row that guards a transverse corner against a
-/// false zero asks this rather than for one of the two.
+/// **Whether a blend read a requested edge as tangent**: the request
+/// `edges` of `body` at `size` refused as a knife edge (`outcome`), or
+/// read by the battery as holding a smooth seam, which the verbs leave
+/// silently. Either is a dihedral that decided Zero, so a row that
+/// guards a transverse corner against a false zero asks this rather
+/// than for one of the two.
 #[must_use]
-pub fn read_as_tangent(outcome: &Result<Blended<f64>, crate::blend::BlendError>) -> bool {
-    match outcome {
-        Err(crate::blend::BlendError::KnifeEdge { .. }) => true,
-        Ok(out) => out.naming.as_ref().is_some_and(|n| !n.smooth.is_empty()),
-        Err(_) => false,
+pub fn read_as_tangent(
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    size: f64,
+    outcome: &Result<Blended<f64>, crate::blend::BlendError>,
+    tol: Tol,
+) -> bool {
+    if matches!(outcome, Err(crate::blend::BlendError::KnifeEdge { .. })) {
+        return true;
+    }
+    let band = Band::linear(tol).expect("the run's band");
+    let req = BlendRequest {
+        body,
+        edges: edges.to_vec(),
+        size,
+    };
+    run_battery(&req, band).is_ok_and(|v| !v.smooth.is_empty())
+}
+
+/// What a blend result is, entity for entity: its face, edge and vertex
+/// keys and the faces it minted. Two results with one shape are one
+/// result (the surgery is deterministic in its request).
+#[must_use]
+pub fn blend_shape(out: &Blended<f64>) -> impl PartialEq + core::fmt::Debug {
+    (
+        body_keys(&out.body),
+        out.blend_faces.clone(),
+        out.corner_faces.clone(),
+        out.band_faces.clone(),
+    )
+}
+
+/// `body`'s face, edge and vertex keys, in arena order.
+#[must_use]
+pub fn body_keys(body: &Body<f64>) -> (Vec<topo::FaceKey>, Vec<EdgeKey>, Vec<topo::VertexKey>) {
+    (
+        body.faces().map(|(k, _)| k).collect(),
+        body.edges().map(|(k, _)| k).collect(),
+        body.vertices().map(|(k, _)| k).collect(),
+    )
+}
+
+/// **A requested smooth edge is a silent no-op**: `verb` on `edges` of
+/// `body` at `size` gives what it gives with the edges in `smooth` left
+/// out of the request: the same refusal, or the same result entity for
+/// entity. Where nothing is left, the result is `body` itself, key for
+/// key.
+///
+/// # Panics
+///
+/// Where the two disagree.
+#[track_caller]
+pub fn assert_blends_as_without(
+    verb: crate::blend::BlendKind,
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    smooth: &[EdgeKey],
+    size: f64,
+    tol: Tol,
+) {
+    let run = |edges: &[EdgeKey]| {
+        let operand = at_rest(body, tol);
+        match verb {
+            crate::blend::BlendKind::Fillet => {
+                crate::blend::build::fillet_edges(&operand, edges, size, tol)
+            }
+            crate::blend::BlendKind::Chamfer => {
+                crate::blend::build::chamfer_edges(&operand, edges, size, tol)
+            }
+        }
+        .map_err(|r| r.error)
+    };
+    let without: Vec<EdgeKey> = edges
+        .iter()
+        .copied()
+        .filter(|e| !smooth.contains(e))
+        .collect();
+    let with = run(edges);
+    if without.is_empty() {
+        let out = with.unwrap_or_else(|e| panic!("a request of smooth edges alone refused: {e}"));
+        assert_eq!(
+            body_keys(&out.body),
+            body_keys(body),
+            "the body comes back as it is"
+        );
+        assert!(
+            out.blend_faces.is_empty() && out.corner_faces.is_empty() && out.band_faces.is_empty(),
+            "a request of smooth edges alone minted a face"
+        );
+        return;
+    }
+    match (with, run(&without)) {
+        (Ok(a), Ok(b)) => assert_eq!(
+            blend_shape(&a),
+            blend_shape(&b),
+            "the smooth edges changed the result"
+        ),
+        (a, b) => assert_eq!(
+            format!("{:?}", a.map(|o| body_keys(&o.body))),
+            format!("{:?}", b.map(|o| body_keys(&o.body))),
+            "the smooth edges changed the outcome"
+        ),
     }
 }
 
 /// **The margin a smooth seam was read at**: `edge` requested alone of
 /// the battery at `size`, which must leave it as a smooth seam, and of
-/// the fillet door, which must return `body` as it is with `edge` in
-/// its smooth row. The decided-Zero margin `fillet3_convexity_sign`
-/// read is handed back for the row to pin.
+/// the fillet door, which must return `body` as it is, key for key (a
+/// silent no-op). The decided-Zero margin `fillet3_convexity_sign` read
+/// is handed back for the row to pin.
 ///
 /// # Panics
 ///
@@ -321,14 +420,13 @@ pub fn smooth_reading(
         panic!("{edge:?} is the one smooth seam, got {:?}", verdict.smooth)
     };
     assert_eq!(seam, edge, "the battery names the requested seam");
-    let out = crate::blend::build::fillet_edges(&at_rest(body, tol), &[edge], size, tol)
-        .unwrap_or_else(|e| panic!("the fillet of a smooth seam refused: {e}"));
-    let named = &out.naming.as_ref().expect("the door's records").smooth;
-    assert_eq!(named, &vec![edge], "the door names the seam it left");
-    assert_eq!(
-        (out.body.faces().count(), out.body.edges().count()),
-        (body.faces().count(), body.edges().count()),
-        "a seam alone comes back as it was"
+    assert_blends_as_without(
+        crate::blend::BlendKind::Fillet,
+        body,
+        &[edge],
+        &[edge],
+        size,
+        tol,
     );
     margin
 }

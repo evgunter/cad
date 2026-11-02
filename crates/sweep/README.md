@@ -395,10 +395,11 @@ Zero read for its material side. Zero with the outward normals aligned
 is a smooth seam, wedge π (a bore's straight cut between its two
 half-cylinders, a chart seam, a profile fillet's tangent join): a ball
 resting on both faces touches them along the edge itself, so the blend
-of that edge is the edge. The battery leaves it out of every chain, the
-request reads without it from there on, and the result names it in
-`BlendNaming::smooth`; a request every edge of which is smooth returns
-the operand as it is. Zero with the normals opposed is a cusp or slit,
+of that edge is the edge, and requesting it is a silent no-op. The
+battery leaves it out of every chain and the request reads without it
+from there on, so the result is the same request's with that edge left
+out; a request every edge of which is smooth returns the operand as it
+is, key for key. Zero with the normals opposed is a cusp or slit,
 and refuses `BlendError::KnifeEdge`: its blend is defined (the ball
 rests where the supports' `r`-offsets meet, touching them away from the
 edge, where they open to `2r`) but not built (`work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).

@@ -19,8 +19,9 @@
 //! the interval lane, save/load/replay, latency) carry it for free.
 //! What is left here is what membership does not check:
 //!
-//! - a selection of every edge builds too: the two meridians are smooth
-//!   seams the fillet leaves as they are, and its badge names them;
+//! - a selection of every edge builds too, name for name what the
+//!   authored selection builds: the two meridians are smooth seams, a
+//!   silent no-op;
 //! - the authored selection is exactly the target's edge set minus
 //!   those two names (provenance in `corpus/die_composed.rs`);
 //! - the surgery's table is TOTAL and its names are COVARIANT under
@@ -147,14 +148,14 @@ fn the_composed_die_recipe_evaluates() {
     }
 }
 
-/// **Every edge selected: the cavity meridians are left as they are,
-/// and the node says which.** A cavity meridian is a smooth seam (two
-/// half-cap faces on ONE sphere), so a fillet selecting the target's
-/// every edge builds what the authored fourteen-edge selection builds:
-/// the node's badge names the two meridians it left, by their names in
-/// the target's table, and no band of its output is named for one.
+/// **Every edge selected: the cavity meridians are a silent no-op.** A
+/// cavity meridian is a smooth seam (two half-cap faces on ONE sphere),
+/// so a fillet selecting the target's every edge builds what the
+/// authored fourteen-edge selection (every edge but the two meridians)
+/// builds, name for name, and no band of its output is named for a
+/// meridian.
 #[test]
-fn every_edge_selected_leaves_the_cavity_meridians_and_names_them() {
+fn every_edge_selected_builds_what_the_selection_without_the_meridians_builds() {
     let doc = die_composed::document();
     let (fillet, target) = fillet_and_target(&doc.doc);
     let ev0 = eval(&doc.doc);
@@ -189,15 +190,12 @@ fn every_edge_selected_leaves_the_cavity_meridians_and_names_them() {
     .expect("inserting a fillet of every edge");
     let all_round = applied.record.minted.expect("an insert mints an id");
     let ev = eval(&applied.doc);
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&all_round) else {
+    let Some(NodeResult::Ok(_)) = ev.nodes.get(&all_round) else {
         panic!(
             "the fillet of every edge must build, got {:?}",
             ev.nodes.get(&all_round)
         );
     };
-    let mut left: Vec<StableName> = value.left_alone.to_vec();
-    left.sort();
-    assert_eq!(left, meridians, "the badge names the meridians it left");
     let bands: Vec<String> = ev
         .table_at(all_round)
         .expect("the fillet's table")

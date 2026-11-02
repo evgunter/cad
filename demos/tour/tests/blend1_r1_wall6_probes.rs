@@ -132,14 +132,20 @@ fn t1_wall_6_as_authored_leaves_the_seams_and_carves_the_rims() {
     assert!(!seams.is_empty(), "a full revolve mints chart seams");
     let out = fillet_edges(&finished("lant", lant.clone(), tol), &all, 0.02, tol)
         .unwrap_or_else(|e| panic!("wall 6 as authored carves, got {e:?}"));
-    let mut left = out
-        .naming
-        .as_ref()
-        .expect("the door's records")
-        .smooth
-        .clone();
-    left.sort_unstable();
-    assert_eq!(left, seams, "the fillet leaves exactly the chart seams");
+    let rims: Vec<EdgeKey> = all.iter().copied().filter(|e| !seams.contains(e)).collect();
+    let without = fillet_edges(&finished("lant", lant.clone(), tol), &rims, 0.02, tol)
+        .unwrap_or_else(|e| panic!("the four rims alone carve, got {e:?}"));
+    let keys = |b: &Body<f64>| {
+        (
+            b.faces().map(|(k, _)| k).collect::<Vec<_>>(),
+            b.edges().map(|(k, _)| k).collect::<Vec<_>>(),
+        )
+    };
+    assert_eq!(
+        (keys(&out.body), &out.band_faces),
+        (keys(&without.body), &without.band_faces),
+        "the chart seams are a silent no-op: every edge carves what the rims alone do"
+    );
     assert_eq!(
         out.band_faces.len(),
         4,

@@ -847,13 +847,6 @@ pub struct NodeValue<T: Decide> {
     /// the verdicts are, so no content key reads it; it rides the value
     /// with the names it is spelled in.
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
-    /// **The requested edges the node's blend left as they are**: the
-    /// smooth seams (`sweep::blend::LinkWedge::Smooth`) its selection
-    /// named, each by its name in the operand's table, in the order of
-    /// the operand's edge keys (the request `wire_blend` resolves the
-    /// selection to is sorted), not the selection's own order. Empty for
-    /// every other node. The node's badge reads it.
-    pub left_alone: Arc<[StableName]>,
     /// **A placement's solved motion** (D10): where its copy sits
     /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
@@ -940,7 +933,6 @@ impl<T: Decide> NodeValue<T> {
             outputs: out.outputs.into(),
             carry: out.carry,
             coincidences: out.coincidences,
-            left_alone: out.left_alone,
             members: None,
             family: None,
             verdicts: Arc::new(Vec::new()),
@@ -971,7 +963,6 @@ impl NodeValue<f64> {
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             carry: Carry::default(),
             coincidences: Arc::new([]),
-            left_alone: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
@@ -4787,7 +4778,6 @@ where
                 outputs: out.outputs.into(),
                 carry: out.carry,
                 coincidences: out.coincidences,
-                left_alone: out.left_alone,
                 motion: out.motion,
                 members: None,
                 family: None,

@@ -566,7 +566,8 @@ impl BlendTool {
     /// name — mixed convexity, a turn of two edges at a corner, a cusp
     /// or slit, and a blend of a blend are all typed refusals on the
     /// node's own badge — and leaves a smooth edge (a bore's strut, a
-    /// chart seam) as it is, which the badge names. This door hands over the edges that EXIST,
+    /// chart seam) as it is, silently: the blend's limit there is the
+    /// edge itself. This door hands over the edges that EXIST,
     /// which is a different claim, and the panel says so beside the
     /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(

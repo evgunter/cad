@@ -294,17 +294,13 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
         .map(|(k, _)| k)
         .find(|k| both_sides_spheres(&ball, *k))
         .expect("a full ball carries a co-surface seam meridian");
-    let left = chamfer_edges(
-        &sweep::test_support::at_rest(&ball, Tol::witness()),
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Chamfer,
+        &ball,
+        &[seam],
         &[seam],
         0.05,
         Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("a co-surface seam is a smooth seam, got {e}"));
-    assert_eq!(
-        left.naming.as_ref().expect("the door's records").smooth,
-        vec![seam],
-        "the chamfer leaves the seam and names it"
     );
     let lune = sweep::test_support::extruded(
         profile::SketchPlane::xy(),

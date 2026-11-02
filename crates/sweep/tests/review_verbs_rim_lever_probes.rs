@@ -362,9 +362,12 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
         )
         .map_err(|r| r.error);
 
-        for (which, v) in [("closed", &closed_verdict), ("open", &open_verdict)] {
+        for (which, body, edge, v) in [
+            ("closed", &full, closed, &closed_verdict),
+            ("open", &part, open, &open_verdict),
+        ] {
             assert!(
-                !sweep::test_support::read_as_tangent(v),
+                !sweep::test_support::read_as_tangent(body, &[edge], r * 0.05, v, tol()),
                 "{which} rim at half-angle {half_angle} rad reports tangency on a \
                  transverse cone×cylinder corner: {v:?}"
             );

@@ -302,8 +302,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
                     ui.label(detail);
                 }
             }
-            // A sentence, drawn under the row.
-            Some(Readout::LeftAlone(_)) | None => {}
+            None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -318,9 +317,6 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
     let clicked = failure_lines(ui, row, theme);
     match &row.readout {
-        Some(Readout::LeftAlone(left)) => {
-            advisory_line(ui, &left.to_string(), theme);
-        }
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },

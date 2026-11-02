@@ -491,7 +491,7 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     // The kind-pair description alone also matches the six vertical
     // seams where a profile fillet meets a straight side. Those are
     // smooth — the two faces continue one another — so the door leaves
-    // them as they are, names them, and rounds the two creases.
+    // them as they are, silently, and rounds the two creases.
     let operand = finished("plate.body", plate.body.clone(), tol);
     let described = cylinder_plane_lines(&plate.body);
     assert_eq!(
@@ -503,16 +503,6 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
     let over = fillet_edges(&operand, &described, R_CREASE, tol)
         .unwrap_or_else(|e| panic!("the description rounds its creases, got {e:?}"));
-    let left = &over.naming.as_ref().expect("the door's records").smooth;
-    assert_eq!(
-        left.len(),
-        6,
-        "the door leaves the six tangent seams: {left:?}"
-    );
-    assert!(
-        left.iter().all(|e| !creases.contains(e)),
-        "and rounds both creases"
-    );
     assert!(
         (volume(&over.body) - volume(rounded)).abs() < 1e-12,
         "the described request rounds what the creases alone do"
@@ -557,7 +547,7 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
          r = {R_CREASE}, the outline's own blend radius, on its two convex disc/slot \
          creases. Selected as `Line` edges between a `Cylinder` and a `Plane`, scoped to the keyhole loop's struts — the \
          description alone also matches the outline's six tangent seams, whose faces \
-         continue one another, and the door leaves those as they are and names them. Each crease \
+         continue one another, and the door leaves those as they are, which changes nothing. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
          measured {dv:.6e}. Smaller radii carve at their closed forms too, down to the \
          eye tip's ({R_EYE})."

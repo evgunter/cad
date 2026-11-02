@@ -1039,8 +1039,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             // Written below, after these rows are checked.
             edge_joins: _,
             source: _,
-            // Written by the door, from the verdict, after the surgery.
-            smooth: _,
         } = &rec;
         let edge_sources = blends
             .iter()

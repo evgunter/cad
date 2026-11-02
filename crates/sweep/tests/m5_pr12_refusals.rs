@@ -222,25 +222,17 @@ fn a_same_surface_smooth_split_is_a_smooth_seam_left_as_it_is() {
         "a smooth split has an exactly-zero wedge"
     );
     assert!(verdict.chains.is_empty(), "and builds no chain on it");
-    let operand = sweep::test_support::at_rest(&body, tol());
-    let fillet = sweep::blend::fillet_edges(&operand, &[wall_edge], 0.05, tol());
-    let chamfer = sweep::blend::chamfer_edges(&operand, &[wall_edge], 0.05, tol());
-    for (verb, out) in [("fillet", fillet), ("chamfer", chamfer)] {
-        let out = out.unwrap_or_else(|e| panic!("the {verb} of a smooth seam refused: {e}"));
-        let naming = out.naming.as_ref().expect("the door writes its records");
-        assert_eq!(
-            naming.smooth,
-            vec![wall_edge],
-            "the {verb} names the seam it left"
-        );
-        assert_eq!(
-            (out.body.faces().count(), out.body.edges().count()),
-            (body.faces().count(), body.edges().count()),
-            "the {verb} of a seam alone returns the body as it is"
-        );
-        assert!(
-            out.blend_faces.is_empty() && out.band_faces.is_empty(),
-            "the {verb} minted a band for a seam"
+    for verb in [
+        sweep::blend::BlendKind::Fillet,
+        sweep::blend::BlendKind::Chamfer,
+    ] {
+        sweep::test_support::assert_blends_as_without(
+            verb,
+            &body,
+            &[wall_edge],
+            &[wall_edge],
+            0.05,
+            tol(),
         );
     }
 }

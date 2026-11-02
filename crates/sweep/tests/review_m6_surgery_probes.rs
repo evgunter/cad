@@ -645,7 +645,7 @@ fn p6_reversed_pip_walls_carry_through() {
 /// P7 (charter F, dev 1): the pipped body's cap meridians (two half-cap
 /// faces on ONE sphere) read smooth at margin EXACTLY 0.0, at every
 /// radius — the margin is structural, not tuned — and an every-edge
-/// fillet leaves exactly those as they are and builds.
+/// fillet builds what it builds with them left out.
 #[test]
 fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     let (pipped, _) = one_pip(0.5, 0.5);
@@ -672,21 +672,14 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         }
     }
     let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Fillet,
+        &pipped,
         &every,
+        &meridians,
         RIM_R,
         Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("every edge of a pipped body builds, got {e}"));
-    let mut left = out
-        .naming
-        .as_ref()
-        .expect("the door's records")
-        .smooth
-        .clone();
-    left.sort_unstable();
-    assert_eq!(left, meridians, "the fillet leaves exactly the meridians");
+    );
     println!("P7: meridian margins bit-zero at all radii; every-edge builds");
 }
 

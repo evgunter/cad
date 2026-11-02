@@ -119,7 +119,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     )
     .map_err(|r| r.error);
     assert!(
-        !sweep::test_support::read_as_tangent(&open),
+        !sweep::test_support::read_as_tangent(&part, &[arc], 0.05, &open, tol()),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(

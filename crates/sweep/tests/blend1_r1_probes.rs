@@ -416,12 +416,15 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
         tol(),
     )
     .unwrap_or_else(|e| panic!("the rim carves past the seam it leaves, got {e:?}"));
-    assert_eq!(
-        out.naming.as_ref().expect("the door's records").smooth,
-        vec![seam],
-        "the seam meridian is a smooth seam the blend leaves as it is"
-    );
     assert_eq!(out.band_faces.len(), 1, "the rim is carved whole, one band");
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Fillet,
+        &body,
+        &req,
+        &[seam],
+        0.05,
+        tol(),
+    );
     let margin = sweep::test_support::smooth_reading(&body, seam, 0.05, tol());
     assert_eq!(margin.predicate, "fillet3_convexity_sign");
     assert_eq!(margin.sign, Sign::Zero);

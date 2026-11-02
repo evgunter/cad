@@ -476,7 +476,11 @@ pub struct BatteryVerdict<T: Real> {
     pub turns: Vec<Turn<T>>,
     /// The requested edges predicate 5 read as smooth seams
     /// ([`LinkWedge::Smooth`]), each with the decided-Zero margin it
-    /// read, in request order: in no chain, and left as they are.
+    /// read, in request order: in no chain, and left as they are. The
+    /// verbs say nothing of them (a requested smooth edge is a silent
+    /// no-op: the blend's limit there is the edge itself); the battery
+    /// reads the rest of the request without them, and this row is
+    /// what its readers check the margin on.
     pub smooth: Vec<(EdgeKey, ClassifiedMargin)>,
 }
 

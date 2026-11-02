@@ -248,13 +248,6 @@ pub struct BlendNaming {
     /// What the blend retired from the source.
     pub dead: Retired,
 
-    /// **The requested edges the blend left as they are**: smooth
-    /// seams ([`super::LinkWedge::Smooth`]), where a ball resting on
-    /// both supports touches them along the edge itself, in request
-    /// order. Each is a survivor or carved like any unrequested edge
-    /// (a rim's meridian is), and no band is minted for it.
-    pub smooth: Vec<EdgeKey>,
-
     /// The joins the blend ended with (`Body::join_edges_within`, scoped
     /// to the shells it carved), in the order made. Every row above stays
     /// as the surgery wrote it: a join's `vertex` and `gone` are then

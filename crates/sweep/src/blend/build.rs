@@ -226,23 +226,7 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    let blended = super::surgery::blend_surgery(body, &verdict, band, tol)?;
-    Ok(named_smooth(blended, &verdict))
-}
-
-/// `blended` with the smooth seams the battery left out named in its
-/// [`super::naming::BlendNaming::smooth`] row. A request every edge of
-/// which is a smooth seam reaches the surgery with no chain, which
-/// carves nothing and hands back the operand's own entities, key for
-/// key (`a_blend_leaves_a_smooth_edge_as_it_is`).
-fn named_smooth<T: Real>(
-    mut blended: Blended<T>,
-    verdict: &super::BatteryVerdict<T>,
-) -> Blended<T> {
-    if let Some(naming) = blended.naming.as_mut() {
-        naming.smooth = verdict.smooth.iter().map(|&(edge, _)| edge).collect();
-    }
-    blended
+    super::surgery::blend_surgery(body, &verdict, band, tol)
 }
 
 /// **Both doors' operand gate** (module docs): the band the request is
@@ -517,8 +501,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
         size: distance,
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
-    let blended = super::surgery::blend_surgery(body, &verdict, band, tol)?;
-    Ok(named_smooth(blended, &verdict))
+    super::surgery::blend_surgery(body, &verdict, band, tol)
 }
 
 #[cfg(test)]
