@@ -4126,10 +4126,12 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # unnoticed is the drift the assertion exists to catch, and the
         # right response is a reading recorded at the line, which is
         # what this comment is. `tests/test_cancellation.py` is its
-        # positive form.
+        # positive form. `member_budget` joined with the run's member
+        # budget, the one `EvalOptions` field besides the seam that a
+        # caller states: running out is `Evaluation.exhausted`.
         self.assertEqual(
             list(inspect.signature(evaluate).parameters),
-            ["doc", "resolver", "prior", "cancel"],
+            ["doc", "resolver", "prior", "cancel", "member_budget"],
         )
         with self.assertRaises(TypeError):
             evaluate(Doc(), None)

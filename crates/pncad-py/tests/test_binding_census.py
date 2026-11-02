@@ -598,6 +598,9 @@ BOUND_AS = {
     # absence rather than answering them.
     "Observed": "Evaluation.reading",
     "ObservedRefusal": "Evaluation.reading",
+    # The run's member budget's one default is what `evaluate`'s
+    # `member_budget=None` runs under.
+    "DEFAULT_MEMBER_BUDGET": "evaluate",
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
     # door's proof as `rung` (`None` unproven) beside `residual`.
