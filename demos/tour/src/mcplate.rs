@@ -92,7 +92,7 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, Observed, ProfileDoc, RecipeNodeId,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
     ValuePayload, VarId, apply, evaluate,
 };
 use pncad::geom::Surface;
@@ -208,7 +208,7 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                 hole_circle(&body_at(&ev, base.holes[1], tol)),
             ];
             let web = match ev.reading(&doc, base.web) {
-                Ok(Observed::Value(web)) => web,
+                Ok(web) => web,
                 other => panic!("the web reads at f64, got {other:?}"),
             };
             Sample { holes, web }

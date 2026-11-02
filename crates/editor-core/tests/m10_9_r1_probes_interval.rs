@@ -258,11 +258,11 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
     let web = MeasurePrimitive::Distance { a: 0, b: 1 };
     let measured = r.measure(&[web], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.0e-3),
         relation: editor_core::AssertionRelation::AtLeast,
-    });
+    }));
     (r.doc, measure, assertion)
 }
 

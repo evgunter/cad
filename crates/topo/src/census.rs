@@ -2223,7 +2223,7 @@ fn pair_contact<T: Decide>(
     }
     match crate::boolean::tangent_pair_at_rest(body, fx, fy, band) {
         Ok(crate::boolean::RestTangent::Line {
-            carrier: geom::Curve3::Line { dir, .. },
+            carrier: geom::Curve3::Line(geom::Line { dir, .. }),
             ..
         }) => Some(PairContact::Line(dir.normalize())),
         _ => None,
@@ -2252,7 +2252,7 @@ pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) 
         .and_then(|e| body.curves.get(e.curve))
         .and_then(CurveGeom::certified)
         .map(geom_brep::EdgeCurve::carrier)
-        .is_some_and(|c| matches!(c, geom::Curve3::Line { .. }))
+        .is_some_and(|c| !c.is_curved())
 }
 
 /// Every loop of `face` — the outer, then the rings.
@@ -3153,10 +3153,7 @@ fn on_edge_interior_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<(T, MarginDiag)>> {
     let e = e.span();
-    let line = geom::Curve3::Line {
-        origin: e.p0,
-        dir: e.dir,
-    };
+    let line = geom::Curve3::line(e.p0, e.dir);
     match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
@@ -4744,7 +4741,7 @@ fn edge_crossings<T: Decide>(
         .and_then(CurveGeom::certified);
     // Two straight segments from one point meet nowhere else unless they
     // run together, and a shared run is no cut either.
-    let straight = stored.is_none_or(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+    let straight = stored.is_none_or(|c| !c.carrier().is_curved());
     if matches!(edge, LoopEdge::Chord) && straight && shares_an_end(body, e, side.key) {
         return Some(Vec::new());
     }
@@ -4790,17 +4787,11 @@ fn meetings<T: Decide>(
     band: Band,
 ) -> Result<Vec<(T, CutAt)>, CrossRefusal> {
     use crate::splitting::containment::LoopEdge;
-    let along = geom::Curve3::Line {
-        origin: e.p0,
-        dir: e.dir,
-    };
+    let along = geom::Curve3::line(e.p0, e.dir);
     let (a, b) = side.ends;
     // A straight edge with no certified curve of its own is the segment
     // between its loop ends.
-    let chord = geom::Curve3::Line {
-        origin: a,
-        dir: (b - a).normalize(),
-    };
+    let chord = geom::Curve3::line(a, (b - a).normalize());
     let (boundary, at) = match (edge, stored) {
         (LoopEdge::Chord, Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
@@ -7116,7 +7107,7 @@ pub(crate) fn face_reach_in<T: Decide>(
             minor_radius,
             u_ref,
         } => {
-            use crate::boolean::boxes::{Span, SpanBox, meet, torus_extent, torus_window_extent};
+            use crate::boolean::boxes::{Span, SpanBox, meet, ring_window_extent, torus_extent};
             let (c, ax) = (
                 SpanBox::point(frame.point(center)),
                 SpanBox::vector(frame.vector(axis)),
@@ -7125,24 +7116,29 @@ pub(crate) fn face_reach_in<T: Decide>(
             // The chart window from the boundary's own stored
             // certified pcurves: the same walk, the same guards and
             // the same extent as the boolean lane, at this lane's
-            // scalar ([`torus_chart_window`]).
-            Some(span_pts(
-                match torus_chart_window(body, f, major_radius, minor_radius) {
-                    None => whole,
-                    Some((u, v)) => meet(
-                        torus_window_extent(
-                            &c,
-                            &ax,
+            // scalar ([`torus_chart_window`]), once the ring
+            // convention the extent reads is decided.
+            let window = if geom::is_ring_torus(major_radius, minor_radius, band) {
+                torus_chart_window(body, f, major_radius, minor_radius)
+            } else {
+                None
+            };
+            Some(span_pts(match window {
+                None => whole,
+                Some(window) => meet(
+                    ring_window_extent(
+                        &c,
+                        (
                             &SpanBox::vector(frame.vector(u_ref)),
                             &SpanBox::vector(frame.vector(axis.cross(u_ref))),
-                            Span::exact(major_radius),
-                            Span::exact(minor_radius),
-                            (u, v),
+                            &ax,
                         ),
-                        whole,
+                        (Span::exact(major_radius), Span::exact(minor_radius)),
+                        window,
                     ),
-                },
-            ))
+                    whole,
+                ),
+            }))
         }
         crate::boolean::boxes::FaceBoxRule::CylinderSlab {
             origin,
@@ -8436,7 +8432,7 @@ fn edge_in_own_face<T: Decide>(
 /// one solid there — a vertex on its own face (pass 3), on its own edge
 /// (pass 2), or two of its vertices on one point (pass 1). Those passes
 /// read position only; the side is read here, once, over the solid's
-/// whole link at the point ([`Link::touch_at_point`], [`rest::one_material`]).
+/// whole link at the point ([`gather`], [`Germ::of_holds`], [`rest::one_material`]).
 /// A decided failure is [`ValidationError::BoundaryCrossesItself`], any
 /// other unread verdict its undecided twin. A point a line touch of the
 /// solid reaches is read whole here too, every sheet through it, the
@@ -8446,11 +8442,11 @@ fn edge_in_own_face<T: Decide>(
 /// disc its edges clear ([`crate::link::FaceSector::cleared`]). A link
 /// holding a curved face, a face with a curved edge held at its corner, a
 /// planar face with a spline edge, or a point tied inside a curved edge
-/// ([`Link::touch_at_point`] answers `Unreadable` before any other
+/// ([`Germ::of_holds`] answers `Unreadable` before any other
 /// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
-/// wherever their first order decides. Where it does not, the point is
-/// left unread ([`SelfTouch::SecondOrder`]): no reading of second order
-/// parts it yet.
+/// wherever their first order decides. Where it does not, or the cones
+/// do not build, the point is left unread, named
+/// ([`SelfTouch::SecondOrder`]): no reading of second order parts it yet.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8526,25 +8522,30 @@ fn sweep_self_touch_points<T: Decide>(
 enum SelfTouch {
     /// The link's verdict.
     Read(TouchVerdict),
-    /// A curved face or edge takes part and its first order does not
-    /// decide: the faces' tangent cones leave the point to a reading of
-    /// second order, which there is none of yet. The reason is the
-    /// tangent reading's: [`TouchUnread::Unreadable`] for a face with no
-    /// tangent plane there (a cone's apex), a corner whose edges leave it
-    /// along one tangent (a cusp), a spline face held off a corner, or a
-    /// bound or plane on another sheet's to first order only (a
-    /// tangency); [`TouchUnread::Degenerate`] for two tangent sectors on
-    /// each other.
+    /// A curved face or edge takes part and the faces' tangent cones do
+    /// not decide the point ([`Link::tangent_of`]): what a reading of
+    /// second order would part, which there is none of yet, and what the
+    /// tangent reading cannot build. [`TouchUnread::Unreadable`] for a
+    /// face with no tangent plane there (a cone's apex, or a vertex in
+    /// the band of its axis), a corner whose two edges leave it along one
+    /// tangent (a cusp) other than a slit's tip, a spline face held off a
+    /// corner, a face whose normal at the foot or whose reach does not
+    /// read, a corner face [`crate::sector_face::resolve`] refuses, a
+    /// curved edge with no certified curve, or a bound or plane lying on
+    /// another sheet's to first order only (a tangency, two kissing balls
+    /// at any pose included); [`TouchUnread::Degenerate`] for two sectors
+    /// read lying on each other, which takes in a slit or a doubled sheet
+    /// of planar faces as well as tangent sectors that coincide.
     SecondOrder(TouchUnread),
 }
 
 /// **Solid `s`'s whole link at the touch point of `keys`, read for
 /// one material** ([`rest::one_material`]): the link of the faces'
-/// sectors where every face reads one ([`Link::touch_at_point`]), and
-/// where a curved face or edge takes part, the link of their tangent
-/// cones ([`Link::tangent_at_point`]), which the reading holds to the
-/// coincidences the faces keep. What the tangent cones leave to second
-/// order is [`SelfTouch::SecondOrder`].
+/// sectors where every face reads one ([`Germ::of_holds`]), and where a
+/// curved face or edge takes part, the link of their tangent cones
+/// ([`Link::tangent_of`]), over the one gathering of the faces
+/// ([`gather`]). What the tangent cones leave unread is
+/// [`SelfTouch::SecondOrder`].
 #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
 fn self_touch_verdict<T: Decide>(
     body: &Body<T>,
@@ -8555,10 +8556,18 @@ fn self_touch_verdict<T: Decide>(
     at: Point3<T>,
     band: Band,
 ) -> SelfTouch {
-    match Link::touch_at_point(body, geo, ties, s, keys, at, band) {
+    let holds = match gather(body, geo, ties, s, keys) {
+        Ok(holds) => holds,
+        Err(why) => return SelfTouch::Read(TouchVerdict::Unread(why)),
+    };
+    let planar = Germ::of_holds(body, geo, &holds, at, band).and_then(|germ| match germ {
+        Germ::Link(link) => Ok(link),
+        Germ::Round { .. } => Err(TouchUnread::Unreadable),
+    });
+    match planar {
         Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
         Err(TouchUnread::Unreadable) => {
-            match Link::tangent_at_point(body, geo, ties, s, keys, at, band)
+            match Link::tangent_of(body, geo, &holds, at, band)
                 .map(|link| rest::one_material(&link, band))
             {
                 Ok(TouchVerdict::Unread(
@@ -8644,6 +8653,7 @@ impl<T: Decide> Link<T> {
     /// at the point, its two faces inside it; each face of the solid a
     /// tie names at the point, inside it. How a face held more than one
     /// way is read is [`FaceSector::of`]'s.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
     fn touch_at_point(
         body: &Body<T>,
@@ -8661,11 +8671,83 @@ impl<T: Decide> Link<T> {
     }
 }
 
+/// Where a face of the solid holds the touch point ([`gather`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    /// At its corner, this vertex.
+    Corner(VertexKey),
+    /// Inside this edge of it.
+    Edge(EdgeKey),
+    /// Inside the face.
+    Inside,
+}
+
+/// **Solid `solid`'s faces at the touch point of `keys`**, gathered
+/// structurally, each with how it holds the point, every hold once in
+/// the order first met: every face of the solid holding one of its
+/// vertices on those keys, at that corner; both faces of each edge of
+/// the solid a tie holds the point inside, an edge with an end on the
+/// point read by that corner instead; each face of the solid a tie names
+/// at the point, inside it. The one gathering both readings of a link
+/// take ([`Germ::of_holds`], [`Link::tangent_of`]).
+fn gather<T: Real>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    ties: &Ties,
+    solid: crate::SolidKey,
+    keys: &BTreeSet<PointKey>,
+) -> Result<std::collections::BTreeMap<FaceKey, Vec<Held>>, TouchUnread> {
+    let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
+    let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
+    let verts: BTreeSet<VertexKey> = geo
+        .verts
+        .iter()
+        .map(|&(v, _)| v)
+        .filter(|v| on(v) && mine(EntityId::Vertex(*v)))
+        .collect();
+    let mut holds: std::collections::BTreeMap<FaceKey, Vec<Held>> =
+        std::collections::BTreeMap::new();
+    let mut hold = |f: FaceKey, h: Held| {
+        let all = holds.entry(f).or_default();
+        if !all.contains(&h) {
+            all.push(h);
+        }
+    };
+    for &v in &verts {
+        for &f in geo.vertex_faces.get(&v).ok_or(TouchUnread::Corrupt)? {
+            hold(f, Held::Corner(v));
+        }
+    }
+    for (v, e) in &ties.ve {
+        if !on(v) || !mine(EntityId::Edge(*e)) {
+            continue;
+        }
+        let edge = body.get_edge(*e).ok_or(TouchUnread::Corrupt)?;
+        let halves = [edge.he_plus, edge.he_minus]
+            .map(|he| body.get_half_edge(he).ok_or(TouchUnread::Corrupt));
+        let halves = [halves[0]?, halves[1]?];
+        if halves.iter().any(|h| verts.contains(&h.start)) {
+            continue;
+        }
+        for h in halves {
+            let f = body
+                .get_loop(h.parent_loop)
+                .ok_or(TouchUnread::Corrupt)?
+                .face;
+            hold(f, Held::Edge(*e));
+        }
+    }
+    for (v, f) in &ties.vf {
+        if on(v) && mine(EntityId::Face(*f)) {
+            hold(*f, Held::Inside);
+        }
+    }
+    Ok(holds)
+}
+
 impl<T: Decide> Germ<T> {
     /// **Solid `solid`'s material at the touch point of `keys`**: its
-    /// link there, gathered as [`Link::touch_at_point`] says, or, where
-    /// all it holds at the point is one sphere or cylinder face with the
-    /// point inside it, that face's material ([`round_face`]).
+    /// faces there ([`gather`]) as [`Germ::of_holds`] reads them.
     #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
     fn touch_at_point(
         body: &Body<T>,
@@ -8676,45 +8758,42 @@ impl<T: Decide> Germ<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
-        let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
-        let verts: BTreeSet<VertexKey> = geo
-            .verts
-            .iter()
-            .map(|&(v, _)| v)
-            .filter(|v| on(v) && mine(EntityId::Vertex(*v)))
-            .collect();
-        let mut holds: std::collections::BTreeMap<FaceKey, Vec<Hold>> =
-            std::collections::BTreeMap::new();
-        for &v in &verts {
-            for &f in geo.vertex_faces.get(&v).ok_or(TouchUnread::Corrupt)? {
-                holds.entry(f).or_default().push(Hold::Corner(v));
+        Self::of_holds(body, geo, &gather(body, geo, ties, solid, keys)?, p, band)
+    }
+
+    /// **The material of faces holding `p` as `holds` say**: their link
+    /// ([`FaceSector::of`]), or, where all of it is one sphere or
+    /// cylinder face with the point inside it, that face's material
+    /// ([`round_face`]). A tie inside an edge that is not a line is
+    /// [`TouchUnread::Unreadable`].
+    fn of_holds(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        holds: &std::collections::BTreeMap<FaceKey, Vec<Held>>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        let mut faces: Vec<(FaceKey, Vec<Hold>)> = Vec::with_capacity(holds.len());
+        for (&f, all) in holds {
+            let mut hs: Vec<Hold> = Vec::with_capacity(all.len());
+            for &h in all {
+                let h = match h {
+                    Held::Corner(v) => Hold::Corner(v),
+                    Held::Inside => Hold::Inside,
+                    Held::Edge(e) => {
+                        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+                        Hold::Edge(edge.v0, edge.v1)
+                    }
+                };
+                if !hs.contains(&h) {
+                    hs.push(h);
+                }
             }
+            faces.push((f, hs));
         }
-        for (v, e) in &ties.ve {
-            if !on(v) || !mine(EntityId::Edge(*e)) {
-                continue;
-            }
-            let edge = geo.line_edge(*e).ok_or(TouchUnread::Unreadable)?;
-            if verts.contains(&edge.v0) || verts.contains(&edge.v1) {
-                continue;
-            }
-            for f in [edge.f_plus, edge.f_minus] {
-                holds
-                    .entry(f)
-                    .or_default()
-                    .push(Hold::Edge(edge.v0, edge.v1));
-            }
-        }
-        for (v, f) in &ties.vf {
-            if on(v) && mine(EntityId::Face(*f)) {
-                holds.entry(*f).or_default().push(Hold::Inside);
-            }
-        }
-        if let Some((&f, all)) = holds.first_key_value()
-            && holds.len() == 1
+        if let [(f, all)] = &faces[..]
             && all.iter().all(|h| *h == Hold::Inside)
-            && let Some(round) = round_face(body, f, p)?
+            && let Some(round) = round_face(body, *f, p)?
         {
             return Ok(Germ::Round {
                 round: round.0,
@@ -8724,15 +8803,9 @@ impl<T: Decide> Germ<T> {
         // A curved face refuses at once; any other refusal waits until
         // every face is tried. So a curved face anywhere in the link is
         // what it refuses with, whatever order its faces are walked in.
-        let mut sectors = Vec::with_capacity(holds.len());
+        let mut sectors = Vec::with_capacity(faces.len());
         let mut refused = None;
-        for (f, all) in holds {
-            let mut hs: Vec<Hold> = Vec::with_capacity(all.len());
-            for h in all {
-                if !hs.contains(&h) {
-                    hs.push(h);
-                }
-            }
+        for (f, hs) in faces {
             match FaceSector::of(body, geo, f, p, &hs, band) {
                 Ok(s) => sectors.extend(s),
                 Err(TouchUnread::Unreadable) => return Err(TouchUnread::Unreadable),
@@ -8748,101 +8821,46 @@ impl<T: Decide> Germ<T> {
     }
 }
 
-/// Where a face of a tangent link holds the touch point
-/// ([`Link::tangent_at_point`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TangentHold {
-    /// At its corner, this vertex.
-    Corner(VertexKey),
-    /// Inside this edge of it.
-    Edge(EdgeKey),
-    /// Inside the face.
-    Inside,
-}
-
 impl<T: Decide> Link<T> {
-    /// **Solid `solid`'s link at the touch point of `keys` as its faces'
-    /// tangent cones** ([`FaceSector::tangent`]), gathered as
-    /// [`Link::touch_at_point`] gathers it but over any carrier: every
-    /// face of the solid at a corner on the keys, at that corner; both
-    /// faces of each edge a tie holds the point inside; each face a tie
-    /// names, inside it. A face is read at every pass of its loops
-    /// through the point, a corner before an edge before its inside, and
-    /// every face of the link is read so, planar or curved, so that each
-    /// bound of the cone is named by its edge ([`rest::one_material`]
-    /// holds the cone to the coincidences its faces keep).
+    /// **The faces holding `p` as `holds` say ([`gather`]), as their
+    /// tangent cones** ([`FaceSector::tangent`]), over any carrier. A
+    /// face is read at every pass of its loops through the point, a
+    /// corner before an edge before its inside, and every face of the
+    /// link is read so, planar or curved, so that each bound of the cone
+    /// is named by its edge ([`rest::one_material`] holds the cone to the
+    /// coincidences its faces keep).
     ///
-    /// A face with no tangent plane at the point (a cone's apex, or near
-    /// its axis), a spline face held anywhere but a corner, a curved edge
-    /// with no certified curve, or a carrier with no normal arm is
-    /// [`TouchUnread::Unreadable`]; a reading of it in band,
-    /// [`TouchUnread::InBand`].
-    #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
-    fn tangent_at_point(
+    /// A face with no tangent plane at the point (a cone's apex, or a
+    /// vertex in the band of its axis), a spline face held anywhere but a
+    /// corner, a curved edge with no certified curve, or a face whose
+    /// normal or reach does not read is [`TouchUnread::Unreadable`]; a
+    /// reading of it in band, [`TouchUnread::InBand`].
+    fn tangent_of(
         body: &Body<T>,
         geo: &Geo<T>,
-        ties: &Ties,
-        solid: crate::SolidKey,
-        keys: &BTreeSet<PointKey>,
+        holds: &std::collections::BTreeMap<FaceKey, Vec<Held>>,
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
-        let mine = |id: EntityId| census_entity_solid(body, id) == Some(solid);
-        let verts: BTreeSet<VertexKey> = geo
-            .verts
-            .iter()
-            .map(|&(v, _)| v)
-            .filter(|v| on(v) && mine(EntityId::Vertex(*v)))
-            .collect();
-        let mut holds: std::collections::BTreeMap<FaceKey, Vec<TangentHold>> =
-            std::collections::BTreeMap::new();
-        for &v in &verts {
-            for &f in geo.vertex_faces.get(&v).ok_or(TouchUnread::Corrupt)? {
-                holds.entry(f).or_default().push(TangentHold::Corner(v));
-            }
-        }
-        for (v, e) in &ties.ve {
-            if !on(v) || !mine(EntityId::Edge(*e)) {
-                continue;
-            }
-            let edge = body.get_edge(*e).ok_or(TouchUnread::Corrupt)?;
-            for he in [edge.he_plus, edge.he_minus] {
-                let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
-                if verts.contains(&half.start) {
-                    continue;
-                }
-                let f = body
-                    .get_loop(half.parent_loop)
-                    .ok_or(TouchUnread::Corrupt)?
-                    .face;
-                holds.entry(f).or_default().push(TangentHold::Edge(*e));
-            }
-        }
-        for (v, f) in &ties.vf {
-            if on(v) && mine(EntityId::Face(*f)) {
-                holds.entry(*f).or_default().push(TangentHold::Inside);
-            }
-        }
         let mut sectors = Vec::new();
-        for (f, all) in holds {
-            sectors.extend(tangent_sectors(body, geo, f, p, &all, band)?);
+        for (&f, all) in holds {
+            sectors.extend(tangent_sectors(body, geo, f, p, all, band)?);
         }
         Self::of(p, sectors)
     }
 }
 
 /// **Face `f`'s tangent sectors at `p`**, held as `holds` say
-/// ([`Link::tangent_at_point`]): one per pass of its loops through a
-/// corner it is held at, then one per pass along an edge it is held
-/// inside whose ends are no such corner, and where neither holds it,
-/// its whole tangent plane.
+/// ([`Link::tangent_of`]): one per pass of its loops through a corner it
+/// is held at, then one per pass along an edge it is held inside whose
+/// ends are no such corner, and where neither holds it, its whole
+/// tangent plane.
 fn tangent_sectors<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     f: FaceKey,
     p: Point3<T>,
-    holds: &[TangentHold],
+    holds: &[Held],
     band: Band,
 ) -> Result<Vec<FaceSector<T>>, TouchUnread> {
     use crate::link::TangentFan;
@@ -8851,7 +8869,7 @@ fn tangent_sectors<T: Decide>(
         .get_surface(face.surface)
         .cloned()
         .ok_or(TouchUnread::Corrupt)?;
-    let corner = |v: VertexKey| holds.contains(&TangentHold::Corner(v));
+    let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
     let mut out = Vec::new();
     for cycle in face_cycles(body, face) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
@@ -8862,8 +8880,8 @@ fn tangent_sectors<T: Decide>(
             let into = half.prev;
             let back = body.mate(into).ok_or(TouchUnread::Corrupt)?;
             let normal = corner_normal(body, half.start, back, band)?;
-            let (d0, l0) = departure(body, he)?;
-            let (d1, l1) = departure(body, back)?;
+            let (d0, l0) = departure(body, half.start, he)?;
+            let (d1, l1) = departure(body, half.start, back)?;
             let e_in = body.get_half_edge(into).ok_or(TouchUnread::Corrupt)?.edge;
             let apex = *geo.vmap.get(&half.start).ok_or(TouchUnread::Corrupt)?;
             let fan = TangentFan::Corner {
@@ -8884,7 +8902,7 @@ fn tangent_sectors<T: Decide>(
     let reach = || {
         crate::splitting::rules::face_reach_from(body, f, p).map_err(|_| TouchUnread::Unreadable)
     };
-    let held_edge = |e: EdgeKey| holds.contains(&TangentHold::Edge(e));
+    let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
     for cycle in face_cycles(body, face) {
         for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
             let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
@@ -8908,18 +8926,14 @@ fn tangent_sectors<T: Decide>(
             )?);
         }
     }
-    if out.is_empty() && holds.contains(&TangentHold::Inside) {
+    if out.is_empty() && holds.contains(&Held::Inside) {
+        let normal = foot_normal(body, f, p, band)?;
         let fan = TangentFan::Inside {
             reach: reach()?,
-            along: around(&surface, p).ok_or(TouchUnread::Unreadable)?,
+            frame: carrier_frame(&surface).ok_or(TouchUnread::Unreadable)?,
         };
         out.push(FaceSector::tangent(
-            surface,
-            face.sense,
-            foot_normal(body, f, p, band)?,
-            p,
-            fan,
-            band,
+            surface, face.sense, normal, p, fan, band,
         )?);
     }
     if out.is_empty() {
@@ -8928,23 +8942,20 @@ fn tangent_sectors<T: Decide>(
     Ok(out)
 }
 
-/// **A unit direction in a carrier's tangent plane at `p`**, read off
-/// the carrier: a plane's own `u` direction, and on a cylinder, a cone,
-/// a sphere or a torus the circle about its axis through `p`. `None` on
-/// a spline, or on the axis.
-fn around<T: Decide>(surface: &geom::Surface<T>, p: Point3<T>) -> Option<Vec3<T>> {
-    let (axis, at) = match *surface {
-        geom::Surface::Plane { u_ref, .. } => return Some(u_ref),
-        geom::Surface::Cylinder { origin, axis, .. } => (axis, origin),
-        geom::Surface::Cone { apex, axis, .. } => (axis, apex),
-        geom::Surface::Sphere { center, axis, .. } | geom::Surface::Torus { center, axis, .. } => {
-            (axis, center)
-        }
+/// **A carrier's own orthonormal frame**: its reference direction `u`,
+/// its axis `a` (a plane's normal), and `a × u` — what the tangent
+/// plane's fan is turned from ([`crate::link::TangentFan::Inside`]).
+/// `None` on a spline, which has no such frame.
+fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3<T>; 3]> {
+    let (u, a) = match *surface {
+        geom::Surface::Plane { u_ref, normal, .. } => (u_ref, normal),
+        geom::Surface::Cylinder { u_ref, axis, .. }
+        | geom::Surface::Cone { u_ref, axis, .. }
+        | geom::Surface::Sphere { u_ref, axis, .. }
+        | geom::Surface::Torus { u_ref, axis, .. } => (u_ref, axis),
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
     };
-    let d = axis.cross(p - at);
-    let l = d.norm();
-    (geom_core::is_finite_length(l) && !geom_core::is_zero_length(l, l)).then(|| d.normalize())
+    Some([u, a.cross(u), a])
 }
 
 /// The outward unit normal of the face whose corner at `v` the orbit
@@ -8968,7 +8979,9 @@ fn corner_normal<T: Decide>(
 }
 
 /// The outward unit normal of face `f` at the foot of `p`
-/// ([`crate::face_normal::face_outward_normal_at_foot`]).
+/// ([`crate::face_normal::face_outward_normal_at_foot`], which refuses a
+/// point in the band of a carrier's axis, centre or apex as the corner's
+/// door refuses a vertex there).
 fn foot_normal<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -8982,29 +8995,18 @@ fn foot_normal<T: Decide>(
     }
 }
 
-/// Where half-edge `he` leaves its start, scaled to its reach, and
-/// whether it is a line: a line's chord, a curve's tangent there scaled
-/// to its extent ([`geom_brep::ConicDeparture`]).
-fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<(Vec3<T>, bool), TouchUnread> {
-    let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
-    let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
-    let at = |v: VertexKey| {
-        body.get_vertex(v)
-            .and_then(|x| body.points.get(x.point).copied())
-            .ok_or(TouchUnread::Corrupt)
-    };
-    let (start, end) = (at(half.start)?, at(end)?);
-    let edge = body.get_edge(half.edge).ok_or(TouchUnread::Corrupt)?;
-    let curve = body
-        .curves
-        .get(edge.curve)
-        .and_then(crate::null::CurveGeom::certified)
-        .ok_or(TouchUnread::Unreadable)?;
-    if let geom::Curve3::Line { .. } = curve.carrier() {
-        return Ok((end - start, true));
-    }
-    let d = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, end.distance(start));
-    Ok((d.dir, false))
+/// Where half-edge `he` leaves its start `v`, scaled to its reach, and
+/// whether it is a line: the splitting lane's reading
+/// ([`crate::splitting::neighborhood::chord`]), a line's chord or a
+/// curve's tangent scaled to its extent.
+fn departure<T: Decide>(
+    body: &Body<T>,
+    v: VertexKey,
+    he: HalfEdgeKey,
+) -> Result<(Vec3<T>, bool), TouchUnread> {
+    let (_, dir, bend) =
+        crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
+    Ok((dir, bend.is_none()))
 }
 
 /// Half-edge `he`'s unit direction at `p`, a point inside its edge, and
@@ -9023,7 +9025,7 @@ fn direction_at<T: Decide>(
         .and_then(crate::null::CurveGeom::certified)
         .ok_or(TouchUnread::Unreadable)?;
     let (t0, t1) = curve.params();
-    let line = matches!(curve.carrier(), geom::Curve3::Line { .. });
+    let line = matches!(curve.carrier(), geom::Curve3::Line(_));
     let t = curve.carrier().foot(p, geom::mid_param(t0, t1)).t();
     let d = curve.carrier().deriv(t).normalize();
     Ok((if he == edge.he_plus { d } else { -d }, line))
@@ -19604,7 +19606,7 @@ mod two_carrier_records {
                 let b = Band::linear(Tol::witness()).unwrap();
                 let origin = geom_core::Point3::new(0.0, y, z);
                 let dir = geom_core::Vec3::unit_x();
-                let carrier = geom::Curve3::Line { origin, dir };
+                let carrier = geom::Curve3::Line(geom::Line { origin, dir });
                 let read = crate::boolean::line_through_both_faces(
                     [(body, face), (body, face)],
                     &carrier,

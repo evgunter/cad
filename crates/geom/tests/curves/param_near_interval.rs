@@ -188,10 +188,10 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
 /// projection's own, and it does not move with the anchor.
 #[test]
 fn the_line_arm_has_no_cut_to_widen_at() {
-    let line = Curve3::Line {
-        origin: Point3::new(0.5, -1.0, 2.0).map(Interval::from_f64),
-        dir: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0).map(Interval::from_f64),
-    };
+    let line = Curve3::line(
+        Point3::new(0.5, -1.0, 2.0).map(Interval::from_f64),
+        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0).map(Interval::from_f64),
+    );
     let p = line.eval(Interval::from_f64(3.25));
     let first = line.param_near(p, Interval::from_f64(0.0)).unwrap();
     for near in [-100.0, 0.0, 1e6] {

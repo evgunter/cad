@@ -1,6 +1,6 @@
 //! **A solid touching itself at a point on a curved face is read over
 //! its faces' tangent cones** ([`super::self_touch_verdict`],
-//! [`Link::tangent_at_point`]): a parallelepiped's corner resting on a
+//! [`Link::tangent_of`]): a parallelepiped's corner resting on a
 //! half-disc post of its own solid (`crate::tier3_tests::half_disc`, a
 //! cylinder wall, its chord's plane, and planar caps bounded by arcs),
 //! held at the post's corner, inside its bottom arc, or inside its wall,
@@ -255,7 +255,7 @@ fn an_edge_leaves_its_vertex_along_its_tangent_there() {
     let mut arcs = 0;
     for (he, half) in &body.half_edges {
         let (from, to) = (at(half.start), at(body.half_edge_end(he).unwrap()));
-        let (d, line) = departure(&body, he).unwrap();
+        let (d, line) = departure(&body, half.start, he).unwrap();
         let d = d.normalize();
         if line {
             assert!(

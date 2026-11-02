@@ -69,7 +69,7 @@ fn whole(surface: geom::Surface<f64>, up: bool) -> FaceSector<f64> {
     let n = v(0.0, 0.0, if up { 1.0 } else { -1.0 });
     let fan = TangentFan::Inside {
         reach: 2.0,
-        along: v(1.0, 0.0, 0.0),
+        frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
     };
     FaceSector::tangent(surface, true, n, Point3::origin(), fan, band()).expect("a whole plane")
 }
@@ -124,7 +124,8 @@ fn a_corners_fan_turns_as_its_departures_do() {
         v(t.cos(), t.sin(), 0.0) * 2.0
     };
     for (deg, wedges) in [(90.0, 1), (191.0, 3), (300.0, 4), (180.0, 2)] {
-        let fan = corner_fan(Point3::origin(), z, at(0.0), at(deg), band()).expect("a fan");
+        let fan =
+            corner_fan(Point3::origin(), z, (at(0.0), at(deg)), false, band()).expect("a fan");
         assert_eq!(fan.len(), wedges, "{deg}°: {fan:?}");
         for &(a, b) in &fan {
             let (a, b) = (a - Point3::origin(), b - Point3::origin());
@@ -145,7 +146,7 @@ fn a_corners_fan_turns_as_its_departures_do() {
     }
     assert!(
         matches!(
-            corner_fan(Point3::origin(), z, at(0.0), at(0.0) * 0.5, band()),
+            corner_fan(Point3::origin(), z, (at(0.0), at(0.0) * 0.5), false, band()),
             Err(TouchUnread::Unreadable)
         ),
         "a cusp"

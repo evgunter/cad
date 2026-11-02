@@ -486,9 +486,10 @@ pub fn edge_carrier_ref<T: Real>(
 ///
 /// The edge-side twin of [`face_carrier_kind`], and a tag read rather
 /// than a verdict (rule 1) for the same reason: the answer is which
-/// closed variant the stored carrier is, and "is this edge straight"
-/// is `edge_carrier_kind(..)? == CurveKind::Line`, with no number
-/// consulted on the way. The total flattening
+/// closed variant the stored carrier is, with no number consulted on
+/// the way. "Is this edge straight" is the carrier's own reading,
+/// `!edge_carrier_ref(..)?.is_curved()` ([`Curve3::as_line`]). The
+/// total flattening
 /// [`crate::query::edge_carrier_kind`] reads through this door and
 /// answers `None` where it refuses typed, for the reason
 /// [`face_carrier_kind`] states once for both pairs.
@@ -558,7 +559,7 @@ pub fn edge_carrier_kind<T: Real>(
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
     match edge_carrier_ref(body, edge)? {
-        Curve3::Line { origin, dir } => Ok(Pose {
+        Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {
             origin: *origin,
             axis: *dir,
             u_ref: None,

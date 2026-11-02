@@ -176,7 +176,7 @@ pub(super) fn sector_face<T: Decide>(
 ///   near-closed arcs, and is not a spline's direction), with the
 ///   edge's [`geom_brep::ConicBend`] there.
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
-pub(super) fn chord<T: Decide>(
+pub(crate) fn chord<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
@@ -199,7 +199,7 @@ pub(super) fn chord<T: Decide>(
         },
     )?;
     match curve.carrier() {
-        geom::Curve3::Line { .. } => Ok((final_vertex, p_final - p_base, None)),
+        geom::Curve3::Line(_) => Ok((final_vertex, p_final - p_base, None)),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
         | geom::Curve3::Spiric { .. }

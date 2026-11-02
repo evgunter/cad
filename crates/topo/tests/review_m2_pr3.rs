@@ -69,10 +69,7 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>() -> (
                 place,
             },
         )),
-        carrier: Curve3::Line {
-            origin: p0,
-            dir: (p1 - p0) / p0.distance(p1),
-        },
+        carrier: Curve3::line(p0, (p1 - p0) / p0.distance(p1)),
         param_start: T::zero(),
         param_end: p0.distance(p1),
     };
@@ -85,10 +82,7 @@ fn triangle_prism<T: Decide + topo::AtRestPolicy>() -> (
                 vec: w,
             },
         )),
-        carrier: Curve3::Line {
-            origin: p0,
-            dir: w / w.norm(),
-        },
+        carrier: Curve3::line(p0, w / w.norm()),
         param_start: T::zero(),
         param_end: w.norm(),
     };
@@ -377,10 +371,10 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
 
     // 5. set_edge_curve: certification failure (shifted carrier).
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.carrier = Curve3::Line {
-        origin: p0 + Vec3::new(0.0, 0.0, 100.0 * eps()),
-        dir: (p1 - p0) / p0.distance(p1),
-    };
+    spec.carrier = Curve3::line(
+        p0 + Vec3::new(0.0, 0.0, 100.0 * eps()),
+        (p1 - p0) / p0.distance(p1),
+    );
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(matches!(err, EulerOpError::Certification { .. }), "{err:?}");
     assert_eq!(snapshot(&body), before, "setter cert failure mutated body");

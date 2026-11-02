@@ -83,7 +83,8 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::FarEndTo(_)
             | Step::CloseTo
             | Step::Circle { .. }
-            | Step::CircleSplit { .. } => {}
+            | Step::CircleSplit { .. }
+            | Step::Rectangle { .. } => {}
         }
     }
     out
@@ -520,6 +521,101 @@ fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     // n = 2 is legal — the smallest subdivision, circle's own count.
     let two = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
     assert_eq!(pinned(two).vertices().len(), 2);
+}
+
+/// **`rectangle`'s lowering (PATHS-DESIGN §1a).** One step keeps the
+/// centre, width and height as written; the replay lowers them to four
+/// legs counterclockwise from the lower-left corner, the seam at that
+/// corner, and no joint is constructed tangent.
+#[test]
+fn rectangle_is_a_one_step_program_from_its_lower_left_corner() {
+    let closed = profile::rectangle(Point2::new(1.0, -2.0), 3.0, 0.5, Tol::witness()).unwrap();
+    assert_eq!(verbs(&program_of(&closed)), vec![Verb::Rectangle]);
+    match closed.program.as_slice() {
+        [
+            Step::Rectangle {
+                centre,
+                width,
+                height,
+            },
+        ] => assert_eq!(
+            (centre.x, centre.y, *width, *height),
+            (1.0, -2.0, 3.0, 0.5),
+            "the step stores what was written"
+        ),
+        other => panic!("a rectangle program is one rectangle step, got {other:?}"),
+    }
+    let lowered = pinned_constructed(closed);
+    let corners: Vec<(f64, f64)> = lowered.vertices().iter().map(|v| (v.x, v.y)).collect();
+    assert_eq!(
+        corners,
+        vec![(-0.5, -2.25), (2.5, -2.25), (2.5, -1.75), (-0.5, -1.75)],
+        "counterclockwise from the lower-left corner"
+    );
+    assert!(
+        lowered
+            .segments()
+            .iter()
+            .all(|s| matches!(s, profile::Segment::Line)),
+        "four straight legs"
+    );
+    assert_eq!(
+        lowered.constructed_joints(),
+        &[] as &[usize],
+        "every corner is a junction the form does not construct tangent"
+    );
+    validate_ok(&lowered);
+}
+
+/// `rectangle` refuses a width or height that is not definitely
+/// positive, naming the side (funnel row `path_rectangle_side`): zero
+/// and negative are refusals, and a side the funnel cannot classify —
+/// an `f64` inside the band, an interval straddling zero — escalates
+/// on that row.
+#[test]
+fn rectangle_refuses_a_nonpositive_side() {
+    use geom_core::Interval;
+    let eps = Tol::witness().get().eps;
+    let o = Point2::new(0.0, 0.0);
+    for (w, h, which) in [
+        (0.0, 1.0, "width"),
+        (-1.0, 1.0, "width"),
+        (1.0, -2.0, "height"),
+        (1.0, 0.0, "height"),
+    ] {
+        match profile::rectangle(o, w, h, Tol::witness()) {
+            Err(PathError::NonpositiveRectangleSide { side, .. }) => {
+                assert_eq!(side, which, "w = {w}, h = {h} refuses on its {which}");
+            }
+            other => panic!("w = {w}, h = {h} must refuse NonpositiveRectangleSide, got {other:?}"),
+        }
+    }
+    match profile::rectangle(o, 5.0 * eps, 1.0, Tol::witness()) {
+        Err(PathError::Escalated { source }) => assert_eq!(
+            source.predicate,
+            Some("path_rectangle_side"),
+            "an f64 width inside the band escalates on the rectangle's row"
+        ),
+        other => panic!("an f64 width inside the band must escalate, got {other:?}"),
+    }
+    let at = Point2::new(
+        Interval::from_bounds(0.0, 0.0),
+        Interval::from_bounds(0.0, 0.0),
+    );
+    let straddle = Interval::from_bounds(-1e-3, 1e-3);
+    match profile::rectangle(
+        at,
+        Interval::from_bounds(1.0, 1.0),
+        straddle,
+        Tol::witness(),
+    ) {
+        Err(PathError::Escalated { source }) => assert_eq!(
+            source.predicate,
+            Some("path_rectangle_side"),
+            "a height straddling zero escalates on the rectangle's row"
+        ),
+        other => panic!("a height straddling zero must escalate, got {other:?}"),
+    }
 }
 
 /// **The half-disc equator through the lattice's own spelling** (the
@@ -1666,8 +1762,8 @@ fn a_fused_verbs_incoming_arc_is_its_run_in() {
     pinned(closed);
 }
 
-/// **A circle is two pieces, a `circle_split` is `n`**: the one step's
-/// `Piece(k)` for its segment `k`.
+/// **A circle is two pieces, a `circle_split` is `n`, a rectangle
+/// four**: the one step's `Piece(k)` for its segment `k`.
 #[test]
 fn a_carrier_form_draws_piece_k_for_its_segment_k() {
     use profile::PieceRole::Piece;
@@ -1679,8 +1775,14 @@ fn a_carrier_form_draws_piece_k_for_its_segment_k() {
         pieces_of(&split),
         vec![(0, Piece(0)), (0, Piece(1)), (0, Piece(2))]
     );
+    let rectangle = profile::rectangle(Point2::new(0.0, 0.0), 2.0, 1.0, t).unwrap();
+    assert_eq!(
+        pieces_of(&rectangle),
+        (0..4).map(|k| (0, Piece(k))).collect::<Vec<_>>()
+    );
     pinned(circle);
     pinned(split);
+    pinned(rectangle);
 }
 
 /// **The role lists admit what their verbs draw and nothing else**: a

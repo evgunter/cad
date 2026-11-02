@@ -45,7 +45,9 @@ thirteenth is added.
 
 ## The same shape one crate out
 
-`MeasureUnavailableAt.door` reaches Python the same way from
+(Retired in PR 6292 with the `min_clearance` measure, so this
+sibling no longer exists; the paragraph is kept as the measured
+instance.) `MeasureUnavailableAt.door` reached Python the same way from
 `editor-core`: `eval/wire.rs` mints `door: "clearance::min_separation"`
 as a struct-field literal on `MeasureUnavailableAt::NeedsEnclosure`,
 and `py/measure.rs` hands it to the attribute unchanged. Its two
