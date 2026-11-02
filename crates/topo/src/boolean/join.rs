@@ -3686,10 +3686,10 @@ fn section_undecided(diag: geom_core::Indeterminate) -> BooleanError {
 /// The answer is the section's loops, each with its frame
 /// ([`SectionLoops`]); a germ takes the loop its branch names, decided
 /// where it was minted ([`germ_branch`]). The plane×torus pair
-/// ([`pt_germ_frame`]) and the equal cylinder pair with meeting axes
-/// ([`cylinder_pair_frame`]) name two loops with frames of their own;
-/// every other pair's section is one loop, or loops that share one frame
-/// ([`conic_section_frame_at`]).
+/// ([`pt_germ_frame`]) names two loops with frames of their own; every
+/// other pair's section is one loop, or loops that share one frame
+/// ([`conic_section_frame_at`]). Two cylinders are read on their section
+/// value ([`cylinder_read`]), and reach this dispatch only as a desync.
 pub(super) fn pair_section_frame_at<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
@@ -6745,17 +6745,10 @@ mod frame_dispatch_tests {
     /// handing it to a curved pair mints a chord along a locus that is
     /// not a line.
     ///
-    /// Both refusal variants are the trap being closed, but they are
-    /// NOT interchangeable per row, and the matcher is split so that
-    /// the loosening is confined to where it is earned. Only a
-    /// CYLINDER PAIR can be served the bisector lane
-    /// ([`serves_cylinder_nodes`]) — the split on coplanarity, then on
-    /// radius equality, is its only producer — so those rows admit
-    /// either answer here and the row below pins which one each meeting
-    /// pose gets. Every other kind pair falls through to the dispatch's
-    /// final arm, where `NoArm` is the only reachable answer, and a row
-    /// that accepted the bisector lane there would green through a
-    /// mis-routed dispatch.
+    /// A cylinder pair is read on its section value, never here, so the
+    /// dispatch answers it a desync; every other kind pair falls
+    /// through to the dispatch's final arm, where `NoArm` is the only
+    /// reachable answer.
     #[test]
     fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
         // `cylinder_pair` marks the rows whose kinds can reach the
