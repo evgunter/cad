@@ -83,12 +83,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         } else {
             turned(T::zero() - theta)
         }),
-        carrier: Curve3::Circle {
-            center,
-            axis: Vec3::zero() - axis_c,
-            radius,
-            u_ref: from_far.normalize(),
-        },
+        carrier: Curve3::circle(center, Vec3::zero() - axis_c, radius, from_far.normalize()),
         param_start: T::zero(),
         param_end: theta.abs(),
     };

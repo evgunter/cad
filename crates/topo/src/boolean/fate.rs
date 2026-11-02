@@ -498,8 +498,8 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
         geom::Curve3::Line(_) => (end - base, Some(Vec3::new(T::zero(), T::zero(), T::zero()))),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
+        geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
             let departure = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, chord);
@@ -1408,7 +1408,7 @@ fn along_spec<T: Decide>(
     };
     match carrier {
         geom::Curve3::Line(_) => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
-        geom::Curve3::Circle { .. } if !closed => {
+        geom::Curve3::Circle(..) if !closed => {
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1)
         }
         _ => Some(geom_brep::EdgeCurveSpec {

@@ -2,12 +2,10 @@
 id: a-linear-patterns-direction-components-land-in-its-slides
 kind: issue
 title: the linear-pattern gesture writes a typed direction's components into slide formulas, unnormalized, so a diagonal row steps spacing·√2
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-design: true
-blocked_on: [6369]
 ---
 
 
@@ -71,3 +69,24 @@ slide. Either is a revision of `[placement.values]` or `[repetition]`.
 The typed numbers are a second, smaller question: the only door that
 turns them into a direction is `DocSession::read_off`, itself open as
 `work/held/the-viewers-numeric-gestures-read-a-frame-back-off-geometry.md`.
+
+## Weighed by three designers (2026-11-02, fork row 244) and put to Ev
+
+**Agreed by all three.** A placement value names the direction it runs along or the axis it turns about:
+- a slide runs along the mated direction (`Slide(None)`), along a target axis carried by the least turn, or along a `Direction`/`Axis` read off a body in the target space;
+- a spin may turn about a read `Axis`.
+
+The copy stands at the sum of its slides. A row's source is its first copy `h0`, slid `scalar(k)·pitch` along the picked edge, with every other value `0`. A direction typed as numbers has no home: the gesture offers a pick or a target axis instead.
+
+Only `[placement.values]` changes. The `[ev]` PR carries the diff and the three designers' texts. PR 6364 holds the disabled-red reproducer and the axis-aligned gate.
+
+## Ev's answer (2026-11-02, `[ev]` PR 6369): "seems good!"
+
+The `[placement.values]` change is ratified. Build it:
+- the slide forms: mated (`Slide(None)`), a target axis, or a read Direction/Axis;
+- spins about a read Axis;
+- the sum reading;
+- spans of read directions decided at evaluation;
+- the pattern gesture taking a pick or a target axis, never typed components.
+
+Un-ignore `combine_ops::a_row_steps_its_spacing_along_an_oblique_direction`. MSOLVE's `a-ring-about-a-tilted-axis-slides-each-member-along-it` closes with the same build.

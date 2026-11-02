@@ -76,12 +76,7 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
             geom_core::Sign::Zero => panic!("Arc turn is never Zero"),
         };
         let u_ref = (start3 - center3) / radius;
-        let circle = Curve3::Circle {
-            center: center3,
-            axis,
-            radius,
-            u_ref,
-        };
+        let circle = Curve3::circle(center3, axis, radius, u_ref);
         // t_start = 0 at the start vertex.
         assert!(close3(circle.eval(0.0), start3, 1e-12));
         // Span from the stored sweep: theta = |sweep|.
@@ -138,12 +133,7 @@ fn pr4_dry_run_hole_arcs_flip_axis() {
         let end3 = vp.plane().to_world(seg.end);
         let axis = Vec3::new(0.0, 0.0, -1.0); // -normal for CW turn
         let u_ref = (start3 - center3) / radius;
-        let circle = Curve3::Circle {
-            center: center3,
-            axis,
-            radius,
-            u_ref,
-        };
+        let circle = Curve3::circle(center3, axis, radius, u_ref);
         let theta_end = stored_sweep(seg).abs();
         assert!(close3(circle.eval(0.0), start3, 1e-12));
         assert!(close3(circle.eval(theta_end), end3, 1e-12));

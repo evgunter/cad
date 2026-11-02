@@ -30,7 +30,7 @@
 //!   the corner one. The vertex's own structure is asserted beside it:
 //!   valence four, two co-surface seam meridians (one surface on both
 //!   sides — dihedral zero by construction, and each refuses
-//!   `TangentialEdge` at margin exactly zero in its own right), and two
+//!   `KnifeEdge` at margin exactly zero in its own right), and two
 //!   rim arcs carrying ONE support pair between them.
 //! - **Asking for the rim whole gets past the seam** — no corner
 //!   refusal at all — and carves: one annulus band over both arcs, the
@@ -299,8 +299,8 @@ fn mouth(body: &Body<f64>) -> (Vec<EdgeKey>, VertexKey) {
 /// and two seam meridians, each with one surface on BOTH sides. That
 /// second fact is the dihedral-zero one, and it is structural: a
 /// co-surface edge cannot have a wedge, whatever a normal sampled there
-/// would say. Each seam meridian says so in its own right too, refusing
-/// `TangentialEdge` at margin exactly zero.
+/// would say. Each seam meridian says so in its own right too, a smooth
+/// seam at margin exactly zero that the blend leaves as it is.
 #[test]
 fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     let body = sweep::test_support::finished("body", lantern(), tol());
@@ -324,17 +324,15 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // The dihedral along a co-surface seam is zero, and the kernel says
     // so on its own metered predicate.
     for seam in seams {
-        match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
-            Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
-                (
-                    margin.predicate,
-                    margin.reading.diagnostic_f64_for_error_text().value()
-                ),
-                ("fillet3_convexity_sign", Some(0.0)),
-                "a co-surface seam's dihedral is exactly zero, got {margin}"
+        let margin = sweep::test_support::smooth_reading(&body, seam, 0.02, tol());
+        assert_eq!(
+            (
+                margin.predicate,
+                margin.reading.diagnostic_f64_for_error_text().value()
             ),
-            other => panic!("a co-surface seam refuses as a tangency, got {other:?}"),
-        }
+            ("fillet3_convexity_sign", Some(0.0)),
+            "a co-surface seam's dihedral is exactly zero, got {margin}"
+        );
     }
 }
 

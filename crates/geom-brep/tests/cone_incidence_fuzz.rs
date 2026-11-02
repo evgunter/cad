@@ -90,12 +90,12 @@ fn an_uncovered_perturbed_section_lies_within_the_sliver() {
                     mi0 + dir[7] * s,
                 )
             };
-            let ellipse = |(center, axis, u_ref, major, minor)| Curve3::Ellipse {
-                center,
-                axis,
-                semi_u: major,
-                semi_v: minor,
-                u_ref,
+            let ellipse = |(center, axis, u_ref, major, minor)| {
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(center, axis, u_ref),
+                    major,
+                    minor,
+                ))
             };
             // The reading is linear in a small scale, so one probe
             // places the draw at its target.

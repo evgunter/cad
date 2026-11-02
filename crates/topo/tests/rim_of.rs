@@ -56,22 +56,22 @@ fn rim_plane() -> Surface<f64> {
 }
 
 fn rim_circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rim_r(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, 1.0),
+        rim_r(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// [`rim_circle`] wound the other way: parameter `t` is at azimuth `-t`.
 fn rim_circle_reversed() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, -1.0),
-        radius: rim_r(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, -1.0),
+        rim_r(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// **The half-built cap**: the sphere face alone, with the rim's first

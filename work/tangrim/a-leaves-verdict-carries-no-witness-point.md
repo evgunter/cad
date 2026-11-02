@@ -76,3 +76,26 @@ its descent reads no further than the face's own smallest radius of
 curvature at the vertex (`FaceBend::Implicit::radius`). A cone's bend
 tightens toward its axis within a long reach, which that radius does
 not bound; the witness, read at points of the bound, would.
+
+## `crescent` now mints topology (2026-11-02, PR 6375)
+
+`sectors.rs` `crescent`'s leading-term verdict no longer only gates a
+refusal: `sector_overlap` takes it where first order reads two opposed
+plane faces touching, and `pair_search` records the pair as a coplanar
+overlap (`PairRecord::coincident`), in every op. So its verdict now
+decides topology.
+
+That is safe without a witness point where `κ_a ≠ κ_b` (the review's
+locality argument). The claim the record makes is local: the two
+faces overlap in some neighbourhood of the vertex. The two bounds part
+as `(κ_b − κ_a)·û·s²/2 + O(s³)` along the shared tangent, so once the
+second-order term's sign is decided off zero, it dominates the
+remainder for every `s` small enough. The crescent then exists near the
+vertex, however thin, whatever either carrier does further out. The
+reach the sign is decided at answers only whether the band resolves
+it. A tie (`κ_a = κ_b` within the band, one circle bounding both)
+reads `Zero`, and the pair stays touching, as first order read it. A
+bend no reading certifies (a spiric section's) reads no bend
+(`sectors.rs` `bound_bend`), so the pair stays touching there too,
+as `runs_into` already read it. What a witness would add is the
+crescent's extent at a finite reach, which nothing reads today.

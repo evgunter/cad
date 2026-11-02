@@ -37,7 +37,7 @@ fn site_mint_scaling() {
                     .get_curve_geom(body.get_edge(e).unwrap().curve)
                     .and_then(topo::CurveGeom::certified)
                     .unwrap();
-                matches!(c.carrier(), geom::Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
+                matches!(c.carrier(), geom::Curve3::Circle(..)) && c.params() == (0.2, 1.4)
             })
             .unwrap();
         let on_wall = |body: &Body<f64>, he: HalfEdgeKey| {

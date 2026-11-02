@@ -3,7 +3,9 @@
 the E7 clearance engine: where it lives, what it composes with, and what its refusals say
 
 Opened 2026-09-20 by SHELL's priority-seam cut (`work/README.md`,
-Track size). Its P2–P4 rows went to CLEARTAIL at the 2026-10-27 cut.
+Track size). Its P2–P4 rows went to CLEARTAIL at the 2026-10-27 cut
+and came back on 2026-11-02, when the budget began counting only P0 and
+P1 rows (`docs/doc-ledger/cleartail-leaves-the-tracker.md`).
 
 ## Order
 
@@ -36,6 +38,12 @@ Track size). Its P2–P4 rows went to CLEARTAIL at the 2026-10-27 cut.
    - `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch` (P0);
    - the self-intersection row's build, as its designers land it;
    - then `SHELL-4`.
+
+6. **The tail (P2 and below, and the few unbanded rows), after
+   `SHELL-3` has merged**: it moves the engine's body-level half
+   (`window_of`, the sweep, `verify_witness`, `GeometryWitness`) into
+   `topo`, and nearly every tail row lands on code that moves. The two
+   `E` witness rows batch into one unit.
 
 ## Review posture
 

@@ -170,8 +170,11 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
             continue;
         };
         let conic = match c.carrier() {
-            Curve3::Ellipse { .. } => tilted,
-            Curve3::Circle { center, .. } => !tilted && center.y == 0.5,
+            Curve3::Ellipse(..) => tilted,
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                ..
+            }) => !tilted && center.y == 0.5,
             _ => false,
         };
         if !conic {
@@ -509,7 +512,7 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         // The 0.9 km steep frustum's turn re-certifies its rims past the
         // band at ε = 1e-12, at its own extent's rounding: limb 2's
         // kernel limit
-        // (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        // (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
         let pinned: &[f64] = if alpha == 1.3 { &[1e-12] } else { &[] };
         let turned = topo::transform_rigid(&body, &rigid(&motion, tol), tol);
         let Some(body) = test_utils::kernel_limit::pinned(turned, eps, pinned, &what) else {

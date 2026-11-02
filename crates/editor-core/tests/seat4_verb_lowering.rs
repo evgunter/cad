@@ -307,6 +307,13 @@ fn both_blends_evaluate_in_one_document() {
 /// the edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+/// RE-BLESSED when `Curve3::Circle` and `Curve3::Ellipse` came to hold a
+/// `geom::Circle` / `geom::Ellipse` over a `geom::Frame`
+/// (`Circle(Circle { frame: Frame { .. }, radius })` where it spelled
+/// `Circle { center, axis, radius, u_ref }`), which changes the edge
+/// curve's `Debug` the digest feeds. With that `Debug` written in main's
+/// shape every row here reproduces main's value at all three ε rows, so
+/// nothing else moved.
 /// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
 /// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
@@ -316,7 +323,7 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x7acd_376b_b6d9_317d_u64),
+        ("die_fillet", 0x1c53_65d2_f658_9b05_u64),
         ("die_chamfer", 0x018f_a268_82df_d471),
     ] {
         let doc = corpus::documents()
