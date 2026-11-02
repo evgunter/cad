@@ -537,3 +537,41 @@ fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
         "SetStructuralParam after the value edit",
     );
 }
+
+/// **A saved loft no door would write refuses at load**: one section,
+/// and a section after the first with no station, each doctored into a
+/// saved two-section loft. Broken by a load door that admits either and
+/// leaves the count to evaluation, which holds no refusal for it.
+#[test]
+fn a_saved_loft_of_one_section_or_an_empty_station_refuses_at_load() {
+    let (doc, _, loft) = two_section_loft();
+    let text = editor_core::save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    editor_core::load(&text, Tol::witness()).expect("the fixture loads");
+    let key = loft.0.to_string();
+    fn then<'a>(wire: &'a mut serde_json::Value, key: &str) -> &'a mut serde_json::Value {
+        &mut wire["snapshot"]["nodes"][key]["Loft"]["then"]
+    }
+    let rows: [(String, LoftFault, &str); 2] = [
+        (
+            crate::wire::doctored(&text, |wire| *then(wire, &key) = serde_json::json!([])),
+            LoftFault::TooFewSections { have: 1 },
+            "one section",
+        ),
+        (
+            crate::wire::doctored(&text, |wire| {
+                then(wire, &key)[0]["station"] = serde_json::json!([]);
+            }),
+            LoftFault::EmptyStation { section: 1 },
+            "an empty station",
+        ),
+    ];
+    for (corrupt, fault, what) in rows {
+        match editor_core::load(&corrupt, Tol::witness()) {
+            Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::LoftShape {
+                fault: got,
+                ..
+            })) => assert_eq!(got, fault, "{what}"),
+            other => panic!("{what}: a saved loft no door writes refuses at load, got {other:?}"),
+        }
+    }
+}

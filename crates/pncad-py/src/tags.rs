@@ -2044,6 +2044,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::ConstraintNotMinted { .. } => "constraint_not_minted",
         SnapshotError::MateRefused { .. } => "mate_refused",
         SnapshotError::InputList { .. } => "input_list",
+        SnapshotError::LoftShape { .. } => "loft_shape",
         SnapshotError::ObservedRead { .. } => "observed_read",
         SnapshotError::AssertionBound { .. } => "assertion_bound",
         SnapshotError::MetadataUnversioned { .. } => "metadata_unversioned",

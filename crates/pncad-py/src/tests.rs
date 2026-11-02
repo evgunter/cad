@@ -5829,6 +5829,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_invalid",
             "input_list",
             "label_on_missing_node",
+            "loft_shape",
             "mate_refused",
             "metadata_unversioned",
             "mint_log_order",
@@ -6369,6 +6370,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`pose_fault_tag`) and a product read of a variable that is no
     // body (`product_read_fault_tag`).
     ("kind", 2),
+    // One fact at the edit and load doors: a loft written as no loft
+    // can be, its fault carried whole.
+    ("loft_shape", 2),
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),

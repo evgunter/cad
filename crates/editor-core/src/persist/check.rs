@@ -1576,6 +1576,17 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::ListFault,
     },
+    /// A loft written as no loft can be (`Node::Loft`): one section, or
+    /// a section after the first with no station. The edit doors refuse
+    /// both (`EditError::LoftShape`), by the same
+    /// `edit::loft_structure_fault`, so a file carrying one is corrupt.
+    /// The shape facts a value moves are evaluation's.
+    LoftShape {
+        /// The offending loft.
+        node: SpokenNode,
+        /// What is wrong with it.
+        fault: crate::LoftFault,
+    },
     /// An assertion whose bound is dimensioned differently from the
     /// value it bounds (E10) — the assertion compares two different
     /// quantities.
@@ -1858,6 +1869,7 @@ impl core::fmt::Display for SnapshotError {
                 referenced.article()
             ),
             Self::InputList { node, fault } => write!(f, "{node}: {fault}"),
+            Self::LoftShape { node, fault } => fault.problem(f, node),
             Self::AssertionBound {
                 node,
                 measured,
@@ -1964,6 +1976,12 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::InputList {
                 node: doc.spoken(id),
                 fault: fault.list_fault(),
+            });
+        }
+        if let Some(fault) = crate::edit::loft_structure_fault(node) {
+            return Err(SnapshotError::LoftShape {
+                node: doc.spoken(id),
+                fault,
             });
         }
         // An assertion's bound against its value (E10), by the same
@@ -2357,6 +2375,7 @@ mod tests {
             ConstraintNotMinted,
             MateRefused,
             InputList,
+            LoftShape,
             AssertionBound,
             MetadataUnversioned,
         ];
@@ -2417,6 +2436,7 @@ mod tests {
             | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::MateRefused { .. }
             | SnapshotError::InputList { .. }
+            | SnapshotError::LoftShape { .. }
             | SnapshotError::AssertionBound { .. }
             | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
         }
@@ -2602,6 +2622,10 @@ mod tests {
             SnapshotError::InputList {
                 node: node(),
                 fault: crate::node::ListFault::IndexedFamily,
+            },
+            SnapshotError::LoftShape {
+                node: node(),
+                fault: crate::LoftFault::TooFewSections { have: 1 },
             },
             SnapshotError::AssertionBound {
                 node: node(),
