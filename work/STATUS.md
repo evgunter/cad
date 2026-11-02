@@ -417,7 +417,7 @@ prefix `onehome/`; tag `(ONEHOME orchestrator)`.
 | P1 | `run-loops-of-split-and-pierce-are-twins` | issue | M +design | open | splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home? |  |  |
 | P1 | `section-cert-reach-parallels-extent-ball` | issue | E | open | section_cert's Reach is a parallel type to ExtentBall, adapted at every use; line_tilt is hosted in carrier_eq for two consumers |  |  |
 | P1 | `semi-axes-by-size-misses-seven-inline-sites` | issue | E | open | Seven inline readings of the larger semi-axis bypass Curve3::semi_axes_by_size, and one production bind still says major |  |  |
-| P1 | `the-at-rest-result-gate-and-its-typing-live-in-five-homes` | issue | M +design | open | Five doors gate a result at rest and type the refusal, each in its own words: only the Boolean and the split share the typing |  |  |
+| P1 | `the-at-rest-result-gate-and-its-typing-live-in-five-homes` | issue | M | open | Five doors gate a result at rest and type the refusal, each in its own words: only the Boolean and the split share the typing |  |  |
 | P1 | `the-split-reads-a-slit-twice-by-geometry-and-by-topology` | issue | M | open | The split reads a slit two ways: spur_tips by geometry, section_kind by topology |  |  |
 | P1 | `three-readings-of-a-points-rounding-charge-it-three-ways` | issue | M +design | open | A conic point's rounding is read three ways: carrier_resolution (relative to the window), implicit::sample_rounding and ring_path::resolution (absolute) |  |  |
 | P1 | `two-germ-readers-sign-one-line-two-ways` | issue | E | open | The v-v crossing germ is signed by sector membership and the pierce germ by its transition's codes: two readers of one question |  |  |
