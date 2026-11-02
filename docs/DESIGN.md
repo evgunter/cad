@@ -252,7 +252,7 @@ of them is a defect.
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
-| A body's at-rest validity | one gate, for native and imported bodies alike | [topology.tiers], [import] |
+| A body's at-rest validity | one gate, for native and imported bodies alike: the scalar's `finish`, the one constructor of a finished body, which types its own refusal; doors take and return finished bodies, and none re-gates | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
@@ -344,7 +344,9 @@ curve pairs.
   never decide); `Bounds` means only "carries a bracket" and
   `CertifiedEnclosure` is the certification half, which `Dual` does not
   implement (DUAL-DESIGN: a dual may not certify — it carries a bracket
-  in its value channel, but tangent transport is not enclosure);
+  in its value channel, but tangent transport is not enclosure),
+  so a dual's finished body is a replay's, tier 2 alone, with no
+  verdict to read ([topology.tiers]);
   poison-visible NaN brackets for empty AND NaI; tight `pown`
   (containment of the true value is the interval contract).
 - **`Dual<Interval>` semantics**: *value-part delegation* — `Decide`
@@ -810,7 +812,16 @@ tiers".
   `Interval` and `Sym` the stored brackets carry the family instead.
   It passes both once, at the door that
   built it; construction state becomes a finished body only through
-  that gate. The validity class rides the result wrapper
+  that gate. The gate types its refusal (`AtRestRefusal`: every
+  finding a shell-role reading in band, escalated on the binding one
+  with its lever, or the kernel's findings, carried), and a door
+  varies only the subject it names (import names the file,
+  [tolerance.recourse]). A door that returns a body returns the
+  scalar's finished type, named in its at-rest policy, and the
+  evaluator keeps it with the value, so no consumer gates an operand.
+  At a scalar without certification rights the finished type is a
+  replay's: tier 2 alone, carrying no verdict, and nothing that reads
+  a verdict accepts it. The validity class rides the result wrapper
   (`BooleanBody`, body and contacts), never a mutable `Body` field.
 - **The census reads one number per cell pair.** `[topology.census]`
   A census finding decides one number per pair of cells (two edges,
