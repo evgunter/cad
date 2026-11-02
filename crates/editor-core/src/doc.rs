@@ -1620,7 +1620,7 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
-        if observed.is_empty() || matches!(node, Node::Assertion { .. }) {
+        if observed.is_empty() || matches!(node, Node::Assertion(_)) {
             return None;
         }
         node.rows()

@@ -483,6 +483,15 @@ pub struct ParamWitness {
     pub offsets: Vec<(VarId, f64)>,
 }
 
+impl ParamWitness {
+    /// The document's nominal: no offset on any variable.
+    pub fn nominal() -> Self {
+        Self {
+            offsets: Vec::new(),
+        }
+    }
+}
+
 /// A concrete pair of surface points, at `f64`, with the distance the
 /// `f64` rebuild measured between them.
 ///

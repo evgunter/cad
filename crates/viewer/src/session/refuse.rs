@@ -141,7 +141,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::World
         | Node::Space
         | Node::Measure { .. }
-        | Node::Assertion { .. } => None,
+        | Node::Assertion(_) => None,
     }
 }
 

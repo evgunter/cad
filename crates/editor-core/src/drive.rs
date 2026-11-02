@@ -512,7 +512,7 @@ pub fn certifying_vector<T: geom_core::Decide, P>(
     let mut vector = VerdictVector::of(ev);
     vector
         .rows
-        .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
+        .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion(_))));
     vector
 }
 
@@ -1719,7 +1719,7 @@ fn classify_replay<T: geom_core::Decide>(
     let mut verdicts = diff_verdicts(witness, leaf);
     verdicts
         .nodes
-        .retain(|id, _| !matches!(doc.node(*id), Some(Node::Assertion { .. })));
+        .retain(|id, _| !matches!(doc.node(*id), Some(Node::Assertion(_))));
     LeafVerdict::Refused(RefusalReason::FlipCrossing {
         flipped: Box::new(FlipEvidence {
             verdicts,
@@ -2041,7 +2041,7 @@ pub fn assertion_at(
     symbolic: SymbolicDials,
     tol: Tol,
 ) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
-    if !matches!(doc.node(assertion), Some(Node::Assertion { .. })) {
+    if !matches!(doc.node(assertion), Some(Node::Assertion(_))) {
         return None;
     }
     // The SAME LANE the leaf was certified on ([`ParamBoxVerdict::symbolic`]).

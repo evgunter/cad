@@ -474,7 +474,7 @@ pub fn monte_carlo(
         .iter()
         .filter_map(|&id| match doc.node(id) {
             Some(Node::Measure { .. }) => Some((id, true)),
-            Some(Node::Assertion { .. }) => Some((id, false)),
+            Some(Node::Assertion(_)) => Some((id, false)),
             _ => None,
         })
         .collect();

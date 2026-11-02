@@ -387,7 +387,7 @@ where
             | Node::Intersect { .. }
             | Node::Assemble { .. }
             | Node::Measure { .. }
-            | Node::Assertion { .. }
+            | Node::Assertion(_)
             | Node::Place { .. }
     );
     let projected = if per_operand {
@@ -2519,14 +2519,8 @@ where
             )
         })
     });
-    let param = || {
-        witness.map_or(
-            crate::clearance::ParamWitness {
-                offsets: Vec::new(),
-            },
-            |w| w.param.clone(),
-        )
-    };
+    let param =
+        || witness.map_or_else(crate::clearance::ParamWitness::nominal, |w| w.param.clone());
     // **The drive's cue** (audit row F30's one exception): an upper
     // bound whose proving pair held at one point of the box only is no
     // verdict over the box, and a narrower box can decide it. The

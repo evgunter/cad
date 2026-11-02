@@ -52,7 +52,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::World
             | $crate::node::Node::Space
             | $crate::node::Node::Measure { .. }
-            | $crate::node::Node::Assertion { .. }
+            | $crate::node::Node::Assertion(_)
     };
 }
 
@@ -2851,7 +2851,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::World
             | Node::Space
             | Node::Measure { .. }
-            | Node::Assertion { .. } => Vec::new(),
+            | Node::Assertion(_) => Vec::new(),
         }
     }
 
@@ -3188,7 +3188,7 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Chamfer { .. }, O::Selection) => "chamfer",
             (Node::Shell { .. }, O::Open) => "shell",
             (Node::Measure { .. }, O::Measured(..)) => "measure",
-            (Node::Assertion { .. }, O::Cleared(..)) => "clearance",
+            (Node::Assertion(_), O::Cleared(..)) => "clearance",
             (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { .. }) => "constraint",
             _ => return None,
         };

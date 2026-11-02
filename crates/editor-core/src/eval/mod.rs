@@ -3720,9 +3720,7 @@ where
         }),
         (None, Some(ev)) => Some(wire::Witnessing {
             results: &ev.nodes,
-            param: crate::clearance::ParamWitness {
-                offsets: Vec::new(),
-            },
+            param: crate::clearance::ParamWitness::nominal(),
         }),
         (None, None) => None,
     };
@@ -5157,7 +5155,7 @@ where
         // Fresh words — an existing one must never be reused for a
         // new meaning, and 24 is the chamfer's.
         Node::Measure { .. } => 25,
-        Node::Assertion { .. } => 26,
+        Node::Assertion(_) => 26,
         // 27 is retired (`RETIRED_NODE_KIND_TAGS`).
         // Two tags, not one: a solid tube and a hollow tube of the same
         // radii are different artifacts, and sharing a tag would let

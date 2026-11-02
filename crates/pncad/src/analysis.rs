@@ -104,8 +104,10 @@ pub use editor_core::report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 
-/// The clearance requirement's vocabulary: the claim a document writes
-/// and the report its verdict carries.
+/// The report a clearance assertion's verdict carries
+/// ([`AssertionVerdict::Clearance`]); the claim a document writes is
+/// [`crate::document::Claim`] and its bounds
+/// [`crate::document::ClearanceBounds`].
 pub use editor_core::clearance::{
     ClearanceRefusal, ClearanceReport, ClearanceVerdict, GeometryWitness, ParamWitness, Witness,
 };

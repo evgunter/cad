@@ -1905,9 +1905,7 @@ impl<W, F> Bound<'_, W, F> {
                     self.upper_refusal.get_or_insert(refusal);
                 }
             }
-            if bucket == Bucket::Discharged {
-                bucket = Bucket::Within;
-            }
+            bucket.unless_settled(Bucket::Within);
         }
         ControlFlow::Continue(bucket)
     }
@@ -1923,6 +1921,15 @@ enum Bucket {
 }
 
 impl Bucket {
+    /// Lands the leaf in `to` unless a reading already settled it in
+    /// another bucket: a pair the lower bound violated stays violated,
+    /// and one only the band holds goes where the upper bound put it.
+    fn unless_settled(&mut self, to: Self) {
+        if *self == Self::Discharged {
+            *self = to;
+        }
+    }
+
     fn count(self, receipt: &mut CellReceipt) {
         match self {
             Self::Discharged => receipt.discharged += 1,
@@ -1988,12 +1995,15 @@ where
             // enclosures are not enough — two carriers that hold
             // a shared edge only to rounding enclose it an ulp
             // apart, and the distance test reads that within the
-            // band, where only a certificate decides it. The
-            // strict bound's `c` is 0.
+            // band, where only a certificate decides it. Read against
+            // the strict bound's own lower end, which is zero.
+            let c = bound
+                .lower()
+                .unwrap_or_else(|| unreachable!("the injectivity question is the strict bound's"));
             let apart = matches!(
                 decide(
                     bound.predicate(),
-                    Margin::of(separation(&pair.a.enc, &pair.b.enc)),
+                    Margin::of(separation(&pair.a.enc, &pair.b.enc) - c),
                     band
                 ),
                 Ok(Sign::Positive)
@@ -2002,7 +2012,7 @@ where
                 if meet || sh.is_empty() {
                     false
                 } else {
-                    let s = separated_by_support(pair, x, y, Interval::from_f64(0.0), band);
+                    let s = separated_by_support(pair, x, y, c, band);
                     along = Some(s);
                     s
                 }
@@ -2219,23 +2229,17 @@ where
                     walk.receipt.within += 1;
                     return ControlFlow::Break(());
                 }
-                if bucket == Bucket::Discharged {
-                    bucket = Bucket::Within;
-                }
+                bucket.unless_settled(Bucket::Within);
             } else if let Some(Err(what)) = offered
                 && let refusal @ EngineRefusal::BoxDependent { .. } = self.upper_declined(what, &at)
             {
                 self.upper_refusal.get_or_insert(refusal);
-                if bucket == Bucket::Discharged {
-                    bucket = Bucket::Refused;
-                }
+                bucket.unless_settled(Bucket::Refused);
             } else {
                 match Self::terminal(source, x.face, y.face) {
                     Some(refusal) => {
                         self.upper_refusal.get_or_insert(refusal);
-                        if bucket == Bucket::Discharged {
-                            bucket = Bucket::Refused;
-                        }
+                        bucket.unless_settled(Bucket::Refused);
                     }
                     None => split.above = true,
                 }
