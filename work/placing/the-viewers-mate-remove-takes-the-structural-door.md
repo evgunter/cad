@@ -2,11 +2,12 @@
 id: the-viewers-mate-remove-takes-the-structural-door
 kind: issue
 title: the viewer's remove_constraint applies the structural DocEdit::RemoveConstraint, not Recording::remove_mate, and may refuse SlidesDoNotSpan on a tilted copy
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
 rides_with: mate-tool-commits-one-mate
+closed: 2026-11-02
 ---
 
 
@@ -21,3 +22,7 @@ The viewer's `remove_constraint` (`crates/viewer/src/session.rs`) applies the st
 **The structural refusal it suspected is unreachable today (traced, not run against the old path).** `SlidesDoNotSpan` needs a chart left after the removal: a mate fixing a direction that remains. Under A11 (1) the only admitted pair is a point beside a direction. Taking the point out leaves the direction, whose three slides always span; taking the direction out leaves a point or nothing, which has no chart. So `DocEdit::RemoveConstraint` could not refuse it on any admitted bundle.
 
 **The other half was true**, and the editor closes it. The removal wrote `0` on every freed freedom, so the copy jumped. `SessionOp::RemoveConstraint` now strikes the mate out of the editor's draft (`MateTool::edit_striking`) and writes `SetBundle`. The freed values are measured where the copy stands (`editor_core::mate::read_back`), and the slides are the ones its geometry leaves. `bundle_editor::removing_a_mate_from_a_turned_copy_keeps_it_where_it_stands` rests post_b and spins it 30° about the shelf's normal, so it is off every target axis. It then removes the rest and checks that post_b keeps its pose to 1e-9. The tree's `remove` opens that draft rather than committing.
+
+## Closed (2026-11-02, PR 6300)
+
+Answered by the bundle editor as merged, with its dual review's fix passes; see `mate-tool-commits-one-mate`'s Closed section and `docs/dual-review-log/rows/PR-6300.md`.

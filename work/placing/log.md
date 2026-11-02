@@ -154,3 +154,4 @@ Newest entries at the bottom; the tail is the program's live status.
   - **The rest holds:** R1-M1's pole is fixed and checked algebraically, the kernel doors are faithful extractions, and `PlacementFails` and Create's staleness refusal are right.
   - **Also sent:** the rewritten R2 rows are to be tightened (m1, m2), stale value edits cleared, and drops of variables told apart from constants a mate takes.
   - Second fix pass dispatched. (PLACING orchestrator)
+- 2026-11-02 — **The bundle editor closes** (PR 6300) after two fix passes and a re-check. Its dual row, `docs/dual-review-log/rows/PR-6300.md`, is coded blind and records a tally of 2. The coder's alternative of 3 is recorded on the row. The riders close with it. The Transform row is now a unit of its own, to be dispatched next on main. (PLACING orchestrator)
