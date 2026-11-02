@@ -4154,7 +4154,7 @@ pub(crate) fn classify_point_in_solid(
             "a solid the check read holds the side at infinity in its material, so it is \
              inside-out"
                 .into(),
-            "Recourse: build it with its faces pointing outward, or revert it".into(),
+            format!("Recourse: {}", S::INSIDE_OUT_RECOURSE).into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -4628,9 +4628,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
-            Self::SliverInsideOut { .. } => f.write_str(
+            Self::SliverInsideOut { .. } => write!(
+                f,
                 "a solid is inside-out: a ray from outside it crosses into its material. \
-                 Recourse: build it with its faces pointing outward, or revert it",
+                 Recourse: {}",
+                crate::boolean::PointInSolidError::INSIDE_OUT_RECOURSE
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
@@ -10748,9 +10750,11 @@ impl Unfinished {
     /// What every door refusing an inside-out operand says after naming
     /// the operand: true of a solid check 7 decides negative and of a
     /// shell check 10 finds bounding negative material.
-    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
-        its shells, so faces there point into its material and bound negative volume, and \
-        it is refused. Recourse: build it with its faces pointing outward, or revert it";
+    pub const INSIDE_OUT_REFUSAL: &'static str = concat!(
+        "is inside-out, as a whole or in one of its shells, so faces there point into its \
+         material and bound negative volume, and it is refused. Recourse: ",
+        crate::boolean::solid_contain::inside_out_recourse!()
+    );
     /// What every door refusing an operand that holds a joinable vertex
     /// says after naming the operand: a body every finisher would have
     /// joined, or one whose join reads in the sliver band (its finding
