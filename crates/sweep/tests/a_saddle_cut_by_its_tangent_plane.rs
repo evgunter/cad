@@ -8,7 +8,7 @@
 //! lane builds yet: each op refuses typed at the spline × plane pair,
 //! long before the join pairs germs across the crossing. Its closed
 //! forms (the block `8`, its part above the plane `1/2`) are the row
-//! `work/spliceface/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
+//! `work/splice/a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form.md`
 //! asks for.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

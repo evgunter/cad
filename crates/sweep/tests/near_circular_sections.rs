@@ -519,7 +519,7 @@ struct Frustum {
     /// `None` where the body is pinned to refuse as limb 2's kernel
     /// limit: at 1 km and ε = 1e-12, where its cone's rim rounds at its
     /// own extent past the band
-    /// (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+    /// (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
     body: Option<Body<f64>>,
     cone: Surface<f64>,
     r0: f64,

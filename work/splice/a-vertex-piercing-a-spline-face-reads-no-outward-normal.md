@@ -44,7 +44,7 @@ a foot on another sheet. Then comes whatever the vertex-on-face pass
 reads after the normal. Behind this is the NURBS × torus section
 (SECTARMS `a-nurbs-face-against-a-torus-has-no-section-arm`).
 
-Related: `spliceface/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`
+Related: `splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`
 is the same pass's `held_reads` asking a spline wall whether it holds a
 pierce point. Here the spline face is the pierced face itself.
 
@@ -87,7 +87,7 @@ one.
 
 Whether the point has a second foot on another in-trim sheet within the
 band is the placement's claim. It is filed as
-`spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot`
+`splice/the-spline-placement-read-certifies-no-second-in-trim-foot`
 (the SPLICE orchestrator's ruling, 2026-10-31).
 
 Lily wall 8 now stops one site on, at the pierce's ring on the leaf's

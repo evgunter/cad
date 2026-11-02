@@ -6415,7 +6415,7 @@ mod tests {
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
         // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
-        // (`work/offset/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
+        // (`work/shell/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
         test_utils::kernel_limit::pinned_row(
             geom_core::Tol::witness().eps(),
             &[1e-12],
