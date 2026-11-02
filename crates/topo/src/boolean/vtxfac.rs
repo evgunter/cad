@@ -3205,7 +3205,7 @@ mod tests {
     /// the curved face.
     #[test]
     fn a_partners_descended_bound_is_read_over_its_offset() {
-        use super::super::sectors::{BoolSector, FaceBend, PierceLever, BoundSupport};
+        use super::super::sectors::{BoolSector, BoundSupport, FaceBend, PierceLever};
         use crate::link::metric::Reading;
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
@@ -3232,7 +3232,7 @@ mod tests {
                 Vec3::new(0.0, -1.0, 0.0),
                 true,
             )),
-            arm: l,
+            arm: geom_core::test_support::fixture_lever(l),
             bend: FaceBend::Plane,
         }];
         let datum = PierceDatum {
@@ -3465,7 +3465,7 @@ mod tests {
     /// the slack's tie, and the edge would read nothing.
     #[test]
     fn the_touched_faces_side_is_read_on_the_band_alone() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         let zero = Band::linear(Tol::witness()).unwrap().zero();
         let band = Band::new(zero, 1.4 * zero).unwrap();
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
@@ -3476,14 +3476,16 @@ mod tests {
             he: HalfEdgeKey::from(key(1)),
             start: Vec3::new(0.0, -1.0, 0.0),
             end: d.normalize(),
-            start_reach: BoundSupport::straight_bisector(1.0),
+            start_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                1.0,
+            )),
             end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + d,
             },
             face: crate::entity::FaceKey::from(key(901)),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         }];
         let against = [(

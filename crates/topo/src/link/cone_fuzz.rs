@@ -2821,14 +2821,18 @@ fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
                 Vec3::from_array(x_axis),
             );
             let span = rng.range(0.05, 0.6);
-            let chord = 2.0 * (span / 2.0).sin() / kappa;
-            let extent = geom_brep::edge_extent_inf(&circle, 0.0, span, chord);
+            let extent = geom_brep::edge_extent_inf(
+                &circle,
+                0.0,
+                span,
+                (circle.eval(0.0), circle.eval(span)),
+            );
             let tangent = circle.deriv(0.0);
             let reach = BoundSupport::Conic {
                 extent,
                 bend: geom_brep::ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
             };
-            let dir = tangent.normalize() * extent;
+            let dir = tangent.normalize() * extent.length();
             let exact = if side > 0.0 {
                 Sign::Positive
             } else {

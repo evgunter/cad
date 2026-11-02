@@ -3093,7 +3093,7 @@ mod tests {
     /// meet a plane and a cylinder.
     #[test]
     fn a_curved_flank_pair_tied_at_first_order_reads_alike_at_both_sites() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use crate::boolean::{Glue, GluedPairs};
         use geom_brep::{ConicBend, OutwardNormal};
         use geom_core::{Point3, Tol};
@@ -3117,10 +3117,11 @@ mod tests {
         // The bore's circle through the point, leaving along `x`.
         let circle = geom::Curve3::circle(Point3::new(0.0, -1.0, 0.0), -z, 1.0, y);
         let span = std::f64::consts::FRAC_PI_4;
-        let extent = geom_brep::edge_extent_inf(&circle, 0.0, span, 2.0 * (span / 2.0).sin());
+        let extent =
+            geom_brep::edge_extent_inf(&circle, 0.0, span, (circle.eval(0.0), circle.eval(span)));
         let tangent = circle.deriv(0.0);
         let arc = (
-            tangent.normalize() * extent,
+            tangent.normalize() * extent.length(),
             BoundSupport::Conic {
                 extent,
                 bend: ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
@@ -3149,7 +3150,7 @@ mod tests {
                 start.cross(end).normalize(),
                 true,
             )),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend,
         };
         let plane = crate::bound_side::FaceBend::Plane;
@@ -3216,7 +3217,7 @@ mod tests {
     /// read, and the ladder asks for the faces' `Rest`, as flush.
     #[test]
     fn a_sheets_side_decided_within_the_cones_tie_is_the_ladders() {
-        use super::super::sectors::Reach;
+        use super::super::sectors::BoundSupport;
         use crate::boolean::{BooleanDecision, Glue, GluedPairs};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Tol};
@@ -3248,7 +3249,7 @@ mod tests {
                 start.cross(end).normalize(),
                 true,
             )),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let sa = [sector(o, z, x, fa), sector(o, -y, z, fa)];
