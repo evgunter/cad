@@ -772,6 +772,13 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let end = endpoint(&out, he_plus, true)?;
         let (param_start, param_end) = old.params();
         let carrier = map_carrier(map, hand, old.carrier())?;
+        // A sketch pushforward is stated in 3-space, so the authority
+        // record travels with the map.
+        let declared = || {
+            old.authority()
+                .declared()
+                .map(|mc| map_mapped_curve(map, hand, &mc))
+        };
         let description = match old.description() {
             // Re-mint (module docs above): construction-fresh witness
             // from the MAPPED carrier at the pinned mid parameter
@@ -807,36 +814,22 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                     witness: carrier.mid_point(param_start, param_end),
                 }
             }
-            // The pair's keys are stable; the declaration maps as a
-            // chart image's does.
-            EdgeDescription::OnPair { pair } => {
-                let on_pair = EdgeDescriptionSpec::on_pair(*pair);
-                match old.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => {
-                        on_pair.declared_by(map_mapped_curve(map, hand, &mc))
-                    }
-                    geom_brep::EdgeAuthority::Derived => on_pair,
-                }
-            }
+            // The pair's keys are stable.
+            EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
+                pair: *pair,
+                declared: declared(),
+            },
             // A chart image is a PARAMETER-SPACE fact, invariant under
             // a rigid map: the mapped SURFACE carries the whole map,
             // and the image on it is the image it always was (M6-3;
             // a seam is likewise defined by its key-stable surface).
-            // The authority record travels with the map, because a
-            // sketch pushforward is stated in 3-space.
             EdgeDescription::Chart(c) => {
                 let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
-                let chart = EdgeDescriptionSpec::Chart {
+                EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(image),
                     wrap: c.wrap,
-                    declared: None,
-                };
-                match old.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => {
-                        chart.declared_by(map_mapped_curve(map, hand, &mc))
-                    }
-                    geom_brep::EdgeAuthority::Derived => chart,
+                    declared: declared(),
                 }
             }
             EdgeDescription::Scaffold(mc) => {

@@ -88,6 +88,8 @@ mod a_flipped_shallow_dimple;
 mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
 mod a_keel_ring_in_an_elliptic_section;
+#[path = "a_keel_tree_in_the_plane.rs"]
+mod a_keel_tree_in_the_plane;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_lofted_lens_blade_certifies_its_sign.rs"]

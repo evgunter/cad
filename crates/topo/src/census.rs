@@ -2422,6 +2422,15 @@ fn escalation_pushed(errors: Vec<ValidationError>) -> Indeterminate {
     }
 }
 
+/// **The key of the segment an edge runs along by structure**: its two
+/// ends' point keys, in key order. Two distinct edges with one key lie
+/// on one segment by structure ([`shared_segments`]; the split's slit,
+/// `splitting::join::Tree::slit`), whatever their carriers.
+pub(crate) fn segment_key(ends: [PointKey; 2]) -> [PointKey; 2] {
+    let [p, q] = ends;
+    if p <= q { [p, q] } else { [q, p] }
+}
+
 /// **Every pair of line edges `body` holds on one segment by structure**:
 /// two distinct line edges whose ends lie on the same two point keys
 /// ([`Bound::Shared`] at both bounds of [`ee_collinear_lane`]), which
@@ -2437,7 +2446,7 @@ pub(crate) fn shared_segments<T: Real>(body: &Body<T>) -> Vec<CollinearOverlap<T
         let [Some(p), Some(q)] = e.points else {
             unreachable!("a body's line edge sits on its vertices' point keys")
         };
-        let key = if p <= q { [p, q] } else { [q, p] };
+        let key = segment_key([p, q]);
         ends_of.insert(key, [e.p0, e.p1]);
         by_ends.entry(key).or_default().push(e.key);
     }
