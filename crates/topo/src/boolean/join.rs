@@ -286,6 +286,9 @@ enum KindArm {
     /// bisector-plane ellipses, a germ inside a face of each operand
     /// ([`segment_arm`]).
     Bisector,
+    /// [`GermLane::Rulings`]: a cone pair through one apex, which meet in
+    /// rulings through it ([`segment_arm`], [`cone_apex_plane`]).
+    Apex,
     /// No face-pair arm: the edge-plane lane, where the germ runs along
     /// a conic edge of one solid in a curved face of the other, takes
     /// it, and only here, or it refuses.
@@ -440,6 +443,19 @@ fn segment_arm<T: Decide>(
     band: Band,
 ) -> Result<KindArm, BooleanError> {
     let arm = kind_arm(sa.kind(), sb.kind());
+    // Two cones through one apex meet in rulings through it, the plane
+    // they span their straight lane's.
+    if let (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) = (sa, sb)
+        && decide(
+            "bool_join_cone_common_apex",
+            Margin::of((*p1 - *p2).norm()),
+            band,
+        )
+        .map_err(|diag| BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag))?
+            == Sign::Zero
+    {
+        return Ok(KindArm::Apex);
+    }
     let (
         KindArm::Cylinders,
         geom::Surface::Cylinder {
@@ -1586,6 +1602,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?,
                     ))
                 }
+                KindArm::Apex => GermLane::Rulings(cone_apex_plane(
+                    &ga,
+                    &gb,
+                    germ.dir,
+                    germ_reach(&red.a)?,
+                    band,
+                )?),
                 arm @ KindArm::None => edge_lane(arm)?,
             })
         } else {
@@ -1803,8 +1826,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     )?,
                 );
                 rulings_are_straight([
-                    (&curves.0, Operand::A, germ.a_face),
-                    (&curves.1, Operand::B, germ.b_face),
+                    (&curves.0, Operand::A, germ.a_face, ga.kind()),
+                    (&curves.1, Operand::B, germ.b_face, gb.kind()),
                 ])?;
                 curves
             }
@@ -3086,16 +3109,16 @@ fn face_reach<T: Decide>(
 /// the plane is taken. The rows in `radical_plane_rows` hand it the
 /// curves directly.
 fn rulings_are_straight<T: geom_core::Real>(
-    sides: [(&SegmentCurve<T>, Operand, FaceKey); 2],
+    sides: [(&SegmentCurve<T>, Operand, FaceKey, geom::SurfaceKind); 2],
 ) -> Result<(), BooleanError> {
-    for (curve, operand, face) in sides {
+    for (curve, operand, face, kind) in sides {
         match curve.spec().map(|spec| &spec.carrier) {
             None => {}
             Some(geom::Curve3::Line { .. }) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
-                    kind: geom::SurfaceKind::Cylinder,
+                    kind,
                 });
             }
             Some(_) => {
@@ -3106,6 +3129,59 @@ fn rulings_are_straight<T: geom_core::Real>(
         }
     }
     Ok(())
+}
+
+/// **The plane two cones through one apex cross in**, as a germ along one
+/// of their common rulings rides it ([`KindArm::Apex`]): the plane
+/// through the apex spanned by the rulings both cones' nappes hold, each
+/// nappe the one the germ's ruling `g` leaves the apex along. With each
+/// axis turned onto that nappe, the rulings are `base ± across·t`
+/// ([`geom_brep::cone_cone_apex_meeting`]), so the plane's normal is
+/// `base × across`, which cuts each cone in exactly those two rulings: each
+/// side's chord is the plane × cone apex lane's straight chord on its
+/// own wall, as a parallel cylinder pair's is on its radical plane.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] for a pair that is not two cones, or a
+/// normal with no decided length, levered at the germ's reach (the
+/// germ's ruling then meets the other cone along a touching).
+fn cone_apex_plane<T: Decide>(
+    one: &geom::Surface<T>,
+    two: &geom::Surface<T>,
+    g: Vec3<T>,
+    reach: geom_brep::ExtentBall<T>,
+    band: Band,
+) -> Result<(Point3<T>, UnitVec3<T>), BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let (
+        &geom::Surface::Cone {
+            apex,
+            axis: a1,
+            half_angle: h1,
+            ..
+        },
+        &geom::Surface::Cone {
+            axis: a2,
+            half_angle: h2,
+            ..
+        },
+    ) = (one, two)
+    else {
+        return Err(desync(
+            "a cone pair's apex plane asked of a pair that is not two cones",
+        ));
+    };
+    let onto = |a: Vec3<T>| a * T::one().copysign(g.dot(a));
+    let m = geom_brep::cone_cone_apex_meeting((onto(a1), h1.cos()), (onto(a2), h2.cos()));
+    UnitVec3::levered(
+        m.base.cross(m.across),
+        "bool_join_cone_apex_plane",
+        band,
+        reach.lever_from(apex),
+    )
+    .map(|n| (apex, n))
+    .map_err(|_| desync("two cones' common rulings span no plane through their apex"))
 }
 
 /// The K funnel name of a parallel cylinder pair's axis offset: the
@@ -3746,6 +3822,20 @@ pub(super) fn pair_section_frame_at<T: Decide>(
 ) -> Result<Option<SectionLoops<T>>, FrameError> {
     use geom::Surface as Sf;
     match (sa, sb) {
+        // Two cones through one apex: both forms are homogeneous about it,
+        // so they meet in rulings through it, straight
+        // (`bool_join_cone_common_apex`, the apexes' gap).
+        (Sf::Cone { apex: p1, .. }, Sf::Cone { apex: p2, .. })
+            if decide(
+                "bool_join_cone_common_apex",
+                Margin::of((*p1 - *p2).norm()),
+                band,
+            )
+            .map_err(FrameError::section)?
+                == Sign::Zero =>
+        {
+            Ok(None)
+        }
         (Sf::Plane { .. }, Sf::Torus { .. }) => pt_germ_frame(sa, sb, extent, band),
         (Sf::Torus { .. }, Sf::Plane { .. }) => pt_germ_frame(sb, sa, extent, band),
         (Sf::Cylinder { .. }, Sf::Cylinder { .. }) => cylinder_pair_frame(sa, sb, at, extent, band),

@@ -506,8 +506,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
             (super::Locus::OnEdge(_), _) => Ok(on_bound(&a_sectors[r.a], raw[i].sa)),
             (_, super::Locus::OnEdge(_)) => Ok(on_bound(&b_sectors[r.b], raw[i].sb)),
             _ => record_germ_dir(
-                a_body,
-                b_body,
+                (a_body, contact.a),
+                (b_body, contact.b),
                 &a_sectors[r.a],
                 &b_sectors[r.b],
                 declared,
@@ -2408,8 +2408,8 @@ pub(super) fn strut_order<T: Decide>(
 /// derived), signed into the sector pair by the same membership test;
 /// every other pair takes the transverse normal cross ([`germ_dir`]).
 fn record_germ_dir<T: Decide>(
-    a_body: &Body<T>,
-    b_body: &Body<T>,
+    (a_body, a_vertex): (&Body<T>, VertexKey),
+    (b_body, b_vertex): (&Body<T>, VertexKey),
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
     declared: &super::GluedPairs<T>,
@@ -2423,6 +2423,9 @@ fn record_germ_dir<T: Decide>(
         &[],
     );
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
+        if sa.apex().is_some() || sb.apex().is_some() {
+            return fan_germ_dir((a_body, a_vertex, sa), (b_body, b_vertex, sb), read, band);
+        }
         return germ_dir(sa, sb, read, band);
     }
     let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
@@ -2510,6 +2513,47 @@ fn germ_dir<T: Decide>(
             what: "germ direction not uniquely within its sector pair",
         }),
     }
+}
+
+/// **The germ's direction where a sector of the pair is a fan of a cone's
+/// apex**: the ray of the faces' meeting at the vertex
+/// ([`super::fan::meeting`], the one the pair search read the record
+/// on) that lies within both sectors (`sectors::rays_within`), upright:
+/// a ruling is a ray of its own, with no line's lean to carry.
+///
+/// # Errors
+///
+/// The meeting's refusals; [`BooleanError::ClassificationInvariant`]
+/// where the record's faces are one carrier, or no ray, or more than
+/// one, lies within both sectors.
+fn fan_germ_dir<T: Decide>(
+    (a_body, a_vertex, sa): (&Body<T>, VertexKey, &BoolSector<T>),
+    (b_body, b_vertex, sb): (&Body<T>, VertexKey, &BoolSector<T>),
+    read: DeclarationRead,
+    band: Band,
+) -> Result<Leaned<T>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
+    let super::fan::Meeting::Rays(rays) = super::fan::meeting(
+        (super::Operand::A, Some((a_body, a_vertex)), sa),
+        (super::Operand::B, Some((b_body, b_vertex)), sb),
+        band,
+    )?
+    else {
+        return Err(invariant(
+            "surviving crossing record on sector faces of one carrier",
+        ));
+    };
+    let mut within = None;
+    for ray in rays {
+        let line = Leaned::upright(ray.normalize());
+        if super::sectors::rays_within(line, &[sa, sb], read, band)?.0 {
+            if within.is_some() {
+                return Err(invariant("two germ rays within one sector pair at an apex"));
+            }
+            within = Some(line);
+        }
+    }
+    within.ok_or(invariant("no germ ray within its sector pair at an apex"))
 }
 
 /// Whether the forward run `from → to` is [`RunSite::WholeOrbit`], which
