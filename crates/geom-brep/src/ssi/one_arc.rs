@@ -190,12 +190,13 @@ impl Run {
 ///
 /// `None` when a piece resolves neither way within [`EXIT_DEPTH`] cuts,
 /// or `pieces` passes [`EXIT_PIECES`].
-fn edge_runs<T: CertifiedBounds>(
+fn edge_runs<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ChartPhi<'_>,
+    plane: impl Into<ChartPhi<'p>>,
     (along_u, c, (a, b)): (bool, f64, (f64, f64)),
     pieces: &mut u32,
 ) -> Option<Vec<Run>> {
+    let plane = plane.into();
     let piece = |s: f64, t: f64| if along_u { (s, t, c, c) } else { (c, c, s, t) };
     let sign_at = |s: f64| sign(phi_over(boxes, plane, piece(s, s)));
     let mut out = Vec::new();
@@ -441,13 +442,14 @@ fn reader_of(readers: &[Option<SectionReader>; 4], side: ChartSide) -> Option<&S
 /// piece of it clear, with the side's cover holding every zero of the
 /// window within ε of the side ([`side_stretch`]); `None` where none
 /// does.
-fn side_piece<T: CertifiedBounds>(
+fn side_piece<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ChartPhi<'_>,
+    plane: impl Into<ChartPhi<'p>>,
     (domain, readers): (UvRect, &[Option<SectionReader>; 4]),
     r: UvRect,
     band: Band,
 ) -> Option<ChartSide> {
+    let plane = plane.into();
     SIDES.into_iter().find(|&side| {
         on_side(r, domain, side)
             && reader_of(readers, side).is_some_and(|reader| {
@@ -472,13 +474,14 @@ fn side_piece<T: CertifiedBounds>(
 ///
 /// [`Shortfall::Count`] for a count other than two with no side cover,
 /// [`Shortfall::Undecided`] for a walk that resolved none.
-fn piece<T: CertifiedBounds>(
+fn piece<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ChartPhi<'_>,
+    plane: impl Into<ChartPhi<'p>>,
     sides: (UvRect, &[Option<SectionReader>; 4]),
     r: UvRect,
     band: Band,
 ) -> Result<Piece, Shortfall> {
+    let plane = plane.into();
     if let Some(side) = side_piece(boxes, plane, sides, r, band) {
         return Ok(Piece::Side(side));
     }
@@ -677,14 +680,15 @@ struct CarrierEnd {
 /// halvings ([`Reading::Refused`]), or whose `|φ|` is not certified
 /// within ε ([`Reading::Beyond`], which is no certificate that it is
 /// beyond).
-fn reaches_end<T: CertifiedBounds>(
+fn reaches_end<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ChartPhi<'_>,
+    plane: impl Into<ChartPhi<'p>>,
     (readers, eps): (&[Option<SectionReader>; 4], f64),
     (piece, r): (Piece, UvRect),
     q: (f64, f64),
     end: CarrierEnd,
 ) -> Result<(), Shortfall> {
+    let plane = plane.into();
     match piece {
         Piece::Side(side) => {
             let t = split(q, side).1;
@@ -758,14 +762,15 @@ fn end_far<T: CertifiedBounds>(
 ///   solution of the side's window is).
 /// - Two stretches of one side: they overlap along it, and the boundary
 ///   pass reads no piece of the overlap clear ([`read_stretch`]).
-fn link<T: CertifiedBounds>(
+fn link<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
-    plane: ChartPhi<'_>,
+    plane: impl Into<ChartPhi<'p>>,
     (domain, readers, eps): (UvRect, &[Option<SectionReader>; 4], f64),
     (a, b): (Piece, Piece),
     overlap: UvRect,
     (p, e): ((f64, f64), (f64, f64)),
 ) -> Result<(), Shortfall> {
+    let plane = plane.into();
     match (a, b) {
         (Piece::Side(s), Piece::Side(t)) => {
             if s != t || !on_side(overlap, domain, s) {

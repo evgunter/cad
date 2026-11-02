@@ -119,7 +119,7 @@ use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::spline::{KnotVector, RingRefinement};
 use geom_core::{
     Band, Bounds, CertifiedBounds, CertifiedEnclosure, Decide, Decided, Indeterminate, Interval,
-    Margin, Point3, Real, Sign, Vec3,
+    Margin, Real, Sign, Vec3,
 };
 
 use crate::certify::CertCheck;

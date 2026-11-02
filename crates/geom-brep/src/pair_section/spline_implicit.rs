@@ -102,6 +102,7 @@ use crate::intersect::SectionError;
 use crate::ssi::boundary::BoundaryPass;
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
+use crate::ssi::residual::Curved;
 use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
 mod curved;
@@ -514,11 +515,71 @@ impl Heights {
     }
 }
 
+/// **The partner a branch's witness is bracketed against**: the stored
+/// plane's heights, or a curved partner's form.
+#[derive(Clone, Copy)]
+enum Bracketed<'a> {
+    /// The stored plane, read from the foot.
+    Plane(Heights),
+    /// A cylinder, sphere or torus: the surface, whose linearized
+    /// residual selects the bracket's direction and step, and its form,
+    /// whose certified sign decides it.
+    Curved(&'a Surface<f64>, &'a Curved),
+}
+
+impl From<Heights> for Bracketed<'_> {
+    fn from(heights: Heights) -> Self {
+        Self::Plane(heights)
+    }
+}
+
+impl Bracketed<'_> {
+    /// The certified sign of `φ` over `s`, an enclosure of a point:
+    /// `Some(true)` on the positive side.
+    fn sign(self, s: Box3) -> Option<bool> {
+        let h = match self {
+            Self::Plane(heights) => heights.over(s),
+            Self::Curved(_, curved) => curved.value(curved.framed(s)),
+        };
+        if !h.is_certified() {
+            None
+        } else if h.lo() > 0.0 {
+            Some(true)
+        } else if h.hi() < 0.0 {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
+    /// At the wall's point `p`: `φ`'s value in metres there, the
+    /// gradient whose chart image the bracket steps along, and the
+    /// least step's floor, in metres, below which `φ` reads as no
+    /// distance.
+    fn at(self, p: Point3<f64>) -> (f64, Vec3<f64>, f64) {
+        match self {
+            Self::Plane(heights) => {
+                let m = heights.normal;
+                (
+                    (p - heights.origin).dot(m).abs() + heights.lift.abs().hi(),
+                    m,
+                    f64::EPSILON * (p - heights.origin).norm() * m.norm(),
+                )
+            }
+            Self::Curved(surface, _) => (
+                crate::implicit_residual(surface, p).abs(),
+                crate::implicit_gradient(surface, p),
+                f64::EPSILON * (p - Point3::new(0.0, 0.0, 0.0)).norm(),
+            ),
+        }
+    }
+}
+
 /// **Why a plane × spline component has no carrier to carry**: the
 /// section is read whole for the section certificate alone, the glue
 /// door's table never holds it, and no seat certifies against a wall's
 /// chart.
-pub(super) const UNCARRIED: &str = "a plane × spline section is read whole for the section \
+pub(super) const UNCARRIED: &str = "a spline × implicit section is read whole for the section \
     certificate alone, which carries none of its components";
 
 /// The note a region's component carries.
@@ -532,7 +593,11 @@ const REGION: &str = "a Side or Corner region: the section runs along a side of 
 /// branch's certificate that holds `P(mid)` ([`bracket`]). `None` where
 /// the certificate is not a chart tube, the branch carries no wall
 /// pcurve, or no bracket fits its window: a component with no witness.
-fn witness(b: &SsiBranch, net: &NurbsSurface<f64>, heights: Heights) -> Option<(Point3<f64>, f64)> {
+fn witness(
+    b: &SsiBranch,
+    net: &NurbsSurface<f64>,
+    partner: Bracketed<'_>,
+) -> Option<(Point3<f64>, f64)> {
     let (SsiTube::Chart { pad_u, pad_v, .. }, Some(pcurve)) =
         (b.certificate.tube, b.pcurve_b.as_ref())
     else {
@@ -543,7 +608,7 @@ fn witness(b: &SsiBranch, net: &NurbsSurface<f64>, heights: Heights) -> Option<(
         .into_iter()
         .find(|w| w.ends.0 <= mid && mid <= w.ends.1)?;
     let at = pcurve.eval(mid);
-    bracket(net, heights, (at.x, at.y), window.rect)
+    bracket(net, partner, (at.x, at.y), window.rect)
 }
 
 /// The most doublings [`bracket`] takes. It is not what ends a search:
@@ -576,14 +641,15 @@ const BRACKET_HALVINGS: u32 = 64;
 /// 3 proves the section one arc: so the zero is the branch's. A segment
 /// that leaves the window or the wall's rectangle, or a gradient that
 /// is not a direction, is no bracket.
-fn bracket(
+fn bracket<'p>(
     net: &NurbsSurface<f64>,
-    heights: Heights,
+    partner: impl Into<Bracketed<'p>>,
     at: (f64, f64),
     window: UvRect,
 ) -> Option<(Point3<f64>, f64)> {
+    let partner = partner.into();
     let jet = net.ders(at.0, at.1);
-    let m = heights.normal;
+    let (phi, m, least) = partner.at(jet.point);
     let (gu, gv) = (m.dot(jet.du), m.dot(jet.dv));
     let g = gu.hypot(gv);
     if !(g.is_finite() && g > 0.0) {
@@ -591,10 +657,7 @@ fn bracket(
     }
     let (du, dv) = (gu / g, gv / g);
     let point = |t: f64| (at.0 + du * t, at.1 + dv * t);
-    let phi = (jet.point - heights.origin).dot(m);
-    let base = (phi.abs() + heights.lift.abs().hi())
-        .max(f64::EPSILON * (jet.point - heights.origin).norm() * m.norm())
-        / g;
+    let base = phi.max(least) / g;
     let (u_domain, v_domain) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let inside = |(u, v): (f64, f64)| {
         window.holds((u, v))
@@ -607,18 +670,7 @@ fn bracket(
     let at_box = |(u, v): (f64, f64)| UvWindow::new(u, u, v, v).map(|w| boxes.rect_box(w));
     // The height's certified sign at `t`: `Some(true)` above the plane,
     // `Some(false)` below, `None` undecided.
-    let sign = |t: f64| {
-        let h = heights.over(at_box(point(t))?);
-        if !h.is_certified() {
-            None
-        } else if h.lo() > 0.0 {
-            Some(true)
-        } else if h.hi() < 0.0 {
-            Some(false)
-        } else {
-            None
-        }
-    };
+    let sign = |t: f64| partner.sign(at_box(point(t))?);
     let mut step = base;
     let (mut low, mut high) = (0.0, 0.0);
     for _ in 0..=BRACKET_DOUBLINGS {
@@ -732,7 +784,7 @@ pub(super) fn section(
     ) {
         sweep::Sweep::Declined(_) => {
             let out = reading.all().map_err(super::whole_reading_refused)?;
-            return listed(pose, &pivot, out);
+            return listed(pose, Bracketed::Plane(pivot.heights), out);
         }
         sweep::Sweep::LoopFree(decided) => decided,
     };
@@ -830,13 +882,13 @@ pub(super) fn loop_free(
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
 /// rectangle, which the plane lane's reading never marches; a curved
 /// partner's whole reading is not built
-/// ([`SectionError::RoutesToGeneralRung`]).
+/// ([`curved::whole`]).
 pub(super) fn whole(
     pose: &SplineImplicitPose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
     if !pose.is_plane() {
-        return Err(curved::unbuilt());
+        return curved::whole(pose, band);
     }
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
@@ -848,7 +900,7 @@ pub(super) fn whole(
     };
     listed(
         pose.clone(),
-        &pivot,
+        Bracketed::Plane(pivot.heights),
         reading.all().map_err(super::whole_reading_refused)?,
     )
 }
@@ -870,7 +922,7 @@ fn contact_reach(region: &SsiBoundaryContact) -> ChartReach {
 /// rectangle.
 fn listed(
     pose: SplineImplicitPose<f64>,
-    pivot: &Pivot,
+    partner: Bracketed<'_>,
     out: crate::ssi::SsiOutcome,
 ) -> Result<PairSection<f64>, SectionError> {
     let open = |on_wall: ChartReach| ComponentShape::Open {
@@ -888,13 +940,13 @@ fn listed(
             }
             BranchEnd::Cut => {
                 return Err(SectionError::Unaccounted {
-                    cause: "a branch of the plane × spline reading ended off the wall's \
+                    cause: "a branch of the spline × implicit reading ended off the wall's \
                             rectangle, where no side of the wall's chart holds it"
                         .to_owned(),
                 });
             }
         };
-        let witness = witness(&b, pose.net(), pivot.heights);
+        let witness = witness(&b, pose.net(), partner);
         components.push(SectionComponent {
             shape,
             winds: [false, false],

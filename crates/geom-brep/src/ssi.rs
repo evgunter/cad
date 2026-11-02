@@ -122,6 +122,7 @@ mod ends;
 pub mod exhaust;
 mod four;
 mod handle;
+mod implicit_chart;
 pub mod jet;
 pub mod march;
 mod one_arc;
@@ -157,6 +158,7 @@ pub use exhaust::{
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
 pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
+pub use implicit_chart::ImplicitSection;
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,

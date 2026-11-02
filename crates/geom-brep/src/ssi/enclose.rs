@@ -2113,12 +2113,13 @@ pub(super) mod tests {
         };
         let (pu, pv) = speeds.pad(1e-3);
         let n = [n.x, n.y, n.z].map(Interval::point);
+        let origin = [Interval::point(0.0); 3];
         let (tx, ty) = (1.0_f64, 0.3_f64);
         let tangent = (tx, ty, tx.hypot(ty));
         let margins = MARGIN_WINDOWS
             .into_iter()
             .map(|rect| {
-                chart_transverse_margin(&boxes, n, win(rect), tangent)
+                chart_transverse_margin(&boxes, ChartPhi::Plane(n, origin), win(rect), tangent)
                     .expect("no window is degenerate")
                     .expect("every stretch is finite")
             })
@@ -2751,7 +2752,8 @@ pub(super) mod tests {
         let (tx, ty) = (1.0_f64, 0.3_f64);
         let tangent = (tx, ty, tx.hypot(ty));
         let read = |n| {
-            chart_transverse_margin(&boxes, n, win(INSIDE_ONE_CELL), tangent)
+            let plane = ChartPhi::Plane(n, [Interval::point(0.0); 3]);
+            chart_transverse_margin(&boxes, plane, win(INSIDE_ONE_CELL), tangent)
                 .expect("the window is not degenerate")
                 .expect("the stretch is finite")
         };
