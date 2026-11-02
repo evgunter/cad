@@ -261,13 +261,27 @@ fn parallel_rows_serve_a_side_on_the_floor() {
 /// radius, the second tilted `0.45` bands per metre, read over a unit
 /// region on the wall `r` from the axis. The pair's pose levers the tilt
 /// from the axis's foot of the region's centre out across the region,
-/// `r + 1`, so it reads the axes crossing, and the march of the two
-/// near-parallel walls refuses (R-march). The turn slides the walls
-/// along themselves, which that lever does not credit
+/// `r + 1`, so it reads the axes crossing. The two walls meet tens to
+/// hundreds of metres along the axis, where the gap closes against the
+/// tilt, so the region holds no component. The ruling sweep decides that
+/// (no ruling near the region meets the second wall within it), or, where
+/// the rulings' meetings, levered by `1/sin` of the tilt, straddle the
+/// region's sphere at every cell, escalates on `ruling_cut` (R-tan). It
+/// never lists a component. Which one depends on the run's band, and is
+/// pinned where measured: at ε = 1e-6 every case decides empty, at 1e-9
+/// the `r = 100` cases escalate and `r = 1000` decides empty, at 1e-12
+/// every case escalates.
 /// (`sectarms/the-cylinder-pose-levers-a-tilt-from-the-axis-foot-of-the-region`).
 #[test]
 fn wide_walls_tilted_in_the_band_read_crossing_over_a_region_on_the_wall() {
     let z = zero();
+    // `Some(true)`: decided empty; `Some(false)`: escalated on the cut.
+    let measured = |r: f64| match z {
+        z if (z - 1e-6).abs() < 1e-9 => Some(true),
+        z if (z - 1e-9).abs() < 1e-12 => Some(r > 500.0),
+        z if (z - 1e-12).abs() < 1e-15 => Some(false),
+        _ => None,
+    };
     for (r, gap) in [(100.0, 20.0), (100.0, 40.0), (1000.0, 200.0)] {
         let s = classify(
             &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r),
@@ -280,10 +294,14 @@ fn wide_walls_tilted_in_the_band_read_crossing_over_a_region_on_the_wall() {
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
-        assert!(
-            matches!(s, Section::Unmarched),
-            "r = {r}, gap = {gap}: {s:?}"
-        );
+        let empty = matches!(&s, Section::Components { parts, .. } if parts.is_empty());
+        let escalated = matches!(&s, Section::Tangent(name) if name.starts_with("ruling_cut"));
+        let pinned = match measured(r) {
+            Some(true) => empty,
+            Some(false) => escalated,
+            None => empty || escalated,
+        };
+        assert!(pinned, "r = {r}, gap = {gap} at ε {z:e}: {s:?}");
     }
 }
 
