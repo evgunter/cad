@@ -1404,6 +1404,16 @@ impl<T: Decide> Folded<T> {
     }
 }
 
+/// **What a sector of a solid's line cone is read from**
+/// ([`resolve_edge_edge`]): one of its sectors at the vertex (a flank, or
+/// a half of a face holding the line), or a face its vertex lies on that
+/// the other solid's vertex touches, whose whole plane it is.
+#[derive(Clone, Copy)]
+enum Sheet<T: geom_core::Real> {
+    Sector(usize),
+    Held(HeldFace<T>),
+}
+
 /// **A wedge of one solid's material about a common line**
 /// ([`resolve_edge_edge`]): its two flankers `[before, after]`, the first's
 /// end bound and the second's start bound its flanks.
@@ -1586,15 +1596,16 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         let secs = secs_of(slot);
         proven(&body_of(slot).half_edges, secs[0].he, EntityId::HalfEdge).start
     };
-    let two_sheets = || BooleanError::CrossingsAlongAContactLine {
+    let unread = |why| BooleanError::LineMaterialUnread {
         a_vertex: vertex_of(0),
         b_vertex: vertex_of(1),
+        why,
     };
     let point_of = |slot: usize| corner_of(body_of(slot), &secs_of(slot)[wedges[slot].flankers[0]]);
     let points = [point_of(0), point_of(1)];
-    // Each solid's line cone, read about the other's point: its sheets
-    // about the line, each tagged with the sector it is read from, and
-    // its held face's whole plane, untagged.
+    // Each solid's line cone, read about the other's point, and what
+    // each of its sectors is read from: a flank's or a face's sector, or
+    // the held face's whole plane, last.
     let sheets_of = |w: Wedge| match w.flankers {
         [i, j] if i == j => vec![LineSheet::Across(i)],
         [i, j] => vec![LineSheet::Start(i), LineSheet::End(j)],
@@ -1607,15 +1618,12 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         }
         let at = points[slot];
         let line = axis_reach.point(at, axis);
-        let (tags, fans): (Vec<Option<usize>>, Vec<_>) =
+        let (mut from, fans): (Vec<Sheet<T>>, Vec<_>) =
             super::sectors::line_fans(secs_of(slot), &sheets, at, line)
                 .into_iter()
-                .map(|(i, fan)| (Some(i), fan))
+                .map(|(i, fan)| (Sheet::Sector(i), fan))
                 .unzip();
-        let tags: Vec<Option<usize>> = tags
-            .into_iter()
-            .chain(holding[slot].map(|_| None))
-            .collect();
+        from.extend(holding[slot].map(Sheet::Held));
         let cone = crate::link::Cone::gathered(
             points[1 - slot],
             fans,
@@ -1624,98 +1632,15 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         .map_err(|_| BooleanError::ClassificationInvariant {
             what: "a solid's line cone holds no face",
         })?;
-        cones.push((cone, tags));
+        cones.push((cone, from));
     }
-    // Membership of one flanker's representative in the other solid's
-    // material, read through its line cone.
-    let membership = |own_is_a: bool,
-                      own_idx: usize,
-                      (dir, reach): Rep<T>|
-     -> Result<bool, BooleanError> {
-        let (own, other) = if own_is_a { (0, 1) } else { (1, 0) };
-        let (cone, tags) = &cones[other];
-        let given: Vec<_> = match (cone.whole_planes().first(), holding[other]) {
-            (Some(&plane), Some(face)) => {
-                let side = match face.datum.side(dir, reach, band)? {
-                    SideCode::In => Sign::Negative,
-                    SideCode::On => Sign::Zero,
-                    SideCode::Out => Sign::Positive,
-                };
-                vec![(plane, side)]
-            }
-            _ => Vec::new(),
-        };
-        let (own_secs, other_secs) = (secs_of(own), secs_of(other));
+    // A representative on the other solid's face `oi`, inside it:
+    // overlapping coplanar flanks, the coincidence ladder's.
+    let coplanar = |own: usize, own_idx: usize, oi: usize| -> Result<bool, BooleanError> {
+        let other = 1 - own;
+        let (own_sec, other_sec) = (&secs_of(own)[own_idx], &secs_of(other)[oi]);
         let (own_body, other_body) = (body_of(own), body_of(other));
         let (own_op, other_op) = (operand_of(own), operand_of(other));
-        let own_sec = &own_secs[own_idx];
-        let read = cone.reads_tied(reach.point(points[own], dir), &given, band);
-        let oi = match read {
-            Ok(Material::In) => return Ok(true),
-            Ok(Material::Out) => return Ok(false),
-            Ok(Material::Boundary) => return Err(two_sheets()),
-            Ok(Material::On(k)) => match tags[k] {
-                Some(oi) => oi,
-                None => match holding[other] {
-                    Some(face) => return Err(face.along(super::AlongFace::Flush)),
-                    None => {
-                        return Err(BooleanError::ClassificationInvariant {
-                            what: "a line cone's whole plane is no held face",
-                        });
-                    }
-                },
-            },
-            Err(unread) => {
-                let diag = unread.why.ok_or(BooleanError::ClassificationInvariant {
-                    what: "a line cone's refusal escalates nothing",
-                })?;
-                let plane = diag.predicate == Some(crate::link::LINK_PLANE);
-                return Err(match (unread.sector.map(|k| tags[k]), plane) {
-                    // On its plane, in band of where in it: whether the
-                    // two flanks overlap or only touch. No declaration
-                    // the door verifies settles it: two planar flanks
-                    // are conformal, and its screen refuses `Tangent`
-                    // there, while `Rest` changes nothing here; a curved
-                    // flank goes on, on either sense, to a face pair the
-                    // Boolean cannot yet meet.
-                    (Some(Some(oi)), false) => {
-                        let other_sec = &other_secs[oi];
-                        let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
-                            .iter()
-                            .all(|&(body, face)| {
-                                body.get_face(face)
-                                    .and_then(|f| body.get_surface(f.surface))
-                                    .map(geom::Surface::kind)
-                                    == Some(geom::SurfaceKind::Plane)
-                            });
-                        let which = if planar {
-                            Coincide::FlankSense
-                        } else {
-                            Coincide::CurvedFlankSense
-                        };
-                        let read = declared.read(
-                            &[(own_op, own_sec.face, other_op, other_sec.face)],
-                            which,
-                            &[],
-                        );
-                        BooleanError::coincidence(which, read, diag)
-                    }
-                    // In band of a face's plane: the side of it the
-                    // representative lies on.
-                    (Some(_), _) => {
-                        BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
-                    }
-                    // The parity arc's own reading.
-                    (None, _) => {
-                        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
-                    }
-                });
-            }
-        };
-        // On the other solid's face `oi`, inside it: overlapping
-        // coplanar flanks, the coincidence ladder's.
-        let other_sec = &other_secs[oi];
-        let comparison = operand_of(own);
         // Declared-`Tangent` flanking pairs (distinct carriers touching
         // along the on-edge): the membership verdict is the second-order
         // descent — which side the OWN sector's carrier curves to
@@ -1744,7 +1669,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 own_sec.normal,
                 p,
                 op,
-                comparison,
+                own_op,
                 own_sec.face,
                 own_sec.reached_bounds(),
                 arm,
@@ -1764,10 +1689,89 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 arm,
                 band,
             )?;
-            eq15_3_lump(op, comparison, rel)
+            eq15_3_lump(op, own_op, rel)
         };
         Ok(lump == SideCode::In)
     };
+    // A representative on the other solid's face `oi`'s plane, where in
+    // it in band: whether the two flanks overlap or only touch. No
+    // declaration the door verifies settles it: two planar flanks are
+    // conformal, and its screen refuses `Tangent` there, while `Rest`
+    // changes nothing here; a curved flank goes on, on either sense, to a
+    // face pair the Boolean cannot yet meet.
+    let flank_sense = |own: usize, own_idx: usize, oi: usize, diag| {
+        let other = 1 - own;
+        let (own_face, other_face) = (secs_of(own)[own_idx].face, secs_of(other)[oi].face);
+        let planar = [(body_of(own), own_face), (body_of(other), other_face)]
+            .iter()
+            .all(|&(body, face)| {
+                body.get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .map(geom::Surface::kind)
+                    == Some(geom::SurfaceKind::Plane)
+            });
+        let which = if planar {
+            Coincide::FlankSense
+        } else {
+            Coincide::CurvedFlankSense
+        };
+        let read = declared.read(
+            &[(operand_of(own), own_face, operand_of(other), other_face)],
+            which,
+            &[],
+        );
+        BooleanError::coincidence(which, read, diag)
+    };
+    // Membership of one flanker's representative in the other solid's
+    // material, read through its line cone.
+    let membership =
+        |own_is_a: bool, own_idx: usize, (dir, reach): Rep<T>| -> Result<bool, BooleanError> {
+            let (own, other) = if own_is_a { (0, 1) } else { (1, 0) };
+            let (cone, from) = &cones[other];
+            let given: Vec<_> = match (cone.whole_planes().first(), holding[other]) {
+                (Some(&plane), Some(face)) => {
+                    let side = match face.datum.side(dir, reach, band)? {
+                        SideCode::In => Sign::Negative,
+                        SideCode::On => Sign::Zero,
+                        SideCode::Out => Sign::Positive,
+                    };
+                    vec![(plane, side)]
+                }
+                _ => Vec::new(),
+            };
+            // The refusal a cone's unread reading carries: the representative
+            // on a flank's plane, where in it in band, the two flanks' sense;
+            // its side of a face's plane, that side; the parity arc, the
+            // sectors' coincidence; and where no gate's margin refused (no
+            // reference, an unplaced crossing), the line's faces too close to
+            // place it.
+            let unread_of = |cause: crate::link::Unread<T>| {
+                use crate::link::Unread;
+                let sheet = cause.sector().map(|k| from[k]);
+                match (cause, sheet, cause.escalation(band)) {
+                    (Unread::Place { .. }, Some(Sheet::Sector(oi)), Some(diag)) => {
+                        flank_sense(own, own_idx, oi, diag)
+                    }
+                    (Unread::Place { .. } | Unread::Side { .. }, _, Some(diag)) => {
+                        BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
+                    }
+                    (Unread::Arc { .. } | Unread::NoReference, _, Some(diag)) => {
+                        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+                    }
+                    (_, _, None) => unread(super::LineUnread::Unplaced),
+                }
+            };
+            match cone.reads_tied(reach.point(points[own], dir), &given, band) {
+                Ok(Material::In) => Ok(true),
+                Ok(Material::Out) => Ok(false),
+                Ok(Material::Boundary) => Err(unread(super::LineUnread::Along)),
+                Ok(Material::On(k)) => match from[k] {
+                    Sheet::Sector(oi) => coplanar(own, own_idx, oi),
+                    Sheet::Held(face) => Err(face.along(super::AlongFace::Flush)),
+                },
+                Err(cause) => Err(unread_of(cause)),
+            }
+        };
     let a_in = [
         membership(true, a_fl[0].0, a_fl[0].1)?,
         membership(true, a_fl[1].0, a_fl[1].1)?,
@@ -1804,7 +1808,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     let cross_a = crossings(true, a_fl, a_in)?;
     let cross_b = crossings(false, b_fl, b_in)?;
     if cross_a.len() > 1 || cross_b.len() > 1 {
-        return Err(two_sheets());
+        return Err(BooleanError::CrossingsAlongAContactLine {
+            a_vertex: vertex_of(0),
+            b_vertex: vertex_of(1),
+        });
     }
     if cross_a.is_empty() != cross_b.is_empty() {
         return Err(BooleanError::ClassificationInvariant {
@@ -2254,8 +2261,11 @@ mod tests {
         let unread = cone
             .reads_tied(short, &[], band)
             .expect_err("the same tilt on an edge whose far end stands in band");
-        assert_eq!(unread.sector, Some(0), "the first face, named");
-        let diag = unread.why.expect("an escalation");
+        assert!(
+            matches!(unread, crate::link::Unread::Side { sector: 0, .. }),
+            "the first face's side, named: {unread:?}"
+        );
+        let diag = unread.escalation(band).expect("an escalation");
         assert_eq!(diag.predicate, Some(crate::link::LINK_PLANE));
         let margin = diag
             .margin
@@ -2271,6 +2281,135 @@ mod tests {
             Some(Material::Boundary),
             "a bound along the line"
         );
+    }
+
+    /// **A sliver wedge at an edge-edge site refuses typed** (review
+    /// probe, PR 6282): B's wedge between `+x` and a direction `1e-12`
+    /// turned from it, so its two flanks lie on one plane within the
+    /// band. A direction across the line lies on both planes, outside
+    /// both sectors, so no sector gives a reference to read it by: the
+    /// cone says so, and the site refuses as the line's faces too close
+    /// to place it, with that recourse, not as a kernel invariant.
+    #[test]
+    fn review_probe_a_sliver_at_an_edge_edge_site_refuses_typed() {
+        use crate::boolean::{Glue, GluedPairs};
+        use crate::test_support_fixtures::prism_z;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let d = 1e-12_f64;
+        let sliver = [1.0, 0.0, 0.0];
+        let turned = [d.cos(), -d.sin(), 0.0];
+        let cone = line_cone_of(&wedge_about_z(sliver, turned, 1.0));
+        let unread = cone
+            .reads_tied(Point3::new(-1.0, 0.0, 0.7), &[], band)
+            .expect_err("the sliver reads nothing across the line");
+        assert!(
+            matches!(unread, crate::link::Unread::NoReference),
+            "no reference to read by: {unread:?}"
+        );
+        let p = prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        // Each sector on a live half-edge of the prism, which the refusal
+        // names the vertices by.
+        let he = p.body.half_edges.keys().next().expect("a half-edge");
+        let live = |w: [BoolSector<f64>; 2]| w.map(|s| BoolSector { he, ..s });
+        let a = live(wedge_about_z([-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0));
+        let b = live(wedge_about_z(sliver, turned, 1.0));
+        let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
+        let got = resolve_edge_edge(
+            &a,
+            &b,
+            &p.body,
+            &p.body,
+            BooleanOp::Union,
+            &declared,
+            band,
+            [None, None],
+            [&[], &[]],
+            Wedge::at_bound(&a, 0),
+            Wedge::at_bound(&b, 0),
+            None,
+        )
+        .map(|(read, _)| read);
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::LineMaterialUnread {
+                    why: super::super::LineUnread::Unplaced,
+                    ..
+                })
+            ),
+            "a typed refusal with its recourse: {got:?}"
+        );
+    }
+
+    /// **A milliradian wedge's unread reading carries a cause** (review
+    /// probe, PR 6282; `link_line_cone_fuzz` seed `0x66dbd7a298d67d55`
+    /// found 16 of 2730 such): a flank pair a milliradian apart about a
+    /// tilted line, read by a direction along the line's opposite ray,
+    /// on both planes and outside both sectors: it reads `Out`, or
+    /// refuses for want of a reference, the cause it carries.
+    #[test]
+    fn review_a_thin_wedges_unread_carries_a_cause() {
+        use super::super::sectors::{LineSheet, line_fans};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let v = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, sr, er| BoolSector {
+            he: Default::default(),
+            start,
+            end,
+            start_reach: chord(sr),
+            end_reach: chord(er),
+            face: Default::default(),
+            arm: 1.0,
+            normal: OutwardNormal::from_chart(start.cross(end).normalize(), true),
+        };
+        let l = v(1.1386830835597155, 1.1083678797405883, -0.8879257898085735);
+        let ld = v(0.6255470621715182, 0.6088930985165015, -0.4877910081044508);
+        let secs = [
+            sector(
+                ld,
+                v(
+                    -0.8756407265252273,
+                    0.47674041926522437,
+                    0.07727800909178531,
+                ),
+                l,
+                v(
+                    -0.09833444089017884,
+                    0.05353794216976118,
+                    0.008678319300316298,
+                ),
+            ),
+            sector(
+                v(-0.8758871143819221, 0.4763624985364093, 0.07681492594450243),
+                ld,
+                v(-1.0864961131208093, 0.5909049175378623, 0.09528524520794943),
+                l,
+            ),
+        ];
+        let fans = line_fans(&secs, &[LineSheet::Start(0), LineSheet::End(1)], o, o + l);
+        let cone = crate::link::Cone::gathered(o, fans.into_iter().map(|(_, f)| f), []).unwrap();
+        let q = Point3::new(-0.5008053050815183, -0.4874724522590562, 0.3905195472673006);
+        match cone.reads_tied(q, &[], band) {
+            Ok(m) => assert_eq!(m, crate::link::Material::Out),
+            Err(unread) => assert!(
+                matches!(unread, crate::link::Unread::NoReference),
+                "an unread reading's cause: {unread:?}"
+            ),
+        }
     }
 
     /// **Material about a line is not material from its point.** A thin
@@ -3174,7 +3313,7 @@ mod tests {
     /// crossings of A's material's boundary along one line, which the
     /// insertion does not place apart (`CrossingsAlongAContactLine`).
     #[test]
-    fn two_crossings_of_a_composed_material_along_a_contact_line_refuse_typed() {
+    fn two_crossings_of_one_solids_boundary_along_a_contact_line_refuse_typed() {
         use super::super::sectors::Reach;
         use crate::boolean::{Glue, GluedPairs};
         use crate::test_support_fixtures::prism_z;

@@ -344,7 +344,7 @@ pub(crate) fn cone_classes<T: Decide>(
                 return Ok(Err(EdgeInBand {
                     edge: he,
                     face: unread
-                        .sector
+                        .sector()
                         .map(|k| {
                             faces
                                 .get(k)
@@ -352,7 +352,7 @@ pub(crate) fn cone_classes<T: Decide>(
                                 .ok_or(invariant("a cone sector has no face"))
                         })
                         .transpose()?,
-                    predicate: unread.why.and_then(|why| why.predicate),
+                    predicate: unread.predicate(),
                 }));
             }
         };

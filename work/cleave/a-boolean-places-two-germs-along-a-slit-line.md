@@ -29,7 +29,7 @@ line (an edge on it bounds the face the slit lies in), recl retypes it
 `BooleanError::SlitLineCrossed` (`crates/topo/src/boolean/recl.rs`,
 `recl_edges`'s `on_slit`), a construction gap with no lever. Any other
 line at a slit's tip keeps the lever, and the unit row
-`two_crossings_of_a_composed_material_along_a_contact_line_refuse_typed`
+`two_crossings_of_one_solids_boundary_along_a_contact_line_refuse_typed`
 pins both cases.
 
 On main the operand held the slit's line as one edge, wall | wall, lying
