@@ -69,3 +69,5 @@ mod verbs_torus_vessel;
 mod wall_jets;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "review_6394_r2_impeller.rs"]
+mod review_6394_r2_impeller;
