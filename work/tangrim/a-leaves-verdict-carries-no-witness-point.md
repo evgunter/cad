@@ -2,10 +2,11 @@
 id: a-leaves-verdict-carries-no-witness-point
 kind: issue
 title: A bound's Leaves verdict is decided on the leading term of its parting, with no witness point of the bound clearing the band
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
+branch: tangrim/leaves-witness
 ---
 
 
