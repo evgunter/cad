@@ -347,19 +347,21 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
-    /// A union's face that holds area of member faces no pairwise
-    /// judgement links (`names/README.md`, N2): the members together
-    /// glued what no two of them glued, so only N2's third clause, the
-    /// finished body holding area of both in one face, links them. That
-    /// clause reads the area each holds exactly, and the union reads its
-    /// descent only through the fold's lineage, which can hold more
-    /// member faces than the face's area does, so it refuses.
+    /// A union's face whose descent, as the fold's lineage cites it,
+    /// spans member faces no pairwise judgement links
+    /// (`names/README.md`, N2). Only N2's third clause, the finished
+    /// body holding area of both in one face, could link them, and that
+    /// clause reads the area each holds exactly; the fold's lineage can
+    /// cite a member face the face holds no area of, so the union does
+    /// not read the clause from it, and refuses.
     UnsupportedUnjudgedGlue {
         /// The finished face, a key of the union's body.
         face: FaceKey,
-        /// The member faces the fold says it descends from, each by the
-        /// read its member came in through and its name in that
-        /// member's table, in that order.
+        /// The member faces the fold's lineage cites for the face, which
+        /// can include one it holds no area of, each by the read its
+        /// member came in through and its name in that member's table,
+        /// sorted by read and then name, so the list is the same in
+        /// every member order.
         faces: Vec<(crate::VarId, StableName)>,
     },
     /// A boolean crossing whose senses no rule reads: the edge piece
@@ -597,9 +599,10 @@ shapes! {
         /// merged: along an operand rim beside one merged face.
         WithinOneOperand => "is a zipped seam between faces of one operand that are not both \
                              merged",
-        /// A union seam whose two faces descend from one parent: a pair
-        /// can merge A's face with B's where the fold skips the same
-        /// curved group.
+        /// A union seam whose two faces descend from one parent: member
+        /// faces a judgement linked (N2) that the fold holds as two
+        /// faces meeting along an edge off every member edge, which no
+        /// rule names.
         InsideOneParent => "is a union seam whose two faces descend from one parent",
     }
 }
@@ -951,9 +954,9 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::UnsupportedUnjudgedGlue { faces, .. } => write!(
                 f,
-                "{UNRULED_FRAMING}: the union's members together glued faces ({}) that no \
-                 two of them glued, and which faces such a glue holds area of is not read \
-                 exactly yet",
+                "{UNRULED_FRAMING}: a face of the union descends, by the fold's lineage, from \
+                 member faces ({}) that no two members glued together, and which of them it \
+                 holds area of is not read exactly yet",
                 faces
                     .iter()
                     .map(|(read, name)| format!(
@@ -2177,8 +2180,8 @@ mod display_tests {
                     ],
                 },
                 vec![
-                    "members together glued faces",
-                    "no two of them glued",
+                    "by the fold's lineage",
+                    "no two members glued together",
                     "the start cap",
                     "the end cap",
                     "not read exactly yet",

@@ -37,13 +37,19 @@ it holds AREA of, exactly. Two candidate sources:
   point of the finished face (cf.
   `work/issues/a-face-holds-a-point-has-no-public-door.md`).
 
-Then the edge and vertex passes need an audit: they assume every
-finished edge is a member edge's piece or a seam between two parents.
-`Flush::meeting`'s `unreachable!` ("neither a member edge's piece nor a
-seam") is reached when such faces are linked by lineage: the designer
-probe `PROBE_LINK=b` in `/home/user/reads-design-union-A/`
-(`probe2.log`) panicked there in 2 of 6 member orders of the flat
-witness. `Parents::of`'s refusal keeps it unreached today.
+Then the edge and vertex passes need an audit once faces linked by clause
+3 reach them: they assume every finished edge is a member edge's piece or
+a seam between two parents. One shape that broke this is closed: a seam a
+later fold step merged is spelled `Merged` of seams, and `name_by_parents`
+now reads a `Merged` edge off every member edge as a seam. Its rows,
+`emit_union_borders::a_cap_and_a_bar_over_a_sunk_boss_name_alike_in_every_order`
+and `emit_union_borders::a_three_member_intersect_of_a_sunk_boss_names_alike_in_every_order`,
+reached `Flush::meeting`'s `unreachable!` ("neither a member edge's piece
+nor a seam") through clause 1 in 2 of 6 member orders before that. Still
+open: a tied row whose candidates lie partly along member edges and
+partly off them falls through `group_member_edges` and would reach that
+`unreachable!` (no recipe witnesses it yet). Re-run the audit against the
+witnesses below with their faces linked, each in every member order.
 
 ## Witness
 
@@ -58,6 +64,10 @@ boss wall pieces:
   `[Union[plate, boss], lo, hi]`;
 - `two_bars_that_sever_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue`:
   two bars over the north wall piece, z 0.8 to 1.25 and z 1.2 to 2.0.
+- `two_half_bosses_and_a_bar_refuse_as_unjudged_glue`: the boss
+  intersected with a south and a north block (y 1 to 1.5, 1.5 to 2) as two
+  members and a bar z 0.4 to 1.6: a glue across members, not of one
+  member's faces.
 
 Each flips to naming when clause 3 lands, with one table in every member
 order.

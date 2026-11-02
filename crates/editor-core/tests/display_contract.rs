@@ -2651,7 +2651,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec![
                 "member read 000000000029's face (the start cap",
                 "member read 00000000002b's face (the end cap",
-                "that no two of them glued",
+                "that no two members glued together",
                 "not read exactly yet",
             ],
         ),

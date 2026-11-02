@@ -2337,26 +2337,23 @@ impl Parents {
                 });
             (member, of)
         };
-        // A finished face whose member faces no judgement links was
-        // glued by the members only together. N2's third clause links
-        // such faces by the area each holds, which the fold's lineage
-        // (it can list a member face the face holds no area of) does not
-        // read, so the face refuses here, before any edge or vertex pass
-        // reads its parents.
+        // A finished face whose lineage spans member faces no judgement
+        // links: only N2's third clause could link them, by the area
+        // each holds, and the fold's lineage can cite a member face the
+        // face holds no area of, so the clause is not read from it.
         for &(f, from, _) in &rows {
             let mut roots = from.iter().map(|&m| link.root(m));
             let first = roots.next();
             if roots.any(|r| Some(r) != first) {
-                return Err(NamingError::UnsupportedUnjudgedGlue {
-                    face: f,
-                    faces: from
-                        .iter()
-                        .map(|&m| {
-                            let (member, of) = named(m);
-                            (member.read, of.name().clone())
-                        })
-                        .collect(),
-                });
+                let mut faces: Vec<(crate::VarId, StableName)> = from
+                    .iter()
+                    .map(|&m| {
+                        let (member, of) = named(m);
+                        (member.read, of.name().clone())
+                    })
+                    .collect();
+                faces.sort();
+                return Err(NamingError::UnsupportedUnjudgedGlue { face: f, faces });
             }
         }
         let mut classes: BTreeMap<MemberFace, BTreeSet<MemberFace>> = BTreeMap::new();
@@ -2552,14 +2549,31 @@ fn name_by_parents<T: geom_core::Decide>(
     let mut held: Vec<(StableName, Entry)> = Vec::new();
 
     // ---- Seam edges, by the parents on their two sides. ----
-    let is_seam = |name: &StableName| {
-        name.kind == EntityKind::Edge && matches!(name.path.first(), Some(RoleSeg::Seam { .. }))
+    // A seam row is a `Seam`, or a `Merged` edge none of whose edges
+    // lies along a member edge: the fold step that merged two faces
+    // merges the seams they bordered, and a step later than the one
+    // that minted those seams spells the result `Merged` of them, so
+    // the fold's spelling depends on member order and the edge's place
+    // off every member edge does not.
+    let off_members = |entry: &Entry| {
+        entry.entities().iter().all(|e| {
+            matches!(e.key, EntityKey::Edge(k)
+                if !flush.edges.contains_key(&k) && !flush.spans.contains_key(&k))
+        })
+    };
+    let is_seam = |name: &StableName, entry: &Entry| {
+        name.kind == EntityKind::Edge
+            && match name.path.first() {
+                Some(RoleSeg::Seam { .. }) => true,
+                Some(RoleSeg::Merged(_)) => off_members(entry),
+                _ => false,
+            }
     };
     let mut seams: BTreeSet<topo::EdgeKey> = BTreeSet::new();
     // A unique seam row's collapsed spelling → its edge.
     let mut respelled: BTreeMap<StableName, topo::EdgeKey> = BTreeMap::new();
     for (name, entry) in t.iter() {
-        if !is_seam(name) {
+        if !is_seam(name, entry) {
             continue;
         }
         let keys = match entry {
@@ -2597,9 +2611,9 @@ fn name_by_parents<T: geom_core::Decide>(
                 shape: SeamSidesShape::NotTwoFaces,
             });
         };
-        // A pair that merges A's face with B's links them, but the fold
-        // may skip the same curved group (`SkippedMerge` reads the
-        // group's shape, and the fold's group holds more faces).
+        // Member faces a judgement linked are one parent, and the fold
+        // can still hold two of them as two faces meeting here, off every
+        // member edge; no rule names an edge inside one parent.
         if parents.of_face.get(f0) == parents.of_face.get(f1) {
             return Err(NamingError::UnsupportedSeamSides {
                 edge: k,
@@ -2676,7 +2690,7 @@ fn name_by_parents<T: geom_core::Decide>(
     };
     let mut vertices = Vec::new();
     for (name, entry) in t.iter() {
-        if name.kind == EntityKind::Face || is_seam(name) {
+        if name.kind == EntityKind::Face || is_seam(name, entry) {
             continue;
         }
         let spelled = name.clone().rewrite_path(&mut cite)?;

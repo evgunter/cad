@@ -334,13 +334,15 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 
 /// `members`' union refuses, in each order of `orders`, as the missing
 /// rule for faces the members glued only together, naming both boss wall
-/// pieces among the member faces it lists.
+/// pieces among the member faces it lists, and listing the same faces
+/// in every order.
 fn refuses_as_unjudged_glue(
     label: &str,
     doc: &ProfileDoc,
     boss: RecipeNodeId,
     orders: &[Vec<RecipeNodeId>],
 ) {
+    let mut lists: Vec<Vec<String>> = Vec::new();
     for order in orders {
         let (docx, union) = crate::fixture::union_over(doc.clone(), order);
         let ev = run(&docx);
@@ -359,6 +361,14 @@ fn refuses_as_unjudged_glue(
                 "{label} {order:?}: the refusal lists boss wall piece {piece}: {listed:?}"
             );
         }
+        lists.push(listed);
+    }
+    for (order, listed) in orders.iter().zip(&lists).skip(1) {
+        assert_eq!(
+            listed, &lists[0],
+            "{label}: order {order:?} lists other faces than {:?}",
+            orders[0]
+        );
     }
 }
 
@@ -427,6 +437,35 @@ fn two_bars_that_sever_a_sunk_boss_wall_only_together_refuse_as_unjudged_glue() 
     let (doc, low) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 0.8, 0.45);
     let (doc, high) = block_on(doc, plate, (1.4, 1.6), (1.5, 2.5), 1.2, 0.8);
     refuses_as_unjudged_glue("bars", &doc, boss, &orders_of(&[joined, low, high]));
+}
+
+/// **Two half bosses and a bar glue the wall only together.** The
+/// boss's south half (the boss intersected with a block y 1 to 1.5) and
+/// its north half (y 1.5 to 2), each a member, and a bar x 1.4 to 1.6,
+/// y 0.5 to 2.5, z 0.4 to 1.6 through both: no two of the three merge
+/// the halves' walls into one, and the fold glues faces of two
+/// members, so every order refuses as N2's third clause's missing
+/// rule.
+#[test]
+fn two_half_bosses_and_a_bar_refuse_as_unjudged_glue() {
+    let doc = ProfileDoc::empty_derived("unjudged-glue-halves", Tol::witness());
+    let (doc, [plate, boss]) = plate_and_boss(doc);
+    let (doc, south) = block_on(doc, plate, (1.0, 2.0), (1.0, 1.5), 0.4, 1.2);
+    let (doc, north) = block_on(doc, plate, (1.0, 2.0), (1.5, 2.0), 0.4, 1.2);
+    let (doc, h0) = insert(
+        doc,
+        Node::Intersect {
+            members: Bodies::Spelled(vec![boss.into(), south.into()]),
+        },
+    );
+    let (doc, h1) = insert(
+        doc,
+        Node::Intersect {
+            members: Bodies::Spelled(vec![boss.into(), north.into()]),
+        },
+    );
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.4, 1.2);
+    refuses_as_unjudged_glue("halves", &doc, boss, &orders_of(&[h0, h1, bar]));
 }
 
 /// **A split piece the fold's kills cut off is a piece, not a chord.**

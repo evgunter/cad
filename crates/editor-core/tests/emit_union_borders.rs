@@ -1810,6 +1810,37 @@ fn face_names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<Strin
         .collect()
 }
 
+/// Every row `node`'s table holds, said by tag with `node`'s own tag
+/// replaced by `NODE`, so the tables of two nodes, or of one node over
+/// two member orders, compare whole.
+fn names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
+    let tag = node.to_string();
+    table(ev, node)
+        .iter()
+        .map(|(name, _)| name.to_string().replace(&tag, "NODE"))
+        .collect()
+}
+
+/// Every one of `tables`, one per member order in `orders`, is the
+/// first: the names do not depend on member order.
+fn one_table<O: std::fmt::Debug>(label: &str, orders: &[O], tables: &[BTreeSet<String>]) {
+    assert_eq!(tables.len(), orders.len(), "{label}: every order named");
+    let Some(first) = tables.first() else {
+        panic!("{label}: no member order named");
+    };
+    for (order, t) in orders.iter().zip(tables).skip(1) {
+        assert_eq!(
+            t,
+            first,
+            "{label}: member order {order:?} names otherwise than {:?}; only there {:?}, only \
+             in the first {:?}",
+            orders[0],
+            t.difference(first).collect::<Vec<_>>(),
+            first.difference(t).collect::<Vec<_>>(),
+        );
+    }
+}
+
 /// **A bar through a sunk boss names its merged wall as the slot does.**
 ///
 /// The plate and sunk boss joined by a union; a bar x 1.4 to 1.6,
@@ -1842,8 +1873,9 @@ fn a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does() {
         failure(&sub_ev, cut)
     );
     let slot = face_names_modulo(&sub_ev, cut);
+    let orders = [[joined, bar], [bar, joined]];
     let mut tables = Vec::new();
-    for order in [[joined, bar], [bar, joined]] {
+    for order in orders {
         let (docx, barred) = crate::fixture::union_over(doc.clone(), &order);
         let ev = run(&docx);
         assert!(
@@ -1864,9 +1896,9 @@ fn a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does() {
             "{order:?}: the faces one names and the other does not are the bar's top in the \
              union and its floor in the slot: {only_union:?} against {only_slot:?}"
         );
-        tables.push(union);
+        tables.push(names_modulo(&ev, barred));
     }
-    assert_eq!(tables[0], tables[1], "the two member orders name alike");
+    one_table("bar", &orders, &tables);
 }
 
 /// **A half-block intersect of a sunk boss names its wall as one merged
@@ -1880,13 +1912,10 @@ fn a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does() {
 fn a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face() {
     let (doc, plate, boss, joined) = sunk_boss_joined();
     let (doc, half) = block_on(doc, plate, (0.0, 1.5), (0.0, 3.0), 0.5, 1.5);
-    for order in [[joined, half], [half, joined]] {
-        let (docx, both) = insert(
-            doc.clone(),
-            Node::Intersect {
-                members: editor_core::Bodies::Spelled(order.iter().map(|&m| m.into()).collect()),
-            },
-        );
+    let orders = [[joined, half], [half, joined]];
+    let mut tables = Vec::new();
+    for order in orders {
+        let (docx, both) = intersect_over(doc.clone(), &order);
         let ev = run(&docx);
         assert!(
             failure(&ev, both).is_none(),
@@ -1906,7 +1935,9 @@ fn a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face() {
             matches!(citing.as_slice(), [(name, 2)] if name.starts_with("the merged face of")),
             "{order:?}: one face cites the wall, by the merged parent of both pieces: {citing:?}"
         );
+        tables.push(names_modulo(&ev, both));
     }
+    one_table("half", &orders, &tables);
 }
 
 /// **A sunk boss joined to its plate keeps its wall's two pieces.** The
@@ -1917,7 +1948,9 @@ fn a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face() {
 fn a_sunk_boss_joined_to_its_plate_names_its_wall_pieces_apart() {
     let doc = ProfileDoc::empty_derived("sunk-boss-joined", Tol::witness());
     let (doc, [plate, boss]) = crate::wire_legal_union_refusals::plate_and_boss(doc);
-    for order in [[plate, boss], [boss, plate]] {
+    let orders = [[plate, boss], [boss, plate]];
+    let mut tables = Vec::new();
+    for order in orders {
         let (docx, joined) = crate::fixture::union_over(doc.clone(), &order);
         let ev = run(&docx);
         assert!(
@@ -1939,7 +1972,107 @@ fn a_sunk_boss_joined_to_its_plate_names_its_wall_pieces_apart() {
                 "{order:?}: the wall piece is named as its own {piece}: {name}"
             );
         }
+        tables.push(names_modulo(&ev, joined));
     }
+    one_table("joined", &orders, &tables);
+}
+
+/// An intersect of `members` in that order, inserted afresh: its node
+/// id follows the order, which [`names_modulo`] reads past.
+fn intersect_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+        },
+    )
+}
+
+/// Every face of `node` that cites a piece of the boss's wall cites
+/// both, by their `Merged` parent, and at least one does.
+fn wall_cited_merged(label: &str, ev: &Evaluation<f64>, boss: RecipeNodeId, node: RecipeNodeId) {
+    let pieces = wall_pieces(ev, boss);
+    let citing: Vec<String> = face_names_modulo(ev, node)
+        .into_iter()
+        .filter(|n| pieces.iter().any(|p| n.contains(p.as_str())))
+        .collect();
+    assert!(!citing.is_empty(), "{label}: a face cites the wall");
+    for n in &citing {
+        assert!(
+            pieces.iter().all(|p| n.contains(p.as_str())),
+            "{label}: a face citing the wall cites both its pieces, by their merged parent: {n}"
+        );
+    }
+}
+
+/// The orders of `members`, every one.
+fn every_order_of(members: [RecipeNodeId; 3]) -> Vec<Vec<RecipeNodeId>> {
+    permutations(&[0, 1, 2])
+        .into_iter()
+        .map(|o| o.into_iter().map(|i| members[i]).collect())
+        .collect()
+}
+
+/// **A merge a later fold step makes names in every member order.** The
+/// plate and sunk boss joined; a cap block x and y 1 to 2, z 1.3 to 1.8
+/// over the boss's top, whose floor meets the wall in a seam on each
+/// wall piece; and the bar of
+/// [`a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does`],
+/// whose judgement with the joined pair merges the two pieces. Folded
+/// in last, the bar's step merges the cap's two seams along with the
+/// pieces and spells the edge `Merged` of them; folded earlier, the
+/// seams are minted against the merged wall. Either way the edge lies
+/// off every member edge, between the cap's floor and the merged wall,
+/// so it is a piece of their seam, and all six orders name with one
+/// table, the wall cited by its merged parent.
+#[test]
+fn a_cap_and_a_bar_over_a_sunk_boss_name_alike_in_every_order() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, cap) = block_on(doc, plate, (1.0, 2.0), (1.0, 2.0), 1.3, 0.5);
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let orders = every_order_of([joined, cap, bar]);
+    let mut tables = Vec::new();
+    for order in &orders {
+        let (docx, u) = crate::fixture::union_over(doc.clone(), order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: the union names: {:?}",
+            failure(&ev, u)
+        );
+        wall_cited_merged(&format!("{order:?}"), &ev, boss, u);
+        tables.push(names_modulo(&ev, u));
+    }
+    one_table("cap, bar", &orders, &tables);
+}
+
+/// **A three-member intersect over a sunk boss names in every order.**
+/// The plate and sunk boss joined, the half block of
+/// [`a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face`],
+/// and a block over the whole plate, z 0.2 to 1.3: the half block's
+/// judgement merges the two wall pieces' left halves, and where its
+/// step comes after the big block's, it merges the seams the big
+/// block's top made on the two pieces, spelled `Merged` of them. All six
+/// orders name with one table, the wall cited by its merged parent.
+#[test]
+fn a_three_member_intersect_of_a_sunk_boss_names_alike_in_every_order() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, half) = block_on(doc, plate, (0.0, 1.5), (0.0, 3.0), 0.5, 1.5);
+    let (doc, big) = block_on(doc, plate, (0.0, 3.0), (0.0, 3.0), 0.2, 1.1);
+    let orders = every_order_of([joined, half, big]);
+    let mut tables = Vec::new();
+    for order in &orders {
+        let (docx, u) = intersect_over(doc.clone(), order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: the intersect names: {:?}",
+            failure(&ev, u)
+        );
+        wall_cited_merged(&format!("{order:?}"), &ev, boss, u);
+        tables.push(names_modulo(&ev, u));
+    }
+    one_table("half, big", &orders, &tables);
 }
 
 /// A plate `[0,3] × [0,2] × [0,1]` with a V-notch cut into its far
