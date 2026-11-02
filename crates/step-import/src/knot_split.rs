@@ -621,7 +621,8 @@ fn clear_of(
             Curve3::Nurbs(ref c) => Some(c.map_scalar(|x| Interval::from_bounds(x, x))),
             _ => None,
         };
-        let piece = |a: f64, b: f64| piece_box(&spec.carrier, lifted_edge.as_ref(), a, b);
+        let carrier = spec.carrier.map_scalar(|x| Interval::from_bounds(x, x));
+        let piece = |a: f64, b: f64| piece_box(&carrier, lifted_edge.as_ref(), a, b);
         parts(
             &piece,
             &near,
@@ -741,48 +742,36 @@ fn parts(
         && parts(piece, near, (m, b), finer, pad, cell)
 }
 
-/// An enclosure of `carrier` over `[a, b]`: a line's `origin + dir·t`
-/// over the interval `[a, b]`, a conic arc's certified box
-/// ([`geom::curves::boxes::conic_arc_aabb`]), a spline's restricted
-/// control hull (`lifted`, its net as intervals). `None` for a box the
-/// door poisons. Its own mapping rather than `topo`'s edge box, which
-/// reads a body's certified edge curve: there is no body yet.
+/// An enclosure of `carrier` (its data as intervals) over `[a, b]`: the
+/// bracketed box of its cover over the span ([`Curve3::cover_over`]),
+/// met, for a spline, with its restricted control hull over the piece
+/// (`lifted`'s [`NurbsCurve3::span_enclosure`]), which narrows as the
+/// piece halves where the cover's whole net does not. `None` for a
+/// carrier with no cover, or a box the door poisons. Read here rather
+/// than through `topo`'s edge cover, which reads a body's certified
+/// edge curve: there is no body yet.
 fn piece_box(
-    carrier: &Curve3<f64>,
+    carrier: &Curve3<Interval>,
     lifted: Option<&NurbsCurve3<Interval>>,
     a: f64,
     b: f64,
 ) -> Option<[Interval; 3]> {
-    let proper = |out: [Interval; 3]| out.iter().all(|c| c.lo() <= c.hi()).then_some(out);
-    match carrier {
-        Curve3::Nurbs(_) => {
-            let p = lifted?.span_enclosure(a, b)?;
-            proper([p.x, p.y, p.z])
-        }
-        Curve3::Line(geom::Line { origin, dir }) => {
-            let i = |x: f64| Interval::from_bounds(x, x);
-            let t = Interval::from_bounds(a, b);
-            proper([
-                i(origin.x) + i(dir.x) * t,
-                i(origin.y) + i(dir.y) * t,
-                i(origin.z) + i(dir.z) * t,
-            ])
-        }
-        Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
-            let bx = geom::curves::boxes::conic_arc_aabb(
-                carrier,
-                a,
-                b,
-                carrier.eval(a),
-                carrier.eval(b),
-            )?;
-            proper([
-                Interval::from_bounds(bx.min_x, bx.max_x),
-                Interval::from_bounds(bx.min_y, bx.max_y),
-                Interval::from_bounds(bx.min_z, bx.max_z),
-            ])
+    let window = geom::cover::ParamWindow::new(Interval::from_f64(a), Interval::from_f64(b));
+    let bx = carrier.cover_over(window).ok()?.aabb(0.0);
+    let mut out = [
+        (bx.min_x, bx.max_x),
+        (bx.min_y, bx.max_y),
+        (bx.min_z, bx.max_z),
+    ];
+    if let Some(net) = lifted {
+        let p = net.span_enclosure(a, b)?;
+        for (o, q) in out.iter_mut().zip([p.x, p.y, p.z]) {
+            *o = (o.0.max(q.lo()), o.1.min(q.hi()));
         }
     }
+    out.iter()
+        .all(|&(lo, hi)| lo <= hi)
+        .then(|| out.map(|(lo, hi)| Interval::from_bounds(lo, hi)))
 }
 
 /// The vertex a use starts at.

@@ -38,10 +38,12 @@
 //! is never shorter than the region it consumes, and no longer than the
 //! caller's own measure of that region from the point it is read at.**
 //! No ball chosen around the consumed region is a lever. An edge's span
-//! ([`Reach::Span`]) is levered by its cover's farthest distance from
-//! the pivot over the span it holds, read at the pivot that makes that
-//! distance least on each axis, since a short arc of a large rim
-//! reaches nowhere near its rim's size. The
+//! ([`Reach::Span`]) is levered by its whole carrier's farthest distance
+//! from the pivot that makes that distance least on each axis; a face's
+//! measures read a conic edge over the span it holds instead
+//! ([`Reach::span_reach_from`]), since a short arc of a large rim
+//! reaches nowhere near its rim's size. Both read the carrier's cover.
+//! The
 //! cylinder pair's caller ([`Reach::Measured`]) hands a length it
 //! measured, and only that pair floors it ([`Reach::lever_between`]).
 //! A plane×cylinder face's caller ([`Reach::Face`]) hands what it
@@ -180,6 +182,18 @@ fn cover_far<T: Real>(carrier: &Curve3<T>, (t0, t1): (T, T), pivot: Point3<T>) -
     carrier
         .cover_over(ParamWindow::new(t0, t1))
         .map_or_else(|_| poison(), |c| c.distance_range(&Site::Point(pivot)).1)
+}
+
+/// A span's whole carrier as a cover: a line's span (its whole carrier
+/// is unbounded), and any other carrier's over a whole turn from `t0`,
+/// which a conic reads as its whole ellipse and a spiric's and a
+/// spline's covers read whole whatever the window.
+fn whole_cover<T: Real>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> geom::cover::Covered<T> {
+    let end = match carrier.as_line() {
+        Some(_) => t1,
+        None => t0 + T::tau(),
+    };
+    carrier.cover_over(ParamWindow::new(t0, end))
 }
 
 /// The scalar's poison, through the totality policy (`Real::sqrt` of a
@@ -616,28 +630,40 @@ impl<T: Real> Reach<T> {
     /// - [`Self::Face`]: its farthest distance from `at`: the plane×cone
     ///   arm levers its trileans at it. The plane×cylinder row reads a
     ///   face from its hinge instead ([`Self::hinge_lever`]).
-    /// - [`Self::Span`]: the far distance of the carrier's cover over
-    ///   `[t0, t1]` ([`Cover::distance_range`]), never an underestimate:
-    ///   exact on a segment and a circle arc, a closed rim's whole turn
-    ///   included, which is exactly the case sampling misses.
+    /// - [`Self::Span`]: the far distance of the whole carrier's cover
+    ///   ([`whole_cover`], [`Cover::distance_range`]), whatever the
+    ///   span: a segment's over its span, a conic's round its whole turn,
+    ///   a spiric's period, a spline's net. Never an underestimate, and
+    ///   exact on a segment and a circle; a closed rim, whose two
+    ///   endpoints coincide, is exactly the case sampling misses. A face
+    ///   measure that levers its boundary edges round their carriers
+    ///   reads this (`splitting::rules::face_reach_round_from` in `topo`).
     #[must_use]
     pub fn lever_from(&self, pivot: Point3<T>) -> T {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
             Self::Measured { lever, .. } => *lever,
             Self::Face { across, .. } => *across,
-            Self::Span { carrier, t0, t1 } => cover_far(carrier, (*t0, *t1), pivot),
+            Self::Span { carrier, t0, t1 } => whole_cover(carrier, (*t0, *t1))
+                .map_or_else(|_| poison(), |c| c.distance_range(&Site::Point(pivot)).1),
         }
     }
 
     /// **The farthest the consumed region stands from `pivot`, over the
-    /// span it holds**: [`Self::lever_from`], which reads a
-    /// [`Self::Span`] over `[t0, t1]` through its cover. The face
-    /// measures read it (`splitting::rules::face_reach_from` in `topo`);
-    /// the section arms' anchors read [`Self::lever_from`].
+    /// span it holds**: [`Self::lever_from`], except that a
+    /// [`Self::Span`] is read through its cover over `[t0, t1]` rather
+    /// than round its whole carrier, which on a short arc of a large
+    /// conic is the conic's size, not the arc's: exact on a circle arc,
+    /// and past an ellipse arc by at most a quarter of its span's bulge.
+    /// Never past [`Self::lever_from`]. The face measures read it
+    /// (`splitting::rules::face_reach_from` in `topo`); the section arms'
+    /// anchors read [`Self::lever_from`].
     #[must_use]
     pub fn span_reach_from(&self, pivot: Point3<T>) -> T {
-        self.lever_from(pivot)
+        match self {
+            Self::Span { carrier, t0, t1 } => cover_far(carrier, (*t0, *t1), pivot),
+            Self::Ball(_) | Self::Measured { .. } | Self::Face { .. } => self.lever_from(pivot),
+        }
     }
 
     /// How far the consumed region reaches from `pivot` along `dir`,
@@ -921,8 +947,8 @@ mod tests {
     use geom::Surface;
 
     /// **A conic span's lever reaches every point of it** from any pivot,
-    /// and on the circle no farther than its farthest point: the span's
-    /// cover, not the whole turn's centre distance plus the radius.
+    /// round the whole turn, and on the circle no farther than the whole
+    /// circle's farthest point.
     #[test]
     fn a_conic_spans_lever_reaches_every_point() {
         let pivot = Point3::new(0.3, -0.2, 0.7);
@@ -951,7 +977,7 @@ mod tests {
             .lever_from(pivot);
             let mut farthest = 0.0_f64;
             for k in 0..=720 {
-                let t = f64::from(k) / 720.0;
+                let t = core::f64::consts::TAU * f64::from(k) / 720.0;
                 let far = (carrier.eval(t) - pivot).norm();
                 farthest = farthest.max(far);
                 assert!(
@@ -959,10 +985,16 @@ mod tests {
                     "{carrier:?}: {lever} falls short of {far} at {t}"
                 );
             }
-            if let Curve3::Circle(_) = carrier {
+            if let Curve3::Circle(c) = &carrier {
+                // The whole circle's farthest point from the pivot, exactly:
+                // `√(h² + (ρ + r)²)`, `h` off its plane, `ρ` across it.
+                let w = pivot - c.frame.center;
+                let h = w.dot(c.frame.axis);
+                let rho = (w - c.frame.axis * h).norm();
+                let exact = (h * h + (rho + c.radius).powi(2)).sqrt();
                 assert!(
-                    lever <= farthest + 1e-9,
-                    "{carrier:?}: {lever} passes the span's farthest point {farthest}"
+                    (lever - exact).abs() <= 1e-12 && farthest <= exact,
+                    "{carrier:?}: {lever} is not the circle's farthest point {exact}"
                 );
             }
         }

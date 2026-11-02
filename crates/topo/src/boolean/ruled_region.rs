@@ -384,21 +384,21 @@ pub(crate) fn ruled_face_region<T: Decide>(
 
 /// The lever of a face's crossings ([`RuledFaceRegion::reach`]): the
 /// cylinder's radius, or a bound on the farthest the cone face's
-/// boundary reaches from the apex, never under it. It is bounded edge by
-/// edge: a segment's distance from the apex is convex along it, so its
-/// farther end bounds it, and a conic lies within its larger semi-axis
-/// of its centre.
+/// boundary reaches from the apex, never under it: edge by edge, its
+/// cover's farthest distance from the apex over its span
+/// ([`geom::Curve3::cover_over`]), poison for an edge with no cover.
 fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
     match *surface {
         Ruled::Cylinder { radius, .. } => radius,
         Ruled::Cone { apex, .. } => edges
             .iter()
-            .map(|e| match e.carrier {
-                geom::Curve3::Line(_) => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
-                ref conic => {
-                    let c = conic_of(conic);
-                    (c.frame().center - apex).norm() + c.speed_hi()
-                }
+            .map(|e| {
+                e.carrier
+                    .cover_over(geom::cover::ParamWindow::new(e.t0, e.t1))
+                    .map_or_else(
+                        |_| (T::zero() - T::one()).sqrt(),
+                        |c| c.distance_range(&geom::cover::Site::Point(apex)).1,
+                    )
             })
             .fold(T::zero(), T::max),
     }

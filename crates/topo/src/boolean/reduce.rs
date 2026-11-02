@@ -7805,7 +7805,7 @@ mod operand_gate_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod neighbour_extent_rows {
     use super::gate_maximal_faces;
-    use crate::boolean::{BooleanDecision, BooleanError, Operand, PlaneRung};
+    use crate::boolean::{BooleanError, Operand};
     use crate::entity::{EntityId, GeomRef};
     use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
     use geom_core::{Band, Point3, Tol};
@@ -7828,14 +7828,18 @@ mod neighbour_extent_rows {
         (p.body, p.top_face, first)
     }
 
-    /// **An open edge that spans less than the band leaves the
-    /// orientation undecided** (no over-acceptance): a unit triangle
-    /// planted in the top on a key of its own holding the top's plane,
-    /// its corners then drawn in to sides in the middle of the run's
-    /// ambiguity band. No public door builds
-    /// it, since an edge that short does not certify.
+    /// **The gate levers an edge at its carrier's span, not at its
+    /// vertices' chord**: a unit triangle planted in the top on a key of
+    /// its own holding the top's plane, its corners then drawn in to
+    /// sides in the middle of the run's ambiguity band while its sides'
+    /// carriers keep their unit spans. No public door builds it, since
+    /// an edge that short does not certify. Each edge's cover (its
+    /// carrier's segment hulled with its ends) reaches about 1 m from its
+    /// start, so the one plane the two faces share is decided there, and
+    /// the triangle is a non-maximal face. Levered at the vertices' chord
+    /// (`s`, inside the band) the orientation stayed undecided.
     #[test]
-    fn a_short_open_edge_leaves_the_orientation_undecided() {
+    fn a_shrunk_edge_is_levered_at_its_carriers_span() {
         let tol = Tol::witness();
         let (mut body, top, at) = top();
         let unit = [
@@ -7870,14 +7874,17 @@ mod neighbour_extent_rows {
             body.points[key] = Point3::new(1.0 + small[i].0, 1.0 + small[i].1, 1.0);
         }
         let err = gate_maximal_faces(&body, Operand::A, band())
-            .expect_err("a short edge decides nothing");
-        let BooleanError::Escalated {
-            decision: BooleanDecision::Neighbours(PlaneRung::Orientation),
-            ..
-        } = err
-        else {
-            panic!("the orientation rung is undecided: {err:?}");
-        };
+            .expect_err("the triangle shares the top's plane");
+        assert!(
+            matches!(
+                err,
+                BooleanError::NonMaximalFaces {
+                    operand: Operand::A,
+                    ..
+                }
+            ),
+            "the one plane is decided at the carriers' reach: {err:?}"
+        );
     }
 
     /// **A curve lookup that fails is a kernel bug, never read as a

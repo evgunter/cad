@@ -111,10 +111,10 @@
 //!   (a box, direction or depth gap), and costs probes, never a wrong
 //!   clear (`bool4r1_probes::probe_d`).
 //! - `census::depth_gap`, arm 1's clear on a gap in depth, GRANTS: it
-//!   reads [`face_box_rule`]'s and [`edge_box_rule`]'s construction and
-//!   carrier, never an extent, and covers each boundary edge with the
-//!   piece the rule names (a chord, the ellipse's ring, the spiric's torus). A cover
-//!   that holds more than its edge — `NoSoundBox` where a claim
+//!   reads [`face_box_rule`]'s construction and each boundary edge's
+//!   carrier, never an extent, and covers each edge with the piece its
+//!   carrier names (a chord, the ellipse's ring, the spiric's torus). A cover
+//!   that holds more than its edge — no claim where one
 //!   exists, a ring wider than the arc — can only raise a face's
 //!   greatest depth and lower its least, so a looser reading REFUSES
 //!   a pair that is apart and can never clear one that meets. A cover
@@ -122,10 +122,10 @@
 //!   carrier) is the unsound direction: it could clear a pair that
 //!   meets.
 //! - `census::in_plane`, arm 1's clear in a plane, GRANTS: it reads
-//!   [`edge_box_rule`]'s construction only to tell a line edge, whose
+//!   carrier's kind only to tell a line edge, whose
 //!   ends decide which side of a plane it lies on, from any other,
-//!   whose reach must lie definitely off the plane. A looser rule (a
-//!   line read as `NoSoundBox`) only asks more of the edge and REFUSES
+//!   whose reach must lie definitely off the plane. A looser read (a
+//!   line read as curved) only asks more of the edge and REFUSES
 //!   a pair that is apart; a chord named for a curved carrier is the
 //!   unsound direction, reading a curve by its ends.
 //! - `pieces`'s screen (`pieces::Screen`, its face boxes built by the
@@ -165,25 +165,20 @@
 //! [`FaceBoxRule`] is the ONE statement of which surface kinds have a
 //! cheap sound box and by what construction; [`face_box`] is its
 //! `f64`-bracket instantiation and `census`'s `face_reach_in` is its
-//! instantiation at the census's own scalar; [`edge_rule_box`] is the
-//! same for [`EdgeBoxRule`], read by [`edge_box`] and the census's edge
-//! reach. **Neither re-derives an extent**: the per-kind arithmetic
-//! lives once, in [`slab_extent`], [`cone_frustum_extent`],
-//! [`ball_extent`], [`torus_extent`], [`ring_window_extent`],
-//! [`torus_rect_extent`] and [`conic_extent`], written
-//! against [`Span`] so a lane on the [`Bounds`] allowlist and a lane
-//! off it can both enter it — the first with `[lo(), hi()]` brackets at
-//! `f64`, the second with degenerate spans at its own `T` — and the
-//! spiric's in `geom::spiric_period_box`, which both lanes and `geom`'s
-//! own spiric door run at the rule's scalar. A conic ARC's extent, the
-//! edge box's and [`edge_axial_span`]'s alike, is `geom`'s directional
-//! extremum (`geom::curves::boxes::conic_arc_extent_along`): it asks no
-//! comparison of its scalar, so the census runs it at its own `T` and
-//! the bracket lane runs its certified twin, and this module spells no
-//! arc amplitude of its own. What the census still owns is
-//! its arena WALK and its answer for a description with no claim in
-//! it (`None`, versus the poison box here); neither is arithmetic,
-//! and the census comment states both.
+//! instantiation at the census's own scalar. **Neither re-derives an
+//! extent**: the per-kind arithmetic lives once, in [`slab_extent`],
+//! [`cone_frustum_extent`], [`ball_extent`], [`torus_extent`],
+//! [`ring_window_extent`], [`torus_rect_extent`] and [`conic_extent`],
+//! written against [`Span`] so a lane on the [`Bounds`] allowlist and a
+//! lane off it can both enter it — the first with `[lo(), hi()]`
+//! brackets at `f64`, the second with degenerate spans at its own `T`.
+//! An EDGE has no rule here: the region it occupies is its cover
+//! ([`edge_cover`]), whose one kind match is `geom`'s
+//! `Curve3::cover_over`, and every edge door reads that cover's methods
+//! ([`edge_box`] its bracketed world box, the census its box in a frame,
+//! the slab arms its support along an axis, [`cover_axial`]). What the
+//! census still owns is its arena WALK and its answer for an edge with
+//! no cover (`None`, versus the poison box here); neither is arithmetic.
 //!
 //! An allowlisted [`geom_core::Bounds`] seam (ratified 2026-07-29 —
 //! see geom-core `real.rs`, Bounds scope rule; the C10 tree is the
@@ -255,9 +250,7 @@ pub(crate) const BOX_CYLINDER_AXIS: &str = "bool_box_cylinder_axis";
 /// enclosed rather than sampled at one arbitrary endpoint. Rounding
 /// is NOT directed. No extent written here takes the root of a
 /// cancelling difference, so the arithmetic's own error is a few ulps
-/// of the box's scale; the one that would (the spiric's) lives in
-/// `geom::spiric_period_box`, which charges for its rounding and
-/// encloses by itself. The `f64` lane's last step is [`Aabb::padded`],
+/// of the box's scale. The `f64` lane's last step is [`Aabb::padded`],
 /// whose outward ulp plus [`sweep_pad`] dominates those few ulps. The
 /// census lane adds no pad, so at `f64` its boxes may fall short of the
 /// locus by them: that this costs nothing rests on what each census
@@ -1149,7 +1142,7 @@ pub(crate) fn circle_box<T: Bounds>(
 ///   `t = v·cos α` its radial offset is `|t|·tan α` EXACTLY. `t` is
 ///   linear in the chart, so its extremes over a trimmed face lie on
 ///   the face's boundary exactly as the cylinder's do
-///   ([`edge_axial_span`]), and [`cone_frustum_extent`] boxes the frustum
+///   ([`cover_axial`]), and [`cone_frustum_extent`] boxes the frustum
 ///   that window cuts. Pinning the radius at the window's widest end
 ///   instead is what makes a pucker read as if it were the whole
 ///   cone, and doors that read overlap as "may meet" pay it in
@@ -2327,8 +2320,8 @@ pub(crate) mod tests {
     /// so the endpoints are unchanged. That is not a contrivance — the
     /// split lane mints rims this way, and `cyl_wall`'s descending rim
     /// below is one — and a per-coordinate triangle bound
-    /// `|û_i|·a + |v̂_i|·b` is not invariant under it; the amplitude
-    /// [`EdgeBoxRule::ConicAmplitude`] states is.
+    /// `|û_i|·a + |v̂_i|·b` is not invariant under it; the arc cover's
+    /// amplitude is.
     fn arc_sector_from(r: f64, span: f64, phi: f64) -> (Body<f64>, FaceKey) {
         circle_sector(r, 0.0, span, phi)
     }
@@ -3936,7 +3929,7 @@ pub(crate) mod tests {
     /// widest ring the whole cone reaches.
     ///
     /// Both rims are circles PERPENDICULAR to the axis, so their
-    /// axial image is a point ([`edge_axial_span`]) and the window is
+    /// axial image is a point ([`cover_axial`]) and the window is
     /// exactly `[z0, z1]` whatever the azimuth span — which is what
     /// makes this row a formula in the fixture's own parameters
     /// rather than in a box around its boundary.
@@ -5451,7 +5444,7 @@ pub(crate) mod tests {
     }
 
     /// **The spiric arm of `edge_box`, and the census's reach twin,
-    /// contain the arc** — the two readers of [`EdgeBoxRule::Spiric`],
+    /// contain the arc** — the two readers of a spiric edge's cover,
     /// each executed on the hand-built sector. The whole-period box
     /// is asserted over the whole period, which is what the door claims,
     /// with no slack on either: each sample is the elbow's point

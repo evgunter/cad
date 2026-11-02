@@ -215,7 +215,7 @@ fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
 /// **Row 3 — the box.** 10⁴ sampled points of each minted rim lie
 /// inside its certified box on every axis, through `geom`'s door
 /// (`conic_arc_aabb` → `spiric_arc_aabb`). The boolean's own reader
-/// (`edge_box_rule` → `edge_box`) is crate-private and no public door
+/// (`edge_cover` → `edge_box`) is crate-private and no public door
 /// reaches its spiric arm at this head; `topo`'s in-src row
 /// `the_spiric_edge_box_and_reach_contain_a_dense_sample` executes it
 /// on a hand-built sector.

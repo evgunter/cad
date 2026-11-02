@@ -7008,7 +7008,7 @@ fn same_solid_tangent_pair<T: Decide>(
     }
 }
 
-/// **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated at
+/// **`boolean::boxes`'s `FaceBoxRule` and the edges' covers, instantiated at
 /// this lane's scalar.** Both the rules — which kinds have a cheap
 /// sound superset, and by what construction — AND the extent
 /// arithmetic that realizes them come from there: the per-kind

@@ -4787,15 +4787,12 @@ enum EdgeArc<T: Real> {
 /// parameter, so it is the carrier's `(t₀, t₁)` reversed on a minus
 /// half-edge. A piece holds its arc, and so the region between the arc
 /// and its chord, in a ball about the window's midpoint point, radius a
-/// bound on the carrier's speed times the window's half-width: a
-/// spiric's [`carrier_ball`], or the spline's
-/// [`geom::NurbsCurve3::speed_upper_bound`] for a spline. A
-/// spline also lies in its control net's ball ([`carrier_ball`]'s),
-/// which is the smaller for a strongly rational or tightly knotted net,
-/// so a spline piece is read in the smaller of the two. A piece splits
-/// at its window's midpoint into two that do the same.
-///
-/// [`carrier_ball`]: crate::splitting::containment::carrier_ball
+/// bound on the carrier's speed times the window's half-width. It also
+/// lies in its cover's ball ([`geom::cover::Cover::ball`], a spline's
+/// control net's, a spiric's period's), which is the smaller for a
+/// strongly rational or tightly knotted net, so a piece is read in the
+/// smaller of the two. A piece splits at its window's midpoint into two
+/// that do the same.
 #[derive(Clone)]
 struct ArcPiece<T: Real> {
     carrier: geom::Curve3<T>,

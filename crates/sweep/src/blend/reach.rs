@@ -1783,29 +1783,15 @@ fn sheet_clip<T: Decide + Bounds>(
             let (t0, t1) = cert.params();
             let carrier = cert.carrier();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-            let aabb = match carrier {
-                Curve3::Line(_) => {
-                    let lo = |k: fn(&Point3<T>) -> T| k(&p0).min(k(&p1));
-                    let hi = |k: fn(&Point3<T>) -> T| k(&p0).max(k(&p1));
-                    [
-                        [lo(|p| p.x).lo(), lo(|p| p.y).lo(), lo(|p| p.z).lo()],
-                        [hi(|p| p.x).hi(), hi(|p| p.y).hi(), hi(|p| p.z).hi()],
-                    ]
-                }
-                Curve3::Circle(..) => {
-                    let b = geom::curves::boxes::circle_arc_aabb(carrier, t0, t1, p0, p1)?;
-                    [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
-                }
-                Curve3::Ellipse(..) => {
-                    let b = geom::curves::boxes::ellipse_arc_aabb(carrier, t0, t1, p0, p1)?;
-                    [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
-                }
-                Curve3::Nurbs(n) => {
-                    let b = geom::curves::boxes::nurbs_curve_aabb(n);
-                    [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
-                }
-                Curve3::Spiric { .. } => return None,
-            };
+            // The edge's world box, from its cover over the span hulled
+            // with its ends.
+            let ends = geom::cover::Cover::points(vec![p0, p1])?;
+            let b = carrier
+                .cover_over(geom::cover::ParamWindow::new(t0, t1))
+                .ok()?
+                .hull(ends)
+                .aabb(0.0);
+            let aabb = [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]];
             if aabb.iter().flatten().any(|v| !v.is_finite()) {
                 return None;
             }
