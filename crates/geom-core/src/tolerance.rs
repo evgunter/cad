@@ -1082,10 +1082,12 @@ mod tests {
         assert!(
             admissible(COORDINATE_FLOOR, 1e6) && !admissible(COORDINATE_FLOOR.next_down(), 1e6)
         );
-        assert!(
-            EPS_MIN > COORDINATE_FLOOR,
-            "at the default K the headroom binds first"
-        );
+        const {
+            assert!(
+                EPS_MIN > COORDINATE_FLOOR,
+                "at the default K the headroom binds first"
+            );
+        }
     }
 
     /// **A refusal names the K it was asked at, and that K's least ε**: at
