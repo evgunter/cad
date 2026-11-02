@@ -2,7 +2,7 @@
 id: an-empty-profile-is-a-document-state
 kind: unit
 title: A profile with no loops is an ordinary document state; a sweep of it refuses at the sweep
-status: dispatched
+status: review
 opened: 2026-11-02
 priority: P1
 cost: M
