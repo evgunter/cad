@@ -4,18 +4,22 @@ kind: issue
 title: the circular-pattern gesture reads a moved body's axis off the body it was moved from, so the ring's mate is refused NotOnTheCopy
 status: open
 opened: 2026-11-02
+priority: P1
+cost: M
 ---
 
 
 
 Found by `placing/pattern-direction` (the sweep for its row
 `a-linear-patterns-direction-components-land-in-its-slides`), run, not
-only traced, at `c3626bf54a`.
+only traced, at `c3626bf54a`, and run again after PR 6356 retired the
+transform gesture into the placement editor (merge of `origin/main` at
+`d21c469a2a`): it still refuses.
 
 **What.** `SessionOp::AddPattern` with a `PatternRuleSpec::Circular`
-rule on a body the transform gesture moved (`combine_ops`'s
-`two_boxes` second block: a `Place` of the raw block into the raw
-block's own space) is refused at the door:
+rule on a body the Transform tool's Create door moved (`combine_ops`'s
+`two_boxes` second block, `common::moved_to`: a `Place` of the raw
+block into the raw block's own space) is refused at the door:
 `Refusal::Edit(MateRefused { fault: NotOnTheCopy { .. } })`.
 
 **Why.** `DocSession::add_pattern` (`crates/viewer/src/session.rs`)
