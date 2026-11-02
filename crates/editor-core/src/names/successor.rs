@@ -1,16 +1,21 @@
-//! **Where a name read in one variable went, in a table that carries
-//! that variable in** (N1, N3): the successor query a takeover rebinds
-//! its references by (`crate::take_over`).
+//! **Where a name read in one body went, in a table that carries that
+//! body in through one or more reads** (N1, N3): the successor query a
+//! takeover rebinds its references by (`crate::take_over`).
 //!
 //! An operation carries an entity of an input in as
 //! `From { read, of }`, or, where it merges faces or edges, as one
-//! member of a `Merged` set. A name `of` of the variable `read` has a
-//! **successor** in a table when exactly one row of it is that carry,
-//! alone or as a member of its set, and that row is unique. A fragment
-//! of it, a borders-qualified piece, a tie, or two rows that each hold
-//! it, is no successor: which entity the name now means is a choice,
-//! and the reference stays stale for the person to make it (N5's
-//! `Rebind`).
+//! member of a `Merged` set. A name `of` has a **successor** in a table,
+//! among the reads the query is asked about, when exactly one carry of
+//! it from one of those reads is found, alone or as a member of its
+//! set, and the row holding it is unique. A fragment of it, a
+//! borders-qualified piece, a tie, or two carries of it (two rows, or
+//! two members of one set, from one read or from two), is no successor:
+//! which entity the name now means is a choice, and the reference stays
+//! stale for the person to make it (N5's `Rebind`).
+//!
+//! Which reads hold a body's entities as themselves is the caller's to
+//! say (`Recording::take_over`); this query answers for the carries of
+//! the reads it is handed, and nothing deeper.
 //!
 //! **Why this is not `merged.rs`'s walk.** That walk reads a set
 //! through its descent wrappers (`From` of any read, and `Inner`) to
@@ -19,16 +24,13 @@
 //! another read is a carry through some other operation: the entity
 //! there is that operation's, and it is the body's only where that
 //! operation carried it whole and once, which is a successor question
-//! about that operation's own table, not this one's. This query answers
-//! for the carries of the one read it is asked about, and nothing
-//! deeper. What the two share is only the one-level shape of a carry
-//! and of a set.
+//! about that operation's own table, not this one's. What the two share
+//! is only the one-level shape of a carry and of a set.
 //!
-//! So a result answers here only for what it carries of the taken read
-//! directly. Most takeovers' results read the taken body directly (a
-//! feature of it, a union or a combine over it). A fused pattern's
-//! union reads it through its family, carrying each face once per
-//! member, so its takeover has no successor for any face (issue
+//! So a result answers here only for what it carries of the reads it is
+//! asked about directly. A fused pattern's union reads the body through
+//! its family, carrying each face once per member, so its takeover has
+//! no successor for any face (issue
 //! `work/doors/a-fused-patterns-takeover-rebinds-nothing.md`). A copy
 //! of a copy carries its source's names as they are, with no carry at
 //! all; the door follows those placement chains itself
@@ -40,24 +42,25 @@ use super::role::{RoleSeg, StableName};
 use super::table::{Entry, NameTable};
 use crate::VarId;
 
-/// **The successor in `table` of each name of `read` it carries in**,
-/// keyed by that name.
+/// **The successor in `table` of each name it carries in from any of
+/// `reads`**, keyed by that name.
 ///
-/// A row counts when its whole path is `[From { read, of }]`, or
-/// `[Merged(set)]` with that carry among the set; a row with more
-/// segments (a fragment, a borders qualifier) carries a piece of `of`
-/// and does not count. A name two rows count for, or whose one row
-/// is tied, has no successor and is left out.
-pub fn successors(table: &NameTable, read: VarId) -> BTreeMap<StableName, StableName> {
+/// A carry counts when a row's whole path is `[From { read, of }]` with
+/// `read` among `reads`, or `[Merged(set)]` with such a carry among the
+/// set; a row with more segments (a fragment, a borders qualifier)
+/// carries a piece of `of` and does not count. A name counted twice
+/// (by two rows, or by two members of one set), or whose one row is
+/// tied, has no successor and is left out.
+pub fn successors(table: &NameTable, reads: &[VarId]) -> BTreeMap<StableName, StableName> {
     let mut found: BTreeMap<&StableName, Vec<(&StableName, bool)>> = BTreeMap::new();
     for (row, entry) in table.iter() {
         let unique = matches!(entry, Entry::Unique(_));
         let carried: Vec<&StableName> = match row.path.as_slice() {
-            [RoleSeg::From { read: r, of }] if *r == read => vec![of.name()],
+            [RoleSeg::From { read: r, of }] if reads.contains(r) => vec![of.name()],
             [RoleSeg::Merged(set)] => set
                 .iter()
                 .filter_map(|member| match member.path.as_slice() {
-                    [RoleSeg::From { read: r, of }] if *r == read => Some(of.name()),
+                    [RoleSeg::From { read: r, of }] if reads.contains(r) => Some(of.name()),
                     _ => None,
                 })
                 .collect(),
@@ -98,6 +101,14 @@ impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrit
     for Recarry<'_, M>
 {
     type Error = core::convert::Infallible;
+
+    /// A successor stays in its document: a section id is kept.
+    fn section(
+        &mut self,
+        s: crate::node::SectionId,
+    ) -> Result<crate::node::SectionId, Self::Error> {
+        Ok(s)
+    }
 
     fn carried(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
         Ok(
@@ -220,11 +231,82 @@ mod a_successor_is_one_whole_unique_row {
         table
             .insert_tied(from(READ, own(3)), vec![ent(10), ent(11)])
             .expect("a tie");
-        let found = successors(&table, READ);
+        let found = successors(&table, &[READ]);
         assert_eq!(
             found,
             BTreeMap::from([(own(0), whole.clone()), (own(1), set.clone())]),
             "the whole row and the set; not the piece, the tie, the other read or the name two rows hold"
+        );
+    }
+
+    /// **A set with members from two of the reads asked about**: each
+    /// member's name has the set's row as its successor, as a set with
+    /// members from one read does. Asked about one read alone, only that
+    /// read's member does. Goes red if a set's members are counted
+    /// against the first read only.
+    #[test]
+    fn a_set_with_members_from_two_reads_succeeds_each() {
+        let mut table = NameTable::new();
+        let set = name(
+            2,
+            vec![RoleSeg::Merged(vec![
+                from(READ, own(1)),
+                from(OTHER, own(2)),
+            ])],
+        );
+        table.insert(set.clone(), ent(0)).expect("one row");
+        assert_eq!(
+            successors(&table, &[READ, OTHER]),
+            BTreeMap::from([(own(1), set.clone()), (own(2), set.clone())]),
+            "both members, through the one set"
+        );
+        assert_eq!(
+            successors(&table, &[OTHER]),
+            BTreeMap::from([(own(2), set)]),
+            "asked about one read, its member alone"
+        );
+    }
+
+    /// **One name carried from two of the reads asked about** — by two
+    /// rows, or by two members of one set — has no successor: the query
+    /// does not say which carry is the entity. Asked about one of the
+    /// reads, each such name has its one carry back. Goes red if a set's
+    /// carries of one name are counted once per row rather than once per
+    /// carry, or if only the first read is asked about.
+    #[test]
+    fn a_name_carried_from_two_reads_has_no_successor() {
+        let mut rows = NameTable::new();
+        let first = from(READ, own(3));
+        let second = from(OTHER, own(3));
+        rows.insert(first.clone(), ent(0)).expect("distinct rows");
+        rows.insert(second, ent(1)).expect("distinct rows");
+        assert!(
+            successors(&rows, &[READ, OTHER]).is_empty(),
+            "two rows carry the name: none"
+        );
+        assert_eq!(
+            successors(&rows, &[READ]),
+            BTreeMap::from([(own(3), first)]),
+            "one read asked about: its row"
+        );
+
+        let mut set = NameTable::new();
+        let both = name(
+            2,
+            vec![RoleSeg::Merged(vec![
+                from(READ, own(4)),
+                from(OTHER, own(4)),
+            ])],
+        );
+        set.insert(both.clone(), ent(0)).expect("one row");
+        assert!(
+            successors(&set, &[READ, OTHER]).is_empty(),
+            "two members of one set carry the name: none"
+        );
+        assert_eq!(
+            successors(&set, &[OTHER]),
+            BTreeMap::from([(own(4), both)]),
+            "one read asked about: the set"
         );
     }
 

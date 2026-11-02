@@ -49,3 +49,24 @@ and turn the pin into a build.
 the apex BETWEEN a seam vertex's two copies, rather than meeting itself
 there. The same `require_cone_loop_vertices_distinct` refuses it, because
 the azimuth turn is lost at the apex.
+
+## 2026-11-02 (SPLITDOOR, `splitdoor/cone-apex-vertex-pairs` fix pass)
+
+`cone_loop_winding` now reads a loop's vertex azimuths from the edge that
+leaves the apex, where the loop passes it, so no two vertices off the
+apex have it between them in accumulation order.
+
+**What it covers:** a loop that passes the apex ONCE, between a seam
+vertex's two copies. That is the wrap-tipped cone less a box whose side
+holds the seam (`a_small_box_whose_side_holds_the_wrap_seam_builds_every_op`,
+and the unit row `props::curved::apex_start_rows`). Such a loop used to
+be refused `props_cone_loop_vertex`, or measured, depending on where it
+started.
+
+**What it does not cover:** this row's case, a loop that passes the apex
+TWICE, two lobes meeting only there. Its second apex vertex has no
+azimuth, and `require_cone_loop_vertices_distinct` still refuses it. The
+Boolean still names it first (`ResultPinchedAtConeApex`). This row's
+status is left to CONEARM.
+
+— SPLITDOOR

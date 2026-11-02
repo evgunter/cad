@@ -14,7 +14,7 @@
 //! to about `u·A`, however close to the origin the arc lies. Read so,
 //! the resolution is the same wherever the part sits.
 
-use geom::{Curve3, CurveKind};
+use geom::Curve3;
 use geom_core::SpanLocate;
 use geom_core::running::UNIT_ROUNDOFF;
 
@@ -51,10 +51,10 @@ pub fn resolution<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Option<T>
     let speed = speed_hi(carrier)?;
     let tau = t0.abs().max(t1.abs());
     // `speed_hi` answers a line and the conics alone.
-    let reach = if carrier.kind() == CurveKind::Line {
-        tau
-    } else {
+    let reach = if carrier.is_curved() {
         T::from_f64(2.0)
+    } else {
+        tau
     };
     Some(T::from_f64(UNIT_ROUNDOFF) * speed * (T::from_f64(RESOLUTION_ROUNDINGS) * reach + tau))
 }
@@ -382,11 +382,13 @@ mod tests {
     /// charged its distance from the arc.
     #[test]
     fn the_resolution_reads_the_window_not_the_origin() {
-        let circle = |x0: f64| Curve3::Circle {
-            center: Point3::new(x0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
+        let circle = |x0: f64| {
+            Curve3::circle(
+                Point3::new(x0, 0.0, 0.0),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            )
         };
         let at_origin = resolution(&circle(0.0), 0.0, 0.1).unwrap();
         for x0 in [30.0, 1e3, 3e4] {
@@ -396,13 +398,11 @@ mod tests {
                 "x0 {x0}"
             );
         }
-        let far = Curve3::Ellipse {
-            center: Point3::new(-1e5, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            semi_u: 1e5,
-            semi_v: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let far = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(-1e5, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            1e5,
+            1.0,
+        ));
         let rho = resolution(&far, -1e-3, 1e-3).unwrap();
         assert!(rho > 2e-10 && rho < 1e-9, "{rho:e}");
         let spiric = Curve3::Spiric {

@@ -441,7 +441,7 @@ fn on_pair(sides: (SurfaceKey, SurfaceKey), pair: SurfacePair) -> bool {
 /// cylinder), when a consumer needs non-circle rims.
 fn seed_is_an_arc<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<(), RimError> {
     match crate::readback::edge_carrier_ref(body, edge) {
-        Ok(Curve3::Circle { .. }) => Ok(()),
+        Ok(Curve3::Circle(..)) => Ok(()),
         Ok(other) => Err(RimError::NotAnArc {
             edge,
             kind: Some(other.kind()),

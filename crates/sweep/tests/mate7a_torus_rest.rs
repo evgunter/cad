@@ -45,7 +45,7 @@ fn window(deg: f64) -> TubeWindow<f64> {
 /// Segment A of the chain: a tube along the lily's lower stem arc,
 /// starting at the origin heading `+z`. `None` at ε = 1e-12, where its
 /// torus wall is past limb 2's reach (the kernel's limit,
-/// `work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
+/// `work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`),
 /// as for segment B and the socket.
 fn segment_a() -> Option<AtRestBody<f64>> {
     let body = tube_along_arc(

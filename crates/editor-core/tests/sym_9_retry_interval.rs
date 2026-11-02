@@ -3,7 +3,7 @@
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s unit,
 //! taken at the nominal on five of the six measured documents (R2's
 //! rounded pad does not return a nominal replay on a four-core box:
-//! `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
+//! `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
 //! the leaf instrument in `m10_10_evidence_interval` takes it).
 //!
 //! The instrument is the RETRY LADDER itself (`geom_core::sym::SymRetry`)
@@ -184,7 +184,7 @@ fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
 /// report the unit's dispatch recorded as exhausting a four-core box's
 /// memory (this lane's own two pad runs did not return a first replay
 /// with the report on or off:
-/// `work/rules/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+/// `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 /// The counts are the same either way: the report is a recorder, the
 /// receipt is the session's own.
 fn replay(
@@ -666,7 +666,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // 979 -> 991 there); the rest is unbisected, and the same documents'
     // counts moved with PR 5728 and PR 5811
     // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`,
-    // `work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // `work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     // With the ladder and without it still read alike. Then PR 5952
     // (the profile's simplicity pass reads no gap on a line pair that
     // shares a vertex) took 8 numeric decisions off the plate and 10 off
@@ -677,9 +677,20 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // four per attempt and the ladder recovers them and two more, the
     // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
     // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
+    // A cylinder rim's axial `cos t` and `sin t` terms are decided at
+    // `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
+    // `cylinder_rim_axial`, PR 6105), which the tier proves `Zero` on
+    // these documents' nominal rims (not on a leaf whose radius varies,
+    // `work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive`):
+    // the annulus decides it on 12 rims. The 14 the bracket decides in
+    // `sym11`'s replay leave this row's bracket unmoved, and why is not
+    // read here. Every rim of the plate and the link has exactly-zero
+    // axial terms and returns before the decision; the boss is not
+    // measured.
+    // So the annulus [654, 555] -> [666, 555] both ways.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [1149, 824], [1149, 824], 0),
-        ("r1_annulus", [654, 555], [654, 555], 0),
+        ("r1_annulus", [666, 555], [666, 555], 0),
         ("r1_segment_boss", [651, 531], [651, 531], 0),
         ("r2_filleted_bracket", [1537, 1155], [1543, 1149], 6),
         ("r2_link", [962, 805], [962, 805], 0),

@@ -53,7 +53,7 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
         SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
-        BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
+        NameOnDroppedSection, BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
 }
 
@@ -62,7 +62,7 @@ test_utils::f6_variants! {
         UnknownNode, NotAnInstance, UnplaceablePart, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict, UnreadPose,
         UnresolvedVarCrossesCut, InstanceBodyNameReferenced, NameOnDroppedStep,
-        StrandedPartName,
+        NameOnDroppedSection, StrandedPartName,
         StrandedPartRead, Edit,
     ];
 }
@@ -167,6 +167,10 @@ fn split_refusals() -> Vec<SplitError> {
             name: name(),
             step: StepId::new(0, 4),
         },
+        SplitError::NameOnDroppedSection {
+            name: name(),
+            section: editor_core::SectionId::new(0, 4),
+        },
         SplitError::BodyNameCrossesCut { name: name() },
         SplitError::NameOutsidePartWorld { name: name() },
         SplitError::Pin {
@@ -233,6 +237,10 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::NameOnDroppedStep {
             name: name(),
             step: StepId::new(0, 4),
+        },
+        InlineError::NameOnDroppedSection {
+            name: name(),
+            section: editor_core::SectionId::new(0, 4),
         },
         InlineError::StrandedPartName {
             name: name(),

@@ -35,12 +35,12 @@ fn fixture_about(axis: Vec3<f64>, off: f64) -> (Surface<f64>, Vec<LoopEdge<f64>>
         minor_radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let meridian = Curve3::Circle {
-        center: Point3::new(off, 0.0, 0.0),
-        axis: Vec3::unit_y(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let meridian = Curve3::circle(
+        Point3::new(off, 0.0, 0.0),
+        Vec3::unit_y(),
+        1.0,
+        Vec3::unit_x(),
+    );
     let edge = LoopEdge::hand_built(meridian, 0.0, FRAC_PI_2, true, 0, 1);
     (torus, vec![edge])
 }

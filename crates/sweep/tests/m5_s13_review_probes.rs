@@ -343,12 +343,15 @@ fn probe_plane_sphere_section_dense_residual() {
     else {
         panic!("expected a circle");
     };
-    let geom::Curve3::Circle {
-        center: cc,
-        axis: ca,
+    let geom::Curve3::Circle(geom::Circle {
+        frame:
+            geom::Frame {
+                center: cc,
+                axis: ca,
+                u_ref: cu,
+            },
         radius: cr,
-        u_ref: cu,
-    } = circ
+    }) = circ
     else {
         panic!("non-circle carrier");
     };

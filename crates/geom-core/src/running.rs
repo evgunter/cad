@@ -18,7 +18,7 @@
 
 use core::ops::{Add, Mul, Sub};
 
-use crate::{Real, Vec3};
+use crate::{Band, Decide, Real, Sign, Vec3};
 
 /// The unit roundoff of `f64`, `u = 2⁻⁵³`: half an ulp of `1`, the
 /// relative error bound of one correctly rounded operation.
@@ -72,13 +72,12 @@ impl<T: Real> Rounded<T> {
         Self::charged(self.value / d, self.error / d.abs())
     }
 
-    /// `self / d`, with `d`'s magnitude taken past its own bound: the
-    /// quotient's share of each operand's bound, over the room `d`
-    /// keeps from zero.
+    /// `self / d`: the quotient's share of each operand's bound, over
+    /// the room `d` keeps from zero ([`Divisor`]).
     #[must_use]
-    pub fn quotient(self, d: Self) -> Self {
+    pub fn quotient(self, d: Divisor<T>) -> Self {
+        let Divisor { d, room } = d;
         let value = self.value / d.value;
-        let room = d.value.abs() - d.error;
         Self {
             value,
             error: (self.error + value.abs() * d.error) / room
@@ -131,9 +130,52 @@ impl<T: Real> Rounded<T> {
     }
 
     /// An upper bound on `|exact|`: the magnitude plus the bound.
+    #[must_use]
     pub fn magnitude(self) -> T {
         self.value.abs() + self.error
     }
+
+    /// A lower bound on `|exact|`: the magnitude less the bound, at
+    /// least zero.
+    #[must_use]
+    pub fn room(self) -> T {
+        (self.value.abs() - self.error).max(T::zero())
+    }
+
+    /// The value moved toward zero by its bound, and no further: the
+    /// [`Rounded::room`] with the value's sign, zero where the bound
+    /// holds zero. A sign decided on it is the exact value's.
+    #[must_use]
+    pub fn toward_zero(self) -> T {
+        let room = self.room();
+        self.value.select_le_zero(T::zero() - room, room)
+    }
+}
+
+impl<T: Decide> Rounded<T> {
+    /// This value as a divisor, where its [`Rounded::room`] is positive:
+    /// the enclosure `value ± error` lies wholly off zero, read as an
+    /// enclosure's sign is ([`Band::enclosure_sign`]). `None` where it
+    /// does not, since there the exact value may be zero and a quotient
+    /// by it bounds nothing.
+    #[must_use]
+    pub fn divisor(self) -> Option<Divisor<T>> {
+        let room = self.room();
+        let clear = room
+            .sign_within(Band::enclosure_sign())
+            .is_ok_and(|d| d.sign == Sign::Positive);
+        clear.then_some(Divisor { d: self, room })
+    }
+}
+
+/// A [`Rounded`] value whose magnitude is past its own bound by `room`,
+/// so its exact value is not zero: the one argument
+/// [`Rounded::quotient`] divides by. Built only by
+/// [`Rounded::divisor`].
+#[derive(Debug, Clone, Copy)]
+pub struct Divisor<T> {
+    d: Rounded<T>,
+    room: T,
 }
 
 impl<T: Real> Add for Rounded<T> {
@@ -201,6 +243,35 @@ pub fn unit_defect<T: Real>(v: Vec3<T>) -> Rounded<T> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// **A divisor within its own rounding of zero divides nothing.** The
+    /// vertex-section sine at a torus saddle reads `2e-16 ± 8.9e-16`:
+    /// its exact value may be zero, so it is no divisor, and neither is
+    /// an exact zero or a value exactly at its bound. Clear of its
+    /// bound, the quotient's bound covers both operands' over the room
+    /// left: `(1 ± 0) / (2 ± 1)` is `0.5` within `0.5 / 1` and a rounding.
+    #[test]
+    fn a_divisor_must_clear_its_own_bound() {
+        let at = |value: f64, error: f64| Rounded { value, error };
+        for (d, label) in [
+            (at(2e-16, 8.881_784_197_001_252e-16), "inside its bound"),
+            (at(0.0, 8.881_784_197_001_252e-16), "zero with a bound"),
+            (at(0.0, 0.0), "an exact zero"),
+            (at(-0.25, 0.25), "exactly at its bound"),
+        ] {
+            assert!(d.divisor().is_none(), "{label}: {d:?} is no divisor");
+        }
+        let q = at(1.0, 0.0).quotient(at(2.0, 1.0).divisor().unwrap());
+        assert_eq!(q.value, 0.5, "the value is the plain quotient's");
+        assert!(
+            (q.error - (0.5 + 0.5 * UNIT_ROUNDOFF)).abs() <= f64::EPSILON,
+            "the bound is the operands' share over the room: {q:?}"
+        );
+        assert!(
+            at(-3.0, 1.0).divisor().is_some(),
+            "a negative divisor clear of its bound"
+        );
+    }
 
     /// **An axis-aligned chain reports no error; a rounded one reports
     /// at least its rounding.** The unit defect of `ẑ` is exactly zero

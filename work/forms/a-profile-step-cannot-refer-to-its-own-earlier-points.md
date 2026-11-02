@@ -2,10 +2,12 @@
 id: a-profile-step-cannot-refer-to-its-own-earlier-points
 kind: issue
 title: A profile step cannot refer to the profile's own earlier points: no target is 'vertex k', or 'vertex k plus an offset'
-status: open
+status: closed
 opened: 2026-10-31
 priority: P1
-design: true
+cost: H
+closed: 2026-11-02
+refs: [a-profile-cannot-refer-to-its-own-earlier-parts]
 ---
 
 
@@ -56,3 +58,18 @@ slots), which stays within "lives in the node that holds its frame".
 Which of those — a new target form, a 2-D kind, or something else —
 is a fork for the designer lanes and Ev (`docs/prompts/designer.md`),
 not for an implementer.
+
+## Closed — 2026-11-02, a duplicate of VSEAM's ruled build
+
+This row's question is the narrower half of
+`work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts.md`, filed
+from Ev's comment on `[ev]` PR 6143. Ev ruled that build's residue on
+`[ev]` PR 6346. A point argument holds one `Point2` (U1, doctail).
+A point may read an earlier piece's vertex or centre (U3,
+`a-profile-point-reads-an-earlier-pieces-centre-or-vertex`, doctail).
+"Vertex k plus an offset" is Q10's 2-D `Slide { point, along, by }`,
+with `p.offset(w, 0)` as façade sugar (U4). The 2-D vector variable
+asked for here is answered there by `Point2` and `Direction2` kinds,
+and `[variables.poses]` was amended in the same ruling. Nothing is
+left on this row; the units are tracked on their owners' slates.
+(FORMS orchestrator)

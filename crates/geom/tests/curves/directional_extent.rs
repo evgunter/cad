@@ -25,12 +25,14 @@ use geom::curves::boxes::{
 use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
 
 fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center,
-        axis,
+    Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    }
+    })
 }
 
 fn ellipse(
@@ -40,13 +42,15 @@ fn ellipse(
     semi_v: f64,
     u_ref: Vec3<f64>,
 ) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center,
-        axis,
+    Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    }
+    })
 }
 
 /// A tilted plane's normal and an in-plane reference direction.
@@ -86,19 +90,15 @@ fn reading(c: &Curve3<f64>, t: f64, origin: Point3<f64>, n: Vec3<f64>) -> f64 {
 /// crest angle `atan2(q, p)`.
 fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
     let (axis, u, a, b) = match *c {
-        Curve3::Circle {
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { axis, u_ref, .. },
             radius,
-            u_ref,
-            ..
-        } => (axis, u_ref, radius, radius),
-        Curve3::Ellipse {
-            axis,
+        }) => (axis, u_ref, radius, radius),
+        Curve3::Ellipse(geom::Ellipse {
+            frame: geom::Frame { axis, u_ref, .. },
             semi_u,
             semi_v,
-            u_ref,
-            ..
-        } => (axis, u_ref, semi_u, semi_v),
+        }) => (axis, u_ref, semi_u, semi_v),
         _ => unreachable!(),
     };
     let v = axis.cross(u);
@@ -136,7 +136,7 @@ fn the_directional_door_on_the_world_axes_is_the_coordinate_box() {
         for (t0, t1) in spans {
             let (e0, e1) = (c.eval(t0), c.eval(t1));
             let b = match c {
-                Curve3::Circle { .. } => circle_arc_aabb(&c, t0, t1, e0, e1),
+                Curve3::Circle(..) => circle_arc_aabb(&c, t0, t1, e0, e1),
                 _ => ellipse_arc_aabb(&c, t0, t1, e0, e1),
             }
             .unwrap();
@@ -251,12 +251,12 @@ fn the_interval_door_contains_every_realization_of_a_wide_bracket() {
     for w in [1e-9, 1e-4, 1e-2] {
         for (t0, t1) in [(ts - 0.5, ts + 0.5), (ts - 0.9, ts), (ts + 0.2, ts + 1.4)] {
             let wide = |x: f64| Interval::from_bounds(x - w, x + w);
-            let ci: Curve3<Interval> = Curve3::Circle {
-                center: Point3::new(iv(0.3), iv(-0.2), iv(0.1)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                radius: wide(1.5),
-                u_ref: Vec3::new(iv(1.0), wide(0.0), iv(0.0)),
-            };
+            let ci: Curve3<Interval> = Curve3::circle(
+                Point3::new(iv(0.3), iv(-0.2), iv(0.1)),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                wide(1.5),
+                Vec3::new(iv(1.0), wide(0.0), iv(0.0)),
+            );
             let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
             let ni = Vec3::new(iv(n.x), iv(n.y), iv(n.z));
             let (glo, ghi) = conic_arc_extent_along(&ci, wide(t0), wide(t1), origin, ni).unwrap();
@@ -297,12 +297,12 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
     let (axis, u) = tilted();
     let c = circle(Point3::new(0.4, -1.1, 2.3), axis, 1.7, u);
     let k = Dual64::constant;
-    let cd: Curve3<Dual64> = Curve3::Circle {
-        center: Point3::new(k(0.4), Dual64::variable(-1.1), k(2.3)),
-        axis: Vec3::new(k(axis.x), k(axis.y), k(axis.z)),
-        radius: Dual64::variable(1.7),
-        u_ref: Vec3::new(k(u.x), k(u.y), k(u.z)),
-    };
+    let cd: Curve3<Dual64> = Curve3::circle(
+        Point3::new(k(0.4), Dual64::variable(-1.1), k(2.3)),
+        Vec3::new(k(axis.x), k(axis.y), k(axis.z)),
+        Dual64::variable(1.7),
+        Vec3::new(k(u.x), k(u.y), k(u.z)),
+    );
     let n = Vec3::new(0.3, -0.8, 0.5);
     let nd = Vec3::new(k(n.x), k(n.y), k(n.z));
     let od = Point3::new(k(0.0), k(0.0), k(0.0));
@@ -328,10 +328,7 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
         lo.is_nan() && hi.is_nan(),
         "certified door narrowed poison: [{lo}, {hi}]"
     );
-    let line = Curve3::Line {
-        origin: Point3::origin(),
-        dir: Vec3::unit_x(),
-    };
+    let line = Curve3::line(Point3::origin(), Vec3::unit_x());
     assert!(conic_arc_extent_along(&line, 0.0, 1.0, Point3::origin(), n).is_none());
 }
 

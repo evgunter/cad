@@ -272,7 +272,7 @@ fn split_collar() -> Body<f64> {
     let (seam, origin, dir) = c
         .edges()
         .find_map(|(k, e)| match carrier(&c, e) {
-            Some(geom::Curve3::Line { origin, dir })
+            Some(geom::Curve3::Line(geom::Line { origin, dir }))
                 if c.face_of_half_edge(e.he_plus) == Some(bore)
                     && c.face_of_half_edge(e.he_minus) == Some(bore) =>
             {
@@ -289,19 +289,17 @@ fn split_collar() -> Body<f64> {
     let rim = c
         .edges()
         .find_map(|(_, e)| match carrier(&c, e) {
-            Some(geom::Curve3::Circle {
-                center,
-                axis,
+            Some(geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            }) if (radius - BORE).abs() < 1e-12 && (center.y - COLLAR.0).abs() < 1e-12 => {
-                Some(geom::Curve3::Circle {
-                    center: Point3::new(center.x, 1.5, center.z),
-                    axis,
-                    radius,
-                    u_ref,
-                })
-            }
+            })) if (radius - BORE).abs() < 1e-12 && (center.y - COLLAR.0).abs() < 1e-12 => Some(
+                geom::Curve3::circle(Point3::new(center.x, 1.5, center.z), axis, radius, u_ref),
+            ),
             _ => None,
         })
         .expect("the bore's lower rim");

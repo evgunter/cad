@@ -138,12 +138,10 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } = c
+        }) = c
         else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };
@@ -309,7 +307,7 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
     };
     assert!(moved.get_vertex(join.vertex).is_none(), "the image is dead");
     let (c, (t0, t1)) = carrier(&moved, join.kept);
-    let Curve3::Line { origin, dir } = c else {
+    let Curve3::Line(geom::Line { origin, dir }) = c else {
         panic!("a cylinder seam is a line, got {c:?}");
     };
     assert!(
@@ -910,7 +908,7 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
                         .and_then(topo::CurveGeom::certified)
                         .map(|c| c.carrier().clone());
                     assert!(
-                        matches!(carrier, Some(Curve3::Line { .. })),
+                        matches!(carrier, Some(Curve3::Line(_))),
                         "{what}, d {d}: the cone–cap edge {edge:?} is a generator line, got \
                          {carrier:?}"
                     );

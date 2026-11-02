@@ -259,7 +259,7 @@ fn two_cones_through_one_apex_meet_in_their_common_rulings() {
     let Section::Touch(t) = s else {
         panic!("not a touch: {s:?}")
     };
-    assert_eq!(t.name, "section_cone_pair_common_apex");
+    assert_eq!(t.name, "bool_cones_share_apex");
     assert_eq!((t.at - Point3::origin()).norm(), 0.0);
     // Tilted 0.5 off the unit cone's axis, half-angle 0.4: the nappes
     // facing one way cross, `|π/4 − 0.4| < 0.5 < π/4 + 0.4`; the axes

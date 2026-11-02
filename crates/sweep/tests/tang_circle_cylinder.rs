@@ -124,7 +124,7 @@ fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
                     .get_edge(*e)
                     .and_then(|e| x.get_curve_geom(e.curve))
                     .and_then(topo::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle { .. }));
+                    .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
                 let wall = matches!(
                     y.get_face(*f).and_then(|f| y.get_surface(f.surface)),
                     Some(topo::Surface::Cylinder { .. })
@@ -236,13 +236,14 @@ fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
 }
 
 /// **A tilted rod through a rim takes the half-angle arm and reaches the
-/// germ frame.** A thin rod tilted 30° off the cylinder's axis passes
+/// volume lane.** A thin rod tilted 30° off the cylinder's axis passes
 /// through its top rim: the rim circle against the rod's wall is a
 /// degree-2 residual the ladder certifies, the pierce's sector side
-/// certifies, and the two walls' axes are skew, a pair the germ-frame
-/// dispatch has no arm for.
+/// certifies, and the two walls' axes are skew, a pair the join reads on
+/// its section value and carries, marched; the result gate then refuses
+/// the body, whose spline-chorded walls have no volume lane.
 #[test]
-fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
+fn a_tilted_rod_through_a_rim_reaches_the_volume_lane() {
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let turn = Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
@@ -264,17 +265,10 @@ fn a_tilted_rod_through_a_rim_reaches_the_germ_frame() {
     let (ab, _) = circle_wall_events(&a, &rod);
     assert!(ab > 0, "the cylinder's rim circle meets the rod's wall");
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = run(op, &a, &rod).expect_err("no germ frame for skew cylinders");
+        let err = run(op, &a, &rod).expect_err("no volume lane for a spline-chorded wall");
         assert!(
-            matches!(
-                err,
-                BooleanError::GermFrameUnsupported {
-                    a_kind: geom::SurfaceKind::Cylinder,
-                    b_kind: geom::SurfaceKind::Cylinder,
-                    ..
-                }
-            ),
-            "{op:?}: expected the germ-frame door, got {err:?}"
+            at_the_volume_lane(&err),
+            "{op:?}: expected the volume lane's refusal, got {err:?}"
         );
     }
 }
@@ -314,4 +308,13 @@ fn a_rim_circle_within_the_band_of_a_parallel_wall_is_a_tangency() {
             }
         }
     }
+}
+
+/// **The result a carried cylinder pair reaches today**: the join cuts
+/// the marched section's chords and the result gate refuses the body,
+/// whose spline-chorded wall has no volume lane
+/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
+fn at_the_volume_lane(e: &BooleanError) -> bool {
+    matches!(e, BooleanError::ResultInvalid { errors }
+        if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
 }

@@ -379,6 +379,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ChainG1 => "chain_g1",
         BlendDecision::ChainArm => "chain_arm",
         BlendDecision::ConvexitySign => "convexity_sign",
+        BlendDecision::MaterialSide => "material_side",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -2938,11 +2939,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     // the verdict is about the READ door, not about the geometry.
     let (doc, _) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion(pncad::document::Claim::Value {
             value: pncad::document::Formula::var(value, pncad::document::Dimension::Length),
             bound: len(0.0),
             relation: pncad::document::AssertionRelation::AtLeast,
-        },
+        }),
     );
     (doc, solid)
 }
@@ -5111,8 +5112,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `seed_env`, `std_deviation`, `sensitivities`,
-///   `BindingViolation`; `MinClearanceOperand`, which is how a
-///   `min_clearance` measure hands the engine one resolved side; and
+///   `BindingViolation`; `ClearanceSeat`, which is how a clearance
+///   assertion hands the engine one resolved seat; and
 ///   `ProfileLane`, the sealed fact that the `f64` lane is a profile's
 ///   first pass).
 ///
@@ -5168,6 +5169,7 @@ const NOT_CARRIED: [&str; 101] = [
     "BranchCertification",
     "BranchMarginEvidence",
     "CertifiedRange",
+    "ClearanceSeat",
     "ContentKey",
     "Coset",
     "DerivedRange",
@@ -5188,7 +5190,6 @@ const NOT_CARRIED: [&str; 101] = [
     "MetaError",
     "MetaInt",
     "MetaValue",
-    "MinClearanceOperand",
     "Mint",
     "Minted",
     "NamingKey",
@@ -7594,4 +7595,160 @@ mod pattern_presets_are_recognised_as_themselves {
             })
         );
     }
+}
+
+/// **A clearance report's payloads are nameable from the façade** (the
+/// closure property): each refusal a [`pncad::analysis::ClearanceReport`]
+/// can carry is matched, and what each arm holds is handed to a sink
+/// whose signature spells its type by its `pncad::analysis` path — the
+/// engine's refusal and its budget, shared cell, certificate arm and
+/// side; the selection's refusal; the receipt and the widths. If one
+/// stops being nameable that way, this stops compiling.
+#[test]
+fn a_clearance_reports_payloads_are_nameable_from_the_facade() {
+    use pncad::analysis::{
+        CellBudget, CellReceipt, CertificateArm, ClearanceRefusal, DischargeWidths, EngineRefusal,
+        SelectionRefusal, SharedCell, Which,
+    };
+    fn budget(b: &CellBudget) -> String {
+        format!("{b:?}")
+    }
+    fn shared(c: &SharedCell) -> String {
+        c.payload()
+    }
+    fn arm(a: &CertificateArm) -> &'static str {
+        a.name()
+    }
+    fn side(w: &Which) -> &'static str {
+        w.name()
+    }
+    fn selection(r: &SelectionRefusal) -> String {
+        r.payload()
+    }
+    fn receipt(r: CellReceipt) -> bool {
+        r.holds()
+    }
+    fn widths(w: DischargeWidths) -> u32 {
+        w.deepest
+    }
+    fn caught(r: &ClearanceRefusal) -> String {
+        match r {
+            ClearanceRefusal::Engine { refusal, .. } => match refusal {
+                EngineRefusal::Budget(b) => budget(b),
+                EngineRefusal::Uncertified {
+                    shared: c, arm: a, ..
+                } => {
+                    format!("{} {}", shared(c), arm(a))
+                }
+                EngineRefusal::EmptyScope { side: w } => side(w).to_owned(),
+                other => other.name().to_owned(),
+            },
+            ClearanceRefusal::Selection(s) => selection(s),
+            other => other.name().to_owned(),
+        }
+    }
+    let empty = ClearanceRefusal::Engine {
+        refusal: EngineRefusal::EmptyScope { side: Which::First },
+        sides: [(pncad::document::RecipeNodeId::new(0, 1), 0); 2],
+    };
+    assert_eq!(caught(&empty), "first");
+    assert!(receipt(CellReceipt::default()));
+    assert_eq!(widths(DischargeWidths::empty()), 0);
+}
+
+/// **A refusal is said in the document's own words**: an engine refusal
+/// names each side by the body it is of, and a body the document labels
+/// is said by its label — never by the bare tag the document-free
+/// rendering falls back to.
+///
+/// Red if `ClearanceOutcome::of` renders a refusal without the
+/// document's speaker.
+#[test]
+fn a_clearance_refusal_names_each_side_as_the_document_says_it() {
+    use pncad::analysis::{
+        ClearanceOutcome, ClearanceRefusal, ClearanceVerdict, EngineRefusal, Which,
+    };
+    use pncad::document::{DocEdit, Label, Speaker, apply};
+    let (doc, solid) = plate_param_facade_only();
+    let doc = apply(
+        &doc,
+        &DocEdit::SetLabel {
+            node: solid,
+            label: Some(Label::new("plate").expect("a label")),
+        },
+        Tol::witness(),
+    )
+    .expect("the label lands")
+    .doc;
+    let refused = ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+        refusal: EngineRefusal::EmptyScope { side: Which::First },
+        sides: [(solid, 0), (solid, 0)],
+    });
+    let ClearanceOutcome::Refused { sentence, .. } =
+        ClearanceOutcome::of(&refused, Speaker::of(&doc))
+    else {
+        panic!("a refused verdict reads as refused");
+    };
+    assert!(
+        sentence.contains("\"plate\""),
+        "the side is said by its label: {sentence}"
+    );
+    assert!(
+        !sentence.contains(&format!("node {solid}")),
+        "no side is said by a bare tag: {sentence}"
+    );
+}
+
+/// **The nominal clearance door answers each clearance assertion in
+/// plain numbers, and stops on its cancel token.** The plate against
+/// itself meets itself, so `clearance ≥ 1 mm` is violated by a pair 0
+/// apart, two points that are one; `clearance ≤ 1 mm` is proved by the
+/// same meeting. A token set before the run answers `Canceled`.
+///
+/// Red if the door reads another scalar's verdict (at `f64` both read
+/// the third state), drops an assertion, or ignores the token.
+#[test]
+fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
+    use pncad::analysis::{Canceled, ClearanceOutcome, clearances_at_nominal};
+    use pncad::document::{ClearanceBounds, Node, Operand};
+    let (doc, solid) = plate_param_facade_only();
+    let (doc, below) = insert(
+        doc,
+        Node::clearance(
+            Operand::Node(solid),
+            Operand::Node(solid),
+            ClearanceBounds::AtLeast(len(0.001)),
+        ),
+    );
+    let (doc, above) = insert(
+        doc,
+        Node::clearance(
+            Operand::Node(solid),
+            Operand::Node(solid),
+            ClearanceBounds::AtMost(len(0.001)),
+        ),
+    );
+    let answers = clearances_at_nominal(&doc, None, &CancelToken::new(), Tol::witness())
+        .expect("an uncanceled run answers");
+    let ids: Vec<_> = answers.iter().map(|a| a.assertion).collect();
+    assert_eq!(
+        ids,
+        vec![below, above],
+        "one answer per clearance, in order"
+    );
+    let ClearanceOutcome::Violated(pair) = &answers[0].answer else {
+        panic!("a body meets itself: {:?}", answers[0].answer);
+    };
+    assert_eq!((pair.distance, pair.a), (0.0, pair.b), "{pair:?}");
+    assert!(
+        matches!(answers[1].answer, ClearanceOutcome::Within(p) if p.distance == 0.0),
+        "the meeting proves the upper bound: {:?}",
+        answers[1].answer
+    );
+    let cancel = CancelToken::new();
+    cancel.cancel();
+    assert_eq!(
+        clearances_at_nominal(&doc, None, &cancel, Tol::witness()),
+        Err(Canceled)
+    );
 }

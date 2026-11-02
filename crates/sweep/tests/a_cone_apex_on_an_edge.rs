@@ -160,15 +160,6 @@ fn four_ops(
             // (`a_cone_apex_on_a_plane_through_it`): typed, by name.
             Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
                 if pinch && matches!(op, "a ∪ b" | "a ∖ b") => {}
-            // Not a pinch: where the box's side holds the wrap seam, the
-            // kept face's loop passes the apex between the seam vertex's
-            // two copies, and props cannot read the azimuth turn across
-            // the apex
-            // (`work/conearm/a-pinched-cone-loop-reaches-the-gate-unnamed.md`).
-            Err(topo::BooleanError::ResultInvalid { errors })
-                if pinch
-                    && matches!(op, "a ∪ b" | "a ∖ b")
-                    && format!("{errors:?}").contains("props_cone_loop_vertex") => {}
             Err(e) => panic!("{what}: {e:?}"),
         }
     }

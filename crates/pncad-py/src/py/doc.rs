@@ -1324,6 +1324,24 @@ impl Doc {
             .collect())
     }
 
+    /// **The minted id of every section of the loft at `loft`**, first
+    /// to last: what `DocEdit.set_loft_sections` keeps a section by.
+    ///
+    /// Raises `ValueError` for a node that is not a loft.
+    fn section_ids(&self, loft: &NodeId) -> PyResult<Vec<super::step::SectionId>> {
+        match self.inner.node(loft.0).and_then(d::Node::loft_section_ids) {
+            Some(ids) => Ok(ids
+                .into_iter()
+                .flatten()
+                .map(super::step::SectionId)
+                .collect()),
+            None => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{} is not a loft",
+                self.inner.spoken(loft.0)
+            ))),
+        }
+    }
+
     /// **The id the profile at `profile` minted for the step `h`
     /// addresses** in its loop `loop`, which the author states: `h` is
     /// the `.step` of the chain state (or closed loop) the step's verb
@@ -2859,11 +2877,13 @@ impl Node {
                 then: then
                     .into_iter()
                     .map(|(profile, station)| d::LoftSection {
+                        id: None,
                         profile: profile.read(),
                         station: station.into_iter().map(|m| m.0).collect(),
                     })
                     .collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
+                first_id: None,
             },
         })
     }
@@ -3376,9 +3396,8 @@ impl Node {
     ///
     /// What each primitive reads is checked when the node is inserted:
     /// `distance` a face, an edge or a vertex, `angle` a face or an
-    /// edge, `min_clearance` a body or a face, `gap` a face, an edge or
-    /// a vertex, and any
-    /// other refuses `slot_var_kind`. The rest are the kernel's own
+    /// edge, `gap` a face, an edge or a vertex, and any other refuses
+    /// `slot_var_kind`. The rest are the kernel's own
     /// typed refusals at `evaluate`: a name that no longer resolves
     /// (`select_resolve`), a carrier pair with no v1 closed form
     /// (`measure_unsupported`) and a non-finite result
@@ -3425,7 +3444,7 @@ impl Node {
         bound: &super::expr::Formula,
     ) -> PyResult<Self> {
         Ok(Self {
-            inner: d::Node::Assertion {
+            inner: d::Node::Assertion(d::Claim::Value {
                 // A variable is read at its own kind's dimension, so a
                 // mismatch with the bound is the door's
                 // `assertion_dimension`; anything else at the bound's.
@@ -3438,7 +3457,55 @@ impl Node {
                 },
                 bound: bound.0.clone(),
                 relation: relation.to_kernel(),
+            }),
+        })
+    }
+
+    /// **A recorded clearance requirement** (ERROR-DESIGN E3, E10):
+    /// the clearance between seats `a` and `b` lies within the bounds.
+    /// A clearance is a requirement and never a value — the minimum
+    /// distance is not computed, and no formula reads it.
+    ///
+    /// Each seat is a `(node, name)` pair: a BODY name selects every
+    /// face of that body, a FACE name the one. Anything else (an edge,
+    /// a vertex) refuses when the node is inserted, `slot_var_kind`.
+    ///
+    /// The bounds are lengths, from `Doc.parse_formula`, and exactly
+    /// one shape of them: `at_least`, `at_most`, both (a band), or
+    /// `equal` alone. Any other combination raises `ValueError`.
+    ///
+    /// **The verdict needs the certified sweep**, which reads
+    /// enclosures. At the `f64` scalar this binding evaluates at, it is
+    /// the third state: `Value.assertion` answers `"Refused"`, `holds`
+    /// `None`, `refusal` `"needs_certifying_lane"`, and a `reason`
+    /// naming the lane that answers. The node evaluates; it is not
+    /// failed.
+    #[staticmethod]
+    #[pyo3(signature = (a, b, *, at_least=None, at_most=None, equal=None))]
+    fn clearance(
+        a: (NodeId, String),
+        b: (NodeId, String),
+        at_least: Option<&super::expr::Formula>,
+        at_most: Option<&super::expr::Formula>,
+        equal: Option<&super::expr::Formula>,
+    ) -> PyResult<Self> {
+        let f = |c: &super::expr::Formula| c.0.clone();
+        let bounds = match (at_least, at_most, equal) {
+            (Some(lo), None, None) => d::ClearanceBounds::AtLeast(f(lo)),
+            (None, Some(hi), None) => d::ClearanceBounds::AtMost(f(hi)),
+            (Some(lo), Some(hi), None) => d::ClearanceBounds::Within {
+                lo: f(lo),
+                hi: f(hi),
             },
+            (None, None, Some(c)) => d::ClearanceBounds::Equal(f(c)),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "a clearance takes `at_least`, `at_most`, both, or `equal` alone",
+                ));
+            }
+        };
+        Ok(Self {
+            inner: d::Node::clearance(super::measure::sited(a)?, super::measure::sited(b)?, bounds),
         })
     }
 }
@@ -4269,19 +4336,33 @@ impl DocEdit {
     /// wrong dimension, `loft_shape` for too few sections, an empty
     /// station or a degree outside `1 ≤ d ≤ len − 1`. A node that is
     /// not a loft refuses `set_loft_sections_on_non_loft`.
+    ///
+    /// Each section says which old section it is, as its last entry:
+    /// `first` is `(profile, keep)` and each later section `(profile,
+    /// station, keep)`, where `keep` is the `SectionId` of the old
+    /// section it keeps (`Doc.section_ids` reads them) or `None` for a
+    /// section it adds, which the door mints. The entry is part of the
+    /// tuple, so no section's is left out by omission. A loft's walls,
+    /// seams and rings are named by their sections' ids, so a kept
+    /// section's names survive the edit wherever it moves. Refuses
+    /// `section_ids_refused` for a `keep` this loft does not hold, or
+    /// one kept twice.
     #[staticmethod]
     fn set_loft_sections(
         node: &NodeId,
-        first: OperandArg,
-        then: Vec<(OperandArg, Vec<StationMove>)>,
+        first: (OperandArg, Option<super::step::SectionId>),
+        then: Vec<(OperandArg, Vec<StationMove>, Option<super::step::SectionId>)>,
     ) -> Self {
+        let (first, first_id) = first;
         Self {
             inner: d::DocEdit::SetLoftSections {
                 node: node.0,
                 first: first.read(),
+                first_id: first_id.map(|k| k.0),
                 then: then
                     .into_iter()
-                    .map(|(profile, station)| d::LoftSection {
+                    .map(|(profile, station, keep)| d::LoftSection {
+                        id: keep.map(|k| k.0),
                         profile: profile.read(),
                         station: station.into_iter().map(|m| m.0).collect(),
                     })

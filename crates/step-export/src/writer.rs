@@ -387,7 +387,7 @@ impl<'a> Writer<'a> {
         // arm an EXACT native AP214 entity (crate docs, "the analytic
         // subset"). Everything around this match is carrier-agnostic.
         let curve = match *carrier {
-            Curve3::Line { origin, dir } => {
+            Curve3::Line(geom::Line { origin, dir }) => {
                 let cp = self.cartesian_point(origin, "line origin")?;
                 let d = self.direction(dir, "line direction")?;
                 // Magnitude 1.0: `dir` is unit by convention, so the
@@ -401,12 +401,15 @@ impl<'a> Writer<'a> {
             // for field, including the seam at `u_ref` (θ = 0) and the
             // right-hand winding about `axis`. Exact, native, no
             // parameter remapping.
-            Curve3::Circle {
-                center,
-                axis,
+            Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => {
+            }) => {
                 let placement = self.axis2_placement(
                     center,
                     axis,
@@ -428,13 +431,16 @@ impl<'a> Writer<'a> {
             // be an equally exact but strictly worse encoding, hiding
             // the axes every reader wants and reparameterizing the
             // curve for nothing.
-            Curve3::Ellipse {
-                center,
-                axis,
+            Curve3::Ellipse(geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 semi_u,
                 semi_v,
-                u_ref,
-            } => {
+            }) => {
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(

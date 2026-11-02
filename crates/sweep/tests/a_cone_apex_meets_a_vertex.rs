@@ -331,3 +331,173 @@ fn two_cones_through_one_apex_cross_along_their_common_rulings() {
         );
     }
 }
+
+/// **A small box cornered at the apex, its side holding the wrap seam**:
+/// `[0, 0.3] × [0.7, 1] × [−0.3, 0]`, its top holding the apex and its
+/// side `z = 0` the tipped cone's seam ruling at azimuth `0`. The kept
+/// cone face's loop passes the apex once, between the seam vertex's two
+/// copies, which props reads from the edge leaving the apex
+/// (`geom_brep::props`' `cone_loop_winding`, "Through the apex"). Every op
+/// builds at its closed form, the box holding a quarter of the cone
+/// above `y = 0.7`: `V·0.3³/4`.
+#[test]
+fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
+    let (x, y, z) = ((0.0, 0.3), (0.7, 1.0), (-0.3, 0.0));
+    let block = moved(
+        &topo::test_support::brick(x, y, z, tol()),
+        Affine3::identity(),
+    );
+    for alpha in [10.0f64, 30.0] {
+        let r = alpha.to_radians().tan();
+        for (form, body) in forms(alpha) {
+            let c = finished("c", body, tol());
+            let (ra, rb) = (move || the_cone(r), move || membership::cuboid(x, y, z));
+            four_ops(
+                &format!("{alpha}°, {form}, a small box at the seam"),
+                (&c, &ra, volume(alpha)),
+                (&block, &rb, 0.027),
+                volume(alpha) * 0.3f64.powi(3) / 4.0,
+                about(r.max(0.3), 1.0),
+            );
+        }
+    }
+}
+
+/// **A box whose side holds the 80° cone's wrap seam refuses typed**, in
+/// every op either way round (the R2 review's `x90` pose): the box
+/// `[0, 5] × [−5, 0] × [0, 5]` turned a quarter about `x` and cornered
+/// at the apex, its side holding the axis and the wrap edge's ruling. The
+/// vertex pair records the wrap edge's bound `On` the box's side, which
+/// the edge rules settle only for a planar sector: `VertexPairAtConeApex`
+/// on the cone's face, never the kernel's own fault. The other ops reach
+/// the 80° cone's hyperbolic section at the box's far faces first
+/// (`GermSectionOpenConic`, the join's open-conic limit).
+#[test]
+fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
+    let block = topo::test_support::brick((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0), tol());
+    let m = Affine3::translation(Vec3::new(0.0, 1.0, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
+    let b = moved(&block, m);
+    let c = finished("c", one_wrap_edge(cone(80.0), true).0, tol());
+    for (order, x, y) in [("cone first", &c, &b), ("box first", &b, &c)] {
+        for (op, r) in [
+            ("∪", union(x, y, tol())),
+            ("∩", intersect(x, y, tol())),
+            ("∖", subtract(x, y, tol())),
+            ("∖ back", subtract(y, x, tol())),
+        ] {
+            assert!(
+                matches!(
+                    r,
+                    Err(topo::BooleanError::VertexPairAtConeApex { .. }
+                        | topo::BooleanError::GermSectionOpenConic { .. })
+                ),
+                "{order} {op}: {r:?}"
+            );
+        }
+    }
+}
+
+/// The volume of the cone of half-angle `alpha` (degrees, apex at
+/// `NORTH`, height 1 down `y`) inside the trihedral wedge at its apex
+/// spanned by the orthonormal `edges`: the integral over the cone's
+/// directions `d` with `d·eᵢ ≥ 0` of `⅓ (1/(d·â))³`, by the midpoint rule
+/// over its cap.
+fn wedge_volume(alpha: f64, edges: [Vec3<f64>; 3]) -> f64 {
+    let a = Vec3::new(0.0, -1.0, 0.0);
+    let (u, v) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let n = 2000;
+    let (dt, dp) = (alpha.to_radians() / f64::from(n), 2.0 * PI / f64::from(n));
+    let mut sum = 0.0;
+    for i in 0..n {
+        let t = (f64::from(i) + 0.5) * dt;
+        for j in 0..n {
+            let p = (f64::from(j) + 0.5) * dp;
+            let d = a * t.cos() + (u * p.cos() + v * p.sin()) * t.sin();
+            if edges.iter().all(|e| d.dot(*e) >= 0.0) {
+                sum += (1.0 / d.dot(a)).powi(3) / 3.0 * t.sin() * dt * dp;
+            }
+        }
+    }
+    sum
+}
+
+/// **A box cornered at the apex, turned off the axis**: the box
+/// `[0, 5] × [−5, 0] × [0, 5]` cornered at the apex and turned `0.7`
+/// about `(1, 0.3, −0.5)`, so that none of its faces through the apex
+/// holds the axis and each face's side of the fan turns inside the
+/// fan's quarters. Each flat sector is cut at the fan's extreme rulings
+/// along it, and each fan sector at the planes' (`boolean::sectors`'
+/// `partner_cuts`). Its far faces clear the cone, so the box holds the
+/// cone inside its trihedral wedge, [`wedge_volume`].
+#[test]
+fn a_box_cornered_at_the_apex_off_the_axis_holds_the_cone_in_its_wedge() {
+    let block = topo::test_support::brick((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0), tol());
+    let m = Affine3::rotation_about_axis(NORTH, Vec3::new(1.0, 0.3, -0.5).normalize(), 0.7)
+        * Affine3::translation(Vec3::new(0.0, 1.0, 0.0));
+    let b = moved(&block, m);
+    let edges = [
+        m.transform_vec(Vec3::new(1.0, 0.0, 0.0)),
+        m.transform_vec(Vec3::new(0.0, -1.0, 0.0)),
+        m.transform_vec(Vec3::new(0.0, 0.0, 1.0)),
+    ];
+    for alpha in [30.0f64, 45.0] {
+        let r = alpha.to_radians().tan();
+        let want = wedge_volume(alpha, edges);
+        for (form, body) in forms(alpha) {
+            let c = finished("c", body, tol());
+            let share = match intersect(&c, &b, tol()) {
+                Ok(BooleanResult::Body(x)) => {
+                    topo::test_support::pinned_volume("∩", &x.body, tol()).volume
+                }
+                other => panic!("{alpha}°, {form}: the intersection {other:?}"),
+            };
+            assert!(
+                (share - want).abs() < 2e-4,
+                "{alpha}°, {form}: ∩ {share} against the integral {want}"
+            );
+            let (ra, rb) = (
+                move || the_cone(r),
+                move || moved_region(membership::cuboid((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0)), m),
+            );
+            four_ops(
+                &format!("{alpha}°, {form}, a box off the axis"),
+                (&c, &ra, volume(alpha)),
+                (&b, &rb, 125.0),
+                share,
+                (Point3::new(-2.0, -0.25, -2.0), Point3::new(2.0, 1.75, 2.0)),
+            );
+        }
+    }
+}
+
+/// **An edge through the apex, not ending there, is read the same in
+/// either order**: the box `[0, 2] × [0.55, 1] × [−2, 2.3]`, its top
+/// holding the apex and its edge along `z` there passing through it.
+/// Read box first, that edge's root at the apex is placed on the cone
+/// face's apex vertex (`boolean::reduce::line_cone_roots`), as the apex
+/// vertex splits it cone first, so every op builds either way round at
+/// its closed form, the box holding half the cone above `y = 0.55`.
+#[test]
+fn an_edge_through_the_apex_builds_box_first() {
+    let b = moved(
+        &topo::test_support::brick((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3), tol()),
+        Affine3::identity(),
+    );
+    let vb = 2.0 * 0.45 * 4.3;
+    let r = 30f64.to_radians().tan();
+    for (form, body) in forms(30.0) {
+        let c = finished("c", body, tol());
+        let (rb, rc) = (
+            move || membership::cuboid((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3)),
+            move || the_cone(r),
+        );
+        four_ops(
+            &format!("{form}, box first, an edge through the apex"),
+            (&b, &rb, vb),
+            (&c, &rc, volume(30.0)),
+            volume(30.0) * 0.45f64.powi(3) / 2.0,
+            about(2.3, 1.0),
+        );
+    }
+}

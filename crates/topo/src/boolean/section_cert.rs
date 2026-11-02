@@ -544,11 +544,17 @@ pub(crate) enum Cleared {
     /// A touch on a pair with no event, its centre placed `Out` of the
     /// named face.
     TouchOut(Side),
-    /// A touch whose centre is a vertex of both faces: the touch is that
-    /// vertex pair's, whose contact is the pair's event there and whose
-    /// neighbourhood the vertex lanes read (two cones through one apex).
+    /// Two cones' touch at their common apex ([`APEX_TOUCHES`]), a vertex
+    /// of both faces: the touch is that vertex pair's, whose contact is
+    /// the pair's event there and whose neighbourhood the vertex lanes
+    /// read with their fan arms.
     TouchAtVertex,
 }
+
+/// The touches [`certify`] clears as [`Cleared::TouchAtVertex`]: two
+/// cones' at their common apex, coaxial or not.
+pub(super) const APEX_TOUCHES: [&str; 2] =
+    ["section_cone_coaxial_apexes", super::fan::CONES_SHARE_APEX];
 
 /// Why a pair refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1352,7 +1358,7 @@ fn cone_cone<T: Decide>(
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
     const APERTURE: &str = "section_cone_pair_aperture";
-    const COMMON: &str = "section_cone_pair_common_apex";
+    const COMMON: &str = super::fan::CONES_SHARE_APEX;
     const RULINGS: &str = "section_cone_pair_common_rulings";
     // One apex, axes apart (parallel ones through one apex are the
     // coaxial arm's): both forms are homogeneous about the apex, so the
@@ -1363,8 +1369,7 @@ fn cone_cone<T: Decide>(
     // line is an unbounded component, as the plane's line pair through an
     // apex is ([`cone_plane`]). A pairing that touches along a ruling is
     // R-tan.
-    if !parallel && sign(COMMON, Margin::of((one.apex - two.apex).norm()), band) == Some(Sign::Zero)
-    {
+    if !parallel && super::fan::cones_share_apex(one.apex, two.apex, band) == Ok(true) {
         let lever = one.reach_lever(reach).max(two.reach_lever(reach));
         let mut lines = 0;
         for a2 in [two.a, -two.a] {
@@ -1873,30 +1878,20 @@ pub(super) fn of_pair_section<T: Decide>(
             _ => Section::Tangent(zero.decision.name()),
         };
     }
-    // Each component's set: the least node any arc of its node-joined set
-    // ends at, found by joining arcs that share a node.
-    let mut root: Vec<usize> = (0..section.nodes().len()).collect();
-    fn find(root: &[usize], k: usize) -> usize {
-        let mut k = k;
-        while root[k] != k {
-            k = root[k];
-        }
-        k
-    }
-    for c in components {
-        if let [Some(a), Some(b)] = ends(c).nodes {
-            let (ra, rb) = (find(&root, a), find(&root, b));
-            root[ra.max(rb)] = ra.min(rb);
-        }
-    }
+    // Each component's node-joined set, the value's own ([`geom_brep::NodeSet`]),
+    // which claims the set's winding: an arc of it claims none.
+    let sets = section.node_sets();
+    let set_of = |i: usize| sets.iter().position(|set| set.arcs.contains(&i));
     let mut parts: Vec<(Option<usize>, Component<T>)> = Vec::new();
-    for c in components {
+    for (i, c) in components.iter().enumerate() {
         let ends = ends(c);
         let [on_f, on_g] = ends.rims;
+        let set = set_of(i);
+        let winds = set.map_or(c.winds, |k| sets[k].winds);
         let part = Component {
             unbounded: ends.cut,
-            essential_f: c.winds[0],
-            essential_g: c.winds[1],
+            essential_f: winds[0],
+            essential_g: winds[1],
             witness: c.witness,
             // Only rim ends reach a chart side; a cut end or a node end
             // clears nothing here.
@@ -1909,7 +1904,6 @@ pub(super) fn of_pair_section<T: Decide>(
             },
             pad: c.pad,
         };
-        let set = ends.nodes.iter().flatten().next().map(|&k| find(&root, k));
         match parts.iter_mut().find(|(s, _)| set.is_some() && *s == set) {
             Some((_, joined)) => {
                 joined.unbounded |= part.unbounded;
@@ -2006,15 +2000,19 @@ pub(crate) fn certify<T: Decide>(
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
-        // A touch at a vertex both faces hold is that vertex pair's,
-        // whose contact is the pair's event there: the vertex lanes read
-        // the touch's neighbourhood, so it clears evented or not.
+        // Two cones' touch at their common apex, a vertex both faces hold,
+        // is that vertex pair's, whose contact is the pair's event there:
+        // the vertex lanes read the touch's neighbourhood with their fan
+        // arms, so it clears evented or not. Only an apex touch: any other
+        // touch at a vertex keeps the rules below, which no vertex lane
+        // has been shown to stand in for.
         Section::Touch(t) => {
             let placed = place(t.at, band);
-            if let [
-                Some(FaceContainment::OnVertex(_)),
-                Some(FaceContainment::OnVertex(_)),
-            ] = placed
+            if APEX_TOUCHES.contains(&t.name)
+                && let [
+                    Some(FaceContainment::OnVertex(_)),
+                    Some(FaceContainment::OnVertex(_)),
+                ] = placed
             {
                 return Ok(vec![Cleared::TouchAtVertex]);
             }

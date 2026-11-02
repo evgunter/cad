@@ -155,7 +155,7 @@ fn a_dome_and_a_lantern_against_their_copies_are_one_body() {
 /// runs parallel to a generator of the lower cone's other nappe, and
 /// meets it only at the waist. The quadratic degenerates there, which
 /// the lane does not answer
-/// (`work/roots/a-line-parallel-to-a-cone-generator-has-no-root-lane.md`).
+/// (`work/germ/a-line-parallel-to-a-cone-generator-has-no-root-lane.md`).
 #[test]
 fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
     let body = waisted(tol());
@@ -178,7 +178,7 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
             Some(geom::Surface::Cone {
                 axis, half_angle, ..
             }),
-            Some(geom::Curve3::Line { dir, .. }),
+            Some(geom::Curve3::Line(geom::Line { dir, .. })),
         ) = (surface, carrier)
         else {
             panic!("{label}: a line edge against a cone face");

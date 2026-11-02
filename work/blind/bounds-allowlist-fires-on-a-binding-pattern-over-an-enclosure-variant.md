@@ -28,6 +28,11 @@ let (reason, door) = match fixture
 };
 ```
 
+(That binding's types are retired: PR 6292 removed
+`ValuePayload::MeasureUnavailable` and `MeasureUnavailableAt` with the
+`min_clearance` measure. The gate's regex shape this row is about is
+unchanged, and any other `…Enclosure`-suffixed variant still meets it.)
+
 The variant name `NeedsEnclosure` ends in the gate's `Enclosure` suffix,
 and one of the compound-bound alternatives in the gate's regex
 (line ~377 of the script) matched this record even though it contains

@@ -2,8 +2,9 @@
 id: a-pinched-cone-loop-reaches-the-gate-unnamed
 kind: issue
 title: A cone loop through the apex between a seam vertex's two copies refuses props_cone_loop_vertex, the azimuth turn lost at the apex
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
 priority: P2
 cost: M
 refs: [props-measures-a-cone-loop-pinched-at-its-apex]
@@ -79,3 +80,17 @@ Filed on CONEARM's slate, beside its sibling
 `props-measures-a-cone-loop-pinched-at-its-apex` (a loop meeting itself
 AT the apex), because `crates/geom-brep/src/props/curved.rs`'s cone arm
 is CONEARM's. The fix is left to this row, not to SPLITDOOR's B2.
+
+## Closed (2026-11-02, SPLITDOOR)
+
+Fixed in the B1 fix pass (`splitdoor/cone-apex-vertex-pairs`, PR 6345).
+`cone_loop_winding` reads a loop's vertex azimuths from the edge that
+leaves the apex, so a seam vertex's two copies are never compared across
+it. The loop's verdict no longer depends on where the loop starts. Rows:
+- `props::curved::apex_start_rows`: one measure from every start;
+- `a_small_box_whose_side_holds_the_wrap_seam_builds_every_op`;
+- on B2, the 60° turn-0 pose of
+  `a_cone_apex_on_an_edge::an_edge_along_the_axis_holds_a_quarter_of_the_cones_top`,
+  which builds now that the pin no longer accepts this refusal.
+
+— SPLITDOOR

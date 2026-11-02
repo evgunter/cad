@@ -381,29 +381,31 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             // move bit-identical. The endpoints still SLIDE along the
             // line, because the third plane at each corner is moving
             // too, so the parameters are read afresh.
-            let Curve3::Line { origin, dir } = old_carrier else {
+            let Some(geom::Line { origin, dir }) = old_carrier.as_line() else {
                 return Err(ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "it joins two flat faces but is not straight",
                 });
             };
-            let shift = p_start - old_start;
-            let origin = origin + (shift - dir * shift.dot(dir));
+            // The start's move, less its slide along the line.
+            let slide = geom::Line {
+                origin: old_start,
+                dir,
+            }
+            .param(p_start);
+            let origin = origin + ((p_start - old_start) - dir * slide);
             // The other endpoint is VERIFIED onto that line rather than
             // assumed onto it: it is a different corner solve, and two
             // solves agreeing is the claim being made.
-            let t1 = (p_end - origin).dot(dir);
-            let gap = (origin + dir * t1).distance(p_end);
+            let moved = geom::Line { origin, dir };
+            let t1 = moved.param(p_end);
+            let gap = moved.foot(p_end).distance(p_end);
             match decide("offset_together_edge_agreement", Margin::of(gap), band) {
                 Ok(Sign::Zero) => {}
                 Ok(_) => return Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
-            (
-                Curve3::Line { origin, dir },
-                (p_start - origin).dot(dir),
-                t1,
-            )
+            (Curve3::Line(moved), moved.param(p_start), t1)
         };
 
         let displacement = p_start - old_start;
@@ -785,7 +787,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 ///   every entity of the body and skip the ones the scope does not
 ///   hold. `axial_frame` sweeps `body.vertices()` the same way. The
 ///   maps make the ANSWER scoped; the iteration is not
-///   (`work/shelf/offset-doors-take-solids-and-a-per-chart-rule.md`).
+///   (`work/shell/offset-doors-take-solids-and-a-per-chart-rule.md`).
 ///
 /// So a scoped call is **linear in the whole body, not in its scope**:
 /// what the scope buys is which entities are WRITTEN and which

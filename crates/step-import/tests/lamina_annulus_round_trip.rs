@@ -46,7 +46,7 @@ fn unslit_plane_annuli_round_trip_through_step() {
             .edges()
             .filter(|(_, e)| {
                 let c = washer.get_curve_geom(e.curve).unwrap().certified().unwrap();
-                matches!(*c.carrier(), geom::Curve3::Circle { center, radius, .. }
+                matches!(*c.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, radius })
                     if (radius - 1.0).abs() < 1e-12 && center.y.abs() < 1e-12)
             })
             .map(|(k, _)| k)

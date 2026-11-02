@@ -34,7 +34,7 @@
 //!   as stored. A body at rest holds the convention against ZERO (tier-3
 //!   check 1), so a cone that validates can be refused here. Whether the
 //!   convention is a band question or a datum-sign question is open
-//!   (`work/germcert/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
+//!   (`work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
 //!   and these trileans follow the band side until that is ruled.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
@@ -961,7 +961,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
                     PlaneCylinderSection::ParallelLines { l1, l2 }
                 }
                 RuledSection::TangentLine { origin, dir, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
+                    PlaneCylinderSection::TangentLine(Curve3::Line(geom::Line { origin, dir }))
                 }
                 RuledSection::Empty => PlaneCylinderSection::Empty,
             },
@@ -978,12 +978,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let section = match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => PlaneCylinderSection::Rim(Curve3::Circle {
-            center,
-            axis: a,
-            radius: r,
-            u_ref: cyl_u,
-        }),
+        Sign::Zero => PlaneCylinderSection::Rim(Curve3::circle(center, a, r, cyl_u)),
         // The margin is a norm: Negative is unreachable; both
         // definite verdicts take the tilted lane.
         Sign::Positive | Sign::Negative => {
@@ -1088,14 +1083,8 @@ pub(crate) fn ruled_section<T: Decide>(
             let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
             let w = a.cross(n).normalize();
             RuledSection::ParallelLines {
-                l1: Curve3::Line {
-                    origin: foot + w * half,
-                    dir: a,
-                },
-                l2: Curve3::Line {
-                    origin: foot - w * half,
-                    dir: a,
-                },
+                l1: Curve3::line(foot + w * half, a),
+                l2: Curve3::line(foot - w * half, a),
             }
         }
         (Sign::Zero, gap) => RuledSection::TangentLine {
@@ -1321,15 +1310,12 @@ pub fn plane_sphere_section<T: Decide>(
         }
     };
     match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
-        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::Circle {
-            center: foot,
-            axis: n,
-            // The interval-square tripwire does not bite: both factors
-            // are definitely positive after the trilean (never a
-            // spuriously negative bracket under a sqrt).
-            radius: ((r - s.abs()) * (r + s.abs())).sqrt(),
+        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::circle(
+            foot,
+            n,
+            ((r - s.abs()) * (r + s.abs())).sqrt(),
             u_ref,
-        })),
+        ))),
         Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
         Sign::Negative => Ok(PlaneSphereSection::Empty),
     }
@@ -1486,12 +1472,12 @@ pub fn sphere_sphere_section<T: Decide>(
                         // `d > 0`. The radical plane's foot and half-chord.
                         Sign::Positive => {
                             let n = at.direction();
-                            Ok(SphereSphereSection::Circle(Curve3::Circle {
-                                center: at.foot(),
-                                axis: n,
-                                radius: pair.half_chord(),
-                                u_ref: ss_frame_seam(n, axis1, u1, r1, band),
-                            }))
+                            Ok(SphereSphereSection::Circle(Curve3::circle(
+                                at.foot(),
+                                n,
+                                pair.half_chord(),
+                                ss_frame_seam(n, axis1, u1, r1, band),
+                            )))
                         }
                     }
                 }
@@ -1612,7 +1598,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
         },
     )??;
     let [a1, a2] = pose.axes();
-    let line = |origin| Curve3::Line { origin, dir: a1 };
+    let line = |origin| Curve3::Line(geom::Line { origin, dir: a1 });
     if let Some(parallel) = pose.parallel_section() {
         return Ok(match parallel {
             ParallelSection::Empty => EqualCylinderSection::Empty,
@@ -2075,11 +2061,16 @@ pub fn cone_plane_apex_extrema<T: Real>(
 /// **Where two cones' fans of rulings meet at a shared apex**, each fan
 /// its unit axis turned toward the nappe it holds and the cosine of its
 /// half-angle: a ruling of both is a unit `d` with `d·a₁ = c₁` and
-/// `d·a₂ = c₂`, two planes meeting the unit sphere at most twice. With
-/// `k = a₁·a₂` and `s² = ‖a₁×a₂‖² = 1 − k²`, the line of the two planes
-/// is `base + t·across`, `base = x·a₁ + y·a₂`,
-/// `x = (c₁ − k·c₂)/s²`, `y = (c₂ − k·c₁)/s²`, `across = (a₁×a₂)/s`,
-/// and it meets the sphere at `t = ±√disc`, `disc = 1 − ‖base‖²`.
+/// `d·a₂ = c₂`, two planes meeting the unit sphere at most twice. The
+/// line of the two planes is `base + t·across`, read in the axes'
+/// bisector frame: `m̂ = (a₁ + a₂)/‖a₁ + a₂‖` and
+/// `n̂ = (a₁ − a₂)/‖a₁ − a₂‖`, orthonormal, with `d·m̂ = (c₁ + c₂)/‖a₁ + a₂‖`
+/// and `d·n̂ = (c₁ − c₂)/‖a₁ − a₂‖`, so `base = (d·m̂)m̂ + (d·n̂)n̂`,
+/// `across = (a₁×a₂)/‖a₁×a₂‖`, and it meets the sphere at `t = ±√disc`,
+/// `disc = 1 − ‖base‖²`. Both differences are taken directly, so nothing
+/// cancels as the axes close: the textbook `x = (c₁ − k·c₂)/(1 − k²)`,
+/// `k = a₁·a₂`, loses `1 − k²` to rounding at a tilt of `√u` and returns
+/// rulings off both cones.
 ///
 /// The caller decides, each in its own band: that the axes are not
 /// parallel (`s` positive; parallel axes are one fan or none at the
@@ -2091,16 +2082,16 @@ pub fn cone_cone_apex_meeting<T: Real>(
     (a1, c1): (Vec3<T>, T),
     (a2, c2): (Vec3<T>, T),
 ) -> ApexFansMeeting<T> {
-    let k = a1.dot(a2);
+    let (sum, diff) = (a1 + a2, a1 - a2);
+    let (sum_n, diff_n) = (sum.norm(), diff.norm());
+    let along_m = (c1 + c2) / sum_n;
+    let along_n = (c1 - c2) / diff_n;
+    let base = sum * (along_m / sum_n) + diff * (along_n / diff_n);
     let cross = a1.cross(a2);
-    let s2 = cross.dot(cross);
-    let x = (c1 - k * c2) / s2;
-    let y = (c2 - k * c1) / s2;
-    let base = a1 * x + a2 * y;
     ApexFansMeeting {
         base,
-        across: cross / s2.sqrt(),
-        disc: T::one() - base.dot(base),
+        across: cross / cross.norm(),
+        disc: T::one() - along_m.powi(2) - along_n.powi(2),
     }
 }
 
@@ -2350,12 +2341,7 @@ pub fn plane_cone_section<T: Decide>(
                 cos_a,
             };
             let phi = fan.azimuth(n);
-            let gen_at = |u: T| -> Curve3<T> {
-                Curve3::Line {
-                    origin: apex,
-                    dir: fan.ruling(u),
-                }
-            };
+            let gen_at = |u: T| -> Curve3<T> { Curve3::line(apex, fan.ruling(u)) };
             return Ok(if verdict == Sign::Zero {
                 // A graze's one root is the extremum of g·n over the
                 // azimuth: φ where the normal leans down the axis
@@ -2403,12 +2389,12 @@ pub fn plane_cone_section<T: Decide>(
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
-            center: apex + a * t,
-            axis: a,
-            radius: rim_r,
-            u_ref: cone_u,
-        })),
+        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::circle(
+            apex + a * t,
+            a,
+            rim_r,
+            cone_u,
+        ))),
         Sign::Positive | Sign::Negative => {
             let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
@@ -2764,12 +2750,7 @@ pub fn plane_torus_section<T: Decide>(
                     // so `n × a` is unit up to rounding; normalized
                     // for the frame all the same.
                     let m = n.cross(a).normalize();
-                    let circle_at = |center: Point3<T>| Curve3::Circle {
-                        center,
-                        axis: n,
-                        radius: r,
-                        u_ref: a,
-                    };
+                    let circle_at = |center: Point3<T>| Curve3::circle(center, n, r, a);
                     Ok(PlaneTorusSection::MeridianCircles {
                         c1: circle_at(c + m * big_r),
                         c2: circle_at(c - m * big_r),
@@ -2845,23 +2826,15 @@ pub fn plane_torus_section<T: Decide>(
                             // spuriously negative bracket under a
                             // sqrt).
                             let w = ((r - h.abs()) * (r + h.abs())).sqrt();
-                            let circle_at = |radius: T| Curve3::Circle {
-                                center,
-                                axis: a,
-                                radius,
-                                u_ref: tor_u,
-                            };
+                            let circle_at = |radius: T| Curve3::circle(center, a, radius, tor_u);
                             Ok(PlaneTorusSection::ConcentricCircles {
                                 c1: circle_at(big_r + w),
                                 c2: circle_at(big_r - w),
                             })
                         }
-                        Sign::Zero => Ok(PlaneTorusSection::TangentCircle(Curve3::Circle {
-                            center,
-                            axis: a,
-                            radius: big_r,
-                            u_ref: tor_u,
-                        })),
+                        Sign::Zero => Ok(PlaneTorusSection::TangentCircle(Curve3::circle(
+                            center, a, big_r, tor_u,
+                        ))),
                         Sign::Negative => Ok(PlaneTorusSection::Empty),
                     }
                 }
@@ -3139,12 +3112,7 @@ pub fn cone_cylinder_section<T: Decide>(
                     });
                 }
             }
-            let circle_at = |center: Point3<T>| Curve3::Circle {
-                center,
-                axis: a,
-                radius: big_r,
-                u_ref: cone_u,
-            };
+            let circle_at = |center: Point3<T>| Curve3::circle(center, a, big_r, cone_u);
             Ok(ConeCylinderSection::CoaxialCircles {
                 c1: circle_at(apex + a * station),
                 c2: circle_at(apex - a * station),
@@ -3196,6 +3164,48 @@ mod apex_fan_rows {
             let d = e1 * t.cos() + e2 * t.sin();
             assert!(d.dot(axis) <= hi.dot(axis) + 1e-15, "{k}°");
             assert!(d.dot(axis) >= lo.dot(axis) - 1e-15, "{k}°");
+        }
+    }
+
+    /// **Near-coaxial fans stay on both cones**: axes `δ` apart, `δ` from
+    /// `1e-4` down to `1e-10`. Fans of one aperture cross along two
+    /// rulings square to the tilt plane, each on both cones to the
+    /// inputs' own floor `~u/δ` (where the textbook
+    /// `(c₁ − k·c₂)/(1 − k²)` lost `1 − k²` and missed by `1.7e-4` at
+    /// `1e-6`). Fans of apertures `0.01` rad apart meet only
+    /// at the apex, `disc` negative well past the tilt.
+    #[test]
+    fn near_coaxial_fans_stay_on_both_cones() {
+        let a1 = Vec3::new(0.2, 1.0, -0.4).normalize();
+        let off = Vec3::new(1.0, 0.0, 0.0);
+        let off = (off - a1 * off.dot(a1)).normalize();
+        for k in 4..=10 {
+            let tilt = 10f64.powi(-k);
+            let a2 = (a1 * tilt.cos() + off * tilt.sin()).normalize();
+            let c = 0.6f64.cos();
+            let m = cone_cone_apex_meeting((a1, c), (a2, c));
+            assert!(m.disc > 0.0, "tilt {tilt}: {m:?}");
+            // The inputs fix the tilt's direction only to `u/δ`, and the
+            // rulings' azimuth with it: that is the floor, which the
+            // callers' conditioning rung reads (`bool_fans_meet`'s).
+            let floor = 8.0 * f64::EPSILON / tilt;
+            for d in m.rulings() {
+                assert!((d.norm() - 1.0).abs() <= floor, "tilt {tilt}: {d:?}");
+                assert!(
+                    (d.dot(a1) - c).abs() <= floor,
+                    "tilt {tilt}: {d:?} off the first"
+                );
+                assert!(
+                    (d.dot(a2) - c).abs() <= floor,
+                    "tilt {tilt}: {d:?} off the second"
+                );
+                assert!(
+                    d.dot(off).abs() <= tilt,
+                    "tilt {tilt}: {d:?} not square to the tilt"
+                );
+            }
+            let wider = cone_cone_apex_meeting((a1, c), (a2, 0.61f64.cos()));
+            assert!(wider.disc < -1.0, "tilt {tilt}: {wider:?}");
         }
     }
 

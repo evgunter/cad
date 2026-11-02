@@ -474,6 +474,14 @@ pub struct BatteryVerdict<T: Real> {
     /// chains end there, sorted by vertex. The planar band's plan reads
     /// each turn off this list rather than re-reading the trihedron.
     pub turns: Vec<Turn<T>>,
+    /// The requested edges predicate 5 read as smooth seams
+    /// ([`LinkWedge::Smooth`]), each with the decided-Zero margin it
+    /// read, in request order: in no chain, and left as they are. The
+    /// verbs say nothing of them (a requested smooth edge is a silent
+    /// no-op: the blend's limit there is the edge itself); the battery
+    /// reads the rest of the request without them, and this row is
+    /// what its readers check the margin on.
+    pub smooth: Vec<(EdgeKey, ClassifiedMargin)>,
 }
 
 impl<T: Real> BatteryVerdict<T> {
@@ -689,60 +697,96 @@ pub fn spine_regularity<T: Decide + Bounds>(
 // Predicate 5 — convexity-sign consistency.
 // ---------------------------------------------------------------
 
-/// **`fillet3_convexity_sign`** — the dihedral's convexity sign at
-/// one sample of one link.
+/// What predicate 5 decided of one requested link: a wedge the blend
+/// rounds, or the smooth seam it leaves as it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LinkWedge {
+    /// A definite wedge side: the band is built on it.
+    Blend(Convexity),
+    /// Wedge π ([`geom_brep::EdgeWedge::Smooth`]): a ball resting on
+    /// both supports touches them along the edge itself, so the blend
+    /// of this edge is the edge, and the verb leaves it as it is.
+    Smooth,
+}
+
+/// **`fillet3_convexity_sign`** — the dihedral's material wedge at
+/// one sample of one link, through the kernel's one door for it
+/// ([`geom_brep::classify_edge_wedge`]).
 ///
 /// Margin: `((n_a × n_b)·τ̂)·arm` in METERS, `n_a`/`n_b` the two
 /// supports' OUTWARD normals (stored sense folded in), `τ̂` the
-/// `he_plus` traversal direction, `arm` the folded lever arm. The
-/// quantity is orientation-well-defined: swapping the two faces also
-/// reverses the traversal, and the triple product is invariant under
-/// doing both.
+/// `he_plus` traversal direction, `arm` the folded lever arm.
 ///
-/// `Positive` is convex, `Negative` concave, `Zero` is a dihedral
-/// with no definite wedge side at this lever — refused as
-/// [`BlendError::TangentialEdge`], of which genuine tangency is one
-/// cause. C8 requires the sign to
-/// be CONSTANT along the chain — a dihedral flipping mid-chain has no
+/// `Positive` is convex, `Negative` concave. A decided `Zero` is read
+/// for its material side: aligned normals are the smooth seam
+/// ([`LinkWedge::Smooth`]), opposed ones a cusp or slit, refused as
+/// [`BlendError::KnifeEdge`]. C8 requires the sign to be CONSTANT
+/// along the chain — a dihedral flipping mid-chain has no
 /// constant-radius rolling-ball blend at all — so the caller escalates
 /// on a flip rather than blending each run silently.
 ///
 /// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
 /// margin is: an angle at an arm not definitely positive is not a
 /// question, so such an arm refuses as that gate
-/// ([`classify_positive`]), carrying the arm it read, rather than
-/// classifying — the same predicate at the LINK site instead of the
-/// joint.
+/// ([`geom_brep::PositiveArm::gate`] under the decision's name),
+/// carrying the arm it read, rather than classifying.
+///
+/// It takes the two faces' outward normals at the sample, read once by
+/// the caller ([`geom_brep::implicit_outward_normal`]): the door and its
+/// material pairing read those two, and the link's arm reads them after.
 ///
 /// # Errors
 ///
-/// [`BlendError::Escalated`] in band or on poison. A definite sign is
-/// returned; the caller judges consistency.
-pub fn convexity_at<T: Decide + Bounds>(
-    n_a: Vec3<T>,
-    n_b: Vec3<T>,
+/// [`BlendError::KnifeEdge`] on a cusp or slit;
+/// [`BlendError::Escalated`] in band or on poison, of the arm, the sign
+/// or the material side.
+pub fn wedge_at<T: Decide + Bounds>(
+    n_plus: geom_brep::OutwardNormal<T>,
+    n_minus: geom_brep::OutwardNormal<T>,
     tau: Vec3<T>,
     arm: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(Convexity, ClassifiedMargin), BlendError> {
+) -> Result<(LinkWedge, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
-    classify_positive(site, BlendDecision::ChainArm, Margin::of(arm), band)?;
-    let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
-    let sign = classify(site, BlendDecision::ConvexitySign, margin, band)?;
+    let escalated = |decision, source| BlendError::Escalated {
+        site,
+        decision,
+        source,
+    };
+    let arm = geom_brep::PositiveArm::gate(BlendDecision::ChainArm.predicate(), arm, band)
+        .map_err(|source| escalated(BlendDecision::ChainArm, source))?;
+    let (wedge, margin) = geom_brep::classify_edge_wedge(
+        BlendDecision::ConvexitySign.predicate(),
+        n_plus,
+        n_minus,
+        tau,
+        arm,
+        band,
+    )
+    .map_err(|e| match e {
+        geom_brep::EdgeWedgeEscalation::Sign(source) => {
+            escalated(BlendDecision::ConvexitySign, source)
+        }
+        geom_brep::EdgeWedgeEscalation::Side(source) => {
+            escalated(BlendDecision::MaterialSide, source)
+        }
+    })?;
     let reading = |s| classified(BlendDecision::ConvexitySign, margin.value(), band, s);
-    match sign {
-        Sign::Positive => Ok((Convexity::Convex, reading(Sign::Positive))),
-        Sign::Negative => Ok((Convexity::Concave, reading(Sign::Negative))),
-        // A decided Zero establishes that the dihedral has no
-        // definite wedge side at this lever — `(n_a × n_b)·τ̂` folded
-        // against the arm is coincident with zero. Genuine tangency
-        // (the supports sharing a tangent plane) is one cause, not
-        // the established fact. Its own situation and its own error —
-        // it does not DISAGREE with the chain's convexity, none was
-        // decided, and reporting it as a "flip" would hand the reader
-        // a chain verdict that was never taken.
-        Sign::Zero => Err(BlendError::TangentialEdge {
+    match wedge {
+        geom_brep::EdgeWedge::Convex => {
+            Ok((LinkWedge::Blend(Convexity::Convex), reading(Sign::Positive)))
+        }
+        geom_brep::EdgeWedge::Concave => Ok((
+            LinkWedge::Blend(Convexity::Concave),
+            reading(Sign::Negative),
+        )),
+        geom_brep::EdgeWedge::Smooth => Ok((LinkWedge::Smooth, reading(Sign::Zero))),
+        // A cusp or slit: the material sides face each other across
+        // the tangent plane. Its ball rests away from the edge, where the
+        // supports open to 2r, a construction the blend does not make
+        // (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
+        geom_brep::EdgeWedge::Knife => Err(BlendError::KnifeEdge {
             edge,
             margin: reading(Sign::Zero),
         }),
@@ -1002,6 +1046,16 @@ pub(crate) fn face_clearance_margin<T: Decide + Bounds>(
     }
 }
 
+/// One requested edge, resolved: a link the blend builds, or a smooth
+/// seam it leaves as it is ([`LinkWedge::Smooth`]).
+#[derive(Clone, Debug)]
+pub(crate) enum Resolved<T: Real> {
+    /// A link with a definite wedge side.
+    Link(Link<T>),
+    /// The smooth seam at this edge.
+    Smooth(EdgeKey, ClassifiedMargin),
+}
+
 /// Resolve one link: supports, arm, blend, convexity. Refuses typed
 /// on any support pair the analytic arms do not cover — naming the
 /// canal-surface unit as the missing front door.
@@ -1011,7 +1065,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<Link<T>, BlendError> {
+) -> Result<Resolved<T>, BlendError> {
     let broken = || BlendError::ChainNotConnected { edge };
     let sides = topo::readback::edge_sides(body, edge).map_err(|_| broken())?;
     let he_plus = sides.plus.half_edge;
@@ -1025,8 +1079,6 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let n_a = outward(body, face_a, p).ok_or_else(broken)?;
-    let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -1046,7 +1098,6 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         p,
         topo::wedge_reach(body, [face_a, face_b], &carrier, (t0, t1)),
     );
-    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, wedge_arm, edge, band)?;
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
     // radial, so `sense` says on which side of that sphere the material
@@ -1054,6 +1105,16 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     // rides (`plane_sphere_blend`).
     let sense = |f: FaceKey| body.get_face(f).map(|d| d.sense).ok_or_else(broken);
     let senses = (sense(face_a)?, sense(face_b)?);
+    // Each face's outward normal at the point, read once: the wedge and
+    // its material pairing, then the arm, read these two.
+    let outward_a = geom_brep::implicit_outward_normal(&sa, senses.0, p);
+    let outward_b = geom_brep::implicit_outward_normal(&sb, senses.1, p);
+    let (n_a, n_b) = (outward_a.vec(), outward_b.vec());
+    let (convexity, convexity_margin) =
+        match wedge_at(outward_a, outward_b, tau, wedge_arm, edge, band)? {
+            (LinkWedge::Blend(convexity), margin) => (convexity, margin),
+            (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
+        };
     let (arm, blend, axis) = classify_arm(
         &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
     )?;
@@ -1065,7 +1126,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
             margin,
         )
     });
-    Ok(Link {
+    Ok(Resolved::Link(Link {
         edge,
         face_a,
         face_b,
@@ -1078,7 +1139,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         convexity_margin,
         arm_len: extent,
         support_axis,
-    })
+    }))
 }
 
 /// A plane's stored in-plane seam reference — the deterministic,
@@ -1364,7 +1425,10 @@ fn curved_arm<T: Decide + Bounds>(
 ) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
-        Curve3::Circle { center, axis, .. } => {
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
+            ..
+        }) => {
             let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
             let sheet = Meridian {
                 origin: center,
@@ -1381,7 +1445,7 @@ fn curved_arm<T: Decide + Bounds>(
             let axis = (topo::Relation::Coaxial, margin);
             Ok((arm, sheet.blend(ta, tb, radius), axis))
         }
-        Curve3::Line { dir, .. } => {
+        Curve3::Line(geom::Line { dir, .. }) => {
             let arm = ruling_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
             let sheet = Ruling {
                 tau: dir.normalize(),
@@ -1832,10 +1896,22 @@ pub fn run_battery_for<T: Decide + Bounds>(
     let rolling_ball = matches!(kind, BlendKind::Fillet);
     // Resolve first: this is where the support pairs are enumerated,
     // so an out-of-scope pair refuses before any margin is taken.
+    // A smooth seam is left as it is: it joins no chain, and every
+    // later predicate reads the request without it.
     let mut links = Vec::with_capacity(req.edges.len());
+    let mut smooth = Vec::new();
     for edge in &req.edges {
-        links.push(resolve_link(body, *edge, r, band, kind)?);
+        match resolve_link(body, *edge, r, band, kind)? {
+            Resolved::Link(link) => links.push(link),
+            Resolved::Smooth(edge, margin) => smooth.push((edge, margin)),
+        }
     }
+    let blended: Vec<EdgeKey> = req
+        .edges
+        .iter()
+        .copied()
+        .filter(|e| !smooth.iter().any(|(s, _)| s == e))
+        .collect();
     let chains = walk_chains(links);
 
     // --- 1. radius vs curvature headroom, at every sample of every
@@ -1914,7 +1990,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
         if let ChainClosure::Open { head, tail } = chain.closure {
             let last = chain.rest().last().unwrap_or(chain.first());
             for (v, link) in [(head, chain.first()), (tail, last)] {
-                match corner_at(body, v, link, &req.edges, r, band, kind)? {
+                match corner_at(body, v, link, &blended, r, band, kind)? {
                     Some(EndVerdict::Section(section)) => end_faces.push((v, section)),
                     // Both chains a turn ends reach it; it is one turn,
                     // decided once.
@@ -1940,6 +2016,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
         end_faces,
         joints,
         turns,
+        smooth,
     })
 }
 
@@ -2406,7 +2483,7 @@ pub(crate) fn turn_reading<T: Decide>(
     };
     let others = [other(l1), other(l2)];
     let trimline = |l: &Link<T>, f: FaceKey| match l.trim_on(f) {
-        Some((Curve3::Line { origin, dir }, _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
         _ => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "a turning band's trimline is not a line",
@@ -2759,7 +2836,7 @@ fn corner_at<T: Decide + Bounds>(
     let mut resolved: Vec<Link<T>> = Vec::with_capacity(edges.len());
     for e in &edges {
         match resolve_link(body, *e, radius, band, kind) {
-            Ok(l) => {
+            Ok(Resolved::Link(l)) => {
                 if matches!(l.convexity, Convexity::Convex) {
                     convex += 1;
                 }
@@ -2787,8 +2864,9 @@ fn corner_at<T: Decide + Bounds>(
             // genuinely lost is the neighbour's own margin, which a
             // future corner taxonomy should carry as payload; it is
             // not lost SILENTLY, because the tag says the
-            // configuration did not classify.
-            Err(_) => {
+            // configuration did not classify. A smooth neighbour is no
+            // wedge to count, and folds the same way.
+            Ok(Resolved::Smooth(..)) | Err(_) => {
                 return Err(indeterminate());
             }
         }
@@ -3067,7 +3145,7 @@ fn consumption_sweep<T: Decide + Bounds>(
             };
             // A joint is plane–plane by its verdict, and
             // `arms::plane_plane_blend` mints its trimlines as lines.
-            let Curve3::Line { origin, dir } = trim else {
+            let Some(line) = trim.as_line() else {
                 return Err(BlendError::SurgeryInvariant {
                     at: EntityId::Edge(link.edge),
                     detail: "a plane–plane joint's trimline is not a line",
@@ -3077,7 +3155,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                 .get_vertex(*v)
                 .and_then(|x| body.get_point(x.point))
                 .ok_or_else(|| unresolved(EntityId::Vertex(*v), "a joint's stored point"))?;
-            let foot = *origin + *dir * ((*p - *origin).dot(*dir) / dir.dot(*dir));
+            let foot = line.foot(*p);
             let run_edges = members(link.edge);
             for (e, carrier, _) in &boundary {
                 if run_edges.contains(e) || !touches_any(body, &run_edges, &[*e])? {
@@ -3087,7 +3165,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                 // end edge is straight unless the corner's third support
                 // is curved — which no corner carves, and which refuses
                 // here as that rather than being sampled.
-                let Curve3::Line { origin: o, dir: d } = *carrier else {
+                let Some(geom::Line { origin: o, dir: d }) = carrier.as_line() else {
                     return Err(unbuilt_geometry(
                         EntityId::Edge(*e),
                         CORNER_SUPPORT_NOT_PLANAR,

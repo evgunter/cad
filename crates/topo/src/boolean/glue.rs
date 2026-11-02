@@ -134,8 +134,11 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// That refusal, typed; [`BooleanError::ClassificationInvariant`] where
-/// an enumerated face has no surface.
+/// That refusal, typed.
+///
+/// # Panics
+///
+/// Where `fa` or `fb`, faces the glue door enumerated, does not resolve.
 fn tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -143,16 +146,9 @@ fn tangency<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let kind = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
-            .map(geom::Surface::kind)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "the glue door: a face it enumerated has no surface",
-            })
-    };
+    let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
     let read = DeclarationRead::Moot;
-    if !ruled((kind(a, fa)?, kind(b, fb)?))
+    if !ruled((kind(a, fa), kind(b, fb)))
         && super::rim_wedge::shared_rim(a, fa, b, fb, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
             .is_none()
@@ -218,17 +214,11 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     keep: impl Fn(&geom::Surface<T>) -> bool,
     band: Band,
 ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
-    let kept = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
-            .is_some_and(&keep)
-    };
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.faces()
-            .map(|(k, _)| k)
-            .filter(|&k| kept(body, k))
-            .map(|k| Ok((k, boxes::face_box(body, k, pad, band)?)))
+            .filter(|&(k, face)| keep(body.face_surface_linked(k, face)))
+            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
             .collect()
     };
     pairs_among(&boxed(a)?, &boxed(b)?)
@@ -291,9 +281,10 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(SectionTable<T>, Vec<crate::Coincidence>), BooleanError> {
     let recorded = decls.verdicts != super::Verdicts::Given;
+    // Every face read here is one this door enumerated from its body.
     let surface = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| Some((face.surface, body.get_surface(face.surface)?.clone())))
+        let face = crate::live::proven(&body.faces, f, crate::entity::EntityId::Face);
+        (face.surface, body.face_surface_linked(f, face).clone())
     };
     let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
@@ -330,16 +321,14 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
         boxed
             .iter()
-            .filter(|&&(k, _)| surface(body, k).is_some_and(|(_, s)| read(&s)))
+            .filter(|&&(k, _)| read(&surface(body, k).1))
             .copied()
             .collect()
     };
     let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
     for (fa, fb) in pairs_among(&served(a, &a_boxes), &served(b, &b_boxes))? {
-        let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
-            continue;
-        };
+        let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {
@@ -351,6 +340,51 @@ pub(crate) fn section_door<T: Decide + Bounds>(
                 rows.push(row((fa, fb), relation, site, margin));
             }
         }
+    }
+    // Each plane×cone surface pair whose faces' boxes meet, read once
+    // for the operation at the surface pair's reach
+    // (`join::surface_pair_reach`), taken over every met face pair on it,
+    // so no one face's extent sets the lever its pieces and siblings
+    // read at. A pair whose reach does not read is not held; the join
+    // reads it face by face, and refuses there.
+    let plane_or_cone = |s: &geom::Surface<T>| {
+        matches!(s, geom::Surface::Plane { .. } | geom::Surface::Cone { .. })
+    };
+    let kept = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        boxed
+            .iter()
+            .filter(|&&(k, _)| plane_or_cone(&surface(body, k).1))
+            .copied()
+            .collect()
+    };
+    let mut met: std::collections::BTreeMap<_, (geom::Surface<T>, geom::Surface<T>, Vec<_>)> =
+        std::collections::BTreeMap::new();
+    for (fa, fb) in pairs_among(&kept(a, &a_boxes), &kept(b, &b_boxes))? {
+        let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
+        if super::join::plane_and_cone(&sa, &sb).is_none() {
+            continue;
+        }
+        met.entry((ka, kb))
+            .or_insert_with(|| (sa, sb, Vec::new()))
+            .2
+            .push((fa, fb));
+    }
+    for ((ka, kb), (sa, sb, faces)) in met {
+        let cone_first = matches!(sa, geom::Surface::Cone { .. });
+        let (bodies, pairs): (_, Vec<(FaceKey, FaceKey)>) = if cone_first {
+            ((a, b), faces)
+        } else {
+            ((b, a), faces.into_iter().map(|(fa, fb)| (fb, fa)).collect())
+        };
+        let Some((plane, cone)) = super::join::plane_and_cone(&sa, &sb) else {
+            continue;
+        };
+        let Ok(reach) = super::join::surface_pair_reach(bodies, &pairs, cone, band) else {
+            continue;
+        };
+        table.read_plane_cone((ka, kb), || {
+            super::join::pk_section(plane, cone, &reach, band)
+        });
     }
     Ok((table.finish(), rows))
 }

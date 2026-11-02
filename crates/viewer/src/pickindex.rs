@@ -598,15 +598,51 @@ trait DrawnKind {
 /// the vertex rather than across its faces.
 const VERTEX_MARK_ARM: f64 = 0.02;
 
-/// **One part's drawn vertices, into `out`**: each named end of each
-/// drawn edge at its tessellated position, with the arm its mark is
-/// drawn at. A vertex the table does not name is left out here — the
-/// pick door says so loudly ([`VertexNameFault::Unnamed`]) — and the
-/// door's refusal of the call is the index's.
+/// **The drawn vertices**: each named end of a drawn edge at its
+/// tessellated position with the arm its mark is drawn at, by the drawn
+/// body and name; and, by the drawn body, the naming layer's refusal for
+/// each vertex its table could not name, in boundary order.
+#[derive(Debug, Default)]
+struct Vertices {
+    marks: BTreeMap<(RecipeNodeId, u32, StableName), (Point3<f64>, f64)>,
+    unnamed: BTreeMap<(RecipeNodeId, u32), Vec<UnnamedEntity>>,
+}
+
+impl Vertices {
+    /// One end of a drawn edge of `(node, body)`, at `at`: its mark
+    /// where it is named, its refusal kept once a vertex where not.
+    fn push(
+        &mut self,
+        node: RecipeNodeId,
+        body: u32,
+        name: Result<StableName, UnnamedEntity>,
+        at: Option<Point3<f64>>,
+        arm: f64,
+    ) {
+        match (name, at) {
+            (Ok(name), Some(at)) => {
+                self.marks.insert((node, body, name), (at, arm));
+            }
+            (Ok(_), None) => {}
+            (Err(refusal), _) => {
+                let refused = self.unnamed.entry((node, body)).or_default();
+                if !refused.contains(&refusal) {
+                    refused.push(refusal);
+                }
+            }
+        }
+    }
+}
+
+/// **One part's drawn vertices, into `out`** ([`Vertices`]). A vertex
+/// the table does not name is counted, not drawn — the pick door says
+/// so loudly for the one under the cursor ([`VertexNameFault::Unnamed`])
+/// and [`PickIndex::vertex_names_refused`] for the body — and the door's
+/// refusal of the call is the index's.
 fn drawn_vertices(
     part: &NodePick,
     eval: &Evaluation<f64>,
-    out: &mut BTreeMap<(RecipeNodeId, u32, StableName), (Point3<f64>, f64)>,
+    out: &mut Vertices,
 ) -> Result<(), PickIndexError> {
     let mesh = part.mesh();
     let Some(diagonal) = bvh::Aabb::from_points(mesh.positions.iter().copied()).map(|aabb| {
@@ -626,10 +662,8 @@ fn drawn_vertices(
         };
         let ends = [boundary.points.first(), boundary.points.last()];
         for (name, end) in names.into_iter().zip(ends) {
-            if let (Ok(name), Some(&at)) = (name, end.and_then(|&i| mesh.positions.get(i as usize)))
-            {
-                out.insert((part.node(), part.body(), name), (at, arm));
-            }
+            let at = end.and_then(|&i| mesh.positions.get(i as usize)).copied();
+            out.push(part.node(), part.body(), name, at, arm);
         }
     }
     Ok(())
@@ -1245,10 +1279,11 @@ pub struct PickIndex {
     edges: PartWindows<Edges>,
     /// The drawn edges that are one circle ([`Rims`]).
     rims: Rims,
-    /// The drawn vertices — every named end of a drawn edge — by the
-    /// drawn body and name, each at its tessellated position with the
-    /// arm its mark is drawn at ([`PickIndex::vertex_legs_for`]).
-    vertices: BTreeMap<(RecipeNodeId, u32, StableName), (Point3<f64>, f64)>,
+    /// The drawn vertices — every end of a drawn edge — each named one
+    /// at its tessellated position with the arm its mark is drawn at
+    /// ([`PickIndex::vertex_legs_for`]), the rest counted
+    /// ([`PickIndex::vertex_names_refused`]).
+    vertices: Vertices,
     /// Each drawn node's space ([`Doc::node_space`]): the pick orders
     /// faces within one space only.
     spaces: BTreeMap<RecipeNodeId, VarId>,
@@ -1375,7 +1410,7 @@ impl PickIndex {
         let mut patches = PartWindows::<Patches>::new();
         let mut edges = PartWindows::<Edges>::new();
         let mut rims = Rims::default();
-        let mut vertices = BTreeMap::new();
+        let mut vertices = Vertices::default();
         for part in &parts {
             patches.push(part, eval)?;
             edges.push(part, eval)?;
@@ -1422,7 +1457,7 @@ impl PickIndex {
         }
         let (Some(part), Some(&(at, arm))) = (
             self.part_of(*node, *body),
-            self.vertices.get(&(*node, *body, name.clone())),
+            self.vertices.marks.get(&(*node, *body, name.clone())),
         ) else {
             return Vec::new();
         };
@@ -1915,6 +1950,34 @@ impl PickIndex {
         EdgeNames { named, refused }
     }
 
+    /// **The drawn vertices of one (node, body) its table could not
+    /// name**, `None` where it names every one: how many it names, how
+    /// many it does not, and the first refusal in boundary order — the
+    /// vertex twin of [`PickIndex::edge_names_in`]'s count.
+    pub fn vertex_names_refused(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+    ) -> Option<VertexNamesRefused> {
+        let refused = self.vertices.unnamed.get(&(node, body))?;
+        let &[first, ..] = refused.as_slice() else {
+            unreachable!("a body's refusals are kept only where it has one")
+        };
+        let named = self
+            .vertices
+            .marks
+            .keys()
+            .filter(|(n, b, _)| (*n, *b) == (node, body))
+            .count();
+        Some(VertexNamesRefused {
+            node,
+            body,
+            first,
+            named,
+            refused: refused.len(),
+        })
+    }
+
     /// **A naming-emission bug, planted**: the drawn edge `id` refuses
     /// its name with the naming layer's own refusal — the slot a part
     /// whose table could not name that edge is pushed with — which is
@@ -2392,8 +2455,9 @@ impl PickIndex {
     }
 
     /// **The nearest drawn line within the pick radius that the solid
-    /// does not hide** — a body edge or a committed profile's outline,
-    /// whichever `lines` offers — or `None`. See
+    /// does not hide** — a body edge or a profile's drawn outline
+    /// ([`PickIndex::drawn_outline`]), whichever `lines` offers — or
+    /// `None`. See
     /// [`PickIndex::edge_at_for`] for the whole argument; this is the
     /// one walk both kinds of line go through, so they meet one
     /// distance contest, one tie rule and one occlusion test.
@@ -2436,10 +2500,11 @@ impl PickIndex {
         // measuring it would need clipping, and a line running through
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
+        let outlines = self.drawn_outlines(display);
         if lines.outlines {
-            for (rank, outline) in self.outlines.iter().enumerate() {
+            for (rank, (_, loops)) in outlines.iter().enumerate() {
                 let mut best: Option<Candidate> = None;
-                for (lp, points) in outline.loops.iter().enumerate() {
+                for (lp, points) in loops.iter().enumerate() {
                     let projected = points
                         .iter()
                         .map(|&world| project(world))
@@ -2559,7 +2624,7 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => Near::Profile(self.outlines[rank].node),
+                Line::Outline(rank) => Near::Profile(outlines[rank].0),
                 Line::Edge(rank) => {
                     let part = bodies[rank];
                     let id = EdgeId {
@@ -2595,6 +2660,43 @@ impl PickIndex {
             .iter()
             .find(|outline| outline.node == node)
             .map_or(&[], |outline| outline.loops.as_slice())
+    }
+
+    /// **The outline the picture draws of profile `node`**: the edit
+    /// preview's where `display` says the node is drawn by one
+    /// ([`DisplayView::previewed_profile`]), else its committed
+    /// outline ([`PickIndex::profile_outline`]). What the pick measures
+    /// a cursor against and what the profile marks light.
+    pub fn drawn_outline<'a>(
+        &'a self,
+        node: RecipeNodeId,
+        display: &'a DisplayView,
+    ) -> &'a [Vec<Point3<f64>>] {
+        match &display.previewed_profile {
+            Some(previewed) if previewed.node == node => &previewed.outline,
+            _ => self.profile_outline(node),
+        }
+    }
+
+    /// **Every profile outline the picture draws**, by node
+    /// ([`PickIndex::drawn_outline`]): the committed ones in document
+    /// order, the previewed node's in its committed one's place, or
+    /// last where the index holds no committed outline of it.
+    fn drawn_outlines<'a>(
+        &'a self,
+        display: &'a DisplayView,
+    ) -> Vec<(RecipeNodeId, &'a [Vec<Point3<f64>>])> {
+        let mut drawn: Vec<(RecipeNodeId, &[Vec<Point3<f64>>])> = self
+            .outlines
+            .iter()
+            .map(|outline| (outline.node, self.drawn_outline(outline.node, display)))
+            .collect();
+        if let Some(previewed) = &display.previewed_profile
+            && !drawn.iter().any(|(node, _)| *node == previewed.node)
+        {
+            drawn.push((previewed.node, previewed.outline.as_slice()));
+        }
+        drawn
     }
 
     /// **The whole cursor path, as one function**: a cursor action
@@ -2932,6 +3034,30 @@ fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
         (Some(probe), None) => Some(probe),
         (Some(probe), Some(placed)) => Some(probe * placed),
     }
+}
+
+/// **A clearance witness's leg, where the picture draws it**: each end,
+/// a point in the frame the pair was decided in (`computing`, the
+/// operands' computing frame), composed into its space
+/// ([`pncad::document::in_space`]) and moved by the free-move probe its
+/// own seat's node is drawn under — so each end lands on its face as
+/// that face is drawn.
+pub(crate) fn witness_leg(
+    display: &DisplayView,
+    computing: &pncad::document::Framed<f64>,
+    ends: [(RecipeNodeId, Point3<f64>); 2],
+) -> [Point3<f64>; 2] {
+    let placed = pncad::document::in_space(computing).map(|map| map.to_affine());
+    ends.map(|(node, at)| {
+        let in_space = placed.map_or(at, |placed| placed.transform_point(at));
+        display
+            .moved_nodes
+            .get(&node)
+            .copied()
+            .map_or(in_space, |frame: Frame| {
+                frame.affine::<f64>().transform_point(in_space)
+            })
+    })
 }
 
 /// **The free-move probe frame a part's node is drawn under**, if
@@ -3296,6 +3422,53 @@ impl core::fmt::Display for EdgeNamesRefused {
 }
 
 impl core::error::Error for EdgeNamesRefused {}
+
+/// **Some drawn vertices of one body have no name here**
+/// ([`PickIndex::vertex_names_refused`]): which body, how many vertices
+/// it draws named and unnamed, and the naming layer's refusal for the
+/// first unnamed one in boundary order — [`EdgeNamesRefused`]'s shape.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VertexNamesRefused {
+    /// The node whose body was walked.
+    pub node: RecipeNodeId,
+    /// Which output body of it.
+    pub body: u32,
+    /// The first unnamed vertex's refusal, in boundary order.
+    pub first: UnnamedEntity,
+    /// How many of the body's drawn vertices are named.
+    pub named: usize,
+    /// How many are not.
+    pub refused: usize,
+}
+
+impl Say for VertexNamesRefused {
+    /// The refusal itself is the naming layer's sentence.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self {
+            node,
+            body,
+            first,
+            named,
+            refused,
+        } = self;
+        write!(
+            f,
+            "the index names {named} of the {} vertices it draws on {}; the first it cannot: {}",
+            named.saturating_add(*refused),
+            Said(&DrawnBody::new(*node, *body), by),
+            Said(first, by.about(*node))
+        )
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for VertexNamesRefused {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+impl core::error::Error for VertexNamesRefused {}
 
 impl Say for PickError {
     /// The rule this crate follows is that the layer which raised a
@@ -3723,6 +3896,61 @@ mod tests {
                 refused: None,
             }
         );
+    }
+
+    /// **A body's unnamed vertices are counted, not dropped.** The
+    /// naming layer's refusal is planted on one end of a drawn edge of
+    /// the plate, twice, as two edges meeting at one unnamed vertex
+    /// would hold it; the index counts that vertex once, keeps its
+    /// refusal, and still names and draws every vertex it named.
+    #[test]
+    fn a_bodys_unnamed_vertex_is_counted_and_its_refusal_kept() {
+        let (_, mut index, copy) =
+            crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
+        assert_eq!(
+            index.vertex_names_refused(copy, 0),
+            None,
+            "the plate names every vertex it draws"
+        );
+        let named = index
+            .vertices
+            .marks
+            .keys()
+            .filter(|(node, body, _)| (*node, *body) == (copy, 0))
+            .count();
+        assert!(named > 0, "the plate draws named vertices");
+        let unnamed = UnnamedEntity {
+            node: copy,
+            entity: editor_core::EntityRef {
+                body: 0,
+                key: editor_core::EntityKey::Vertex(pncad::topo::VertexKey::default()),
+            },
+        };
+        for _ in 0..2 {
+            index
+                .vertices
+                .push(copy, 0, Err(unnamed), Some(Point3::origin()), 1.0);
+        }
+        let refused = index
+            .vertex_names_refused(copy, 0)
+            .expect("the planted vertex is counted");
+        assert_eq!(
+            refused,
+            VertexNamesRefused {
+                node: copy,
+                body: 0,
+                first: unnamed,
+                named,
+                refused: 1,
+            }
+        );
+        assert!(
+            refused
+                .to_string()
+                .contains(&format!("names {named} of the {} vertices", named + 1)),
+            "the sentence counts both: {refused}"
+        );
+        assert_eq!(index.vertex_names_refused(copy, 7), None, "an undrawn body");
     }
 
     /// The id map's keys are the windows' own entities, so the two

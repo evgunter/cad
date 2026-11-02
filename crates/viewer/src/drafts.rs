@@ -17,7 +17,7 @@ use std::sync::{Arc, Weak};
 use pncad::document::{
     Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
-    StepArg, StepId, VarId, VarName,
+    StepArg, StepId, VarId, VarName, slot_admits,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -25,12 +25,12 @@ use pncad::quantity::UnitDef;
 use pncad::trace::TraceMarks;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::PatternOutputChoice;
+use crate::combine::{ClearanceBoundChoice, PatternOutputChoice};
 use crate::forms::{PatternLayoutChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::props::{self, Notation, SlotRow};
 use crate::seats::SeatError;
-use crate::session::{FaceSelection, ProfileShape, SessionOp, SketchTraceFault};
+use crate::session::{FaceSelection, ProfileShape, Refusal, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldRefusal, HeldStep, HeldStepFault};
 use crate::tree::HeldPick;
 
@@ -82,17 +82,17 @@ pub(crate) struct Drafts {
     /// ([`crate::frame::creation_offer`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
-    /// The mate tool's choice, as widget state: an index into
-    /// [`crate::matetool::MATE_KINDS`], each kind's own sense toggle, and for each
-    /// freedom of [`crate::matetool::MateFreedom::ALL`] whether it is set and its number in
-    /// SI units. Draft chrome state only — the typed choice is minted
-    /// at commit.
-    pub(crate) mate_kind: usize,
-    pub(crate) mate_flip: [bool; crate::matetool::MATE_KINDS.len()],
-    /// Whether the mate moves its copy into the space its `to` reads,
-    /// asked by name: off, a mate across two spaces refuses.
-    pub(crate) mate_into_target_space: bool,
-    pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
+    /// **The placement editor's last verdict**: the history state and
+    /// the Apply it judged, and what the session answered, said
+    /// ([`crate::session::DocSession::bundle_verdict`]) — asked once per
+    /// draft, not once per frame.
+    pub(crate) mate_verdict: Option<MateVerdict>,
+    /// The placement editor's value fields being typed in, by freedom:
+    /// the text, until the field loses focus and the draft takes it.
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
+    /// The door the value edits were typed under: a different door, or
+    /// the same one over another bundle (a reload), drops them.
+    pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
@@ -177,21 +177,10 @@ pub(crate) struct Drafts {
     /// reader can take apart. It is a draft like every other field
     /// here: nothing reaches a document until Add profile.
     pub(crate) profile_path: Vec<Step<f64>>,
-    /// The circle form's centre, metres.
+    /// The circle and rectangle forms' centre, metres.
     pub(crate) profile_centre: [f64; 2],
     /// The circle form's radius, metres.
     pub(crate) profile_radius: f64,
-    /// Whether the circle carries a concentric bore (a second loop
-    /// inside the first) — what lets the chrome author the ring
-    /// demo's annulus while staying a template, not a sketcher. The
-    /// form guards bore < radius (see `add_profile_ui`): the loop
-    /// ROLES come from the profile layer's containment forest, so a
-    /// bore at or beyond the outer would not fail — it would swap
-    /// which circle is the hole, silently defeating the form's own
-    /// wording.
-    pub(crate) profile_bored: bool,
-    /// The bore's radius, metres.
-    pub(crate) profile_bore: f64,
     /// The rectangle form's width and height, metres.
     pub(crate) profile_extent: [f64; 2],
     /// **The loops the add-profile form authors after its first**, in
@@ -211,12 +200,6 @@ pub(crate) struct Drafts {
     /// radians. Opens a quarter turn, along the profile's +y, the axis
     /// a profile drawn beside it turns about.
     pub(crate) revolve_axis_heading: f64,
-    /// The transform tool's translation, metres.
-    pub(crate) transform_translation: [f64; 3],
-    /// Its rotation axis (unitless).
-    pub(crate) transform_axis: [f64; 3],
-    /// Its rotation angle, radians.
-    pub(crate) transform_angle: f64,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
@@ -251,6 +234,13 @@ pub(crate) struct Drafts {
     /// ([`BlendKindChoice::size_label`]), and a second field would be
     /// a second place for the same quantity to be typed into.
     pub(crate) blend_size: f64,
+    /// The clearance form's choice of which side it bounds.
+    pub(crate) clearance_bound: ClearanceBoundChoice,
+    /// Its first length, metres: the one bound, or a band's lower end
+    /// ([`ClearanceBoundChoice::bounds`]).
+    pub(crate) clearance_lo: f64,
+    /// A band's upper end, metres.
+    pub(crate) clearance_hi: f64,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
@@ -374,6 +364,18 @@ pub(crate) struct ProfileEdit {
     report: Option<HeldReport>,
 }
 
+/// **The placement editor's verdict on one Apply**: the history state
+/// and the op it was asked over, and its sentence — `Ok` where the copy
+/// would stand, `Err` with the refusal or the fault.
+#[derive(Debug)]
+pub(crate) struct MateVerdict {
+    pub(crate) at: HistoryId,
+    pub(crate) op: crate::session::SessionOp,
+    pub(crate) said: Result<String, String>,
+    /// Whether the verdict withholds Apply: a copy that would not stand.
+    pub(crate) blocks: bool,
+}
+
 /// What the edit door would report for one held state, and the state:
 /// the history state it was asked over, the held program and its ids.
 #[derive(Debug)]
@@ -470,17 +472,62 @@ impl ProfileEdit {
         &self.loops
     }
 
-    /// **What a driven argument of held row `row` of loop `loop_`
-    /// reads on `landed`'s slot `rows`**: the one value of its
-    /// committed slot — the step the row was loaded as, at `arg` — so
-    /// the number beside an expression moves when what it reads moves
-    /// (a variable set, dragged, undone). `None` for a row the editor
-    /// made, and for a slot that reads no one value.
-    fn reading(&self, rows: &[SlotRow], loop_: usize, row: usize, arg: StepArg) -> Option<f64> {
-        let (loop_, step) = self.loaded_at(loop_).get(row).copied().flatten()?;
-        let slot = SlotId::Profile { loop_, step, arg };
-        let found = rows.iter().find(|each| each.slot == slot)?;
-        found.value.as_ref().ok()?.one().map(|value| value.as_f64())
+    /// **Argument `arg` of held row `row` of loop `loop_` as the person
+    /// reads it**: the slot it takes where it is drawn, the rows as the
+    /// editor shows them — what a sentence about it names.
+    pub(crate) fn held_slot((loop_, row): (usize, usize), arg: StepArg) -> SlotId {
+        SlotId::Profile {
+            loop_: program_index(loop_),
+            step: program_index(row),
+            arg,
+        }
+    }
+
+    /// **Argument `arg` of held row `row` of loop `loop_` as a slot's
+    /// row** ([`props::formula_row`]): the formula the draft holds,
+    /// its names read by id and read under `landed`'s variables, at
+    /// [`Self::held_slot`]. What its
+    /// field shows, and what a driven argument reads, so the number
+    /// beside an expression moves when what it reads moves (a variable
+    /// set, dragged, undone) — an expression typed into the draft as
+    /// much as one the document holds. `None` where the step has no
+    /// such role.
+    pub(crate) fn held_row(
+        &self,
+        landed: &Doc<ProfileProgram>,
+        (loop_, row): (usize, usize),
+        arg: StepArg,
+    ) -> Option<SlotRow> {
+        let (_, formula) = self
+            .loops
+            .get(loop_)?
+            .get(row)?
+            .args()
+            .into_iter()
+            .find(|(each, _)| *each == arg)?;
+        let slot = Self::held_slot((loop_, row), arg);
+        // A name typed into the draft is read as the variable `landed`
+        // names so; one it does not hold reads nothing, and says why.
+        Some(match landed.resolve(&formula) {
+            Ok(read) => props::formula_row(landed, slot, slot.label(), &read),
+            Err(fault) => props::SlotRow {
+                value: Err(props::SlotFault::Unresolved(fault)),
+                ..props::formula_row(landed, slot, slot.label(), &formula)
+            },
+        })
+    }
+
+    /// **What argument `arg` of held row `row` of loop `loop_` reads
+    /// on `landed`**: its formula's one value ([`Self::held_row`]);
+    /// `None` for one that reads no one value.
+    fn reading(
+        &self,
+        landed: &Doc<ProfileProgram>,
+        at: (usize, usize),
+        arg: StepArg,
+    ) -> Option<f64> {
+        let row = self.held_row(landed, at, arg)?;
+        row.value.ok()?.one().map(|value| value.as_f64())
     }
 
     /// **The held loops at plain numbers**, row by row, as `landed`
@@ -492,7 +539,6 @@ impl ProfileEdit {
         landed: &Doc<ProfileProgram>,
         tol: Tol,
     ) -> Vec<Vec<Result<Step<f64>, HeldStepFault>>> {
-        let rows = props::slot_rows(landed, self.node);
         self.loops
             .iter()
             .enumerate()
@@ -500,7 +546,9 @@ impl ProfileEdit {
                 steps
                     .iter()
                     .enumerate()
-                    .map(|(row, held)| held.step(&|arg| self.reading(&rows, loop_, row, arg), tol))
+                    .map(|(row, held)| {
+                        held.step(&|arg| self.reading(landed, (loop_, row), arg), tol)
+                    })
                     .collect()
             })
             .collect()
@@ -524,17 +572,69 @@ impl ProfileEdit {
         notation: Notation,
         noted: &dyn Fn(SlotId) -> Option<UnitDef>,
     ) -> Result<(), RecordedProgramError> {
-        let rows = props::slot_rows(landed, self.node);
         let kept = self.loaded_at(loop_).get(row).copied().flatten();
         let written = self.loops[loop_][row].written(
             step,
-            &|arg| self.reading(&rows, loop_, row, arg),
+            &|arg| self.reading(landed, (loop_, row), arg),
             notation,
             &|arg| {
                 let (loop_, step) = kept?;
                 noted(SlotId::Profile { loop_, step, arg })
             },
         )?;
+        self.loops[loop_][row] = written;
+        Ok(())
+    }
+
+    /// **`text` as argument `arg` of held row `at` would hold it**:
+    /// parsed against `doc`'s variables by the slot door's own parse
+    /// ([`crate::session::parse_text`]) and admitted at the argument's
+    /// slot by the edit door's own rule ([`slot_admits`]), so a text
+    /// refused here is refused in the words the commit would use.
+    ///
+    /// # Errors
+    ///
+    /// The parse's [`Refusal`]; [`Refusal::Edit`] for a formula of
+    /// another dimension than the argument's.
+    pub(crate) fn judge_text(
+        at: (usize, usize),
+        arg: StepArg,
+        text: &str,
+        doc: &Doc<ProfileProgram>,
+    ) -> Result<Formula, Refusal> {
+        let formula = crate::session::parse_text(doc, text)?;
+        slot_admits(Self::held_slot(at, arg), &formula)
+            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        Ok(formula)
+    }
+
+    /// **`text` typed into argument `arg` of held row `at`**, judged
+    /// ([`Self::judge_text`]) and written into the held step as the
+    /// formula it reads, committed with the rest of the program. A
+    /// refusal changes nothing the draft holds.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::judge_text`]'s, and [`Refusal::NoSuchSlot`] where the
+    /// row no longer has that role (a row edit landed between the
+    /// field's frame and this one): the text is dropped and said.
+    pub(crate) fn write_text(
+        &mut self,
+        (loop_, row): (usize, usize),
+        arg: StepArg,
+        text: &str,
+        doc: &Doc<ProfileProgram>,
+    ) -> Result<(), Refusal> {
+        let formula = Self::judge_text((loop_, row), arg, text, doc)?;
+        let written = self
+            .loops
+            .get(loop_)
+            .and_then(|steps| steps.get(row))
+            .and_then(|held| held.with_arg(arg, formula))
+            .ok_or_else(|| Refusal::NoSuchSlot {
+                node: doc.spoken(self.node),
+                slot: Self::held_slot((loop_, row), arg),
+            })?;
         self.loops[loop_][row] = written;
         Ok(())
     }
@@ -688,32 +788,17 @@ impl ProfileEdit {
             })
     }
 
-    /// **The unit each literal of held loop `loop_` is written in**,
-    /// row by row: the unit a field over it shows, since it is the unit
-    /// the argument lands in.
-    pub(crate) fn units_at(&self, loop_: usize) -> Vec<Vec<(StepArg, UnitDef)>> {
-        self.loops[loop_]
-            .iter()
-            .map(|held| {
-                held.args()
-                    .into_iter()
-                    .filter(|(_, formula)| formula.literal_value().is_some())
-                    .filter_map(|(arg, formula)| Some((arg, formula.display_unit()?)))
-                    .collect()
-            })
-            .collect()
-    }
-
     /// **Every driven argument of a committed step that the held row
     /// loaded as it no longer has** — a re-moded arc dropping the role
-    /// an expression drives — as the committed slot. The edit door
+    /// an expression drives — at the row as drawn
+    /// ([`Self::held_slot`]). The edit door
     /// cannot write the program without writing over that expression,
     /// and its field is locked, so it says what to do instead.
     pub(crate) fn dropped_drivers(&self) -> Vec<SlotId> {
         let mut dropped = Vec::new();
-        for (steps, loaded_as) in self.loops.iter().zip(&self.loaded_as) {
-            for (held, id) in steps.iter().zip(loaded_as) {
-                let Some(((loop_, step), was)) = id.and_then(|id| self.base_step(id)) else {
+        for (loop_, (steps, loaded_as)) in self.loops.iter().zip(&self.loaded_as).enumerate() {
+            for (row, (held, id)) in steps.iter().zip(loaded_as).enumerate() {
+                let Some((_, was)) = id.and_then(|id| self.base_step(id)) else {
                     continue;
                 };
                 let has: Vec<StepArg> = held.args().into_iter().map(|(arg, _)| arg).collect();
@@ -723,36 +808,30 @@ impl ProfileEdit {
                         .filter(|(arg, formula)| {
                             formula.literal_value().is_none() && !has.contains(arg)
                         })
-                        .map(|(arg, _)| SlotId::Profile { loop_, step, arg }),
+                        .map(|(arg, _)| Self::held_slot((loop_, row), arg)),
                 );
             }
         }
         dropped
     }
 
-    /// **Every driven argument of a held step loaded as a committed
-    /// one that reads no one value in `landed`**, as its committed
-    /// slot, with why: Apply waits on them, since the number beside
-    /// them reads nothing. Its expression did not evaluate (a variable
-    /// it reads deleted, say), or it reads an index and has a value
-    /// per member where a step holds one.
+    /// **Every driven argument of a held step that reads no one value
+    /// in `landed`**, at [`Self::held_slot`], with why: the number beside
+    /// it reads nothing. Its expression did not evaluate (a variable it
+    /// reads deleted, say), or it reads an index and has a value per
+    /// member where a step holds one.
     pub(crate) fn unread_drivers(&self, landed: &Doc<ProfileProgram>) -> Vec<(SlotId, String)> {
-        let rows = props::slot_rows(landed, self.node);
         let mut unread = Vec::new();
         for (loop_, steps) in self.loops.iter().enumerate() {
-            for (held, at) in steps.iter().zip(self.loaded_at(loop_)) {
-                let Some((loop_, step)) = at else {
-                    continue;
-                };
+            for (row, held) in steps.iter().enumerate() {
                 for (arg, formula) in held.args() {
                     if formula.literal_value().is_some() {
                         continue;
                     }
-                    let slot = SlotId::Profile { loop_, step, arg };
-                    let Some(row) = rows.iter().find(|row| row.slot == slot) else {
+                    let Some(found) = self.held_row(landed, (loop_, row), arg) else {
                         continue;
                     };
-                    let why = match &row.value {
+                    let why = match &found.value {
                         Ok(props::Reading::One(_)) => continue,
                         Ok(props::Reading::PerMember(members)) => {
                             let indices: Vec<String> =
@@ -765,7 +844,7 @@ impl ProfileEdit {
                         }
                         Err(fault) => fault.to_string(),
                     };
-                    unread.push((slot, why));
+                    unread.push((found.slot, why));
                 }
             }
         }
@@ -942,14 +1021,9 @@ impl Default for Drafts {
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
-            mate_kind: 0,
-            // Each kind opens at its own sense (`matetool::sense_offer`),
-            // so switching kinds carries no plane's rest onto an edge.
-            mate_flip: crate::matetool::MATE_KINDS.map(|(kind, _)| {
-                crate::matetool::sense_offer(kind).is_some_and(|(_, turned)| turned)
-            }),
-            mate_into_target_space: false,
-            mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
+            mate_verdict: None,
+            mate_value_edits: Vec::new(),
+            mate_value_door: None,
             new_doc_name: None,
             profile_open: false,
             sketch_on_face: false,
@@ -974,17 +1048,12 @@ impl Default for Drafts {
             ],
             profile_centre: [0.0; 2],
             profile_radius: 0.01,
-            profile_bored: false,
-            profile_bore: 0.005,
             profile_extent: [0.01, 0.01],
             profile_more: Vec::new(),
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             revolve_axis_through: Point2::origin(),
             revolve_axis_heading: core::f64::consts::FRAC_PI_2,
-            transform_translation: [0.0; 3],
-            transform_axis: [0.0, 0.0, 1.0],
-            transform_angle: 0.0,
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
@@ -1001,6 +1070,9 @@ impl Default for Drafts {
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
+            clearance_bound: ClearanceBoundChoice::AtLeast,
+            clearance_lo: 0.002,
+            clearance_hi: 0.004,
             profile_edit: None,
             label_text: None,
             creation_labels: BTreeMap::new(),
@@ -1016,11 +1088,6 @@ impl Drafts {
     /// loops separately could draw one shape and author another,
     /// which is the one way a live preview can lie.
     ///
-    /// The bore is a second loop rather than a field on the first —
-    /// which is what makes the ring demo's annulus a template rather
-    /// than a special case — and the form's own guard on it lives at
-    /// the commit ([`ViewerBehavior::add_profile_ui`](crate::app::ViewerBehavior::add_profile_ui)), because it is
-    /// about what the loops MEAN, not about what they are.
     /// The first loop is the chosen shape's, and the loops added after
     /// it ([`Drafts::profile_more`]) follow in order.
     ///
@@ -1033,20 +1100,12 @@ impl Drafts {
             return Vec::new();
         };
         let mut loops = match shape {
-            ShapeKind::Circle => {
-                let mut loops = vec![ProfileShape::Circle {
-                    centre: self.profile_centre,
-                    radius: self.profile_radius,
-                }];
-                if self.profile_bored {
-                    loops.push(ProfileShape::Circle {
-                        centre: self.profile_centre,
-                        radius: self.profile_bore,
-                    });
-                }
-                loops
-            }
+            ShapeKind::Circle => vec![ProfileShape::Circle {
+                centre: self.profile_centre,
+                radius: self.profile_radius,
+            }],
             ShapeKind::Rectangle => vec![ProfileShape::Rectangle {
+                centre: self.profile_centre,
                 width: self.profile_extent[0],
                 height: self.profile_extent[1],
             }],
@@ -1277,13 +1336,34 @@ impl Drafts {
     /// selection moving off a profile abandons what was typed into it,
     /// as every draft here is abandoned by selecting elsewhere.
     pub(crate) fn abandon_profile_edit_off(&mut self, selected: Option<RecipeNodeId>) {
-        if self
+        let Some(node) = self
             .profile_edit
             .as_ref()
-            .is_some_and(|held| Some(held.node) != selected)
+            .map(|held| held.node)
+            .filter(|node| Some(*node) != selected)
+        else {
+            return;
+        };
+        self.profile_edit = None;
+        // Text a held field refused names a row of the draft it goes with.
+        if self
+            .expr_target
+            .is_some_and(|(at, slot)| at == node && matches!(slot, SlotId::Profile { .. }))
         {
-            self.profile_edit = None;
+            self.expr_target = None;
+            self.expr_text.clear();
         }
+    }
+
+    /// **Offer to declare `name`**, the variable a refused expression
+    /// read and the document does not hold: the add-variable form opens
+    /// with the name in it and no dimension picked, since the text it
+    /// came from does not decide one.
+    pub(crate) fn offer_variable(&mut self, name: VarName) {
+        self.new_variable_name = name.as_str().to_owned();
+        self.new_variable_dimension = None;
+        self.new_variable_offer = Some(name);
+        self.new_variable_open = true;
     }
 
     /// The loop PROGRAMS the add-profile form would author right now:
@@ -1340,18 +1420,21 @@ impl Drafts {
         }
     }
 
-    /// Whether the mate panel turns `to` round for its chosen kind:
-    /// that kind's own toggle, `false` for a kind with no sense.
-    pub(crate) fn mate_turned(&self) -> bool {
-        crate::matetool::sense_offer(self.mate_kind()).is_some()
-            && self.mate_flip.get(self.mate_kind).copied().unwrap_or(false)
-    }
-
-    /// The mate panel's chosen kind ([`crate::matetool::MATE_KINDS`]).
-    pub(crate) fn mate_kind(&self) -> pncad::document::VarKind {
-        crate::matetool::MATE_KINDS
-            .get(self.mate_kind)
-            .map_or(pncad::document::VarKind::Plane, |(kind, _)| *kind)
+    /// **Keep the placement editor's value edits to its draft**: dropped
+    /// when the editor closes (`door` is `None`), opens on another door
+    /// or reloads its bundle, and each edit whose freedom the draft no
+    /// longer lists (`coords`) dropped with its row.
+    pub(crate) fn sync_mate_edits(
+        &mut self,
+        door: Option<&crate::matetool::PlaceDoor>,
+        coords: &[pncad::document::Coord],
+    ) {
+        if self.mate_value_door.as_ref() != door {
+            self.mate_value_edits.clear();
+            self.mate_value_door = door.cloned();
+        }
+        self.mate_value_edits
+            .retain(|(coord, _)| coords.contains(coord));
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
@@ -1473,6 +1556,7 @@ pub(crate) fn fresh_loop(kind: ShapeKind) -> ProfileShape {
             radius: QUARTER * form.profile_radius,
         },
         ShapeKind::Rectangle => ProfileShape::Rectangle {
+            centre: form.profile_centre,
             width: QUARTER * form.profile_extent[0],
             height: QUARTER * form.profile_extent[1],
         },
@@ -1993,6 +2077,63 @@ mod tests {
     /// new base, so the draft is untouched again; going back to the
     /// earlier document (an undo) replaces the draft with the program
     /// held there; and a selection that leaves the node drops it.
+    /// **The placement editor's value edits live with its draft**: a
+    /// freedom's typed text survives frames of the same draft, goes with
+    /// its row when the draft stops listing the freedom, and all of it
+    /// goes when the door changes (a reload's bundle) or the editor closes.
+    #[test]
+    fn the_placement_editors_value_edits_live_with_its_draft() {
+        use crate::matetool::PlaceDoor;
+        use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
+        let x = Coord::Slide(TargetAxis::X);
+        let y = Coord::Slide(TargetAxis::Y);
+        let door = PlaceDoor::Edit {
+            placement: RecipeNodeId::new(0, 7),
+            base: Vec::new(),
+        };
+        let reloaded = PlaceDoor::Edit {
+            placement: RecipeNodeId::new(0, 7),
+            base: pncad::document::stand().bundle(),
+        };
+        let mut drafts = Drafts::default();
+        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned()), (y, "6 mm".to_owned())];
+        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        assert_eq!(
+            drafts.mate_value_edits.len(),
+            2,
+            "kept across frames of one draft"
+        );
+        drafts.sync_mate_edits(Some(&door), &[x]);
+        assert_eq!(
+            drafts.mate_value_edits,
+            [(x, "5 mm".to_owned())],
+            "y's row left"
+        );
+        drafts.sync_mate_edits(Some(&reloaded), &[x]);
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "a reload drops the edits"
+        );
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.sync_mate_edits(
+            Some(&PlaceDoor::Create {
+                body: Operand::Node(RecipeNodeId::new(0, 9)),
+            }),
+            &[x],
+        );
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "another door drops the edits"
+        );
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.sync_mate_edits(None, &[]);
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "a closed editor holds none"
+        );
+    }
+
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
         let (before, mut drafts, profile) = authored_by_the_form();

@@ -21,6 +21,15 @@
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
+//! It also holds each plane×cone surface pair whose faces' boxes meet,
+//! read once at the glue door at the surface pair's reach (taken over
+//! every met face pair on it, `join::surface_pair_reach`), not one
+//! face's: the pair's frame or its apex line pair
+//! ([`SectionTable::plane_cone`]). The germ mint and the join's frame
+//! read take it. The value does not build the pair (neither a plane
+//! nor a cone is served), so no section of it is held among the
+//! sections, and the two maps never hold one pair.
+//!
 //! The table is classified when it is built, and a pair is carried on
 //! its first read that needs a carrier or a list no closed form counts,
 //! through the scalar's march door ([`crate::AtRestPolicy::ssi_lane`])
@@ -44,8 +53,9 @@ use geom_core::{Band, Indeterminate, Real};
 
 use super::Operand;
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::geometry::SurfaceKey;
+use crate::live::proven;
 
 /// One surface pair's section, and the band its reader classified it at
 /// (the table's one band), which it is carried at.
@@ -79,6 +89,17 @@ pub(crate) struct GermFoot<T: Real> {
     pub(crate) up: bool,
 }
 
+/// **A plane×cone pair's two lines through the cone's apex**
+/// ([`SectionTable::plane_cone`]): the apex, the lines' directions in
+/// the order `geom_brep::plane_cone_section` returns them, and the
+/// lever its decisions were read at.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ApexLines<T: Real> {
+    pub(crate) apex: geom_core::Point3<T>,
+    pub(crate) dirs: [geom_core::Vec3<T>; 2],
+    pub(crate) lever: T,
+}
+
 /// Why a germ has no place on its section.
 #[derive(Clone, Debug)]
 pub(crate) enum FootRefusal {
@@ -108,7 +129,15 @@ pub(crate) struct SectionTable<T: Real> {
     lane: Option<SsiLane<T>>,
     region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
+    /// Whether a glue door read the table ([`Self::reader`]), not a
+    /// sweep-only door's empty one (`Default`).
+    at_a_door: bool,
+    plane_cone: BTreeMap<PairKey, PlaneCone<T>>,
 }
+
+/// A plane×cone pair's reading at the glue door: its section as the
+/// join takes it, or the reading's refusal.
+pub(super) type PlaneCone<T> = Result<super::join::PkSection<T>, super::join::FrameError>;
 
 /// **The table's one reader**: it reads pairs into a table at the band
 /// it was made with, so one table holds one band
@@ -126,6 +155,8 @@ impl<T: Real> Default for SectionTable<T> {
             lane: None,
             region: None,
             feet: RefCell::new(BTreeMap::new()),
+            at_a_door: false,
+            plane_cone: BTreeMap::new(),
         }
     }
 }
@@ -172,6 +203,20 @@ impl<T: geom_core::Decide> SectionReader<T> {
         }
     }
 
+    /// **Holds surface `ka` of A against `kb` of B, a plane×cone pair**,
+    /// read by `read` on the pair's first offer and kept for the
+    /// operation ([`SectionTable::plane_cone`]).
+    pub(super) fn read_plane_cone(
+        &mut self,
+        (ka, kb): (SurfaceKey, SurfaceKey),
+        read: impl FnOnce() -> PlaneCone<T>,
+    ) {
+        self.table
+            .plane_cone
+            .entry(PairKey { a: ka, b: kb })
+            .or_insert_with(read);
+    }
+
     /// The table read.
     pub(crate) fn finish(self) -> SectionTable<T> {
         self.table
@@ -190,6 +235,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
             table: Self {
                 lane,
                 region,
+                at_a_door: true,
                 ..Self::default()
             },
             band,
@@ -207,6 +253,15 @@ impl<T: geom_core::Decide> SectionTable<T> {
         geom_brep::pair_section::traced_in_r3(sa.kind(), sb.kind())
             .then_some(self.region)
             .flatten()
+    }
+
+    /// **Whether a pair this table does not hold is a desync**: a glue
+    /// door reads every pair whose faces' boxes meet, so a pair the join
+    /// meets and the table lacks is one the door never read; a
+    /// sweep-only door's table (`Default`) reads none, and its pairs keep
+    /// the routes that read their surfaces.
+    pub(crate) fn unheld_is_desync(&self) -> bool {
+        self.at_a_door
     }
 
     /// The section held for A's face `fa` against B's `fb`, by their
@@ -240,40 +295,6 @@ impl<T: geom_core::Decide> SectionTable<T> {
                 .as_ref()
                 .map_err(Uncarried::Carry),
         )
-    }
-
-    /// **Whether the join reads the pair of `a` and `b` from the table**:
-    /// every pair the table holds but two cylinders, which the join reads
-    /// through its own frame and bisector lanes
-    /// (`join::cylinder_pair_frame`, `node.rs`) and not the value, whose
-    /// bisector arcs a site at a node lies on more than one of. The one
-    /// gate both of the join's readings ([`Self::held_at_the_join`],
-    /// [`Self::carried_at_the_join`]) take.
-    fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
-        let cylinder = |(body, f): (&Body<T>, FaceKey)| {
-            body.get_face(f)
-                .and_then(|face| body.get_surface(face.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
-        };
-        !(cylinder(a) && cylinder(b))
-    }
-
-    /// [`Self::held`], for the join ([`Self::join_reads`]).
-    pub(crate) fn held_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<&Result<PairSection<T>, SectionError>> {
-        Self::join_reads(a, b).then(|| self.held(a, b)).flatten()
-    }
-
-    /// [`Self::carried`], for the join ([`Self::join_reads`]).
-    pub(crate) fn carried_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
-        Self::join_reads(a, b).then(|| self.carried(a, b)).flatten()
     }
 
     /// **Component `k` of the pair's carried section, seated**
@@ -326,7 +347,12 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// on the first ask and held for the operation: a germ's site and
     /// direction do not move while the join matches, so every candidate
     /// pairing reads the one answer. Held by operand, half-edge and pair
-    /// ([`FootKey`]). A desync where a face has no surface.
+    /// ([`FootKey`]).
+    ///
+    /// # Panics
+    ///
+    /// Where `a`'s or `b`'s face, a germ's face the join reads, does not
+    /// resolve ([`Self::key`]).
     pub(crate) fn germ_foot(
         &self,
         (side, he): (Operand, HalfEdgeKey),
@@ -334,10 +360,11 @@ impl<T: geom_core::Decide> SectionTable<T> {
         b: (&Body<T>, FaceKey),
         read: impl FnOnce() -> Result<GermFoot<T>, FootRefusal>,
     ) -> Result<GermFoot<T>, FootRefusal> {
-        let Some(pair) = Self::key(a, b) else {
-            return Err(FootRefusal::Desync("a germ's face has no surface"));
+        let key = FootKey {
+            side,
+            he,
+            pair: Self::key(a, b),
         };
-        let key = FootKey { side, he, pair };
         if let Some(held) = self.feet.borrow().get(&key) {
             return held.clone();
         }
@@ -346,17 +373,50 @@ impl<T: geom_core::Decide> SectionTable<T> {
         answer
     }
 
-    fn entry(&self, a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> Option<&Held<T>> {
-        self.pairs.get(&Self::key(a, b)?)
+    /// **A plane×cone pair's one reading** (module docs): A's face
+    /// `a`'s surface against B's `b`'s, as the glue door read it, its
+    /// frame, its apex line pair or its refusal. `None` where the door
+    /// held no reading of the pair: a pair whose boxes do not meet (no
+    /// germ lies on it), one whose reach does not read (the join reads it
+    /// face by face, and refuses there), or a table no glue door built (a
+    /// sweep-only door's, a row's). A stale face key panics, as at every
+    /// reader of the table.
+    pub(super) fn plane_cone(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<&PlaneCone<T>> {
+        self.plane_cone.get(&Self::key(a, b))
     }
 
-    /// The key of A's face `fa` against B's `fb`.
-    fn key((a, fa): (&Body<T>, FaceKey), (b, fb): (&Body<T>, FaceKey)) -> Option<PairKey> {
-        let surface = |body: &Body<T>, f| body.get_face(f).map(|face| face.surface);
-        Some(PairKey {
-            a: surface(a, fa)?,
-            b: surface(b, fb)?,
-        })
+    /// A table holding the one plane×cone reading `reading` for A's face
+    /// `a` against B's `b`, for rows.
+    #[cfg(test)]
+    pub(super) fn holding_plane_cone(
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+        reading: PlaneCone<T>,
+    ) -> Self {
+        let mut table = Self::default();
+        let key = Self::key(a, b);
+        table.plane_cone.insert(key, reading);
+        table
+    }
+
+    fn entry(&self, a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> Option<&Held<T>> {
+        self.pairs.get(&Self::key(a, b))
+    }
+
+    /// The key of A's face `fa` against B's `fb`: their surfaces' keys.
+    /// Every reader of the table asks it of faces of its operands, which
+    /// the kernel enumerated or recorded, so a stale face key panics.
+    #[track_caller]
+    fn key((a, fa): (&Body<T>, FaceKey), (b, fb): (&Body<T>, FaceKey)) -> PairKey {
+        let surface = |body: &Body<T>, f| proven(&body.faces, f, EntityId::Face).surface;
+        PairKey {
+            a: surface(a, fa),
+            b: surface(b, fb),
+        }
     }
 }
 

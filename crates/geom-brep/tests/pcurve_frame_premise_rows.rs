@@ -112,12 +112,12 @@ fn a_cone_frame_off_convention_refuses_over_the_box() {
         "the cone is at rest"
     );
     let h = 1.0;
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, h),
-        axis: Vec3::unit_z(),
-        radius: h * half_angle.tan(),
-        u_ref: Vec3::unit_x(),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        h * half_angle.tan(),
+        Vec3::unit_x(),
+    );
     let ((box_ok, point_ok, env, sup), names_frame) =
         run_named("cone frame", &cone, &rim, 0.0, 3.0);
     assert!(
@@ -161,10 +161,7 @@ fn a_long_axis_inside_the_rest_margin_refuses_a_far_ruling_over_the_box() {
             .collect::<Vec<_>>()
     );
     let height = 1e4;
-    let ruling = Curve3::Line {
-        origin: Point3::new(radius, 0.0, height),
-        dir: Vec3::unit_z(),
-    };
+    let ruling = Curve3::line(Point3::new(radius, 0.0, height), Vec3::unit_z());
     let ((box_ok, point_ok, env, sup), names_frame) =
         run_named("cylinder axis", &cyl, &ruling, 0.0, 1.0);
     assert!(
@@ -210,10 +207,7 @@ fn a_rounded_unit_axis_at_a_far_placement_is_never_under_its_residual() {
             .iter()
             .all(|m| m.margin > 0.0)
     );
-    let ruling = Curve3::Line {
-        origin: Point3::origin() + u_ref * radius + axis * far,
-        dir: axis,
-    };
+    let ruling = Curve3::line(Point3::origin() + u_ref * radius + axis * far, axis);
     let (box_ok, _point_ok, env, _sup) = run("rounded axis far", &cyl, &ruling, 0.0, 1.0);
     // The f64 dense sample is itself rounding at 1e9 m; the interval
     // enclosure of the residual at t = 0 is the honest oracle.

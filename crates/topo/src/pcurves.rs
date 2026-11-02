@@ -1028,7 +1028,7 @@ pub(crate) fn side_image_of<T: Decide>(
     use geom_core::{Point2, Vec2};
     let chart = wall.spline_chart()?;
     let span = t1 - t0;
-    let picked = if matches!(carrier, geom::Curve3::Circle { .. }) {
+    let picked = if matches!(carrier, geom::Curve3::Circle(..)) {
         geom_brep::pick_arc_rim(carrier, (t0, span), wall, band).ok()?
     } else {
         let ((u0, u1), (v0, v1)) = (
@@ -1250,7 +1250,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                  here"
             )
         };
-        let line = matches!(carrier, geom::Curve3::Line { .. });
+        let line = !carrier.is_curved();
         // The iso candidates are offered to the carriers the iso
         // class certifies: a spline and a line. A circle's exact
         // class is the arc rim, tried below; an ellipse or a spiric
@@ -1274,7 +1274,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             geom::Curve3::Nurbs(spline) => {
                 RowSpace::of(spline.knots_f64_interim(), wall.knots_u_f64_interim())
             }
-            geom::Curve3::Line { .. } => RowSpace {
+            geom::Curve3::Line(_) => RowSpace {
                 forward: true,
                 backward: true,
             },
@@ -1374,7 +1374,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // circle carrier, so an `Intersection` circle on a spline chart
         // that is no arc rim falls through to `General` like any other
         // locus.
-        if deferred.is_none() && matches!(carrier, geom::Curve3::Circle { .. }) {
+        if deferred.is_none() && matches!(carrier, geom::Curve3::Circle(..)) {
             match arc_rim() {
                 Err(PcurveMintError::Certify {
                     error: PcurveCertifyError::IsoUnsupported { .. },
@@ -1480,7 +1480,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_)
         | geom_brep::EdgeDescription::OnPair { .. }
-            if matches!(carrier, geom::Curve3::Circle { .. }) =>
+            if matches!(carrier, geom::Curve3::Circle(..)) =>
         {
             arc_rim()
         }
@@ -1525,7 +1525,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         geom_brep::EdgeDescription::Chart(_)
         | geom_brep::EdgeDescription::Scaffold(_)
         | geom_brep::EdgeDescription::OnPair { .. }
-            if matches!(carrier, geom::Curve3::Line { .. }) =>
+            if !carrier.is_curved() =>
         {
             iso_schedule("pcurve_iso_line_rim", Vec::new())
         }
@@ -2285,7 +2285,7 @@ pub fn loop_lift<T: Decide>(
 ) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
     let cycle = loop_rows(body, r#loop);
     let face = proven(&body.loops, r#loop, EntityId::Loop).face;
-    let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
+    let surface = body.proven_face_surface(face);
     // No band is at hand, so the periods are the chart's as stated: on
     // every element a door wrote they are the decided ones
     // ([`ChartPeriods::stated`]).
@@ -4389,7 +4389,7 @@ impl AzimuthRule {
 /// at rest — loud, never silent. Where the room is short (a pole at a
 /// small `K`, a narrow cone's apex), a composition may name another lift
 /// of the same point than a fresh decision does; that too is loud at
-/// rest (`work/topotail/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
+/// rest (`work/topo/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`).
 ///
 /// **So a reset is written in exactly two cases**: a vertex decided on
 /// the singular set (any chart), and a spline chart whose `u` net-level
@@ -5847,7 +5847,7 @@ pub(crate) mod staleness_posture {
              across a move onto the same chart and dropped on any other. The edges it \
              re-describes are the listed certified ones, whose rows it keeps on a face that \
              keeps its chart, for the tier-3 pass to re-certify against the new carrier \
-             (`work/restate/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
+             (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
             ),
             (
                 "set_edge_curve",
@@ -6938,12 +6938,12 @@ mod odd_cone_circle {
             .chain([0.3]);
         let mut class_refused = 0;
         for tilt in tilts {
-            let circle = Curve3::Circle {
-                center: Point3::new(0.0, 0.0, h),
-                axis: Vec3::new(0.0, -tilt.sin(), tilt.cos()),
-                radius: h * alpha.tan(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            };
+            let circle = Curve3::circle(
+                Point3::new(0.0, 0.0, h),
+                Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+                h * alpha.tan(),
+                Vec3::new(1.0, 0.0, 0.0),
+            );
             match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
                 Ok(_) => assert!(
                     tilt < 0.3,
@@ -7140,12 +7140,12 @@ pub(crate) mod pole_slit_tests {
                 pair: SurfacePair::new(sphere, rim_plane),
                 selector: geom_brep::CurveSelector::Witness(at(0.5 * (t0 + t1), v0)),
             },
-            carrier: Curve3::Circle {
-                center: Point3::new(0.0, 0.0, v0.sin()),
-                axis: Vec3::unit_z(),
-                radius: v0.cos(),
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(
+                Point3::new(0.0, 0.0, v0.sin()),
+                Vec3::unit_z(),
+                v0.cos(),
+                Vec3::unit_x(),
+            ),
             param_start: t0,
             param_end: t1,
         };
@@ -7201,12 +7201,12 @@ pub(crate) mod pole_slit_tests {
                     pair: SurfacePair::new(sphere, meridian_plane),
                     selector: geom_brep::CurveSelector::Witness(at(PI, 0.5 * (v0 + FRAC_PI_2))),
                 },
-                carrier: Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    axis: Vec3::unit_y(),
-                    radius: 1.0,
-                    u_ref: Vec3::new(-1.0, 0.0, 0.0),
-                },
+                carrier: Curve3::circle(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::unit_y(),
+                    1.0,
+                    Vec3::new(-1.0, 0.0, 0.0),
+                ),
                 param_start: v0,
                 param_end: FRAC_PI_2,
             },
@@ -7268,12 +7268,12 @@ pub(crate) mod pole_slit_tests {
                     pair: SurfacePair::new(cylinder, plane),
                     selector: geom_brep::CurveSelector::Witness(p(0.5 * (t0 + t1), z)),
                 },
-                carrier: Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, z),
-                    axis: Vec3::unit_z(),
-                    radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                },
+                carrier: Curve3::circle(
+                    Point3::new(0.0, 0.0, z),
+                    Vec3::unit_z(),
+                    1.0,
+                    Vec3::unit_x(),
+                ),
                 param_start: t0,
                 param_end: t1,
             }
@@ -7304,12 +7304,12 @@ pub(crate) mod pole_slit_tests {
         // The top arc, its carrier run `[0, π]` like the bottom's, from
         // `u = π` back to `u = 0`.
         let mut top_spec = rim(&mut body, 1.0, 0.0, PI);
-        top_spec.carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 1.0),
-            axis: Vec3::new(0.0, 0.0, -1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(-1.0, 0.0, 0.0),
-        };
+        top_spec.carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            1.0,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
         let top = body
             .mev(
                 MevSite::Fan {
@@ -7372,12 +7372,12 @@ pub(crate) mod pole_slit_tests {
                     pair: SurfacePair::new(cone, plane),
                     selector: geom_brep::CurveSelector::Witness(p(0.5 * (t0 + t1), z)),
                 },
-                carrier: Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, z),
-                    axis: Vec3::unit_z(),
-                    radius: z * alpha.tan(),
-                    u_ref: Vec3::unit_x(),
-                },
+                carrier: Curve3::circle(
+                    Point3::new(0.0, 0.0, z),
+                    Vec3::unit_z(),
+                    z * alpha.tan(),
+                    Vec3::unit_x(),
+                ),
                 param_start: t0,
                 param_end: t1,
             }
@@ -7406,12 +7406,12 @@ pub(crate) mod pole_slit_tests {
             .unwrap();
         // The top arc, from `u = π` back to `u = 0`.
         let mut top_spec = rim(&mut body, z1, 0.0, PI);
-        top_spec.carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, z1),
-            axis: Vec3::new(0.0, 0.0, -1.0),
-            radius: z1 * alpha.tan(),
-            u_ref: Vec3::new(-1.0, 0.0, 0.0),
-        };
+        top_spec.carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, z1),
+            Vec3::new(0.0, 0.0, -1.0),
+            z1 * alpha.tan(),
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
         let top = body
             .mev(
                 MevSite::Fan {
@@ -7519,10 +7519,7 @@ pub(crate) mod pole_slit_tests {
                         pl: geom_core::Vec2::new(0.0, v1 - v0),
                     },
                 ),
-                carrier: Curve3::Line {
-                    origin: p,
-                    dir: q - p,
-                },
+                carrier: Curve3::line(p, q - p),
                 param_start: 0.0,
                 param_end: 1.0,
             }
@@ -7682,10 +7679,7 @@ pub(crate) mod pole_slit_tests {
                         pl: geom_core::Vec2::new(u1 - u0, 0.0),
                     },
                 ),
-                carrier: Curve3::Line {
-                    origin: p,
-                    dir: q - p,
-                },
+                carrier: Curve3::line(p, q - p),
                 param_start: 0.0,
                 param_end: 1.0,
             }
@@ -7998,13 +7992,16 @@ pub(crate) mod pole_slit_tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z());
-        let circle =
-            |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| Curve3::Circle {
-                center,
-                axis,
+        let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-                u_ref,
-            };
+            })
+        };
         let p = |u: f64, v: f64| Point3::new(v.cos() * u.cos(), v.cos() * u.sin(), v.sin());
         let rhat = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
         let bands = [(-1.4_f64, -1.1_f64), (-0.9, -0.3), (0.3, 1.3), (-0.2, 0.4)];
@@ -8138,12 +8135,7 @@ pub(crate) mod pole_slit_tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let (o, z, x) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x());
-        let circle = |center: Point3<f64>, radius: f64| Curve3::Circle {
-            center,
-            axis: z,
-            radius,
-            u_ref: x,
-        };
+        let circle = |center: Point3<f64>, radius: f64| Curve3::circle(center, z, radius, x);
         let lat: f64 = 0.5;
         let cases = [
             (
@@ -8282,7 +8274,7 @@ pub(crate) mod pole_slit_tests {
                         let he = body.get_edge(e).unwrap().he_plus;
                         matches!(
                             super::half_edge_carrier(&body, he),
-                            Ok((Curve3::Circle { center, .. }, _, _)) if center.z == 0.0
+                            Ok((Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }), _, _)) if center.z == 0.0
                         )
                     })
                     .expect("the bottom arc");
@@ -8350,10 +8342,7 @@ pub(crate) mod pole_slit_tests {
         let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
         assert_eq!(faces.len(), 2);
         let bound = |body: &Body<f64>, f: FaceKey| {
-            let s = body
-                .get_surface(body.get_face(f).unwrap().surface)
-                .unwrap()
-                .clone();
+            let s = body.face_surface(f).unwrap().clone();
             super::loop_windings(body, f, &s, band)
         };
         for periods in [5.0, 6.0, 10.0] {
@@ -9103,12 +9092,12 @@ mod turn_miss {
             )
             .unwrap();
         let t0 = p.y.atan2(p.x);
-        let circle = geom::Curve3::Circle {
-            center: frame.origin + frame.axis * p.z,
-            axis: frame.axis,
-            radius: frame.radius,
-            u_ref: frame.u_ref,
-        };
+        let circle = geom::Curve3::circle(
+            frame.origin + frame.axis * p.z,
+            frame.axis,
+            frame.radius,
+            frame.u_ref,
+        );
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
             .unwrap();
         body.set_edge_curve(null.edge, spec, tol).unwrap();
@@ -9284,12 +9273,12 @@ mod villarceau_joint_tests {
                 let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
                 for traversal in [1.0_f64, -1.0] {
                     for psi in [0.0_f64, 2.0] {
-                        let carrier = geom::Curve3::Circle {
-                            center: center + d * r,
-                            axis: d.cross(lean) * traversal,
-                            radius: big,
-                            u_ref: d * psi.cos() + lean * psi.sin(),
-                        };
+                        let carrier = geom::Curve3::circle(
+                            center + d * r,
+                            d.cross(lean) * traversal,
+                            big,
+                            d * psi.cos() + lean * psi.sin(),
+                        );
                         let (t0, t1) = (0.3, 0.3 + TAU);
                         let row = geom_brep::PcurveCache::certify(
                             geom_brep::chart_pcurve_over(&carrier, t0, t1, &surface, band).unwrap(),

@@ -109,8 +109,11 @@ impl LeverEscalation {
         }
     }
 
-    /// The metered reading's escalation.
-    pub(crate) fn reading(diag: Indeterminate) -> Self {
+    /// The metered reading's escalation: for a caller that gates the
+    /// arm here ([`departure_arm`], [`parting_arm`]) and decides the
+    /// reading at its own door.
+    #[must_use]
+    pub fn reading(diag: Indeterminate) -> Self {
         Self {
             rung: LeverRung::Reading,
             diag,
@@ -496,9 +499,27 @@ fn sense_margin<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<Margin<T>, LeverEscalation> {
+    departure_arm(arm, band)?;
+    Ok(rise(dir, normal, arm))
+}
+
+/// **The first-order reading's arm gate** (`"enters_material_arm"`): the
+/// arm a [`rise`] is levered at, decided definitely positive.
+///
+/// # Errors
+///
+/// [`LeverRung::Arm`] where the arm is collapsed, in band or poisoned.
+pub fn departure_arm<T: Decide>(arm: T, band: Band) -> Result<(), LeverEscalation> {
     crate::dihedral::decide_positive("enters_material_arm", Margin::of(arm), band)
-        .map_err(LeverEscalation::arm)?;
-    Ok(Margin::levered(dir.normalize().dot(normal), arm))
+        .map_err(LeverEscalation::arm)
+}
+
+/// **A direction's first-order rise off a plane**: `d̂·n̂·arm`, the
+/// direction `dir` levered at `arm` against the plane's unit normal
+/// `normal`, in metres.
+#[must_use]
+pub fn rise<T: Real>(dir: Vec3<T>, normal: Vec3<T>, arm: T) -> Margin<T> {
+    Margin::levered(dir.normalize().dot(normal), arm)
 }
 
 /// **`enters_material_order2`** — the second-order descent of the
@@ -606,8 +627,7 @@ fn decide_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
-    crate::dihedral::decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)
-        .map_err(LeverEscalation::arm)?;
+    parting_arm(arm, band)?;
     Ok(
         match crate::dihedral::decide("tangent_sector_order2", margin, band)
             .map_err(LeverEscalation::reading)?
@@ -617,6 +637,18 @@ fn decide_order2<T: Decide>(
             Sign::Zero => EntersMaterial::Tangent,
         },
     )
+}
+
+/// **The second-order reading's arm gate**
+/// (`"tangent_sector_order2_arm"`): the arm a [`parting`] is read at,
+/// decided definitely positive.
+///
+/// # Errors
+///
+/// [`LeverRung::Arm`] where the arm is collapsed, in band or poisoned.
+pub fn parting_arm<T: Decide>(arm: T, band: Band) -> Result<(), LeverEscalation> {
+    crate::dihedral::decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)
 }
 
 /// Why [`tied_germ_turn`] gave no order.

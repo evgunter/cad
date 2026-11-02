@@ -55,12 +55,7 @@ fn edge_spec(body: &mut Body<f64>, surface: SurfaceKey, e: &IslandEdge) -> EdgeC
 fn rim(f: Frame, h: f64, (t0, t1): (f64, f64)) -> IslandEdge {
     let centre = f.at(0.0, 0.0, h);
     IslandEdge {
-        carrier: geom::Curve3::Circle {
-            center: centre,
-            axis: f.z,
-            radius: h * f.s * FRAC_PI_6.tan(),
-            u_ref: f.x,
-        },
+        carrier: geom::Curve3::circle(centre, f.z, h * f.s * FRAC_PI_6.tan(), f.x),
         params: (t0, t1),
         plane: Some((centre, f.z)),
     }
