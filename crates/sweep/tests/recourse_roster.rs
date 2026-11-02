@@ -53,6 +53,7 @@ const CARRIERS: &[NameCarrier] = &[
     // name the caller hands them, held in these constants.
     NameCarrier::Const("REVOLVE_AXIS_DIRECTION"),
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
+    NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
 ];
 
@@ -112,6 +113,7 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("loft_shared_corner_lead", LOFT),
     ("loft_stacking", LOFT),
     ("sweep_path_tangent", PATH),
+    ("sweep_path_chord", PATH),
     ("sweep_path_turn", PATH),
     ("cap_plane_orientation", CAP),
     ("side_cylinders_cosurface", COSURFACE),
@@ -125,7 +127,7 @@ const AXIS: &str = "the revolve axis's own classifications: an escalation here i
 const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveError`";
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
-const PATH: &str = "the path sweep's station tangents and turns, typed on `SkinError`";
+const PATH: &str = "the path sweep's station tangents, chords and turns, typed on `SkinError`";
 const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
                    the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \

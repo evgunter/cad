@@ -49,3 +49,17 @@ points), and the scene is being re-spelled as one loft. No consumer
 reaches this shape today. It is still a real gap for a witness-selected
 carrier, so it stays open at P3 until one does.
 
+
+2026-10-31 (`splice/nurbs-nurbs-guard-arm`): a second instance, at a
+corner of BOTH rectangles. The pair lane's handed-in corner
+(`ssi/pair.rs`, `PairCorner`) reads a branch starting there and adds the
+corner state as a crossing. The trace from it then refuses in limb 3:
+"the walk at an end of the carrier resolved nothing, and that end lies on
+4 domain sides at once, where no face's walk isolates its root". Witness:
+`topo` `section_cert_spline_pair_rows::a_shared_corner_the_section_leaves_is_a_region_and_one_it_enters_refuses`.
+That is the sheet `z = 0.2xy` against `z = x − y/2` over `y ∈ [0, 1.5]`,
+sharing the corner `(0, 0)` of both. The row pins the refusal (R-reach
+at the guard). The corner reading already holds the corner cell's
+section to one monotone arc (all four kernel-direction components
+one-signed over it), which may serve as the end's box in place of the
+face walk.

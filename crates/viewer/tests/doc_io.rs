@@ -32,6 +32,8 @@ fn distance(
         .expect("the extrude carries a distance")
         .value
         .expect("the distance evaluates")
+        .one()
+        .expect("one value")
 }
 
 #[test]

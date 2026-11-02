@@ -154,13 +154,13 @@ fn sections_apart_whose_parameterization_cannot_step_refuse_without_claiming_coi
     }
 }
 
-/// **A sweep whose two stations coincide refuses at the door**, at
-/// `f64` and at `Interval`. The path is closed, C¹ and non-planar, so
-/// with two stations its start and end frames are bit-equal; the
-/// geometry door, which has no stacking door, says only what the skin
-/// can: `NoParameterStep` at section 1.
+/// **A sweep whose two stations coincide refuses at its carry**, at
+/// `f64` and at `Interval`, and through every door that places
+/// stations. The path is closed, C¹ and non-planar, so with two
+/// stations its chord is zero, and the step's first reflection has no
+/// plane: the carry refuses before any section is placed.
 #[test]
-fn a_sweep_whose_two_stations_coincide_refuses_at_the_door() {
+fn a_sweep_whose_two_stations_coincide_refuses_at_its_carry() {
     let tol = Tol::witness();
     let path = NurbsCurve3::new(
         KnotVector::clamped(
@@ -186,28 +186,29 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_door() {
             .iter()
             .map(|&(x, y)| Point2::new(x, y)),
     )];
-    let stations = sweep::sweep_places(place, &path, 2, tol).unwrap();
+    let coincide = SkinError::PathStationsCoincide { station: 1 };
     assert_eq!(
-        stations[0].placement().components().map(f64::to_bits),
-        stations[1].placement().components().map(f64::to_bits),
-        "the two stations are the same frame, bit for bit"
+        sweep::sweep_places(place, &path, 2, tol).unwrap_err(),
+        coincide,
+        "sweep_places"
     );
     match sweep_body::<f64>(&profile, place, &path, 2, 1, tol) {
-        Err(LoftError::DegenerateStacking { slab: 0 }) => {}
-        other => panic!("f64: expected DegenerateStacking at slab 0, got {other:?}"),
+        Err(LoftError::Skin(e)) if e == coincide => {}
+        other => panic!("f64: expected the carry's refusal, got {other:?}"),
     }
     let lane_profile =
         &sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&profile))[0];
     let lane_place =
         sweep::test_support::lift_places::<Interval>(&[place], geom_core::Tol::witness())[0];
     match sweep_body::<Interval>(lane_profile, lane_place, &path, 2, 1, tol) {
-        Err(LoftError::DegenerateStacking { slab: 0 }) => {}
-        other => panic!("Interval: expected DegenerateStacking at slab 0, got {other:?}"),
+        Err(LoftError::Skin(e)) if e == coincide => {}
+        other => panic!("Interval: expected the carry's refusal, got {other:?}"),
     }
-    match sweep_geometry(&profile, place, &path, 2, 1, tol) {
-        Err(SkinError::NoParameterStep { section: 1 }) => {}
-        other => panic!("sweep_geometry: expected NoParameterStep at section 1, got {other:?}"),
-    }
+    assert_eq!(
+        sweep_geometry(&profile, place, &path, 2, 1, tol).unwrap_err(),
+        coincide,
+        "sweep_geometry"
+    );
 }
 
 /// **A hinged section refuses naming its hinge**, exactly or up to

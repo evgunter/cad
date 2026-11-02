@@ -1,6 +1,7 @@
 //! **A bounded thread-local memo of a pure function**, the one shape
-//! limb 2's structural memos share (`carrier_net`'s span bases,
-//! `pcurve_cache`'s rounds and first-reading spans).
+//! the certification arithmetic's structural memos share (`carrier_net`'s
+//! span bases, `pcurve_cache`'s rounds, first-reading spans and twin
+//! span hulls).
 //!
 //! A memo here holds a pure function's values under a key that is the
 //! function's whole input, compared whole (no hash stands for it, so no

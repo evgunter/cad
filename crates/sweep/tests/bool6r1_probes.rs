@@ -18,10 +18,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::plane_of;
+use crate::common::arc_spine_places;
 use geom_core::k_stats::Bracket;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::{Affine3, Mat3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::SketchPlane;
 use sweep::test_support::{loft_prism_sections, stacked_at};
@@ -39,28 +39,6 @@ fn sq() -> sweep::Section {
 /// point set and the same winding, a rotated traversal order.
 fn sq_rotated() -> sweep::Section {
     quad([(0.05, -0.05), (0.05, 0.05), (-0.05, 0.05), (-0.05, -0.05)])
-}
-
-/// `stations` sections along a planar unit-radius arc turning through
-/// `curl` toward `+z`, each section's `c2` the spine tangent — the
-/// issue's signature, re-spelled here so the probes do not lean on the
-/// unit's own helper.
-fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
-    (0..stations)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let theta = curl * (i as f64) / ((stations - 1) as f64);
-            let (s, c) = theta.sin_cos();
-            plane_of(&Affine3::from_parts(
-                Mat3::from_cols(
-                    Vec3::new(0.0, 1.0, 0.0),
-                    Vec3::new(-s, 0.0, c),
-                    Vec3::new(c, 0.0, s),
-                ),
-                Vec3::new(s, 0.0, 1.0 - c),
-            ))
-        })
-        .collect()
 }
 
 fn arc_spine_loft(curl: f64, stations: usize) -> Result<(), LoftError> {

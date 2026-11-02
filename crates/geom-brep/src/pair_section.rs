@@ -33,21 +33,28 @@
 //!   ([`Components::Marched`]: a general cylinder × torus or torus ×
 //!   torus pose), the components are the march's, listed only once
 //!   carried. An empty count is the surfaces disjoint; `Marched` never
-//!   reads as that.
+//!   reads as that. Where a plane × spline pose's regularity sweep
+//!   proves no component closed ([`Components::Reaching`]), none is
+//!   counted or listed: each ends on a side of the wall's chart the
+//!   verdict names, and a reader that needs the list reads the pose
+//!   whole ([`PairSection::read_whole`]).
 //!
 //! # Classified, then carried
 //!
 //! The value is built in two states. [`PairSection`] is the
 //! classification: it costs no march and needs no lane, but on a plane
-//! and a spline, whose classification is C3's whole reading
-//! ([`plane_spline`]), read through the march door.
+//! and a spline past its hull and door, whose classification is the
+//! boundary pass, the regularity sweep and, where that declines, C3's
+//! whole reading on the same pass ([`plane_spline`]), read through the
+//! march door.
 //! [`PairSection::carry`] turns it into a [`CarriedSection`], which lists
 //! the components, every one holding a carrier a reader can take a foot
 //! on: a closed form as classified, or the general rung's fitted curve
 //! with its C2 certificate ([`crate::ssi::SsiCertificate`]). Where the
 //! classification is marched, the carried components are the march's
 //! closed branches, each winding as the fitted loop's turns about each
-//! surface's axis and core circle, read off the loop in ℝ³, say
+//! surface's axis and core circle, read over the loop's uniqueness tube
+//! in ℝ³, say
 //! ([`winds`]); where it is counted, the march's distinct branches must
 //! match the count, so the closed form is a cross-check of the march's
 //! exhaustiveness receipt. A reader that needs a list no closed form
@@ -91,6 +98,7 @@ use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
 pub mod cylinders;
 pub mod gap;
 pub mod plane_spline;
+pub mod spline_pair;
 pub mod torus;
 mod torus_arms;
 pub mod torus_coincidence;
@@ -99,6 +107,7 @@ pub mod winds;
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use plane_spline::PlaneSplinePose;
+pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
@@ -662,6 +671,27 @@ impl ChartReach {
     }
 }
 
+/// **The sides an open section's components end on**, `[on the first
+/// surface, on the second]`: some side in all, so a reader asking that
+/// every side it names bounds its surface is never answered by an empty
+/// list ([`Components::Reaching`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reached([ChartReach; 2]);
+
+impl Reached {
+    /// The sides `rims`, or `None` where neither names one.
+    #[must_use]
+    pub fn new(rims: [ChartReach; 2]) -> Option<Self> {
+        rims.iter().any(|r| r.any()).then_some(Self(rims))
+    }
+
+    /// The sides on each surface, `[on the first, on the second]`.
+    #[must_use]
+    pub fn rims(self) -> [ChartReach; 2] {
+        self.0
+    }
+}
+
 /// A chart axis's index in [`ChartReach`]'s sides.
 fn axis_index(axis: crate::ssi::ChartAxis) -> usize {
     match axis {
@@ -748,6 +778,13 @@ pub enum Components<T: Real> {
     /// No closed form counts them: they are the march's closed branches,
     /// listed by [`PairSection::carry`].
     Marched,
+    /// Some component, and none closed: each is open, its ends on the
+    /// sides of each surface's chart [`Reached`] names, and none is
+    /// counted or listed. No component at all is an empty
+    /// [`Components::Counted`]. A plane × spline pose's regularity sweep
+    /// answers it ([`plane_spline`]); a reader that needs the list reads
+    /// the pose whole ([`PairSection::read_whole`]).
+    Reaching(Reached),
 }
 
 /// **The section of two distinct surfaces, classified** (module docs).
@@ -775,6 +812,8 @@ pub enum PairPose<T: Real> {
     CylinderCylinder(CylinderCylinderPose<T>),
     /// A plane and a spline wall.
     PlaneSpline(Box<PlaneSplinePose<T>>),
+    /// Two spline walls.
+    SplinePair(Box<SplinePairPose<T>>),
 }
 
 impl<T: Real> PairPose<T> {
@@ -786,7 +825,8 @@ impl<T: Real> PairPose<T> {
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
             | Self::CylinderCylinder(_)
-            | Self::PlaneSpline(_) => None,
+            | Self::PlaneSpline(_)
+            | Self::SplinePair(_) => None,
         }
     }
 }
@@ -801,6 +841,7 @@ impl<T: Decide> PairPose<T> {
             Self::TorusTorus(p) => p.operands(),
             Self::CylinderCylinder(p) => p.operands(),
             Self::PlaneSpline(p) => p.operands(),
+            Self::SplinePair(p) => p.operands(),
         }
     }
 
@@ -823,6 +864,7 @@ impl<T: Decide> PairPose<T> {
             Self::TorusTorus(p) => p.ball(),
             Self::CylinderCylinder(p) => p.ball(),
             Self::PlaneSpline(p) => p.ball(),
+            Self::SplinePair(p) => p.ball(),
         }
     }
 
@@ -835,7 +877,8 @@ impl<T: Decide> PairPose<T> {
             | Self::SphereTorus(_)
             | Self::CylinderTorus(_)
             | Self::TorusTorus(_)
-            | Self::PlaneSpline(_) => false,
+            | Self::PlaneSpline(_)
+            | Self::SplinePair(_) => false,
         }
     }
 }
@@ -868,6 +911,29 @@ fn domain_about(center: Point3<f64>, half_extent: f64, extent: f64) -> SsiDomain
         half_extent,
         extent,
         floor_scale: 1.0,
+    }
+}
+
+/// **A whole reading's refusal as the section value's**, for both spline
+/// lanes (plane × spline, two spline walls): a tangency the reading
+/// reports ([`SsiError::tangency`]: the march's transversality, a graze
+/// or a side held tangent, a tangency along a handed-in row, a section
+/// touching a side of two charts that nothing handed in covers) is a
+/// pinch named by its decision; an escalation is the value's escalation,
+/// as the analytic arms' in-band readings are; and any other refusal,
+/// the reading's incapacity among them, is [`SectionError::Unaccounted`],
+/// carrying its cause.
+pub(crate) fn whole_reading_refused(e: SsiError) -> SectionError {
+    if let Some(predicate) = e.tangency() {
+        return SectionError::Pinched { predicate };
+    }
+    match e {
+        SsiError::Escalated { cause, .. } | SsiError::CertificateEscalated { cause, .. } => {
+            SectionError::Escalated(cause)
+        }
+        other => SectionError::Unaccounted {
+            cause: other.to_string(),
+        },
     }
 }
 
@@ -952,30 +1018,51 @@ pub fn pair_section<T: Decide>(
                 }),
             }
         }
-        (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => match lane {
-            Some(lane) => (lane.spline)(a, b, band).map(SectionRead::Built),
-            None => Err(SectionError::NoMarch { scalar: T::NAME }),
-        },
+        (Plane, Nurbs | Approx) | (Nurbs | Approx, Plane) => {
+            plane_spline::classified(a, b, lane, band).map(SectionRead::Built)
+        }
+        (Nurbs | Approx, Nurbs | Approx) => {
+            spline_pair::classified(a, b, spline_pair::KnownPair::default(), lane, band)
+                .map(SectionRead::Built)
+        }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
         | (Cylinder, Plane | Cone | Nurbs | Approx)
         | (Cone, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Sphere, Plane | Cone | Sphere | Nurbs | Approx)
         | (Torus, Plane | Cone | Nurbs | Approx)
-        | (Nurbs, Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
-        | (Approx, Cylinder | Cone | Sphere | Torus | Nurbs | Approx) => {
+        | (Nurbs | Approx, Cylinder | Cone | Sphere | Torus) => {
             Ok(SectionRead::Elsewhere(route(ka, kb)))
         }
     }
+}
+
+/// **[`pair_section`] of two spline walls with rows and corners handed in
+/// as known** ([`spline_pair`], [`crate::ssi::Section::of_known`]), each
+/// in the order `a`, `b`: the door the interior-loop guard reads a pair
+/// of spline faces through, the rows and vertices they share handed in.
+///
+/// # Errors
+///
+/// As [`pair_section`] on two spline walls.
+pub fn spline_pair_section<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    known: spline_pair::KnownPair<T>,
+    lane: Option<SsiLane<T>>,
+    band: Band,
+) -> Result<PairSection<T>, SectionError> {
+    spline_pair::classified(a, b, known, lane, band)
 }
 
 /// **Whether the value builds, by classification, the section of some
 /// kind pair `kind` is a side of** — the filter a reader scanning many
 /// pairs applies before it asks [`pair_section`]. Exhaustive, as
 /// `pair_section`'s match is, and a second spelling of it
-/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A plane and
-/// a spline are not among them: their section is a whole reading, read
-/// per pair through [`pair_section`]'s march door by the reader that asks
-/// it.
+/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
+/// is not among them, whether against a plane or another spline: its
+/// section is a whole reading, read per pair through [`pair_section`]'s
+/// march door ([`spline_pair_section`] where rows are handed in) by the
+/// reader that asks it.
 #[must_use]
 pub fn serves(kind: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
@@ -1108,7 +1195,7 @@ impl<T: Decide> PairSection<T> {
     pub fn counted(&self) -> Option<&[SectionComponent<T>]> {
         match &self.components {
             Components::Counted(listed) => Some(listed),
-            Components::Marched => None,
+            Components::Marched | Components::Reaching(_) => None,
         }
     }
 
@@ -1159,6 +1246,26 @@ impl<T: Decide> PairSection<T> {
         self.listed(marched, band)
     }
 
+    /// **The section read whole, where its classification lists no
+    /// component** ([`Components::Reaching`]): the pose's whole reading
+    /// through `lane`, every component listed. Any other section is
+    /// already its listing.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::NoMarch`] with no `lane`, and the whole reading's
+    /// refusal ([`plane_spline`]).
+    pub fn read_whole(&self, lane: Option<SsiLane<T>>, band: Band) -> Result<Self, SectionError> {
+        if !matches!(self.components, Components::Reaching(_)) {
+            return Ok(self.clone());
+        }
+        let PairPose::PlaneSpline(pose) = &self.pose else {
+            unreachable!("only a plane × spline pose's classification reaches")
+        };
+        let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
+        (lane.whole)(pose, band)
+    }
+
     /// **The components listed from the march's branches** as
     /// [`Self::carry`] lists them, `branches` asked for only where a
     /// component is the general rung's.
@@ -1175,6 +1282,9 @@ impl<T: Decide> PairSection<T> {
                     .collect::<Result<_, _>>()?,
                 band,
             )?,
+            Components::Reaching(_) => {
+                return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+            }
             Components::Counted(listed) => {
                 for c in listed {
                     if let ClassCarrier::Unminted(why) = c.carrier {
@@ -1309,6 +1419,7 @@ impl<T: Decide> PairSection<T> {
                     certificate: None,
                     winds: c.winds,
                     pad: 0.0,
+                    reach: 0.0,
                     witness: curve.eval(T::pi()),
                 }),
                 (ClassCarrier::Span { curve, span }, _) => Ok(CarriedComponent {
@@ -1318,6 +1429,7 @@ impl<T: Decide> PairSection<T> {
                     certificate: None,
                     winds: c.winds,
                     pad: 0.0,
+                    reach: 0.0,
                     witness: curve.eval((span.0 + span.1) * T::from_f64(0.5)),
                 }),
                 (ClassCarrier::General, Some(f)) => Ok(f),
@@ -1382,8 +1494,11 @@ pub struct FittedCarrier<T: Real> {
     /// asked of ([`winds`]).
     pub winding: [Winding; 2],
     /// How far from its carrier a point of the loop is read, in metres
-    /// ([`CarriedComponent::pad`], [`pad_of`]).
+    /// ([`CarriedComponent::pad`]).
     pub pad: f64,
+    /// How far the witness may stand from the loop, in metres
+    /// ([`CarriedComponent::reach`]).
+    pub reach: f64,
 }
 
 impl<T: Decide> FittedCarrier<T> {
@@ -1414,6 +1529,7 @@ impl<T: Decide> FittedCarrier<T> {
             certificate: Some(self.certificate),
             winds: self.winding.map(Winding::essential),
             pad: self.pad,
+            reach: self.reach,
             witness: self.witness,
         })
     }
@@ -1430,12 +1546,16 @@ pub struct SsiLane<T: Real> {
     /// One closed fitted component seated at a parameter, re-certified
     /// against the pose's operands ([`PairSection::seat`]).
     seat: fn(&PairPose<T>, &CarriedComponent<T>, T, Band) -> Seated<T>,
-    /// The section of a plane and a spline wall ([`plane_spline`]).
-    spline: SplineSection<T>,
+    /// A plane and a spline wall's classification past the door
+    /// ([`plane_spline`]): the boundary pass, the regularity sweep, and
+    /// where it declines the whole reading.
+    spline: fn(PlaneSplinePose<T>, Band) -> Result<PairSection<T>, SectionError>,
+    /// A plane and a spline wall's section read whole, on the pass its
+    /// classification carried.
+    whole: fn(&PlaneSplinePose<T>, Band) -> Result<PairSection<T>, SectionError>,
+    /// Two spline walls' section, read whole ([`spline_pair`]).
+    spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
 }
-
-/// What reads a plane and a spline's section ([`plane_spline`]).
-type SplineSection<T> = fn(&Surface<T>, &Surface<T>, Band) -> Result<PairSection<T>, SectionError>;
 
 /// What one seating answers: the component opened at the parameter
 /// ([`PairSection::seat`]).
@@ -1452,6 +1572,8 @@ impl SsiLane<f64> {
             march: march_over_the_ball,
             seat: seat_at,
             spline: plane_spline::section,
+            whole: plane_spline::whole,
+            spline_pair: spline_pair::section,
         }
     }
 }
@@ -1460,8 +1582,8 @@ impl SsiLane<f64> {
 /// Where the ball holds every component of the section no branch reaches
 /// the box's faces, so every branch the march finds closes; where the
 /// region cuts it ([`PairPose::cut`]) a branch may end on them. Each
-/// closed branch's winding about each operand is read off its loop,
-/// padded by its tube ([`winds`]).
+/// closed branch's winding about each operand is read over its
+/// uniqueness tube ([`winds`]).
 fn march_over_the_ball(
     pose: &PairPose<f64>,
     band: Band,
@@ -1478,6 +1600,9 @@ fn march_over_the_ball(
         PairPose::PlaneSpline(_) => {
             return Err(CarryError::Unminted(plane_spline::UNCARRIED));
         }
+        PairPose::SplinePair(_) => {
+            return Err(CarryError::Unminted(spline_pair::UNCARRIED));
+        }
     }
     .map_err(CarryError::March)?;
     let (a, b) = pose.operands();
@@ -1485,9 +1610,13 @@ fn march_over_the_ball(
         .into_iter()
         .map(|br| {
             let closed = matches!(br.end, BranchEnd::Closed);
-            let pad = pad_of(&br.carrier, &br.certificate)?;
+            let tube = Tube::of(
+                &br.carrier,
+                &br.certificate,
+                0.5 * (br.params.0 + br.params.1),
+            )?;
             let winding = if closed {
-                let read = |s| winds::winding(s, &br.carrier, br.params, pad);
+                let read = |s| winds::winding(s, &br.carrier, br.params, &tube.chain);
                 [read(a), read(b)]
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
@@ -1504,47 +1633,143 @@ fn march_over_the_ball(
                 certificate: br.certificate,
                 witness: br.witness,
                 winding,
-                pad,
+                pad: tube.pad,
+                reach: tube.reach,
             })
         })
         .collect()
 }
 
-/// **How far from its fitted carrier a point of a marched loop lies**
-/// ([`CarriedComponent::pad`]): the uniqueness tube's radius plus the
-/// largest diameter of the hull boxes it pads, the boxes the march's
-/// exhaustiveness accounts cells to (`ssi::certify::tube_boxes`). A
-/// point of the loop lies in one padded box, within the radius of the
-/// raw box, whose every point is within its diameter of the carrier's
-/// piece it hulls. The carrier's limb-2 bound must lie within the pad
-/// too, so the carrier lies within the pad of each surface; otherwise
-/// the pad is refused ([`CarryError::PadShort`]).
-fn pad_of(carrier: &Curve3<f64>, certificate: &SsiCertificate<f64>) -> Result<f64, CarryError> {
-    let crate::ssi::SsiTube::Spatial { radius } = certificate.tube else {
-        return Err(CarryError::Desync(
-            "an ℝ³ march's certificate proved no spatial tube",
-        ));
-    };
-    let Curve3::Nurbs(net) = carrier else {
-        return Err(CarryError::Desync(
-            "a fitted component's carrier is not a spline",
-        ));
-    };
-    // The largest side of each raw box bounds its diameter by `√3` of
-    // it; the product is rounded up by a relative `1e-12`, far past one
-    // rounding.
-    let side = crate::ssi::certify::tube_boxes(net, 0.0)
-        .into_iter()
-        .map(crate::ssi::enclose::Box3::width)
-        .try_fold(0.0f64, |acc, w| w.is_finite().then(|| acc.max(w)));
-    let pad = side.map(|w| radius + 3.0f64.sqrt() * w * (1.0 + 1e-12));
-    match pad {
-        Some(pad) if certificate.hull_sup <= pad => Ok(pad),
-        _ => Err(CarryError::PadShort {
-            pad: pad.unwrap_or(f64::NAN),
-            hull_sup: certificate.hull_sup,
-        }),
+/// **A marched loop's uniqueness tube** (C2 limb 3): its certificate's
+/// box chain, each box padded by the tube radius
+/// (`ssi::certify::tube_chain`), the cover the march's exhaustiveness
+/// accounts the section to; limb 3 proves the section's points in it
+/// one arc, a piece of it in every box. Read three ways: as the
+/// winding's pieces ([`winds`]), for the pad ([`CarriedComponent::pad`])
+/// and for the witness's reach ([`CarriedComponent::reach`]).
+struct Tube {
+    chain: Vec<winds::Piece>,
+    pad: f64,
+    reach: f64,
+}
+
+impl Tube {
+    /// The tube of the loop `carrier` certified by `certificate`, its
+    /// witness at `carrier(at)`.
+    ///
+    /// - **The pad** is the farthest any point of the tube stands from
+    ///   the carrier: each box is halved [`PAD_SPLITS`] times
+    ///   (`Box3::split`), and a part's every point is no farther from
+    ///   the carrier than from the nearest of [`PAD_SAMPLES`] carrier
+    ///   points over the box's span ([`farthest`]). The carrier's limb-2
+    ///   bound must lie within it too, so the carrier lies within the pad
+    ///   of each surface; otherwise it refuses [`CarryError::PadShort`].
+    /// - **The reach** bounds the witness's distance from the component:
+    ///   a box whose span holds `at` holds the witness and a piece of the
+    ///   component, so the farthest the box reaches from the witness
+    ///   bounds it; the least over such boxes.
+    ///
+    /// An empty chain, or a box or carrier point that is refused, reads
+    /// no tube ([`CarryError::TubeUnread`]).
+    fn of(
+        carrier: &Curve3<f64>,
+        certificate: &SsiCertificate<f64>,
+        at: f64,
+    ) -> Result<Self, CarryError> {
+        let crate::ssi::SsiTube::Spatial { radius } = certificate.tube else {
+            return Err(CarryError::Desync(
+                "an ℝ³ march's certificate proved no spatial tube",
+            ));
+        };
+        let Curve3::Nurbs(net) = carrier else {
+            return Err(CarryError::Desync(
+                "a fitted component's carrier is not a spline",
+            ));
+        };
+        let lift = <geom_core::Interval as Real>::from_computed;
+        let lifted = net.map_scalar(lift);
+        let chain = crate::ssi::certify::tube_chain(net, radius);
+        let pad = (!chain.is_empty()).then_some(()).and_then(|()| {
+            chain.iter().try_fold(0.0f64, |acc, &(b, _, (lo, hi))| {
+                #[allow(clippy::cast_precision_loss)]
+                let samples: Vec<Point3<geom_core::Interval>> = (0..PAD_SAMPLES)
+                    .map(|j| {
+                        let t = lo + (hi - lo) * j as f64 / (PAD_SAMPLES - 1) as f64;
+                        lifted.eval(lift(t))
+                    })
+                    .collect();
+                parts(b).into_iter().try_fold(acc, |acc, part| {
+                    let far = samples
+                        .iter()
+                        .map(|&p| farthest(part, p))
+                        .fold(f64::INFINITY, f64::min);
+                    far.is_finite().then(|| acc.max(far))
+                })
+            })
+        });
+        let Some(pad) = pad else {
+            return Err(CarryError::TubeUnread);
+        };
+        if certificate.hull_sup.partial_cmp(&pad) == Some(core::cmp::Ordering::Greater)
+            || certificate.hull_sup.is_nan()
+        {
+            return Err(CarryError::PadShort {
+                pad,
+                hull_sup: certificate.hull_sup,
+            });
+        }
+        let witness = lifted.eval(lift(at));
+        let reach = chain
+            .iter()
+            .filter(|(_, _, (lo, hi))| *lo <= at && at <= *hi)
+            .map(|&(b, _, _)| farthest(b, witness))
+            .filter(|r| r.is_finite())
+            .fold(f64::INFINITY, f64::min);
+        if !reach.is_finite() {
+            return Err(CarryError::TubeUnread);
+        }
+        Ok(Self { chain, pad, reach })
     }
+}
+
+/// How many times [`Tube::of`] halves each tube box for the pad: into
+/// `2³` parts.
+const PAD_SPLITS: u32 = 3;
+
+/// The carrier points [`Tube::of`] reads each tube box's parts against,
+/// evenly over the box's span, its ends among them.
+const PAD_SAMPLES: usize = 9;
+
+/// `b` halved [`PAD_SPLITS`] times along its widest axis
+/// (`Box3::split`, which keeps a refused axis refused); the parts cover
+/// it.
+fn parts(b: crate::ssi::enclose::Box3) -> Vec<crate::ssi::enclose::Box3> {
+    (0..PAD_SPLITS).fold(vec![b], |boxes, _| {
+        boxes
+            .into_iter()
+            .flat_map(|b| {
+                let (l, r) = b.split();
+                [l, r]
+            })
+            .collect()
+    })
+}
+
+/// An upper bound on the distance from any point of `b` to any point of
+/// the enclosure `p`: the diagonal of the box of per-axis far gaps
+/// (`carrier_net::diagonal`), rounded up by a relative `1e-12`, far past
+/// its few roundings. `NaN` where either side is refused.
+fn farthest(b: crate::ssi::enclose::Box3, p: Point3<geom_core::Interval>) -> f64 {
+    use geom_core::{Bounds as _, Interval};
+    let gap = |s: Interval, q: Interval| {
+        if s.is_certified() && q.is_certified() {
+            (0.0, (s.hi() - q.lo()).max(q.hi() - s.lo()))
+        } else {
+            (0.0, f64::NAN)
+        }
+    };
+    let gaps = [gap(b.x, p.x), gap(b.y, p.y), gap(b.z, p.z)];
+    crate::carrier_net::diagonal(&gaps) * (1.0 + 1e-12)
 }
 
 /// **[`PairSection::seat`] at `f64`.** `at` at either end of the
@@ -1555,8 +1780,10 @@ fn seat_at(
     at: f64,
     band: Band,
 ) -> Result<CarriedComponent<f64>, CarryError> {
-    if let PairPose::PlaneSpline(_) = pose {
-        return Err(CarryError::Unminted(plane_spline::UNCARRIED));
+    match pose {
+        PairPose::PlaneSpline(_) => return Err(CarryError::Unminted(plane_spline::UNCARRIED)),
+        PairPose::SplinePair(_) => return Err(CarryError::Unminted(spline_pair::UNCARRIED)),
+        _ => {}
     }
     let Curve3::Nurbs(net) = &component.carrier else {
         return Err(CarryError::Desync(
@@ -1600,15 +1827,17 @@ fn seat_at(
     .map_err(CarryError::March)?;
     let span = seated.domain();
     let carrier = Curve3::Nurbs(std::sync::Arc::new(seated));
-    let pad = pad_of(&carrier, &certificate)?;
+    let mid = 0.5 * (span.0 + span.1);
+    let tube = Tube::of(&carrier, &certificate, mid)?;
     Ok(CarriedComponent {
-        witness: carrier.eval(0.5 * (span.0 + span.1)),
+        witness: carrier.eval(mid),
         carrier,
         span,
         shape: ComponentShape::Loop,
         certificate: Some(certificate),
         winds: component.winds,
-        pad,
+        pad: tube.pad,
+        reach: tube.reach,
     })
 }
 
@@ -1696,14 +1925,16 @@ pub enum CarryError {
     /// A reading in the band or poisoned.
     Escalated(Indeterminate),
     /// A fitted loop's limb-2 bound stands past the pad its points are
-    /// read within ([`CarriedComponent::pad`]), or the pad's boxes could
-    /// not be read (`NaN`).
+    /// read within ([`CarriedComponent::pad`]).
     PadShort {
         /// The pad, in metres.
         pad: f64,
         /// The certificate's limb-2 bound, in metres.
         hull_sup: f64,
     },
+    /// A fitted loop's uniqueness tube could not be read: its box chain
+    /// is empty, or a box or carrier point of it is refused ([`Tube::of`]).
+    TubeUnread,
     /// The march and the classification disagree.
     Desync(&'static str),
     /// A closed fitted component could not be opened at its first site
@@ -1724,22 +1955,22 @@ pub struct CarriedComponent<T: Real> {
     pub certificate: Option<SsiCertificate<T>>,
     /// Whether it winds about each surface's carrier, in the order the
     /// section was asked of: a closed form's as classified, a fitted
-    /// loop's turns about each surface's axis and core read off the loop
-    /// itself ([`winds`]).
+    /// loop's turns about each surface's axis and core read over its
+    /// uniqueness tube ([`winds`]).
     pub winds: [bool; 2],
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point
     /// against the component pads its band by it ([`Self::reads`]), and
-    /// the winding ([`winds`]) and the certificate's W3 rest on it. For
-    /// a marched loop it is [`pad_of`]: two facts make it the pad, each
+    /// the certificate's W3 rests on it. For
+    /// a marched loop it is [`Tube::of`]'s: two facts make it the pad, each
     /// a limb of the loop's C2 certificate.
     ///
     /// - **Closeness**: every point of the component lies within `pad`
     ///   of the carrier. The march's exhaustiveness receipt accounts each
     ///   cell of the domain to a branch's uniqueness tube, the hull boxes
     ///   padded by the tube radius (limb 3 says each holds exactly one
-    ///   arc, the branch's own); a point of a padded box lies within the
-    ///   radius plus the box's diameter of the carrier. And limbs 1 and 2
+    ///   arc, the branch's own), and the pad bounds every point of every
+    ///   padded box's distance from the carrier. And limbs 1 and 2
     ///   put the carrier within `hull_sup` of each surface, which the pad
     ///   is checked to hold ([`CarryError::PadShort`]), so a point of the
     ///   carrier lies within the pad of each surface too.
@@ -1747,6 +1978,12 @@ pub struct CarriedComponent<T: Real> {
     ///   other component crosses it. A point read on two components
     ///   (each within its pad) is not chosen between: it desyncs.
     pub pad: f64,
+    /// **How far the witness may stand from the component**, in metres;
+    /// zero for a closed form. For a marched loop it is the diameter of
+    /// a tube box holding the witness ([`Tube::of`]): limb 3 puts a
+    /// piece of the component in every box of the chain. The
+    /// certificate's W3 reads the witness within it.
+    pub reach: f64,
     /// A point of the carrier, `carrier(mid)`: the witness the component
     /// is read by.
     pub witness: Point3<T>,
@@ -1900,6 +2137,24 @@ mod wiring {
         }
         if !std::ptr::fn_addr_eq(SsiLane::marched().seat, seat_at as fn(_, _, _, _) -> _) {
             return Err("seat is not `seat_at`");
+        }
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().spline,
+            super::plane_spline::section as fn(_, _) -> _,
+        ) {
+            return Err("spline is not `plane_spline::section`");
+        }
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().whole,
+            super::plane_spline::whole as fn(_, _) -> _,
+        ) {
+            return Err("whole is not `plane_spline::whole`");
+        }
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().spline_pair,
+            super::spline_pair::section as fn(_, _) -> _,
+        ) {
+            return Err("spline_pair is not `spline_pair::section`");
         }
         Ok(())
     }
@@ -2128,13 +2383,18 @@ mod wiring {
     }
 
     /// **Closeness is checked**: every marched loop's limb-2 bound lies
-    /// within its pad, which holds its uniqueness tube's radius; and a
-    /// certificate whose limb-2 bound stands past the pad refuses
-    /// `PadShort`.
+    /// within its pad, which holds its uniqueness tube's radius; every
+    /// corner and centre of every tube box lies within the pad of the
+    /// carrier (read against `4096` carrier points, within their
+    /// spacing), and the pad stands well inside the hull-diameter bound;
+    /// the witness lies in every box whose span holds it, and its reach
+    /// is no wider than one; and a certificate whose limb-2 bound stands
+    /// past the pad refuses `PadShort`.
     #[test]
-    fn a_marched_loops_pad_holds_its_limb_two_bound() {
-        use super::{CarryError, pad_of};
+    fn a_marched_loops_pad_holds_its_tube_and_its_limb_two_bound() {
+        use super::{CarryError, Tube};
         use crate::ssi::SsiTube;
+        use geom_core::{Bounds as _, Point3};
         for (what, (a, b)) in [
             (
                 "two rings round the wall",
@@ -2153,11 +2413,80 @@ mod wiring {
                     br.certificate.hull_sup,
                     br.pad
                 );
+                let (lo, hi) = br.span;
+                let mid = 0.5 * (lo + hi);
+                let tube = Tube::of(&br.carrier, &br.certificate, mid).expect("the tube");
+                assert_eq!((tube.pad, tube.reach), (br.pad, br.reach), "{what}");
+                let dense: Vec<_> = (0..=4096)
+                    .map(|i| br.carrier.eval(lo + (hi - lo) * f64::from(i) / 4096.0))
+                    .collect();
+                let spacing = dense
+                    .windows(2)
+                    .map(|w| (w[1] - w[0]).norm())
+                    .fold(0.0, f64::max);
+                let mut worst = 0.0f64;
+                for (bx, _, _) in &tube.chain {
+                    let [x, y, z] = [bx.x, bx.y, bx.z].map(|s| [s.lo(), s.hi()]);
+                    let centre = Point3::new(
+                        0.5 * (x[0] + x[1]),
+                        0.5 * (y[0] + y[1]),
+                        0.5 * (z[0] + z[1]),
+                    );
+                    let corners =
+                        (0..8).map(|k| Point3::new(x[k & 1], y[(k >> 1) & 1], z[(k >> 2) & 1]));
+                    for q in corners.chain([centre]) {
+                        let d = dense
+                            .iter()
+                            .map(|&c| (q - c).norm())
+                            .fold(f64::INFINITY, f64::min);
+                        worst = worst.max(d);
+                        assert!(
+                            d <= br.pad + spacing,
+                            "{what}: a tube point {d:e} from the carrier, pad {:e}",
+                            br.pad
+                        );
+                    }
+                }
+                let diag = |bx: &crate::ssi::enclose::Box3| {
+                    crate::carrier_net::diagonal(&[bx.x, bx.y, bx.z].map(|s| (s.lo(), s.hi())))
+                };
+                let held: Vec<_> = tube
+                    .chain
+                    .iter()
+                    .filter(|(_, _, (l, h))| *l <= mid && mid <= *h)
+                    .collect();
+                assert!(
+                    !held.is_empty()
+                        && held.iter().all(|(bx, _, _)| {
+                            let w = br.witness;
+                            [(bx.x, w.x), (bx.y, w.y), (bx.z, w.z)]
+                                .iter()
+                                .all(|(s, v)| s.lo() <= *v && *v <= s.hi())
+                        }),
+                    "{what}: the witness lies in the boxes whose span holds it"
+                );
+                assert!(
+                    br.reach
+                        <= held
+                            .iter()
+                            .map(|(bx, _, _)| diag(bx))
+                            .fold(f64::INFINITY, f64::min),
+                    "{what}: the reach {:e} is no wider than a box holding the witness",
+                    br.reach
+                );
+                // Tight as well as sound: within 1.5 times the farthest
+                // tube corner or centre read on the dense carrier (the
+                // hull-diameter bound it replaces read up to twice that).
+                assert!(
+                    br.pad <= 1.5 * worst + spacing,
+                    "{what}: pad {:e} against the tube's farthest sampled point {worst:e}",
+                    br.pad
+                );
                 let mut loose = br.certificate;
                 loose.hull_sup = 2.0 * br.pad;
                 assert!(
                     matches!(
-                        pad_of(&br.carrier, &loose),
+                        Tube::of(&br.carrier, &loose, mid),
                         Err(CarryError::PadShort { .. })
                     ),
                     "{what}: a limb-2 bound past the pad refuses"
@@ -2172,9 +2501,9 @@ mod wiring {
     /// loops each, from `δ = 3e-2` down to `3e-4`.
     #[test]
     fn close_rings_carry_counted_and_marched() {
-        // Pinned red at 1e-6 since PR 6011: the counted section decides
-        // the closest ring on a zero margin
-        // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
+        // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
+        // graph, and nothing refines it
+        // (`work/ssimarch/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
         test_utils::pinned_red::row(
             geom_core::Tol::witness().eps(),
             &[1e-6],

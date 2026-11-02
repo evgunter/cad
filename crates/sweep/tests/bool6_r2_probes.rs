@@ -4,11 +4,10 @@
 //! claim it attacks; none is a spec row.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::plane_of;
+use crate::common::arc_spine_places;
 use geom_core::k_stats::Bracket;
-use geom_core::{Affine3, Mat3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
-use profile::SketchPlane;
 use sweep::ProfileLoop;
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{LoftError, SkinError, loft_body};
@@ -259,23 +258,6 @@ fn r2_the_door_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
     };
     assert_eq!(count(&in_band), (0, 0));
     assert_eq!(count_of("loft_corner_pinned", &in_band), (4, 1));
-}
-
-/// The suite's arc spine, re-spelled here so this file stands alone.
-fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
-    (0..stations)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let theta = curl * (i as f64) / ((stations - 1) as f64);
-            let (s, c) = theta.sin_cos();
-            let linear = Mat3::from_cols(
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(-s, 0.0, c),
-                Vec3::new(c, 0.0, s),
-            );
-            plane_of(&Affine3::from_parts(linear, Vec3::new(s, 0.0, 1.0 - c)))
-        })
-        .collect()
 }
 
 /// **What the fold newly admits.** A unit-radius circular spine past a

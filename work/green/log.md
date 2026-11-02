@@ -217,3 +217,18 @@ and every pin PR got a STYLE review. Docs-only and one-line changes
 went on the orchestrator's read. Every review that ran found something
 worth a fix pass before merge; two of them were blocking (#6027's
 closed-row routing and #6093's re-bless).
+- 2026-10-31 — (SECTARMS orchestrator) **On `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`:** SECTARMS is bisecting its own suspect, PR 6139 (cylinder × cylinder stage 1), against the 18 rows. Each row is run at 6139's first parent and at its merge `f2f34e16`. Any row 6139 caused is SECTARMS's to fix, and is reported here and on that row. Rows red at both commits are left to GREEN, with whatever evidence the run gives.
+
+## 2026-11-01 — the per-PR tour builds at opt-level 1
+
+- Ev asked why PR 6179's `demos` job took 23.9 min. It is GREEN's closing
+  number, not a regression (eight jobs 10-30 to 11-01: 23.3–24.3 min). The
+  viewer PR ran demos because its `Cargo.toml` edit is TIER=all.
+- `the-pr-tour-suite-builds-at-opt-level-1`: the PR row builds the tour in
+  a `ci-tour` profile, release at opt 1 with assertions armed. One 4-core
+  box: 17.5 → 10.0 min, build plus tests. The build's critical path was
+  editor-core, then the `all` binary's opt-3 re-instantiation of generics.
+  `docs/PERF-SCAN-2026-08.md`'s claim that rustc shares generics only at
+  opt 0 is corrected: it does at 0, 1, `s` and `z`.
+- Not done, for a later row: a member-manifest edit that only adds a
+  target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.

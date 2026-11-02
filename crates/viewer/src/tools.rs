@@ -227,6 +227,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
+        | SessionOp::Stage { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -249,7 +250,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
         | SessionOp::CommitFreeMove { .. }
@@ -294,18 +296,26 @@ pub enum ToolNotice {
         /// What it lost.
         event: SeatEvent,
     },
+    /// A viewport click aimed at the open tool met nothing of the kind
+    /// it picks ([`ToolKind::pick_kinds`]), so the tool took no pick.
+    Missed(ToolKind),
 }
 
-/// The mate and seated arms say the node their event carries
-/// (`SpokenNode`, kept by [`Tools::respeak`]), so the speaker reaches
-/// the blend arm alone, whose event holds bare ids.
+/// The seated arm says the node its event carries (`SpokenNode`, kept
+/// by [`Tools::respeak`]); the blend arm's event holds bare ids, and a
+/// dropped face pick is said by the speaker, a node it does not hold as
+/// the tool kept it.
 impl Say for ToolNotice {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
-            Self::Mate(event) => ToolKind::Mate.says(event),
+            Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
-            Self::Mirror(event) => ToolKind::Mirror.says(event),
+            Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
+            Self::Missed(tool) => tool.says(&format_args!(
+                "{} under the cursor — no pick taken",
+                tool.pick_kinds().nothing()
+            )),
         };
         f.write_str(&said)
     }
@@ -427,10 +437,7 @@ impl ToolNotice {
     /// name within its table in that document's evaluation
     /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
     pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
-        let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
-            Speaker::of(doc).within(evaluation)
-        });
-        Said(self, by).to_string()
+        Said(self, crate::frame::landed_speaker(landed)).to_string()
     }
 }
 

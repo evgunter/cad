@@ -2,11 +2,14 @@
 id: face-pick-cannot-name-which-face
 kind: issue
 title: The add-datum form's face pick names a body scope, and no label in the tree can name WHICH face
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
-cost: D
+cost: M
 refs: [2955]
+branch: doors/face-words
+closed: 2026-11-01
+pr: 6262
 ---
 
 ## What
@@ -154,3 +157,27 @@ Two designers weighed this independently and reached the same final state in the
 ## The composer speaks within the landed evaluation (PR 3886, 2026-10-03)
 
 Ev's ruling on #3906 gives a speaker that holds the body's name table — the viewer's pick readout among them — a detail that tells each name apart in that table. The composer this row builds holds that table: every site it serves reads the landed pair. So it says each face through `Speaker::of(landed).within(evaluation)`, as `frame::pick_refusal`, `idpass::Disagreement::notice` and `frame::tool_notice` already do. A face the evaluation does not hold is then said in full.
+
+## Re-priced (2026-11-01)
+
+Its blocker is in: the names layer renders a leaf role in words (`editor_core::names::words::leaf_role`). The legacy `cost: D` is re-priced `M`. The design was ruled on #3571, so no question is open, and what remains is the viewer composer and its five sites. (DOORS orchestrator)
+
+## Closed (2026-11-01, PR 6262)
+
+**What landed.** One composer for a face or edge in a sentence, `tree::PickedName`. It says the names layer's leaf-role words, plus ", on <copy>" for the drawn copy that was clicked, plus "body N of …" past the first body, all said within the landed evaluation.
+- Every site that says a pick routes through it: the add-profile form's held face and trace latches, the mate and mirror panels and their refusals, the property header, the idpass cross-check, the Checks cells, and the blend tool's edge refusals.
+- Held picks keep their labels as one `tree::HeldPick`.
+- The body scope has one spelling, `tree::DrawnBody`, and `BlendTarget` is deleted.
+- One `feature()` decides what the tree highlights, what the header labels, what Delete targets and what the viewport focuses.
+- The viewer's chrome speaks the landed document for every node the picture shows (DOORS orchestrator ruling, logged).
+
+**Out of scope.** Three of the spec's sites no longer existed on main: the declare offer, the add-datum form and face-frame datums. The hover mark on the declare offer's lines went with the offer.
+
+**Pick sentences do not say the part file.** A `Speaker` cannot reach `PartFiles`, and the node's tag already tells instances apart.
+
+**Filed:**
+- `a-selections-kept-labels-miss-the-nodes-its-face-words-name` (here);
+- `work/doctail/a-stale-rim-fault-says-a-body-as-node-body-n`;
+- `work/cleartail/a-clearance-refusal-says-body-0-of-a-node`.
+
+(DOORS orchestrator)

@@ -1453,6 +1453,18 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ring: loop_,
             ring_vertex: vertex,
         },
+        ValidationError::CycleOffFaceSide {
+            face,
+            at: vertex,
+            other: edge,
+        },
+        ValidationError::CycleSideUndecided {
+            face,
+            at: vertex,
+            other: edge,
+            source: diag(),
+        },
+        ValidationError::EssentialCyclesUnpaired { face, essential: 1 },
         ValidationError::PinchCornerCrossed { face, vertex, edge },
         ValidationError::CensusLaneUnsupported { subject: pair },
         ValidationError::InstanceInterference {

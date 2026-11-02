@@ -213,9 +213,10 @@ pub fn narration(tol: Tol) {
          (the twisted_tube scene below is that caller)"
     );
     println!(
-        "   {} walls; the frame is path-FOLLOWING (each station turns the profile by \
-         the minimal rotation carrying the path's start tangent to its own); a \
-         reversing tangent refuses typed rather than picking an axis",
+        "   {} walls; the frame is path-FOLLOWING (the start frame carried station to \
+         station by the rotation-minimizing frame, which turns about no tangent); a \
+         path that turns a half turn between two stations refuses typed, and more \
+         stations sweep it",
         swept.walls[0].len()
     );
 
@@ -936,9 +937,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                     two glued partial revolves could (each planar arc sweep is a \
                     partial revolve's orbit), which is why the montage's sweep cell \
                     is now the non-planar twisted_duct. The frame is path-following \
-                    (each station turns the profile by the minimal rotation carrying \
-                    the start tangent to its own; on a planar path that rotation axis \
-                    is fixed, so the square never rolls)",
+                    (the start frame carried station to station by the \
+                    rotation-minimizing frame; on a planar path it turns only about \
+                    the plane's normal, so the square never rolls)",
             ops: "sweep::sweep_body(square(h = 0.25), S path (two opposed R = 2 \
                   quarter arcs, degree-3 interpolant through 17 exact points), \
                   13 stations, v_degree 3)",

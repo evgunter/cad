@@ -307,7 +307,10 @@ fn the_parametric_living_walk() {
         },
         "the radius names its driving variable"
     );
-    assert_eq!(radius_row.value, Ok(SlotValue::Continuous(BASE_R)));
+    assert_eq!(
+        radius_row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(BASE_R)))
+    );
     let got = body_volume(&mut session, base, tol);
     let want = PI * BASE_R * BASE_R * HEIGHT;
     assert!(near(got, want), "base drum volume {got} vs {want}");
@@ -368,14 +371,27 @@ fn the_parametric_living_walk() {
             .value
             .clone()
             .expect("a value")
+            .one()
+            .expect("one value")
             .as_f64()
             .to_bits(),
-        before_unit.value.expect("a value").as_f64().to_bits(),
+        before_unit
+            .value
+            .expect("a value")
+            .one()
+            .expect("one value")
+            .as_f64()
+            .to_bits(),
         "the notation moved; the canonical value did not"
     );
     assert_eq!(
         in_written(
-            after_unit.value.expect("a value").as_f64(),
+            after_unit
+                .value
+                .expect("a value")
+                .one()
+                .expect("one value")
+                .as_f64(),
             rendering_unit(
                 after_unit.dimension,
                 after_unit.unit,
@@ -406,21 +422,17 @@ fn the_parametric_living_walk() {
     );
     drive_lift(&mut session, lamp_up, 0.08, "height * 3.0 - embed * 2.0");
     assert_eq!(
-        common::world(session.committed_doc()),
+        viewer::world::drawn_nodes(session.committed_doc()),
         [lighthouse],
-        "the world is one copy: the finished part"
+        "the picture is one body: the finished part, unplaced"
     );
     let got = body_volume(&mut session, lighthouse, tol);
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    // Eleven: the ten features and the one world placement of the
-    // finished part.
-    assert_eq!(
-        rows.len(),
-        11,
-        "ten features and the lighthouse's placement"
-    );
+    // Ten: the features, and no placement — the finished part lands
+    // unplaced.
+    assert_eq!(rows.len(), 10, "ten features and no placement");
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),
         "every row green: {rows:?}"
@@ -624,12 +636,12 @@ fn the_parametric_living_walk() {
     assert_eq!(previews, 3);
     assert_eq!(
         row_of(session.doc(), lamp, SlotId::Distance).value,
-        Ok(SlotValue::Continuous(0.013)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.013))),
         "the panels show the scratch value"
     );
     assert_eq!(
         row_of(session.committed_doc(), lamp, SlotId::Distance).value,
-        Ok(SlotValue::Continuous(LAMP_H)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(LAMP_H))),
         "the committed document still says the old one"
     );
     let outcome = session.perform(SessionOp::CommitGesture {
@@ -639,7 +651,10 @@ fn the_parametric_living_walk() {
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert_eq!(session.history().len(), before + 1, "one undo step");
     let landed = row_of(session.committed_doc(), lamp, SlotId::Distance);
-    assert_eq!(landed.value, Ok(SlotValue::Continuous(0.013)));
+    assert_eq!(
+        landed.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.013)))
+    );
     assert_eq!(
         landed.unit,
         Some(MM.def()),
@@ -772,7 +787,7 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "no trace in history");
     assert_eq!(
         row_of(session.doc(), lamp, SlotId::Distance).value,
-        Ok(SlotValue::Continuous(0.013)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.013))),
         "the shown document is the committed one again"
     );
     assert!(matches!(
@@ -825,7 +840,10 @@ fn the_parametric_living_walk() {
     );
     let lamp_row = row_of(session.committed_doc(), lamp, SlotId::Distance);
     assert_eq!(lamp_row.unit, Some(MM.def()), "the mm notation survives");
-    assert_eq!(lamp_row.value, Ok(SlotValue::Continuous(0.013)));
+    assert_eq!(
+        lamp_row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.013)))
+    );
     let reopened = body_volume(&mut session, lighthouse, tol);
     assert_eq!(
         v_final.to_bits(),

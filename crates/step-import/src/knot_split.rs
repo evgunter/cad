@@ -1444,7 +1444,7 @@ mod tests {
                             .map(|i| f64::from(i) / 1000.0)
                             .fold(0.0, |b, t| if x(t) > x(b) { t } else { b });
                         let (mut lo, mut hi) = ((best - 1e-3).max(0.0), (best + 1e-3).min(1.0));
-                        let g = 0.5 * (5f64.sqrt() - 1.0);
+                        let g = geom_core::GOLDEN_SECTION;
                         for _ in 0..80 {
                             let (m1, m2) = (hi - g * (hi - lo), lo + g * (hi - lo));
                             if x(m1) < x(m2) {

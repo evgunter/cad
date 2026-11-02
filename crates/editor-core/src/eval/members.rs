@@ -35,6 +35,7 @@ use super::{
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+use crate::repetition::MemberCountFault;
 use crate::var::VarId;
 
 /// **A family's members**, in index order, outermost index first.
@@ -85,45 +86,90 @@ impl<T: Decide> Members<T> {
     }
 }
 
-/// **The value tuples of `chain`**, outermost index first: each outer
-/// value with every value its inner indices' counts give at it.
+/// **Each member of `chain`**, outermost index first and one at a time:
+/// its index values, and `base` at it — each index bound to its value
+/// by `bind`, outer before inner, so an inner index's count is evaluated
+/// over `counts` of the environment with every outer index bound. The
+/// one place a family's members are listed: the evaluator's lanes and
+/// [`Doc::member_envs`] both read them here.
+///
+/// Lazy: it holds one environment per index of `chain`, never one per
+/// member, so a reader that stops at a member binds none past it.
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::IndexCount`] where an index's count does not
-/// evaluate, and [`NodeErrorKind::IndexCountOutOfRange`] where it
-/// evaluates below zero or past `u32::MAX`. A count of zero gives no
-/// value.
-fn tuples<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    env: &crate::expr::VarEnv<T>,
-    chain: &[VarId],
-) -> Result<Vec<Vec<i64>>, NodeErrorKind> {
-    let Some((&index, inner)) = chain.split_first() else {
-        return Ok(vec![Vec::new()]);
-    };
-    let Some(def) = doc.var(index).and_then(|v| v.def().index()) else {
-        unreachable!("a reach chain holds indices alone")
-    };
-    let count = crate::expr::eval_count(&def.count, env)
-        .map_err(|source| NodeErrorKind::IndexCount { index, source })?;
-    let admits = 0..=i64::from(u32::MAX);
-    if !admits.contains(&count) {
-        return Err(NodeErrorKind::IndexCountOutOfRange {
-            index,
-            count,
-            admits,
-        });
-    }
-    let mut out = Vec::new();
-    for value in 0..count {
-        let mut at = env.clone();
-        doc.bind_member(&mut at, &[(index, value)]);
-        for rest in tuples(doc, &at, inner)? {
-            out.push(core::iter::once(value).chain(rest).collect());
+/// An item is [`MemberCountFault::Count`] where an index's count does
+/// not evaluate, and [`MemberCountFault::OutOfRange`] where it
+/// evaluates outside [`MemberCountFault::ADMITS`]; nothing follows it.
+/// A count of zero gives no member.
+pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + 'a>(
+    doc: &'a Doc<P>,
+    base: E,
+    chain: &'a [VarId],
+    counts: impl Fn(&E) -> &crate::expr::VarEnv<C> + 'a,
+    bind: impl Fn(&mut E, &[(VarId, i64)]) + 'a,
+) -> impl Iterator<Item = Result<(Vec<i64>, E), MemberCountFault>> + 'a {
+    // `levels[d]` is the environment with the indices above `chain[d]`
+    // bound, the next value of `chain[d]` and its count.
+    let count_of = move |index: VarId, env: &E| -> Result<i64, MemberCountFault> {
+        let Some(def) = doc.var(index).and_then(|v| v.def().index()) else {
+            unreachable!("a reach chain holds indices alone")
+        };
+        let count = crate::expr::eval_count(&def.count, counts(env))
+            .map_err(|source| MemberCountFault::Count { index, source })?;
+        if MemberCountFault::ADMITS.contains(&count) {
+            Ok(count)
+        } else {
+            Err(MemberCountFault::OutOfRange { index, count })
         }
-    }
-    Ok(out)
+    };
+    let mut levels: Vec<(E, i64, i64)> = Vec::with_capacity(chain.len());
+    let mut first = Some(base);
+    let mut done = false;
+    core::iter::from_fn(move || {
+        if done {
+            return None;
+        }
+        if let Some(base) = first.take() {
+            let Some(&outer) = chain.first() else {
+                done = true;
+                return Some(Ok((Vec::new(), base)));
+            };
+            match count_of(outer, &base) {
+                Ok(count) => levels.push((base, 0, count)),
+                Err(fault) => {
+                    done = true;
+                    return Some(Err(fault));
+                }
+            }
+        }
+        loop {
+            let depth = levels.len();
+            let Some((env, next, count)) = levels.last_mut() else {
+                done = true;
+                return None;
+            };
+            if *next == *count {
+                levels.pop();
+                continue;
+            }
+            let value = *next;
+            *next += 1;
+            let mut at = env.clone();
+            bind(&mut at, &[(chain[depth - 1], value)]);
+            if depth == chain.len() {
+                let values = levels.iter().map(|(_, next, _)| next - 1).collect();
+                return Some(Ok((values, at)));
+            }
+            match count_of(chain[depth], &at) {
+                Ok(count) => levels.push((at, 0, count)),
+                Err(fault) => {
+                    done = true;
+                    return Some(Err(fault));
+                }
+            }
+        }
+    })
 }
 
 /// **`results` at one member**: each family a member of whose stands
@@ -166,6 +212,12 @@ fn overlay<T: Decide>(
 /// it reaches, its value the family of them; `eval_member` evaluates
 /// it at one member's environment, results, prior value, lane and
 /// index values.
+///
+/// # Errors
+///
+/// [`super::Canceled`] where `cancel` is set before a member: a family
+/// is as large as its counts admit, so it yields to cancelation member
+/// by member as the walk does node by node.
 #[allow(clippy::too_many_arguments)] // eval_node's inputs, and the chain
 pub(super) fn eval_family<T: Decide>(
     doc: &Doc<ProfileProgram>,
@@ -174,6 +226,7 @@ pub(super) fn eval_family<T: Decide>(
     chain: &[VarId],
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&NodeValue<T>>,
+    cancel: &super::CancelToken,
     op_env: &super::wire::OpEnv<'_, T>,
     eval_member: impl Fn(
         &crate::expr::VarEnv<T>,
@@ -182,7 +235,7 @@ pub(super) fn eval_family<T: Decide>(
         &super::wire::OpEnv<'_, T>,
         &[(VarId, i64)],
     ) -> NodeStep<T>,
-) -> NodeStep<T> {
+) -> Result<NodeStep<T>, super::Canceled> {
     let fail = |kind| NodeStep {
         result: NodeResult::Failed(NodeError {
             node: id,
@@ -191,29 +244,38 @@ pub(super) fn eval_family<T: Decide>(
         }),
         reused: false,
     };
-    let values = match tuples(doc, env, chain) {
-        Ok(values) => values,
-        Err(kind) => return fail(kind),
-    };
+    let listed = members(
+        doc,
+        (env.clone(), op_env.lane.nominal.clone()),
+        chain,
+        |(params, _): &(crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>)| params,
+        |(params, nominal): &mut (crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>), at| {
+            doc.bind_member(params, at);
+            doc.bind_member(nominal, at);
+        },
+    );
     let prior_members = prior.and_then(|p| p.members.as_ref());
-    let mut members = Vec::with_capacity(values.len());
+    let mut members = Vec::new();
     let mut reused = true;
-    for value in values {
+    for member in listed {
+        if cancel.is_canceled() {
+            return Err(super::Canceled);
+        }
+        let (value, (member_env, nominal)) = match member {
+            Ok(member) => member,
+            Err(fault) => return Ok(fail(fault.node_error())),
+        };
         let at: Vec<(VarId, i64)> = chain.iter().copied().zip(value.iter().copied()).collect();
         let narrow: Vec<u32> = value
             .iter()
             .map(|&v| {
                 u32::try_from(v).unwrap_or_else(|_| {
-                    unreachable!("an admitted count is within u32 (`IndexCountOutOfRange`)")
+                    unreachable!("an admitted count is within u32 (`MemberCountFault::OutOfRange`)")
                 })
             })
             .collect();
         let bound: BTreeMap<VarId, u32> =
             chain.iter().copied().zip(narrow.iter().copied()).collect();
-        let mut member_env = env.clone();
-        doc.bind_member(&mut member_env, &at);
-        let mut nominal = op_env.lane.nominal.clone();
-        doc.bind_member(&mut nominal, &at);
         let member_op_env = super::wire::OpEnv {
             twist: op_env.twist,
             boolean_sweep: op_env.boolean_sweep,
@@ -235,16 +297,16 @@ pub(super) fn eval_family<T: Decide>(
         match step.result {
             NodeResult::Ok(value) => members.push((narrow, value)),
             NodeResult::Failed(NodeError { kind, .. }) => {
-                return fail(NodeErrorKind::MemberRefused {
+                return Ok(fail(NodeErrorKind::MemberRefused {
                     at,
                     source: Box::new(kind),
-                });
+                }));
             }
             poisoned @ NodeResult::Poisoned { .. } => {
-                return NodeStep {
+                return Ok(NodeStep {
                     result: poisoned,
                     reused: false,
-                };
+                });
             }
         }
     }
@@ -252,13 +314,13 @@ pub(super) fn eval_family<T: Decide>(
         over: chain.into(),
         members,
     };
-    match family_value(id, members) {
+    Ok(match family_value(id, members) {
         Ok(value) => NodeStep {
             result: NodeResult::Ok(value),
             reused,
         },
         Err(kind) => fail(kind),
-    }
+    })
 }
 
 /// **A member's content key**: its operation's at the member's values,
@@ -372,4 +434,132 @@ fn family_value<T: Decide>(
         content_key: content.finish(),
         naming_key: NamingKey(naming.finish().0),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::cell::Cell;
+
+    use geom_core::Tol;
+
+    use super::*;
+    use crate::eval::{CancelToken, NodeStep, parts, wire};
+
+    /// A document declaring the index `k = index(count)`, and `k`.
+    fn indexed(count: i64) -> (Doc<ProfileProgram>, VarId) {
+        let tol = Tol::witness();
+        let doc = Doc::<ProfileProgram>::empty_derived("members-cancel", tol);
+        let name = crate::VarName::new("k").unwrap();
+        let doc = doc
+            .apply(
+                &crate::DocEdit::DeclareVar {
+                    name: name.clone(),
+                    def: crate::VarDecl::Index {
+                        count: crate::Formula::count(count),
+                        within: None,
+                    },
+                },
+                tol,
+            )
+            .unwrap()
+            .doc;
+        let k = doc.var_named(name.as_str()).unwrap();
+        (doc, k)
+    }
+
+    /// `doc`'s family over `k`, each member a hand-built value, with
+    /// `on_member` run at each member's values before it evaluates; and
+    /// how many members evaluated.
+    fn family(
+        doc: &Doc<ProfileProgram>,
+        k: VarId,
+        cancel: &CancelToken,
+        on_member: impl Fn(&[(VarId, i64)]),
+    ) -> (Result<NodeStep<f64>, crate::eval::Canceled>, usize) {
+        let tol = Tol::witness();
+        let env = doc.var_env::<f64>();
+        let nominal = doc.var_env::<f64>();
+        let entry = parts::PartStore::<f64>::new(None, topo::SweepStrategy::Realized, tol)
+            .enter_census(doc, None, cancel, tol);
+        let op_env = wire::OpEnv {
+            twist: None,
+            boolean_sweep: topo::SweepStrategy::Realized,
+            parts: &entry.reached,
+            lane: wire::LaneEnv {
+                params: &env,
+                nominal: &nominal,
+                nominal_results: None,
+                pass_two: crate::eval::PassTwo::SkippedAtF64,
+            },
+        };
+        let evaluated = Cell::new(0usize);
+        let id = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
+        let step = eval_family(
+            doc,
+            &env,
+            id,
+            &[k],
+            &BTreeMap::new(),
+            None,
+            cancel,
+            &op_env,
+            |_, _, _, _, at| {
+                on_member(at);
+                evaluated.set(evaluated.get() + 1);
+                NodeStep {
+                    result: NodeResult::Ok(NodeValue::hand_built(
+                        crate::names::NameTable::new(),
+                        crate::names::FragmentGroups::default(),
+                        Vec::new(),
+                    )),
+                    reused: false,
+                }
+            },
+        );
+        (step, evaluated.get())
+    }
+
+    /// **A family yields to cancelation member by member**: the token
+    /// set while member 2 of ten evaluates stops the family before
+    /// member 3, typed. Red if the family checks the token only between
+    /// nodes — it then evaluates all ten — or reports a value.
+    #[test]
+    fn a_family_canceled_by_a_member_stops_before_the_next() {
+        let (doc, k) = indexed(10);
+        let cancel = CancelToken::new();
+        let (step, evaluated) = family(&doc, k, &cancel, |at| {
+            if at == [(k, 2)] {
+                cancel.cancel();
+            }
+        });
+        assert!(step.is_err(), "a canceled family holds no result");
+        assert_eq!(evaluated, 3, "members 0, 1 and 2 evaluated, and no other");
+    }
+
+    /// An uncanceled family evaluates every member, in index order.
+    #[test]
+    fn an_uncanceled_family_evaluates_every_member() {
+        let (doc, k) = indexed(5);
+        let cancel = CancelToken::new();
+        let seen = Cell::new(0i64);
+        let (step, evaluated) = family(&doc, k, &cancel, |at| {
+            assert_eq!(at, [(k, seen.get())], "members in index order");
+            seen.set(seen.get() + 1);
+        });
+        let Ok(NodeStep {
+            result: NodeResult::Ok(value),
+            ..
+        }) = step
+        else {
+            panic!("a family of five evaluates");
+        };
+        assert_eq!(evaluated, 5, "one evaluation per member");
+        let members = value
+            .members
+            .as_ref()
+            .expect("a family's value holds its members");
+        assert_eq!(members.members.len(), 5, "five members held");
+    }
 }

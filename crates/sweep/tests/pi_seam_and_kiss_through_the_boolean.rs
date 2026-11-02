@@ -712,7 +712,7 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 /// unioned with the dome both ways round: each member
 /// order answers alike at every offset.
 ///
-/// - `k ∈ {0, ¼, ½}`: both build, the census of the exact abutment,
+/// - `k ∈ {0, ±¼, ±½}`: both build, the census of the exact abutment,
 ///   and each order's volume within `slack(k)` of the closed form, the
 ///   two orders within `slack(k)` of each other. The rim keeps the
 ///   first operand's circle (the copy the join keeps), and the merge
@@ -725,21 +725,8 @@ fn a_rim_in_band_of_the_partners_wall_escalates() {
 ///   and order 1 at `0.6`; at ε = 1e-12, order 0 sits at `0` (the fan
 ///   reads the kept rim on its own circle's sphere) and order 1 at about
 ///   `0.6`. A `1e-9` relative error in either reds the row at the
-///   default ε and at 1e-12.
-/// - `k ∈ {−¼, −½}`: the dome's disc overhangs the tube's, by a lamina
-///   of no volume, so the union sits on the volume backstop's tight
-///   bound `vol(A ∪ B) ≤ vol(A) + vol(B)`, crossed only by the kept
-///   rim's standoff (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
-///   At the default ε and 1e-6 both orders refuse at that bound, and the
-///   row asserts it. At ε = 1e-12 the member orders do NOT answer
-///   alike, and the row pins each one exactly: order 0 (the tube's rim
-///   kept, standing off the dome's sphere by `2.5e-13`) builds within
-///   `slack(k)`, because the sphere arm's fan form reads that rim on its
-///   own circle's sphere and takes the standoff out of the volume (the
-///   closed form to `1e-16`); order 1 (the dome's rim kept on the tube's
-///   wall) crosses the bound by `1.05e-12` and refuses
-///   `ResultVolumeImplausible` at it. Filed as
-///   `work/nearpoint/a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge.md`.
+///   default ε and at 1e-12. At a negative `k` the dome's disc overhangs
+///   the tube's by a lamina of no volume.
 /// - `k = ±0.9`: the dome's meridian meets the tube's wall `√2·|k|·zero`
 ///   along its arc from the rim, and the crossing layer escalates on that
 ///   arc length, both orders
@@ -768,11 +755,10 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
         let tube_rim = rim_radius(&tube)[0];
         let want = PI * tube_rim * tube_rim * H + cap;
         let slack = (k.abs() * band.zero() / R + 64.0 * f64::EPSILON) * want;
-        let fine = tol.eps() == 1e-12;
         let mut built = Vec::new();
         for (order, r) in unions_both_ways(&tube, &dome).into_iter().enumerate() {
             let label = format!("k = {k}, order {order}");
-            if (0.0..=0.5).contains(&k) {
+            if (-0.5..=0.5).contains(&k) {
                 let b = match r {
                     Ok(BooleanResult::Body(b)) => b.body,
                     other => panic!("{label}: the union builds: {other:?}"),
@@ -792,33 +778,8 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                 ));
                 continue;
             }
-            // At ε = 1e-12 the member orders part: order 0 builds, order
-            // 1 refuses at the tight bound (the fluxtail row in the doc
-            // above). At every other ε both refuse alike.
-            let order_zero_builds = (-0.5..0.0).contains(&k) && fine && order == 0;
-            if order_zero_builds {
-                let b = match r {
-                    Ok(BooleanResult::Body(b)) => b.body,
-                    other => panic!("{label}: at ε 1e-12 order 0 builds: {other:?}"),
-                };
-                built.push((
-                    label,
-                    topo::test_support::pinned_volume("the measured body", &b, tol).volume,
-                ));
-                continue;
-            }
             let e = r.err().unwrap_or_else(|| panic!("{label}: refuses"));
             match k {
-                -0.5 | -0.25 => assert!(
-                    matches!(
-                        e,
-                        BooleanError::ResultVolumeImplausible {
-                            which: "vol(A ∪ B) ≤ vol(A) + vol(B)",
-                            ..
-                        }
-                    ),
-                    "{label}: the tight union bound: {e:?}"
-                ),
                 0.9 | -0.9 => assert!(
                     matches!(
                         &e,
@@ -1209,6 +1170,26 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     }
 }
 
+/// **An arc lying in a curved face refuses `EdgeInFace` (`Curved`)**
+/// where its two faces both leave it into the face's material: the
+/// material parts it into two coincident arcs
+/// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+/// The bowl a sunk dome leaves meets the tube's wall so along the rim's
+/// arcs, and a rod's top rim on the dome's sphere meets the sphere so.
+fn refuses_the_rims_slit(label: &str, r: Result<BooleanResult<f64>, BooleanError>) {
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::Curved,
+                ..
+            })
+        ),
+        "{label}: refuses the rim's slit: {:?}",
+        r.map(|_| ())
+    );
+}
+
 /// A spherical cap's volume: height `h` on a sphere of radius `rho`.
 fn cap_volume(rho: f64, h: f64) -> f64 {
     PI * h * h * (3.0 * rho - h) / 3.0
@@ -1330,8 +1311,8 @@ fn quartered_tube() -> AtRestBody<f64> {
     finished("the quartered tube", rod, tol)
 }
 
-/// **A dome sunk into the tube and turned about the axis,
-/// builds every op**: each rim semicircle lies on the tube's wall and
+/// **A dome sunk into the tube and turned about the axis builds every
+/// op but `t ∖ d`**: each rim semicircle lies on the tube's wall and
 /// crosses a seam ruling mid-arc, passing from one wall face to the
 /// next. The reduction splits the rim where it crosses the ruling, and
 /// each half lies inside one face.
@@ -1348,44 +1329,36 @@ fn quartered_tube() -> AtRestBody<f64> {
 ///
 /// The closed forms: the dome's sphere (radius `√2·R`, its rim at
 /// `z = H + dz`) holds a cap of height `√2·R − R + dz` above the tube's
-/// top, so `d ∖ t` is that cap, `t ∩ d` is the dome less it, `t ∪ d`
-/// and `t ∖ d` add it to and take the rest from the tube.
+/// top, so `d ∖ t` is that cap, `t ∩ d` is the dome less it, and `t ∪ d`
+/// adds it to the tube.
 ///
 /// `t ∖ d` touches itself along the rim, as the unturned dome's does
 /// (`a_tube_through_the_domes_base_builds_every_op_undeclared`): the
-/// pocket the dome leaves meets the wall along the whole rim circle.
-/// The rim's vertices where it crosses a ruling are paired with the
-/// ruling's (v-v), and the dome's own rim vertices off a ruling lie
-/// inside a wall face (v-f). The join takes the rim's split vertices, so
-/// a pair whose vertices it took is carried onto their edges (v-e, e-e).
+/// pocket the dome leaves meets the wall along the whole rim, the
+/// dome's faces at each rim arc leaving it into the wall's material, so
+/// each arc is two coincident arcs and `t ∖ d` refuses `EdgeInFace`
+/// (`Curved`, [`refuses_the_rims_slit`]). The record carriage it pinned
+/// (v-v at the rulings, v-f off them, v-e and e-e where the join took a
+/// split vertex) is owed back with the curved slit form
+/// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
 #[test]
 fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
-    type Censuses = [(usize, usize, usize, usize); 4];
+    type Censuses = [(usize, usize, usize, usize); 3];
     let tol = Tol::witness();
     let rho = 2.0_f64.sqrt() * R;
     let (tube, quartered) = (rod_z(R, 0.0, H), quartered_tube());
-    // `[∪, t ∖ d, d ∖ t, ∩]`, and `t ∖ d`'s `[v-v, v-f, v-e, e-e]` records.
-    let off: (Censuses, [usize; 4]) = (
-        [(6, 10, 7, 1), (7, 12, 8, 1), (3, 4, 3, 1), (4, 6, 4, 1)],
-        [0, 2, 0, 2],
-    );
-    let off4: (Censuses, [usize; 4]) = (
-        [(8, 16, 11, 1), (9, 18, 12, 1), (3, 4, 3, 1), (4, 6, 4, 1)],
-        [0, 2, 0, 4],
-    );
-    let on4: (Censuses, [usize; 4]) = (
-        [(8, 16, 11, 1), (9, 18, 12, 1), (3, 4, 3, 1), (4, 6, 4, 1)],
-        [0, 0, 2, 2],
-    );
+    // `[∪, d ∖ t, ∩]`; `t ∖ d` refuses ([`refuses_the_rims_slit`]).
+    let off: Censuses = [(6, 10, 7, 1), (3, 4, 3, 1), (4, 6, 4, 1)];
+    let four: Censuses = [(8, 16, 11, 1), (3, 4, 3, 1), (4, 6, 4, 1)];
     let rows = [
         ("two walls", &tube, 1.0 / 12.0, off),
         ("two walls", &tube, 1.0 / 8.0, off),
         ("two walls", &tube, 1.0 / 5.0, off),
-        ("four walls", &quartered, 1.0 / 12.0, off4),
-        ("four walls", &quartered, 1.0 / 8.0, off4),
-        ("four walls", &quartered, 1.0 / 5.0, off4),
-        ("four walls", &quartered, 0.0, on4),
-        ("four walls", &quartered, 1.0 / 4.0, on4),
+        ("four walls", &quartered, 1.0 / 12.0, four),
+        ("four walls", &quartered, 1.0 / 8.0, four),
+        ("four walls", &quartered, 1.0 / 5.0, four),
+        ("four walls", &quartered, 0.0, four),
+        ("four walls", &quartered, 1.0 / 4.0, four),
     ];
     for dz in [-1e-3, -0.3] {
         let above = cap_volume(rho, rho - R + dz);
@@ -1398,7 +1371,7 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
             tol,
         )
         .unwrap();
-        for (walls, tube, turn, (census, [vv, vf, ve, ee])) in rows {
+        for (walls, tube, turn, census) in rows {
             let spin =
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 2.0 * PI * turn);
             let d = finished(
@@ -1406,6 +1379,10 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
                 topo::transform_rigid(&sunk, &geom_core::test_support::rigid(&spin, tol), tol)
                     .unwrap(),
                 tol,
+            );
+            refuses_the_rims_slit(
+                &format!("{walls}, dz = {dz}, turn {turn}: t ∖ d"),
+                topo::subtract(tube, &d, tol),
             );
             for (op, r, want, census, contacts) in [
                 (
@@ -1423,31 +1400,24 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
                     [0; 6],
                 ),
                 (
-                    "t ∖ d",
-                    topo::subtract(tube, &d, tol),
-                    t - inside,
-                    census[1],
-                    [vv, vf, ve, ee, 0, 0],
-                ),
-                (
                     "d ∖ t",
                     topo::subtract(&d, tube, tol),
                     above,
-                    census[2],
+                    census[1],
                     [0; 6],
                 ),
                 (
                     "t ∩ d",
                     topo::intersect(tube, &d, tol),
                     inside,
-                    census[3],
+                    census[2],
                     [0; 6],
                 ),
                 (
                     "d ∩ t",
                     topo::intersect(&d, tube, tol),
                     inside,
-                    census[3],
+                    census[2],
                     [0; 6],
                 ),
             ] {
@@ -1470,14 +1440,17 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
 /// **A tube poking through the dome's base**: the tube runs
 /// to `z = 2.2` and the dome stands on `z = H`, so the dome's rim lies on
 /// the tube's wall inside that face (certificate (a)) and the tube's top
-/// disc cuts the dome. Every op builds at its closed form: the dome
-/// above the disc is a spherical cap of height `1 + √2 − 2.2`.
+/// disc cuts the dome. Every op but `t ∖ d` builds at its closed form:
+/// the dome above the disc is a spherical cap of height `1 + √2 − 2.2`.
 ///
 /// `t ∖ d` touches itself along the rim: the bowl the dome leaves in
-/// the tube meets the tube's wall along the whole rim circle. The result
-/// holds the tube's rim vertices `(±1, 0, 2)` on the bowl's rim, which
-/// the join made one edge, and records the touch as two v-e contacts,
-/// valid at tier 3′.
+/// the tube meets the tube's wall along the rim's two semicircles, whose
+/// ends rest on the wall's seam ruling (v-e), and the dome's faces at
+/// each leave it into the wall's material. Each semicircle is two
+/// coincident arcs, which refuses `EdgeInFace` (`Curved`,
+/// [`refuses_the_rims_slit`]); the v-e record carriage this row held is
+/// owed back with the curved slit form
+/// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
 #[test]
 fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -1487,6 +1460,7 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
     let above = cap_volume(rho, R + rho - 2.2);
     let inside = cap_volume(rho, rho - R) - above;
     let tube = PI * R * R * 2.2;
+    refuses_the_rims_slit("t ∖ d", topo::subtract(&tall, &dome, tol));
     for (label, r, want, census, contacts) in [
         (
             "t ∪ d",
@@ -1501,13 +1475,6 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
             tube + above,
             (6, 10, 7, 1),
             [0; 6],
-        ),
-        (
-            "t ∖ d",
-            topo::subtract(&tall, &dome, tol),
-            tube - inside,
-            (7, 12, 8, 1),
-            [0, 0, 2, 0, 0, 0],
         ),
         (
             "d ∖ t",
@@ -1956,7 +1923,7 @@ fn slanted_tube() -> AtRestBody<f64> {
     }
 }
 
-/// **A wall bounded by an ellipse, builds every op.** The
+/// **A wall bounded by an ellipse builds every op but `t ∖ d`.** The
 /// turned sunk dome on a tube whose bottom is cut by the plane
 /// `z = 0.5 + 0.2·x`: the rim arc lying on the wall, which neither
 /// certificate (a) nor (b) places, is read by the interior question,
@@ -1966,7 +1933,8 @@ fn slanted_tube() -> AtRestBody<f64> {
 /// `π·R²·(H − 0.5)` (the plane's mean height over the disc is `0.5`);
 /// the dome's split, the censuses and the records are the two-face
 /// rows of
-/// [`a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`].
+/// [`a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`],
+/// whose `t ∖ d` this one's refuses as.
 /// The wall's ellipse trim is measured by certified quadrature, so each
 /// volume is read to the enclosure's own half-width.
 #[test]
@@ -1995,6 +1963,10 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 tol,
             );
             let (whole, common) = ((6, 10, 7, 1), (4, 6, 4, 1));
+            refuses_the_rims_slit(
+                &format!("dz = {dz}, turn {turn}: t ∖ d"),
+                topo::subtract(&tube, &d, tol),
+            );
             for (op, r, want, census, contacts) in [
                 (
                     "t ∪ d",
@@ -2009,13 +1981,6 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                     t + above,
                     whole,
                     [0; 6],
-                ),
-                (
-                    "t ∖ d",
-                    topo::subtract(&tube, &d, tol),
-                    t - inside,
-                    (7, 12, 8, 1),
-                    [0, 2, 0, 2, 0, 0],
                 ),
                 (
                     "d ∖ t",
@@ -2070,10 +2035,15 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
 /// circle × circle meeting. The rod runs out through the dome's base
 /// disc, so `a ∩ d` is the rod between its top and the plane `z = H`,
 /// which cuts clean across its wall: `π·0.09·(h₀ − 1/cos α)`, `h₀` the
-/// top's distance from the centre. Every op in both member orders, at
-/// tiers 3 and 3′; the volumes are read to `max(1e-9, ε)`: the
-/// quadrature's reach on the tilted pieces, and at a coarse `ε` the
-/// band's positional slack over less than a unit of surface.
+/// top's distance from the centre. Every op but `d ∖ a` in both member
+/// orders, at tiers 3 and 3′; the volumes are read to `max(1e-9, ε)`:
+/// the quadrature's reach on the tilted pieces, and at a coarse `ε` the
+/// band's positional slack over less than a unit of surface. `d ∖ a`
+/// leaves the rod's top rim on the sphere with the rod's top and wall
+/// both going into the dome's material, two coincident arcs, and refuses
+/// `EdgeInFace` (`Curved`, [`refuses_the_rims_slit`]); its edge-edge
+/// records at the seam meridian are owed back with the curved slit form
+/// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
 #[test]
 fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -2084,13 +2054,10 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
     let vd = cap_volume(rho, rho - R);
     let va = PI * r * r * l;
     let reach = 1e-9_f64.max(tol.eps());
-    // `ee`: `d ∖ a`'s edge-edge records. The rim crosses the meridian
-    // twice; where both crossings join onto one pair of edges they are
-    // one record.
-    for (alpha, theta, own, ee) in [
-        (15.0_f64, 31.0_f64, 0.0_f64, 1),
-        (20.0, 20.0, 0.0, 1),
-        (15.0, 20.0, 90.0, 2),
+    for (alpha, theta, own) in [
+        (15.0_f64, 31.0_f64, 0.0_f64),
+        (20.0, 20.0, 0.0),
+        (15.0, 20.0, 90.0),
     ] {
         let mut rod = rod_z(r, h0 - l, l).into_body();
         for m in [
@@ -2104,6 +2071,10 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
         }
         let a = finished("the tilted rod", rod, tol);
         let i = PI * r * r * (h0 - 1.0 / alpha.to_radians().cos());
+        refuses_the_rims_slit(
+            &format!("α {alpha}°, θ {theta}°, own {own}°: d ∖ a"),
+            topo::subtract(&dome, &a, tol),
+        );
         for (op, res, want, census, contacts) in [
             (
                 "a ∪ d",
@@ -2125,13 +2096,6 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
                 va - i,
                 (4, 6, 4, 1),
                 [0; 6],
-            ),
-            (
-                "d ∖ a",
-                topo::subtract(&dome, &a, tol),
-                vd - i,
-                (6, 10, 7, 1),
-                [0, 2, 0, ee, 0, 0],
             ),
             (
                 "a ∩ d",

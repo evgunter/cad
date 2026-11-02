@@ -128,6 +128,7 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub(crate) mod bound_side;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -232,6 +233,7 @@ mod row_walk_proofs;
 // `///` here would merge into the module's own `//!` docs and make
 // rustdoc resolve their intra-doc links in THIS module's scope instead
 // of that one's.
+pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
@@ -278,6 +280,11 @@ mod test_support_meeting;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_samples;
+// The boolean's volume relations, a test oracle the suites run on their
+// own results.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_volume;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -481,6 +488,12 @@ pub mod test_support {
                 n
             })
             .collect()
+    }
+
+    /// How far each solid's aimed rays start from `aim`, over two
+    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
+    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim)
     }
 
     /// What each solid's aimed rays read before the volume, as text
@@ -764,24 +777,7 @@ pub mod test_support {
             .map_err(|refusal| format!("{refusal:?}"))
     }
 
-    /// The boolean's volume backstop over `a`, `b` and a `result`, as the
-    /// pipeline gates a finished body
-    /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
-    /// suite plants a wrong result through.
-    ///
-    /// # Errors
-    ///
-    /// The backstop's refusal, or a tolerance that forms no band.
-    pub fn volume_backstop<T: crate::AtRestPolicy>(
-        op: crate::BooleanOp,
-        a: &Body<T>,
-        b: &Body<T>,
-        result: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
-        let band = geom_core::Band::linear(tol)?;
-        T::gate_volume_backstop(op, a, b, result, band, tol)
-    }
+    pub use crate::test_support_volume::{VolumeOracle, assert_volume_relations, volume_relations};
 
     /// The two operand clones as the boolean's join leaves them, and
     /// the interior-loop guard's verdict on them.
@@ -1281,10 +1277,10 @@ pub use boolean::{
     PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
     SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner,
-    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
-    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
-    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     nary_boolean_apart, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
     rest_locus, subtract, tangent_pair_relation, union,

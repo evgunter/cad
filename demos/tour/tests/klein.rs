@@ -2,12 +2,12 @@
 
 mod loop_volume_grid {
     //! **The loop's volume over its knots, its degree and its place.**
-    //! The same tube, lofted with two semicircles or with eighth arcs a
+    //! The same tube, swept with two semicircles or with eighth arcs a
     //! wall, at 9 or 17 stations, at v-degree 2 or 3, here or moved
     //! across the world origin: tier 3 decides each one's sign, the
     //! continuation meets the printed precision, and the bracket holds
     //! the body's own volume from an independent quadrature of its
-    //! patches ([`demo_tour::patch_quadrature`]). The lofts differ between
+    //! patches ([`demo_tour::patch_quadrature`]). The sweeps differ between
     //! cells (a coarse skin differs from A·L by up to 1 %), so each
     //! cell is held to its own body's oracle, not to A·L.
 
@@ -23,7 +23,7 @@ mod loop_volume_grid {
     fn the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place() {
         let tol = Tol::witness();
         let m = meridian();
-        let spine = loop_spine(&m);
+        let spine = exact_spine(&m);
         let ring = PI * (m.ro.powi(2) - m.ri.powi(2));
         // Across the origin: the loop's arcs straddle it.
         let across = Vec3::new(-1.2, 0.0, -1.8);
@@ -54,8 +54,8 @@ mod loop_volume_grid {
                     }
                 })
                 .collect();
-            let body = lofted_loop::<f64>(&spine, &section, stations, v_degree, tol)
-                .unwrap_or_else(|e| panic!("{cell}: the loop lofts: {e:?}"));
+            let body = swept_loop::<f64>(&spine, &section, stations, v_degree, tol)
+                .unwrap_or_else(|e| panic!("{cell}: the loop sweeps: {e:?}"));
             let body = if moved {
                 let motion = RigidMotion::translation(across).expect("a translation");
                 pncad::topo::transform_rigid(&body, &motion, tol)
@@ -193,6 +193,158 @@ mod r1_mesh2_review_probes {
                 ),
                 Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
             }
+        }
+    }
+}
+
+/// **The Klein loop's caps hold against its walls where a wall seam
+/// meets them.** The loop's section circle is split into four arcs,
+/// one per wall, so each cap is a plane bounded by four arcs of one
+/// circle. A cap cell holding a vertex where two arcs meet is read by
+/// no presentation; the wall's departure from the cap's plane certifies
+/// it, the wall's side on the shared edge read off its own restricted
+/// iso net. The tour builds at `f64` only; the `Interval` twin of this
+/// locus is `self_intersection_proves_injectivity`'s lens-loft row.
+mod cap_corner_departure {
+    use crate::common::cap_corner::{assert_holds, cap_wall_pairs};
+    use demo_tour::klein::bottle;
+    use pncad::geom_core::Tol;
+
+    #[test]
+    fn each_cap_of_the_loop_holds_against_its_walls_at_its_arc_vertices() {
+        let tol = Tol::witness();
+        let float = bottle::<f64>(tol).top;
+        let pairs = cap_wall_pairs(&float);
+        assert_eq!(pairs.len(), 8, "two caps against four walls: {pairs:?}");
+        let receipts: Vec<(usize, u32)> = pairs
+            .iter()
+            .map(|&pair| assert_holds("klein loop", &float, pair))
+            .collect();
+        assert_eq!(
+            receipts,
+            [
+                (1, 1),
+                (1, 1),
+                (1, 1),
+                (1, 1),
+                (3, 3),
+                (3, 3),
+                (3, 3),
+                (3, 3)
+            ],
+            "each pair's (splits, deepest cell)"
+        );
+    }
+}
+
+/// **The loop's outer walls hold against its inner walls within the
+/// default budget.** The loop's section is an annulus whose two circles
+/// are each split into two arcs, so its four walls are two outer halves
+/// and two inner halves, about 0.05 apart over a 2.8 body, and an outer
+/// wall shares no vertex with an inner one. Two of those four pairs
+/// face each other tilted against the axes, where the distance test's
+/// boxes stay apart only for cells about as small as the gap; the
+/// support along a cell's normal separates them at cells of about
+/// √(gap · radius). Each pair holds under the strict question at the
+/// default depth and pair budget, in at most 4096 cell pairs, each
+/// pair's count printed.
+mod wall_gap_support {
+    use std::collections::BTreeSet;
+
+    use demo_tour::klein::bottle;
+    use pncad::analysis::DEFAULT_MAX_LEAVES;
+    use pncad::geom_core::{Band, Tol};
+    use pncad::topo::clearance::{
+        BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
+    };
+    use pncad::topo::{Body, FaceKey, LoopBoundary, Surface, VertexKey};
+
+    /// The vertices of `f`'s loops.
+    fn vertices(body: &Body<f64>, f: FaceKey) -> BTreeSet<VertexKey> {
+        let face = body.get_face(f).expect("a live face");
+        core::iter::once(face.outer)
+            .chain(face.rings.iter().copied())
+            .flat_map(|l| match body.get_loop(l).expect("a live loop").boundary {
+                LoopBoundary::Empty { vertex } => vec![vertex],
+                LoopBoundary::Cycle { first } => body
+                    .loop_cycle(first)
+                    .expect("a loop's cycle")
+                    .into_iter()
+                    .map(|he| body.get_half_edge(he).expect("a live half-edge").start)
+                    .collect(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_loops_outer_walls_hold_against_its_inner_walls_within_the_default_budget() {
+        let tol = Tol::witness();
+        let body = bottle::<f64>(tol).top;
+        let walls: Vec<(FaceKey, BTreeSet<VertexKey>)> = body
+            .faces()
+            .filter(|(_, face)| {
+                matches!(
+                    body.get_surface(face.surface).expect("a live surface"),
+                    Surface::Nurbs(_)
+                )
+            })
+            .map(|(f, _)| (f, vertices(&body, f)))
+            .collect();
+        let apart: Vec<(FaceKey, FaceKey)> = walls
+            .iter()
+            .enumerate()
+            .flat_map(|(i, (f, a))| {
+                walls[i + 1..]
+                    .iter()
+                    .filter(|(_, b)| a.is_disjoint(b))
+                    .map(move |(g, _)| (*f, *g))
+            })
+            .collect();
+        assert_eq!(
+            apart.len(),
+            4,
+            "two outer walls against two inner walls: {apart:?}"
+        );
+        let window = |f, which| {
+            Side {
+                body: &body,
+                faces: vec![f],
+            }
+            .windows(which)
+            .expect("a wall has a window")
+        };
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: Band::linear(tol).expect("the run's tolerance forms a band"),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                // The clearance door's pair budget is the drive's leaf
+                // budget (`editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`).
+                max_cell_pairs: DEFAULT_MAX_LEAVES,
+            },
+        };
+        for (a, b) in apart {
+            let report = sweep.run(
+                &window(a, Which::First),
+                &window(b, Which::Second),
+                true,
+                |_| Err::<(), _>("no witness asked".to_owned()),
+            );
+            let r = &report.receipt;
+            let examined = r.discharged + r.violated + r.refused;
+            println!(
+                "[dirsupport] klein loop {a:?} against {b:?}: {:?} {examined} pairs {:?} deepest {}",
+                report.verdict, r, report.widths.deepest
+            );
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds),
+                "{a:?} against {b:?} holds: {:?} {r:?}",
+                report.verdict
+            );
+            assert!(
+                examined <= 4096,
+                "{a:?} against {b:?} holds in at most 4096 cell pairs: {examined} {r:?}"
+            );
         }
     }
 }

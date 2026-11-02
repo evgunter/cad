@@ -179,9 +179,6 @@ pub enum BooleanDecision {
     /// ring that reads in band refuses rather than divide the face the
     /// wrong way round.
     CutRingWinding,
-    /// Whether the result's volume agrees with its operands': the
-    /// kernel checking its own result.
-    VolumeBackstop,
     /// Whether a length to measure an angle over is positive, at a gate
     /// that meters a reading by it.
     LeverArm(LeverArm),
@@ -260,15 +257,6 @@ pub enum BooleanDecision {
     /// reading in the zero band, reachable only where the band's ratio
     /// is 2 or less, refuses rather than read the wrong side.
     BisectorSide,
-    /// Whether the faces two corners of one solid leave an edge of the
-    /// other's corner in part around it, where that edge lies on both
-    /// corners' boundaries (`vtxfac::along_partners`,
-    /// `bool_partner_half_plane`): the chord between two such
-    /// half-planes' directions levered at the farthest reach, a
-    /// magnitude. A definitely positive chord passes, and the edge is
-    /// on the solid's boundary; a zero is the corners flush along it,
-    /// which refuses with its decided margin, as the in-band arm does.
-    PartnerFaces,
     /// Whether the two faces at a seam edge of the result cross there or
     /// touch tangentially (`dihedral_wedge`, as the result's seam
     /// re-description reads it): every definite verdict passes (a crease
@@ -947,22 +935,6 @@ const FLANK_SENSE: SizedDecision = SizedDecision {
     ..CORNER_SENSE
 };
 
-/// Whether two corners of one solid that meet along an edge of the
-/// other part around it ([`BooleanDecision::PartnerFaces`]): the chord
-/// between their faces' half-planes there levered at the farthest
-/// reach, a magnitude, so a definitely positive one alone passes. Both
-/// corners are one solid's, so moving the parts reaches the reading
-/// only by taking the other solid's corner off that point; reshaping
-/// the one solid parts its corners.
-const PARTNER_FACES: SizedDecision = SizedDecision {
-    lever: "move the parts so that edge's corner lands clear of them, or reshape that solid so \
-            they clearly part",
-    size: "gap between their faces",
-    passes: SizedPass::Positive,
-    side: RefusedSide::Lever,
-    no_size: None,
-};
-
 /// The one move that lengthens the arm a corner's reading is metered
 /// over: shared by every decision whose margin, once its direction has
 /// read, measures that arm ([`LeverArm`]'s corner gates,
@@ -1132,10 +1104,9 @@ pub enum SelfCheck {
     /// (`bool_ring_run_winding`): a zero area is a degenerate run
     /// (`JoinDesync`).
     RingWinding,
-    /// Where a record's span along a line edge lies (`ops::record_spans`):
-    /// the order of its bounds along the edge, or whether a face holds
-    /// its midpoint, asked as the census confirms a record. The records
-    /// bounding it certified at rest, so an undecided answer is one the
+    /// Which piece of a face the op divided holds a record's point
+    /// (`ops::piece_reading`), asked as the census confirms a record. The
+    /// record certified at rest, so an undecided answer is one the
     /// census could not decide either.
     CarriedLineage,
     /// Which way a one-vertex seam edge runs against its partner
@@ -1450,7 +1421,6 @@ impl BooleanDecision {
             Self::CutRingWinding => {
                 "which way a ring that the cut of a coincident face closes winds"
             }
-            Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
             Self::Radius(radius) => radius.subject(),
             Self::WallRoots(WallRung::AxisParallel) => {
@@ -1483,9 +1453,6 @@ impl BooleanDecision {
                 "whether two parallel directions at a corner point the same way or opposite ways"
             }
             Self::BisectorSide => "which side of a face a corner's bisector leaves on",
-            Self::PartnerFaces => {
-                "whether two corners of one solid part around an edge of the other"
-            }
             Self::SeamWedge => {
                 "whether the two faces at a seam edge cross there or touch tangentially"
             }
@@ -1600,7 +1567,6 @@ impl BooleanDecision {
                 SizedPass::NonNegative,
             ),
             Self::CutRingWinding => Ending::Lever(CUT_RING_WINDING),
-            Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
             // is a size a smaller tolerance decides positive
             // (`geom_brep::enters`'s arm gate carries its margin).
@@ -1698,7 +1664,6 @@ impl BooleanDecision {
             // measured margin; a longer arm lengthens every reading of the
             // corner.
             Self::BisectorSide => Ending::Lever(CORNER_EDGES),
-            Self::PartnerFaces => Ending::Sized(PARTNER_FACES),
             Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
@@ -2026,7 +1991,6 @@ pub(in crate::boolean) mod tests {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
                 BooleanDecisionKind::CutRingWinding => vec![BooleanDecision::CutRingWinding],
-                BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
                     LeverArm::iter().map(BooleanDecision::LeverArm).collect()
                 }
@@ -2050,7 +2014,6 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::ConicBend => vec![BooleanDecision::ConicBend],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
-                BooleanDecisionKind::PartnerFaces => vec![BooleanDecision::PartnerFaces],
                 BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
@@ -2293,14 +2256,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::BisectorSide => (
                 "which side of a face a corner's bisector leaves on",
                 Ending::Lever(LONGER),
-            ),
-            BooleanDecision::PartnerFaces => (
-                "whether two corners of one solid part around an edge of the other",
-                Ending::Sized(
-                    "Recourse: move the parts so that edge's corner lands clear of them, or \
-                     reshape that solid so they clearly part",
-                    SizedPass::Positive,
-                ),
             ),
             BooleanDecision::LeverArm(LeverArm::SectorSide) => (
                 "whether an edge at a corner is long enough to read which side of a face it \
@@ -2620,10 +2575,6 @@ pub(in crate::boolean) mod tests {
                     "Recourse: move the parts so the region one coincident face holds of the \
                      other spans clearly more than the tolerance",
                 ),
-            ),
-            BooleanDecision::VolumeBackstop => (
-                "whether the result's volume agrees with its operands'",
-                Ending::Defect,
             ),
         }
     }

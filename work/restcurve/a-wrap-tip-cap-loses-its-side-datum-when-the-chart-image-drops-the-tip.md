@@ -2,11 +2,13 @@
 id: a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip
 kind: issue
 title: A wrap-tip cap's PR 4549 side cross-check goes silent: the chart image drops the tip, taking the pole vertex off the loop, so the side reader answers Unencoded and a flipped small cap passes tier 3
-status: dispatched
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: M
 branch: restcurve/tip-side-datum
+closed: 2026-10-31
+pr: 6116
 ---
 
 Found by designer A of the pole-form fork (fork-log row 222, on `[ev]` PR 6085, 2026-10-30).
@@ -33,3 +35,18 @@ chart-singularity arm finds the far (south) pole inside the flipped face
 `crates/sweep/tests/a_wrap_tip_sits_on_its_faces_chart_singularity.rs`.
 The silent side reader this row names is still silent. (RESTCURVE
 implementer)
+
+## Closed (PR 6116, 2026-10-31)
+
+Both views (`chart_image`, `surface_cycles`) hand back the tips they drop. A tip is the end vertex of a half-edge whose successor is its mate: stored structure, with no geometry.
+
+**The sphere's one-loop side rule** is now: the face lies on the side that holds its own singular vertices and no other pole. Whether a pole is held is read once, by `vertex_at_singular_point`.
+
+**Which readers keep the datum:**
+- Kept: check 6, the closed-form lane (`sphere_face`'s cross-check of the sense bit, via `curved_face_holding` and `closed_form_of`), and `seam_refusals`.
+- `sphere_window` deliberately does not. With no datum it falls back to the whole ball's box, which is conservative.
+- Not kept: the seam-region reader. That gap is filed on NEARPOINT as `a-seam-region-holding-a-wrap-tip-is-never-read`.
+
+**The cone takes no datum.** Its reader already holds the apex.
+
+**Review:** single FULL, APPROVE-WITH-FIXES, with no MAJOR. One fix pass, accepted on the orchestrator's read: rows for a face holding two tips and for a held tip in band, so that M5 and M6 go red; the flux arm takes the datum (DESIGN's "3-D flux"); docs corrected.

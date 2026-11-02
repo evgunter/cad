@@ -277,6 +277,19 @@ perceive-color = "=0.1.0"
 # silently spin forever the day a future actually parks.
 pollster = "1.0.1"
 
+# --- the `drive` example's `picture` command (`examples/drive.rs`) ---
+#
+# Writes the driver's offscreen picture of the window as a PNG file.
+# ALREADY IN THE LOCKFILE, at exactly this version: eframe's `image`
+# carries it, so the `app` graph has it either way and this edge adds
+# no crate there. What it does add is `png` and its four dependencies
+# (`bitflags`, `crc32fast`, `fdeflate`, `flate2`/`miniz_oxide`, all
+# already in the lockfile too) to the DEFAULT-feature test build,
+# because cargo has no optional dev-dependencies. 0.18.1, MIT OR
+# Apache-2.0. Pinned exactly so it stays the version the lockfile
+# already vets.
+png = "=0.18.1"
+
 
 [features]
 # Test fixtures (`src/test_support.rs`). A test-only feature: only this
@@ -308,6 +321,11 @@ app = [
 [[bin]]
 name = "viewer"
 path = "src/bin/viewer.rs"
+required-features = ["app"]
+
+# The scripted driver (`src/app/drive.rs`) as a command-line runner.
+[[example]]
+name = "drive"
 required-features = ["app"]
 
 # ONE test binary for the whole suite (see tests/all.rs).

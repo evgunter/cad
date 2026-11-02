@@ -2,10 +2,13 @@
 id: w5-loop-free-stage-before-the-plane-nurbs-whole-reading
 kind: issue
 title: W5: the interior-loop guard's loop-free stage before C3's whole reading of a plane × spline section
-status: open
+status: closed
 opened: 2026-10-29
+closed: 2026-10-31
 priority: P1
 cost: M
+pr: 6150
+branch: splice/w5-loop-free-sweep
 ---
 
 ## What
@@ -46,3 +49,43 @@ run together may jointly prove one rule. The probe on
 Order: after PR 6026, which builds the arm this stage stands in front
 of.
 
+
+Re-framed by `[ev]` PR 6121 (C5): W5 is the plane instance of the
+pose classification's regularity sweep, and the guard reads that
+verdict; it is not a predicate in `section_cert`.
+
+2026-10-31: Review tier: single FULL (a bound leaning the wrong way
+would clear a real loop).
+
+## Closed
+
+The plane × spline arm (`geom_brep::pair_section::plane_spline`)
+classifies the pair in C5's order before C3's whole reading:
+
+1. the hull (`PlaneSplinePose::hull`, W0 moved out of `section_cert`),
+   at every scalar and with no march door: apart, coincident (a net
+   within the zero band everywhere, `CoincidentSurfaces`), or in band
+   (escalated); then the door: a collapsed side
+   (`chart_singularity::spline_collapsed_row`, the one reading topo's W1′
+   now reads too) not decided clear of the plane refuses, named;
+2. the boundary pass, `PlaneSection::pass`, run once through the march
+   door and handed on to `all()` (carried on the pose for a later
+   `read_whole`): a graze refuses by name, and its crossings and
+   regions are where the section ends;
+3. the regularity sweep (`plane_spline::sweep`) on the chart lane's one
+   recursion (`exhaust::sweep_chart_regular`, a third duty beside
+   seeding and accounting): each cell excluded (its height decided past
+   the band) or regular (its slope off the plane decided off zero,
+   levered by the extent), every excluded cell that is not regular
+   joined to the rectangle's boundary through cells excluded on its
+   side (union-find), and no crease inside the rectangle. Its loop-free
+   verdict is the section: `Components::Reaching` on the sides the
+   pass found ends on, or no component.
+
+The guard (`section_cert::spline_plane`) reads the classification: a
+`Reaching` verdict clears by W1′ where every side it names bounds the
+wall, and is otherwise read whole (`PairSection::read_whole`, on the
+carried pass); a declined sweep is the whole reading. The completion of
+stage 3 (Krawczyk isolation of a critical point at a declined floor
+cell, its Hessian's touch or node) plugs in at `Declined::Floor` and is
+SECTARMS's, in `work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm.md`.

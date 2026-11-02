@@ -2,11 +2,13 @@
 id: a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge
 kind: issue
 title: The fan form reads a kept rim that stands off its sphere on the circle's own sphere, so the tube-dome union's member orders answer differently at eps 1e-12
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 cost: M
 refs: [a-settled-declared-coincidence-crosses-a-tight-volume-bound]
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -62,3 +64,7 @@ question is which one the two orders should share. Shapes to weigh:
 
 The row above pins the per-order outcome at ε = 1e-12 and turns red
 when either order moves.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. Both member orders now build at every ε for `k ∈ {−¼, −½}`, and `a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` holds each order to `slack(k)` of the closed form and of the other order, as it does for `k ≥ 0`. The fan form still reads the kept rim on its own circle's sphere in order 0; the two orders' volumes differ within `slack(k)`.

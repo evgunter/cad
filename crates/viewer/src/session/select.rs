@@ -10,7 +10,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{RecipeNodeId, SpokenVar, VarId};
-use pncad::prelude::{StableName, attribute};
+use pncad::prelude::StableName;
 use pncad::select::Resolution;
 
 use crate::frame::Tone;
@@ -46,7 +46,7 @@ pub struct FaceSelection {
 impl FaceSelection {
     /// **The feature this face is**: the node whose operation minted
     /// the entity the name denotes, read off the name's own
-    /// carry-through segments (`pncad::select::attribute`).
+    /// carry-through segments (`pncad::select::role_leaf`).
     ///
     /// A fillet's `From { of: f }` face is still the target's face `f`,
     /// so clicking a flat on a filleted body reaches the feature that
@@ -58,11 +58,13 @@ impl FaceSelection {
     /// (`PickIndex::ids_of_target`, and the resolution check, which
     /// looks the name up in that body's own table).
     ///
-    /// Falls back to [`FaceSelection::node`] for a name the vocabulary
-    /// walk cannot classify, so an unclassified role degrades to the
-    /// drawn copy rather than to no feature at all.
+    /// It is the node the pick's words say made it
+    /// ([`crate::tree::PickedName::feature`]), so the tree highlights
+    /// the node the property header names and deletes. A name the walk
+    /// cannot classify is said as made by its own node, which is the
+    /// answer here too.
     pub fn feature(&self) -> RecipeNodeId {
-        attribute(&self.name).minted_by().unwrap_or(self.node)
+        crate::tree::PickedName::face(self).feature()
     }
 }
 
@@ -91,7 +93,7 @@ impl EdgeSelection {
     /// argument, unchanged. An edge carried through a later boolean is
     /// still the edge the earlier feature made.
     pub fn feature(&self) -> RecipeNodeId {
-        attribute(&self.name).minted_by().unwrap_or(self.node)
+        crate::tree::PickedName::edge(self).feature()
     }
 }
 

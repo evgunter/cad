@@ -249,12 +249,14 @@ fn tube(closed: bool) -> Surface<f64> {
 
 /// **A branch across a closed channel's seam is not cleared by reaching
 /// it.** A plane square to the tube's axis meets it in one branch from
-/// one `u` side of its chart to the other. Where the `u` row closes on
+/// one `u` side of its chart to the other: the sweep proves it open,
+/// ending on the `u` sides, and read whole it is that one branch. Where the `u` row closes on
 /// itself those sides are a seam a face may lie across with no edge on
 /// it, so W1′ does not clear the branch and, placed nowhere, it refuses
 /// undecided; where the row stops short they are the wall's boundary,
 /// and it clears. Red against W1′ read of the kind (the seam's branch
-/// clears).
+/// clears), and against the sweep's verdict read as clearing whatever
+/// sides it ends on (the seam's clears with no whole reading).
 #[test]
 fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
     for (closed, want) in [
@@ -272,6 +274,17 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         let Ok(geom_brep::SectionRead::Built(built)) = built else {
             panic!("closed {closed}: the section is read: {built:?}")
         };
+        assert!(
+            matches!(
+                built.components(),
+                geom_brep::Components::Reaching(reached)
+                    if reached.rims()[1].sides().all(|s| s.fixed == geom_brep::ChartAxis::U)
+            ),
+            "closed {closed}: the sweep's verdict, open ends on the u sides: {built:?}"
+        );
+        let built = built
+            .read_whole(Some(geom_brep::SsiLane::marched()), band())
+            .expect("the tube reads whole");
         assert!(
             matches!(
                 built.components(),
@@ -334,12 +347,15 @@ fn a_plane_on_a_walls_side_is_cleared() {
     );
 }
 
-/// **A graze is refused by name.** The trough `z = (x − ½)² − y/2` cut
-/// at `z = 0` meets the plane in `y = 2(x − ½)²`, which touches the
-/// rectangle's side `y = 0` at `x = ½` while the surfaces cross: the
-/// boundary pass refuses the graze, and the guard reads it as a
-/// tangency, named by the row that decided it. Red against the whole
-/// reading's refusals all read as R-reach.
+/// **A graze is refused by name, before any sweep.** The trough
+/// `z = (x − ½)² − y/2` cut at `z = 0` meets the plane in
+/// `y = 2(x − ½)²`, which touches the rectangle's side `y = 0` at
+/// `x = ½` while the surfaces cross. The boundary pass, the
+/// classification's second stage, refuses the graze, and the guard reads
+/// it as a tangency, named by the row that decided it; the regularity
+/// sweep, which would prove the section loop-free, is never asked. Red
+/// against the pass run only behind the sweep (the pair clears), and
+/// against the classification's refusals all read as R-reach.
 #[test]
 fn a_graze_is_refused_by_name() {
     let g = [0.25, -0.25, 0.25];
@@ -351,26 +367,53 @@ fn a_graze_is_refused_by_name() {
     );
 }
 
-/// **W0 stays the first door.** A plane clear of the dome's net is apart
-/// before any reading, and with no march door a plane that cuts it is
-/// R-lane: the scalar does not march.
+/// **A wall within the band of the plane everywhere is refused, named.**
+/// A biquadratic planar wall tilted so that its every point lies within
+/// a tenth of the zero band of the plane `z = 0`: the hull decides it on
+/// the plane, a coincidence, and the guard refuses it as a tangency,
+/// named by the value. Red against the hull's coincidence dropped (the sweep reads the
+/// wall loop-free and the pair clears).
 #[test]
-fn w0_is_the_first_door_and_no_lane_has_no_arm() {
-    let apart = read(&level(0.5), &dome());
+fn a_wall_within_the_band_everywhere_is_refused_named() {
+    let t = 0.1 * band().zero();
+    let tilted = net(&|i, _| t * (f64::from(u8::try_from(i).unwrap()) - 1.0));
+    let s = read(&level(0.0), &tilted);
     assert!(
-        matches!(&apart, Section::Components { parts, .. } if parts.is_empty()),
-        "{apart:?}"
+        matches!(s, Section::Tangent("pair_section_coincident")),
+        "the wall on the plane: {s:?}"
     );
-    let unread = classify(
-        &level(-0.1),
-        &dome(),
-        Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: 1.0,
-        },
-        None,
-        band(),
-    );
+}
+
+/// **The hull is the first door, read with no march door.** A plane
+/// clear of the dome's net (its middle control point stands at `z = ½`)
+/// is apart (W0) before any reading, with or
+/// without a lane: the pair's classification decides it at every scalar.
+/// With no march door a plane that cuts the dome is R-lane: the scalar
+/// does not march. Red against the hull read only behind the lane.
+#[test]
+fn the_hull_is_the_first_door_and_no_lane_has_no_arm() {
+    let unlaned = |f: &Surface<f64>| {
+        classify(
+            f,
+            &dome(),
+            Reach {
+                centre: p(0.0, 0.0, 0.0),
+                radius: 1.0,
+            },
+            None,
+            band(),
+        )
+    };
+    for (what, apart) in [
+        ("through the lane", read(&level(0.6), &dome())),
+        ("with no lane", unlaned(&level(0.6))),
+    ] {
+        assert!(
+            matches!(&apart, Section::Components { parts, .. } if parts.is_empty()),
+            "{what}: {apart:?}"
+        );
+    }
+    let unread = unlaned(&level(-0.1));
     assert!(matches!(unread, Section::NoLane("f64")), "{unread:?}");
 }
 
@@ -399,7 +442,7 @@ fn a_plane_stored_far_off_is_charged_its_pivots_shift() {
 /// A dome of revolution about `z`, its apex `(0, 0, 0)` the collapsed
 /// side `v = 0` of its chart, its `u` row the rational circle (closed),
 /// its rim `v = 1` the circle of radius 1 at `z = −½`.
-fn revolved_dome() -> Surface<f64> {
+pub(super) fn revolved_dome() -> Surface<f64> {
     let ku = KnotVector::clamped(
         vec![
             0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
@@ -463,15 +506,29 @@ fn a_collapsed_side_bounds_no_face() {
 /// closed curve of diameter `2·tan 0.3` through the apex, inside a face
 /// the rim alone bounds; the apex is the chart's collapsed side `v = 0`,
 /// with no edge on it, so W1′'s premise fails there. Through the apex
-/// and a few tenths of a band either side, no reading clears the pose
-/// by reaching the pole side. (Today the reading refuses the pole side
-/// as a graze first; `a_collapsed_side_bounds_no_face` is the row that
-/// reds without the guard's own condition.)
+/// and a few tenths of a band either side, the classification's door
+/// refuses the pose, naming the pole side, before the boundary pass or
+/// the sweep: the collapsed side is not decided clear of the plane. Red
+/// against the door dropped (the pass refuses the pole as a graze
+/// instead); `a_collapsed_side_bounds_no_face` is the row that reds
+/// without the guard's own condition.
 #[test]
 fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
     let a = 0.3_f64;
     for d in [0.0, 0.3 * band().zero(), -0.3 * band().zero()] {
         let tilted = plane(p(0.0, 0.0, -d), v(a.sin(), 0.0, a.cos()));
+        let door = geom_brep::pair_section(
+            &tilted,
+            &revolved_dome(),
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
+        assert!(
+            matches!(&door, Err(geom_brep::SectionError::Unaccounted { cause })
+                if cause.contains("collapses to a point")),
+            "d {d:e}: the door refuses the pole: {door:?}"
+        );
         let s = read(&tilted, &revolved_dome());
         let verdict = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
         assert!(

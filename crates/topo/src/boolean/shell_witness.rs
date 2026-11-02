@@ -19,12 +19,11 @@
 //!   (`ops::sphere_extent_scan`, `ops::section_extent_pass`) certify
 //!   that none was missed. The one pair they leave is a face pair the
 //!   reduction settled one carrier, whose section is no curve: the
-//!   section pass defers it to the shells' verdicts, and it refuses
-//!   unless both faces' shells read `On` each other, or both read a side
-//!   that one operand's patches certify (`ops::OnDeferred`). `setopfinish` classifies a component that
-//!   carries no section face, so its ground is the join's: every
-//!   crossing of the two boundaries was found and cut, and this
-//!   component met none.
+//!   section pass defers it to the shells' verdicts
+//!   (`ops::OnDeferred::answered` states when they answer it).
+//!   `setopfinish` classifies a component that carries no section face,
+//!   so its ground is the join's: every crossing of the two boundaries
+//!   was found and cut, and this component met none.
 //! - **section-loop role resolution** (`join::resolve_roles_geometric`):
 //!   the region faces flanking each loop of a completed section
 //!   polygon, read once every polygon is cut, so no crossing runs
@@ -350,12 +349,10 @@ fn on_verdict<T: Decide>(
 }
 
 /// **The keep rule for an `On` shell**, per operand: Eq. 15.3's lump
-/// for a coincident face pair, kept where it is the side `op` keeps
-/// ([`super::tables::kept_copy`]'s rule, cell for cell). Aligned, ∪
-/// and ∩ keep A's copy and ∖ neither; opposed, ∪ and ∩ keep neither
-/// and ∖ keeps A's.
+/// for a coincident face pair keeps `operand`'s copy where it keeps the
+/// glue's kept side's ([`super::tables::kept_copy`]).
 pub(super) fn on_kept(op: BooleanOp, operand: Operand, relation: CarrierRelation) -> bool {
-    super::tables::eq15_3_lump(op, operand, relation) == super::finish::kept_side(op, operand)
+    super::tables::kept_copy(op, relation) == Some(operand)
 }
 
 /// The shells of `verdicts` that `op` keeps for `operand`, in order.

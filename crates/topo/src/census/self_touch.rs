@@ -82,7 +82,7 @@ fn floor(up: bool) -> Link<f64> {
 fn whole(links: Vec<Link<f64>>) -> Link<f64> {
     Link::of(
         P::origin(),
-        links.into_iter().flat_map(|l| l.sectors).collect(),
+        links.into_iter().flat_map(Link::into_faces).collect(),
     )
     .unwrap()
 }
@@ -90,12 +90,14 @@ fn whole(links: Vec<Link<f64>>) -> Link<f64> {
 /// A link's sectors with their sides swapped: its void read as material.
 fn flipped(link: Link<f64>) -> Link<f64> {
     let sectors = link
-        .sectors
+        .into_faces()
         .into_iter()
-        .map(|s| Sector {
-            outward: -s.outward,
-            wedges: s.wedges.iter().rev().map(|&(a, b)| (b, a)).collect(),
-            ..s
+        .map(|f| {
+            f.map_sector(|s| Sector {
+                outward: -s.outward,
+                wedges: s.wedges.iter().rev().map(|&(a, b)| (b, a)).collect(),
+                ..s
+            })
         })
         .collect();
     Link::of(P::origin(), sectors).unwrap()
@@ -225,8 +227,8 @@ fn a_doubled_sheet_or_an_open_link_is_not_read() {
         TouchVerdict::Unread(TouchUnread::Degenerate),
         "doubled"
     );
-    let mut open = cone(&square(0.5, -1.0), true);
-    open.sectors.truncate(1);
+    let open = cone(&square(0.5, -1.0), true);
+    let open = Link::of(P::origin(), open.into_faces().into_iter().take(1).collect()).unwrap();
     let got = rest::one_material(&whole(vec![cone(&square(0.5, 1.0), true), open]), band());
     assert_eq!(got, TouchVerdict::Unread(TouchUnread::Unanalysed), "open");
 }
@@ -1226,28 +1228,21 @@ fn sheets_crossing_along_a_ray_of_the_link_cross() {
     }
 }
 
-/// One face's sectors at the origin, one per pass, as [`Sector::of`]
+/// One face's sectors at the origin, one per pass, as [`FaceSector::of`]
 /// builds them, its outward normal `+z`.
-fn passes(rings: Vec<Vec<P>>, at: &[PieceAt]) -> Result<Vec<Sector<f64>>, TouchVerdict> {
+fn passes(rings: Vec<Vec<P>>, at: &[PieceAt]) -> Result<Vec<FaceSector<f64>>, TouchVerdict> {
     let o = P::origin();
     let m = Vec3::new(0.0, 0.0, 1.0);
     at.iter()
         .map(|&pass| {
             let also: Vec<PieceAt> = at.iter().copied().filter(|&x| x != pass).collect();
             let piece = face_piece(o, m, &rings, pass, &also, band())?;
-            Ok(Sector {
-                surface: geom::Surface::Plane {
-                    origin: o,
-                    normal: m,
-                    u_ref: Vec3::new(1.0, 0.0, 0.0),
-                },
-                sense: true,
+            Ok(FaceSector::planar(Sector {
                 outward: m,
                 apex: o,
                 wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
                 closed: false,
-                clear: None,
-            })
+            }))
         })
         .collect()
 }
@@ -1280,12 +1275,15 @@ fn notch(a: f64, b: f64) -> Vec<Link<f64>> {
 }
 
 /// One face's passes and other links, read as one link.
-fn read_with(face: Result<Vec<Sector<f64>>, TouchVerdict>, others: Vec<Link<f64>>) -> TouchVerdict {
+fn read_with(
+    face: Result<Vec<FaceSector<f64>>, TouchVerdict>,
+    others: Vec<Link<f64>>,
+) -> TouchVerdict {
     let mut sectors = match face {
         Ok(s) => s,
         Err(v) => return v,
     };
-    sectors.extend(others.into_iter().flat_map(|l| l.sectors));
+    sectors.extend(others.into_iter().flat_map(Link::into_faces));
     match Link::of(P::origin(), sectors) {
         Ok(link) => rest::one_material(&link, band()),
         Err(v) => TouchVerdict::Unread(v),
