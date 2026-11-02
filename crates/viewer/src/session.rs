@@ -1264,6 +1264,14 @@ impl DocSession {
         self.display.view(self.doc())
     }
 
+    /// **Every show/hide toggle** ([`crate::display::Toggles`]), read
+    /// over the committed document — the one the toggle's own door
+    /// decides against ([`SessionOp::SetBodyOn`]), so what a checkbox
+    /// shows and what its click does read one document.
+    pub fn toggles(&self) -> crate::display::Toggles {
+        self.display.toggles(self.committed_doc())
+    }
+
     /// The directory this session resolves part references against —
     /// the opened file's own, or `None` for an in-memory document
     /// (the [`DirResolver`] directory rule).
@@ -1838,11 +1846,8 @@ impl DocSession {
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
             SessionOp::SaveAsNewDocument(path) => self.save_as_new_document(&path),
-            SessionOp::SetBodyHidden { node, hidden } => {
-                match self
-                    .display
-                    .set_body_hidden(self.history.doc(), node, hidden)
-                {
+            SessionOp::SetBodyOn { node, on } => {
+                match self.display.set_body_on(self.history.doc(), node, on) {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
@@ -2101,6 +2106,9 @@ impl DocSession {
     /// pick up a generation without the run it answers. The fourth,
     /// `tol`, is this session's ε — construction-time, never rewritten
     /// by a landing — and rides along because the build needs it.
+    /// The author's shows ride too ([`DisplayState::shown`]): a show
+    /// draws a body the default leaves out, so the picture the index
+    /// describes is the landing's drawing them.
     ///
     /// `pickcache` is a vocabulary and may not name this driver, so
     /// the read is hoisted rather than the rule widened
@@ -2114,6 +2122,7 @@ impl DocSession {
             run.doc.as_ref(),
             &run.evaluation,
             self.tol,
+            self.display.shown(),
         ))
     }
 
@@ -2387,7 +2396,7 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **What `SessionOp::SetBodyHidden` would answer for `node`, or
+    /// **What `SessionOp::SetBodyOn` would answer for `node`, or
     /// `None` where it would accept** — asked ahead of the click by the
     /// control that pushes the op.
     ///
@@ -2396,7 +2405,7 @@ impl DocSession {
     /// and neither drag's table in `perform` refuses it. So a row drawn
     /// from the LANDED document (the feature tree's) reads the refusal
     /// for a node deleted since the last landing.
-    pub fn body_hidden_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
+    pub fn body_toggle_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
         crate::display::body_check(self.committed_doc(), node)
             .err()
             .map(|fault| Refusal::Display(fault.into()))
@@ -5189,7 +5198,7 @@ mod tests {
     /// **The hide admission is asked of the document the op reads, not
     /// of the one the tree is drawn from**: an instance deleted since
     /// the last landing still has a tree row, and the answer for it is
-    /// the refusal `SetBodyHidden` gives.
+    /// the refusal `SetBodyOn` gives.
     #[test]
     fn a_deleted_instance_not_yet_landed_is_refused_its_hide() {
         use pncad::document::{ContentPin, DocRef, DocumentId, ProfileDoc};
@@ -5211,7 +5220,7 @@ mod tests {
         );
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        assert!(session.body_hidden_refusal(instance).is_none());
+        assert!(session.body_toggle_refusal(instance).is_none());
         let deleted = session.perform(SessionOp::DeleteNode { node: instance });
         assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
         assert!(
@@ -5219,13 +5228,13 @@ mod tests {
             "the tree still draws the landed document's row"
         );
         let said = session
-            .body_hidden_refusal(instance)
+            .body_toggle_refusal(instance)
             .expect("the committed document holds no such node")
             .to_string();
         let got = session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: instance,
-                hidden: true,
+                on: false,
             })
             .refusal
             .expect("the op refuses a deleted instance")

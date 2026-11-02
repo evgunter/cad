@@ -1,15 +1,21 @@
-//! The View pane: display tolerance and the camera's state.
+//! The View pane: display tolerance, the camera's state, and the
+//! show/hide toggle of every space and body
+//! ([`crate::display::toggles`]).
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 use pncad::quantity::{LengthUnit, UnitDef};
 
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId, VarId};
+
 use crate::app::ViewerBehavior;
 use crate::camera::Camera;
+use crate::display::SpaceToggles;
 use crate::frame;
 use crate::props::Notation;
 use crate::scene::DisplayTolerance;
+use crate::session::SessionOp;
 
 impl ViewerBehavior<'_> {
     /// The view pane: the numbers the camera and the tessellation are
@@ -32,6 +38,13 @@ impl ViewerBehavior<'_> {
         }
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
+        ui.separator();
+        // The COMMITTED document, the one the toggles were read over.
+        let doc = self.session.committed_doc();
+        let part_files = self.session.part_files();
+        let label = |node| crate::tree::node_label(doc, node, part_files);
+        self.ops
+            .extend(toggles_ui(ui, doc, &self.toggles.groups, label));
         ui.separator();
         for line in camera_readout(self.camera, *self.notation) {
             ui.label(line);
@@ -64,6 +77,66 @@ impl ViewerBehavior<'_> {
             self.delta_request,
         );
     }
+}
+
+/// What the View pane says beside a body the default picture leaves
+/// out: an operation reads it as a body, and draws it there.
+pub(crate) const READ_AS_A_BODY: &str = "read by an operation";
+
+/// What a body's toggle says on hover while its space is hidden.
+pub(crate) const SPACE_HIDDEN: &str = "its space is hidden";
+
+/// The View pane's label for the bodies in no space.
+pub(crate) const IN_NO_SPACE: &str = "in no space";
+
+/// **The toggles, drawn**: each space's checkbox, and under it each
+/// body's, named by `label` — and the display ops the clicks name.
+fn toggles_ui(
+    ui: &mut egui::Ui,
+    doc: &Doc<ProfileProgram>,
+    groups: &[SpaceToggles],
+    label: impl Fn(RecipeNodeId) -> String,
+) -> Vec<SessionOp> {
+    let mut ops = Vec::new();
+    for group in groups {
+        match group.space {
+            Some(space) => {
+                let mut on = group.on;
+                if ui.checkbox(&mut on, space_label(doc, space)).changed() {
+                    ops.push(SessionOp::SetSpaceHidden { space, hidden: !on });
+                }
+            }
+            None => {
+                ui.label(IN_NO_SPACE);
+            }
+        }
+        for body in &group.bodies {
+            ui.horizontal(|ui| {
+                ui.add_space(crate::pane::features::INDENT_STEP);
+                let mut on = body.on;
+                // A body under a hidden space keeps its own toggle,
+                // which the space's then overrides.
+                let toggle = ui
+                    .add_enabled(group.on, egui::Checkbox::new(&mut on, label(body.node)))
+                    .on_disabled_hover_text(SPACE_HIDDEN);
+                if !body.drawn_by_default {
+                    ui.weak(READ_AS_A_BODY);
+                }
+                if toggle.changed() {
+                    ops.push(SessionOp::SetBodyOn {
+                        node: body.node,
+                        on,
+                    });
+                }
+            });
+        }
+    }
+    ops
+}
+
+/// A space as its toggle names it: as a sentence does, capitalised.
+fn space_label(doc: &Doc<ProfileProgram>, space: VarId) -> String {
+    crate::tools::capitalised(&doc.spoken_space(space).to_string())
 }
 
 /// The camera's state as the View pane's two lines, read in the working
@@ -243,13 +316,63 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{camera_reading, camera_readout, delta_field};
+    use super::{READ_AS_A_BODY, camera_reading, camera_readout, delta_field, toggles_ui};
     use crate::camera::Camera;
+    use crate::display::{BodyToggle, SpaceToggles};
     use crate::frame;
+    use crate::pane::headless::{painted_after_clicking, painted_text};
     use crate::props::Notation;
     use crate::scene::DisplayTolerance;
+    use crate::session::SessionOp;
     use eframe::egui;
+    use pncad::document::{Doc, RecipeNodeId, VarId};
+    use pncad::geom_core::Tol;
     use pncad::quantity::{DEG, IN, LengthUnit, M, MM, PI};
+
+    /// One body, off, that the default leaves out, under the world.
+    fn one_undrawn_body() -> (RecipeNodeId, Vec<SpaceToggles>) {
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
+        let groups = vec![SpaceToggles {
+            space: Some(VarId::WORLD),
+            on: true,
+            bodies: vec![BodyToggle {
+                node,
+                on: false,
+                drawn_by_default: false,
+            }],
+        }];
+        (node, groups)
+    }
+
+    /// **The list names the world first, a body under it, and says
+    /// beside a body the default leaves out that an operation reads
+    /// it**; a click on that body's toggle asks to show it.
+    ///
+    /// *Breaks if* the world's row is not drawn above its bodies, the
+    /// note is dropped, or the click pushes a hide (or nothing).
+    #[test]
+    fn the_toggle_list_names_its_rows_and_a_click_shows_an_undrawn_body() {
+        let doc = Doc::empty_derived("view-toggles", Tol::witness());
+        let (node, groups) = one_undrawn_body();
+        let text = painted_text(|ui| {
+            toggles_ui(ui, &doc, &groups, |_| "the body".into());
+        });
+        let world = text.find("The world").expect("the world's row is drawn");
+        let body = text.find("the body").expect("the body's row is drawn");
+        assert!(world < body, "the world first: {text}");
+        assert!(text.contains(READ_AS_A_BODY), "{text}");
+
+        let ops = core::cell::RefCell::new(Vec::new());
+        painted_after_clicking("the body", |ui| {
+            ops.borrow_mut()
+                .extend(toggles_ui(ui, &doc, &groups, |_| "the body".into()));
+        });
+        assert_eq!(
+            ops.into_inner(),
+            vec![SessionOp::SetBodyOn { node, on: true }],
+            "the click shows the body"
+        );
+    }
 
     /// **The camera readout reads in the unit it is handed and asks
     /// whether the value exists there.**
