@@ -1361,21 +1361,13 @@ impl ViewerApp {
     /// `PreviewGesture` refuses `NoGesture` on top of it. `Refusal`
     /// ranks itself; this keeps the best-ranked, first-seen one, and
     /// clears the line only when a batch refuses nothing at all.
-    fn perform_batch(&mut self, ops: Vec<SessionOp>) {
+    fn perform_batch(&mut self, mut ops: Vec<SessionOp>) {
         // **No early return on an empty batch.** The frame's tool
         // notices are applied here, and a frame that produced one
         // without queueing an op — a survival drop on a document the
         // seam just landed — is exactly the frame that needs its
         // notice shown.
         let mut notices = core::mem::take(&mut self.notices);
-        // A pending profile draft let go of since the last batch (the
-        // selection left it, the document moved under it) is said.
-        notices.extend(
-            self.drafts
-                .take_dropped()
-                .iter()
-                .map(crate::drafts::Dropped::notice),
-        );
         // A tool opened, closed or swapped since the last batch — a
         // Cancel in its panel, the previous batch's commit — retires
         // what the line says about the tool that was open. Before the
@@ -1387,8 +1379,21 @@ impl ViewerApp {
             frame::tool_status(self.line_tool, open),
         );
         self.line_tool = open;
-        if ops.is_empty() && notices.is_empty() {
+        if ops.is_empty() && notices.is_empty() && !self.drafts.has_dropped() {
             return;
+        }
+        // **An undo after a profile edit this frame formed takes that
+        // edit back before it lands**: the person's last change is the
+        // field they left by clicking Undo. The edit is let go of, said,
+        // and the undo is spent on it.
+        if let Some(landing) = self.drafts.landing().cloned()
+            && let Some(undo) = ops.iter().position(|op| matches!(op, SessionOp::Undo))
+            && let Some(edit) = ops.iter().position(|op| *op == landing)
+            && self.drafts.undo_pending()
+        {
+            for at in [undo.max(edit), undo.min(edit)] {
+                ops.remove(at);
+            }
         }
         let mut refusal: Option<Refusal> = None;
         // The VERDICTS are `frame`'s, computed from the ops and the
@@ -1400,12 +1405,6 @@ impl ViewerApp {
             // Undo takes back a pending profile draft first, and says
             // so; the next undo steps the history.
             if matches!(op, SessionOp::Undo) && self.drafts.undo_pending() {
-                notices.extend(
-                    self.drafts
-                        .take_dropped()
-                        .iter()
-                        .map(crate::drafts::Dropped::notice),
-                );
                 continue;
             }
             performed.push(op.clone());
@@ -1435,6 +1434,14 @@ impl ViewerApp {
             // outcome, so a new field reds there rather than going
             // unsaid here.
             notices.extend(frame::outcome_notices(&outcome));
+            // The profile editor's draft waits on the edit it formed.
+            if matches!(accepted_op, SessionOp::EditProfile { .. }) {
+                let doc = outcome
+                    .refusal
+                    .is_none()
+                    .then(|| self.session.committed_doc());
+                self.drafts.landed(&accepted_op, doc);
+            }
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
@@ -1481,7 +1488,9 @@ impl ViewerApp {
             // dropped before anything is spoken from it.
             self.respeak_held();
         }
-        // A replaced document let go of a pending draft in the loop.
+        // Every pending draft let go of — before the batch (the
+        // selection left it, the document moved under it) or in it (an
+        // undo, a replaced document) — is said, here and only here.
         notices.extend(
             self.drafts
                 .take_dropped()
@@ -2215,8 +2224,14 @@ impl eframe::App for ViewerApp {
         // has ever changed what a document says.
         let mut chosen = self.theme;
 
+        // **The toolbar's ops go after the panes'.** The toolbar is drawn
+        // first, but a click on it is what takes the focus from a pane's
+        // field, so that field's commit (formed in the panes below, this
+        // same frame) is the change the person made first: Undo, Redo or
+        // Save act on the document with it.
+        let mut toolbar_ops: Vec<SessionOp> = Vec::new();
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
-            self.toolbar_ui(ui, &mut ops, &mut chosen);
+            self.toolbar_ui(ui, &mut toolbar_ops, &mut chosen);
         });
 
         if chosen != self.theme {
@@ -2372,6 +2387,7 @@ impl eframe::App for ViewerApp {
                 };
                 self.tree.ui(&mut behavior, ui);
             });
+        ops.append(&mut toolbar_ops);
         self.checks_window(ui.ctx(), &mut ops);
         if notation != self.session.notation() {
             self.session.set_notation(notation);
@@ -5874,6 +5890,139 @@ mod properties_pane_tests {
             assert!(driven.app.drafts.profile_edit.is_none());
             assert!(
                 status(&driven).contains("discarded — the document changed under them"),
+                "said: {}",
+                status(&driven)
+            );
+        }
+
+        /// The startup extrude's label, as the document holds it.
+        fn extrude_label(driven: &Driven) -> Option<String> {
+            driven
+                .app
+                .session
+                .committed_doc()
+                .label(extrude())
+                .map(|label| label.as_str().to_owned())
+        }
+
+        /// The hole's radius typed as `text`, its field still focused.
+        fn type_radius(driven: &mut Driven, text: &str) {
+            let painted = driven.quiet();
+            let field = runs(&painted, "radius ")[0];
+            driven.click_at(field);
+            driven.frame(vec![key(egui::Key::A)]);
+            driven.frame(vec![egui::Event::Text(text.to_owned())]);
+        }
+
+        /// **Undo clicked from a typed field takes the field back, and
+        /// only it.** The click on the toolbar's Undo is what takes the
+        /// field's focus, so the radius was the last change: the undo
+        /// is spent on it before it lands, says so, and the earlier
+        /// label stays.
+        #[test]
+        fn undo_clicked_from_a_typed_field_takes_back_the_field() {
+            let (mut driven, profile) = plate_open();
+            driven.app.perform_batch(vec![SessionOp::SetLabel {
+                node: extrude(),
+                label: pncad::document::Label::new("plinth").ok(),
+            }]);
+            driven.settle();
+            let steps = driven.app.session.history().len();
+            let state = driven.app.session.history().current();
+            type_radius(&mut driven, "0.01");
+            driven.click("Undo");
+            driven.settle();
+            assert_eq!(
+                hole_radius(&driven, profile),
+                Some(0.012),
+                "the radius went"
+            );
+            assert_eq!(
+                extrude_label(&driven).as_deref(),
+                Some("plinth"),
+                "the label stays"
+            );
+            assert_eq!(driven.app.session.history().current(), state);
+            assert_eq!(driven.app.session.history().len(), steps, "no branch");
+            assert!(
+                status(&driven).contains("discarded — undo took them back first"),
+                "said: {}",
+                status(&driven)
+            );
+        }
+
+        /// **Redo clicked from a typed field lands the field first.** A
+        /// radius landed and undone, then another typed and Redo
+        /// clicked: the typed radius lands before the redo is asked, so
+        /// it stands, and the redo of the older branch has nothing to
+        /// step.
+        #[test]
+        fn redo_clicked_from_a_typed_field_lands_the_field_first() {
+            let (mut driven, profile) = plate_open();
+            type_radius(&mut driven, "0.01");
+            driven.frame(vec![key(egui::Key::Enter)]);
+            driven.settle();
+            driven.app.perform_batch(vec![SessionOp::Undo]);
+            driven.settle();
+            assert_eq!(hole_radius(&driven, profile), Some(0.012));
+            type_radius(&mut driven, "0.005");
+            driven.click("Redo");
+            driven.settle();
+            assert_eq!(
+                hole_radius(&driven, profile),
+                Some(0.005),
+                "the typed radius stands"
+            );
+        }
+
+        /// **A change that lands says nothing was discarded**: the draft
+        /// reloads over the program its own op wrote, and that loses
+        /// nothing.
+        #[test]
+        fn a_landed_field_says_nothing_was_discarded() {
+            let (mut driven, profile) = plate_open();
+            type_radius(&mut driven, "0.01");
+            driven.frame(vec![key(egui::Key::Enter)]);
+            driven.settle();
+            assert_eq!(hole_radius(&driven, profile), Some(0.01));
+            assert!(
+                !status(&driven).contains("discarded"),
+                "{}",
+                status(&driven)
+            );
+        }
+
+        /// **A field typed, then the hole's `Remove loop` clicked**: the
+        /// radius lands, then the removal, made once over it: two steps,
+        /// and one undo brings the hole back at the typed radius.
+        #[test]
+        fn a_typed_field_then_a_removal_land_as_two_steps() {
+            let (mut driven, profile) = plate_open();
+            let steps = driven.app.session.history().len();
+            let painted = driven.quiet();
+            let remove = runs(&painted, crate::pane::profile::REMOVE_LOOP);
+            type_radius(&mut driven, "0.01");
+            driven.click_at(remove[1]);
+            driven.settle();
+            assert_eq!(loop_count(&driven, profile), 1, "the hole removed once");
+            assert_eq!(driven.app.session.history().len(), steps + 2);
+            driven.app.perform_batch(vec![SessionOp::Undo]);
+            driven.settle();
+            assert_eq!(loop_count(&driven, profile), 2);
+            assert_eq!(hole_radius(&driven, profile), Some(0.01));
+        }
+
+        /// **Deleting the profile under a pending draft says the profile
+        /// went**, not that the document moved.
+        #[test]
+        fn deleting_the_profile_under_a_pending_draft_says_it_went() {
+            let (mut driven, profile, _) = pending_rectangle();
+            driven
+                .app
+                .perform_batch(vec![SessionOp::DeleteNode { node: profile }]);
+            driven.settle();
+            assert!(
+                status(&driven).contains("discarded — the profile is no longer in the document"),
                 "said: {}",
                 status(&driven)
             );

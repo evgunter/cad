@@ -284,20 +284,8 @@ pub(crate) struct ProfileEdit {
     /// as, carried through every row edit ([`Self::edit_row`]); `None`
     /// for a row the editor made. The same shape as `loops`, always.
     loaded_as: Vec<Vec<Option<StepId>>>,
-    /// Whether the draft moved since it was last offered to the
-    /// document ([`Self::changed`], spent by [`Self::offer`]).
-    unsettled: bool,
-    /// **Why the document did not take the draft**, the last time it
-    /// was offered: what makes the draft *pending* ([`Self::pending`]).
-    refused: Option<Pending>,
-    /// A change made in the frame an earlier change was offered and
-    /// formed an op: made over the program that op lands, on the next
-    /// frame ([`Self::defer`]). Carried across that frame's reload.
-    deferred: Vec<Change>,
-    /// Whether the last offer formed the op that lands the whole draft,
-    /// with no change since: the draft is then the document's to be,
-    /// and its reload loses nothing.
-    landing: bool,
+    /// **Where the draft stands with the document** ([`Offer`]).
+    offer: Offer,
     /// The node as the document it was loaded from spoke it, for what
     /// is said when a pending draft is dropped.
     said: String,
@@ -338,6 +326,36 @@ pub(crate) enum Change {
     AddLoop(Vec<Step<f64>>),
 }
 
+/// **Where the profile editor's draft stands with the document**: one
+/// state, so no two flags can disagree about it.
+#[derive(Debug)]
+enum Offer {
+    /// Nothing to offer: the draft is as loaded, or its last offer
+    /// formed nothing (held back, or nothing moved).
+    Quiet,
+    /// Changed since it was last offered ([`ProfileEdit::changed`]);
+    /// the refusal of the offer before, if there was one, still said.
+    Unsettled(Option<Pending>),
+    /// Offered and refused: the draft is *pending*.
+    Pending(Pending),
+    /// Offered and taken: `op` formed and is still to land, and the
+    /// changes made in its frame wait on it ([`ProfileEdit::defer`]).
+    Landing {
+        op: SessionOp,
+        deferred: Vec<Change>,
+    },
+    /// `op` landed, writing `program`: the reload over that program
+    /// makes the waiting changes ([`Drafts::profile_edit`]), and over
+    /// any other program drops them, said.
+    Landed {
+        program: ProfileProgram<Formula>,
+        deferred: Vec<Change>,
+    },
+    /// Changes made in an earlier frame over the program this draft
+    /// was loaded from, still to be made ([`ProfileEdit::take_deferred`]).
+    Deferred(Vec<Change>),
+}
+
 /// **A pending draft the profile editor let go of**, and why — said
 /// on the status line, so no path drops one silently
 /// ([`Drafts::take_dropped`]).
@@ -356,9 +374,14 @@ pub(crate) enum DropWhy {
     Undo,
     /// The selection left the profile.
     SelectionLeft,
-    /// The document moved under it: an undo or redo, an edit made
-    /// elsewhere, another document.
+    /// The profile's program moved under it — an undo or redo, an
+    /// edit made elsewhere — or another document replaced this one.
     DocumentMoved,
+    /// The profile it was a draft of is no longer in the document.
+    NodeGone,
+    /// It was made over a change that did not land, or over a program
+    /// that moved before it could be made.
+    NotLanded,
 }
 
 impl Dropped {
@@ -381,6 +404,8 @@ impl std::fmt::Display for Dropped {
             DropWhy::Undo => "undo took them back first; undo again to step the history",
             DropWhy::SelectionLeft => "the selection left the profile",
             DropWhy::DocumentMoved => "the document changed under them",
+            DropWhy::NodeGone => "the profile is no longer in the document",
+            DropWhy::NotLanded => "the change they were made over did not land",
         };
         write!(
             f,
@@ -411,10 +436,7 @@ impl ProfileEdit {
             loops: sketch::held_rows(&program),
             loaded_as: program.kept_in_place(),
             base: program,
-            unsettled: false,
-            refused: None,
-            deferred: Vec::new(),
-            landing: false,
+            offer: Offer::Quiet,
             said,
         }
     }
@@ -863,16 +885,26 @@ impl ProfileEdit {
     }
 
     /// **Whether the draft holds anything the document does not** —
-    /// changes pending or not yet offered — which is what letting go
-    /// of it would lose.
+    /// changes pending, not yet offered, offered and still to land, or
+    /// waiting on another change — which is what letting go of it would
+    /// lose. A draft whose op has landed loses nothing but the changes
+    /// that waited on it.
     fn holds_changes(&self) -> bool {
-        (self.differs_from_base() && !self.landing) || !self.deferred.is_empty()
+        match &self.offer {
+            Offer::Landing { .. } => true,
+            Offer::Landed { deferred, .. } => !deferred.is_empty(),
+            Offer::Deferred(deferred) => !deferred.is_empty() || self.differs_from_base(),
+            Offer::Quiet | Offer::Unsettled(_) | Offer::Pending(_) => self.differs_from_base(),
+        }
     }
 
     /// **A change was made to the draft**: it waits to be offered.
     pub(crate) fn changed(&mut self) {
-        self.unsettled = true;
-        self.landing = false;
+        let was = core::mem::replace(&mut self.offer, Offer::Quiet);
+        self.offer = Offer::Unsettled(match was {
+            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => Some(refused),
+            _ => None,
+        });
     }
 
     /// `change`, made to the draft in the editor's `notation`.
@@ -895,15 +927,32 @@ impl ProfileEdit {
         }
     }
 
-    /// **`change` waits for the next frame**, made over the program the
-    /// op this frame formed lands ([`Self::take_deferred`]).
-    pub(crate) fn defer(&mut self, change: Change) {
-        self.deferred.push(change);
+    /// **`change` waits on the op this frame's offer formed**, to be
+    /// made over the program it lands ([`Self::take_deferred`]).
+    ///
+    /// Answers `change` back when no op is landing for it to wait on:
+    /// it is the caller's to make now.
+    #[must_use = "a change no op waits for is the caller's to make"]
+    pub(crate) fn defer(&mut self, change: Change) -> Option<Change> {
+        match &mut self.offer {
+            Offer::Landing { deferred, .. } => {
+                deferred.push(change);
+                None
+            }
+            _ => Some(change),
+        }
     }
 
-    /// The changes [`Self::defer`] put off, taken.
+    /// The changes that waited on an op which has landed, to be made
+    /// now over the program it wrote; taken.
     pub(crate) fn take_deferred(&mut self) -> Vec<Change> {
-        core::mem::take(&mut self.deferred)
+        match core::mem::replace(&mut self.offer, Offer::Quiet) {
+            Offer::Deferred(deferred) => deferred,
+            other => {
+                self.offer = other;
+                Vec::new()
+            }
+        }
     }
 
     /// **Whether a change offered now would be settled** — moved since
@@ -911,7 +960,7 @@ impl ProfileEdit {
     /// (`dragging`): a drag lands once, at its release.
     #[must_use]
     pub(crate) fn settles(&self, dragging: bool) -> bool {
-        self.unsettled && !dragging
+        matches!(self.offer, Offer::Unsettled(_)) && !dragging
     }
 
     /// **Offer the draft to the document**, once it [`Self::settles`]
@@ -919,9 +968,9 @@ impl ProfileEdit {
     /// driven argument the editor names itself). `door` is the
     /// document's edit door's verdict on the program
     /// (`DocSession::edit_profile_report`). Answers the one op that
-    /// lands the whole draft when the door takes it; when it refuses,
-    /// the draft is pending with the door's refusal ([`Self::pending`]).
-    /// An offer spends the change, so the next one waits for another.
+    /// lands the whole draft when the door takes it, which the draft
+    /// then waits on ([`Drafts::landed`]); when the door refuses, the
+    /// draft is pending with its refusal ([`Self::pending`]).
     pub(crate) fn offer(
         &mut self,
         dragging: bool,
@@ -935,31 +984,34 @@ impl ProfileEdit {
         if !self.settles(dragging) {
             return None;
         }
-        self.unsettled = false;
-        self.refused = None;
+        self.offer = Offer::Quiet;
         if held_back || !self.differs_from_base() {
             return None;
         }
         let loops = match self.programs() {
             Ok(loops) => loops,
             Err(error) => {
-                self.refused = Some(Pending::Shape(error));
+                self.offer = Offer::Pending(Pending::Shape(error));
                 return None;
             }
         };
         let ids = self.ids();
         match door(&self.base, loops.clone(), ids.clone()) {
             Ok(()) => {
-                self.landing = true;
-                Some(SessionOp::EditProfile {
+                let op = SessionOp::EditProfile {
                     node: self.node,
                     base: self.base.clone(),
                     loops,
                     ids,
-                })
+                };
+                self.offer = Offer::Landing {
+                    op: op.clone(),
+                    deferred: Vec::new(),
+                };
+                Some(op)
             }
             Err(refusal) => {
-                self.refused = Some(Pending::Door(refusal));
+                self.offer = Offer::Pending(Pending::Door(refusal));
                 None
             }
         }
@@ -968,7 +1020,12 @@ impl ProfileEdit {
     /// **Why the draft is pending**: the refusal of its last offer,
     /// while it still holds what was refused.
     pub(crate) fn pending(&self) -> Option<&Pending> {
-        self.refused.as_ref().filter(|_| self.differs_from_base())
+        match &self.offer {
+            Offer::Pending(refused) | Offer::Unsettled(Some(refused)) => {
+                self.differs_from_base().then_some(refused)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -1273,30 +1330,42 @@ impl Drafts {
         };
         let held = self.profile_edit.as_mut().filter(|held| held.node == node);
         match (held, current) {
-            (Some(held), Some(current)) if current == held.base => {
+            // A draft whose op landed is reloaded over what it wrote,
+            // even where the document has since gone back to its base.
+            (Some(held), Some(current))
+                if current == held.base && !matches!(held.offer, Offer::Landed { .. }) =>
+            {
                 // The same values: a re-written unit is carried, not
                 // reloaded over what the draft holds.
                 if !sketch::programs_written_as(&current, &held.base) {
                     held.rewritten(current);
                 }
             }
-            (held, _) => {
-                // A change put off for the op this frame formed is
-                // made over the program that op landed.
-                let deferred = held.map(ProfileEdit::take_deferred).unwrap_or_default();
-                let why = if self
-                    .profile_edit
-                    .as_ref()
-                    .is_some_and(|was| was.node == node)
-                {
-                    DropWhy::DocumentMoved
-                } else {
-                    DropWhy::SelectionLeft
+            (held, current) => {
+                // The changes that waited on an op which landed are made
+                // over the program it wrote, and only over that one.
+                let deferred = match held.map(|held| &mut held.offer) {
+                    Some(Offer::Landed { program, deferred })
+                        if current.as_ref() == Some(program) =>
+                    {
+                        core::mem::take(deferred)
+                    }
+                    _ => Vec::new(),
+                };
+                let why = match (&self.profile_edit, &current) {
+                    (Some(was), _) if was.node != node => DropWhy::SelectionLeft,
+                    (_, None) => DropWhy::NodeGone,
+                    (Some(was), Some(_)) if matches!(was.offer, Offer::Landed { .. }) => {
+                        DropWhy::NotLanded
+                    }
+                    _ => DropWhy::DocumentMoved,
                 };
                 self.let_go(why);
                 let base = sketch::held_written(doc, node)?;
                 let mut loaded = ProfileEdit::load(node, base, doc.spoken(node).to_string());
-                loaded.deferred = deferred;
+                if !deferred.is_empty() {
+                    loaded.offer = Offer::Deferred(deferred);
+                }
                 self.profile_edit = Some(loaded);
             }
         }
@@ -1318,6 +1387,13 @@ impl Drafts {
         doc: &Doc<ProfileProgram>,
         selected: Option<RecipeNodeId>,
     ) {
+        if self
+            .profile_edit
+            .as_ref()
+            .is_some_and(|held| !matches!(doc.node(held.node), Some(Node::Profile(_))))
+        {
+            self.let_go(DropWhy::NodeGone);
+        }
         self.abandon_profile_edit_off(selected);
         if let Some(node) = self.profile_edit.as_ref().map(|held| held.node) {
             // A refusal drops the draft (`profile_edit`'s contract) and
@@ -1386,31 +1462,83 @@ impl Drafts {
         if let Some(was) = self.profile_edit.take()
             && was.holds_changes()
         {
-            self.dropped.push(Dropped {
-                said: was.said,
-                why,
-            });
+            self.say_dropped(was.said, why);
         }
     }
 
+    /// Changes of the draft of `said` let go of, for `why`: the one
+    /// record of a drop, read by [`Self::take_dropped`].
+    fn say_dropped(&mut self, said: String, why: DropWhy) {
+        self.dropped.push(Dropped { said, why });
+    }
+
     /// **Undo takes back a pending draft first**: when the editor holds
-    /// changes the document does not, they are discarded and recorded
-    /// ([`Self::take_dropped`]), and the undo is spent on them — the
-    /// history does not step. Answers whether it did.
+    /// changes the document does not, they are let go of
+    /// ([`Self::let_go`], said) and the undo is spent on them — the
+    /// history does not step; the editor reopens on the document's
+    /// program. Answers whether it did.
     pub(crate) fn undo_pending(&mut self) -> bool {
-        let Some(edit) = self
+        if !self
             .profile_edit
-            .as_mut()
-            .filter(|edit| edit.holds_changes())
-        else {
+            .as_ref()
+            .is_some_and(ProfileEdit::holds_changes)
+        {
             return false;
-        };
-        self.dropped.push(Dropped {
-            said: edit.said.clone(),
-            why: DropWhy::Undo,
-        });
-        edit.revert();
+        }
+        self.let_go(DropWhy::Undo);
         true
+    }
+
+    /// **The op the editor's draft is waiting on to land**, if one
+    /// formed this frame and has not been performed: an undo in the
+    /// same batch takes it back before it lands
+    /// (`ViewerApp::perform_batch`).
+    pub(crate) fn landing(&self) -> Option<&SessionOp> {
+        match &self.profile_edit.as_ref()?.offer {
+            Offer::Landing { op, .. } => Some(op),
+            _ => None,
+        }
+    }
+
+    /// **`op` was performed**: when it is the op the editor's draft
+    /// waits on, the draft now waits on the program it wrote
+    /// (`landed`, the document after it) — or, refused, it is offered
+    /// again on its next frame, and the changes that waited on it are
+    /// let go of, said, since they were made over a program that never
+    /// came to be.
+    pub(crate) fn landed(&mut self, op: &SessionOp, landed: Option<&Doc<ProfileProgram>>) {
+        let Some(edit) = self.profile_edit.as_mut() else {
+            return;
+        };
+        let Offer::Landing { op: waited, .. } = &edit.offer else {
+            return;
+        };
+        if waited != op {
+            return;
+        }
+        let Offer::Landing { deferred, .. } = core::mem::replace(&mut edit.offer, Offer::Quiet)
+        else {
+            unreachable!("matched as landing just above")
+        };
+        let written = landed.and_then(|doc| match doc.node(edit.node) {
+            Some(Node::Profile(program)) => Some(sketch::written_program(doc, program)),
+            _ => None,
+        });
+        match written {
+            Some(program) => edit.offer = Offer::Landed { program, deferred },
+            None => {
+                edit.offer = Offer::Unsettled(None);
+                if !deferred.is_empty() {
+                    let said = edit.said.clone();
+                    self.say_dropped(said, DropWhy::NotLanded);
+                }
+            }
+        }
+    }
+
+    /// Whether a let-go draft is waiting to be said.
+    pub(crate) fn has_dropped(&self) -> bool {
+        !self.dropped.is_empty()
     }
 
     /// **The pending drafts let go of since last asked**, for the

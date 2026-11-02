@@ -581,10 +581,10 @@ pub(crate) fn edit_door_ui(
     };
     let mut formed = edit.offer(dragging, held_back(edit), door);
     for change in clicks {
-        if formed.is_some() {
-            edit.defer(change);
+        // Waits on the op formed above, or is made now when none did.
+        let Some(change) = edit.defer(change) else {
             continue;
-        }
+        };
         match edit.apply(change, notation) {
             Ok(()) => edit.changed(),
             Err(fault) => faults.push(fault),
@@ -2528,6 +2528,80 @@ mod tests {
         profile: pncad::document::RecipeNodeId,
     ) -> (String, Option<crate::session::SessionOp>) {
         click_door(session, drafts, profile, GLYPH_UP, 4)
+    }
+
+    /// **A click that waited on an op is made over what that op wrote,
+    /// or let go of, said — never replayed over another program.**
+    /// A corner removed forms an op, and a second removal waits on it.
+    /// Refused at its perform, the op leaves the waiting removal
+    /// dropped (`NotLanded`). Landed, then undone before the reload,
+    /// the program is not the one the removal was made over, so it is
+    /// dropped the same way and the loops stay as the undo left them.
+    /// Landed and reloaded over its own program, the removal is made.
+    #[test]
+    fn a_waiting_click_is_made_over_its_landed_op_or_said_dropped() {
+        use crate::drafts::{Change, DropWhy};
+        use crate::session::SessionOp;
+
+        let waiting = |session: &crate::session::DocSession, drafts: &mut Drafts| {
+            let (_, formed) = click_door(session, drafts, profile_of(session), GLYPH_REMOVE, 1);
+            let op = formed.expect("the removal formed its op");
+            let edit = drafts.profile_edit.as_mut().expect("open");
+            assert!(
+                edit.defer(Change::Row(0, crate::drafts::RowEdit::Remove(1)))
+                    .is_none()
+            );
+            op
+        };
+        let (mut session, profile) = square_session();
+        let mut drafts = Drafts::default();
+        let op = waiting(&session, &mut drafts);
+        drafts.landed(&op, None);
+        assert_eq!(
+            drafts
+                .take_dropped()
+                .iter()
+                .map(|d| d.why)
+                .collect::<Vec<_>>(),
+            vec![DropWhy::NotLanded],
+            "refused, the waiting click is said dropped"
+        );
+
+        let mut drafts = Drafts::default();
+        let op = waiting(&session, &mut drafts);
+        assert!(session.perform(op.clone()).refusal.is_none());
+        drafts.landed(&op, Some(session.committed_doc()));
+        assert!(session.perform(SessionOp::Undo).refusal.is_none());
+        drafts.sync_profile_edit(session.committed_doc(), Some(profile));
+        assert_eq!(
+            drafts
+                .take_dropped()
+                .iter()
+                .map(|d| d.why)
+                .collect::<Vec<_>>(),
+            vec![DropWhy::NotLanded],
+            "moved first, the waiting click is said dropped"
+        );
+        let edit = drafts.profile_edit.as_mut().expect("reloaded");
+        assert!(edit.take_deferred().is_empty(), "and not replayed");
+
+        let mut drafts = Drafts::default();
+        let op = waiting(&session, &mut drafts);
+        assert!(session.perform(op.clone()).refusal.is_none());
+        drafts.landed(&op, Some(session.committed_doc()));
+        drafts.sync_profile_edit(session.committed_doc(), Some(profile));
+        assert!(drafts.take_dropped().is_empty(), "landed, nothing is lost");
+        let edit = drafts.profile_edit.as_mut().expect("reloaded");
+        assert_eq!(edit.take_deferred().len(), 1, "the removal is made over it");
+    }
+
+    /// The one profile `session`'s document holds.
+    fn profile_of(session: &crate::session::DocSession) -> pncad::document::RecipeNodeId {
+        let doc = session.committed_doc();
+        doc.ids()
+            .into_iter()
+            .find(|id| matches!(doc.node(*id), Some(Node::Profile(_))))
+            .expect("a profile")
     }
 
     /// **A change that leaves an unclosed chain is pending, refused
