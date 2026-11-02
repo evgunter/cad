@@ -458,7 +458,7 @@ pub(super) fn insert_null_edges<T: Decide>(
             PlaneSide::Above => NewVertexSide::Above,
             _ => NewVertexSide::Below,
         };
-        let mint = body.mev_null_run(site, at, side)?;
+        let mint = body.mev_null_run(site, side)?;
         sides.insert(mint.created.vertex, PlaneSide::On);
         // The halves face the arc's first cut and its last.
         let germs_at = [apex_germs[(anchor + p) % n], apex_germs[(anchor + q) % n]];
@@ -468,7 +468,7 @@ pub(super) fn insert_null_edges<T: Decide>(
             }
         }
         records.push(NullEdgeRecord {
-            at_vertex: at,
+            at_vertex: mint.at,
             edge: mint.created.edge,
             attr: mint.attr,
             dangling: site.dangling(),

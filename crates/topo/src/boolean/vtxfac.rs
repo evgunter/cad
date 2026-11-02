@@ -961,52 +961,56 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let site = crate::star::arc_site(&*piercing_body, vertex, &entries, run, || {
             format!("the run {run:?}")
         });
-        // A strut faces its germs by the one facing rule
-        // ([`super::insert::strut_faces_first`]).
-        let site = match site.strut_corner() {
-            None => site,
-            Some(corner) => {
-                let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
-                let arrival = linked(
-                    &piercing_body.half_edges,
-                    corner_half.prev,
-                    EntityId::HalfEdge,
-                    EntityId::HalfEdge(corner),
-                    "prev",
-                )
-                .edge;
-                // A pierce's germs lie in the pierced face, through no
-                // edge of the pierced solid: their cuts run beside none.
-                let germ =
-                    |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
-                let facing = super::insert::strut_faces_first(
-                    (piercing_body, vertex),
-                    (piercing, &sectors),
-                    (arrival, corner_half.edge),
-                    germ((run.start + n - 1) % n, start_germ),
-                    germ((run.start + run.len - 1) % n, end_germ),
-                    band,
-                )?;
-                // At a closed edge's lone vertex with a germ along it the
-                // edge names no half. No row reaches the pose (a section
-                // along a closed piercing edge puts the whole edge on the
-                // pierced face), so no answer here is checked: refused.
-                // An answer needs a row that reaches it, with an oracle
-                // independent of the facing rule.
-                let facing = facing.ok_or(BooleanError::CurvedBooleanUnsupported {
-                    operand: pierced_op,
-                    face: contact.face,
-                    kind: pierced_kind,
-                })?;
-                crate::star::strut(corner, crate::star::Tip::facing(facing))
+        // The star names a strut's facing by the orbit; the Boolean's one
+        // facing rule ([`super::insert::strut_faces_first`]) reads it by
+        // the corner's geometry, and the two must agree.
+        if let Some(corner) = site.strut_corner() {
+            let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
+            let arrival = linked(
+                &piercing_body.half_edges,
+                corner_half.prev,
+                EntityId::HalfEdge,
+                EntityId::HalfEdge(corner),
+                "prev",
+            )
+            .edge;
+            // A pierce's germs lie in the pierced face, through no
+            // edge of the pierced solid: their cuts run beside none.
+            let germ =
+                |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
+            let facing = super::insert::strut_faces_first(
+                (piercing_body, vertex),
+                (piercing, &sectors),
+                (arrival, corner_half.edge),
+                germ((run.start + n - 1) % n, start_germ),
+                germ((run.start + run.len - 1) % n, end_germ),
+                band,
+            )?;
+            // At a closed edge's lone vertex with a germ along it the
+            // edge names no half. No row reaches the pose (a section
+            // along a closed piercing edge puts the whole edge on the
+            // pierced face), so no answer here is checked: refused.
+            // An answer needs a row that reaches it, with an oracle
+            // independent of the facing rule.
+            let facing = facing.ok_or(BooleanError::CurvedBooleanUnsupported {
+                operand: pierced_op,
+                face: contact.face,
+                kind: pierced_kind,
+            })?;
+            if crate::star::TipSide::facing(facing) != site.tip() {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a pierce strut's facing read by the corner's geometry \
+                               (strut_faces_first) contradicts the one its site names by the \
+                               orbit (star::arc_site)",
+                });
             }
-        };
+        }
         // The piercing run is Out.
-        let mint = piercing_body.mev_null_run(site, vertex, NewVertexSide::Above)?;
+        let mint = piercing_body.mev_null_run(site, NewVertexSide::Above)?;
         let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         let rec = BoolNullEdgeRecord {
             operand: piercing,
-            at_vertex: vertex,
+            at_vertex: mint.at,
             edge: created.edge,
             attr,
             dangling: site.dangling(),
@@ -1241,13 +1245,13 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
         (w, ring_loop),
         &ring,
         NewVertexSide::Below,
-        |strut, at, mint| {
+        |strut, mint| {
             let (_, plan, run) = runs[strut.run];
             let (start_germ, end_germ) = run.germs;
             let (created, [start_he, end_he]) = (mint.created, mint.halves);
             out.edges.push(BoolNullEdgeRecord {
                 operand: pierced,
-                at_vertex: at,
+                at_vertex: mint.at,
                 edge: created.edge,
                 attr: mint.attr,
                 dangling: true,
@@ -1532,7 +1536,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     } else {
         NewVertexSide::Below
     };
-    crate::star::hang_ring(a, (wa, loop_a), &tree, run_side, |strut, at, mint| {
+    crate::star::hang_ring(a, (wa, loop_a), &tree, run_side, |strut, mint| {
         let (start_germ, end_germ) = run_germs[strut.run];
         // The halves face A's start and end; the record keeps B's slot
         // order, slot k one germ in both (the null-edge pair's contract).
@@ -1545,7 +1549,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         strut_edge.insert(strut.run, mint.created.edge);
         edges.push(BoolNullEdgeRecord {
             operand: Operand::A,
-            at_vertex: at,
+            at_vertex: mint.at,
             edge: mint.created.edge,
             attr: mint.attr,
             dangling: true,
@@ -2006,7 +2010,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
         (w, ring_loop),
         &lone,
         NewVertexSide::Above,
-        |_, _, mint| {
+        |_, mint| {
             minted = Some(mint);
             Ok::<_, BooleanError>(())
         },

@@ -4,22 +4,29 @@
 //! the mint. A verb supplies its entries' sides ([`Member`]) and which
 //! circle carries its chords; the star reads the orbit.
 //!
+//! The rest of the row's home lives in each verb today: the sector walk
+//! in `splitting::neighborhood` and `boolean::sectors`, the cuts and
+//! their germs in `splitting::insert` (`section_chords`, `apex_germ`)
+//! and in `boolean::vtxfac` and `boolean::sectors` (`pierce_germ_dir`,
+//! `germ_locus`), and the germs' order in `splitting::insert` and
+//! `boolean::vtxfac` (`germ_order`).
+//!
 //! # Sites
 //!
-//! A null edge moving one arc of a vertex's orbit to a new vertex (its
-//! copy) lands at one [`Site`], which only this module builds:
+//! A null edge minted for one arc of a vertex's orbit lands at one
+//! [`Site`], which only this module builds, and which carries the
+//! vertex it mints at:
 //!
 //! - **a fan**: the arc holds some, not all, of the orbit's real
-//!   half-edges, and `mev(Fan { he1, he2 })` moves them, `he1` the
-//!   arc's first and `he2` the orbit successor of its last
+//!   half-edges, and `mev(Fan { he1, he2 })` moves them to the copy,
+//!   `he1` the arc's first and `he2` the orbit successor of its last
 //!   ([`Body::run_site`]), read in the body as it stands, so earlier
 //!   splices at the vertex are counted;
 //! - **a strut whose tip stands for the arc**: the arc holds no real
 //!   half-edge (subdivision duplicates of one sector alone), so nothing
 //!   moves, and the strut `mev(Fan { c, c })` splices into the corner
 //!   the arc lies in, before the sector's next real half-edge
-//!   ([`Body::strut_before_next_real`]); or a strut a verb places
-//!   itself ([`strut`]);
+//!   ([`Body::strut_before_next_real`]);
 //! - **a strut whose tip stands for the rest**: the arc holds every
 //!   real half-edge, so what it excludes lies inside the one corner it
 //!   does not cross, between the arrival `prev(first)` and the
@@ -27,25 +34,33 @@
 //!   bare, so the strut splices into that corner: the old vertex keeps
 //!   the arc and the tip stands for the excluded side. Walked the other
 //!   way round the orbit the arc is empty, and its strut is this one;
-//! - **the lone first strut of a bare ring vertex** ([`hang_ring`]).
+//! - **a strut a verb places in a corner itself**, with the side its tip
+//!   takes ([`Body::strut_before`]): the Boolean's vertex–vertex struts,
+//!   placed among each other by their germs and faced by the corner's
+//!   geometry;
+//! - **the struts of a ring**, hung at a bare vertex as a tree
+//!   ([`hang_ring`]), the first of them the lone strut of the vertex's
+//!   empty loop.
 //!
 //! # The mint
 //!
 //! [`Body::mev_null_run`] takes a site and the run's side and nothing
 //! else. By the sense theorem (`boolean::join`'s module docs) the half
 //! facing the run's start germ is UP exactly when the run is above/OUT,
-//! so which half faces the start and which side the copy takes are one
-//! fact: a fan's `he_plus` (old → copy) runs along the arc's first cut,
-//! facing the start, and its copy takes the run's side; a strut's tip
-//! takes the run's side exactly when it stands for the arc. The flip
-//! for a strut whose tip stands for the rest happens here.
+//! so which half faces the start and which side the new vertex takes are
+//! one fact, the [`TipSide`]: a fan's `he_plus` (old → copy) runs along
+//! the arc's first cut, facing the start, and its copy takes the run's
+//! side; a strut's tip takes the run's side exactly when its `he_plus`
+//! faces the start. The flip for a strut whose tip takes the other side
+//! happens here, and the mint names the end on the run's side
+//! ([`NullRunMint::run_end`]), the one reading of where the run went.
 
 use geom_core::{Decide, Real};
 
 use crate::body::{Body, WALKS_CLOSE};
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, MevCreated, MevSite};
-use crate::live::proven;
+use crate::live::{NAMES_ONLY_LIVE, proven};
 use crate::null::{NewVertexSide, NullEdge};
 
 /// One entry of a verb's sector walk round a vertex, as the star reads
@@ -97,49 +112,54 @@ pub(crate) fn runs<E: Member>(entries: &[E]) -> Vec<Run> {
     runs
 }
 
-/// Which side a strut's tip stands for, the arc it was minted for or
-/// the rest of the orbit; equally, which germ its `he_plus` faces, the
-/// run's start or its end (module docs, "The mint").
+/// **Which side a strut's tip takes**: the run's, or the other.
+/// Equally, by the sense theorem (module docs, "The mint"), which germ
+/// its `he_plus` faces: the run's start, or its end. A fan's copy takes
+/// the run's side.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Tip {
-    /// The tip stands for the arc: `he_plus` faces the run's start.
-    Arc,
-    /// The tip stands for the rest: `he_plus` faces the run's end.
-    Rest,
+pub(crate) enum TipSide {
+    /// The tip takes the run's side: `he_plus` faces the run's start.
+    Run,
+    /// The tip takes the other side: `he_plus` faces the run's end.
+    Other,
 }
 
-impl Tip {
-    /// The tip whose `he_plus` faces the run's start exactly when
+impl TipSide {
+    /// The side whose `he_plus` faces the run's start exactly when
     /// `plus_faces_start`.
     pub(crate) fn facing(plus_faces_start: bool) -> Self {
         if plus_faces_start {
-            Self::Arc
+            Self::Run
         } else {
-            Self::Rest
+            Self::Other
         }
     }
 }
 
-/// Where a run's null edge lands (module docs, "Sites"). Built only
-/// here, so the mint never meets a site a verb spelled itself.
+/// Where a run's null edge lands (module docs, "Sites"): the vertex it
+/// mints at and how. Built only here, so the mint never meets a site a
+/// verb spelled itself.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Site(RunSite);
+pub(crate) struct Site {
+    at: VertexKey,
+    how: RunSite,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RunSite {
     /// The arc `he1 .. he2` (exclusive) is a proper part of the orbit.
     Fan { he1: HalfEdgeKey, he2: HalfEdgeKey },
     /// The strut spliced into the corner before `corner`.
-    Strut { corner: HalfEdgeKey, tip: Tip },
+    Strut { corner: HalfEdgeKey, tip: TipSide },
     /// The first strut of the bare vertex `r#loop` holds.
-    Lone { r#loop: LoopKey, tip: Tip },
+    Lone { r#loop: LoopKey, tip: TipSide },
 }
 
 impl Site {
     /// The corner's departure half-edge where the site is a strut into
     /// a corner of the orbit.
     pub(crate) fn strut_corner(self) -> Option<HalfEdgeKey> {
-        match self.0 {
+        match self.how {
             RunSite::Strut { corner, .. } => Some(corner),
             RunSite::Fan { .. } | RunSite::Lone { .. } => None,
         }
@@ -148,25 +168,16 @@ impl Site {
     /// Whether the null edge dangles: a strut, whose tip holds no other
     /// edge.
     pub(crate) fn dangling(self) -> bool {
-        !matches!(self.0, RunSite::Fan { .. })
+        !matches!(self.how, RunSite::Fan { .. })
     }
 
-    /// Which side the minted copy stands for: a fan's copy takes the arc.
-    pub(crate) fn tip(self) -> Tip {
-        match self.0 {
-            RunSite::Fan { .. } => Tip::Arc,
+    /// Which side the new vertex takes: a fan's copy takes the run's.
+    pub(crate) fn tip(self) -> TipSide {
+        match self.how {
+            RunSite::Fan { .. } => TipSide::Run,
             RunSite::Strut { tip, .. } | RunSite::Lone { tip, .. } => tip,
         }
     }
-}
-
-/// The strut a verb places itself, into the corner before `corner`,
-/// its tip standing for `tip`: the Boolean's vertex–vertex planner,
-/// whose struts at a shared vertex splice among each other by their
-/// germs, and whose facing the corner's geometry reads
-/// (`boolean::insert::strut_faces_first`).
-pub(crate) fn strut(corner: HalfEdgeKey, tip: Tip) -> Site {
-    Site(RunSite::Strut { corner, tip })
 }
 
 /// **The site of the null edge moving the arc `run` of `entries`** at
@@ -194,7 +205,8 @@ pub(crate) fn arc_site<T: Real, E: Member>(
     match (first, real.next_back().or(first)) {
         (Some(first), Some(last)) => body.run_site(first.he(), last.he()).unwrap_or_else(|| {
             unreachable!(
-                "{} at {at:?} has no fan end: its keys are the sector walk's, and {WALKS_CLOSE}",
+                "{} at {at:?} has no fan end: its halves are the sector walk's, no mint at a \
+                 vertex kills a half, {NAMES_ONLY_LIVE}, and {WALKS_CLOSE}",
                 what()
             )
         }),
@@ -211,21 +223,43 @@ pub(crate) fn arc_site<T: Real, E: Member>(
 
 impl<T: Real> Body<T> {
     /// Where a null edge moving the orbit run `first ..= last` (walked
-    /// clockwise, [`Body::orbit_step`]) to a new vertex lands: the fan
-    /// ending at the orbit successor of `last`, read in the body as it
-    /// stands, or, when that successor is `first` again, the strut
-    /// before `first` whose tip stands for the rest; `None` on a stale
-    /// key or a broken mate.
+    /// clockwise, [`Body::orbit_step`]) to a new vertex lands, at
+    /// `first`'s start: the fan ending at the orbit successor of `last`,
+    /// read in the body as it stands, or, when that successor is `first`
+    /// again, the strut before `first` whose tip stands for the rest;
+    /// `None` on a stale key or a broken mate.
     pub(crate) fn run_site(&self, first: HalfEdgeKey, last: HalfEdgeKey) -> Option<Site> {
         let he2 = self.orbit_step(last)?;
-        Some(Site(if he2 == first {
-            RunSite::Strut {
-                corner: first,
-                tip: Tip::Rest,
-            }
-        } else {
-            RunSite::Fan { he1: first, he2 }
-        }))
+        let at = self.get_half_edge(first)?.start;
+        Some(Site {
+            at,
+            how: if he2 == first {
+                RunSite::Strut {
+                    corner: first,
+                    tip: TipSide::Other,
+                }
+            } else {
+                RunSite::Fan { he1: first, he2 }
+            },
+        })
+    }
+
+    /// **A strut a verb places itself**, into the corner before
+    /// `corner` at the vertex `corner` leaves, its tip taking `tip`'s
+    /// side. The verb has read which corner the strut belongs in and
+    /// which germ each half faces; the Boolean's vertex–vertex planner
+    /// does (`boolean::insert::mint_directed`).
+    ///
+    /// # Panics
+    ///
+    /// Where `corner` is not a live half-edge: the caller read it off
+    /// the orbit it mints into.
+    #[track_caller]
+    pub(crate) fn strut_before(&self, corner: HalfEdgeKey, tip: TipSide) -> Site {
+        Site {
+            at: proven(&self.half_edges, corner, EntityId::HalfEdge).start,
+            how: RunSite::Strut { corner, tip },
+        }
     }
 
     /// **Where a run of duplicate entries alone hangs its strut**, its
@@ -239,7 +273,7 @@ impl<T: Real> Body<T> {
     /// Where that entry is not `corner`'s orbit successor at `at`: an
     /// earlier mint moved the corner, which no verb's runs do.
     #[track_caller]
-    pub(crate) fn strut_before_next_real(
+    fn strut_before_next_real(
         &self,
         (at, corner): (VertexKey, HalfEdgeKey),
         past: impl IntoIterator<Item = (HalfEdgeKey, bool)>,
@@ -258,23 +292,26 @@ impl<T: Real> Body<T> {
                 what()
             );
         }
-        Site(RunSite::Strut {
-            corner: next_real,
-            tip: Tip::Arc,
-        })
+        Site {
+            at,
+            how: RunSite::Strut {
+                corner: next_real,
+                tip: TipSide::Run,
+            },
+        }
     }
 }
 
 impl<T: Decide> Body<T> {
-    /// **One run's null edge**, minted at `site` on the vertex `at`,
-    /// the run lying on `run_side`, with the sense its facing gives
-    /// (module docs, "The mint"). Both read the run in the minting
-    /// body's own orbit (the sense theorem's forward wedge, about that
-    /// body's outward normal): the start germ is the one the run
-    /// follows there, and a run ordered about the other body's opposed
-    /// normal starts at its end. The mint side, the attribute and the
-    /// halves come from these inputs alone, so the body's scaffold
-    /// attribute and the caller's record are one datum.
+    /// **One run's null edge**, minted at `site`, the run lying on
+    /// `run_side`, with the sense its facing gives (module docs, "The
+    /// mint"). Both read the run in the minting body's own orbit (the
+    /// sense theorem's forward wedge, about that body's outward normal):
+    /// the start germ is the one the run follows there, and a run
+    /// ordered about the other body's opposed normal starts at its end.
+    /// The mint side, the attribute and the halves come from these
+    /// inputs alone, so the body's scaffold attribute and the caller's
+    /// record are one datum.
     ///
     /// # Errors
     ///
@@ -282,10 +319,10 @@ impl<T: Decide> Body<T> {
     pub(crate) fn mev_null_run(
         &mut self,
         site: Site,
-        at: VertexKey,
         run_side: NewVertexSide,
     ) -> Result<NullRunMint, EulerOpError> {
-        let mev = match site.0 {
+        let at = site.at;
+        let mev = match site.how {
             RunSite::Fan { he1, he2 } => MevSite::Fan { he1, he2 },
             RunSite::Strut { corner, .. } => MevSite::Fan {
                 he1: corner,
@@ -293,8 +330,8 @@ impl<T: Decide> Body<T> {
             },
             RunSite::Lone { r#loop, .. } => MevSite::Lone { r#loop },
         };
-        let arc = site.tip() == Tip::Arc;
-        let side = match (run_side, arc) {
+        let on_run = site.tip() == TipSide::Run;
+        let side = match (run_side, on_run) {
             (side, true) => side,
             (NewVertexSide::Above, false) => NewVertexSide::Below,
             (NewVertexSide::Below, false) => NewVertexSide::Above,
@@ -310,16 +347,22 @@ impl<T: Decide> Body<T> {
                 above_end: created.vertex,
             },
         };
-        let (halves, run_end) = if arc {
-            ([created.he_plus, created.he_minus], created.vertex)
+        let (halves, run_end, run_half) = if on_run {
+            (
+                [created.he_plus, created.he_minus],
+                created.vertex,
+                created.he_minus,
+            )
         } else {
-            ([created.he_minus, created.he_plus], at)
+            ([created.he_minus, created.he_plus], at, created.he_plus)
         };
         Ok(NullRunMint {
+            at,
             created,
             attr,
             halves,
             run_end,
+            run_half,
         })
     }
 }
@@ -327,15 +370,20 @@ impl<T: Decide> Body<T> {
 /// What [`Body::mev_null_run`] minted.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct NullRunMint {
+    /// The vertex the site minted at.
+    pub(crate) at: VertexKey,
     pub(crate) created: MevCreated,
     /// The attribute the mint recorded.
     pub(crate) attr: NullEdge,
     /// `[start half, end half]`: the halves facing the run's start and
     /// end germs.
     pub(crate) halves: [HalfEdgeKey; 2],
-    /// The end on the run's side: the copy, or the old vertex where a
-    /// strut's tip stands for the rest.
+    /// The end on the run's side: the new vertex, or `at` where a
+    /// strut's tip takes the other side. Where the run went, so where
+    /// what the run holds mints.
     pub(crate) run_end: VertexKey,
+    /// The null half leaving [`Self::run_end`].
+    pub(crate) run_half: HalfEdgeKey,
 }
 
 /// **Walks `tree` in mint order**, handing each strut the node its
@@ -358,12 +406,13 @@ pub(crate) fn hang<N: Copy, E>(
 }
 
 /// **A ring's struts, hung at the bare vertex `root`** that the empty
-/// loop `ring_loop` holds, as `tree` says ([`ring_tree`]): every strut
-/// on `run_side`, its node its tip. A strut hangs at its node just
-/// before the half leaving it towards the root, after the node's
-/// earlier struts; at the root, the first is the lone strut and each
-/// later one hangs before that first strut's leaving half. `minted`
-/// sees each in mint order, with the vertex it hangs at.
+/// loop `ring_loop` holds, as `tree` says ([`ring_tree`]): every run on
+/// `run_side`. A ring's node is a strut's tip, whichever side the tip
+/// takes: its side alternates with depth, as the tree's facings do. A
+/// strut hangs at its node just before the half leaving it towards the
+/// root, after the node's earlier struts; at the root, the first is the
+/// lone strut and each later one hangs before that first strut's
+/// leaving half. `minted` sees each in mint order.
 ///
 /// # Errors
 ///
@@ -373,12 +422,12 @@ pub(crate) fn hang_ring<T: Decide, E: From<EulerOpError>>(
     (root, ring_loop): (VertexKey, LoopKey),
     tree: &[RingStrut],
     run_side: NewVertexSide,
-    mut minted: impl FnMut(&RingStrut, VertexKey, NullRunMint) -> Result<(), E>,
+    mut minted: impl FnMut(&RingStrut, NullRunMint) -> Result<(), E>,
 ) -> Result<(), E> {
     let mut root_anchor: Option<HalfEdgeKey> = None;
     hang(tree, |strut, parent: Option<(VertexKey, HalfEdgeKey)>| {
-        let tip = Tip::facing(strut.plus_faces_start);
-        let (at, site) = match (parent, root_anchor) {
+        let tip = TipSide::facing(strut.plus_faces_start);
+        let (at, how) = match (parent, root_anchor) {
             (Some((node, back)), _) => (node, RunSite::Strut { corner: back, tip }),
             (None, Some(corner)) => (root, RunSite::Strut { corner, tip }),
             (None, None) => (
@@ -389,12 +438,12 @@ pub(crate) fn hang_ring<T: Decide, E: From<EulerOpError>>(
                 },
             ),
         };
-        let mint = body.mev_null_run(Site(site), at, run_side)?;
+        let mint = body.mev_null_run(Site { at, how }, run_side)?;
         if parent.is_none() {
             root_anchor.get_or_insert(mint.created.he_plus);
         }
         let node = (mint.created.vertex, mint.created.he_minus);
-        minted(strut, at, mint)?;
+        minted(strut, mint)?;
         Ok(node)
     })
 }
@@ -431,7 +480,7 @@ pub(crate) struct RingStrut {
 /// tied: where one borders every chord, the ring is a star. The walk
 /// starts at the root's corner whose next germ is the lowest run's.
 /// `None` where `order` pairs crossing chords, or `root` names no
-/// region.
+/// region. An empty `order` is one region and no strut.
 ///
 /// The split reads the same tree with the two circles swapped
 /// (`splitting::insert`): its `order` is an ON vertex's cuts in orbit
@@ -440,6 +489,9 @@ pub(crate) struct RingStrut {
 /// vertex keeps.
 pub(crate) fn ring_tree(order: &[usize], root: Option<usize>) -> Option<Vec<RingStrut>> {
     let m = order.len();
+    if m == 0 {
+        return root.is_none_or(|r| r == 0).then(Vec::new);
+    }
     let k = m / 2;
     // The region of each corner `j` (after `order[j]`), and how many
     // chords border each region.
@@ -533,12 +585,17 @@ mod tests {
     fn run_site_reads_the_fan_end_and_names_the_whole_orbit() {
         let cube = crate::test_support_fixtures::geometric_cube::<f64>(geom_core::Tol::witness());
         let body = cube.body;
-        let (_, v) = body.vertices().next().unwrap();
+        let (v_key, v) = body.vertices().next().unwrap();
         let orbit = body.vertex_orbit(v.emanating.unwrap()).unwrap();
         let [h0, h1, h2] = orbit[..] else {
             panic!("a cube corner has valence 3: {orbit:?}");
         };
-        let fan = |he1, he2| Some(Site(RunSite::Fan { he1, he2 }));
+        let fan = |he1, he2| {
+            Some(Site {
+                at: v_key,
+                how: RunSite::Fan { he1, he2 },
+            })
+        };
         assert_eq!(
             body.run_site(h0, h1),
             fan(h0, h2),
@@ -552,7 +609,13 @@ mod tests {
         for (first, last) in [(h0, h2), (h1, h0), (h2, h1)] {
             assert_eq!(
                 body.run_site(first, last),
-                Some(strut(first, Tip::Rest)),
+                Some(Site {
+                    at: v_key,
+                    how: RunSite::Strut {
+                        corner: first,
+                        tip: TipSide::Other
+                    }
+                }),
                 "the run {first:?} ..= {last:?} holds the whole orbit: the strut before {first:?}"
             );
         }
@@ -607,11 +670,12 @@ mod tests {
     /// - five runs, one over two each over one more (`meeting::branching_cone`'s
     ///   order): three struts at the ring vertex facing alike, and one
     ///   hung off each of two of them, facing the other way;
-    /// - two runs whose chords cross: none.
+    /// - two runs whose chords cross: none;
+    /// - no run: no strut.
     #[test]
     fn a_ring_tree_is_read_off_its_germs_order() {
         type Row<'a> = (&'a str, &'a [usize], Option<Vec<RingStrut>>);
-        let rows: [Row; 5] = [
+        let rows: [Row; 6] = [
             (
                 "apart",
                 &[0, 1, 2, 3, 4, 5],
@@ -651,6 +715,7 @@ mod tests {
                 ]),
             ),
             ("crossing", &[0, 2, 1, 3], None),
+            ("empty", &[], Some(Vec::new())),
         ];
         for (what, order, want) in rows {
             assert_eq!(ring_tree(order, None), want, "{what}");

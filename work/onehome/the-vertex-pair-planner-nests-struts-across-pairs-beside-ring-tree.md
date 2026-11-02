@@ -12,7 +12,9 @@ Found by `run-loops-of-split-and-pierce-are-twins` stage 1 (`onehome/star-sites`
 
 ## What was tested
 
-An instrumented side-by-side run over the topo suite and the first 1740 tests of the sweep suite (`b_runs` and `hang_at_shared` both read `arc_holders`). 53 931 plans compared the old `arc_holders` (shortest holding arc per run) with `ring_tree` over the plan's walk positions, rooted at the region outside every run. That is 28 000 at n = 2, 2 494 at n = 4, 309 at n = 6, 1 883 at n = 8 and 13 440 at n = 10. Every one matched. The one mismatch was the synthetic `Cover` row of `arc_holders_nest_the_runs_a_turn_reroots_and_refuse_a_cover`, which passes 2 arcs over 6 positions. The new reading compresses to the occupied positions and gives `Cover` there too. So `arc_holders` now reads `ring_tree` (`boolean/insert.rs`, `arc_holders`), and `held_by` keeps reading its holders.
+A one-off instrumented side-by-side run, since removed, compared the old `arc_holders` (the shortest arc holding each run) against `ring_tree` over the plan's walk positions, rooted at the region outside every run. `b_runs` and `hang_at_shared` both read `arc_holders`. It covered the topo suite and the first 1 740 tests of the sweep suite: 54 090 calls, of which 35 715 had n = 2, 2 653 had n = 4, 363 had n = 6, 1 919 had n = 8 and 13 440 had n = 10. Every call agreed but one: the synthetic `Cover` row of `arc_holders_nest_the_runs_a_turn_reroots_and_refuse_a_cover`, which passes 2 arcs over 6 positions. The new reading compresses to the occupied positions and gives `Cover` there too.
+
+So `arc_holders` now reads `ring_tree` (`boolean/insert.rs`, `arc_holders`), and `held_by` keeps reading its holders. The agreement is pinned by `b_runs_nest_every_non_crossing_matching_and_refuse_every_crossing_one`. That test checks every holder against a containment oracle over every non-crossing matching to ten crossings. Its refusal class differs from the old one only on inputs that both cross and cover, which now refuse as crossing (PR 6392).
 
 ## What is not `ring_tree` as it stands
 
