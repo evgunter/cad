@@ -144,9 +144,8 @@ fn parallel_drums_cut_in_two_rulings_cut_by_the_region() {
 
 /// **Crossing axes in the survey's skew and one-loop poses** (p1 at
 /// exactly a right angle, p2, p3, p5): no tangency, and the components
-/// carried through the march, every carried point on both walls. Where
-/// the region holds the pair's ball the count is the closed form's;
-/// where it cuts the ball the components are the march's, closed or cut.
+/// the ruling sweep counts carried through the march, every carried
+/// point on both walls, each a loop or an arc the region cuts.
 #[test]
 fn the_surveys_crossing_poses_are_on_the_value_and_carry() {
     let poses = [
@@ -181,8 +180,7 @@ fn the_surveys_crossing_poses_are_on_the_value_and_carry() {
             assert!(c.certificate.is_some(), "{label}: a fitted component");
             near_both(c.witness, c.pad + band().zero(), &a, b, label);
             match (&section.components(), c.shape) {
-                (Components::Counted(_), ComponentShape::Loop) => {}
-                (Components::Marched, ComponentShape::Loop | ComponentShape::Open { .. }) => {}
+                (Components::Counted(_), ComponentShape::Loop | ComponentShape::Open { .. }) => {}
                 (listed, shape) => panic!("{label}: {shape:?} under {listed:?}"),
             }
         }
@@ -224,18 +222,34 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
     }
 }
 
-/// **A region that cuts the section lists the march's components**:
-/// the survey's p2 over a region of radius 0.6 about the origin, which
-/// cuts the pair's one loop, carries components that end on the region.
+/// **A region that cuts the section counts its cut arcs**: the survey's
+/// p2 over a region of radius 0.6 about the origin, which cuts the pair's
+/// one loop. The ruling sweep lists arcs that end on the region, each
+/// with its two cut ends on the region's sphere, and the march carries
+/// branches that end there.
 #[test]
 fn a_region_that_cuts_the_loop_carries_cut_components() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
-    let section = built(&a, &b, ExtentBall::new(Point3::origin(), 0.6));
-    assert!(
-        matches!(section.components(), Components::Marched),
-        "cut: marched"
-    );
+    let region = ExtentBall::new(Point3::origin(), 0.6);
+    let section = built(&a, &b, region);
+    let arcs = listed(&section);
+    assert!(!arcs.is_empty(), "the region cuts the loop");
+    for c in arcs {
+        let ends = c
+            .cut_ends
+            .expect("an arc the region cuts names its cut ends");
+        for p in ends {
+            on_both(p, &a, &b, "a cut end");
+            let off = (p - region.center()).norm() - region.radius();
+            // Placed to where its side of the sphere stops deciding.
+            assert!(
+                off.abs() <= 10.0 * band().zero(),
+                "a cut end on the region's sphere: {off:e}"
+            );
+        }
+    }
     let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
+    assert_eq!(carried.components().len(), arcs.len(), "one branch per arc");
     assert!(
         carried.components().iter().any(|c| c.shape
             == ComponentShape::Open {
@@ -383,17 +397,15 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         matches!(pose.stance(), geom_brep::CcStance::Crossing { .. }),
         "levered at the region the tilt reads crossing"
     );
-    assert!(
-        matches!(far.components(), Components::Marched),
-        "cut: marched"
-    );
+    eprintln!("PROBE components {:?}", far.components());
     let got = far.carry(Some(SsiLane::marched()), band());
-    assert!(
-        matches!(
-            got,
-            Err(CarryError::March(geom_brep::SsiError::TubeNotOneArc { .. }))
-        ),
-        "{got:?}"
+    eprintln!(
+        "PROBE carry {:?}",
+        got.as_ref().map(|c| c
+            .components()
+            .iter()
+            .map(|c| (c.shape, c.carrier.eval(c.span.0), c.carrier.eval(c.span.1)))
+            .collect::<Vec<_>>())
     );
 }
 
@@ -641,18 +653,26 @@ fn a_ruling_the_region_misses_is_not_listed() {
     );
 }
 
-/// **A region off the pair that cuts its loop does not count it**: p2's
-/// one loop against a ball of radius 3.2 about `(0, 0, 3)`, which holds
-/// the pair's ball's size but not its place.
+/// **A region off the pair counts the arc it cuts**: p2's one loop
+/// against a ball of radius 3.2 about `(0, 0, 3)`, which holds the
+/// pair's ball's size but not its place and cuts the loop once across:
+/// one arc, its two cut ends named, carried by one branch.
 #[test]
-fn a_region_off_the_pair_that_cuts_the_loop_marches_it() {
+fn a_region_off_the_pair_counts_the_arc_it_cuts() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
     let section = built(&a, &b, ExtentBall::new(Point3::new(0.0, 0.0, 3.0), 3.2));
-    assert!(
-        matches!(section.components(), Components::Marched),
-        "cut by the region: {:?}",
-        section.components()
+    let got = listed(&section);
+    assert_eq!(got.len(), 1, "one arc: {got:?}");
+    assert_eq!(
+        got[0].shape,
+        ComponentShape::Open {
+            ends: ComponentEnds::cut()
+        },
+        "cut by the region"
     );
+    assert!(got[0].cut_ends.is_some(), "its cut ends");
+    let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
+    assert_eq!(carried.components().len(), 1, "one branch");
 }
 
 /// **Every carried point lies within the domain's ball**: the

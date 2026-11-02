@@ -17,6 +17,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
+use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
     SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
@@ -435,25 +436,49 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.stance
     }
 
-    /// **The one ball the march's domain is the cube of**: the pair's
-    /// own ball (`(r₁ + r₂)/sin θ` across and `min r + |e|/2` along the
-    /// common perpendicular, about its midpoint) where the region holds
-    /// it, and otherwise the region, which holds every section point the
-    /// operation can use. Either cube holds the pair's ball cut by the
-    /// region, so the domain is a superset of it, not the meet itself.
+    /// **The ball the march ends at**: the region, which holds every
+    /// section point the operation can use. The march's domain is its
+    /// cube, and the ruling sweep cuts the section by the ball itself.
     pub fn ball(&self) -> ExtentBall<T> {
-        match self.stance {
-            CcStance::Crossing {
-                foot,
-                normal,
-                sin,
-                gap,
-                ..
-            } if self.placed == RegionPlacement::Inside => {
-                crossing_ball(foot, normal, sin, gap, self.radii)
-            }
-            CcStance::Crossing { .. } | CcStance::Parallel { .. } => self.region,
-        }
+        self.region
+    }
+
+    /// **The thinner wall's rulings against the other** ([`RuledCylinders`]),
+    /// where the axes cross. Which wall is ruled is a selection on
+    /// `r₁ − r₂`, not a decision: either wall's sweep counts the section,
+    /// the thinner's over fewer branch points.
+    pub(crate) fn ruled(&self) -> Option<RuledCylinders<T>> {
+        let CcStance::Crossing {
+            foot, normal, gap, ..
+        } = self.stance
+        else {
+            return None;
+        };
+        let [r1, r2] = self.radii;
+        let [a1, a2] = self.axes();
+        let first = r1 - r2;
+        let pick = |when_first: T, when_second: T| first.select_le_zero(when_first, when_second);
+        let pick3 =
+            |p: Vec3<T>, q: Vec3<T>| Vec3::new(pick(p.x, q.x), pick(p.y, q.y), pick(p.z, q.z));
+        let other = foot + normal * gap;
+        let foot = Point3::new(
+            pick(foot.x, other.x),
+            pick(foot.y, other.y),
+            pick(foot.z, other.z),
+        );
+        let (axis, partner) = (pick3(a1, a2), pick3(a2, a1));
+        let v = axis.cross(normal);
+        Some(RuledCylinders {
+            foot,
+            n: normal,
+            v,
+            axis,
+            rho: pick(r1, r2),
+            r: pick(r2, r1),
+            gap: pick(gap, T::zero() - gap),
+            cos: axis.dot(partner),
+            beta: partner.dot(v),
+        })
     }
 
     /// Where the pair's own ball stands against the region; parallel
@@ -840,41 +865,58 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         .collect(),
                 }),
             },
-            _ => match pose.placed {
-                RegionPlacement::Outside => Components::Counted(Vec::new()),
-                RegionPlacement::Straddles => Components::Marched,
-                // One loop, witnessed on the second wall's ruling on the
-                // first axis's side, where that ruling enters the first
-                // wall.
-                RegionPlacement::Inside if nest.map(|n| n.sign) == Some(Sign::Positive) => {
-                    let (o1, a1) = pose.lines[0];
-                    let (o2, a2) = pose.lines[1];
-                    let q = o2 - normal * r2.copysign(gap);
-                    let (av, bv) = (a2.cross(a1), (q - o1).cross(a1));
-                    let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
-                    let t = ((qb.powi(2) - qa * qc).max(T::zero()).sqrt() - qb) / qa;
-                    Components::Counted(vec![component(
-                        ComponentShape::Loop,
-                        [false, false],
-                        Some(q + a2 * t),
-                        ClassCarrier::General,
-                    )])
-                }
-                // Two loops, each encircling the thinner wall.
-                RegionPlacement::Inside => {
-                    let winds = match thinner {
+            // One loop or two: the ruling sweep counts them and cuts them
+            // by the region, the ball the march ends at.
+            _ => Components::Counted(match pose.placed {
+                RegionPlacement::Outside => Vec::new(),
+                RegionPlacement::Inside | RegionPlacement::Straddles => {
+                    let ruled = pose.ruled().unwrap_or_else(|| {
+                        unreachable!("a crossing stance's pose reads its ruled side")
+                    });
+                    let swept = ruling::sweep(&ruled, pose.region, band).map_err(|e| match e {
+                        SweepRefusal::Escalated(diag) => SectionError::Escalated(diag),
+                        SweepRefusal::Inconsistent(cause) => SectionError::Unaccounted {
+                            cause: cause.to_owned(),
+                        },
+                    })?;
+                    debug_assert_eq!(
+                        swept.loops,
+                        if nest.map(|n| n.sign) == Some(Sign::Positive) {
+                            1
+                        } else {
+                            2
+                        },
+                        "the ruling sweep's arcs of a positive discriminant are the loops the \
+                         pose's nest margin counts: one arc bounded by two branch points where \
+                         the walls cross in one loop, the whole turn where the thinner passes \
+                         through the fatter"
+                    );
+                    let encircling = match thinner {
                         Some(Sign::Negative) => [true, false],
                         _ => [false, true],
                     };
-                    Components::Counted(
-                        (0..2)
-                            .map(|_| {
-                                component(ComponentShape::Loop, winds, None, ClassCarrier::General)
-                            })
-                            .collect(),
-                    )
+                    swept
+                        .components
+                        .into_iter()
+                        .map(|c| SectionComponent {
+                            cut_ends: c.cut_ends,
+                            ..component(
+                                match c.cut_ends {
+                                    Some(_) => cut,
+                                    None => ComponentShape::Loop,
+                                },
+                                if c.encircles {
+                                    encircling
+                                } else {
+                                    [false, false]
+                                },
+                                Some(c.witness),
+                                ClassCarrier::General,
+                            )
+                        })
+                        .collect()
                 }
-            },
+            }),
         },
     };
     decided.extend(pose.tangency());

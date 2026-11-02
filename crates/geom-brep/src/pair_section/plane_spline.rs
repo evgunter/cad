@@ -705,6 +705,7 @@ fn listed(
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(UNCARRIED),
+            cut_ends: None,
         });
     }
     components.extend(out.boundary.iter().map(|region| SectionComponent {
@@ -713,6 +714,7 @@ fn listed(
         witness: None,
         pad: 0.0,
         carrier: ClassCarrier::Unminted(REGION),
+        cut_ends: None,
     }));
     Ok(pose.section(Components::Counted(components)))
 }
