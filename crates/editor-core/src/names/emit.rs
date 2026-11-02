@@ -1124,6 +1124,15 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// **What a `u32` the document's own counts set numbers** — a
 /// [`NamingError::PastWidth`]'s subject, with the noun it is said by and
 /// the edit that brings it back within the width.
+///
+/// **Not carried to the façade's curated list, by decision**
+/// (`scripts/payload-rung-sweep.py` names this rung, and its disposition
+/// table cites this paragraph). A Rust caller matches it through
+/// `editor_core::names`; a Python caller reads `past_width` and the
+/// sentence, which says what the count numbers and its recourse. The
+/// falsifier is a Python caller that must branch on which count ran past
+/// the width rather than read it off the sentence; when the façade
+/// carries it, delete this paragraph and the disposition row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Numbered {
     /// An output-body index of a multi-body value, as an
