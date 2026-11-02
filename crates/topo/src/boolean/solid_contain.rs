@@ -3524,7 +3524,10 @@ fn wall_crosses_by_turn<T: Decide>(
     // can be made red by no pose, and factor 0 only by a ruling drifting
     // by far more than the band, which a valid body bounds by a plane
     // through that ruling: not built.
-    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+    for e in body
+        .face_edges(face)
+        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?
+    {
         if e.across == face {
             continue;
         }
@@ -3618,7 +3621,10 @@ fn loop_turn<T: Decide>(
         normal.dot(u.cross(w)).atan2(u.dot(w))
     };
     let mut turn = T::zero();
-    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+    for e in body
+        .face_edges(face)
+        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?
+    {
         // A seam inside the face is walked once each way, and its two
         // turns cancel: it is left out, not summed, since in floats two
         // passes whose products vanish both read `atan2(+0, x < 0) = π`.
@@ -3675,61 +3681,6 @@ fn arc_turn<T: Decide>(
     mi.atan2(zero - mr) - (zero - (pi * mr - pr * mi)).atan2(zero - (pr * mr + pi * mi))
 }
 
-/// **An edge of a face's loops**, as one of its half-edges walks it: the
-/// half-edge, the edge, its two ends in the half-edge's direction, and the
-/// face across it (the face itself across a seam inside it).
-#[derive(Clone, Copy)]
-pub(crate) struct FaceEdge {
-    // Read by the probes' frames, which orient the edge by it.
-    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
-    pub(crate) half: crate::entity::HalfEdgeKey,
-    pub(crate) edge: crate::entity::EdgeKey,
-    pub(crate) ends: [crate::entity::VertexKey; 2],
-    pub(crate) across: FaceKey,
-}
-
-/// Every edge of `face`'s loops, rings included ([`FaceEdge`]). A loop
-/// with no edge (a lone ring vertex) bounds no area and has none.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] where a loop, a half-edge, its mate
-/// or the mate's face does not resolve.
-pub(crate) fn face_edges<T: geom_core::Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<Vec<FaceEdge>, PointInSolidError> {
-    let corrupt = PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or(corrupt.clone())?;
-    let mut out = Vec::new();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(l).map(|lp| lp.boundary) {
-            Some(LoopBoundary::Cycle { first }) => first,
-            Some(LoopBoundary::Empty { .. }) => continue,
-            None => return Err(corrupt),
-        };
-        for half in body.loop_walk(first).closed("loop", first) {
-            let he = body.get_half_edge(half).ok_or(corrupt.clone())?;
-            let across = body
-                .edges
-                .get(he.edge)
-                .and_then(|e| e.claim(half))
-                .and_then(|c| body.get_half_edge(c.mate))
-                .and_then(|m| body.get_loop(m.parent_loop))
-                .ok_or(corrupt.clone())?
-                .face;
-            let end = body.half_edge_end(half).ok_or(corrupt.clone())?;
-            out.push(FaceEdge {
-                half,
-                edge: he.edge,
-                ends: [he.start, end],
-                across,
-            });
-        }
-    }
-    Ok(out)
-}
-
 /// **The point of half-edge `half`'s curve at fraction `f` of its span,
 /// as the half walks it**, and the curve's derivative there in that
 /// direction: the one reading of a half-edge's walk along its carrier.
@@ -3762,7 +3713,11 @@ const CLEARANCE_SAMPLES: u32 = 32;
 /// clearance, [`geom::Curve3::clearance`]), and the least distance from
 /// `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of its span
 /// less half the arc length between two of them. `None` for another edge.
-pub(crate) fn edge_clearance<T: Decide>(body: &Body<T>, e: &FaceEdge, m: Point3<T>) -> Option<T> {
+pub(crate) fn edge_clearance<T: Decide>(
+    body: &Body<T>,
+    e: &crate::live::FaceEdge,
+    m: Point3<T>,
+) -> Option<T> {
     let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
     let curve = body
         .get_edge(e.edge)
@@ -3800,11 +3755,10 @@ fn every_bound_read<T: geom_core::Real>(
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    face_edges(body, face).is_ok_and(|edges| {
-        edges
-            .iter()
-            .all(|e| e.across == face || read.contains(&e.edge))
-    })
+    body.face_edges(face)
+        .expect("the ray reads faces of its body")
+        .iter()
+        .all(|e| e.across == face || read.contains(&e.edge))
 }
 
 /// Whether every edge of `face`, a seam inside it included, is one of
@@ -3814,7 +3768,10 @@ fn every_edge_read<T: geom_core::Real>(
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    face_edges(body, face).is_ok_and(|edges| edges.iter().all(|e| read.contains(&e.edge)))
+    body.face_edges(face)
+        .expect("the ray reads faces of its body")
+        .iter()
+        .all(|e| read.contains(&e.edge))
 }
 
 /// The roots of a ray's trimmed curved carriers, and the faces whose

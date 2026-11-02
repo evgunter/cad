@@ -300,6 +300,32 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
     S::map(lookup(arena, key, id, from), |_| ())
 }
 
+/// `he`'s place on edge `ek` (its record `data`), for a `he` that names
+/// `ek`: on a tier-1-valid body the edge claims it, so a miss panics.
+#[track_caller]
+fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entity::Claim {
+    data.claim(he).unwrap_or_else(|| {
+        unreachable!(
+            "{he:?}'s edge {ek:?} does not claim it in either slot: on a tier-1-valid \
+             body an edge claims the two half-edges that name it"
+        )
+    })
+}
+
+/// **An edge of a face's loops** ([`Body::face_edges`]), as one of its
+/// half-edges walks it: the half-edge, the edge, its two ends in the
+/// half-edge's direction, and the face across it (the face itself across
+/// a seam inside it).
+#[derive(Clone, Copy)]
+pub(crate) struct FaceEdge {
+    // Read by the probes' frames, which orient the edge by it.
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
+    pub(crate) half: HalfEdgeKey,
+    pub(crate) edge: EdgeKey,
+    pub(crate) ends: [VertexKey; 2],
+    pub(crate) across: FaceKey,
+}
+
 /// One member of a face's boundary ([`Body::face_boundary_linked`]).
 pub(crate) enum BoundaryMember<'a, T: Real> {
     /// An isolated-vertex loop's `vertex`, at `point`.
@@ -384,6 +410,57 @@ impl<T: Real> Body<T> {
             .flat_map(|(_, members)| members)
     }
 
+    /// **Every edge of `face`'s loops**, rings included, in
+    /// [`Body::face_boundary_linked`]'s order ([`FaceEdge`]), or `None`
+    /// where `face` does not resolve, so each caller says where it calls
+    /// what a stale face key is there. A loop with no edge (a lone ring
+    /// vertex) bounds no area and has none.
+    ///
+    /// # Panics
+    ///
+    /// Where a record on the walk from the live face does not resolve, a
+    /// loop walk does not close, or an edge does not claim a half-edge
+    /// that names it (D2 row 4).
+    #[track_caller]
+    pub(crate) fn face_edges(&self, face: FaceKey) -> Option<Vec<FaceEdge>> {
+        let data = self.get_face(face)?;
+        let edges = self
+            .face_boundary_linked(face, data)
+            .filter_map(|member| match member {
+                BoundaryMember::Isolated { .. } => None,
+                BoundaryMember::Edge { he, half, ek, edge } => Some(FaceEdge {
+                    half: he,
+                    edge: ek,
+                    ends: [half.start, self.proven_half_edge_end(he)],
+                    across: self.face_across_linked(he, ek, edge),
+                }),
+            })
+            .collect();
+        Some(edges)
+    }
+
+    /// The face across `he`, a half of edge `ek` (its record `data`):
+    /// the face of its mate's loop, every hop a link.
+    #[track_caller]
+    fn face_across_linked(&self, he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> FaceKey {
+        let claim = claimed(he, ek, data);
+        let mate = linked(
+            &self.half_edges,
+            claim.mate,
+            EntityId::HalfEdge,
+            EntityId::Edge(ek),
+            claim.mate_field(),
+        );
+        linked(
+            &self.loops,
+            mate.parent_loop,
+            EntityId::Loop,
+            EntityId::HalfEdge(claim.mate),
+            "parent_loop",
+        )
+        .face
+    }
+
     /// [`Body::face_boundary_linked`] a loop at a time: each loop's key
     /// and its members, so a reader that needs a cycle whole has it.
     pub(crate) fn face_boundary_by_loop<'a>(
@@ -441,19 +518,14 @@ impl<T: Real> Body<T> {
     #[track_caller]
     pub(crate) fn proven_orbit_step(&self, he: HalfEdgeKey) -> HalfEdgeKey {
         let edge = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
-        let Some(claim) = linked(
+        let data = linked(
             &self.edges,
             edge,
             EntityId::Edge,
             EntityId::HalfEdge(he),
             "edge",
-        )
-        .claim(he) else {
-            unreachable!(
-                "{he:?}'s edge {edge:?} does not claim it in either slot: on a tier-1-valid \
-                 body an edge claims the two half-edges that name it"
-            )
-        };
+        );
+        let claim = claimed(he, edge, data);
         linked(
             &self.half_edges,
             claim.mate,

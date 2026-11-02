@@ -616,18 +616,21 @@ impl Sliver {
 /// rings, and an outline of two distinct straight edges, one segment run
 /// twice. `None` for any other face.
 pub(super) fn sliver_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<[HalfEdgeKey; 2]> {
-    if !body.get_face(face)?.rings.is_empty() {
+    let rings = &body
+        .get_face(face)
+        .expect("every caller reads a face of the body")
+        .rings;
+    if !rings.is_empty() {
         return None;
     }
-    let [h, k] = face_halves(body, face)?[..] else {
+    let [h, k] = edges_of(body, face)[..] else {
         return None;
     };
-    let edges = [h, k].map(|x| body.get_half_edge(x).map(|d| d.edge));
-    (edges[0] != edges[1]
-        && edges
+    (h.edge != k.edge
+        && [h, k]
             .iter()
-            .all(|e| e.is_some_and(|e| crate::census::edge_is_line(body, e))))
-    .then_some([h, k])
+            .all(|e| crate::census::edge_is_line(body, e.edge)))
+    .then_some([h.half, k.half])
 }
 
 /// **Merges the two edges of each sliver alone on its line into one**
@@ -1141,7 +1144,7 @@ fn cuts<T: Decide>(
     along: &Span<'_, T>,
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
-    let loops = [(f, face_edges(body, f))];
+    let loops = [(f, edge_set(body, f))];
     let mut at: Vec<T> = Vec::new();
     for record in named {
         let crossings = match crossing_named(body, record, e, &loops, along, band) {
@@ -2085,7 +2088,7 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     let face = *faces.first().ok_or_else(desync)?;
     let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
     let loops: Vec<(FaceKey, BTreeSet<EdgeKey>)> =
-        faces.iter().map(|&f| (f, face_edges(body, f))).collect();
+        faces.iter().map(|&f| (f, edge_set(body, f))).collect();
     // The face whose loops hold `cell`, which a refusal about it names.
     // The face whose loops hold `cell`, which a refusal about it names:
     // the edge itself lies in all of them, and is named against the
@@ -2535,7 +2538,7 @@ fn touches_boundary_between<T: Decide>(
     if on_face_loops(body, face, v) {
         return false;
     }
-    let boundary = face_edges(body, face);
+    let boundary = edge_set(body, face);
     contacts
         .vertex_edge()
         .any(|(x, g)| x == v && boundary.contains(&g))
@@ -2576,37 +2579,28 @@ fn on_face_loops<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> bool
 /// The half-edges of `face`'s loops leaving `v`: one per pass of a loop
 /// through it.
 fn loop_leaving<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> Vec<HalfEdgeKey> {
-    face_halves(body, face)
-        .unwrap_or_default()
+    edges_of(body, face)
         .into_iter()
-        .filter(|&he| body.get_half_edge(he).is_some_and(|h| h.start == v))
+        .filter(|e| e.ends[0] == v)
+        .map(|e| e.half)
         .collect()
 }
 
 /// The edges of `face`'s loops.
-fn face_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> BTreeSet<EdgeKey> {
-    face_halves(body, face)
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|he| body.get_half_edge(he).map(|h| h.edge))
-        .collect()
+fn edge_set<T: Decide>(body: &Body<T>, face: FaceKey) -> BTreeSet<EdgeKey> {
+    edges_of(body, face).into_iter().map(|e| e.edge).collect()
+}
+
+/// [`Body::face_edges`] of a face the slit reads: every face it reads is
+/// one of the body it parts, so a stale key is a desync.
+fn edges_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<crate::live::FaceEdge> {
+    body.face_edges(face)
+        .expect("the slit reads faces of the body it parts")
 }
 
 /// Whether a record puts `v` inside an edge.
 fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
     contacts.vertex_edge().any(|(x, _)| x == v)
-}
-
-/// Every half-edge of `face`'s loops.
-fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
-    let data = body.get_face(face)?;
-    let mut out = Vec::new();
-    for l in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        if let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(l)?.boundary {
-            out.extend(body.loop_cycle(first)?);
-        }
-    }
-    Some(out)
 }
 
 /// **[`holding`] on a piece the containment door does not place**: a

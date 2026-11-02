@@ -368,7 +368,7 @@ fn aim_at<T: Decide>(
 /// ([`ray_crossings`]). `None` for a face with another edge, or one whose
 /// outer loop has none.
 fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
-    let edges = crate::boolean::solid_contain::face_edges(body, face).ok()?;
+    let edges = body.face_edges(face)?;
     let outer = body.get_face(face)?.outer;
     let first = *edges.first()?;
     if body.get_half_edge(first.half)?.parent_loop != outer {
@@ -453,7 +453,7 @@ pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -
     if a == b {
         return true;
     }
-    // Not `face_edges`, which collects and resolves every mate: this reads
+    // Not `Body::face_edges`, which collects and resolves every mate: this reads
     // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
         body.get_face(face)
@@ -868,8 +868,10 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     };
     let mut out = Vec::new();
     for (face, _) in body.faces() {
-        // A face whose loops do not walk has no edge to frame.
-        for fe in crate::boolean::solid_contain::face_edges(body, face).unwrap_or_default() {
+        for fe in body
+            .face_edges(face)
+            .expect("the frames read the faces they enumerate")
+        {
             let Some(edge) = body.edges.get(fe.edge) else {
                 continue;
             };

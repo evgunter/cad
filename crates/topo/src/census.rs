@@ -11015,11 +11015,10 @@ fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
 }
 
-/// Each edge bounding `f`, once (a seam once), `None` where a loop does
-/// not walk.
+/// Each edge bounding `f`, once (a seam once), `None` where `f` does
+/// not resolve.
 fn edge_set<T: Real>(body: &Body<T>, f: FaceKey) -> Option<BTreeSet<EdgeKey>> {
-    crate::boolean::solid_contain::face_edges(body, f)
-        .ok()
+    body.face_edges(f)
         .map(|edges| edges.into_iter().map(|e| e.edge).collect())
 }
 
