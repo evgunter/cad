@@ -83,6 +83,15 @@ pub enum HeldRefusal {
         /// The accumulation face.
         face: FaceKey,
     },
+    /// A lost region of a face of a sphere shell a re-chart turned
+    /// before the boolean ran: the turn moved the face over the input
+    /// shell's faces, so which of them the region held is not read
+    /// (`BooleanNaming::recharted`). The turned face, at its operand's
+    /// place.
+    Recharted {
+        /// The turned face.
+        face: MemberFace,
+    },
 }
 
 impl PartialEq for HeldRefusal {
@@ -110,6 +119,7 @@ impl PartialEq for HeldRefusal {
                 },
             ) => f == g && kind(r) == kind(s),
             (Self::UncutRemainder { face: f }, Self::UncutRemainder { face: g }) => f == g,
+            (Self::Recharted { face: f }, Self::Recharted { face: g }) => f == g,
             _ => false,
         }
     }
@@ -230,6 +240,15 @@ impl Holdings {
         let descent = FaceDescent::of(naming);
         let place = |operand: Operand| usize::from(operand == Operand::B);
         let root = |operand: Operand, f: FaceKey| (place(operand), descent.clone_face(operand, f));
+        // The operand faces a root is: itself, or, for a face of a sphere
+        // shell a re-chart turned, the faces of the input shell it was
+        // turned over (`BooleanNaming::recharted`), any of which its
+        // region may meet.
+        let input = |(p, r): MemberFace| -> Vec<MemberFace> {
+            naming.recharted[p]
+                .input_faces(super::Cell::Face(r))
+                .map_or_else(|| vec![(p, r)], |fs| fs.iter().map(|&f| (p, f)).collect())
+        };
         let merged = descent.merged();
         // Every face of the result before the merge, with the operand face
         // it is a piece of.
@@ -272,12 +291,20 @@ impl Holdings {
                 for g in constituents(f) {
                     let (operand, r) = descent.result_face(g);
                     let kept = (place(operand), r);
-                    set.insert(kept);
+                    match input(kept)[..] {
+                        [one] => {
+                            set.insert(one);
+                        }
+                        ref several => maybe.extend(several.iter().copied()),
+                    }
                     if let Some(more) = held_through.get(&kept) {
-                        if pieces[&kept] == 1 {
-                            set.extend(more.iter().copied());
-                        } else {
-                            maybe.extend(more.iter().copied());
+                        for &m in more {
+                            match input(m)[..] {
+                                [one] if pieces[&kept] == 1 => {
+                                    set.insert(one);
+                                }
+                                ref several => maybe.extend(several.iter().copied()),
+                            }
                         }
                     }
                 }
@@ -303,15 +330,21 @@ impl Holdings {
                 (f, held)
             })
             .collect();
+        // A lost region's operand face, or where a re-chart turned it,
+        // the refusal that names the turned face.
+        let lost_region = |r: MemberFace| match input(r)[..] {
+            [one] => Held::Faces(BTreeSet::from([one])),
+            _ => Held::Refused(HeldRefusal::Recharted { face: r }),
+        };
         let lost = naming
             .discards
             .iter()
-            .map(|d| Held::Faces(BTreeSet::from([root(d.operand, d.face)])))
+            .map(|d| lost_region(root(d.operand, d.face)))
             .collect();
         let uncut = naming
             .uncut
             .iter()
-            .map(|u| Held::Faces(BTreeSet::from([root(u.operand, u.face)])))
+            .map(|u| lost_region(root(u.operand, u.face)))
             .collect();
         Self { faces, lost, uncut }
     }

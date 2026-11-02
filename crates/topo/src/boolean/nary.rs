@@ -798,6 +798,13 @@ fn lift<T: Decide>(
             face: *f,
             refusal: refusal.clone(),
         },
+        HeldRefusal::Recharted { face: (1, f) } => HeldRefusal::Recharted { face: (member, *f) },
+        HeldRefusal::Recharted { face: (_, f) } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "a lost region of a face a sphere's re-chart turned",
+            },
+        },
         HeldRefusal::Accumulation { .. } | HeldRefusal::UncutRemainder { .. } => r.clone(),
     };
     let result: &Body<T> = &step.body;

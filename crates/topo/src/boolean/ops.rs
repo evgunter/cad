@@ -6990,7 +6990,7 @@ impl Recharts {
     /// input shell wears that sphere: a closed sphere group
     /// ([`super::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
-    fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
+    pub(crate) fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
     }
 }
