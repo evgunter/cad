@@ -1,47 +1,41 @@
 # BOXES — the plan
 
-One boolean fact, decided in several places.
+The region a face or edge can occupy, decided in several places.
 
-Opened 2026-09-20 by REACH's priority-seam cut (`work/README.md`,
-Track size). Nothing dispatched yet.
+Opened 2026-09-20 by REACH's priority-seam cut; cut again 2026-11-02,
+when the rows that do not ask the extent question went to ONEDOOR and
+`signed-penetration-depth` to CLEAR (`log.md`).
 
-## The slate
+## The diagnosis
 
-**51.5 budget points** of dispatchable work against a ceiling of 30 (2026-10-27): over budget, and due a split; the table below lists only the P1 rows.
-
-| pri | item | cost | title |
-|---|---|---|---|
-| P1 | `D280` | D | census.rs reach_box re-derives FaceBoxRule's arithmetic; make the one box rule answer once |
-| P1 | `D95` | D | boolean/combine.rs answers one proof two ways; dispose of the six siblings the unreachable! conversion left |
-| P1 | `G9` | D | Unify the two operand-kind gates (S95) and fix chord_join's contradicted placement (S96) |
-| P1 | `S173` | D | Move boolean::rest::face_carrier out of boolean/ so the curved half of the one door lives where the header argues |
-| P1 | `an-edges-extent-has-four-dispatchers` | M | an edge's extent has four per-Curve3 dispatchers and no home, so each per-site fold of a face's extent picks a different one |
-| P1 | `boolean-declarations-has-no-geometric-producer` | D | API gap — BooleanDeclarations has no geometric producer, so every direct kernel caller hand-writes one |
-| P1 | `chart-window-walk-written-twice` | E | One home for the chart-window walk: chord_join::run_azimuth_window and solid_contain::torus_chart_windows are the same construction written twice |
-| P1 | `description-staleness-ladder-three-spellings` | D | The description staleness/adjacency-coherence ladder has three hand-kept spellings, already drifted - it wants one home |
-| P1 | `signed-penetration-depth` | D | Clearance reports a coincidence, not a signed penetration depth |
-| P1 | `sphere-operand-box-is-the-whole-ball` | H | A sphere face's operand box is the whole ball - the same per-kind box class the cone, cylinder and torus arms have left |
-| P1 | `the-chord-dip-charge-has-two-homes` | D | The chord-dip charge f2*step^2/8 has two homes and nine spellings: the one in topo/boolean/boxes.rs cannot be depended on from geom-brep |
-| P1 | `the-shell-of-a-face-is-scanned-for-where-a-back-pointer-answers` | E | boolean/ops.rs scans every shell's face list for the shell of a face, where Face::shell answers in one lookup |
+Every P1 row here is one question — *what region can this face or edge
+occupy?* — answered at a site that could not find the answer's home,
+because none is named: `[one-way.places]` has no row for it. So the
+fix for each row is not "pick the survivor" but "name the home and make
+the next caller unable to miss it". The order follows from that.
 
 ## Order
 
-Widest population first, because the door each row needs is the same
-shape and the widest instance designs it best: `the-chord-dip-charge-has-two-homes`
-(two homes, nine spellings), then `D280` (`census.rs`'s `reach_box`
-against `FaceBoxRule`), then `description-staleness-ladder-three-spellings`,
-which has already drifted and so carries its own evidence.
-
-`an-edges-extent-has-four-dispatchers` came from FLUXTAIL at the 2026-10-27 re-cut (`docs/doc-ledger/flux-leaves-the-tracker.md`), banded P1 then: it is this program's class, one question answered by four dispatchers, one of them `topo::boolean::boxes`. Three per-site folds in CHARTTAIL, HONE and LEVER wait on its home, so it ranks with the widest rows above.
-
-`sphere-operand-box-is-the-whole-ball` is the one `H` row and the one
-with a measurable payoff — it is also PERF's territory by subject, so
-say so in the PR.
+1. **The torus window onto its closed form**
+   (`split-gate-sphere-zone-folds-into-face-box-rule`, the torus half).
+   `FaceBoxRule::TorusWindow` samples the chart rectangle and pays a
+   chord-dip charge; the split gate reads `boxes::torus_rect_extent`,
+   the exact extent, beside it. One arm, exact, read by both lanes and
+   the gate. That retires the sampled construction and with it
+   `boxes::subdivision_charge`, the second home of
+   `the-chord-dip-charge-has-two-homes` (riding with it, `cost: C`).
+   Mechanical in shape: DESIGN names the face box rule's home
+   (`FaceBoxRule`), and a closed form beats a sampled bound.
+2. **One home for the extent** — `D280` (the two box lanes),
+   `an-edges-extent-has-four-dispatchers`, and what
+   `sphere-operand-box-is-the-whole-ball` leaves. A design signal: a
+   survey maps every door that answers the question, then designers
+   weigh where its one home is and what makes a new caller find it;
+   an `[ev]` PR if the answer adds a `[one-way.places]` row.
+3. The P3/P4 tail rows are arms of the same rule; most will be closed
+   or restated by step 2's answer, so they wait on it.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. REACH inherited protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Most rows here are collapses rather than new
-logic, which v7 triages OUT; the first orchestrator confirms that
-rather than inheriting it.
+Step 1: single FULL review (the box arms are certified enclosures; an
+unsound extent is a silent wrong answer).

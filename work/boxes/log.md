@@ -40,3 +40,30 @@ decides whether to close the row now or park it on
 - 2026-10-27 — **Claimed from FLUXTAIL:** `an-edges-extent-has-four-dispatchers` (P1, M), at the re-cut that closed FLUX and FLUXTAIL (`docs/doc-ledger/flux-leaves-the-tracker.md`). It is BOXES' class, one question with four homes, and was re-banded P3 → P1 on Ev's instruction. Three folds wait on it: CHARTTAIL's `chart-region-carrier-gates-read-vertices-not-arcs`, HONE's `splitting-face-extent-lever-reads-vertices-not-arcs` and LEVER's `tangent-witness-span-reads-vertices-not-arcs`.
 
 - 2026-10-27 — **Seam (ATREST):** `atrest/aligned-arc-or-curved-faces-that-abut-are-flush` touches `crates/topo/src/boolean/boxes.rs` in its docs only: the module docs' door list says `flush_at_rest`'s one `face_box` read now boxes cylinder and sphere faces beside the planar ones.
+
+## 2026-11-02 — picked up; cut on the extent seam
+
+(BOXES orchestrator) Picked up; `status: active`. The slate measured 62
+points against 30, so it was cut on its semantic seam first: every row
+asking *what region can a face or edge occupy* stays; seven one-home
+doors that ask something else went to a new program, ONEDOOR (`D95`,
+`G9`, `S173`, `chart-window-walk-written-twice`,
+`description-staleness-ladder-three-spellings`,
+`sweep-trace-has-two-spellings`,
+`the-shell-of-a-face-is-scanned-for-where-a-back-pointer-answers`), and
+`signed-penetration-depth`, a clearance-engine feature, to CLEAR.
+Closed `boolean-declarations-has-no-geometric-producer`: the type is
+gone (D10). Re-priced `D280` M with `design: true`, and
+`the-chord-dip-charge-has-two-homes` C riding with
+`split-gate-sphere-zone-folds-into-face-box-rule`: its remaining home in
+`boxes.rs` serves only the sampled torus window, which the fold
+replaces by the closed form the split gate already reads. The P3/P4
+tail stays here though it keeps BOXES over budget: those rows are arms
+of the rule the step-2 design will restate, and cutting them away
+would separate them from their answer.
+
+The diagnosis behind the order (plan.md): `[one-way.places]` names no
+home for a face's or edge's extent, so each site that needed one built
+its own. TWICE's `extent-ball-and-reach-are-two-statements-of-one-extent`
+and ONEHOME's cluster C (`three-readings-of-a-points-rounding-charge-it-three-ways`)
+are the same gap seen from the verdict side; the step-2 survey reads them.
