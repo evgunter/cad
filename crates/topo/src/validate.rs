@@ -4328,27 +4328,42 @@ impl ValidationError {
 }
 
 impl fmt::Display for ValidationError {
-    #[allow(clippy::too_many_lines)] // one sentence per arm
+    /// The finding's particulars, then its family's one recourse where
+    /// the family has one ([`crate::FindingFamily::recourse`]); a
+    /// decision family's members end in the decision's own ending.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.particulars(f)?;
+        match self.family().recourse() {
+            Some(recourse) => write!(f, ". {recourse}"),
+            None => Ok(()),
+        }
+    }
+}
+
+impl ValidationError {
+    /// What this finding found, and, in a decision family, the
+    /// decision's ending.
+    #[allow(clippy::too_many_lines)] // one sentence per arm
+    fn particulars(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band { error } => write!(
                 f,
-                "the tolerance the body was checked at is not usable: {}. {TOLERANCE}",
+                "the tolerance the body was checked at is not usable: {}",
                 classify_band(error)
             ),
             Self::DanglingDescription { from, to } => write!(
                 f,
-                "{from}'s description references {to}, which does not resolve. {DEFECT}"
+                "{from}'s description references {to}, which does not resolve"
             ),
             Self::UncertifiableSurface { .. } => write!(
                 f,
                 "a face has no real surface yet, only the placeholder a construction starts \
-                 from. {DEFECT}"
+                 from"
             ),
             Self::PoisonedSurfaceDescription { .. } => write!(
                 f,
                 "a face's surface description holds invalid numbers, so it describes no \
-                 shape. {DEFECT}"
+                 shape"
             ),
             Self::ApproxCertification { error, .. } => {
                 let (why, recourse) = classify_offset_fit(error);
@@ -4384,7 +4399,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
                 f,
-                "{} face's surface stores {} that is {}, so it describes no shape. {DEFECT}",
+                "{} face's surface stores {} that is {}, so it describes no shape",
                 with_article(kind.adjective()),
                 with_article(&datum_words(datum.name())),
                 poison_words(matches!(
@@ -4410,7 +4425,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::PoisonedCurveDatum { kind, datum, .. } => write!(
                 f,
-                "{} edge's curve stores {} that is {}, so it describes no curve. {DEFECT}",
+                "{} edge's curve stores {} that is {}, so it describes no curve",
                 with_article(kind.adjective()),
                 with_article(&datum_words(datum.name())),
                 poison_words(matches!(
@@ -4427,7 +4442,7 @@ impl fmt::Display for ValidationError {
             } => write!(
                 f,
                 "{} edge's curve stores {}, so it does not describe the curve its kind \
-                 names. {DEFECT}",
+                 names",
                 with_article(kind.adjective()),
                 convention_breach(datum.name(), *measure, *end),
             ),
@@ -4444,7 +4459,7 @@ impl fmt::Display for ValidationError {
                 "an edge's description does not fit the faces it bounds: it names surfaces \
                  other than theirs, calls the edge the place where one face closes on \
                  itself while its two sides bound two faces, or does not while its two \
-                 sides bound one face. {DEFECT}"
+                 sides bound one face"
             ),
             Self::PlanarFaceResidual { .. } => write!(
                 f,
@@ -4481,7 +4496,7 @@ impl fmt::Display for ValidationError {
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
                 "an edge where two faces cross is stored as a conventional curve, though \
-                 their surfaces determine it. {DEFECT}"
+                 their surfaces determine it"
             ),
             // The finding never asserts that a chart image exists: a
             // fillet strut on a curved support and a diagonal chord
@@ -4491,7 +4506,7 @@ impl fmt::Display for ValidationError {
             Self::ScaffoldAtRest { .. } => write!(
                 f,
                 "an edge still carries the stand-in description a construction uses before \
-                 its faces exist, so the operation that built it stopped half-way. {DEFECT}"
+                 its faces exist, so the operation that built it stopped half-way"
             ),
             Self::JoinableVertexAtRest { .. } => write!(
                 f,
@@ -4518,7 +4533,7 @@ impl fmt::Display for ValidationError {
             Self::TangentNotIntrinsic { .. } => write!(
                 f,
                 "an edge where two faces meet tangentially is stored as a conventional \
-                 curve, though their surfaces determine it. {DEFECT}"
+                 curve, though their surfaces determine it"
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
@@ -4952,58 +4967,50 @@ impl fmt::Display for ValidationError {
                  two cusp edges. {DEFECT}"
             ),
             Self::DanglingTopology { from, to } => {
-                write!(
-                    f,
-                    "{from} references {to}, which does not resolve. {DEFECT}"
-                )
+                write!(f, "{from} references {to}, which does not resolve")
             }
             Self::DanglingGeometry { from, to } => {
-                write!(
-                    f,
-                    "{from} references {to}, which does not resolve. {DEFECT}"
-                )
+                write!(f, "{from} references {to}, which does not resolve")
             }
             Self::NextPrevMismatch { half_edge } => write!(
                 f,
-                "half-edge {half_edge:?}'s next half-edge does not point back to it. {DEFECT}"
+                "half-edge {half_edge:?}'s next half-edge does not point back to it"
             ),
-            Self::LoopCycleOverrun { loop_ } => write!(
-                f,
-                "loop {loop_:?} does not close within the arena bound. {DEFECT}"
-            ),
+            Self::LoopCycleOverrun { loop_ } => {
+                write!(f, "loop {loop_:?} does not close within the arena bound")
+            }
             Self::ParentLoopMismatch { half_edge, owner } => write!(
                 f,
                 "half-edge {half_edge:?} is in loop {owner:?}'s cycle but names another \
-                 loop as its parent. {DEFECT}"
+                 loop as its parent"
             ),
             Self::UnreachableHalfEdge { half_edge } => write!(
                 f,
-                "half-edge {half_edge:?} is not reached by its loop's boundary. {DEFECT}"
+                "half-edge {half_edge:?} is not reached by its loop's boundary"
             ),
             Self::EdgeHalvesIdentical { edge } => write!(
                 f,
-                "edge {edge:?}'s two half-edge slots hold the same half-edge. {DEFECT}"
+                "edge {edge:?}'s two half-edge slots hold the same half-edge"
             ),
             Self::EdgeSlotBackpointerMismatch { edge, half_edge } => write!(
                 f,
                 "edge {edge:?} claims half-edge {half_edge:?}, which points at a different \
-                 edge. {DEFECT}"
+                 edge"
             ),
             Self::HalfEdgeUnclaimed { half_edge } => {
-                write!(f, "half-edge {half_edge:?} belongs to no edge. {DEFECT}")
+                write!(f, "half-edge {half_edge:?} belongs to no edge")
             }
             Self::HalfEdgeMultiplyClaimed { half_edge, claims } => write!(
                 f,
-                "half-edge {half_edge:?} is claimed by {claims} edges, not one. {DEFECT}"
+                "half-edge {half_edge:?} is claimed by {claims} edges, not one"
             ),
             Self::EdgeNotAntiparallel { edge } => write!(
                 f,
-                "edge {edge:?}'s half-edges do not run in opposite directions. {DEFECT}"
+                "edge {edge:?}'s half-edges do not run in opposite directions"
             ),
             Self::EmanatingStartMismatch { vertex, emanating } => write!(
                 f,
-                "vertex {vertex:?}'s outgoing half-edge {emanating:?} does not start at it. \
-                 {DEFECT}"
+                "vertex {vertex:?}'s outgoing half-edge {emanating:?} does not start at it"
             ),
             Self::EmptyLoopVertexWithEmanating {
                 vertex,
@@ -5011,22 +5018,22 @@ impl fmt::Display for ValidationError {
             } => write!(
                 f,
                 "vertex {vertex:?} has an outgoing half-edge but is the lone vertex of \
-                 {empty_loops} empty loop(s). {DEFECT}"
+                 {empty_loops} empty loop(s)"
             ),
             Self::LoneVertexWithIncidence { vertex, incident } => write!(
                 f,
                 "vertex {vertex:?} has no outgoing half-edge but {incident} half-edge(s) \
-                 start at it. {DEFECT}"
+                 start at it"
             ),
             Self::VertexOrbitOverrun { vertex } => write!(
                 f,
                 "the half-edges around vertex {vertex:?} do not close within the arena \
-                 bound. {DEFECT}"
+                 bound"
             ),
             Self::OrbitForeignMember { vertex, half_edge } => write!(
                 f,
                 "the half-edges around vertex {vertex:?} include {half_edge:?}, which \
-                 starts at a different vertex. {DEFECT}"
+                 starts at a different vertex"
             ),
             Self::SplitVertexOrbit {
                 vertex,
@@ -5035,34 +5042,30 @@ impl fmt::Display for ValidationError {
             } => write!(
                 f,
                 "vertex {vertex:?} is non-manifold: {orbit} half-edge(s) circle it but \
-                 {incident} start at it. {DEFECT}"
+                 {incident} start at it"
             ),
-            Self::OuterListedAsRing { face } => write!(
-                f,
-                "face {face:?} lists its outline among its holes. {DEFECT}"
-            ),
+            Self::OuterListedAsRing { face } => {
+                write!(f, "face {face:?} lists its outline among its holes")
+            }
             Self::BackPointerMismatch {
                 child,
                 stored,
                 owner,
-            } => write!(
-                f,
-                "{child} points back at {stored} but is owned by {owner}. {DEFECT}"
-            ),
+            } => write!(f, "{child} points back at {stored} but is owned by {owner}"),
             Self::OrphanEntity { entity } => {
-                write!(f, "{entity} belongs to nothing. {DEFECT}")
+                write!(f, "{entity} belongs to nothing")
             }
             Self::MultiplyOwned { child, owners } => {
-                write!(f, "{child} has {owners} owners, not one. {DEFECT}")
+                write!(f, "{child} has {owners} owners, not one")
             }
             Self::OrphanGeometry { geometry } => {
-                write!(f, "{geometry} is used by nothing. {DEFECT}")
+                write!(f, "{geometry} is used by nothing")
             }
             Self::SolidWithoutShells { solid } => {
-                write!(f, "solid {solid:?} has no shells. {DEFECT}")
+                write!(f, "solid {solid:?} has no shells")
             }
             Self::ShellWithoutFaces { shell } => {
-                write!(f, "shell {shell:?} has no faces. {DEFECT}")
+                write!(f, "shell {shell:?} has no faces")
             }
             Self::EdgeAcrossShells {
                 edge,
@@ -5071,7 +5074,7 @@ impl fmt::Display for ValidationError {
             } => write!(
                 f,
                 "edge {edge:?}'s two halves lie in different shells ({shell_plus:?} and \
-                 {shell_minus:?}). {DEFECT}"
+                 {shell_minus:?})"
             ),
             Self::ComponentEulerViolation {
                 shell,
@@ -5085,53 +5088,51 @@ impl fmt::Display for ValidationError {
                 write!(
                     f,
                     "shell {shell:?}'s component at face {seed:?} fails Euler–Poincaré \
-                     (v − e + f − r = {chi}, not 2 − 2g for any genus g). {DEFECT}"
+                     (v − e + f − r = {chi}, not 2 − 2g for any genus g)"
                 )
             }
             Self::MissingProvenance { entity } => {
-                write!(f, "{entity} has no provenance record. {DEFECT}")
+                write!(f, "{entity} has no provenance record")
             }
             Self::LeakedProvenance { entity } => {
-                write!(f, "a provenance record outlives {entity}. {DEFECT}")
+                write!(f, "a provenance record outlives {entity}")
             }
             Self::ScaffoldingEmptyLoop { loop_ } => write!(
                 f,
-                "loop {loop_:?} is an empty construction loop left in a closed solid. \
-                 {DEFECT}"
+                "loop {loop_:?} is an empty construction loop left in a closed solid"
             ),
             Self::ScaffoldingStrutVertex { vertex } => write!(
                 f,
-                "vertex {vertex:?} ends a construction strut left in a closed solid. {DEFECT}"
+                "vertex {vertex:?} ends a construction strut left in a closed solid"
             ),
             Self::ShellDisconnected { shell, components } => write!(
                 f,
-                "shell {shell:?} falls into {components} separate pieces, not one. {DEFECT}"
+                "shell {shell:?} falls into {components} separate pieces, not one"
             ),
             Self::NullScaffoldShared { curve, edges } => write!(
                 f,
-                "construction curve {curve:?} is shared by {edges} edges, not one. {DEFECT}"
+                "construction curve {curve:?} is shared by {edges} edges, not one"
             ),
-            Self::LeakedNullFaceRecord { face } => write!(
-                f,
-                "a construction record outlives its face {face:?}. {DEFECT}"
-            ),
+            Self::LeakedNullFaceRecord { face } => {
+                write!(f, "a construction record outlives its face {face:?}")
+            }
             Self::StaleNullFaceLoop { face, named_loop } => write!(
                 f,
                 "a construction record on face {face:?} names loop {named_loop:?}, which \
-                 no longer exists. {DEFECT}"
+                 no longer exists"
             ),
             Self::StaleNullFaceOwnership { face, named_loop } => write!(
                 f,
                 "a construction record on face {face:?} names loop {named_loop:?}, which \
-                 that face no longer holds. {DEFECT}"
+                 that face no longer holds"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
-                "edge {edge:?} is a construction edge left in a finished body. {DEFECT}"
+                "edge {edge:?} is a construction edge left in a finished body"
             ),
             Self::NullFaceAtRest { face } => write!(
                 f,
-                "face {face:?} is a construction face left in a finished body. {DEFECT}"
+                "face {face:?} is a construction face left in a finished body"
             ),
         }
     }

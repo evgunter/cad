@@ -6992,6 +6992,22 @@ pub trait AtRestPolicy: Decide {
     /// (`work/clear/min-separation-tightening-crosses-the-drive.md`).
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>>;
 
+    /// **This scalar's finished body** (`[topology.tiers]`): what
+    /// [`AtRestPolicy::finish`] constructs and every door that returns a
+    /// body returns. [`crate::AtRestBody`] at the scalars with
+    /// certification rights; [`crate::Replay`] at a dual, which carries
+    /// no verdict (DUAL-DESIGN DL3).
+    type Finished: crate::FinishedBody<Self>;
+
+    /// **The one constructor of a finished body**: tier 3, whose first
+    /// act is tiers 1 and 2, with the verdict kept beside the body, at a
+    /// certifying scalar; tier 2 alone at a dual.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NotFinished`]: every finding, none folded into another.
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -7158,6 +7174,12 @@ impl AtRestPolicy for f64 {
         None
     }
 
+    type Finished = crate::AtRestBody<Self>;
+
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -7295,6 +7317,12 @@ impl AtRestPolicy for geom_core::Probe {
         None
     }
 
+    type Finished = crate::AtRestBody<Self>;
+
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -7425,6 +7453,12 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
         Some(crate::ClearanceLane::certified())
+    }
+
+    type Finished = crate::AtRestBody<Self>;
+
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -7574,6 +7608,12 @@ where
     /// somewhere to go.
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
         T::clearance_lane().map(|_| crate::ClearanceLane::certified())
+    }
+
+    type Finished = crate::AtRestBody<Self>;
+
+    fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -7734,6 +7774,14 @@ where
 
     fn clearance_lane() -> Option<crate::ClearanceLane<Self>> {
         None
+    }
+
+    type Finished = crate::Replay<Self>;
+
+    /// Tier 2 alone: a dual certifies nothing (DL1), so its finished
+    /// body is a replay's, carrying no verdict.
+    fn finish(body: Body<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
+        crate::Replay::replay(body)
     }
 
     fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
