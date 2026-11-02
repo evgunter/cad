@@ -2184,9 +2184,12 @@ surviving freedom is kept, and so is a loaded value reading a named
 variable or an expression, or read on the same chart as loaded (whose
 slides are then the loaded ones); only a constant whose chart changed
 is measured again. A loaded turn whose freedom goes is carried onto the
-new freedom's turn where it reads what that measures, with its sign;
-every other value whose freedom goes is said dropped in the draft,
-with its formula, before Apply. Each value row is a field showing its
+new freedom's turn only where the kernel states the two one rotation
+about one line (`editor_core::mate::spin_as_chain_turn`: the spin's
+line the chain's last turn's, exactly, with the exact quarter turns
+between their zeros); every other value the person wrote whose
+freedom goes is said dropped in the draft, with its formula, before
+Apply, and the constants the new mates fix are said once. Each value row is a field showing its
 formula as the person reads it (`matetool::value_text`: a variable by
 its name, never its id), and typing replaces it. A freedom that reads
 no number where the copy stands, or a mate whose kind does not

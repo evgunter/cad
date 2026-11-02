@@ -35,11 +35,14 @@
 //! whose slides are then the loaded ones. Only a constant (a number, or
 //! the anonymous variable a typed field mints) whose chart changed is
 //! measured again. A loaded turn whose freedom goes is carried onto the
-//! new freedom's turn where it reads what that measures, with its sign,
-//! so `pa` on the spin about a rest's normal is read as `-pa` on the
-//! chain's turn about the same line; every other value whose freedom
-//! goes is said dropped in the draft ([`MateProposal::dropped`]), with
-//! its formula, before Apply — none is dropped silently, and none is
+//! new freedom's turn only where the kernel states the two one rotation
+//! about one line ([`editor_core::mate::spin_as_chain_turn`]), with its
+//! sign and the exact quarter turns between their zeros, so `pa` on the
+//! spin about a rest's normal is read as `-pa` on the chain's turn about
+//! `z`. Every other value the person wrote whose freedom goes is said
+//! dropped in the draft ([`MateProposal::dropped`]), with its formula,
+//! before Apply, and the constants the new mates fix are said once
+//! ([`MateProposal::retired`]) — none is dropped silently, and none is
 //! written over with a measured number.
 //!
 //! "A mate in place of a slide or a spin" is [`MateTool::add_mate`]:

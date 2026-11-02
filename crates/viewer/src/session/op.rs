@@ -65,8 +65,9 @@ pub enum SessionOp {
     /// placement editor does: the mate struck out of the placement's
     /// draft (`MateTool::edit_striking`) and the draft applied
     /// (`SessionOp::SetBundle`) — each freedom it frees measured where
-    /// the copy stands, a loaded turn carried where it reads what its
-    /// new freedom measures, so the copy stays where it stood. A value is
+    /// the copy stands, a loaded turn carried where the kernel states it
+    /// the same rotation about the same line, so the copy stays where it
+    /// stood. A value is
     /// refused (`Refusal::ValueNotRemoved`): a freedom is always set, and
     /// its only edit is its number. A constraint the bundle does not hold
     /// is refused as no mate of it.
