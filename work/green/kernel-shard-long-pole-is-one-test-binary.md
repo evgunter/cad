@@ -56,16 +56,27 @@ a cross-run comparison mostly measures which runner it got.
 Every variant was built in the same job, from the same restored cache,
 TIER=all. CPU-s is user+sys of the cargo process tree.
 
+Run 41431857124 (PR 6351). The kernel shard ran on an EPYC 7763, the
+slow runner type, and the app shard on a Xeon 8573C.
+
 | variant | kernel wall (s) | kernel CPU-s | app wall (s) | default-eps tests, kernel / app (s) |
 |---|---|---|---|---|
 | A: as on main | 882; repeat 840 | 3439; 3286 | 788; repeat 779 | 92.6 / 35.6 |
 | B: every `--test` crate at opt 0 | 372 | 1428 | 466 | 117.4 / 37.3 |
-| **B2: integration binaries (`tests/all.rs`) at opt 0** | **539** | **2053** | **593** | **99.7 / 35.7** |
+| B2 as measured here: integration binaries at opt 0, `mesh`'s too | 539 | 2053 | 593 | 99.7 / 35.7 |
 | C2: sweep's `all` split in two | 921 | 3618 | — | — |
 | C3: sweep's `all` split in three | 1002 | 3893 | — | — |
 
-These are from run 41431857124 (kernel on an EPYC 7763, the slow mode).
 Run 41425616061 got a faster runner and gave A 667 s against B 281 s.
+
+The wrapper that shipped leaves `mesh` at its opt-2 override. PR 6368's
+run 41453582409 re-measured exactly that configuration, paired the same
+way. The kernel shard got an EPYC 7763 and the app shard an EPYC 9V45.
+
+| shipped wrapper vs main | wall (s) | CPU-s | default-eps tests (s) |
+|---|---|---|---|
+| kernel | 814 → **537** | 3197 → 2074 | 87 → 95–107 |
+| app | 502 → **420** | 1911 → 1585 | 25 → 25 |
 
 - **The split loses.** Each half of `sweep`'s `all` took 521 and 558 s,
   close to the whole binary's 507–539 s. A half instantiates nearly the
@@ -81,10 +92,17 @@ Run 41425616061 got a faster runner and gave A 667 s against B 281 s.
   scalars the suites drive: `Sym<f64>` 6.1, `Dual` 5.1, `Sym<Interval>`
   3.5, `Interval` 3.4, `f64` only 1.2. Share-generics (on at opt 1)
   already serves the `f64` code from the libraries.
-- **Taken: B2** (`scripts/rustc-test-crates-opt0.sh`, PR `green:
-  integration-test binaries build at opt-level 0`). On the slow runner
-  it gave kernel −343 s and app −195 s. Five tests crossed the 1 s
-  backstop at opt 0 and joined the slow set.
+- **Taken: B2** (`scripts/rustc-test-crates-opt0.sh`, PR 6361). As
+  shipped it gives kernel −277 s and app −82 s on the runs above. The
+  app's −195 s in run 41431857124 included `mesh` at opt 0, which does
+  not merge.
+- **Moved to the slow set: 14 tests.**
+  - Five crossed the 1 s backstop at opt 0 in run 41431857124. Only
+    the tests over 1 s were kept from that run, not its full timings.
+  - Nine ran at or above 0.8 s at opt 0 in run 41453582409. Eight of
+    those were already 0.80–0.90 s at opt 1 on that runner.
+  - The 0.5–0.8 s cohort is
+    `work/green/fast-set-tests-half-a-second-to-0-8-at-opt-0-on-the-slow-runner.md`.
 - **Not taken: B** (also opt 0 for every lib's unit-test harness). It is
   −170 s more on the kernel and −127 s more on the app. But a harness
   compiles its crate's own code again, so its tests ran that code
