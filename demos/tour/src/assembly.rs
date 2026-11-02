@@ -293,7 +293,7 @@ fn constrain(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
     mate: Mate<Formula>,
-    values: impl IntoIterator<Item = (Coord, Formula)>,
+    values: impl IntoIterator<Item = (Coord<Operand>, Formula)>,
     tol: Tol,
 ) -> MateRef {
     let placed = Placed {
@@ -320,7 +320,7 @@ fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<Profi
 
 /// A plane mate's three freedoms set: the slides along its chart's `x`
 /// and `y` and the spin about its normal.
-fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
+fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord<Operand>, Formula); 3] {
     [
         (Coord::slide(TargetAxis::X), x),
         (Coord::slide(TargetAxis::Y), y),
@@ -333,7 +333,7 @@ fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
 fn place_in_world(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<Operand>, Formula)>,
     tol: Tol,
 ) {
     edit(doc, &Placed::unmated(values).write(placement), tol);
