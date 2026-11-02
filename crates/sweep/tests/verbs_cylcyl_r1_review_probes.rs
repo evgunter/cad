@@ -164,8 +164,8 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                         BooleanErrorKind::NodeUnbuilt
                             | BooleanErrorKind::GermFrameUnsupported
                             | BooleanErrorKind::FallbackExtentUnsupported
-                    ) || matches!(&e, BooleanError::ResultInvalid { errors }
-                        if errors.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
+                    ) || matches!(&e, BooleanError::ResultInvalid { findings }
+                        if findings.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
                     "{name}/{op_name}: refused {:?}, not a frontier refusal: {e}",
                     e.kind()
                 ),

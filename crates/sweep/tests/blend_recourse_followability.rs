@@ -1373,8 +1373,8 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     assert!(
         matches!(
             &filleted,
-            Err(topo::boolean::BooleanError::ResultInvalid { errors })
-                if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))
+            Err(topo::boolean::BooleanError::ResultInvalid { findings })
+                if findings.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))
         ),
         "the bore after the fillet: the band's cylinder against the skew bore is carried, and \
          the body waits on the volume lane of a spline-chorded wall; once that lands, this row \
