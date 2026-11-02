@@ -2152,7 +2152,7 @@ pub fn tool_notice(
 ) -> Message {
     // A miss is about the open tool, so it retires with it.
     let subject = match notice {
-        ToolNotice::Missed(_) => Subject::Tool,
+        ToolNotice::Missed { .. } => Subject::Tool,
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
@@ -2170,7 +2170,7 @@ pub fn tool_notice(
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         // A declined click, like the blend tool's other-target pick:
         // the same miss says it again.
-        ToolNotice::Missed(_) => Retold::Again,
+        ToolNotice::Missed { .. } => Retold::Again,
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
