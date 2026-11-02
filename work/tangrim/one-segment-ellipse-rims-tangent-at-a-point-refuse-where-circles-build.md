@@ -2,12 +2,12 @@
 id: one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build
 kind: issue
 title: One-segment ellipse rims tangent at a point refuse the union typed (no join arm copies a closed ellipse); the two-arc form builds it, failing tier 3′
-status: parked
+status: closed
 opened: 2026-10-27
 priority: P1
 cost: H
-blocked_on: [two-coplanar-ellipses-have-no-meeting-method]
 pr: 6246
+closed: 2026-11-01
 ---
 
 Found by PR 5808's claims review (`one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`).
@@ -66,3 +66,11 @@ Left:
 ## Parked (2026-11-01, PR 6246)
 
 PR 6246 built the one-segment form: `chord_join::copies_closed_edge` (circle or ellipse) is the one list of closed carriers the joiner copies, `site_cell` asks it, and `closed_edge_spec` copies an ellipse on its own carrier with a derived chart description. Every op builds in both orders, at rest and turned, at three ε, with right bodies (point-in-solid against analytic membership, one vertex at the touch); the differences pass tier 3′ and sit within a measured per-ε pad ceiling (the operands' own pad). What remains is tier 3′ on the unions, one-segment and two-arc alike: the census escalates `curve_pair_coplanar_sub_side` on the two coplanar tangent rims, which is `two-coplanar-ellipses-have-no-meeting-method`'s open bullet. Pinned in `a_closed_conic_in_the_partners_face.rs` `ellipse_rims_tangent_outside_build_every_op`; the union cells flip to SOUND when that row lands.
+
+## Evidence: the unions pass tier 3′ (2026-11-01, `tangrim/coplanar-conic-touch`)
+
+`two-coplanar-ellipses-have-no-meeting-method`'s touch now places: the coplanar subdivision reads a convex piece's extremum as one touch. So `ellipse_rims_tangent_outside_build_every_op`'s unions, one-segment and two-arc alike, at rest and turned, are `SOUND`, tier 3′ included, at ε = 1e-6, 1e-9 and 1e-12. The pin asserts it, and `holds` has lost its escalation arm. The no-vertex pose is pinned there too. What this row parked on is done.
+
+## Closed
+
+2026-11-01: the one-segment build landed in PR 6246; the unions' tier 3′ in PR 6257 (the coplanar conic touch). `ellipse_rims_tangent_outside_build_every_op` holds every op SOUND, tier 3′ included, at three ε, at rest and turned.

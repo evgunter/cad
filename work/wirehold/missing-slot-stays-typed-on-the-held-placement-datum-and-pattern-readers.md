@@ -49,3 +49,18 @@ any input?) decides whether it is row 4 or a misfiled limit.
 ## D10 exit walk (2026-10-29)
 
 Most of the named readers are gone (`wire_datum`, `frame_from_slots`, `stepped_map`, `wire_pattern`, `wire_placed_union`, `wire_part`, `need_vec3`, `need_point3`), and so is `FaceFrameReadback`. Four still raise `NodeErrorKind::MissingSlot` typed, so the scene still stands: `need_scalar` and `need_angle` (`crates/editor-core/src/eval/wire.rs:1201`, `:1209`, read by the loft's station moves at `:4357`), `instance_of` (`:2560`) and `member_of` (`:2590`). Open.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Still real, narrowed.**
+- Four typed raises are left in `eval/wire.rs`:
+  - `need_scalar` (`:1187`) and `need_angle` (`:1195`), read by the loft station moves (`:4391`, `:4395`);
+  - `instance_of` (`:2612`);
+  - `member_of` (`:2642`).
+- The class arms remain in `eval/class.rs:121, 259, 399, 641`. `FaceFrameReadback` is gone, so the sibling paragraph is moot.
+
+Riders from two rows closed as moot on 2026-11-01:
+- `placement.rs:1-3`'s module doc still says frames are listed "until patterns are index variables". Fix it.
+- The two `while` walks at `mate.rs:177` and `mate/value.rs:117` cite nothing for why they are finite. Cite `Doc::expansion_fault` (`doc.rs:1789`), which refuses every definition cycle.

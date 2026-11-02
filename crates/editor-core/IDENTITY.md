@@ -47,7 +47,7 @@ node's id is foreign on that branch; an undo followed by the byte-identical
 insert re-mints the same node.
 
 The rule, one for every holder — `Selection::Node`, `FaceSelection::node`,
-the seats behind the revolve and combining tools, `BlendTarget::node`, every
+the seats behind the revolve and combining tools, a blend's `DrawnBody::node`, every
 held `StableName`, the API's callers: **a holder keeps the bare id and asks
 the document in hand. An id the mint log does not hold is foreign; one it
 holds that is not live is deleted (`Doc::has_minted`, `Doc::node`); a live

@@ -385,7 +385,8 @@ pub struct SceneMesh {
     ids: Vec<u32>,
     /// Per-corner display flags, parallel to [`SceneMesh::positions`]:
     /// [`SceneMesh::FLAG_PROBE`] for a corner drawn from a free-moved
-    /// part, `0` otherwise.
+    /// part, [`SceneMesh::FLAG_OUTSIDE`] for one of a body outside the
+    /// product, [`SceneMesh::FLAG_FOCUS`] for one of a focused patch.
     ///
     /// **This is the G3 visual-distinctness requirement as a value.**
     /// A probed placement must be distinguishable from a mated or
@@ -422,6 +423,9 @@ pub struct ScenePart<'a> {
     /// what [`pncad::document::in_space`] answers for the part's body,
     /// applied to the positions at build, in `f64`, beneath the probe.
     pub placed: Option<Affine3<f64>>,
+    /// Whether the part is a body the product slot does not reach: its
+    /// every corner carries [`SceneMesh::FLAG_OUTSIDE`].
+    pub outside: bool,
 }
 
 impl<'a> ScenePart<'a> {
@@ -432,6 +436,7 @@ impl<'a> ScenePart<'a> {
             ids,
             probe: None,
             placed: None,
+            outside: false,
         }
     }
 }
@@ -468,6 +473,11 @@ impl SceneMesh {
     /// independent — a probed part can be the selected one — and the
     /// flags word already travels to the shader.
     pub const FLAG_FOCUS: u32 = 2;
+
+    /// The per-corner flag marking a body outside the product: one the
+    /// product slot does not reach (`crate::world::product_pieces`),
+    /// drawn tinted so the picture tells it from the product.
+    pub const FLAG_OUTSIDE: u32 = 4;
 
     /// **The picture with no parts in it**: what a document that
     /// denotes no geometry draws (which documents those are is
@@ -602,7 +612,7 @@ impl SceneMesh {
                 Self::FLAG_PROBE
             } else {
                 0
-            };
+            } | if part.outside { Self::FLAG_OUTSIDE } else { 0 };
             for (index, patch) in mesh.patches.iter().enumerate() {
                 // `IdMap::NOTHING` for a part that carries no ids —
                 // the constant, not the literal it happens to be.

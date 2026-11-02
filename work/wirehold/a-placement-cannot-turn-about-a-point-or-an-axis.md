@@ -1,10 +1,12 @@
 ---
 id: a-placement-cannot-turn-about-a-point-or-an-axis
 kind: issue
-title: a Placement step turns only about an axis through the origin: turning about a pivot is a three-step chain, and no step reads a Datum::Axis
+title: An instance's values cannot turn a copy about a pivot point or an axis pose, so the tour spells the turntable as trig
 status: open
 opened: 2026-10-02
 priority: P3
+cost: M
+design: true
 ---
 
 
@@ -46,3 +48,13 @@ one-step `Rigid` unchanged (P1's exactness rule).
 Read against the tree at `fd218851f9`. `placement::Step` is unchanged, but stage 3 retires `Step::Literal`, `Node::Transform` and `Node::Datum`, and poses move by lengths and angles through mates; re-check the turntable after D. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Changed. The axis half is answered; the pivot half stands.**
+- `Step` is gone (D). `PoseDef::Spin { about: Axis read }` (`pose.rs:276-284`) spins any pose about any axis.
+- The tour's turntable still spells `p + R(swing)·(spot − p)` as trig formulas (`demos/tour/src/assembly.rs:731-756`), because instance values chart on the target's axes (`Coord::Spin(TargetAxis::Z)`, `:765`). The tour header lists this as a finding (`:70-74`).
+
+What is left: an instance's values cannot turn a copy about a pivot or an axis pose. That is closer to a design fork than a fix: designer pair first.

@@ -84,9 +84,15 @@ pub struct Carry<T: Decide> {
     /// census reading such a body as one arrival discards what it finds
     /// inside it.
     pub censused: bool,
-    /// **A family's members' own carries**, in member order: each
-    /// member's records keyed in its own arena, its findings, parts,
-    /// pieces and census. `None` on a value that is no family.
+    /// **Each body's own carry, on a value of several bodies**: a
+    /// family's members, or a split's two sides.
+    ///
+    /// - A family's: in member order, each member's records keyed in its
+    ///   own arena, its findings, parts, pieces and census.
+    /// - A split's: at its halves' output bodies, each side's records
+    ///   keyed in its arena.
+    ///
+    /// `None` on a value of one body.
     pub members: Option<Arc<[Carry<T>]>>,
 }
 
@@ -246,8 +252,8 @@ impl<T: Decide> Carry<T> {
         }
     }
 
-    /// **Member `i`'s carry**: a family's member's own, and this on a
-    /// value that is no family.
+    /// **Body `i`'s carry** ([`Self::members`]): a family's member's
+    /// own, a split's side's own, and this on a value of one body.
     pub(crate) fn member(&self, i: usize) -> &Self {
         self.members
             .as_ref()
