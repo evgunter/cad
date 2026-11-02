@@ -243,8 +243,6 @@ mod gap_reads_a_cell_against_a_round_face;
 mod gap_reads_vertex_and_edge_cells;
 #[path = "placement_values_direction.rs"]
 mod placement_values_direction;
-#[path = "review_placing_dual_6394_r1.rs"]
-mod review_placing_dual_6394_r1;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refactor_pose_definitions.rs"]
@@ -269,6 +267,8 @@ mod resolve_piece_ladder;
 mod resolve_upstream_scope;
 #[path = "revalue_corpus.rs"]
 mod revalue_corpus;
+#[path = "review_placing_dual_6394_r1.rs"]
+mod review_placing_dual_6394_r1;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 #[path = "takeover_door.rs"]

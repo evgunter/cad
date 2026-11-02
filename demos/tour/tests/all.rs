@@ -22,8 +22,6 @@ mod chaintol;
 mod eps_regression;
 #[path = "gallery.rs"]
 mod gallery;
-#[path = "r1_impeller_probe.rs"]
-mod r1_impeller_probe;
 #[path = "heatsink.rs"]
 mod heatsink;
 #[path = "k_probe_brackets.rs"]
@@ -38,6 +36,8 @@ mod mate7a_r2_probes;
 mod mcplate;
 #[path = "projectbox.rs"]
 mod projectbox;
+#[path = "r1_impeller_probe.rs"]
+mod r1_impeller_probe;
 #[path = "review_blend2_r1_probes.rs"]
 mod review_blend2_r1_probes;
 #[path = "scene_body_delta.rs"]
