@@ -133,18 +133,25 @@ impl<T: Real> Rounded<T> {
     pub fn magnitude(self) -> T {
         self.value.abs() + self.error
     }
+
+    /// A lower bound on `|exact|`: the magnitude less the bound, at
+    /// least zero.
+    pub fn room(self) -> T {
+        (self.value.abs() - self.error).max(T::zero())
+    }
 }
 
 impl<T: Decide> Rounded<T> {
-    /// This value as a divisor, where its magnitude is past its own
-    /// bound, `|value| − error > 0` (decided as an exact order is, at
-    /// [`Band::least`]); `None` where it is not, since there the exact
-    /// value may be zero and a quotient by it bounds nothing.
+    /// This value as a divisor, where its [`Rounded::room`] is positive:
+    /// the enclosure `value ± error` lies wholly off zero, read as an
+    /// enclosure's sign is ([`Band::enclosure_sign`]). `None` where it
+    /// does not, since there the exact value may be zero and a quotient
+    /// by it bounds nothing.
     #[must_use]
     pub fn divisor(self) -> Option<Divisor<T>> {
-        let room = self.value.abs() - self.error;
+        let room = self.room();
         let clear = room
-            .sign_within(Band::least())
+            .sign_within(Band::enclosure_sign())
             .is_ok_and(|d| d.sign == Sign::Positive);
         clear.then_some(Divisor { d: self, room })
     }

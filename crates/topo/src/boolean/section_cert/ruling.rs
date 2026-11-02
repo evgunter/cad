@@ -423,18 +423,13 @@ fn discriminant<T: Real, S: Ring<T>>([p2, p1, p0]: [S; 3]) -> S {
     p1.times(p1).plus(minus_four.times(p2.times(p0)))
 }
 
-/// `|x|` less its rounding bound, at least zero.
-fn room<T: Real>(x: Rounded<T>) -> T {
-    (x.value.abs() - x.error).max(T::zero())
-}
-
 /// The value with its rounding bound taken off its magnitude, so that a
 /// sign decided on it is the exact value's; `charged` false, the value.
 fn shrunk<T: Real>(x: Rounded<T>, charged: bool) -> T {
     if !charged {
         return x.value;
     }
-    let mag = room(x);
+    let mag = x.room();
     x.value.select_le_zero(T::zero() - mag, mag)
 }
 
@@ -446,7 +441,7 @@ fn uncharged<T: Real>(residual: &dyn Fn(T) -> Rounded<T>, theta: T) -> T {
     let at = residual(theta);
     let step = theta.abs() * T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let straddle = residual(theta - step).value * residual(theta + step).value;
-    room(at).min(straddle).select_le_zero(T::zero(), at.value)
+    at.room().min(straddle).select_le_zero(T::zero(), at.value)
 }
 
 /// A family of lines `B(θ) + t·v(θ)` ruling a carrier, one of `B`, `v`
