@@ -26,3 +26,16 @@ So the narrowing is not row 4. It now carries its own `u32::try_from` instead of
   - `product.rs`'s two `crate::names::output_body(i).unwrap_or_else(…)` sites (`product.rs:625`, `:642`).
 - **The D10 hold.** All of these sit on pattern, part or placement ground, which the hold covers, so `output_body` keeps its own `u32::try_from` until the hold lifts.
 - **The same question as `loop_coordinates`.** Its true ending is a refusal at the door that sets the count, or a cap on that door.
+
+## Resolved by WIREREFUSE's `wirerefuse/list-positions` (2026-11-02)
+
+Both narrowings are now an input's refusal (D9 row 1), not `Emission`.
+They share one helper with `eval/wire.rs`'s input positions and union
+coincidence rows: `names::narrow(index, Numbered)`, which raises
+`NamingError::PastWidth { what, index }`. Its sentence names what the
+count numbers and says a recourse for each `Numbered` arm.
+`output_body`, `input_position` and `loop_coordinates`' own `Emission`
+are gone. The bound stays where it is met; no door caps a profile's
+loops or a pattern's count. PR 6287's member budget does not bound
+spelled lists, and a caller may raise it, so it would not have served
+as that cap.

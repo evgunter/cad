@@ -43,3 +43,35 @@ Shrunk again: `UNMARKED_RECOURSE`
 `SelectRefusal::TiedDisagrees` and `NodeErrorKind::CrossingUnverified`.
 `ResolveError::Vanished` and `SelectRefusal::Unreadable` are no longer
 listed, so the gate reads a marked recourse on both.
+
+## Fixed (2026-11-02, wire-refuse1, branch `wirerefuse/marked-recourse`)
+
+- `SelectRefusal::TiedDisagrees` (`names/geompred.rs`, `Say for
+  SelectRefusal`): its recourse now opens with `sentence::Recourse`.
+- `NodeErrorKind::CrossingUnverified` (`eval/mod.rs`, `Say for
+  NodeErrorKind`): states one, "update the reference to a version of
+  the part that names it" (`DocEdit::UpdateReference`); the clause "so
+  the crossing does not re-verify" went, and its `OVER_BUDGET` ceiling
+  moved 80 → 87 (the recourse's words). Its `FILED_NO_RECOURSE`
+  admission in `refusal_concision_chains.rs` (filed under
+  `work/wire/wire-refusals-short-of-the-shape-guard.md`) is gone too.
+- `UNMARKED_RECOURSE` and the gate's admission branch are deleted, so
+  any row of the corpus gate that states no marked recourse now fails.
+
+Sweep (pattern: a refusal literal whose recourse follows `;`, `—` or
+`. ` as an imperative, or ends `instead`, with no `Recourse` on the
+line) found and fixed four more: `SelectRefusal::NotAPlane`
+(`names/geompred.rs`), `ParseError::RatioPartNotInteger` (`parse.rs`),
+`RangeRefusal::SlotIsDefined` (`range.rs`) and `NodePickError::NotABody`
+(`resolve/pick.rs`). Blind spot: a recourse joined by `,`/`:` or
+spread over a wrapped literal line the regex does not see, and rows
+that state none at all (those are `FILED_NO_RECOURSE`'s).
+
+Review fix pass (2026-11-02): the sweep's `:` blind spot hid
+`PoseFault::DoubleFlip` (`pose.rs`), whose "read that pose instead"
+rode inside both pose doors' own marked recourse. The fault now says
+the problem alone, and `PoseFault::own_recourse` gives the edit door
+its recourse in place of the generic one; the load door's stays
+`REGENERATE_RECOURSE`. `display_contract::the_swept_rows_say_one_recourse_marked`
+now holds the four swept rows and both doubled-flip doors to one
+marked recourse and none before the label.

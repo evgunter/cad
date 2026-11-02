@@ -245,7 +245,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
@@ -4699,6 +4698,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "PastWidth",
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+        ),
+        (
             "SplitLineage",
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),
@@ -4827,6 +4833,11 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     operand: topo::Operand::B,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
+                    in_band: topo::EdgeInBand {
+                        edge: topo::HalfEdgeKey::default(),
+                        face: None,
+                        predicate: None,
+                    },
                 },
             },
         ),

@@ -72,3 +72,59 @@ WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL al
 `grep -rn 'unwrap_or(u32::MAX)' crates/editor-core/src` finds 23 sites:
 `eval/wire.rs` 12, `operand.rs` 5, `node.rs` 4, `edit.rs` 1,
 `product.rs` 1. `assembly.rs` no longer holds one.
+
+## Fixed (2026-11-02, wire-refuse1, branch `wirerefuse/list-positions`)
+
+`grep -rn 'unwrap_or(u32::MAX)' crates/editor-core/src` finds 0 sites (was 23).
+Each class got one answer, and none is a clamp.
+
+- **Positions in an authored list addressed by `OperandSlot` (row 0).**
+  `OperandSlot::Section`, `Member` and `Traced` hold `usize`. The
+  change stays inside the type and its readers: JSON spells the
+  number the same, no derived `Hash` feeds a content key, and nothing
+  outside editor-core and pncad-py named the `u32`. That removes
+  `node.rs` ×3, `operand.rs` ×3, `edit.rs`, and the `eval/wire.rs` loft
+  and member seats, plus a spelling the grep could not see: five
+  `(0u32..)` / `(1u32..)` zips (`program.rs` `DrawnOn` ×3,
+  `refactor.rs`, `eval/wire/trace.rs`). Those wrap in release past
+  `u32`. pncad-py's `operand_index` lost its `usize::try_from(..).ok()`.
+- **The same, on refusal payloads (row 0).** `TraceStepFault::NoSuchFace { traced }`,
+  `NoSuchCrossing { found }` and `EditError::FreshUnread { index }`
+  are `usize`. `FreshUnread` was clamped at `u16::MAX`.
+- **A member's position among an n-ary operation's inputs** (judged
+  pairs, a fold step's member, `UnionFoldStep`, `member_ranks`, an
+  assemble's and a distribution's cited inputs). No door bounds a
+  spelled list or a family's member count, so these refuse typed
+  through the new `names::input_position`
+  (`NamingError::Emission`), the same way `names::output_body` refuses
+  a body index.
+- **A family member's body index** (`wire_combine`'s `whole`,
+  `distribute`'s family pieces): `names::output_body`, the bound every
+  multi-body value already shares.
+- **Kernel output:** `names::to_u32`, which is `unreachable!`.
+  `Backing::Decided` rows in the union fold and in `distribute` use
+  `ROWS_OF_ONE_BODY`, after topo's `cite_minted` ("a body's rows
+  number fewer than u32"). `product.rs` `gather_sources`' input
+  position: each grafted source adds at least one solid to the
+  product's body arena.
+
+Second pass (`unwrap_or(<int>::MAX)` for every width, `(Nu32..).zip`,
+`as u32`): the `u8` index positions, the dead widening clamps and
+two kernel-bounded zips are filed as
+`an-indexed-reads-index-position-is-clamped-to-u8`. `mate/solve.rs`'s
+`u8` count clamps and then takes `.min(6)`, so it agrees with the
+unclamped count, and its `(3u32..)` zips are test code.
+`role.rs`'s `as u32` compares enum discriminants.
+
+Review fix pass (2026-11-02):
+- **The label overflow is fixed.** `OperandSlot::label` (and
+  `SlotId::Index`, `StationSlide`, `StationSpin`) widen through
+  `operand::ordinal` before the `+ 1`. Before, a deserialized
+  `Member(usize::MAX)` panicked when its refusal was formatted.
+  Witness: `m4_pr1_paths::a_refusal_at_the_last_position_says_it`.
+- **One helper for every count the document sets.** Input positions,
+  coincidence rows (the union fold's and `distribute`'s, computed
+  before the recitation), output bodies and loops go through
+  `names::narrow` → `NamingError::PastWidth` (row 1, with a recourse).
+  `ROWS_OF_ONE_BODY` is gone.
+- `SlotId::Index { k }` is `usize`.

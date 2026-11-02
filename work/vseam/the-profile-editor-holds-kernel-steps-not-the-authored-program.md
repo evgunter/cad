@@ -2,11 +2,14 @@
 id: the-profile-editor-holds-kernel-steps-not-the-authored-program
 kind: issue
 title: The profile editor holds kernel Step<f64>, not the authored LoopProgram, so it cannot hold a trace, AtX or reference program
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
 priority: P1
 cost: H
 refs: [a-profile-cannot-refer-to-its-own-earlier-parts]
+pr: 6302
+branch: vseam/the-editor-holds-the-authored-program
 ---
 
 Found by a designer weighing `a-profile-cannot-refer-to-its-own-earlier-parts`
@@ -27,3 +30,17 @@ The editor should hold the authored program, which
 `resolve_written_loops` already speaks, and lower it only to draw.
 P1: two implementations of one representation, and an editor that
 cannot hold every stored profile.
+
+## 2026-11-02 — closed (PR 6302): the editor holds the program as written
+
+`viewer::drafts::ProfileEdit` holds one `sketch::HeldStep` per
+authored step, each a one-step `LoopProgram<Formula>` as written, and
+`sketch::held_loops` loads the written program without resolving it,
+so every stored profile opens, trace and pen steps included. The step
+list draws each step's view at plain numbers (`HeldStep::step`, through
+`resolve_written_loops`, a driven argument at its reading) and writes
+it back (`HeldStep::written`), keeping every unmoved argument's formula
+and unit; Apply sends the held program. `read_drivers`, `with_readings`
+and `programs_noted` are gone. A step with no view is shown as
+written; what that leaves out is filed as
+`a-step-reading-the-pen-is-shown-but-not-edited-or-previewed`.
