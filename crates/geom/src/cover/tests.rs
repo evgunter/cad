@@ -1421,3 +1421,40 @@ fn the_farthest_distance_from_a_point_by_a_short_arc_is_the_chord() {
         );
     }
 }
+
+/// **A closed arc's distance range at `Interval` is decided and tight.**
+/// A circle over exactly one turn read from a point off it: the span's
+/// `π − h` straddles zero, and the farthest and nearest are the whole
+/// circle's, `√(h² + (ρ ± r)²)`. A crest test that asked whether the
+/// span is a full turn read both arms there and spanned the whole range
+/// between the ends and the crest; a Gram bound read through self-dots
+/// of near-zero enclosures rooted below zero and poisoned the read.
+#[test]
+fn a_closed_arcs_range_at_interval_is_decided() {
+    let (x, z) = (Vec3::unit_x(), Vec3::unit_z());
+    let c = Point3::new(0.1, 0.2, 0.3);
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, z, x), 1.5));
+    let q = Point3::new(2.0, -1.0, 0.5);
+    let w = q - c;
+    let rho = (w.x * w.x + w.y * w.y).sqrt();
+    let want = [
+        (w.z.powi(2) + (rho - 1.5).powi(2)).sqrt(),
+        (w.z.powi(2) + (rho + 1.5).powi(2)).sqrt(),
+    ];
+    for t0 in [0.0, 1.0] {
+        let cover = circle
+            .map_scalar(iv)
+            .cover_over(ParamWindow::new(iv(t0), iv(t0 + TAU)))
+            .unwrap();
+        let (near, far) = cover.distance_range(&Site::Point(ipt(q)));
+        for (what, got, want) in [("nearest", near, want[0]), ("farthest", far, want[1])] {
+            assert!(
+                !got.is_poison()
+                    && got.lo() <= want
+                    && want <= got.hi()
+                    && got.hi() - got.lo() <= 1e-12,
+                "t0 = {t0}: the {what} {got:?} against {want}"
+            );
+        }
+    }
+}
