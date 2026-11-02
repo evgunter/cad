@@ -63,8 +63,8 @@ into `min_separation`, seven rows lose their certified leaf —
 - `m10_6_r1_probes_interval::the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name`
 - `m10_6_r1_probes_interval::the_bracket_walk_through_the_public_doors`
   (`0 certified, 1 refused (flip_crossing)`, 99.73 % of the mass)
-- `m10_6_min_clearance_interval::the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves`
-- `m10_6_min_clearance_interval::a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates`
+- `m10_6_clearance_assertion_interval::the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves`
+- `m10_6_clearance_assertion_interval::a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates`
 - `m10_6_ci_rows_interval::every_registered_assertion_holds_over_the_certified_leaves_within_budget`
 - `r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`
 

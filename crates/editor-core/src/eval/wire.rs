@@ -2513,13 +2513,14 @@ where
     // (audit row F30).
     let report = geom_core::k_stats::unlogged("F30", || {
         lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
-            let (faces, ask) = (candidate.faces(), candidate.ask());
+            let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
             let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
             crate::clearance::closest_pair(
                 (bx.as_ref(), by.as_ref()),
                 faces,
                 lane.on_face_stations(candidate),
                 (ask, b),
+                &over,
             )
         })
     });
@@ -2531,6 +2532,27 @@ where
             |w| w.param.clone(),
         )
     };
+    // **The drive's cue** (audit row F30's one exception): an upper
+    // bound whose proving pair held at one point of the box only is no
+    // verdict over the box, and a narrower box can decide it. The
+    // sweep's own readings stay out of the node's log; this one reading
+    // — the pair's separation over the box against the bound — goes in,
+    // so the drive bisects on it exactly as on an assertion it could
+    // not decide, and a leaf it cannot narrow refuses.
+    if let topo::clearance::BoundVerdict::Refused(topo::clearance::EngineRefusal::BoxDependent {
+        separation: (lo, hi),
+        ..
+    }) = report.verdict
+        && let Some(upper) = sweep.bound.upper()
+    {
+        let reach = geom_core::Interval::from_bounds(lo, hi);
+        // The reading is the cue; its sign is not an answer.
+        let _ = geom_core::k_stats::decide(
+            topo::clearance::CLEARANCE_MARGIN,
+            geom_core::Margin::of(reach - upper),
+            b,
+        );
+    }
     let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, refused);
     answer(ClearanceReport::of(verdict, &report))
 }

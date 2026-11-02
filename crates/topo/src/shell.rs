@@ -865,6 +865,11 @@ fn cavity_refusal_said(
         R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
         R::TorusNotRing { .. } => "a wall lies on a torus that meets itself".into(),
         R::EmptyScope { .. } => "the cavity has no face".into(),
+        R::BoxDependent { .. } => {
+            "an upper bound's pair was confirmed at one point only, which the cavity's \
+             question never asks"
+                .into()
+        }
     }
 }
 
@@ -885,7 +890,11 @@ fn cavity_refusal_ending(
         | R::Uncertified { .. }
         | R::CollapsedChart { .. }
         | R::TorusNotRing { .. } => NOT_YET_ENDING.into(),
-        R::PoisonEnclosure { .. } | R::EmptyScope { .. } => KERNEL_DEFECT_ENDING.into(),
+        // The cavity asks the strict question, which has no upper bound
+        // to prove, so a pointwise-only proof is the engine's defect.
+        R::PoisonEnclosure { .. } | R::EmptyScope { .. } | R::BoxDependent { .. } => {
+            KERNEL_DEFECT_ENDING.into()
+        }
     }
 }
 

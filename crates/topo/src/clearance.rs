@@ -518,6 +518,24 @@ pub enum EngineRefusal {
         /// What the verifier could not confirm.
         what: String,
     },
+    /// **An upper bound the box decides only in part.** The closest
+    /// pair of the cells' stations, its separation enclosed over every
+    /// realization the lane covers ([`Enclosure::separation`]),
+    /// straddles the bound: within it at some realizations, past it at
+    /// others, as far as the enclosure can tell. Over a parameter box
+    /// `≤ c` is a claim about EVERY point of the box, and a pair within
+    /// it at one point proves it there and nowhere else, so this is no
+    /// verdict over the box: a caller that can narrow the box bisects
+    /// on it, and one that cannot refuses. Splitting a CELL does not
+    /// help, because it narrows the stations and never the box.
+    BoxDependent {
+        /// The proving pair's face on the first side.
+        a: FaceKey,
+        /// Its face on the second side.
+        b: FaceKey,
+        /// The pair's separation over the lane's realizations, `(lo, hi)`.
+        separation: (f64, f64),
+    },
 }
 
 impl EngineRefusal {
@@ -534,6 +552,12 @@ impl EngineRefusal {
                 side,
             } => format!("{carrier} {}={face:?}", side.name()),
             Self::WitnessUnverified { what } => what.clone(),
+            Self::BoxDependent { a, b, separation } => {
+                format!(
+                    "first={a:?} second={b:?} [{}, {}]",
+                    separation.0, separation.1
+                )
+            }
             Self::PoisonEnclosure { a, b } => format!("first={a:?} second={b:?}"),
             Self::Uncertified { a, b, shared, arm } => {
                 format!(
@@ -558,6 +582,7 @@ impl EngineRefusal {
             Self::Budget(_) => "budget",
             Self::Unsupported { .. } => "unsupported",
             Self::WitnessUnverified { .. } => "witness_unverified",
+            Self::BoxDependent { .. } => "box_dependent",
             Self::PoisonEnclosure { .. } => "poison_enclosure",
             Self::EmptyScope { .. } => "empty_scope",
             Self::Uncertified { .. } => "uncertified",
@@ -612,6 +637,14 @@ impl EngineRefusal {
                 f,
                 "the enclosure between face {a:?} of {first} and face {b:?} of {second} did \
                  not evaluate, which is geometry, not a budget"
+            ),
+            Self::BoxDependent { a, b, separation } => write!(
+                f,
+                "the closest pair of face {a:?} of {first} and face {b:?} of {second} reaches \
+                 [{}, {}] over the parameter box, within the upper bound at some of its \
+                 points and past it at others, so the box does not decide it; a narrower box \
+                 can",
+                separation.0, separation.1
             ),
             Self::EmptyScope { side } => write!(
                 f,
@@ -1104,9 +1137,12 @@ pub struct Candidate<'s, 'b, T: Real> {
     meeting: Option<(SharedCell, Stations, Stations)>,
     /// What the verifier is asked to confirm.
     ask: Ask,
+    /// Where the verifier says an upper bound's pair held at its own
+    /// point only ([`Enclosure::box_dependent`]).
+    box_dependent: &'s core::cell::Cell<Option<(f64, f64)>>,
 }
 
-impl<T: Real> Candidate<'_, '_, T> {
+impl<'s, T: Real> Candidate<'s, '_, T> {
     /// The two faces, the first side's then the second's.
     pub fn faces(&self) -> (FaceKey, FaceKey) {
         (self.x.face, self.y.face)
@@ -1123,6 +1159,55 @@ impl<T: Real> Candidate<'_, '_, T> {
     /// bound, or the upper bound's proof.
     pub fn ask(&self) -> Ask {
         self.ask
+    }
+
+    /// **The pair's reading over every realization the lane covers**:
+    /// the two windows' carriers at the lane's enclosure, from which a
+    /// fixed pair of stations' separation is enclosed over the whole
+    /// parameter box ([`Enclosure::separation`]).
+    pub fn enclosure(&self) -> Enclosure<'s> {
+        Enclosure {
+            a: self.x.surface.clone(),
+            b: self.y.surface.clone(),
+            box_dependent: self.box_dependent,
+        }
+    }
+}
+
+/// **A candidate's carriers at the lane's enclosure** ([`Candidate::enclosure`]).
+///
+/// An upper bound over a parameter box is universal: at EVERY point of
+/// the box some pair is within it. A pair the verifier confirms on one
+/// realization (an `f64` rebuild at one point) proves it at that point;
+/// the same two stations read on these carriers prove it at every
+/// point, because a station the point door placed on its face is placed
+/// for every realization the lane covers
+/// ([`Candidate::on_face_stations`]) and the enclosure of its point
+/// covers each realization's point.
+#[derive(Debug, Clone)]
+pub struct Enclosure<'s> {
+    a: Surface<Interval>,
+    b: Surface<Interval>,
+    box_dependent: &'s core::cell::Cell<Option<(f64, f64)>>,
+}
+
+impl Enclosure<'_> {
+    /// The separation of station `a` of the first face and station `b`
+    /// of the second, enclosed over every realization the lane covers.
+    pub fn separation(&self, a: (f64, f64), b: (f64, f64)) -> Interval {
+        let at = |x: f64| Interval::from_bounds(x, x);
+        (self.a.eval(at(a.0), at(a.1)) - self.b.eval(at(b.0), at(b.1))).norm()
+    }
+
+    /// **The verifier's word that the box decides an upper bound's pair
+    /// only in part**, the pair's separation over the lane's
+    /// realizations being `separation`, which straddles the bound. The
+    /// sweep reads it when the verifier declines, and refuses the pair
+    /// [`EngineRefusal::BoxDependent`] instead of splitting it: splitting
+    /// a cell narrows the stations, never the box.
+    pub fn box_dependent(&self, separation: Interval) {
+        self.box_dependent
+            .set(Some((separation.lo(), separation.hi())));
     }
 }
 
@@ -1336,6 +1421,7 @@ impl Sweep {
             upper_refusal: None,
             violation: None,
             within: None,
+            box_dependent: core::cell::Cell::new(None),
             verify,
         };
         let open = Open {
@@ -1631,6 +1717,8 @@ struct Bound<'q, W, F> {
     violation: Option<W>,
     /// The upper bound's verified proof, which closes its question.
     within: Option<W>,
+    /// The verifier's word on the last offer ([`Enclosure::box_dependent`]).
+    box_dependent: core::cell::Cell<Option<(f64, f64)>>,
     verify: F,
 }
 
@@ -1755,6 +1843,7 @@ impl<W, F> Bound<'_, W, F> {
         T: Real,
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
+        self.box_dependent.set(None);
         (self.verify)(Candidate {
             x: at.x,
             ca: at.ca,
@@ -1765,7 +1854,22 @@ impl<W, F> Bound<'_, W, F> {
             region: &mut self.region,
             meeting: at.meeting.clone(),
             ask,
+            box_dependent: &self.box_dependent,
         })
+    }
+
+    /// **Why the verifier declined an upper bound's pair**: the box
+    /// decides it in part only ([`EngineRefusal::BoxDependent`]), or the
+    /// verifier found no pair within it.
+    fn upper_declined<T: Real>(&self, what: String, at: &Offer<'_, '_, T>) -> EngineRefusal {
+        match self.box_dependent.take() {
+            Some(separation) => EngineRefusal::BoxDependent {
+                a: at.x.face,
+                b: at.y.face,
+                separation,
+            },
+            None => EngineRefusal::WitnessUnverified { what },
+        }
     }
 
     /// **The definite readings, settled**: a pair below the lower bound
@@ -1797,8 +1901,8 @@ impl<W, F> Bound<'_, W, F> {
             match self.offer(at, self.above()) {
                 Ok(w) => self.within = Some(w),
                 Err(what) => {
-                    self.upper_refusal
-                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                    let refusal = self.upper_declined(what, at);
+                    self.upper_refusal.get_or_insert(refusal);
                 }
             }
             if bucket == Bucket::Discharged {
@@ -2071,8 +2175,17 @@ where
         //
         // It only ever ADDS answers, each confirmed by the verifier: a
         // probe that finds nothing changes no answer, so no `Holds` and
-        // no `Exceeded` can rest on it. That is what keeps it an
-        // exhibit rather than a sample.
+        // no `Exceeded` can rest on it. A violation and a `Within` DO
+        // rest on it, and they mean different things over a parameter
+        // box: a violation is existential (one point of the box breaks
+        // the lower bound, and the verifier's point is one), while
+        // `Within` is universal (at EVERY point some pair is within the
+        // upper bound). So an upper bound's pair is confirmed by the
+        // verifier over every realization the lane covers
+        // (`Enclosure::separation`), not at one point; a pair the box
+        // decides in part only is refused `BoxDependent` here rather than
+        // split, because a split narrows the cells and never the box.
+        // That is what keeps it an exhibit rather than a sample.
         let probe_here = pair.fresh || pair.depth >= walk.budgets.max_cell_depth;
         let mut split = Open {
             below: false,
@@ -2095,7 +2208,12 @@ where
         if let Some(Reading::Undecided(source)) = &r.above
             && self.within.is_none()
         {
-            if probe_here && let Ok(w) = self.offer(&at, self.above()) {
+            let offered = if probe_here {
+                Some(self.offer(&at, self.above()))
+            } else {
+                None
+            };
+            if let Some(Ok(w)) = offered {
                 self.within = Some(w);
                 if self.answered() {
                     walk.receipt.within += 1;
@@ -2103,6 +2221,13 @@ where
                 }
                 if bucket == Bucket::Discharged {
                     bucket = Bucket::Within;
+                }
+            } else if let Some(Err(what)) = offered
+                && let refusal @ EngineRefusal::BoxDependent { .. } = self.upper_declined(what, &at)
+            {
+                self.upper_refusal.get_or_insert(refusal);
+                if bucket == Bucket::Discharged {
+                    bucket = Bucket::Refused;
                 }
             } else {
                 match Self::terminal(source, x.face, y.face) {

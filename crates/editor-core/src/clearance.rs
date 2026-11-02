@@ -1314,12 +1314,13 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
             let faces = candidate.faces();
             let ask = candidate.ask();
+            let over = candidate.enclosure();
             verify_witness(
                 doc,
                 queried,
                 (a, b),
                 (faces, || engine.on_face_stations(candidate)),
-                (ask, band),
+                (ask, band, &over),
                 query.resolver,
                 query.tol,
             )
@@ -1829,7 +1830,7 @@ fn verify_witness(
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
     ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
-    (ask, band): (Ask, Band),
+    (ask, band, over): (Ask, Band, &topo::clearance::Enclosure<'_>),
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
@@ -1869,7 +1870,7 @@ fn verify_witness(
             ));
         }
     };
-    closest_pair((&bx, &by), (face_a, face_b), stations(), (ask, band))
+    closest_pair((&bx, &by), (face_a, face_b), stations(), (ask, band), over)
 }
 
 /// **The verifier's core**: the closest pair of the two faces' admitted
@@ -1892,6 +1893,7 @@ pub(crate) fn closest_pair(
     (face_a, face_b): (FaceKey, FaceKey),
     (lattice_a, lattice_b): (Stations, Stations),
     (ask, band): (Ask, Band),
+    over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
         let f = body.get_face(face)?;
@@ -1904,47 +1906,84 @@ pub(crate) fn closest_pair(
                 .to_owned(),
         );
     };
-    let mut best: Option<Station> = None;
-    for &(au, av) in &lattice_a {
-        let pa = sa.eval(au, av);
-        for &(bu, bv) in &lattice_b {
-            let pb = sb.eval(bu, bv);
-            let d = separation_f64(&pa, &pb);
-            if best
-                .as_ref()
-                .is_none_or(|b| d.total_cmp(&b.d) == core::cmp::Ordering::Less)
-            {
-                best = Some(Station {
-                    d,
-                    a_uv: (au, av),
-                    b_uv: (bu, bv),
-                    a_point: pa,
-                    b_point: pb,
-                });
-            }
+    let station = |a_uv: (f64, f64), b_uv: (f64, f64)| {
+        let (a_point, b_point) = (sa.eval(a_uv.0, a_uv.1), sb.eval(b_uv.0, b_uv.1));
+        Station {
+            d: separation_f64(&a_point, &b_point),
+            a_uv,
+            b_uv,
+            a_point,
+            b_point,
         }
-    }
-    let Some(Station {
-        d,
-        a_uv,
-        b_uv,
-        a_point: pa,
-        b_point: pb,
-    }) = best
+    };
+    let pairs = || {
+        lattice_a
+            .iter()
+            .flat_map(|&a| lattice_b.iter().map(move |&b| (a, b)))
+    };
+    let Some(best) = pairs()
+        .map(|(a, b)| station(a, b))
+        .min_by(|p, q| p.d.total_cmp(&q.d))
     else {
         return Err("the cells carry no station on their faces to verify at".to_owned());
     };
-    ask.confirms(geom_core::Interval::from_bounds(d, d), band)
-        .map_err(|why| {
-            format!("the f64 rebuild measures {d} between the closest stations: {why}")
-        })?;
+    let at_point = ask.confirms(geom_core::Interval::from_bounds(best.d, best.d), band);
+    let Station {
+        d,
+        a_uv,
+        b_uv,
+        a_point,
+        b_point,
+    } = match ask {
+        Ask::Below { .. } => {
+            at_point.map_err(|why| {
+                format!(
+                    "the f64 rebuild measures {} between the closest stations: {why}",
+                    best.d
+                )
+            })?;
+            best
+        }
+        // **An upper bound is universal**: at every realization the lane
+        // covers, some pair is within it. The rebuild's point proves it
+        // at one; the stations whose separation, enclosed over every
+        // realization, reaches least far prove it at all of them, or no
+        // pair of this lattice does.
+        Ask::Within { .. } => {
+            let (reach, a, b) = pairs()
+                .map(|(a, b)| (over.separation(a, b), a, b))
+                .min_by(|p, q| geom_core::Bounds::hi(p.0).total_cmp(&geom_core::Bounds::hi(q.0)))
+                .unwrap_or_else(|| unreachable!("the lattice held a pair above"));
+            match ask.confirms(reach, band) {
+                Ok(()) => station(a, b),
+                Err(why) => {
+                    // Within the bound at some realization the
+                    // enclosure covers: the box decides it in part
+                    // only, and a narrower box can.
+                    if geom_core::Bounds::lo(reach) <= geom_core::Bounds::hi(ask.bound()) {
+                        over.box_dependent(reach);
+                    }
+                    return Err(format!(
+                        "the f64 rebuild measures {} between the closest stations ({}), and \
+                         over every realization the closest stations reach {reach:?}: {why}",
+                        best.d,
+                        if at_point.is_ok() {
+                            "within the bound at its own point"
+                        } else {
+                            "past the bound at its own point"
+                        }
+                    ));
+                }
+            }
+        }
+    };
     Ok(GeometryWitness {
         a: face_a,
         a_uv,
-        a_point: pa,
+        a_point,
         b: face_b,
         b_uv,
-        b_point: pb,
+        b_point,
         distance: d,
     })
 }

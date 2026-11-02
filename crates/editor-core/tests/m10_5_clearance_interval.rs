@@ -32,10 +32,16 @@
 //! refuses a chart that halving cannot narrow, whatever made it wide.
 //!
 //! A rigid translation keeps the rest clean: its rotation is the
-//! identity, so every stored direction passes through exactly. It does
-//! not lift the width ceiling — a transform re-certifies its mapped
-//! edges against their carriers, and that identity widens with the box
-//! like every other — so every box here is ε-scaled.
+//! identity, so every stored direction passes through exactly. At plain
+//! `Interval` it does not lift the width ceiling — a transform
+//! re-certifies its mapped edges against their carriers, and that
+//! identity widens with the box like every other — so every box here is
+//! ε-scaled. The drive's symbolic lane (E12) is what lifts it: a
+//! translation's re-certification identities are identically zero in
+//! the parameters there, so a translated pair replays over a
+//! MACROSCOPIC box through `drive::assertion_at` and the drive
+//! certifies it (`m10_6_clearance_assertion_interval`'s box-dependent
+//! fixture, at `±0.05`). These rows ask the plain lane, and keep ε.
 //!
 //! One consequence is worth stating rather than leaving to be inferred.
 //! The monotonicity accelerator's value is to collapse an axis whose
@@ -153,9 +159,10 @@ use fixture::{Recorder, len};
 
 /// The analysis box's half-width, in metres.
 ///
-/// See the module header: no node's interval replay survives a wider
-/// one, on any fixture, because every certification predicate it runs
-/// is an identity whose enclosure grows with the box.
+/// See the module header: at plain `Interval` no node's replay survives
+/// a wider one, because every certification predicate it runs is an
+/// identity whose enclosure grows with the box. The drive's symbolic
+/// lane replays a translated pair over a macroscopic box.
 fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
@@ -258,7 +265,7 @@ pub(crate) fn slid_by(
 }
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
-fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
+pub(crate) fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
     slid_by(
         r,
         input,
@@ -272,7 +279,7 @@ fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeI
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
-fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
+pub(crate) fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),

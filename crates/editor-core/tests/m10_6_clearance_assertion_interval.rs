@@ -14,7 +14,13 @@
 //! 5. At a point scalar the assertion reads that third state, naming the
 //!    certifying lane, and the document still builds.
 //! 6. Over a tolerance box, `drive::assertion_at` answers per certified
-//!    leaf, each pair stood at the leaf's midpoint.
+//!    leaf, each lower bound's pair stood at the leaf's midpoint, and an
+//!    upper bound that holds over part of the box only is decided per
+//!    leaf by the drive's bisection — never at one point for the whole.
+//! 7. An upper bound over a parameter box is universal: it is `Within`
+//!    only when one pair of face stations is within it at EVERY point of
+//!    the box, `Exceeded` when no pair is within it at any, and
+//!    otherwise refused `box_dependent` — the drive's cue to bisect.
 //!
 //! # The fixture, and why it is the dumbbell
 //!
@@ -24,15 +30,20 @@
 //! The two walls share no vertex, so the pair is decided by subdivision
 //! rather than read off shared topology; they are two faces of ONE body.
 //!
-//! The box the drive row runs over is ε-scaled for the reason M10-5's
-//! header states: above a small fraction of ε no node's interval replay
-//! survives (issue 1191's class).
+//! # The box-dependent fixture
+//!
+//! Two unit blocks whose facing walls stand `0.4 + gap` apart, `gap` a
+//! document parameter over a MACROSCOPIC box (`±0.05`): a rigid
+//! translation replays at any width, so its clearance runs from 0.35 to
+//! 0.45 across the box and `≤ 0.42` holds over part of it only. It is
+//! the fixture rows 6 and 7 need, because the dumbbell's neck does not
+//! move with its parameter and so cannot tell a point from a box.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::clearance::{ClearanceRefusal, ClearanceReport, ClearanceVerdict};
+use editor_core::clearance::{ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     AssertionVerdict, CancelToken, ClearanceBounds, Dimension, Distribution, DocEdit, EvalOptions,
@@ -135,6 +146,64 @@ fn dumbbell(bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
         doc: r.doc,
         assertions,
     }
+}
+
+/// The half-width of [`facing`]'s `gap`, in metres.
+const SPREAD: f64 = 0.05;
+
+/// Two unit blocks whose facing walls stand `0.4 + gap` apart, `gap`
+/// uniform over `±SPREAD`, and one clearance assertion between the two
+/// facing walls per entry of `bounds`, in order.
+fn facing(bounds: &[ClearanceBounds<f64>]) -> Dumbbell {
+    use crate::m10_5_clearance_interval::{extruded, translated};
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: name("gap"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: 0.0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(Distribution::Uniform {
+                lo: -SPREAD,
+                hi: SPREAD,
+            }),
+        }),
+    });
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let a = extruded(&mut r, &square, 1.0);
+    let by = Formula::add(
+        len(1.0 + NECK_GAP),
+        Formula::named(name("gap"), Dimension::Length),
+    )
+    .expect("a length plus a length");
+    let b = translated(&mut r, a, by);
+    let assertions = bounds
+        .iter()
+        .map(|bound| {
+            let Ok(bound) = bound.try_map(|&c| Ok::<_, core::convert::Infallible>(len(c)));
+            // The first block's `x = 1` wall (its profile's segment 1)
+            // and the second's `x = 0` wall (segment 3), read off the
+            // placed copy.
+            let wall = |at: RecipeNodeId, seg: u32| {
+                SitedRef::new(at, fixture::fname(a, fixture::wall(&r.doc, a, seg)))
+            };
+            r.insert(Node::clearance(wall(a, 1), wall(b, 3), bound))
+        })
+        .collect();
+    Dumbbell {
+        doc: r.doc,
+        assertions,
+    }
+}
+
+/// A box over [`facing`]'s `gap`, `[lo, hi]` as offsets from its nominal.
+fn gap_box(doc: &ProfileDoc, lo: f64, hi: f64) -> ParamBox {
+    let gap = doc.var_named("gap").expect("the fixture declares it");
+    ParamBox::from_axes(
+        [(gap, editor_core::analysis::BoxAxis::Varying { lo, hi })]
+            .into_iter()
+            .collect(),
+    )
 }
 
 /// The document and its assertions' ids, in the order they were asked.
@@ -326,22 +395,50 @@ fn a_point_scalar_reads_the_third_state_naming_the_certifying_lane() {
     );
 }
 
-/// **Row 6**: the drive's per-leaf answer. Over the ε-scaled box the
-/// drive certifies leaves, `drive::assertion_at` answers the same
-/// sweep over each, and each verified pair stands at its leaf's
-/// midpoint.
+/// **Row 6**: the drive's per-leaf answer, over a box the clearance
+/// depends on. `≥ 0.3` holds over every leaf; `≥ 0.5` is violated over
+/// every leaf by a pair at the leaf's midpoint (a violation is
+/// existential: one point of the leaf breaks the bound); and `≤ 0.42`,
+/// which the walls meet only where `gap ≤ 0.02`, is `Within` only over
+/// leaves wholly below that, `Exceeded` only over leaves wholly above
+/// it — the drive bisects on the leaves it cannot decide, so the box is
+/// cut, and no leaf answers for a point it does not contain.
 #[test]
 fn the_drive_answers_each_certified_leaf_through_the_assertion() {
-    let f = dumbbell(&[ClearanceBounds::AtLeast(0.3), ClearanceBounds::AtLeast(0.5)]);
+    let f = facing(&[
+        ClearanceBounds::AtLeast(0.3),
+        ClearanceBounds::AtLeast(0.5),
+        ClearanceBounds::AtMost(0.42),
+    ]);
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the witness build succeeds");
+    // Six halvings: leaves 0.1/64 wide, so the leaf at the crossing is
+    // the drive's to refuse rather than thirty halvings' worth of work.
+    let config = DriveConfig {
+        max_depth: 6,
+        ..DriveConfig::default()
+    };
+    let verdict =
+        drive(&f.doc, &analyzed, &config, Tol::witness()).expect("the witness build succeeds");
+    let gap = f.doc.var_named("gap").expect("the fixture declares it");
+    let (mut within, mut exceeded) = (0, 0);
+    // Where the walls stand 0.42 apart, as an offset of `gap`.
+    let crossing = 0.42 - NECK_GAP;
+    let straddles = |axis: &editor_core::analysis::BoxAxis| {
+        let (lo, hi) = axis.span();
+        lo <= crossing + 1e-6 && crossing - 1e-6 <= hi
+    };
     assert!(
-        !verdict.certified().is_empty(),
-        "the ε-scaled box certifies at least one leaf; refused: {}",
-        verdict.refused().len()
+        verdict
+            .refused()
+            .iter()
+            .all(|leaf| straddles(leaf.box_.get(gap).expect("the leaf varies `gap`"))),
+        "the drive refuses only the leaves the crossing runs through: {:?}",
+        verdict
+            .refused()
+            .iter()
+            .map(|leaf| (leaf.box_.get(gap), &leaf.reason))
+            .collect::<Vec<_>>()
     );
-    let place = f.doc.var_named("place").expect("the fixture declares it");
     for leaf in verdict.certified() {
         let at = |assertion| match editor_core::drive::assertion_at(
             &f.doc,
@@ -353,6 +450,7 @@ fn the_drive_answers_each_certified_leaf_through_the_assertion() {
             Some(AssertionVerdict::Clearance(report)) => *report,
             other => panic!("a clearance's verdict over a leaf: {other:?}"),
         };
+        let axis = leaf.box_.get(gap).expect("the leaf varies `gap`");
         let held = at(f.assertions[0]);
         assert_eq!(
             held.verdict(),
@@ -364,15 +462,113 @@ fn the_drive_answers_each_certified_leaf_through_the_assertion() {
         let ClearanceVerdict::Violated(w) = broken.verdict() else {
             panic!("0.5 is violated over every leaf: {}", broken.render());
         };
-        let mid = leaf
-            .box_
-            .get(place)
-            .expect("the leaf varies `place`")
-            .midpoint();
         assert_eq!(
             w.param.offsets,
-            vec![(place, mid)],
+            vec![(gap, axis.midpoint())],
             "the pair stands at the leaf's midpoint"
         );
+        let upper = at(f.assertions[2]);
+        match upper.verdict() {
+            ClearanceVerdict::Within(_) => {
+                within += 1;
+                assert!(
+                    axis.span().1 <= crossing + 1e-9,
+                    "`≤ 0.42` is proved only over a leaf whose every point has the walls \
+                     within 0.42: {axis:?}, {}",
+                    upper.render()
+                );
+            }
+            ClearanceVerdict::Exceeded => {
+                exceeded += 1;
+                assert!(
+                    axis.span().0 >= crossing - 1e-9,
+                    "`≤ 0.42` is exceeded only over a leaf with no point within it: {axis:?}"
+                );
+            }
+            // The band at the crossing: no box decides it.
+            ClearanceVerdict::Refused(_) if straddles(axis) => {}
+            other => panic!(
+                "a certified leaf off the crossing decides `≤ 0.42`: {axis:?} {:?}",
+                other.label()
+            ),
+        }
     }
+    assert!(
+        within > 0 && exceeded > 0,
+        "the drive cuts the box at the crossing: {within} within, {exceeded} exceeded, {} \
+         refused",
+        verdict.refused().len()
+    );
+}
+
+/// **Row 7**: an upper bound over a box is universal. Over `gap ∈
+/// ±0.05` the walls stand 0.35 to 0.45 apart: `≤ 0.46` holds at every
+/// point (one pair of face stations is within it throughout), while `≤
+/// 0.42` holds at the box's midpoint and fails at its upper end, so it
+/// is no verdict over the box — it refuses `box_dependent`, naming the
+/// pair's reach. Over the sub-box `[0.04, 0.05]` it is exceeded, over
+/// `[-0.05, -0.04]` proved, and over no box (the nominal, 0.4 apart)
+/// proved.
+#[test]
+fn an_upper_bound_over_a_box_is_proved_at_every_point_or_not_at_all() {
+    // Through the drive's own door: the box replays on its lane.
+    let over = |lo: f64, hi: f64, bounds: ClearanceBounds<f64>| {
+        let f = facing(&[bounds]);
+        match editor_core::drive::assertion_at(
+            &f.doc,
+            f.assertions[0],
+            &gap_box(&f.doc, lo, hi),
+            editor_core::drive::SymbolicDials::default(),
+            Tol::witness(),
+        ) {
+            Some(AssertionVerdict::Clearance(report)) => *report,
+            other => panic!("a clearance's verdict over the box: {other:?}"),
+        }
+    };
+    let wide = over(-SPREAD, SPREAD, ClearanceBounds::AtMost(0.46));
+    let ClearanceVerdict::Within(w) = wide.verdict() else {
+        panic!(
+            "0.45 at most is within 0.46 at every point: {}",
+            wide.render()
+        );
+    };
+    assert!(w.geometry.distance <= 0.46, "{}", wide.render());
+    let pointwise = over(-SPREAD, SPREAD, ClearanceBounds::AtMost(0.42));
+    let ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+        refusal: EngineRefusal::BoxDependent { separation, .. },
+        ..
+    }) = pointwise.verdict()
+    else {
+        panic!(
+            "≤ 0.42 holds at the midpoint and fails at gap = 0.05, so it is no verdict over the \
+             box: {}",
+            pointwise.render()
+        );
+    };
+    assert!(
+        separation.0 <= 0.42 && separation.1 > 0.42,
+        "the pair's reach straddles the bound: {separation:?}"
+    );
+    assert_eq!(
+        pointwise.verdict().holds(),
+        None,
+        "the third state is no pass"
+    );
+    assert_eq!(
+        over(0.04, SPREAD, ClearanceBounds::AtMost(0.42)).verdict(),
+        &ClearanceVerdict::Exceeded,
+        "0.44 to 0.45 apart exceeds 0.42 everywhere"
+    );
+    let ClearanceVerdict::Within(_) = over(-SPREAD, -0.04, ClearanceBounds::AtMost(0.42)).verdict()
+    else {
+        panic!("0.35 to 0.36 apart is within 0.42 everywhere");
+    };
+    let f = facing(&[ClearanceBounds::AtMost(0.42)]);
+    let nominal = report_of(
+        &eval_over::<geom_core::Interval>(&f.doc, None),
+        f.assertions[0],
+    );
+    let ClearanceVerdict::Within(_) = nominal.verdict() else {
+        panic!("0.4 apart is within 0.42: {}", nominal.render());
+    };
 }
