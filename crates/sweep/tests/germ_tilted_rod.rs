@@ -270,7 +270,8 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     }
 }
 
-/// The other spins' stops by pose and op ([`every_op`]'s order),
+/// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by pose
+/// and op ([`every_op`]'s order),
 /// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
 /// gate's volume, by the refusal's cause.
 // Pinned red at every ε row, each word on its owner's row:
