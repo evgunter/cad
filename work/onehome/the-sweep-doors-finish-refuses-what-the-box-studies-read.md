@@ -55,15 +55,41 @@ body ran it (a Boolean's operand, the product). Three measured effects:
    branch leaves that red standing: making it green means either
    weakening the stop's own assertion or deciding the fork below.
 
-5. **Cost.** The finish at every door is paid in every replay. Rows
+5. **`f64` capability losses** (the door now refuses what it used to
+   return unfinished; each is pinned where a test asserted a body):
+   - `f64`, ε = 1e-12: `sweep/tests/verbs_tubewall_r1_probes.rs`
+     (`closed_forms_at_varied_geometry`,
+     `the_cavity_is_a_two_wall_torus_at_the_inner_bits`). The hollow
+     tube R 1300, ro 2.5, wall 0.001, full period, refuses at the
+     revolve's finish: `VolumeUncomputable` at `props_rim_span_winding`,
+     margin [0, 1.15e-12], in band.
+   - `f64`, default ε: `sweep/tests/bool5r2_wedge_reach.rs` (the hairline
+     revolve of a dimpled ring) and `bool5r1_probes.rs` (the dimple lune
+     across the slit window). The revolve's finish refuses: tier 3's
+     full walk, `VolumeUncomputable` / the knife-edge caps. Those probes
+     now read the door's construction state, because the props door's
+     refusal of the body is their subject.
+   - `f64`, untested: CARVE's measured witness (a tilted 1 × 1 profile
+     with a 200–400 m arc side, extruded 0.7, ε = 1e-12) refused tier 3
+     in 4 of 20 poses, so the extrude now refuses there.
+
+6. **Cost.** The finish at every door is paid in every replay. Rows
    that ran in about a second now take minutes:
    `editor-core` `docm9_range::a_certified_side_stops_at_the_seeds_edge`
    189 s, `a_parameter_field_boxes_directly` 186 s,
    `the_query_does_not_touch_the_input_document` 157 s, and
    `sweep`'s `pinned_corners_at_the_loft_door::an_elbow_builds_from_every_spelling`
    37 s, `revolve_washer::m10_9_…` 33 s,
-   `one_segment_loop::a_one_segment_strut_…` 27 s (CI, opt-1). They
-   join the slow set in this change. The slow set's own rows that this
+   `one_segment_loop::a_one_segment_strut_…` 27 s (CI, opt-1). On main
+   each ran under the 1.0 s budget. In an earlier CI run on this branch
+   the `docm9_range` rows took 253–299 s, `driving_writes_nothing` 47 s
+   and `the_answer_names_the_parameters_it_pinned` 37 s. The cause is
+   the certifying finish at every leaf, in every box-scalar replay. The
+   m10_8 slab drive's decision counts measure it: plain
+   2898/1612 → 12642/8573 (symbolic/numeric), about 4.4× the decisions
+   per replay. The rows join the slow set so the gate can run. That
+   placement is disclosed here, not a fix, and the cost stands for the
+   fork. The slow set's own rows that this
    branch did not touch were not run here: the nightly runs them.
 
 The decision counts the box studies pin also moved, because the
