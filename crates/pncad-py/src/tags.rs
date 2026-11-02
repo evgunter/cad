@@ -1905,7 +1905,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 /// along, or a spin about, the chart's `x`, `y` or `z`; the slide along
 /// the mated direction; a slide along a read direction or a spin about
 /// a read axis.
-pub fn coord_tag<R>(coord: &Coord<R>) -> &'static str {
+pub fn coord_tag(coord: &Coord<impl Sized>) -> &'static str {
     match coord {
         Coord::Slide(None) => "slide",
         Coord::SlideAlong(_) => "slide_along",
