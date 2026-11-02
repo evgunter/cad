@@ -2,11 +2,12 @@
 id: display-frames-are-not-saved-with-the-document
 kind: issue
 title: display frames (an Add part… frame, a free-move) are not saved with the document, so a reopened file draws two inserted parts on each other
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/saved-frames
+pr: 6296
 ---
 
 
