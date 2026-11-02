@@ -5595,6 +5595,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
+    pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
     let kept = T::gate_at_rest_kept(body, tol);
@@ -5609,6 +5610,46 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     }
     coincident_wedges_disjoint(&kept, band)?;
     Ok(kept)
+}
+
+/// **No cone face of the result pinches at its apex**: a loop that
+/// starts two of its half-edges at one vertex, decided the cone's apex
+/// ([`crate::face_normal::cone_point`]), is two lobes meeting only
+/// there. The body is well formed, but the mass-properties closed form
+/// refuses a cone loop that meets itself at a vertex, so the at-rest
+/// gate would refuse it as the kernel's own finding; read first, it
+/// refuses by name. An apex reading in band reads as not the apex, and
+/// leaves the loop to the gate.
+///
+/// # Errors
+///
+/// [`BooleanError::ResultPinchedAtConeApex`].
+fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
+    for (face, data) in body.faces() {
+        let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(face, data) else {
+            continue;
+        };
+        for (_, members) in body.face_boundary_by_loop(face, data) {
+            let mut starts = BTreeSet::new();
+            for member in members {
+                let BoundaryMember::Edge { half, .. } = member else {
+                    continue;
+                };
+                if starts.insert(half.start) {
+                    continue;
+                }
+                let p = body.linked_vertex_point(half.start, EntityId::Face(face), "loop");
+                if let Ok(crate::face_normal::ConePoint::Apex) =
+                    crate::face_normal::cone_point(apex, axis, p, band)
+                {
+                    return Err(BooleanError::ResultPinchedAtConeApex {
+                        apex: crate::census::witness(p),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// **How the at-rest gate's refusal of a door's result is typed** (D10,

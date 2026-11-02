@@ -425,7 +425,10 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     far: o + v(s.end_far),
                 },
                 face: FaceKey::from(key(1000 + s.face)),
-                normal: OutwardNormal::from_chart(v(s.normal), true),
+                at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                    v(s.normal),
+                    true,
+                )),
                 arm: s.arm,
             }
         })
@@ -664,7 +667,10 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             far: o + d,
         },
         face: FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 99_999)),
-        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        )),
         arm: 1.0,
     }
 }
@@ -1477,7 +1483,9 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                 start_reach,
                 end_reach,
                 face: FaceKey::from(key(1000 + s.face)),
-                normal: OutwardNormal::from_chart(normal, true),
+                at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                    normal, true,
+                )),
                 arm: s.arm,
             });
             face.push(Sector {
