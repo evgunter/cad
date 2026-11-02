@@ -183,3 +183,14 @@ and bodies unchanged. No orchestrator yet.
   - **F3** — the parallel lane retires only if the carried lane already cuts open line components at the region; otherwise it stays, narrowed, and a P1 3b row is filed.
   
   Rows that move at the lever change are fork 224 applied, with margins quoted. Tier: H, dual review.
+
+- 2026-11-02 11:40 — **PR 6347 full review in** (cloud, APPROVE-WITH-FIXES at 2799753e, no unsound decision). Fix pass sent to the NURBS lane:
+  - The partner Hessian is unguarded (sphere `frame_hessian` zeroed, all rows green). Add rows for the saddle-under-a-sphere fixture, plus cylinder and torus.
+  - The cluster padding is unpinned.
+  - The Krawczyk survivor's reason is corrected: containment proves existence, not uniqueness.
+  - The crossings survivor rests on `ders` hulling the adjacent span, against a comment saying the opposite. Prefer one-sided reads, making the crossing reading load-bearing.
+  - Stale docs, and a row for the early `Unread`.
+  - Fix-or-file: a global budget across crease pieces, the plane code written twice, a verdict-taking constructor, and the Hessian-sign audit row.
+  - Disclose: the 256 cap, not the Hessian, stops near-flat tops; C5's node sentence vs the pinch is staging until stage 3.
+  
+  Review session archived.
