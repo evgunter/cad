@@ -3904,6 +3904,92 @@ mod tests {
         );
     }
 
+    /// **A point square to a face's plane, at a reach its side clears,
+    /// reads that side**: the line cone of one face the line runs inside
+    /// (its plane's two halves about the line, material behind), and `q`
+    /// at `1.2·Kε` square to the plane, as a `Kε`-wide fin's flank stands
+    /// on a face across the fin's foot. Every reference stands a quarter
+    /// turn from `q`, so the segment from `q` to a reference carried in to
+    /// `q`'s distance clears the apex by only `q`'s reach over √2, in band;
+    /// out at the reference's own reach it clears by about `q`'s reach.
+    /// At `0.5·Kε` `q`'s own side is in band and nothing reads.
+    #[test]
+    fn a_point_square_to_a_face_reads_its_side_at_a_reach_its_side_clears() {
+        let band = band();
+        let k_eps = band.escalate();
+        let r = 0.25;
+        let fan = |rays: Vec<Point3<f64>>| Fan {
+            outward: v(0.0, 0.0, 1.0),
+            apex: O,
+            rays,
+        };
+        let cone = Cone::gathered(
+            O,
+            [
+                fan(vec![p(0.0, -r, 0.0), p(r, 0.0, 0.0), p(0.0, r, 0.0)]),
+                fan(vec![p(0.0, r, 0.0), p(-r, 0.0, 0.0), p(0.0, -r, 0.0)]),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let t = 1.2 * k_eps;
+        assert_eq!(
+            cone.reads_tied(p(0.0, 0.0, t), &[], band).ok(),
+            Some(Material::Out),
+            "in front of the face at 1.2·Kε"
+        );
+        assert_eq!(
+            cone.reads_tied(p(0.0, 0.0, -t), &[], band).ok(),
+            Some(Material::In),
+            "behind the face at 1.2·Kε"
+        );
+        assert!(
+            matches!(
+                cone.reads_tied(p(0.0, 0.0, 0.5 * k_eps), &[], band),
+                Err(Unread::Side { .. })
+            ),
+            "in band of the face at 0.5·Kε"
+        );
+    }
+
+    /// **The winding between two sectors a quarter turn apart reads at a
+    /// reach its sides clear**: `q` on a floor at `1.2·Kε` from the
+    /// apex, `w` on a wall square to it at its own reach. Carried in to
+    /// `q`'s distance, the segment would clear the apex by `q`'s reach
+    /// over √2, in band.
+    #[test]
+    fn a_winding_a_quarter_turn_across_reads_at_a_reach_its_sides_clear() {
+        let band = band();
+        let r = 0.25;
+        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
+            outward,
+            apex: O,
+            rays,
+        };
+        let cone = Cone::gathered(
+            O,
+            [
+                fan(
+                    v(0.0, 0.0, 1.0),
+                    vec![p(0.0, -r, 0.0), p(r, 0.0, 0.0), p(0.0, r, 0.0)],
+                ),
+                fan(
+                    v(1.0, 0.0, 0.0),
+                    vec![p(0.0, r, 0.0), p(0.0, 0.0, r), p(0.0, -r, 0.0)],
+                ),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        let rd = metric::Reading::tied(band, cone.tie);
+        let q = p(1.2 * band.escalate(), 0.0, 0.0);
+        assert_eq!(
+            cone.winds((0, q), (1, p(0.0, 0.0, 0.1)), rd),
+            Some(0),
+            "both in front of the other's plane, nothing between"
+        );
+    }
+
     /// **A corner off the point by its tie reads nothing in band**: an
     /// octant's corner standing `0.9·zero` below the point read about,
     /// in a band whose gap is narrow (`K = 1.5`). A probe `0.7·zero`
