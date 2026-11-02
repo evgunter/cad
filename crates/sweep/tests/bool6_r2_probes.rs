@@ -164,7 +164,7 @@ fn r2_a_rotated_top_loop_still_measures_the_centroid() {
                     segment: 0
                 }
             ],
-            shared: false,
+            shared: 0,
         })
     ));
     assert!(matches!(

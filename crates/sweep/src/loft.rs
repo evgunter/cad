@@ -322,9 +322,9 @@ pub enum LoftError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// Two segments of a slab's two sections meet, beyond the pinned
-    /// corners they share where they share one: a hinge slid along its
-    /// own edge, or sections that cross. Both sections' loops lie on the
+    /// Two segments of a slab's two sections meet: off every pinned
+    /// corner they share, or anywhere where they share none. A hinge
+    /// slid along its own edge, or sections that cross. Both sections' loops lie on the
     /// body's boundary, so the boundary would meet itself there off its
     /// own edges.
     SectionsTouch {
@@ -333,11 +333,12 @@ pub enum LoftError {
         /// The segment of section `slab`, then the segment of section
         /// `slab + 1`.
         segments: [LoopSegment; 2],
-        /// Whether the two share a pinned corner.
-        shared: bool,
+        /// How many pinned corners the two share: none, one, or both
+        /// ends (a lune on a pinned chord).
+        shared: usize,
     },
-    /// Whether two segments of a slab's two sections are apart (beyond
-    /// the pinned corners they share) is not decided.
+    /// Whether two segments of a slab's two sections are apart, off any
+    /// pinned corner they share, is not decided.
     ///
     /// `Some`: a reading escalated. `None`: the curve-pair reader
     /// (`geom_brep::curve_pair::meet`) could not settle a pair with an
@@ -516,7 +517,8 @@ impl fmt::Display for LoftError {
             Self::DegenerateStacking { slab } => write!(
                 f,
                 "loft {} do not step along section {slab}'s normal at tolerance (they \
-                 coincide, or the rows that move between them have no mean step along it), \
+                 coincide, or the corners that move between them have no mean step along \
+                 it), \
                  so the loft has no direction. Recourse: move section {far} along section \
                  {slab}'s normal",
                 SlabPair(*slab),
@@ -577,10 +579,10 @@ impl fmt::Display for LoftError {
                  section {slab}",
                 segments[0],
                 segments[1],
-                if *shared {
-                    " beyond the corner they share"
-                } else {
-                    ""
+                match shared {
+                    0 => "",
+                    1 => " off the pinned corner they share",
+                    _ => " off the pinned corners they share",
                 },
                 far = SlabPair(*slab).far()
             ),

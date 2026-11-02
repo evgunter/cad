@@ -3529,7 +3529,7 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::SectionsTouch {
                 slab: 10,
                 segments: [segment(1, 12), segment(2, 13)],
-                shared: true,
+                shared: 1,
             },
         ),
         (

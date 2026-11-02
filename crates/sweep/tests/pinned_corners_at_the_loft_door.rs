@@ -236,7 +236,7 @@ fn sections_that_meet_beyond_their_pinned_corners_refuse_naming_the_segments() {
                 e @ LoftError::SectionsTouch {
                     slab: 0,
                     segments,
-                    shared: false,
+                    shared: 0,
                 },
             ) => {
                 assert_eq!(segments, want, "{what}: the first pair that meets is named");

@@ -397,7 +397,7 @@ fn clearance<T: Decide>(
                 return Err(LoftError::SectionsTouch {
                     slab,
                     segments,
-                    shared: !shared.is_empty(),
+                    shared: shared.len(),
                 });
             }
         }
@@ -423,12 +423,12 @@ fn step<T: Decide>(
     slab: usize,
     band: Band,
 ) -> Result<(), LoftError> {
-    let moving = |loops: &[Vec<Vec<Vec<Point3<T>>>>], first: usize| {
+    let moving = |loops: &[Vec<Vec<Vec<Point3<T>>>>]| {
         let mut d = Vec3::new(T::zero(), T::zero(), T::zero());
         let mut count = 0usize;
         for (l, lp) in loops.iter().enumerate() {
             for (j, strip) in lp.iter().enumerate() {
-                if !pinned.at(first + l, j, slab) {
+                if !pinned.at(l, j, slab) {
                     d = d + (strip[slab + 1][0] - strip[slab][0]);
                     count += 1;
                 }
@@ -436,7 +436,7 @@ fn step<T: Decide>(
         }
         (count > 0).then_some((d, count))
     };
-    let Some((d, count)) = moving(&strips[..1], 0).or_else(|| moving(strips, 0)) else {
+    let Some((d, count)) = moving(&strips[..1]).or_else(|| moving(strips)) else {
         return Ok(());
     };
     #[allow(clippy::cast_precision_loss)]
