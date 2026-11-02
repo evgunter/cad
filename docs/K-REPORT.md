@@ -3415,3 +3415,21 @@ not re-taken for this addendum, so no population count is claimed.
   only where the path turns a half turn between two stations.
 - **`sweep_path_tangent` is unchanged** in what it decides, and is now
   decided at `f64` rather than at the lane scalar.
+
+## ONEREAD addendum (2026-11-01): an edge-edge site reads its line cone
+
+**Roster change: two names leave, and one leaves a site.** An edge-edge
+site (`recl::resolve_edge_edge`) reads each flanker's bound against the
+other solid's line cone (`boolean::sectors::line_fans`, read by
+`link::Cone::reads_tied`): its faces holding the common line, each the
+half-plane its sector spans about it, a held face its whole plane.
+`bool_flank_offset` (the bound's projection off the line,
+`recl::flank_rep`) and `bool_wedge_reflex` (the wedge's extent,
+`recl::wedge_is_reflex`) leave the roster with the composition they
+read, and `bool_dir_same` is no longer asked there (it stays at
+`sectors::DirectionSense`'s corners). The site's samples move to
+`link_plane`, `link_wedge`, `link_ahead` and `link_arc`
+(`docs/predicate-dimension-audit.md`'s rows of those names), which pool
+with the census and the vertex-vertex cone already; a decided zero of
+`link_wedge` where a bound drawn in lies on both rays' lines refuses
+through the nonzero gate (`link::metric::zero_refused`).

@@ -7872,6 +7872,7 @@ pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
+mod in_plane;
 #[cfg(test)]
 mod link_fuzz;
 #[cfg(test)]
@@ -8859,8 +8860,10 @@ fn backstop_apart<T: Decide>(
 /// (`census_backstop_gap` — metre coordinate differences — then the
 /// turned directions of [`backstop_apart`], then a gap in depth about
 /// an axis, a centre or a circle, `census_backstop_depth_gap`, for the
-/// nested walls no direction separates: [`depth_gap`]) and refuses
-/// anything weaker; arm 2's box clears only on a definitely-negative
+/// nested walls no direction separates: [`depth_gap`], then two planar
+/// faces apart where each meets the other's plane, edge gaps and
+/// placements read in that plane: [`in_plane`]) and refuses anything
+/// weaker; arm 2's box clears only on a definitely-negative
 /// margin (`census_backstop_containment`) and hands anything weaker to
 /// the material test.
 ///
@@ -9247,12 +9250,15 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         body,
                         (a.face, (alo, ahi)),
                         (b.face, (blo, bhi)),
-                        proposed,
+                        proposed.clone(),
                         band,
                     )
                     && !reads.as_ref().is_some_and(|(ra, rb)| {
                         depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
                     })
+                    && !(a.planar
+                        && b.planar
+                        && in_plane::apart_in_plane(body, a.face, b.face, &proposed, band))
                 {
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
@@ -9769,8 +9775,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // a finding or a record — which is why `blocks` refuses on
             // an escalation or an unexamined entity. A curved pair is
             // arm 1's: it refuses every one it cannot prove disjoint,
-            // and its clears (box, direction and depth gaps) are such
-            // proofs, so no curved meeting goes unseen. (4) Every shell
+            // and its clears (box, direction and depth gaps, and the
+            // reading in a plane) are such proofs, so no curved meeting
+            // goes unseen. (4) Every shell
             // has a vertex the probe reads: tier 1 refuses a shell with
             // no face (`ShellWithoutFaces`), every face has an outer
             // loop, and tier 2 refuses a lone-vertex loop at rest
@@ -10459,6 +10466,61 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
             None => Ok(errors.is_empty()),
         }
     }
+}
+
+/// **Whether two straight segments overlap along their lines**: read as
+/// the census reads two line edges for a collinear overlap
+/// ([`collinear_overlaps`]), the parallel screen settled in band, then
+/// the overlap. `Ok(true)` where they share a run of positive length;
+/// two segments that only touch at a point, or are not parallel, read
+/// `Ok(false)`.
+///
+/// # Errors
+///
+/// The escalation the screen or the overlap pushed.
+pub fn line_segments_overlap<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    parallel_overlap(&segment(a), &segment(b), band, &mut errors)
+        .map(|overlap| overlap.is_some())
+        .ok_or_else(|| escalation_pushed(errors))
+}
+
+/// **Whether two straight segments that share nothing meet**, read as the census
+/// reads two line edges no record covers: an end of each on an end of
+/// the other (pass 1's `pm_census_vv_gap`), an end of each on the
+/// other's interior (pass 2's reading), then the interiors (pass 5's,
+/// [`ee_meeting`]). `Ok(false)` is the census's "apart": every reading
+/// decided the pair's distance definitely positive.
+///
+/// # Errors
+///
+/// The first reading the band could not call, in that order.
+pub fn line_segments_meet<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let (ea, eb) = (segment(a), segment(b));
+    let mut errors = Vec::new();
+    for (p, q) in [(a.0, b.0), (a.0, b.1), (a.1, b.0), (a.1, b.1)] {
+        match gap_zero_reading("pm_census_vv_gap", Margin::norm3(p - q), band, &mut errors) {
+            Some(Some(_)) => return Ok(true),
+            Some(None) => {}
+            None => return Err(escalation_pushed(errors)),
+        }
+    }
+    for (q, e) in [(a.0, &eb), (a.1, &eb), (b.0, &ea), (b.1, &ea)] {
+        match on_edge_interior_reading(q, e, band, &mut errors) {
+            Some(Some(_)) => return Ok(true),
+            Some(None) => {}
+            None => return Err(escalation_pushed(errors)),
+        }
+    }
+    interiors_meet(&ea, &eb, band, &mut errors).ok_or_else(|| escalation_pushed(errors))
 }
 
 /// The point of `a`'s line nearest `b`'s, for two segments whose lines

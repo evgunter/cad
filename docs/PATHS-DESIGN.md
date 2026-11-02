@@ -271,8 +271,7 @@ authoring act.
 
 `Start` is a first-class **directed point** value — the bound
 entry (always both bits by the time the loop returns). It is legal
-wherever a directed-point/position argument goes, and **using it
-is closing — structurally**: the endpoint IS the start point by
+wherever a target goes, and **targeting it closes — structurally**: the endpoint IS the start point by
 reference, authored once; closure never depends on re-typed
 coordinates value-matching.
 
@@ -477,6 +476,37 @@ A rotated or rounded rectangle is a chain.
 
 **Refusals**: `width` or `height` not definitely positive, through the
 same funnel as the other sign gates.
+
+### 1b. A profile's points and directions are variables
+
+Every point argument of a step (`at`, a target point, `Center` c, `Via`
+q, a circle's or rectangle's centre) holds one `Point2` variable, and
+every director (`toward`) one `Direction2`, in the profile's own
+coordinates (`[variables.poses]`). A written `(x, y)` mints an
+anonymous `Point2` whose `x` and `y` are anonymous `Length`s it owns;
+naming it lets two steps share it. Other 2-D poses are DEFINED by a
+read off a piece an earlier step drew, addressed by its N1 locator
+(step id and role):
+
+- `Centre { piece }` — the centre of that piece's arc carrier, written
+  or derived;
+- `Vertex { piece }` — where that piece starts, as the replay emitted
+  it;
+- `Heading { piece, sense }` — a straight piece's ray, with or against
+  it; `AlongTrace` is the same read off a traced face's tangent.
+
+A read is a definition, not an output: the profile keeps its one
+`profile` output, and a definition reading piece `s` may be read only by
+a step after `s` in program order (loop order, then step order), so no
+cycle is representable. It resolves from the prefix replay, as the
+trace steps do. A bore is one named `Point2` read by two circles,
+concentric by construction.
+
+**Refusals**, typed at the edit door and at load: a read of a piece not
+drawn before the reader; a fillet's piece before its arrival resolves
+(`NotYetEmitted`); a role the verb does not draw (the centre of a line);
+a reader outside the variable's coordinates. A read whose step the
+program dropped is left unresolved, never re-pointed.
 
 ### 2. The arc through a point — the `Via { q, p }` mode of
 ### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`

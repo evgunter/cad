@@ -31,6 +31,12 @@ use crate::widgets::{
 /// What the door that opens the add-variable form says.
 pub(crate) const NEW_VARIABLE: &str = "New variable…";
 
+/// What the product door's button says ([`SessionOp::AddToProduct`]).
+pub(crate) const ADD_TO_THE_PRODUCT: &str = "Add to the product";
+
+/// What the button taking a copy out of the product says.
+pub(crate) const TAKE_OUT_OF_THE_PRODUCT: &str = "Take out of the product";
+
 /// What the add-variable form's commit button says: what it makes, so
 /// it reads apart from every other commit on screen.
 pub(crate) const NEW_VARIABLE_COMMIT: &str = "Create variable";
@@ -45,8 +51,8 @@ impl ViewerBehavior<'_> {
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
             self.display_ui(ui, node);
-            self.product_ui(ui, node);
         }
+        self.product_ui(ui);
         // The forms whose op takes the selection, under its header and
         // above its rows, where a reader who picked it looks first:
         // nothing at all unless the selection is a profile.
@@ -609,30 +615,36 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// **Whether a world copy is in what the document makes**, and the
-    /// control that says it is or is not (D10 `[operations]`): a copy in
-    /// the product can be taken out of it, any other copy in the world
-    /// added to it, through [`SessionOp::SetProduct`]. Nothing joins the
-    /// product by being placed, so this is where a document made in the
-    /// viewer says what it delivers. Read off the committed document, the
-    /// one the op reads.
-    fn product_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        let doc = self.session.committed_doc();
-        let Some(copy) = crate::world::world_copy(doc, node) else {
+    /// **Whether the selected body is in what the document makes**, and
+    /// the control that says it is or is not (D10 `[operations]`): a body
+    /// the product slot reads can be taken out of it
+    /// ([`SessionOp::SetProduct`]),
+    /// and any other drawn body added to it through the one door
+    /// ([`SessionOp::AddToProduct`]). The body is the one the selection
+    /// draws ([`Selection::seat_node`]): under a viewport pick the copy
+    /// the ray met, not the feature that minted the face. Read off the
+    /// committed document, the one the ops read.
+    fn product_ui(&mut self, ui: &mut egui::Ui) {
+        let selection = self.session.selection();
+        let Some(node) = selection.seat_node() else {
             return;
         };
-        let bodies = if crate::world::product_reads(doc).contains(&copy) {
+        let body = selection.seat_body();
+        let doc = self.session.committed_doc();
+        let read = crate::world::body_read(doc, node, body)
+            .and_then(|read| crate::world::read_var(doc, &read));
+        if let Some(var) = read.filter(|var| crate::world::product_reads(doc).contains(var)) {
             crate::widgets::message(ui, "in the product");
-            ui.button("Take out of the product")
-                .clicked()
-                .then(|| crate::world::product_without(doc, copy))
-        } else {
-            ui.button("Add to the product")
-                .clicked()
-                .then(|| crate::world::product_with(doc, copy))
-        };
-        if let Some(bodies) = bodies {
-            self.ops.push(SessionOp::SetProduct { bodies });
+            if ui.button(TAKE_OUT_OF_THE_PRODUCT).clicked() {
+                self.ops.push(SessionOp::SetProduct {
+                    bodies: crate::world::product_without(doc, var),
+                });
+            }
+        } else if read.is_some()
+            && crate::world::is_drawn(doc, node)
+            && ui.button(ADD_TO_THE_PRODUCT).clicked()
+        {
+            self.ops.push(SessionOp::AddToProduct { node, body });
         }
     }
 

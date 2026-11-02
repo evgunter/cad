@@ -245,7 +245,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
@@ -876,7 +875,9 @@ mod kernel {
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
-            FarSectionNotForward, FarStackingEscalated, StackingEscalated,
+            PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
+            ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
+            StackingEscalated,
         ];
     }
 
@@ -3460,6 +3461,10 @@ fn skin() -> Vec<(String, NodeErrorKind)> {
 fn loft() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use sweep::LoftError as E;
+    let segment = |loop_index, segment| sweep::LoopSegment {
+        loop_index,
+        segment,
+    };
     [
         ("Band", E::Band(band_error())),
         (
@@ -3507,6 +3512,56 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
         ("DegenerateStacking", E::DegenerateStacking { slab: 1 }),
+        (
+            "PinnedCorner",
+            E::PinnedCorner {
+                loop_index: 1,
+                at: sweep::PinnedSite::Segment(12),
+                slab: 10,
+                moving: 11,
+            },
+        ),
+        (
+            "PinnedCornerUnsupported",
+            E::PinnedCornerUnsupported {
+                loop_index: 1,
+                at: sweep::PinnedSite::Segment(12),
+                slab: 10,
+            },
+        ),
+        (
+            "CornerEscalated",
+            E::CornerEscalated {
+                loop_index: 1,
+                corner: 12,
+                slab: 10,
+                source: diag(),
+            },
+        ),
+        (
+            "SectionsTouch",
+            E::SectionsTouch {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                shared: 1,
+            },
+        ),
+        (
+            "ClearanceUndecided",
+            E::ClearanceUndecided {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                source: diag(),
+            },
+        ),
+        (
+            "ClearanceFault",
+            E::ClearanceFault {
+                slab: 10,
+                segments: [segment(1, 12), segment(2, 13)],
+                readings: "the pose's discriminant and its root count",
+            },
+        ),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),
         (
             "FarStackingEscalated",
@@ -4643,6 +4698,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "PastWidth",
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
+            },
+        ),
+        (
             "SplitLineage",
             NamingError::SplitLineage(topo::SplitLineageCycle {
                 edge: topo::EdgeKey::default(),
@@ -4771,6 +4833,11 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     operand: topo::Operand::B,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
+                    in_band: topo::EdgeInBand {
+                        edge: topo::HalfEdgeKey::default(),
+                        face: None,
+                        predicate: None,
+                    },
                 },
             },
         ),
