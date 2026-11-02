@@ -401,6 +401,9 @@ pub struct DocSession {
     /// How many stages have been asked for: the next one's key.
     stages: u64,
     generation: Generation,
+    /// Where the current request's run ran out of its member budget,
+    /// once it has landed so; cleared by the next request.
+    exhausted: Option<OutOfBudget>,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
     /// actually answers.
@@ -843,6 +846,41 @@ pub enum Landing {
     /// last good evaluation stays on screen and the session goes on
     /// owing an answer.
     Canceled,
+    /// It answered the current request but ran out of its member budget
+    /// ([`pncad::document::EvalOutcome::Exhausted`]), so it carries a
+    /// prefix as a canceled one does, and the last good evaluation stays.
+    /// Unlike a cancel, evaluating the same document again runs out at
+    /// the same node: the recourse is a smaller count.
+    Exhausted(OutOfBudget),
+}
+
+/// **Where a run ran out of its member budget**
+/// ([`pncad::document::EvalOutcome::Exhausted`]'s fields).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutOfBudget {
+    /// The node whose charge crossed the budget: a family, or an
+    /// instance whose part's listing did.
+    pub at: RecipeNodeId,
+    /// The listing steps the nodes before it were charged.
+    pub held: u64,
+    /// The budget.
+    pub budget: u64,
+}
+
+impl OutOfBudget {
+    /// **What a run that ran out says**, `at` the node it ran out at,
+    /// as `doc` speaks it: where, how much was held, and the recourse,
+    /// a smaller count in the document or a part it instances.
+    #[must_use]
+    pub fn said(&self, doc: &Doc<ProfileProgram>) -> String {
+        format!(
+            "ran out of the member budget at {} ({} of {} listing steps held before it); \
+             lower a count it reaches, here or in a part it instances",
+            doc.spoken(self.at),
+            self.held,
+            self.budget
+        )
+    }
 }
 
 /// What the session owes at one moment: the picture against the
@@ -868,6 +906,11 @@ pub enum Outstanding {
     /// from it, and the state exists so the chrome does not spin over
     /// an idle seam forever.
     Canceled,
+    /// The picture is older than the document and nothing is working
+    /// on it because the current request ran out of its member budget
+    /// ([`Landing::Exhausted`]). Re-evaluating the same document runs
+    /// out again; an edit that lowers a count is the recourse.
+    Exhausted(OutOfBudget),
 }
 
 impl DocSession {
@@ -892,6 +935,7 @@ impl DocSession {
             stager: Box::new(InlineStager::new()),
             stages: 0,
             generation: Generation::FIRST,
+            exhausted: None,
             derived: Derived::none(),
             path: None,
             display: DisplayState::new(),
@@ -983,6 +1027,18 @@ impl DocSession {
             StageAnswer::Made {
                 evaluation: None, ..
             } => Staged::Checking,
+            StageAnswer::Made {
+                doc,
+                evaluation: Some(evaluation),
+                ..
+            } if let pncad::document::EvalOutcome::Exhausted { at, held, budget } =
+                evaluation.outcome =>
+            {
+                Staged::Exhausted {
+                    doc,
+                    out: OutOfBudget { at, held, budget },
+                }
+            }
             StageAnswer::Made {
                 node,
                 doc,
@@ -1535,6 +1591,8 @@ impl DocSession {
             Outstanding::Current
         } else if self.running() {
             Outstanding::Evaluating
+        } else if let Some(out) = self.exhausted {
+            Outstanding::Exhausted(out)
         } else {
             Outstanding::Canceled
         }
@@ -1678,6 +1736,13 @@ impl DocSession {
     pub fn land(&mut self, done: crate::evalseam::EvalDone) -> Landing {
         if done.generation != self.generation {
             return Landing::Stale;
+        }
+        if let pncad::document::EvalOutcome::Exhausted { at, held, budget } =
+            done.evaluation.outcome
+        {
+            let out = OutOfBudget { at, held, budget };
+            self.exhausted = Some(out);
+            return Landing::Exhausted(out);
         }
         if !done.completed() {
             return Landing::Canceled;
@@ -4721,6 +4786,7 @@ impl DocSession {
         self.derived.stage = None;
         self.stager.cancel();
         self.generation = self.generation.next();
+        self.exhausted = None;
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
         // seam owns. The second is the seam's vocabulary (`EvalRequest`
@@ -4793,6 +4859,15 @@ pub enum Staged<'a> {
     Refused(&'a Refusal),
     /// Its run has not landed.
     Checking,
+    /// Its run ran out of its member budget, at a family or at an
+    /// instance whose part's listing crossed it: the draft is not
+    /// evaluated, and evaluating it again runs out at the same node.
+    Exhausted {
+        /// The staged document.
+        doc: &'a Doc<ProfileProgram>,
+        /// Where its run ran out.
+        out: OutOfBudget,
+    },
     /// Its run landed: the staged document, the node the operation made
     /// in it, and the document's evaluation.
     Evaluated {
@@ -5981,6 +6056,7 @@ impl core::fmt::Debug for DocSession {
             stager: _,
             stages: _,
             generation,
+            exhausted,
             requested_doc: _,
             requested_resolver: _,
             derived,
@@ -5993,6 +6069,7 @@ impl core::fmt::Debug for DocSession {
         } = self;
         f.debug_struct("DocSession")
             .field("generation", generation)
+            .field("exhausted", exhausted)
             .field("states", &history.len())
             .field(
                 "gesture",
