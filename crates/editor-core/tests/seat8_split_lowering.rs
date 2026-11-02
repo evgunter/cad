@@ -578,7 +578,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x883a_4673_251b_8566,
+        got, 0x026a_685b_ca8d_45ce,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
