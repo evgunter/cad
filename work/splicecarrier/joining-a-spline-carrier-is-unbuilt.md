@@ -54,3 +54,18 @@ joint knot at multiplicity the degree, and its parameter foot is the
 far chord's own end parameter.
 
 Moved from SPLICE to SPLICECARRIER on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## No sweep row reaches it since PR 6013 (GREEN lane, 2026-11-02)
+
+PR 6013 (FOREIGN's C⁰-knot split) added `edge_join::crease_at`. A
+vertex where both edges crease (a spline piece at its clamped end, or at
+an interior knot of full multiplicity) is never joined. The two chords
+above are clamped pieces cut end to end from one loop, so their vertex
+is now left standing and the join is not attempted. On main
+`a285cdbf`, at every ε row, none of `cylinder_sphere_frame`'s 54 runs,
+`conic_edge_curved_face`'s six ball runs, `torus_doors_join`'s five
+rows or `germ_tilted_rod`'s other-spins table refuses
+`JoinCarrierUnsupported` any more. Each passes the join and stops at the
+result gate's volume, owed on SPIRICARM. Those rows are re-pinned there.
+A producer that reaches this door now needs a spline kept edge beside an
+edge that does not crease at the vertex.

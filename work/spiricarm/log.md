@@ -1,1 +1,2 @@
 - 2026-10-27 — **Opened** by the re-cut of FLUX and FLUXTAIL by logical thread (`docs/doc-ledger/flux-leaves-the-tracker.md`). Nothing dispatched; the slate is in `plan.md`.
+- 2026-11-02 — (GREEN lane) Since PR 6013, eleven sweep slow rows pass the spline join and stop at this program's volume doors. They are pinned there on `green/main-red-sweep`, citing `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` and `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane`; each row gained a dated section with the counts.

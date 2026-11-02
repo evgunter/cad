@@ -2,7 +2,8 @@
 id: eighteen-sweep-slow-rows-are-red-on-main
 kind: issue
 title: Eighteen slow-set rows in crates/sweep/tests fail on main (a7fdbf5db8, 80b4615683), none of them a sweep: boolean refusals, quadrature gaps, an escalation
-status: open
+status: closed
+closed: 2026-11-02
 opened: 2026-10-31
 ---
 
@@ -91,3 +92,13 @@ below are not this PR's ground.
 ## 2026-11-01 (SPLITDOOR, `splitdoor/face-line-germ-lean`)
 
 `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` is still red on main `367ff259` at ε 1e-9. Run alone, it takes 1514 s and gives the same table: each β 0.5 spin stops at `"ring volume"` / `"quadrature volume"`. Replay: `cargo nextest run -p sweep --test all --run-ignored all -E 'test(=germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs)'`. PR 6238 leaves its panic table byte-identical.
+
+## Closed as a duplicate (GREEN lane, 2026-11-02)
+
+This row duplicates GREEN's
+`work/green/main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps.md`,
+which this PR closes. That row's `## Closed` says where each of the
+eighteen rows went. In short: seven are green on main since PR 5793.
+The other eleven moved from the spline join to the result gate's volume
+in PR 6013 (FOREIGN). They are pinned there and owed on SPIRICARM's two
+volume-lane rows.

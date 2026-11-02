@@ -37,3 +37,14 @@ chart.
 A volume lane for a torus wall trimmed by a spline rim, or a routing of
 that wall to the spline-rim arm the plane cap already takes. Then
 re-pin the round-trip row on whatever the import does next.
+
+## A boolean reaches it too (GREEN lane, 2026-11-02)
+
+`torus_doors_join::a_rod_off_the_axis_line_stops_at_the_join`, the donut
+`∩` a radius-0.2 rod at `(1.9, 0.5)`, passes the spline join since
+PR 6013. On main `a285cdbf`, at every ε row, it refuses at the result
+gate's volume with `QuadratureUnsupported { "conic trim on a
+cone/sphere/torus chart …" }` on a torus face its chords trim (`Stop::ConicTrim`).
+It is pinned there, citing this row. `germ_tilted_rod`'s other-spins
+pin cites this row beside the projected-boundary one, since its
+`quadrature volume` stops do not say which chart refused.

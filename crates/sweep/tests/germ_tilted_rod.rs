@@ -259,66 +259,69 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
 }
 
 /// The other spins' stops by pose and op ([`every_op`]'s order),
-/// measured alike at the compiled ε, 1e-6 and 1e-12: the edge join on
-/// the wall's spline chord, or the result gate's volume, its quadrature
-/// on a face the chords bound (a projected image, a conic trim or a
-/// spiric's lifted image) or a ring left on a curved face.
+/// measured alike at the compiled ε, 1e-6 and 1e-12: the result gate's
+/// volume, its quadrature on a face the chords bound (a projected image,
+/// a conic trim or a spiric's lifted image) or a ring left on a curved
+/// face.
+// Pinned red at every ε row:
+// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md
+// and work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
 const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
     [
-        "spline join",
+        "ring volume",
         "quadrature volume",
         "quadrature volume",
         "ring volume",
-        "spline join",
+        "quadrature volume",
     ],
     [
-        "spline join",
+        "ring volume",
         "quadrature volume",
         "quadrature volume",
         "ring volume",
-        "spline join",
+        "quadrature volume",
     ],
     [
-        "spline join",
+        "ring volume",
         "quadrature volume",
         "quadrature volume",
         "ring volume",
-        "spline join",
+        "quadrature volume",
     ],
     [
-        "spline join",
+        "ring volume",
         "quadrature volume",
         "quadrature volume",
         "ring volume",
-        "spline join",
+        "quadrature volume",
     ],
     [
-        "spline join",
         "quadrature volume",
         "quadrature volume",
         "quadrature volume",
-        "spline join",
+        "quadrature volume",
+        "quadrature volume",
     ],
     [
-        "spline join",
         "quadrature volume",
         "quadrature volume",
         "quadrature volume",
-        "spline join",
+        "quadrature volume",
+        "quadrature volume",
     ],
     [
-        "spline join",
         "quadrature volume",
         "quadrature volume",
         "quadrature volume",
-        "spline join",
+        "quadrature volume",
+        "quadrature volume",
     ],
     [
-        "spline join",
         "quadrature volume",
         "quadrature volume",
         "quadrature volume",
-        "spline join",
+        "quadrature volume",
+        "quadrature volume",
     ],
 ];
 
@@ -326,8 +329,8 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
 /// body is built, on every op, each at its pinned door
 /// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
 /// carried section, which each op marches once, and the run passes the
-/// join to the edge join on the wall's closed spline chord (`JoinCarrierUnsupported`,
-/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`) or the
+/// join, which leaves the wall's closed spline chord's vertex standing
+/// (the chord creases there, at its clamped ends), to the
 /// result gate's volume (a face the fitted chords bound, a conic trim, a
 /// spiric's lifted image, or a ring left on a curved face; SPIRICARM's
 /// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).

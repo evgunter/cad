@@ -72,3 +72,22 @@ catch-all. The four rows holding them (`…_against_the_rod`,
 each boolean's stop; the 10 projected-image stops go red when this lane
 lands, and their parts then read the door on chord-bounded sphere faces.
 The conic-trim, ring and catch-all stops wait on other lanes.
+
+## Every cylinder × sphere frame run now reaches it (GREEN lane, 2026-11-02)
+
+Since PR 6013 the spline edge join leaves standing the vertex where two
+chords meet end to end (both crease there; see
+`splicecarrier/joining-a-spline-carrier-is-unbuilt`). So the 26 runs
+that stopped at the join now reach this door. On main `a285cdbf`, at
+every ε row, `cylinder_sphere_frame`'s 54 runs stop 23 at
+`Door::Projected`, 27 at `Door::Sphere` and 4 at `Door::Ring`, and
+none builds. Beside them are
+`conic_edge_curved_face::a_rim_crossing_reaches_the_join` (both balls
+`[Sphere, Sphere, Projected]`) and
+`torus_doors_join::a_rod_across_the_inner_bound_…` and
+`a_square_rod_on_the_outer_equator_…` (`Projected`). The β 0.5 rows of
+`germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`
+stop at `ring volume` or `quadrature volume` on every op, and the
+β 0.6 and 0.7 rows at `quadrature volume` on every op. All of these are
+pinned there, citing this row. Reproduce:
+`cargo nextest run -p sweep --profile ci --ignore-default-filter -E 'test(/^cylinder_sphere_frame::a_ball_across/)'`.
