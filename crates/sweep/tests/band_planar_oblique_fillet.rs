@@ -84,7 +84,7 @@ fn a_pocket_floor_edge_at_slanted_walls_adds_its_section_on_both_verbs() {
                             .get_curve_geom(c)
                             .and_then(|g| g.certified())
                             .map(|c| c.carrier()),
-                        Some(Curve3::Ellipse { .. })
+                        Some(Curve3::Ellipse(..))
                     )
                 })
                 .count();
@@ -139,7 +139,7 @@ fn a_near_perpendicular_end_builds_its_ellipse_or_decides_the_circle() {
     );
     for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
         assert!(
-            matches!(carrier(&out, *arc), Some(Curve3::Ellipse { .. })),
+            matches!(carrier(&out, *arc), Some(Curve3::Ellipse(..))),
             "a definite lean of {s} is the ellipse"
         );
     }
@@ -169,7 +169,7 @@ fn a_near_perpendicular_end_builds_its_ellipse_or_decides_the_circle() {
                     .get_curve_geom(c)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(Curve3::Circle { .. })
+                Some(Curve3::Circle(..))
             ),
             "a lean inside the zero band is the circle"
         );
@@ -303,7 +303,7 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
                     .get_curve_geom(c)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(Curve3::Ellipse { .. })
+                Some(Curve3::Ellipse(..))
             ),
             "an oblique end is an ellipse at Interval"
         );
@@ -423,7 +423,7 @@ fn a_drafted_wall_builds_its_ellipse() {
                         .get_curve_geom(c)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(Curve3::Ellipse { .. })
+                    Some(Curve3::Ellipse(..))
                 ),
                 "{deg}°: a definite draft ends in the ellipse"
             );

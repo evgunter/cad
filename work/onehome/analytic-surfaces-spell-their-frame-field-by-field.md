@@ -2,11 +2,10 @@
 id: analytic-surfaces-spell-their-frame-field-by-field
 kind: issue
 title: Plane, Cylinder, Cone (and sphere, torus) each spell the placement (point, axis, u_ref) field by field, beside the geom::Frame the conics hold
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [circle-and-ellipse-frame-arms-re-spell-conic-of]
 ---
 
 Found by the ONEHOME orchestrator while adjudicating PR 6328's style review (2026-11-02).

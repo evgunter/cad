@@ -343,7 +343,7 @@ pub enum NormalizationKind {
     /// `place_on_boundary`, tier 3 shares; tier 3 reads the side through
     /// the face's point-in-face door, and the import's own side reading
     /// is filed to follow it,
-    /// `work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`):
+    /// `work/importgate/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`):
     /// the face's boundary and the region its sense bit names say which.
     /// The minted meridians are the surface's own (at its `u_ref`
     /// azimuth and the half turn, or the half-turn twin of a seam the

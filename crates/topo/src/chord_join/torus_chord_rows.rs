@@ -82,10 +82,10 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
             let on = |t: f64| Point3::new(0.0, 0.5 * t.sin(), z + 0.5 * t.cos());
             let got = circle(pick(&two, [on(0.3), on(2.1)]).unwrap());
             assert!(
-                (got.center - Point3::new(0.0, 0.0, z)).norm() < 1e-12,
+                (got.conic().frame().center - Point3::new(0.0, 0.0, z)).norm() < 1e-12,
                 "normal {n:?}: the chord's sites on the circle about z = {z} took the one about \
                  {:?}",
-                got.center
+                got.conic().frame().center
             );
         }
     }
@@ -96,9 +96,9 @@ fn a_chord_whose_sites_lie_on_c2_is_an_arc_of_c2() {
         let on = |t: f64| Point3::new(radius * t.cos(), h, radius * t.sin());
         let got = circle(pick(&two, [on(0.4), on(-2.5)]).unwrap());
         assert!(
-            (got.sa - radius).abs() < 1e-12,
+            (got.conic().semi_axes().0 - radius).abs() < 1e-12,
             "the chord's sites on the circle of radius {radius} took radius {}",
-            got.sa
+            got.conic().semi_axes().0
         );
     }
 }

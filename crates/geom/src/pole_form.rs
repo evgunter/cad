@@ -55,17 +55,15 @@ pub fn half_turn_curve<T: Real>(
     let turn = |w: Vec3<T>| vector(half_turn(w, axis));
     match *carrier {
         Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
-        Curve3::Circle {
-            center,
-            axis: n,
+        Curve3::Circle(crate::Circle {
+            frame:
+                crate::Frame {
+                    center,
+                    axis: n,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => Some(Curve3::Circle {
-            center: place(center),
-            axis: turn(n),
-            radius,
-            u_ref: turn(u_ref),
-        }),
+        }) => Some(Curve3::circle(place(center), turn(n), radius, turn(u_ref))),
         _ => None,
     }
 }
@@ -81,12 +79,7 @@ pub fn sphere_meridian<T: Real>(
     axis: Vec3<T>,
     d: Vec3<T>,
 ) -> Curve3<T> {
-    Curve3::Circle {
-        center,
-        axis: axis.cross(d),
-        radius,
-        u_ref: axis,
-    }
+    Curve3::circle(center, axis.cross(d), radius, axis)
 }
 
 /// The cone's generator at azimuth `d` (a unit direction perpendicular

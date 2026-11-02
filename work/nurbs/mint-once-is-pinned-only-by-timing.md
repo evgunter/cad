@@ -53,4 +53,4 @@ row asserts four mints per operation.
 - `planned_charts` asserts no two moves share an `old_key`, as the
   door's `SharedSurfaceKey` gate does.
 - The two `work/shell/` citations in `replace_face.rs` point at
-  `work/shelf/`, where those items moved.
+  `work/shell/`, where those items moved.

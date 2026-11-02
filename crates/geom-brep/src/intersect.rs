@@ -34,7 +34,7 @@
 //!   as stored. A body at rest holds the convention against ZERO (tier-3
 //!   check 1), so a cone that validates can be refused here. Whether the
 //!   convention is a band question or a datum-sign question is open
-//!   (`work/germcert/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
+//!   (`work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
 //!   and these trileans follow the band side until that is ruled.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
@@ -978,12 +978,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
     let section = match decide("pc_rim_alignment", Margin::levered(sin_norm, r), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => PlaneCylinderSection::Rim(Curve3::Circle {
-            center,
-            axis: a,
-            radius: r,
-            u_ref: cyl_u,
-        }),
+        Sign::Zero => PlaneCylinderSection::Rim(Curve3::circle(center, a, r, cyl_u)),
         // The margin is a norm: Negative is unreachable; both
         // definite verdicts take the tilted lane.
         Sign::Positive | Sign::Negative => {
@@ -1315,15 +1310,12 @@ pub fn plane_sphere_section<T: Decide>(
         }
     };
     match decide("ps_center_gap", Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)? {
-        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::Circle {
-            center: foot,
-            axis: n,
-            // The interval-square tripwire does not bite: both factors
-            // are definitely positive after the trilean (never a
-            // spuriously negative bracket under a sqrt).
-            radius: ((r - s.abs()) * (r + s.abs())).sqrt(),
+        Sign::Positive => Ok(PlaneSphereSection::Circle(Curve3::circle(
+            foot,
+            n,
+            ((r - s.abs()) * (r + s.abs())).sqrt(),
             u_ref,
-        })),
+        ))),
         Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
         Sign::Negative => Ok(PlaneSphereSection::Empty),
     }
@@ -1480,12 +1472,12 @@ pub fn sphere_sphere_section<T: Decide>(
                         // `d > 0`. The radical plane's foot and half-chord.
                         Sign::Positive => {
                             let n = at.direction();
-                            Ok(SphereSphereSection::Circle(Curve3::Circle {
-                                center: at.foot(),
-                                axis: n,
-                                radius: pair.half_chord(),
-                                u_ref: ss_frame_seam(n, axis1, u1, r1, band),
-                            }))
+                            Ok(SphereSphereSection::Circle(Curve3::circle(
+                                at.foot(),
+                                n,
+                                pair.half_chord(),
+                                ss_frame_seam(n, axis1, u1, r1, band),
+                            )))
                         }
                     }
                 }
@@ -2310,12 +2302,12 @@ pub fn plane_cone_section<T: Decide>(
     match decide("pn_axis_normal", Margin::levered(s, arm), band)
         .map_err(SectionError::Escalated)?
     {
-        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::Circle {
-            center: apex + a * t,
-            axis: a,
-            radius: rim_r,
-            u_ref: cone_u,
-        })),
+        Sign::Zero => Ok(PlaneConeSection::AxisNormalCircle(Curve3::circle(
+            apex + a * t,
+            a,
+            rim_r,
+            cone_u,
+        ))),
         Sign::Positive | Sign::Negative => {
             let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
@@ -2671,12 +2663,7 @@ pub fn plane_torus_section<T: Decide>(
                     // so `n × a` is unit up to rounding; normalized
                     // for the frame all the same.
                     let m = n.cross(a).normalize();
-                    let circle_at = |center: Point3<T>| Curve3::Circle {
-                        center,
-                        axis: n,
-                        radius: r,
-                        u_ref: a,
-                    };
+                    let circle_at = |center: Point3<T>| Curve3::circle(center, n, r, a);
                     Ok(PlaneTorusSection::MeridianCircles {
                         c1: circle_at(c + m * big_r),
                         c2: circle_at(c - m * big_r),
@@ -2752,23 +2739,15 @@ pub fn plane_torus_section<T: Decide>(
                             // spuriously negative bracket under a
                             // sqrt).
                             let w = ((r - h.abs()) * (r + h.abs())).sqrt();
-                            let circle_at = |radius: T| Curve3::Circle {
-                                center,
-                                axis: a,
-                                radius,
-                                u_ref: tor_u,
-                            };
+                            let circle_at = |radius: T| Curve3::circle(center, a, radius, tor_u);
                             Ok(PlaneTorusSection::ConcentricCircles {
                                 c1: circle_at(big_r + w),
                                 c2: circle_at(big_r - w),
                             })
                         }
-                        Sign::Zero => Ok(PlaneTorusSection::TangentCircle(Curve3::Circle {
-                            center,
-                            axis: a,
-                            radius: big_r,
-                            u_ref: tor_u,
-                        })),
+                        Sign::Zero => Ok(PlaneTorusSection::TangentCircle(Curve3::circle(
+                            center, a, big_r, tor_u,
+                        ))),
                         Sign::Negative => Ok(PlaneTorusSection::Empty),
                     }
                 }
@@ -3046,12 +3025,7 @@ pub fn cone_cylinder_section<T: Decide>(
                     });
                 }
             }
-            let circle_at = |center: Point3<T>| Curve3::Circle {
-                center,
-                axis: a,
-                radius: big_r,
-                u_ref: cone_u,
-            };
+            let circle_at = |center: Point3<T>| Curve3::circle(center, a, big_r, cone_u);
             Ok(ConeCylinderSection::CoaxialCircles {
                 c1: circle_at(apex + a * station),
                 c2: circle_at(apex - a * station),

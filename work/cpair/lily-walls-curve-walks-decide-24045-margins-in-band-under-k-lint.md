@@ -34,7 +34,7 @@ band. Counted from the sweep's CSVs (`outcome` column), on main
 
 At 1e-12 there are none, but only because nothing is recorded: the
 `lily` and `lily_walls` scenes are pinned to stop there on the stem's
-kernel limit (`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
+kernel limit (`work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
 
 The lint's zero arm also tallies these predicates near band_zero. At
 1e-6, `curve_pair_walk_clear` uses up to 100% of ε, and `…_foot_clear`

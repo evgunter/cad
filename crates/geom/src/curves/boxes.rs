@@ -44,89 +44,9 @@
 use bvh::Aabb;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
-use crate::curves::Curve3;
 use crate::curves::nurbs::NurbsCurve3;
+use crate::curves::{Conic, Curve3};
 use crate::net;
-
-/// A conic's frame as the extremum reads it: the centre, the plane
-/// normal, the `t = 0` reference direction and the two semi-axes — a
-/// circle is the ellipse with `semi_u = semi_v = radius`. Each
-/// constructor refuses (`None`) every kind it does not name.
-#[derive(Clone, Copy)]
-struct ConicFrame<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    semi_u: T,
-    semi_v: T,
-}
-
-impl<T: Real> ConicFrame<T> {
-    fn of(carrier: &Curve3<T>) -> Option<Self> {
-        Self::circle(carrier).or_else(|| Self::ellipse(carrier))
-    }
-
-    fn circle(carrier: &Curve3<T>) -> Option<Self> {
-        let Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } = *carrier
-        else {
-            return None;
-        };
-        Some(Self {
-            center,
-            axis,
-            u_ref,
-            semi_u: radius,
-            semi_v: radius,
-        })
-    }
-
-    fn ellipse(carrier: &Curve3<T>) -> Option<Self> {
-        let Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } = *carrier
-        else {
-            return None;
-        };
-        Some(Self {
-            center,
-            axis,
-            u_ref,
-            semi_u,
-            semi_v,
-        })
-    }
-
-    /// `axis × u_ref`, the `t = π/2` reference direction.
-    fn v_ref(&self) -> Vec3<T> {
-        self.axis.cross(self.u_ref)
-    }
-}
-
-impl<T: Bounds> ConicFrame<T> {
-    /// The frame with every scalar entered as the [`Interval`] of its
-    /// bracket. The second reference direction is crossed AFTER the
-    /// lift, so its rounding is the interval's and not `T`'s.
-    fn lifted(self) -> ConicFrame<Interval> {
-        let point = |p: Point3<T>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
-        let vector = |v: Vec3<T>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
-        ConicFrame {
-            center: point(self.center),
-            axis: vector(self.axis),
-            u_ref: vector(self.u_ref),
-            semi_u: lift(self.semi_u),
-            semi_v: lift(self.semi_v),
-        }
-    }
-}
 
 /// A bracket as the certified scalar's enclosure of it. The box doors
 /// read only the result's bounds, never its decoration, so the
@@ -208,18 +128,22 @@ impl<T: Real> ArcWindow<T> {
     }
 }
 
-/// The extent of `frame`'s arc over `window` along `n`, about `origin`.
+/// The extent of `conic`'s arc over `window` along `n`, about `origin`.
 fn extent_along<T: Real>(
-    frame: &ConicFrame<T>,
+    conic: &dyn Conic<T>,
     window: &ArcWindow<T>,
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> (T, T) {
-    window.extent(
-        (frame.center - origin).dot(n),
-        frame.semi_u * frame.u_ref.dot(n),
-        frame.semi_v * frame.v_ref().dot(n),
-    )
+    let (p, q) = conic.along(n);
+    window.extent((conic.frame().center - origin).dot(n), p, q)
+}
+
+/// The carrier with every scalar entered as the [`Interval`] of its
+/// bracket. A conic's second reference direction is crossed after the
+/// lift, so its rounding is the interval's and not `T`'s.
+fn lifted<T: Bounds>(carrier: &Curve3<T>) -> Curve3<Interval> {
+    carrier.map_scalar(lift)
 }
 
 /// **A circle or ellipse arc's extent along a direction**: the
@@ -243,9 +167,8 @@ pub fn conic_arc_extent_along<T: Real>(
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> Option<(T, T)> {
-    let frame = ConicFrame::of(carrier)?;
     Some(extent_along(
-        &frame,
+        carrier.conic()?,
         &ArcWindow::new(theta0, theta1),
         origin,
         n,
@@ -263,11 +186,13 @@ pub fn conic_arc_extent_along_bracketed<T: Bounds>(
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> Option<(f64, f64)> {
-    let frame = ConicFrame::of(carrier)?.lifted();
+    carrier.conic()?;
+    let lifted = lifted(carrier);
+    let conic = lifted.conic()?;
     let origin = Point3::new(lift(origin.x), lift(origin.y), lift(origin.z));
     let n = Vec3::new(lift(n.x), lift(n.y), lift(n.z));
     let (lo, hi) = extent_along(
-        &frame,
+        conic,
         &ArcWindow::new(lift(theta0), lift(theta1)),
         origin,
         n,
@@ -280,7 +205,7 @@ pub fn conic_arc_extent_along_bracketed<T: Bounds>(
 /// read along `x̂`, `ŷ`, `ẑ` — at the certified scalar, hulled with the
 /// endpoint seeds.
 fn conic_frame_aabb<T: Bounds>(
-    frame: ConicFrame<T>,
+    conic: &dyn Conic<Interval>,
     theta0: T,
     theta1: T,
     end0: Point3<T>,
@@ -288,14 +213,13 @@ fn conic_frame_aabb<T: Bounds>(
 ) -> Aabb {
     // Endpoint hull: always inside the box (2 points — never empty).
     let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-    let frame = frame.lifted();
     let window = ArcWindow::new(lift(theta0), lift(theta1));
     for (n, min, max) in [
         (Vec3::unit_x(), &mut b.min_x, &mut b.max_x),
         (Vec3::unit_y(), &mut b.min_y, &mut b.max_y),
         (Vec3::unit_z(), &mut b.min_z, &mut b.max_z),
     ] {
-        let (lo, hi) = extent_along(&frame, &window, Point3::origin(), n);
+        let (lo, hi) = extent_along(conic, &window, Point3::origin(), n);
         *min = pfold(*min, lo.lo(), f64::min);
         *max = pfold(*max, hi.hi(), f64::max);
     }
@@ -337,13 +261,14 @@ pub fn circle_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    Some(conic_frame_aabb(
-        ConicFrame::circle(carrier)?,
-        theta0,
-        theta1,
-        end0,
-        end1,
-    ))
+    let Curve3::Circle(_) = carrier else {
+        return None;
+    };
+    let lifted = lifted(carrier);
+    let Curve3::Circle(conic) = &lifted else {
+        return None;
+    };
+    Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
 /// The certified-conservative box of an **ellipse arc**: the carrier's
@@ -362,13 +287,14 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    Some(conic_frame_aabb(
-        ConicFrame::ellipse(carrier)?,
-        theta0,
-        theta1,
-        end0,
-        end1,
-    ))
+    let Curve3::Ellipse(_) = carrier else {
+        return None;
+    };
+    let lifted = lifted(carrier);
+    let Curve3::Ellipse(conic) = &lifted else {
+        return None;
+    };
+    Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
 /// The certified-conservative box of a SPIRIC arc — the whole
@@ -432,8 +358,8 @@ pub fn conic_arc_aabb<T: Bounds>(
     end1: Point3<T>,
 ) -> Option<Aabb> {
     match carrier {
-        Curve3::Circle { .. } => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
-        Curve3::Ellipse { .. } => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Circle(..) => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Ellipse(..) => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
         Curve3::Spiric { .. } => spiric_arc_aabb(carrier, end0, end1),
         Curve3::Line(_) | Curve3::Nurbs(_) => None,
     }

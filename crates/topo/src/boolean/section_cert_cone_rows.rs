@@ -414,12 +414,7 @@ fn cone_rim(
             pair: SurfacePair::new(cone, rim_plane),
             selector: geom_brep::CurveSelector::Witness(p(-z, 0.0, z)),
         },
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, z),
-            axis: -normal,
-            radius: z,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(p(0.0, 0.0, z), -normal, z, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
