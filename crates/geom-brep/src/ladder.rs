@@ -10,18 +10,23 @@
 //! - [`climb`] is that rule over any reader: each rung
 //!   [answers](Rung::Answers), [passes](Rung::Passes) the question on, or
 //!   is kept ([`Rung::InBand`], [`Rung::Blocked`]). Which decision answers
-//!   is the reader's: "decided apart" for an identity, "decided one" for a
-//!   search over candidates.
+//!   is the reader's: "decided apart" for an identity, "decided within"
+//!   for a search over candidates. A banded reading becomes a rung
+//!   through [`Rung::decide`], the one place a margin is read, so no
+//!   ladder reads a non-finite margin as a definite answer.
 //! - [`read_identity`] is the **identity ladder**, the ladder over banded
 //!   data each required `Zero` for two descriptions to be one, so any
 //!   datum decided apart answers.
 //! - [`Evidence`] is **the one ranking of what a ladder kept** when nothing
 //!   answered: a limit no tolerance moves ahead of an in-band reading.
 //!
-//! [`climb`] owns the recording: a kept reading's run is held, and spliced
-//! as superseded ([`geom_core::k_stats::splice_superseded`]) when a later
-//! reading answers, so its escalation does not read as one the answer
-//! rests on; every run is spliced in rung order.
+//! [`climb`] owns the recording, and the caller declares what an answer
+//! may do with the kept readings ahead of it ([`Answering`]): where every
+//! answering rung gives one answer, a kept reading's run is spliced
+//! superseded ([`geom_core::k_stats::splice_superseded`]), since the
+//! answer does not rest on it; where which rung answers chooses the
+//! answer, it stays live, since a kept rung ahead may truly have answered
+//! first. Every run is spliced in rung order.
 
 use geom_core::k_stats::{Detached, decide_reported, detached, splice, splice_superseded};
 use geom_core::predicate::{Decided, Indeterminate};
@@ -44,9 +49,31 @@ pub enum Rung<A, E> {
 }
 
 impl<A> Rung<A, Indeterminate> {
-    /// A banded reading the band did not decide, kept as what it is: a
-    /// limit where its margin cannot be read (poisoned), in band
-    /// otherwise.
+    /// **One banded reading as a rung**: `margin` decided on `band` under
+    /// `name`, answering where `answer` returns one and passing where it
+    /// returns `None`; kept ([`Self::kept`]) where the band decides
+    /// nothing. A margin that is not finite reads no sign: it is decided
+    /// as its residual `x − x`, which is poison, so ±∞ is kept as a limit
+    /// rather than read as a maximally definite answer.
+    pub fn decide<T: Decide>(
+        name: &'static str,
+        margin: Margin<T>,
+        band: Band,
+        answer: impl FnOnce(Decided) -> Option<A>,
+    ) -> Self {
+        let read_on = if geom_core::is_finite_length(margin.value()) {
+            margin
+        } else {
+            Margin::of(margin.value() - margin.value())
+        };
+        match decide_reported(name, read_on, band) {
+            Ok(decided) => answer(decided).map_or(Self::Passes, Self::Answers),
+            Err(cause) => Self::kept(cause),
+        }
+    }
+
+    /// A reading the band did not decide, kept as what it is: a limit
+    /// where its margin cannot be read (poisoned), in band otherwise.
     #[must_use]
     pub fn kept(cause: Indeterminate) -> Self {
         if cause.margin.is_invalid() {
@@ -55,6 +82,22 @@ impl<A> Rung<A, Indeterminate> {
             Self::InBand(cause)
         }
     }
+}
+
+/// **What an answer may do with the kept readings ahead of it**, which
+/// the caller of [`climb`] declares.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Answering {
+    /// Any answering rung gives the one answer, so which rung answers
+    /// does not matter: an identity's "apart", a side every off-plane
+    /// point reads alike. A kept reading ahead of the answer could only
+    /// have given the same answer, so its run is spliced superseded.
+    Any,
+    /// Which rung answers chooses the answer: the first candidate within,
+    /// the first member that projects. A kept reading ahead of the answer
+    /// may truly have answered first, so the answer rests on it and its
+    /// run is spliced live.
+    First,
 }
 
 /// What a ladder read ([`climb`]).
@@ -80,8 +123,10 @@ pub enum Climb<A, E> {
 ///
 /// Each kept reading's run is held until the ladder's outcome is known:
 /// spliced whole where no later rung answers (the escalation is what the
-/// outcome rests on), spliced superseded where one does.
+/// outcome rests on); where one does, spliced superseded under
+/// [`Answering::Any`] and whole under [`Answering::First`].
 pub fn climb<I, A, E>(
+    answering: Answering,
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,
 ) -> Climb<A, E> {
@@ -94,7 +139,7 @@ pub fn climb<I, A, E>(
         match got {
             Rung::Answers(answer) => {
                 for (run, was_kept) in held {
-                    if was_kept {
+                    if was_kept && answering == Answering::Any {
                         splice_superseded(run);
                     } else {
                         splice(run);
@@ -122,7 +167,10 @@ pub fn climb<I, A, E>(
     }
 }
 
-/// What an identity ladder's data answer ([`read_identity`]).
+/// What an identity ladder's data answer ([`read_identity`]): a
+/// [`Climb`] in the identity's own terms, which carry what `Climb` does
+/// not — the answering datum's sign, and the data's joint margin where
+/// the identity holds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum IdentityLadder {
     /// A datum decided past the band: the identity does not hold. `at` is
@@ -143,34 +191,22 @@ pub enum IdentityLadder {
 
 /// **Whether two descriptions are one**, read off `data` that are each
 /// zero exactly where the two agree, every datum decided on `band` under
-/// its own name: the ladder ([`climb`]) whose answer is a datum decided
-/// apart. A datum that is not finite reads no sign: the funnel reads its
-/// residual `x − x`, which is poison, so it is kept as a limit.
+/// its own name: the ladder ([`climb`], [`Answering::Any`]: every datum
+/// decided apart says the same "not one") whose answer is a datum decided
+/// apart.
 pub fn read_identity<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,
 ) -> IdentityLadder {
     let mut joint: Option<MarginDiag> = None;
-    let climbed = climb(data, |(name, margin)| {
-        let read_on = if geom_core::is_finite_length(margin.value()) {
-            margin
-        } else {
-            Margin::of(margin.value() - margin.value())
-        };
-        match decide_reported(name, read_on, band) {
-            Ok(Decided {
-                sign: sign @ (Sign::Positive | Sign::Negative),
-                ..
-            }) => Rung::Answers(sign),
-            Ok(Decided {
-                sign: Sign::Zero,
-                margin,
-            }) => {
-                joint = Some(joint.map_or(margin, |first| first.jointly(margin)));
-                Rung::Passes
+    let climbed = climb(Answering::Any, data, |(name, margin)| {
+        Rung::decide(name, margin, band, |decided| match decided.sign {
+            Sign::Positive | Sign::Negative => Some(decided.sign),
+            Sign::Zero => {
+                joint = Some(joint.map_or(decided.margin, |first| first.jointly(decided.margin)));
+                None
             }
-            Err(cause) => Rung::kept(cause),
-        }
+        })
     });
     match climbed {
         Climb::Answered { at, answer: sign } => IdentityLadder::Apart { at, sign },
@@ -180,9 +216,8 @@ pub fn read_identity<T: Decide>(
 }
 
 /// **The one ranking of what a run of readings kept** when none of them
-/// answered: over a ladder's rungs ([`climb`]), over one point's rays
-/// (`topo`'s ray walk), and over a ladder of witnesses each of which kept
-/// its own walk's refusal (`topo`'s shell witness and loop roles):
+/// answered — a ladder's rungs ([`climb`]), and any other run of readings
+/// that keeps refusals while it looks for one that decides:
 ///
 /// 1. the first blocked reading — a limit no tolerance moves, true of
 ///    every reading it stopped whatever the band, and its own recourse is
@@ -260,11 +295,11 @@ impl<E> Evidence<E> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::k_stats::{Bracket, decide_reported};
+    use geom_core::k_stats::Bracket;
     use geom_core::predicate::{Band, Indeterminate};
     use geom_core::{Margin, Sign};
 
-    use super::{Climb, Evidence, IdentityLadder, Ranked, Rung, climb, read_identity};
+    use super::{Answering, Climb, Evidence, IdentityLadder, Ranked, Rung, climb, read_identity};
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).expect("a valid band")
@@ -366,36 +401,83 @@ mod tests {
         }
     }
 
-    /// **The reversed polarity reads the same rule**: a search whose
-    /// answer is a candidate decided `Zero` passes the ones decided
-    /// apart, answers past an earlier in-band one with its escalation
-    /// superseded, and refuses on an unreadable candidate ahead of an
-    /// earlier in-band one where none answers.
-    #[test]
-    fn a_search_for_the_first_candidate_within_reads_the_same_rule() {
-        let search = |margins: &'static [f64]| {
-            recorded(|| {
-                climb(margins.iter().copied(), |m| {
-                    match decide_reported("within", Margin::of(m), band()) {
-                        Ok(d) if d.sign == Sign::Zero => Rung::Answers(m),
-                        Ok(_) => Rung::Passes,
-                        Err(cause) => Rung::kept(cause),
-                    }
+    /// A search for the first candidate within, under `answering`,
+    /// recorded.
+    fn search(
+        answering: Answering,
+        margins: &[f64],
+    ) -> (
+        Climb<f64, Indeterminate>,
+        Vec<&'static str>,
+        Vec<&'static str>,
+    ) {
+        recorded(|| {
+            climb(answering, margins.iter().copied(), |m| {
+                Rung::decide("within", Margin::of(m), band(), |d| {
+                    (d.sign == Sign::Zero).then_some(m)
                 })
             })
-        };
-        let (got, verdicts, escalations) = search(&[1.0, 5e-9, 0.0]);
+        })
+    }
+
+    /// **A search's answer rests on the kept candidates ahead of it**: a
+    /// later candidate within answers past an earlier in-band one, whose
+    /// escalation stays live, since that candidate may truly be within
+    /// and would have been the answer. Where every answer is alike the
+    /// same escalation is superseded. Where none answers, an unreadable
+    /// candidate refuses ahead of an earlier in-band one, and every
+    /// candidate decided apart passes.
+    #[test]
+    fn a_search_keeps_the_escalations_ahead_of_its_answer_live() {
+        let (got, verdicts, escalations) = search(Answering::First, &[1.0, 5e-9, 0.0]);
         assert_eq!(got, Climb::Answered { at: 2, answer: 0.0 });
         assert_eq!(verdicts, ["within", "within"]);
-        assert!(escalations.is_empty(), "superseded: {escalations:?}");
-        let (got, _, escalations) = search(&[5e-9, 1.0, f64::NAN]);
-        let Climb::Undecided::<f64, Indeterminate>(cause) = got else {
+        assert_eq!(escalations, ["within"], "the answer rests on it");
+        let (_, _, escalations) = search(Answering::Any, &[1.0, 5e-9, 0.0]);
+        assert!(escalations.is_empty(), "alike answers supersede it");
+        let (got, _, escalations) = search(Answering::First, &[5e-9, 1.0, f64::NAN]);
+        let Climb::Undecided(cause) = got else {
             panic!("undecided: {got:?}")
         };
         assert!(cause.margin.is_invalid(), "the unreadable one: {cause:?}");
         assert_eq!(escalations.len(), 2, "both kept runs recorded");
-        let (got, _, _) = search(&[1.0, -1.0]);
-        assert_eq!(got, Climb::Passed);
+        assert_eq!(search(Answering::First, &[1.0, -1.0]).0, Climb::Passed);
+    }
+
+    /// **A non-finite margin is a limit at every rung, never an answer**:
+    /// a search that answers on a definite sign does not answer on ±∞.
+    #[test]
+    fn a_non_finite_margin_never_answers() {
+        for poison in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let got = climb(Answering::First, [poison], |m| {
+                Rung::decide("apart", Margin::of(m), band(), |d| {
+                    (d.sign != Sign::Zero).then_some(d.sign)
+                })
+            });
+            let Climb::Undecided(cause) = got else {
+                panic!("{poison}: {got:?}")
+            };
+            assert!(cause.margin.is_invalid(), "{poison}: {cause:?}");
+        }
+    }
+
+    /// **The probe sample stream reads the rungs in rung order**, across
+    /// the verdict and escalation channels: a kept datum's sample comes
+    /// before the `Zero` samples read after it, as a serial read records
+    /// them, not after them where its run was held.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn the_sample_stream_interleaves_in_rung_order() {
+        use geom_core::k_stats::{self, Probe};
+        k_stats::start_recording();
+        let data = [("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 0.0)];
+        let got = read_identity(data.iter().map(|&(n, m)| (n, Margin::of(Probe(m)))), band());
+        let names: Vec<&str> = k_stats::take_samples()
+            .iter()
+            .map(|s| s.predicate)
+            .collect();
+        assert!(matches!(got, IdentityLadder::Undecided(_)), "{got:?}");
+        assert_eq!(names, ["a", "b", "c", "d"], "rung order across channels");
     }
 
     /// [`Evidence`] over two runs read in order: the first run's of each
@@ -419,5 +501,15 @@ mod tests {
         b.in_band(3);
         assert_eq!(rank(a.then(b)), (2, 1));
         assert_eq!(rank(Evidence::<u8>::default()), (3, 0));
+        // Within one run the first of each kind is kept, never the last.
+        let mut e = Evidence::default();
+        e.in_band(1);
+        e.in_band(2);
+        assert_eq!(rank(e), (2, 1), "the first in-band reading");
+        let mut e = Evidence::default();
+        e.blocked(3);
+        e.in_band(1);
+        e.blocked(4);
+        assert_eq!(rank(e), (1, 3), "the first limit");
     }
 }

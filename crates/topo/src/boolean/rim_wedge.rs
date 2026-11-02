@@ -44,7 +44,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 use crate::validate::{MaterialArmOutcome, MaterialStations};
 use crate::{Body, FaceKey};
 use geom_brep::MaterialWedge;
-use geom_brep::ladder::{Climb, IdentityLadder, Rung, climb, read_identity};
+use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -144,15 +144,21 @@ pub(crate) fn shared_rim<T: Decide>(
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
     // A pair decided one answers whatever another pair read: the ladder
-    // whose answer is a pair decided one.
+    // whose answer is a pair decided one. Which pair answers names the
+    // rim, and that it is THE shared rim rests on no earlier pair being
+    // one too (a face pair riding two circles is outside this door), so
+    // an undecided pair ahead of the answer stays live
+    // (`Answering::First`).
     let bs = face_boundary_circles(b, fb);
     let pairs = face_boundary_circles(a, fa)
         .into_iter()
         .flat_map(|ra| bs.iter().map(move |&rb| (ra, rb)));
-    match climb(pairs, |(ra, rb)| match same_circle(ra, rb, band) {
-        Ok(Some(margin)) => Rung::Answers((ra, margin)),
-        Ok(None) => Rung::Passes,
-        Err(diag) => Rung::kept(diag),
+    match climb(Answering::First, pairs, |(ra, rb)| {
+        match same_circle(ra, rb, band) {
+            Ok(Some(margin)) => Rung::Answers((ra, margin)),
+            Ok(None) => Rung::Passes,
+            Err(diag) => Rung::kept(diag),
+        }
     }) {
         Climb::Answered { answer, .. } => Ok(Some(answer)),
         Climb::Passed => Ok(None),

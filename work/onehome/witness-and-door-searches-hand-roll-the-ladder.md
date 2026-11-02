@@ -50,6 +50,25 @@ readings or witnesses rather than banded data:
 - `geom_brep::edge_nurbs::measured_ends`: the identity polarity over two
   ends, read whole, with a third "bare" outcome.
 
+**Cause-dropping searches**, which the sweep's patterns (a kept cause
+held in a variable) could not see: they keep nothing, so a search none
+of whose readings decides refuses with a cause that is not the reading
+that stopped it.
+- `topo::splitting::finish::whole_body_side`: drops every in-band
+  reading (`Ok(Zero) | Err(_) => continue`) and, where all are in band,
+  refuses `SplitFinishError::Corrupt`: an escalation misattributed as a
+  corrupt body, on main today.
+- `geom_brep::half_angle`'s pole candidates (`Ok(Sign::Zero) | Err(_)`
+  passed over alike).
+- `topo::boolean::join`'s section-chord loop (`NormalAtError` other than
+  `OffSurface` skipped by `continue`).
+- `topo::boolean::conic_quadric::in_band_sweep`'s candidate loop.
+
+**The rule plus an agreement check**: `topo::boolean::sectors`' bounds
+loop reads every bound, keeps the first escalation, and refuses where
+two decided bounds disagree. The ladder's rule holds for its kept
+reading; the agreement check is its own.
+
 ## Why not ported with the identity ladders
 
 Each kept cause is a door's typed error with its own limit / in-band
@@ -62,6 +81,7 @@ pin.
 
 ## Fix
 
-Port each to `climb` (a fatal arm is an answer of `Err`), or say why it
-is a different rule. Where a search's readings happen in an iterator,
+Port each to `climb` (a fatal arm is an answer of `Err`), declaring its
+`Answering` (`Any` where every answer is alike, `First` where which
+reading answers chooses the answer), or say why it is a different rule. Where a search's readings happen in an iterator,
 move them into the reader so the held recording covers them.

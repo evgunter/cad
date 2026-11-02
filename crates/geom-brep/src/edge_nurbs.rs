@@ -1152,10 +1152,14 @@ pub fn probe_pick<T: Decide>(
 }
 
 /// **The first candidate whose margin decides Zero**, in order: the
-/// ladder ([`crate::ladder::climb`]) whose answer is a margin decided
+/// ladder ([`crate::ladder::climb`], [`Answering::First`]: which
+/// candidate answers is the answer) whose answer is a margin decided
 /// within. A candidate whose margin is in band does not stop the search,
-/// and refuses only where no candidate decides Zero. `Ok(None)` where
-/// every margin is decided off.
+/// and refuses only where no candidate decides Zero; where a later one
+/// does, the in-band one's escalation stays live, since it may truly be
+/// within and the answer. `Ok(None)` where every margin is decided off.
+///
+/// [`Answering::First`]: crate::ladder::Answering::First
 ///
 /// # Errors
 ///
@@ -1167,13 +1171,10 @@ pub fn first_within<C, T: Decide>(
     band: Band,
     margin: impl Fn(&C) -> geom_core::Margin<T>,
 ) -> Result<Option<C>, Indeterminate> {
-    use crate::ladder::{Climb, Rung, climb};
-    match climb(candidates, |cand| {
-        match geom_core::k_stats::decide(name, margin(&cand), band) {
-            Ok(Sign::Zero) => Rung::Answers(cand),
-            Ok(Sign::Positive | Sign::Negative) => Rung::Passes,
-            Err(cause) => Rung::kept(cause),
-        }
+    use crate::ladder::{Answering, Climb, Rung, climb};
+    match climb(Answering::First, candidates, |cand| {
+        let m = margin(&cand);
+        Rung::decide(name, m, band, |d| (d.sign == Sign::Zero).then_some(cand))
     }) {
         Climb::Answered { answer, .. } => Ok(Some(answer)),
         Climb::Passed => Ok(None),

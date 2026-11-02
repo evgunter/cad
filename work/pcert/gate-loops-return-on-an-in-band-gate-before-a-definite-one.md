@@ -104,8 +104,11 @@ the Villarceau incidence test does on most poses.
 
 `geom_brep::ladder::climb` is the first option above: each rung's reader
 returns `Rung::Answers`, `Passes`, or a kept `InBand` / `Blocked`
-reading (`Rung::kept` sorts an `Indeterminate` by its margin), with the
-held recording and `Evidence`'s ranking. `read_identity` is `climb` over
-banded data, and `topo`'s shared rim and `first_within` read it with the
-reversed polarity. The positivity and headroom sites here can read it
-as they are: a refusing sign answers, a passing one passes.
+reading (`Rung::decide` reads a banded margin, `Rung::kept` sorts an
+`Indeterminate`), with the held recording and `Evidence`'s ranking. The
+caller declares an `Answering`: `Any` where every answering gate gives
+the same refusal (a kept run ahead of it is superseded), `First` where
+which gate answers chooses the answer (it stays live). `read_identity`
+is `climb` over banded data under `Any`. A port of each site here
+chooses its polarity: which sign answers, which passes, and whether its
+answers are alike.

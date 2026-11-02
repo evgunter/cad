@@ -5302,20 +5302,22 @@ impl RimSide {
                     band,
                 )
                 .map_err(escalated)?;
-                // The first point read definitely off the plane decides;
-                // an escalation escalates only where none does: the
-                // identity ladder, its answer the side.
-                use geom_brep::ladder::{IdentityLadder, read_identity};
-                let offsets = loop_points(body, outer)?.into_iter().map(|w| {
-                    (
-                        "bool_lone_ring_outer_side",
-                        Margin::of((w - center).dot(axis)),
-                    )
+                // The first point read definitely off the plane decides,
+                // and any such point reads the one side (the loop does not
+                // cross its ring's plane); an escalation escalates only
+                // where none does.
+                use geom_brep::ladder::{Answering, Climb, Rung, climb};
+                let points = loop_points(body, outer)?;
+                let read = climb(Answering::Any, points, |w| {
+                    let offset = Margin::of((w - center).dot(axis));
+                    Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
+                        (d.sign != Sign::Zero).then_some(d.sign)
+                    })
                 });
-                let outer_side = match read_identity(offsets, band) {
-                    IdentityLadder::Apart { sign, .. } => sign,
-                    IdentityLadder::Undecided(diag) => return Err(escalated(diag)),
-                    IdentityLadder::Zero(_) => {
+                let outer_side = match read {
+                    Climb::Answered { answer, .. } => answer,
+                    Climb::Undecided(diag) => return Err(escalated(diag)),
+                    Climb::Passed => {
                         return Err(invariant(
                             "the old face's outer loop lies on its pierce ring's plane",
                         ));
