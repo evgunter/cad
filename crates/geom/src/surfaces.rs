@@ -458,6 +458,20 @@ pub fn require_ring_torus<T: geom_core::Decide>(
     )
 }
 
+/// **Whether a torus is a ring, as a reading**: both halves of the
+/// convention decided positive, the tube first ([`ring_torus`] says
+/// why), through [`torus_tube`] and [`ring_torus`]. For a door that
+/// takes a coarser construction where the convention does not hold,
+/// so a non-ring torus is an answer it has rather than an escalation
+/// it mints ([`require_ring_torus`] is the declining form). At a
+/// bracketed scalar a decided positive margin is positive over the
+/// whole bracket, so every torus the brackets admit is a ring.
+pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, band: Band) -> bool {
+    let positive = |d: Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
+    positive(torus_tube(minor_radius, band))
+        && positive(ring_torus(major_radius, minor_radius, band))
+}
+
 /// What a refusal of the placeholder chart
 /// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
 /// one text, so every reader sees the same fact in the same words.

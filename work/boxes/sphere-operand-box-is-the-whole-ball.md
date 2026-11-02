@@ -74,3 +74,7 @@ outside any box):
   levels and the poles its vertices reach. A one-rim cap whose strut
   ends short of the pole keeps the ball, though its side is known (the
   strut's tip). No valid body carries one (`ScaffoldingStrutVertex`).
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+`classify::gate_face_reach` is gone: the split gate reads `census::face_reach_in` for every face. (BOXES orchestrator)
