@@ -813,11 +813,11 @@ pub enum SessionOp {
     /// that member.
     ///
     /// The count is an `i64` and lands as the index's exact Count
-    /// literal, edited afterwards by redefining the index. A count of
-    /// zero or less is admitted here and refuses at evaluation on the
-    /// placement's own badge — the same division of labour a
-    /// degenerate profile takes, one rule for authored and
-    /// hand-written documents.
+    /// literal, edited afterwards by redefining the index. Any count is
+    /// admitted here: zero is a family of no member, and a count below
+    /// zero refuses at evaluation on the family's own badge — the same
+    /// division of labour a degenerate profile takes, one rule for
+    /// authored and hand-written documents.
     AddPattern {
         /// The body replicated.
         input: Operand,
