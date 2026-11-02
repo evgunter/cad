@@ -66,7 +66,7 @@ is retired; the Boolean (`GermSectionOpenConic`), the split
 cone-cap section and refuses the hyperbola at its gate
 (`ReplaceFaceError::TogetherConicArc`) until unit 3 or CHARTTAIL
 certifies the arc. Residue filed:
-`work/foreign/step-import-reads-no-hyperbola-or-parabola.md`,
+`work/importgate/step-import-reads-no-hyperbola-or-parabola.md`,
 `work/select/edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short.md`.
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).

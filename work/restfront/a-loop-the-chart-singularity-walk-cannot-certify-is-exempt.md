@@ -55,11 +55,11 @@ kept), and places it on the boundary by
 `geom_brep::chart_singularity::place_on_boundary` (`the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band`). It no
 longer calls `locate`'s side reading or `walk_loop`, so the tier-3
 exemption this row names is gone; the doors' own residue replaces it
-(`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`).
+(`work/restfront/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`).
 Import still walks (its normalization runs before a body exists, at
 `crates/step-import/src/normalize/singularity.rs`: `scan` through
 `locate`, `holds`, and `nappe`'s `walk_loop`), so this row stays open as
 import's exemption, and the retirement of `walk_loop` waits on
-`work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`.
+`work/importgate/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`.
 
 - 2026-11-02 — moved from RESTCURVE to RESTFRONT by `git mv` when RESTCURVE merged into RESTFRONT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RESTCURVE had fallen far under it).

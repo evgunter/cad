@@ -64,7 +64,7 @@ sphere's axis, holding the north pole or neither). The split-out
 `geom_brep::chart_singularity::place_on_boundary` is `pub(crate)` until
 this row needs it from topo. This is the ratified design, one
 reader and the doors, with its order changed. Import follows
-(`work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`).
+(`work/importgate/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`).
 Filed by RESTCURVE's region-arm lane.
 
 ## Spec (RESTCURVE orchestrator, 2026-11-01)

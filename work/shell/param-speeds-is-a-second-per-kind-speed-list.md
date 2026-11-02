@@ -44,6 +44,6 @@ spelling. It keeps its own `None` for a line, an ellipse and a spline.
 
 The ellipse half of that `None` is a dimension gap rather than a choice:
 an ellipse's window decides as metres. That is filed as
-`work/offset/an-ellipse-edges-offset-window-decides-radians-as-metres.md`.
+`work/shell/an-ellipse-edges-offset-window-decides-radians-as-metres.md`.
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
