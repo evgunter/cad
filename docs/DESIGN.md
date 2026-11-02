@@ -248,6 +248,7 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
+| The region a face or an edge can occupy | one cover per entity: `geom`'s reading of a carrier over a span, `topo`'s of a trimmed face; every box, support, reach and ball is a method on it, never a second reading | [one-way.readings] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
@@ -309,7 +310,23 @@ without first refusing on kind. Readings over bare carriers live in the
 lowest crate that can state them, `geom` for one carrier and a point
 and `geom-brep` for carrier pairs; readings over trimmed faces and
 solids live in `topo` and reach carrier facts only through those.
-Exempt: kind-agnostic methods (boxes, BVH, subdivision, clearance),
+**The region an entity can occupy is a reading**, whose answer is a
+cover: the carrier's cover met with every trim constraint the reading
+proves, one arm per kind, each constraint a stage of that one rule. A
+constraint left in band adds nothing to the meet and hands to no second
+method; a reading whose meet is still the whole space answers a typed
+`Uncovered` naming the entity and what was not known, which a meet
+takes as its identity and a hull as its absorber, inside a reading and
+between readers alike. Every bound on where the entity is (a box in
+any frame, a support along a direction, a distance range from a point
+or a line, a ball) is a method on the cover, matches on no kind, and
+encloses at every scalar. No bound is a method on `Uncovered`, so a
+reader reaches it only by stating its own fail-loud direction: a
+pruning reader takes the box that overlaps everything, a granting
+reader refuses with that reason as its recourse. A reader grants on a
+cover only in the bound's conservative direction, and a tighter
+construction is written into the arm, never at a reader.
+Exempt: methods over a cover or a box (BVH, subdivision, clearance),
 identity of stored bits on which no topology decision depends, test
 oracles, and reading a record (a declaration, or an edge that already
 is the section). Import is not exempt: it reads the same readings with
