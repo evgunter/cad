@@ -1265,7 +1265,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     fn filleted<T: Scalar>() -> Body<T> {
         use sweep::blend::fillet_edges;
 
-        let drum = topo::finish_leaf::<T>(
+        let drum = sweep::test_support::taken::<T>(
             extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body,
             tol(),
         )
@@ -1413,7 +1413,7 @@ fn oblique_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
 
-    let drum = topo::finish_leaf::<T>(
+    let drum = sweep::test_support::taken::<T>(
         extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body,
         tol(),
     )
@@ -1846,7 +1846,7 @@ fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
     let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let ring = topo::finish_leaf::<T>(ring, tol()).expect("the torus is a finished body");
+    let ring = sweep::test_support::taken::<T>(ring, tol()).expect("the torus is a finished body");
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
 }
@@ -1963,7 +1963,8 @@ fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
     let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let ring = topo::finish_leaf::<T>(ring, tol()).expect("the one-face torus is a finished body");
+    let ring = sweep::test_support::taken::<T>(ring, tol())
+        .expect("the one-face torus is a finished body");
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
 }

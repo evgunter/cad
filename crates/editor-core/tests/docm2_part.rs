@@ -95,7 +95,7 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
 /// the Arc it holds.
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<topo::AtRestBody<f64>> {
     match &ev.value(id).expect("a value").payload {
-        ValuePayload::Body(b) => b.shared(),
+        ValuePayload::Body(b) => b.holding().arc(),
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
     }
 }
@@ -115,7 +115,7 @@ fn sides(
         panic!("a split value");
     };
     let body = |s: &SplitSide<f64>| match s {
-        SplitSide::Body(b) => Arc::clone(b.shared()),
+        SplitSide::Body(b) => Arc::clone(b.holding().arc()),
         SplitSide::Empty => panic!("both halves carry material"),
     };
     (body(above), body(below))
@@ -126,7 +126,7 @@ fn instances(ev: &Evaluation<f64>, pattern: RecipeNodeId) -> Vec<Arc<topo::AtRes
     let ValuePayload::Instances(v) = &ev.value(pattern).expect("the pattern").payload else {
         panic!("a family of bodies");
     };
-    v.iter().map(|b| Arc::clone(b.shared())).collect()
+    v.iter().map(|b| Arc::clone(b.holding().arc())).collect()
 }
 
 fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {

@@ -609,22 +609,50 @@ impl MassMeasurement {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
-    pub(crate) inner: Arc<topo::Body<f64>>,
+    pub(crate) inner: HostBody,
     contacts: Arc<topo::ContactRecords>,
 }
 
+/// **The body a host handle reads**: construction state a door minted,
+/// or an evaluated value's body shared as the evaluation holds it (no
+/// copy). Read as a body either way.
+#[derive(Clone)]
+pub(crate) enum HostBody {
+    /// Construction state.
+    Plain(Arc<topo::Body<f64>>),
+    /// An evaluated value's body, shared.
+    Held(pncad::document::Held<f64>),
+}
+
+impl core::ops::Deref for HostBody {
+    type Target = topo::Body<f64>;
+
+    fn deref(&self) -> &topo::Body<f64> {
+        match self {
+            Self::Plain(body) => body,
+            Self::Held(body) => body,
+        }
+    }
+}
+
+impl From<Arc<topo::Body<f64>>> for HostBody {
+    fn from(body: Arc<topo::Body<f64>>) -> Self {
+        Self::Plain(body)
+    }
+}
+
 impl Body {
-    /// **A finished body as the host holds it**: the bindings' handle
-    /// is construction state, so a finished body crosses as its body.
-    pub(crate) fn host(body: Arc<topo::AtRestBody<f64>>) -> Arc<topo::Body<f64>> {
-        Arc::new(Arc::unwrap_or_clone(body).into_body())
+    /// **An evaluated value's body as the host holds it**: shared, not
+    /// copied.
+    pub(crate) fn host(body: pncad::document::Held<f64>) -> HostBody {
+        HostBody::Held(body)
     }
 
     /// A body with no contact records — every door but those that have
     /// records to carry (an evaluated value, an import).
-    pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
+    pub(crate) fn plain(inner: impl Into<HostBody>) -> Self {
         Self {
-            inner,
+            inner: inner.into(),
             contacts: Arc::new(topo::ContactRecords::default()),
         }
     }
@@ -632,10 +660,13 @@ impl Body {
     /// A body with the contact records its producer carries, each citing
     /// the decision that backs it.
     pub(crate) fn recorded(
-        inner: Arc<topo::Body<f64>>,
+        inner: impl Into<HostBody>,
         contacts: Arc<topo::ContactRecords>,
     ) -> Self {
-        Self { inner, contacts }
+        Self {
+            inner: inner.into(),
+            contacts,
+        }
     }
 }
 

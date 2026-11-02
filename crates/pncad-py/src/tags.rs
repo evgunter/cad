@@ -2920,6 +2920,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::Connectedness { .. } => "connectedness",
         CheckEvidence::Escalated { .. } => "escalated",
         CheckEvidence::Unsupported { .. } => "unsupported",
+        CheckEvidence::NotAtRest { .. } => "not_at_rest",
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
         CheckEvidence::ChartCoherence { .. } => "chart_coherence",
         CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",

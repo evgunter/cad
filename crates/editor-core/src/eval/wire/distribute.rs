@@ -74,15 +74,28 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         })
     }
 
-    /// **Its finished body read into `into`'s frame**: its own where the
-    /// two are one frame, else mapped and finished once at the
-    /// placement's door ([`crate::eval::Framed::read_in`]).
-    pub(super) fn finished_in(
+    /// **Its body, taken** as a door that takes finished bodies takes it
+    /// ([`crate::eval::Held::finished`]), in its own frame.
+    pub(super) fn taken(&self, tol: Tol) -> Result<Arc<T::Finished>, NodeErrorKind> {
+        Ok(self.body.holding().finished(tol)?)
+    }
+
+    /// **Its body taken in `into`'s frame**: `own`, its body already
+    /// taken in its own frame ([`Self::taken`]), where the two are one
+    /// frame; else its body mapped at the placement's door
+    /// ([`crate::eval::Framed::read_in`]) and taken there.
+    pub(super) fn taken_in(
         &self,
         into: &crate::eval::Framed<T>,
+        own: &Arc<T::Finished>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        into.finished_in(&self.body, tol)
+        let read = into.read_in(&self.body, tol)?;
+        if read.same(self.body.holding()) {
+            Ok(Arc::clone(own))
+        } else {
+            Ok(read.finished(tol)?)
+        }
     }
 
     /// Its names as the seat's table spells them: each holder's
@@ -213,8 +226,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         };
         let first = computing.get_or_insert_with(|| body.clone());
         let read_in = first.read_in(&body, tol)?;
-        let keys = topo::graft_disjoint_all_keyed(&mut fused, read_in.as_ref())
-            .map_err(NodeErrorKind::Boolean)?;
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut fused, &read_in).map_err(NodeErrorKind::Boolean)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
             .carry

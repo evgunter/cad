@@ -370,7 +370,7 @@ impl RowCell {
 /// one computing frame (`Framed::computing_among`), the other read into
 /// it through `relative`.
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(std::sync::Arc<T::Leaf>, EntityRef)>,
+    cells: Vec<(crate::eval::Held<T>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -442,7 +442,7 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(std::sync::Arc<T::Leaf>, EntityRef),
+    (body, ent): &(crate::eval::Held<T>, EntityRef),
 ) -> Option<crate::VarKind> {
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
@@ -1566,7 +1566,11 @@ fn intersection(
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    match topo::intersect(&*product.copies[a].body, &*product.copies[b].body, tol) {
+    match topo::intersect(
+        product.copies[a].body.at_f64(),
+        product.copies[b].body.at_f64(),
+        tol,
+    ) {
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
         Err(refusal) => Err(Unlocalized::Refused {

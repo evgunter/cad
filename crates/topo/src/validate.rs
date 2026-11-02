@@ -10539,9 +10539,20 @@ macro_rules! scaffolding_recourse {
 /// session's verdict (no caller does that today).
 ///
 /// [`AtRestPolicy::finish`]: crate::AtRestPolicy::finish
+///
+/// **A sweep leaf's finish record** (`AtRestPolicy::leaf`, the box
+/// scalars' switch): at `f64` and `Probe` a sweep door's leaf, a
+/// placement's image and an assemble's graft are finished where they
+/// are built, with the finish's decisions held off that node's verdict
+/// log and kept here, and the one taker door ([`crate::take`]) relogs
+/// them where it takes the body. The box scalars' leaf is tier 2 alone
+/// and its taker runs tier 3 there, logged, so both lanes log the
+/// finish at the taker, as main's taker gate did
+/// (`docs/predicate-dimension-audit.md` F31).
 #[derive(Clone, Debug)]
 pub struct AtRestBody<T: Real> {
     body: Body<T>,
+    held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -10557,7 +10568,26 @@ impl<T: Real> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         validate_geometric_certificate(&body, tol)?;
-        Ok(Self { body })
+        Ok(Self { body, held: None })
+    }
+
+    /// **This finished body holding its finish's record** for the taker
+    /// that takes it ([`crate::take`]): the sweep leaf's switch at the
+    /// point scalars (F31).
+    pub(crate) fn holding(self, record: geom_core::k_stats::Recorded) -> Self {
+        Self {
+            body: self.body,
+            held: Some(std::sync::Arc::new(record)),
+        }
+    }
+
+    /// **Relogs the held finish record** into this thread's open frame:
+    /// the taker's half of [`AtRestBody::holding`]. Nothing where none is
+    /// held.
+    pub(crate) fn relog_held(&self) {
+        if let Some(record) = &self.held {
+            geom_core::k_stats::relog(record);
+        }
     }
 
     /// The body, the verdict given up.

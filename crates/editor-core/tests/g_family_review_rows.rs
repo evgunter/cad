@@ -582,7 +582,7 @@ fn a_count_edit_serves_the_first_members_from_the_memo() {
     let (b0, b1) = (bodies(&first), bodies(&after));
     assert_eq!(b1.len(), 6);
     let shared: Vec<bool> = (0..4)
-        .map(|i| std::sync::Arc::ptr_eq(b0[i].shared(), b1[i].shared()))
+        .map(|i| std::sync::Arc::ptr_eq(b0[i].holding().arc(), b1[i].holding().arc()))
         .collect();
     assert!(
         shared.iter().all(|&s| s),

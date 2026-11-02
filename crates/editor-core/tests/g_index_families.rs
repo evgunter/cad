@@ -103,7 +103,7 @@ fn a_ring_is_one_placement_whose_spin_reads_the_index() {
     };
     for (k, copy) in copies.iter().enumerate() {
         assert!(
-            std::sync::Arc::ptr_eq(copy.shared(), source.shared()),
+            std::sync::Arc::ptr_eq(copy.holding().arc(), source.holding().arc()),
             "member {k} shares the block's one body"
         );
     }

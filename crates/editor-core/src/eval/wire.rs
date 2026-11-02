@@ -1390,7 +1390,7 @@ pub(crate) fn prepare_profile(
         let (validated_f64, canonical) = replayed
             .validate_recording(tol)
             .map_err(NodeErrorKind::Profile)?;
-        Ok((replay_records, validated_f64, canonical))
+        Ok::<_, NodeErrorKind>((replay_records, validated_f64, canonical))
     });
     let pinned = |name: &str| profile::PINNED_UNDER_GUIDANCE.contains(&name);
     let decided = geom_core::k_stats::Recorded {
@@ -1802,7 +1802,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // It computes in its operand's frame.
     let operand = read_body(results, target)?;
-    let body = operand.finished(tol)?;
+    let body = operand.holding().finished(tol)?;
     let size = slot_scalar(vals, verb.slots.size_slot);
     let target_value = value_of(results, target)?;
     let target_table = read_table(target_value);
@@ -1902,7 +1902,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (target_read, target) = (open.read, open.at);
     // It computes in its operand's frame.
     let operand = read_body(results, target)?;
-    let body = operand.finished(tol)?;
+    let body = operand.holding().finished(tol)?;
     let thickness = slot_scalar(vals, verb.slots.size_slot);
     let target_table = read_table(value_of(results, target)?);
     // Designation order: the first designated face of a chart carries
@@ -2486,7 +2486,7 @@ where
         crate::measure::ClearanceSeat {
             at,
             index: ent.body,
-            body: bodies[i].as_ref(),
+            body: &bodies[i],
             faces: match ent.key {
                 names::EntityKey::Body => bodies[i].faces().map(|(k, _)| k).collect(),
                 names::EntityKey::Face(k) => vec![k],
@@ -2591,13 +2591,20 @@ impl Witnessing<'_> {
         let (fa, fb) = (framed(sides[0])?, framed(sides[1])?);
         let computing =
             super::Framed::computing_among([fa, fb]).unwrap_or_else(|| unreachable!("two seats"));
+        // At `f64` both arms hold the finished body (`Held`): read as it
+        // is, no taker's relog, as main read it ungated.
         let read = |f| {
-            computing.read_in(f, tol).map_err(|kind| {
-                format!(
-                    "the f64 rebuild could not read a seat into the frame its pair is decided \
-                     in: {kind}"
-                )
-            })
+            computing
+                .read_in(f, tol)
+                .map(|held| match held {
+                    super::Held::Finished(body) | super::Held::Leaf(body) => body,
+                })
+                .map_err(|kind| {
+                    format!(
+                        "the f64 rebuild could not read a seat into the frame its pair is \
+                         decided in: {kind}"
+                    )
+                })
         };
         Ok([read(fa)?, read(fb)?])
     }
@@ -2657,7 +2664,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     // It computes in its operand's frame, its tool read into it.
     let operand = read_body(results, target)?;
-    let body = operand.finished(tol)?;
+    let body = operand.holding().finished(tol)?;
     let tool = &tool.read_into(operand.frame(), band(tol)?)?;
     let plane = (verb.tool)(tool).unwrap_or_else(|| {
         unreachable!(
@@ -2705,15 +2712,15 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let above = side(above);
     let below = side(below);
     let as_body = |s: &SplitSide<T>| match s {
-        SplitSide::Body(b) => Some(Arc::clone(b.shared())),
+        SplitSide::Body(b) => Some(b.holding().clone()),
         SplitSide::Empty => None,
     };
     let target_table = read_table(value_of(results, target)?);
     let (ab, bb) = (as_body(&above), as_body(&below));
     let emitted = (verb.emitter)(
         id,
-        ab.as_deref().map(|b| &**b),
-        bb.as_deref().map(|b| &**b),
+        ab.as_deref(),
+        bb.as_deref(),
         &naming,
         target,
         &target_table,
@@ -3146,7 +3153,7 @@ fn with_replaced<T: topo::AtRestPolicy + Decide>(
 /// **One member of a union or an intersect, as read and not yet
 /// finished**: the read it came through (its names' key), its body in
 /// its own frame and its own table. The fold reads it into the frame it
-/// computes in and finishes it there, once ([`MemberRead::finished_in`]).
+/// computes in and finishes it there, once ([`MemberRead::taken_in`]).
 #[derive(Clone)]
 struct MemberRead<T: topo::AtRestPolicy + Decide> {
     read: crate::VarId,
@@ -3179,28 +3186,22 @@ struct Member<T: topo::AtRestPolicy + Decide> {
 }
 
 impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
-    /// **This member read into `computing`'s frame**: its own finished
-    /// body where the two are one frame, else its body mapped and
-    /// finished once at the placement's door ([`super::Framed::read_in`]).
-    fn finished_in(
-        &self,
-        computing: &super::Framed<T>,
-        tol: Tol,
-    ) -> Result<Member<T>, NodeErrorKind> {
-        let same_frame = computing
-            .relative(&self.framed)
-            .map_err(NodeErrorKind::Motion)?
-            .is_none();
-        let read = computing.finished_in(&self.framed, tol)?;
-        let framed = if same_frame {
+    /// **This member read into `computing`'s frame and taken**: what it
+    /// holds where the two are one frame, else its body mapped once at
+    /// the placement's door ([`super::Framed::read_in`]); taken as the
+    /// Boolean takes it ([`super::Held::finished`]).
+    fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
+        let read = computing.read_in(&self.framed, tol)?;
+        let body = read.finished(tol)?;
+        let framed = if read.same(self.framed.holding()) {
             self.framed.clone()
         } else {
-            super::Framed::in_frame(Arc::clone(&read), computing.frame().clone())
+            super::Framed::held(read, computing.frame().clone())
         };
         Ok(Member {
             read: self.read,
             framed,
-            body: read,
+            body,
             table: Arc::clone(&self.table),
             carry: self.carry.clone(),
         })
@@ -3229,7 +3230,22 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let from = distribute::Operand::read(results_a, a, a_read, doc, tol)?;
     let tool = distribute::Operand::read(results_b, b, b_read, doc, tol)?;
-    subtract_from(verb, id, &from, &tool, boolean_sweep, tol)
+    // A body with pieces is taken piece by piece.
+    let body_a = match from.carry.pieces {
+        None => Some(from.taken(tol)?),
+        Some(_) => None,
+    };
+    // The tool taken in its own frame, once: read as it stands wherever a
+    // cut computes in that frame.
+    let body_b = tool.taken(tol)?;
+    subtract_from(
+        verb,
+        id,
+        (&from, body_a),
+        (&tool, &body_b),
+        boolean_sweep,
+        tol,
+    )
 }
 
 /// `from` cut by `tool`, by piece where `from` holds pieces. Each cut
@@ -3239,8 +3255,8 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
-    from: &distribute::Operand<T>,
-    b: &distribute::Operand<T>,
+    (from, body_a): (&distribute::Operand<T>, Option<Arc<T::Finished>>),
+    (b, body_b): (&distribute::Operand<T>, &Arc<T::Finished>),
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
@@ -3249,20 +3265,24 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .units()?
             .iter()
             .map(|unit| {
-                let out = subtract_from(verb, id, unit, b, boolean_sweep, tol)?;
+                let out = subtract_from(verb, id, (unit, None), (b, body_b), boolean_sweep, tol)?;
                 Ok((unit.read, out))
             })
             .collect::<Result<Vec<_>, NodeErrorKind>>()?;
         return distribute::assembled(id, outs, tol);
     }
+    let body_a = match body_a {
+        Some(body) => body,
+        None => from.taken(tol)?,
+    };
     // It computes in `from`'s frame unless only the tool is in its space's
     // coordinates
     // ([`super::Framed::computing_among`]).
     let computing = super::Framed::computing_among([&from.body, &b.body])
         .unwrap_or(&from.body)
         .clone();
-    let body_a = from.finished_in(&computing, tol)?;
-    let body_b = &*b.finished_in(&computing, tol)?;
+    let body_a = from.taken_in(&computing, &body_a, tol)?;
+    let body_b = &*b.taken_in(&computing, body_b, tol)?;
     let inputs = BooleanInputs {
         records_a: from.carry.contacts.carried(),
         records_b: b.carry.contacts.carried(),
@@ -3716,7 +3736,7 @@ fn images_apart<T: topo::AtRestPolicy + Decide + geom_core::Bounds>(
             continue;
         }
         let images: Vec<usize> = (i..members.len())
-            .filter(|&j| Arc::ptr_eq(members[j].framed.shared(), m.framed.shared()))
+            .filter(|&j| members[j].framed.holding().same(m.framed.holding()))
             .collect();
         for &j in &images {
             seen[j] = true;
@@ -3766,7 +3786,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // every other member into it through `relative`.
     let (members, apart) = match members {
         [] => return empty(),
-        [one] => return lone_member(id, &one.finished_in(&one.framed, tol)?),
+        [one] => return lone_member(id, &one.taken_in(&one.framed, tol)?),
         [first, ..] => {
             let computing = super::Framed::computing_among(members.iter().map(|m| &m.framed))
                 .unwrap_or(&first.framed)
@@ -3777,7 +3797,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             };
             let finished = members
                 .iter()
-                .map(|m| m.finished_in(&computing, tol))
+                .map(|m| m.taken_in(&computing, tol))
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
             (finished, apart)
         }
@@ -4366,7 +4386,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         for body in &bodies {
             let first = computing.get_or_insert_with(|| body.clone());
             let read = first.read_in(body, tol)?;
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, read.as_ref())
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &read)
                 .map_err(NodeErrorKind::Boolean)?;
             bridges.push(keys);
         }

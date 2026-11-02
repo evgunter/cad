@@ -102,7 +102,7 @@ fn two_copies_share_one_arc_and_a_third_builds_nothing() {
     let own = framed(&ev, source);
     for (copy, which) in [(first, "first"), (second, "second")] {
         assert!(
-            Arc::ptr_eq(framed(&ev, copy).shared(), own.shared()),
+            Arc::ptr_eq(framed(&ev, copy).holding().arc(), own.holding().arc()),
             "the {which} copy is the block's own Arc"
         );
     }
@@ -120,8 +120,8 @@ fn two_copies_share_one_arc_and_a_third_builds_nothing() {
     assert_eq!(built.rigid_maps, 0, "and it maps no body: {built:?}");
     assert!(
         Arc::ptr_eq(
-            framed(&again, third).shared(),
-            framed(&again, source).shared()
+            framed(&again, third).holding().arc(),
+            framed(&again, source).holding().arc()
         ),
         "the third copy is the block's own Arc"
     );
@@ -521,7 +521,8 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
                 && let (ValuePayload::Body(p), ValuePayload::Body(t)) = (&p.payload, &t.payload)
             {
                 bodies += 1;
-                if !Arc::ptr_eq(p.shared(), t.shared()) && p.relative(t).is_ok_and(|m| m.is_some())
+                if !Arc::ptr_eq(p.holding().arc(), t.holding().arc())
+                    && p.relative(t).is_ok_and(|m| m.is_some())
                 {
                     moved += 1;
                 }

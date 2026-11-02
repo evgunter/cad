@@ -447,6 +447,15 @@ pub enum CheckEvidence {
         /// The typed refusal from the shell door.
         source: ShellClassifyError,
     },
+    /// The subject is not a finished body: tier 3 refuses it where the
+    /// shell door takes it (at the box scalars, a sweep's leaf, the
+    /// switch at `topo::AtRestPolicy::leaf`), so its shells are not
+    /// classified and the component count is not read. A finding, never
+    /// a silent skip (F6), and the walk goes on to the other outputs.
+    NotAtRest {
+        /// The finish's findings on the subject, verbatim.
+        errors: Vec<topo::ValidationError>,
+    },
     /// An expectation with no subject: `expected_components` carries
     /// an entry at this `(placement, output_ix)` and no evaluated subject
     /// consumed it — the body vanished (a boolean may have consumed
@@ -774,6 +783,22 @@ impl SaidFinding<'_> {
                 f,
                 "the component count cannot be computed for this body: {source}"
             ),
+            CheckEvidence::NotAtRest { errors } => match errors.as_slice() {
+                [] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation"
+                ),
+                [first] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation: {first}"
+                ),
+                [first, rest @ ..] => write!(
+                    f,
+                    "the component count is not read: the body does not pass validation: {first} \
+                     (and {} more)",
+                    rest.len()
+                ),
+            },
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
                 "an expectation of {expected} component(s) has no subject: the body \
@@ -940,7 +965,9 @@ impl SaidFinding<'_> {
             // The story ends in the part's own recourse, in the part.
             CheckEvidence::CarriedInterference { .. }
             | CheckEvidence::CarriedCoincidence { .. } => "",
-            CheckEvidence::Escalated { .. }
+            // The first finding's own sentence carries its recourse.
+            CheckEvidence::NotAtRest { .. }
+            | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. } => "",
             // The kernel's verdict, the gather's refusal and the part's
@@ -1949,17 +1976,26 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
         };
         for (output_ix, body, _contacts, _rows) in sources {
             unconsumed.remove(&(placement, output_ix));
-            // A box scalar's sweep leaf is finished here, the shell door
-            // taking a finished body (`topo::AtRestPolicy::leaf`, the
-            // switch); one that does not finish is the product's refusal,
-            // as the gather's own finish of the aggregate would be. At
-            // `f64` and `Probe` the leaf is the finished body.
-            let finished = body.finished(tol).map_err(|kind| match kind {
-                crate::eval::NodeErrorKind::UnfinishedLeaf { findings } => ChecksError::Product {
-                    refusal: Some(product::ProductError::ProductInvalid { findings }.into()),
-                },
-                other => unreachable!("a held leaf's finish refuses only as a leaf: {other:?}"),
-            })?;
+            // The shell door takes a finished body: a box scalar's leaf
+            // is taken here (`Held::finished`), and one that does not
+            // finish is this output's finding; the walk goes on.
+            let finished = match body.holding().finished(tol) {
+                Ok(finished) => finished,
+                Err(findings) => {
+                    report.findings.push(CheckFinding {
+                        check: CheckId::Connectedness,
+                        subject: FindingSubject::Output {
+                            placement,
+                            output_ix,
+                        },
+                        evidence: CheckEvidence::NotAtRest {
+                            errors: findings.as_slice().to_vec(),
+                        },
+                        quiet: None,
+                    });
+                    continue;
+                }
+            };
             match classify_shells(&*finished, tol) {
                 Ok(classes) => {
                     let outer = classes

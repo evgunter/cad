@@ -257,7 +257,7 @@ pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> 
 impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
     /// The built body as its scalar's leaf ([`topo::AtRestPolicy::leaf`]),
     /// every key kept.
-    pub(crate) fn finished(self, tol: Tol) -> Result<Revolved<T>, topo::NotFinished> {
+    pub(crate) fn leaf(self, tol: Tol) -> Result<Revolved<T>, topo::NotFinished> {
         let Self {
             body,
             solid,
@@ -1098,10 +1098,10 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
 ///
 /// The sketch placement is the profile's own; the axis and angle
 /// classify per the module docs' conventions (named trilean predicates
-/// throughout). The door finishes its result at its own end
-/// ([`topo::AtRestPolicy::finish`]): on success the body is the
-/// scalar's finished body, and a body the finish refuses is
-/// [`RevolveError::NotFinished`].
+/// throughout). The door ends in its scalar's leaf
+/// ([`topo::AtRestPolicy::leaf`]): on success the body is the scalar's
+/// leaf, finished at `f64` and `Probe` and tier 2 alone at the box
+/// scalars, and a body the leaf refuses is [`RevolveError::NotFinished`].
 ///
 /// # Errors
 ///
@@ -1123,7 +1123,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     revolve_construction(profile, axis, revolution, tol)?
-        .finished(tol)
+        .leaf(tol)
         .map_err(|findings| RevolveError::NotFinished { findings })
 }
 

@@ -102,19 +102,94 @@ impl<T: Real> Frame<T> {
     }
 }
 
-/// **A body value** (the copies ruling): the body in its own
-/// coordinates, as its scalar's leaf ([`topo::AtRestPolicy::Leaf`]), and
-/// the map from them into its space's.
+/// **The body a value holds**: a finished body, or its scalar's leaf
+/// ([`topo::AtRestPolicy::Leaf`]) where a sweep door, a placement's
+/// image or an assemble's graft built it. Read as a body through
+/// [`Deref`](core::ops::Deref); a consumer that takes a finished body
+/// takes it through [`Held::finished`], the evaluator's one taker door.
 ///
-/// The leaf is the finished body at `f64` and `Probe`, so no consumer
-/// gates it again (`[topology.tiers]`). At the box scalars a sweep
-/// door's result is tier 2 alone (the switch at
-/// [`topo::AtRestPolicy::leaf`]), and a finished body held here keeps
-/// tier 2's claim, not its verdict: the consumer that takes a finished
-/// body finishes it ([`Self::finished`], [`Self::read_in`]).
+/// At `f64` and `Probe` both arms hold a finished body. At the box
+/// scalars a leaf is tier 2 alone (the switch at
+/// [`topo::AtRestPolicy::leaf`]), and a finished body stays finished:
+/// its taker does not run tier 3 again, at either lane.
+#[derive(Debug)]
+pub enum Held<T: topo::AtRestPolicy> {
+    /// A finished body: a Boolean's, a split's, a shell's, a blend's.
+    Finished(Arc<T::Finished>),
+    /// The scalar's leaf.
+    Leaf(Arc<T::Leaf>),
+}
+
+impl<T: topo::AtRestPolicy> Clone for Held<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Finished(body) => Self::Finished(Arc::clone(body)),
+            Self::Leaf(body) => Self::Leaf(Arc::clone(body)),
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> core::ops::Deref for Held<T> {
+    type Target = Body<T>;
+
+    fn deref(&self) -> &Body<T> {
+        match self {
+            Self::Finished(body) => body,
+            Self::Leaf(body) => body,
+        }
+    }
+}
+
+impl<T: topo::AtRestPolicy> Held<T> {
+    /// **The finished body**, as a door that takes finished operands
+    /// takes it: the held one, or the leaf through the one taker door
+    /// ([`topo::take`]: its finish record relogged at `f64` and `Probe`,
+    /// tier 3 run and logged at the box scalars).
+    ///
+    /// # Errors
+    ///
+    /// The finish's findings, at the box scalars; an evaluator node
+    /// reads them as [`super::NodeErrorKind::UnfinishedLeaf`].
+    pub fn finished(&self, tol: Tol) -> Result<Arc<T::Finished>, topo::NotFinished> {
+        match self {
+            Self::Finished(body) => Ok(Arc::clone(body)),
+            Self::Leaf(leaf) => topo::take::<T>(leaf, tol),
+        }
+    }
+
+    /// Whether the two hold one body, by `Arc`.
+    #[must_use]
+    pub fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Finished(a), Self::Finished(b)) => Arc::ptr_eq(a, b),
+            (Self::Leaf(a), Self::Leaf(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+}
+
+impl Held<f64> {
+    /// **The finished body at `f64`**, where both arms hold one: read as
+    /// it is, for an `f64`-only reader that is no taker (no relog).
+    #[must_use]
+    pub fn at_f64(&self) -> &topo::AtRestBody<f64> {
+        self.arc()
+    }
+
+    /// [`Self::at_f64`]'s `Arc`: what two values are compared by.
+    #[must_use]
+    pub fn arc(&self) -> &Arc<topo::AtRestBody<f64>> {
+        match self {
+            Self::Finished(body) | Self::Leaf(body) => body,
+        }
+    }
+}
+
+/// **A body value** (the copies ruling): the body in its own
+/// coordinates ([`Held`]) and the map from them into its space's.
 #[derive(Debug, Clone)]
 pub struct Framed<T: topo::AtRestPolicy> {
-    body: Arc<T::Leaf>,
+    body: Held<T>,
     frame: Frame<T>,
 }
 
@@ -123,27 +198,28 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// computed in its own.
     #[must_use]
     pub fn own(body: Arc<T::Finished>) -> Self {
-        Self::own_leaf(<T::Leaf as topo::LeafBody>::of_finished(body))
+        Self::held(Held::Finished(body), Frame::Own)
     }
 
-    /// A sweep door's leaf in its space's coordinates
-    /// ([`topo::AtRestPolicy::leaf`]).
+    /// A leaf in its space's coordinates ([`topo::AtRestPolicy::leaf`]).
     #[must_use]
     pub fn own_leaf(body: Arc<T::Leaf>) -> Self {
-        Self {
-            body,
-            frame: Frame::Own,
-        }
+        Self::held(Held::Leaf(body), Frame::Own)
     }
 
     /// A finished `body` in `frame`: an operation's result, computed in
     /// the frame of the operand it computed in.
     pub(crate) fn in_frame(body: Arc<T::Finished>, frame: Frame<T>) -> Self {
-        Self::in_frame_leaf(<T::Leaf as topo::LeafBody>::of_finished(body), frame)
+        Self::held(Held::Finished(body), frame)
     }
 
     /// A leaf `body` in `frame`.
     pub(crate) fn in_frame_leaf(body: Arc<T::Leaf>, frame: Frame<T>) -> Self {
+        Self::held(Held::Leaf(body), frame)
+    }
+
+    /// `body` in `frame`.
+    pub(crate) fn held(body: Held<T>, frame: Frame<T>) -> Self {
         Self { body, frame }
     }
 
@@ -155,32 +231,9 @@ impl<T: topo::AtRestPolicy> Framed<T> {
         &self.body
     }
 
-    /// **The finished body**, as a door that takes finished operands
-    /// takes it: the held `Arc` where the leaf is the finished body;
-    /// tier 3 run here on a box scalar's leaf
-    /// ([`topo::LeafBody::finished_arc`]).
-    ///
-    /// # Errors
-    ///
-    /// [`super::NodeErrorKind::UnfinishedLeaf`], at the box scalars.
-    pub fn finished(&self, tol: Tol) -> Result<Arc<T::Finished>, super::NodeErrorKind> {
-        self.finished_body(tol)
-            .map_err(|findings| super::NodeErrorKind::UnfinishedLeaf { findings })
-    }
-
-    /// [`Self::finished`], refusing in the kernel's own words: for a
-    /// reader outside the evaluator (an export).
-    ///
-    /// # Errors
-    ///
-    /// The finish's findings, at the box scalars.
-    pub fn finished_body(&self, tol: Tol) -> Result<Arc<T::Finished>, topo::NotFinished> {
-        topo::LeafBody::finished_arc(&self.body, tol)
-    }
-
-    /// The held leaf, shared: what two values are compared by.
+    /// What it holds ([`Held`]); [`Held::finished`] is the taker door.
     #[must_use]
-    pub fn shared(&self) -> &Arc<T::Leaf> {
+    pub fn holding(&self) -> &Held<T> {
         &self.body
     }
 
@@ -190,7 +243,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     #[must_use]
     pub fn with_body(&self, body: Arc<T::Finished>) -> Self {
         Self {
-            body: <T::Leaf as topo::LeafBody>::of_finished(body),
+            body: Held::Finished(body),
             frame: self.frame.clone(),
         }
     }
@@ -250,7 +303,7 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     /// The composition's overflow.
     pub(crate) fn moved(&self, motion: &RigidMotion<T>) -> Result<Self, RigidMotionError> {
         Ok(Self {
-            body: Arc::clone(&self.body),
+            body: self.body.clone(),
             frame: self.frame.moved(motion)?,
         })
     }
@@ -296,50 +349,28 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 }
 
 impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates**, as its scalar's
-    /// leaf: mapped once ([`Self::relative`]) and ended at the
-    /// placement's door ([`topo::AtRestPolicy::leaf`]: the finish at
-    /// `f64` and `Probe`, tier 2 at the box scalars), or `other`'s own
-    /// `Arc` where the two are in one frame. A reader that takes a
-    /// finished body finishes it ([`Self::finished_in`]).
+    /// **`other`'s body in this one's coordinates**: what it holds, as
+    /// it holds it, where the two are in one frame; else mapped once
+    /// ([`Self::relative`]) and ended at the placement's door as the
+    /// scalar's leaf ([`topo::AtRestPolicy::leaf`]). A reader reads it as
+    /// a body; a taker takes it through [`Held::finished`].
     ///
     /// # Errors
     ///
     /// The relative map's overflow, the kernel's own
     /// [`topo::transform::TransformError`], or the mapped body's leaf
     /// ([`super::NodeErrorKind::NotFinished`]).
-    pub(crate) fn read_in(
-        &self,
-        other: &Self,
-        tol: Tol,
-    ) -> Result<Arc<T::Leaf>, super::NodeErrorKind> {
+    pub(crate) fn read_in(&self, other: &Self, tol: Tol) -> Result<Held<T>, super::NodeErrorKind> {
         match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
-            None => Ok(Arc::clone(&other.body)),
+            None => Ok(other.body.clone()),
             Some(map) => {
                 super::counters::rigid_map();
                 let mapped = topo::transform::transform_rigid(&other.body, &map, tol)
                     .map_err(super::NodeErrorKind::Transform)?;
                 T::leaf(mapped, tol)
-                    .map(Arc::new)
+                    .map(|leaf| Held::Leaf(Arc::new(leaf)))
                     .map_err(|findings| super::NodeErrorKind::NotFinished { findings })
             }
         }
-    }
-
-    /// **[`Self::read_in`], finished**, for a reader that takes a
-    /// finished body (a Boolean's, the product's): the same `Arc` at
-    /// `f64` and `Probe`; tier 3 run here at the box scalars.
-    ///
-    /// # Errors
-    ///
-    /// [`Self::read_in`]'s, or [`super::NodeErrorKind::UnfinishedLeaf`].
-    pub(crate) fn finished_in(
-        &self,
-        other: &Self,
-        tol: Tol,
-    ) -> Result<Arc<T::Finished>, super::NodeErrorKind> {
-        let leaf = self.read_in(other, tol)?;
-        topo::LeafBody::finished_arc(&leaf, tol)
-            .map_err(|findings| super::NodeErrorKind::UnfinishedLeaf { findings })
     }
 }

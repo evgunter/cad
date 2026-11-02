@@ -573,7 +573,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // certified pcurves at rest.
     topo::mint_pcurves(&mut out.body, tol)
         .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
-    out.finished(tol)
+    out.leaf(tol)
         .map_err(|findings| TubeError::Revolve(RevolveError::NotFinished { findings }))
 }
 

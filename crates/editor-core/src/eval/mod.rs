@@ -45,7 +45,7 @@ pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
-pub use framed::Framed;
+pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -2008,6 +2008,16 @@ pub enum NodeErrorKind {
         /// The bound's.
         bound: crate::expr::Dimension,
     },
+}
+
+/// **A taker's refusal** ([`Held::finished`]): the box scalars' leaf that
+/// does not finish where a node takes it, read as
+/// [`NodeErrorKind::UnfinishedLeaf`]. A node's own finish of what it
+/// produced names [`NodeErrorKind::NotFinished`] explicitly.
+impl From<topo::NotFinished> for NodeErrorKind {
+    fn from(findings: topo::NotFinished) -> Self {
+        Self::UnfinishedLeaf { findings }
+    }
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the

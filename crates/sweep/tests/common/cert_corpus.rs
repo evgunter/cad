@@ -91,7 +91,8 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         geom_core::Tol::witness(),
     );
     let res = split(
-        &topo::finish_leaf::<T>(cyl.clone(), tol).expect("the cylinder is a finished body"),
+        &sweep::test_support::taken::<T>(cyl.clone(), tol)
+            .expect("the cylinder is a finished body"),
         &plane,
         tol,
     )

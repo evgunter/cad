@@ -236,6 +236,20 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 
 pub use topo::test_support::finished;
 
+/// **A sweep door's leaf, taken** through the one taker door
+/// ([`topo::take`]), for rows that hand a door's result to a door that
+/// takes finished bodies.
+///
+/// # Errors
+///
+/// The finish's findings, at the box scalars.
+pub fn taken<T: topo::AtRestPolicy>(
+    leaf: T::Leaf,
+    tol: Tol,
+) -> Result<T::Finished, topo::NotFinished> {
+    topo::take::<T>(&std::sync::Arc::new(leaf), tol).map(std::sync::Arc::unwrap_or_clone)
+}
+
 /// `body`, cloned and finished ([`finished`]): the operand of ONE blend
 /// door call on a fixture held by reference. Each call clones and pays
 /// tier 3, so a body handed to several doors is finished once with

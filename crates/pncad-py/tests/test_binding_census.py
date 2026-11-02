@@ -3550,6 +3550,7 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
+    "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",

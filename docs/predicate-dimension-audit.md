@@ -1538,27 +1538,35 @@ Flagged, NOT fixed here (dispositions):
   site; `LEDGER_FLAGGED_SITES` does not move.
 
 - **F31** (added by ONEHOME's finished-body lane, PR 6371)
-  `topo/src/props.rs` `AtRestPolicy::leaf` at `f64` and `Probe`: a sweep
-  door's own finish (tiers 1–3) at the point scalars, every decision
-  under it. Every row keeps its own dimension. What this row argues is
-  why their outcomes stay out of the sweep node's verdict log.
-  - The finish's outcome is the door's: a finished body, or a typed
-    refusal (`NotFinished`) that fails the node. An in-band reading
-    refuses the door at its own end and is never a verdict a box leaf
-    re-reads.
-  - Logged, the readings would be rows in the `f64` witness's vector
-    that a box leaf cannot have. At the box scalars the switch runs
-    tier 2 alone (Ev on PR 6371), so every leaf of every document with
-    a sweep would refuse `flip_crossing` (measured on PR 6371: the
-    tier-3 battery's `side_at_infinity_*`, `positive_volume_exact`,
-    `planar_*_residual` and `dihedral_*` rows diverged at every M10
-    drive).
+  `topo/src/props.rs` `AtRestPolicy::leaf` at `f64` and `Probe`: the
+  finish of a body the box scalars hold as a tier-2 leaf. That is a
+  sweep door's result, a placement's mapped image
+  (`editor_core::Framed::read_in`), a twist, a mirror and an assemble's
+  graft. Every row keeps its own dimension. What this row argues is why
+  the decisions are held off the building node's verdict log and logged
+  at the taker instead.
+  - At the box scalars the same body is tier 2 alone, and tier 3 runs
+    where a consumer takes it as a finished body (`topo::take`, logged
+    there). Main ran tier 3 nowhere but at that taker.
+  - So at the point scalars the finish runs where the body is built,
+    under a `k_stats::Bracket`, and its `Recorded` is kept on the body.
+    The taker relogs it (`k_stats::relog`, whose own contract is "a pass
+    the caller does not run because it knows what that pass decides").
+    Both lanes then log tier 3 at the taker, once, and the `f64`
+    witness's verdict vector is the box leaf's. Logged at the building
+    node instead, every M10 drive with a sweep refused `flip_crossing`
+    (measured on PR 6371: 61 rows). Held but never relogged, every leaf
+    whose sweep fed a taker refused it too (PR 6371 review r1, M1).
+  - A reader that is not a taker (a measure, a clearance, a pick) relogs
+    nothing, as main gated nothing there.
+  - The rows that hold the two logs equal are
+    `editor-core/tests/onehome_switch_parity_interval.rs` (a slab under a
+    union, and a slab placed then unioned, certify in one leaf).
   - It goes with the switch
-    (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`): with
-    the finish at every scalar, both lanes log it.
+    (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`).
 
-  **Carried as `k_stats::unlogged("F31", ..)`**. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  **Carried as a held `Recorded` relogged at `topo::take`**. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

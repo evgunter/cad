@@ -281,7 +281,7 @@ fn a_two_index_read_picks_its_member() {
             panic!("a member read is a body")
         };
         assert!(
-            Arc::ptr_eq(picked.shared(), bodies[k].shared())
+            Arc::ptr_eq(picked.holding().arc(), bodies[k].holding().arc())
                 && matches!(picked.relative(&bodies[k]), Ok(None)),
             "outer[{i}, {j}] is member body {k} itself, in its frame"
         );

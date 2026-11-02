@@ -1425,7 +1425,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, finish_leaf};
+pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, take};
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{

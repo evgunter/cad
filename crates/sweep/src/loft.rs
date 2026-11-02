@@ -190,7 +190,7 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
     /// # Errors
     ///
     /// [`LoftError::NotFinished`], every finding whole.
-    pub(crate) fn finished(self, tol: Tol) -> Result<Lofted<T>, LoftError> {
+    pub(crate) fn leaf(self, tol: Tol) -> Result<Lofted<T>, LoftError> {
         let Self {
             body,
             solid,
@@ -1710,7 +1710,7 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    loft_body_construction(sections, places, v_degree, tol)?.finished(tol)
+    loft_body_construction(sections, places, v_degree, tol)?.leaf(tol)
 }
 
 /// **[`loft_body`] before its finish**: the built body in construction
@@ -1759,7 +1759,7 @@ pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    loft_profiles_construction(sections, v_degree, tol)?.finished(tol)
+    loft_profiles_construction(sections, v_degree, tol)?.leaf(tol)
 }
 
 /// **[`loft_profiles`] before its finish**: the built body in construction
@@ -1864,7 +1864,7 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    sweep_body_construction(profile, plane, path, stations, v_degree, tol)?.finished(tol)
+    sweep_body_construction(profile, plane, path, stations, v_degree, tol)?.leaf(tol)
 }
 
 /// **[`sweep_body`] before its finish**: the built body in construction

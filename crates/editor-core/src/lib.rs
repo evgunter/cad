@@ -143,10 +143,10 @@ pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
-    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError,
-    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault,
-    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
-    traced_faces,
+    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload,
+    evaluate, traced_faces,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};

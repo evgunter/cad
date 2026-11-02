@@ -185,7 +185,7 @@ pub fn step_for_node(
         }
     };
     let body = body_in_space(body, tol).map_err(ExportError::Compose)?;
-    step_string(&body, options, tol).map_err(ExportError::Step)
+    step_string(body.at_f64(), options, tol).map_err(ExportError::Step)
 }
 
 /// **A body value as it stands in its space**, the façade's read-out
@@ -208,14 +208,14 @@ pub fn step_for_node(
 pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     body: &editor_core::Framed<T>,
     tol: Tol,
-) -> Result<std::sync::Arc<T::Leaf>, ComposeError> {
+) -> Result<editor_core::Held<T>, ComposeError> {
     match editor_core::in_space(body) {
-        None => Ok(std::sync::Arc::clone(body.shared())),
+        None => Ok(body.holding().clone()),
         Some(map) => {
             let mapped =
                 topo::transform_rigid(body.body(), &map, tol).map_err(ComposeError::Transform)?;
             T::leaf(mapped, tol)
-                .map(std::sync::Arc::new)
+                .map(|leaf| editor_core::Held::Leaf(std::sync::Arc::new(leaf)))
                 .map_err(ComposeError::NotFinished)
         }
     }

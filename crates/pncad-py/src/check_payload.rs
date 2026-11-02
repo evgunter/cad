@@ -206,6 +206,13 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
                 ..none
             }
         }
+        // The finish's first finding crosses as its own word and
+        // sentence, the way the shell door's refusal does.
+        CheckEvidence::NotAtRest { errors } => CheckEvidencePayload {
+            reason: errors.first().map(|e| Cow::Owned(e.to_string())),
+            inner_variant: errors.first().map(validation_error_tag),
+            ..none
+        },
         // The measurement, whole: the length it is judged as, the two
         // factors it is the product of, and the band it was judged
         // against. Four numbers rather than one because the finding

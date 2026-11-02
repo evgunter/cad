@@ -744,9 +744,9 @@ pub struct GatheredCopy<T: Decide + topo::AtRestPolicy> {
     /// The output-body index within the piece's value, which is
     /// also its name rows' index.
     pub output: u32,
-    /// The placed body, finished, in the frame the product computed in
-    /// ([`Product::body`]'s).
-    pub body: Arc<T::Finished>,
+    /// The placed body, in the frame the product computed in
+    /// ([`Product::body`]'s), as its source held it ([`crate::eval::Held`]).
+    pub body: crate::eval::Held<T>,
     /// The bridge from `body`'s arena to the aggregate's.
     pub keys: Arc<topo::GraftKeys>,
 }
@@ -1156,11 +1156,7 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 
 /// One grafted source: the source, its graft's key bridge, and its body
 /// read into the gather's computing frame.
-type Grafted<'s, T> = (
-    &'s Source<T>,
-    Arc<topo::GraftKeys>,
-    Arc<<T as topo::AtRestPolicy>::Finished>,
-);
+type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, crate::eval::Held<T>);
 
 /// Why a grafted source's position among a product's inputs fits a `u32`
 /// ([`crate::names::to_u32`]): each grafts at least one solid into the
@@ -1200,20 +1196,21 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         if body.body().solids().next().is_none() {
             continue;
         }
+        // A source is read as it stands (a leaf where it is one), as main
+        // read it: the aggregate is what finishes, once, below.
         let read = computing
             .get_or_insert(body)
-            .finished_in(body, tol)
+            .read_in(body, tol)
             .map_err(|kind| ProductError::Frame {
                 node: *node,
                 kind: Box::new(kind),
             })?;
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut aggregate, read.as_ref()).map_err(|source| {
-                ProductError::Graft {
-                    node: *node,
-                    source: Box::new(source),
-                }
-            })?;
+        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, &read).map_err(|source| {
+            ProductError::Graft {
+                node: *node,
+                source: Box::new(source),
+            }
+        })?;
         grafted.push((source, Arc::new(keys), read));
     }
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
@@ -1260,7 +1257,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             node: *node,
             var: *var,
             output: *ix,
-            body: Arc::clone(body),
+            body: body.clone(),
             keys: Arc::clone(keys),
         });
         carry_names(&mut tie_rows, table, *node, *ix, keys);

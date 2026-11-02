@@ -3380,6 +3380,10 @@ fn check_registry_tags_are_stable() {
         "unsupported"
     );
     assert_eq!(shell_classify_error_tag(&refused), "zero_volume");
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::NotAtRest { errors: Vec::new() }),
+        "not_at_rest"
+    );
 }
 
 /// **Every constructible `CheckEvidence` arm's payload, built and
@@ -3449,6 +3453,22 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     assert_eq!(
         check_payload(&E::Escalated { source: refused }).inner_variant,
         Some("zero_volume")
+    );
+    // The body tier 3 refused: the first finding's sentence and its own
+    // word, as the shell door's refusal crosses.
+    let not_at_rest = E::NotAtRest {
+        errors: vec![pncad::topo::ValidationError::NegativeVolume {
+            solid: pncad::topo::SolidKey::default(),
+        }],
+    };
+    carries(&not_at_rest, &["reason", "inner_variant"]);
+    assert_eq!(
+        check_payload(&not_at_rest).inner_variant,
+        Some(crate::tags::validation_error_tag(
+            &pncad::topo::ValidationError::NegativeVolume {
+                solid: pncad::topo::SolidKey::default(),
+            }
+        ))
     );
     // An unproven coincidence: its two words and the residual's
     // sentence; the cells cross on the Python value, not the payload.
@@ -4486,6 +4506,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "connectedness",
             "escalated",
             "interference",
+            "not_at_rest",
             "stale_expectation",
             "unproven_coincidence",
             "unsupported",

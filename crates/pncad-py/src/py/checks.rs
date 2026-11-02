@@ -383,7 +383,8 @@ impl CheckEvidence {
     }
 
     /// The underlying refusal's own prose, where the arm carries one:
-    /// the shell door's on `escalated` and `unsupported`, the residual's on
+    /// the shell door's on `escalated` and `unsupported`, the
+    /// validator's on `not_at_rest`, the residual's on
     /// `unproven_coincidence`, and on `at_rest` why the check could not
     /// look. Prose because it is the kernel's own story, and `variant`
     /// is the branchable part.
@@ -395,7 +396,8 @@ impl CheckEvidence {
     /// The inner refusal's own word, where the arm carries one: the
     /// shell door's on `escalated` and `unsupported` (`band`, `props`,
     /// `escalated`, `zero_volume`, `straddles`, `ray_in_band`,
-    /// `corner`, `ray` or `sign_unresolved`), and on `at_rest` the validator's or
+    /// `corner`, `ray` or `sign_unresolved`), the validator's first
+    /// finding's on `not_at_rest`, and on `at_rest` the validator's or
     /// the gather's (`AtRestEvidence.inner_variant`). `reason` is the
     /// same refusal's sentence; this is the part a caller matches on.
     #[getter]

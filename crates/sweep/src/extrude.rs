@@ -743,12 +743,12 @@ struct LoopBase {
 /// conventions. The door runs its operators under one surgery scope
 /// (`topo::surgery`), so tier 1 is not re-derived per operator, closes
 /// with the whole-body pcurve mint (`topo::mint_pcurves`), so every
-/// curved wall stores its certified rows at rest, and finishes its
-/// result at its own end ([`topo::AtRestPolicy::finish`]): on success
-/// the body is the scalar's finished body, and a body the finish
-/// refuses (a measured case: a near-flat arc side on a tilted plane,
-/// where check 7 cannot integrate the cap) is
-/// [`ExtrudeError::NotFinished`].
+/// curved wall stores its certified rows at rest, and ends in its
+/// scalar's leaf ([`topo::AtRestPolicy::leaf`]): on success the body is
+/// the scalar's leaf, finished at `f64` and `Probe` and tier 2 alone at
+/// the box scalars, and a body the leaf refuses (a measured case at
+/// `f64`: a near-flat arc side on a tilted plane, where check 7 cannot
+/// integrate the cap) is [`ExtrudeError::NotFinished`].
 ///
 /// # Errors
 ///
