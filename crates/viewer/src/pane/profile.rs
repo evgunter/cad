@@ -2832,4 +2832,113 @@ mod tests {
         );
         assert!(session.committed_doc().bit_eq(&before));
     }
+
+    // ---- review 6302 probes ----
+
+    fn op_unit_of(
+        op: &crate::session::SessionOp,
+        loop_: usize,
+        step: usize,
+        arg: pncad::document::StepArg,
+    ) -> Option<pncad::quantity::UnitDef> {
+        let crate::session::SessionOp::EditProfile { loops, .. } = op else {
+            panic!("an edit-profile op: {op:?}")
+        };
+        let held = crate::sketch::HeldStep::rows(&loops[loop_]);
+        held[step]
+            .args()
+            .into_iter()
+            .find(|(a, _)| *a == arg)
+            .and_then(|(_, f)| f.display_unit())
+    }
+
+    /// **Claim 2 probe**: a corner edited in the draft, THEN its slot's
+    /// unit changed through the unit door (`SetSlotUnit`, which the
+    /// draft survives: it is notation-blind). The field now shows mm.
+    /// What unit does Apply write?
+    #[test]
+    fn review_6302_unit_door_after_an_edit() {
+        use crate::session::SessionOp;
+        use pncad::document::StepArg;
+        let (mut session, profile) = square_session();
+        let mut drafts = Drafts::default();
+        let x = corner(1, StepArg::TargetX);
+        let y = corner(1, StepArg::TargetY);
+        let m = row_of(&session, profile, x).unit;
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .set_step(
+                session.doc(),
+                (0, 1),
+                Step::LineTo(Target::Point(Point2::new(0.02, 0.0))),
+            );
+        let mm = pncad::quantity::MM.def();
+        for slot in [x, y] {
+            let out = session.perform(SessionOp::SetSlotUnit {
+                node: profile,
+                slot,
+                unit: mm,
+            });
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        drafts.sync_profile_edit(session.committed_doc(), Some(profile));
+        let kept = drafts
+            .profile_edit
+            .as_ref()
+            .map(|e| e.step_at(session.doc(), (0, 1)));
+        eprintln!("review_6302: draft after SetSlotUnit: {kept:?}");
+        let (painted, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let op = formed.unwrap_or_else(|| panic!("Apply formed nothing: {painted}"));
+        let moved_unit = op_unit_of(&op, 0, 1, StepArg::TargetX);
+        let unmoved_unit = op_unit_of(&op, 0, 1, StepArg::TargetY);
+        let out = session.perform(op);
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let landed_x = row_of(&session, profile, x).unit;
+        let landed_y = row_of(&session, profile, y).unit;
+        eprintln!(
+            "review_6302: slot unit at load {m:?}; set to {mm:?}; op x {moved_unit:?} y {unmoved_unit:?}; landed x {landed_x:?} y {landed_y:?}"
+        );
+        assert_eq!(
+            landed_y,
+            Some(mm),
+            "the unmoved neighbour keeps the unit the door set"
+        );
+        assert_eq!(
+            landed_x,
+            Some(mm),
+            "the moved corner lands in the unit its field showed"
+        );
+    }
+
+    /// **Claim 2 probe**: a row inserted while the editor's notation is
+    /// mm, Apply clicked while it is metres (the field shows metres).
+    #[test]
+    fn review_6302_a_fresh_row_lands_in_the_notation_it_was_made_in() {
+        use pncad::document::StepArg;
+        let (session, profile) = square_session();
+        let mut drafts = Drafts::default();
+        let mm = Notation {
+            length: pncad::quantity::MM,
+            angle: pncad::quantity::DEG,
+        };
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .edit_row(
+                0,
+                crate::drafts::RowEdit::Insert {
+                    at: 4,
+                    step: Step::LineTo(Target::Point(Point2::new(-0.002, 0.005))),
+                },
+                mm,
+            )
+            .expect("finite");
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let op = formed.expect("Apply formed the op");
+        eprintln!(
+            "review_6302: fresh row made in mm, applied under canonical: {:?}",
+            op_unit_of(&op, 0, 4, StepArg::TargetX)
+        );
+    }
 }

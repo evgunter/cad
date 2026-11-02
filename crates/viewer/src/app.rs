@@ -8323,6 +8323,268 @@ mod properties_pane_tests {
             );
         }
 
+        fn review_6302_far_x(
+            pane: &Driven,
+            profile: RecipeNodeId,
+            arg: StepArg,
+        ) -> (Option<f64>, Option<String>) {
+            crate::props::slot_rows(pane.app.session.doc(), profile)
+                .into_iter()
+                .find(|row| {
+                    row.slot
+                        == SlotId::Profile {
+                            loop_: 0,
+                            step: 5,
+                            arg,
+                        }
+                })
+                .map(|row| {
+                    (
+                        row.value.ok().and_then(|v| v.one()).map(|v| v.as_f64()),
+                        row.source,
+                    )
+                })
+                .unwrap_or((None, None))
+        }
+
+        /// **Review 6302 E2E**: the boss footprint traced off the
+        /// wall, its far corner's x driven by `w`; opened in the editor,
+        /// the corner's y moved, Apply CLICKED, undo, redo, then `w`
+        /// dragged over an untouched draft and over one holding an edit.
+        #[test]
+        fn review_6302_e2e_traced_profile_edit_apply_undo_redo_drag() {
+            use pncad::document::{Dimension, FreeVar, VarName};
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            pane.click(ADD_PROFILE);
+            pane.quiet();
+            let (profile, _) = added(&pane);
+            pane.app.perform_batch(vec![
+                SessionOp::DeclareVar {
+                    name: VarName::from_static("w"),
+                    value: FreeVar::continuous(Dimension::Length, REACH),
+                },
+                SessionOp::SetSlotExpression {
+                    node: profile,
+                    slot: SlotId::Profile {
+                        loop_: 0,
+                        step: 5,
+                        arg: StepArg::TargetX,
+                    },
+                    text: "w".to_owned(),
+                },
+                SessionOp::Select(Selection::Node(profile)),
+            ]);
+            let painted: Vec<String> = pane.quiet().into_iter().map(|(run, _)| run).collect();
+            let pen = painted
+                .iter()
+                .any(|r| r.contains("only an evaluation lowers"));
+            eprintln!(
+                "review_6302 e2e: opened; PEN_UNDRAWN shown: {pen}; far x {:?}",
+                review_6302_far_x(&pane, profile, StepArg::TargetX)
+            );
+            let w = pane.app.session.committed_doc().var_named("w").expect("w");
+            let (_, before) = added(&pane);
+            {
+                let session = &pane.app.session;
+                let edit = pane.app.drafts.profile_edit.as_mut().expect("held");
+                let view = edit.step_at(session.doc(), (0, 5));
+                eprintln!("review_6302 e2e: far corner view {view:?}");
+                edit.set_step(
+                    session.doc(),
+                    (0, 5),
+                    Step::LineTo(Target::Point(Point2::new(REACH, BACK - 0.05))),
+                );
+            }
+            let applies = pane.each("Apply");
+            eprintln!("review_6302 e2e: {} Apply buttons", applies.len());
+            pane.click_at(applies[0]);
+            pane.quiet();
+            let (_, after) = added(&pane);
+            let ([LoopProgram::Chain(was)], [LoopProgram::Chain(now)]) =
+                (before.loops.as_slice(), after.loops.as_slice())
+            else {
+                panic!("one chain each")
+            };
+            assert_eq!(now[2..4], was[2..4], "trace steps kept");
+            assert_eq!(after.ids, before.ids, "ids kept");
+            let (x, xs) = review_6302_far_x(&pane, profile, StepArg::TargetX);
+            let (y, _) = review_6302_far_y(&pane, profile);
+            eprintln!("review_6302 e2e: after Apply far x {x:?} src {xs:?}, y {y:?}");
+            assert_eq!(
+                xs.as_deref(),
+                Some("w"),
+                "the driven x keeps its expression"
+            );
+            assert_eq!(y, Some(BACK - 0.05));
+            let (_, ev) = pane.app.session.landed_pair().expect("landed");
+            assert!(
+                ev.node_error(profile).is_none(),
+                "{:?}",
+                ev.node_error(profile).map(|e| e.kind.to_string())
+            );
+            pane.app.perform_batch(vec![SessionOp::Undo]);
+            pane.quiet();
+            let view = pane
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .map(|e| e.step_at(pane.app.session.doc(), (0, 5)));
+            eprintln!(
+                "review_6302 e2e: after undo y {:?}, draft view {view:?}",
+                review_6302_far_y(&pane, profile).0
+            );
+            assert_eq!(review_6302_far_y(&pane, profile).0, Some(BACK));
+            pane.app.perform_batch(vec![SessionOp::Redo]);
+            pane.quiet();
+            let view = pane
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .map(|e| e.step_at(pane.app.session.doc(), (0, 5)));
+            eprintln!(
+                "review_6302 e2e: after redo y {:?}, draft view {view:?}",
+                review_6302_far_y(&pane, profile).0
+            );
+            assert_eq!(review_6302_far_y(&pane, profile).0, Some(BACK - 0.05));
+            // Drag w over the untouched draft.
+            pane.app.perform_batch(vec![
+                SessionOp::BeginVariableGesture { var: w },
+                SessionOp::PreviewVariableGesture {
+                    var: w,
+                    value: REACH + 0.1,
+                },
+            ]);
+            pane.quiet();
+            let edit = pane
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .expect("held through drag");
+            let view = edit.step_at(pane.app.session.doc(), (0, 5));
+            let door = pane
+                .app
+                .drafts
+                .door_loops(pane.app.session.doc(), pane.app.session.tol())
+                .edit
+                .is_some();
+            eprintln!("review_6302 e2e: mid-drag view {view:?}; edit door preview: {door}");
+            assert!(matches!(view, Step::LineTo(Target::Point(p)) if p.x == REACH + 0.1));
+            pane.app
+                .perform_batch(vec![SessionOp::CommitVariableGesture { var: w }]);
+            pane.quiet();
+            // A draft holding an edit, then a drag.
+            {
+                let session = &pane.app.session;
+                let edit = pane.app.drafts.profile_edit.as_mut().expect("held");
+                edit.set_step(
+                    session.doc(),
+                    (0, 5),
+                    Step::LineTo(Target::Point(Point2::new(REACH + 0.1, BACK - 0.1))),
+                );
+            }
+            pane.app.perform_batch(vec![
+                SessionOp::BeginVariableGesture { var: w },
+                SessionOp::PreviewVariableGesture {
+                    var: w,
+                    value: REACH + 0.2,
+                },
+            ]);
+            pane.quiet();
+            let edit = pane
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .expect("held through drag");
+            let view = edit.step_at(pane.app.session.doc(), (0, 5));
+            eprintln!("review_6302 e2e: drag over edited draft view {view:?}");
+            assert!(
+                matches!(view, Step::LineTo(Target::Point(p)) if p.x == REACH + 0.2 && p.y == BACK - 0.1)
+            );
+            pane.app
+                .perform_batch(vec![SessionOp::CommitVariableGesture { var: w }]);
+            pane.quiet();
+            let applies = pane.each("Apply");
+            pane.click_at(applies[0]);
+            pane.quiet();
+            let (x, xs) = review_6302_far_x(&pane, profile, StepArg::TargetX);
+            eprintln!(
+                "review_6302 e2e: second Apply far x {x:?} src {xs:?}, y {:?}",
+                review_6302_far_y(&pane, profile).0
+            );
+            assert_eq!(xs.as_deref(), Some("w"));
+            assert_eq!(review_6302_far_y(&pane, profile).0, Some(BACK - 0.1));
+        }
+
+        fn review_6302_far_y(
+            pane: &Driven,
+            profile: RecipeNodeId,
+        ) -> (Option<f64>, Option<String>) {
+            review_6302_far_x(pane, profile, StepArg::TargetY)
+        }
+
+        /// **Review 6302 claim 4**: a written row's neighbour removed or
+        /// moved. Removing the heading before the trace run changes
+        /// what the run reads; is it refused, previewed, or applied?
+        #[test]
+        fn review_6302_structural_edits_around_a_trace_step() {
+            for (name, edit_of) in [
+                ("remove heading row 1", crate::drafts::RowEdit::Remove(1)),
+                (
+                    "swap trace row 2 up with 1",
+                    crate::drafts::RowEdit::Swap(1, 2),
+                ),
+                (
+                    "remove the trace run row 2",
+                    crate::drafts::RowEdit::Remove(2),
+                ),
+                (
+                    "remove the along-trace row 3",
+                    crate::drafts::RowEdit::Remove(3),
+                ),
+            ] {
+                let (session, _, cylinder) = cylinder(0.0);
+                let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+                let mut pane = drive(session, bottom, wall);
+                pane.click(ADD_PROFILE);
+                pane.quiet();
+                let (profile, _) = added(&pane);
+                pane.app
+                    .perform_batch(vec![SessionOp::Select(Selection::Node(profile))]);
+                pane.quiet();
+                pane.app
+                    .drafts
+                    .profile_edit
+                    .as_mut()
+                    .expect("held")
+                    .edit_row(0, edit_of, crate::props::Notation::CANONICAL)
+                    .expect("no row made");
+                let painted: Vec<String> = pane.quiet().into_iter().map(|(run, _)| run).collect();
+                let pen = painted
+                    .iter()
+                    .any(|r| r.contains("only an evaluation lowers"));
+                let stranding: Vec<&String> = painted
+                    .iter()
+                    .filter(|r| r.contains("strand") || r.contains("refus") || r.contains("cannot"))
+                    .collect();
+                let applies = pane.each("Apply");
+                let state = pane.app.session.history().current();
+                pane.click_at(applies[0]);
+                pane.quiet();
+                let moved = pane.app.session.history().current() != state;
+                let (_, ev) = pane.app.session.landed_pair().expect("landed");
+                let err = ev.node_error(profile).map(|e| e.kind.to_string());
+                eprintln!(
+                    "review_6302 trace [{name}]: pen notice {pen}; notices {stranding:?}; Apply committed {moved}; node error {err:?}"
+                );
+            }
+        }
+
         /// **A traced face with no axis is refused in the pane, Add is
         /// held, and nothing is written; a traced wall is then shown,
         /// and its profile undoes, redoes and persists.** The top cap
