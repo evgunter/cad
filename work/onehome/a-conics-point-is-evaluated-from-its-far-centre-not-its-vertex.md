@@ -29,3 +29,7 @@ Evaluate relative to the graze vertex:
 The θ-dependent error drops from ~u·ρ to ~u·ρ·θ². The vertex term is one constant per carrier, not per-sample noise. Floor ~1–2 u·ρ. The walk and the meter both read this chain; the certificate is about the true curve, so `point_at`'s D9 bits are not what the near-gap reading needs.
 
 This is the principle Ev is ruling on in PR 6329 ("make operations well-conditioned, then treat them as reals"). Settle it there first: whether the near-gap reading takes a re-posed evaluation, and where it lives (a `Conic` trait method beside `running_point`). Raise the floors to the new counts.
+
+## Ev on PR 6329 (2026-11-02)
+
+The margin-scale designers split on the far-centre ellipse: (A) mint a fitted spline once the conic's terms leave the box, or (B) re-mint it in a well-conditioned form relative to the arc. Ev: "seems worth measuring if B is necessary. it's not that bad to add another form of under-the-hood storage since our convention of having a shared api over a family of representations should make it simple". So this row measures first. Over the section tables' far-centre conics and the near-gap families above, does the vertex-relative evaluation alone (no new stored form) recover what is lost? If not, add the vertex-anchored stored form behind the `Conic` trait (Ev accepts another representation under the shared API). Report both measurements.
