@@ -53,6 +53,7 @@ fn cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The doors suite's frustum: base radius 1 at y = 0, top radius 0.5
@@ -72,6 +73,7 @@ fn frustum() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The doors suite's quarter cone (swept quadrant x > 0, z < 0).
@@ -89,6 +91,7 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **A cone whose generators run along the first two schedule rays.**
@@ -115,6 +118,7 @@ fn tilted_cone() -> Body<f64> {
     revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// Generator-parallel leading coefficient: the first two schedule rays

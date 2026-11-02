@@ -33,7 +33,7 @@ const PIP_D: f64 = 0.22;
 
 /// The blank: the cube with every edge filleted.
 fn blank() -> AtRestBody<f64> {
-    let body = cube(DIE_L, Tol::witness());
+    let body = cube::<f64>(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     let blank = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -256,7 +256,11 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         21,
         "21 disjoint closed sphere shells"
     );
-    let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let blank = finished(
+        "the cube",
+        cube::<f64>(DIE_L, Tol::witness()),
+        Tol::witness(),
+    );
     let pipped = topo::test_support::finished("pipped", subtract(&blank, &tool), Tol::witness());
     assert_eq!(topo::validate(&pipped), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&pipped), Ok(()), "tier 2");
@@ -296,7 +300,11 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 /// die does not have.
 #[test]
 fn the_pip_caps_measure_through_the_closed_form() {
-    let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let blank = finished(
+        "the cube",
+        cube::<f64>(DIE_L, Tol::witness()),
+        Tol::witness(),
+    );
     let pipped =
         topo::test_support::finished("pipped", subtract(&blank, &pip_tool()), Tol::witness());
     let props = topo::mass_properties(
@@ -375,7 +383,11 @@ fn deviation_1_both_doors_compose_and_agree() {
     );
 
     // Door B: pip then fillet — the surgery composes.
-    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let cube0 = finished(
+        "the cube",
+        cube::<f64>(DIE_L, Tol::witness()),
+        Tol::witness(),
+    );
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges

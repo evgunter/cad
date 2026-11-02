@@ -65,6 +65,7 @@ fn cube(l: f64) -> Body<f64> {
     )
     .expect("the square extrudes")
     .body
+    .into_body()
 }
 
 fn scaffold_descriptions(body: &Body<f64>) -> usize {

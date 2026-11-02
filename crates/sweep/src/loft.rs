@@ -128,12 +128,12 @@ use crate::swept::{
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
 #[derive(Debug)]
-pub struct Lofted<T: Real> {
+pub struct Lofted<T: topo::AtRestPolicy> {
     /// The closed body: tiers 1–3 valid at rest, the builder's
     /// acceptance (callers re-validate per the workspace convention).
     /// Tier 3 does not test embedding, and neither does this door, so
     /// a body whose walls cross each other or a cap is not refused here.
-    pub body: Body<T>,
+    pub body: T::Finished,
     /// The solid.
     pub solid: SolidKey,
     /// Its one shell.
@@ -187,6 +187,13 @@ pub struct Lofted<T: Real> {
 pub enum LoftError {
     /// The run's tolerance could not form a classification band.
     Band(BandError),
+    /// The lofted body is not a finished body
+    /// ([`topo::AtRestPolicy::finish`] at the door's end): every finding,
+    /// each read through its family.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
+    },
     /// The §10.3/§10.4 geometry construction refused (compatibility,
     /// degree, interpolation — every [`SkinError`] reason).
     Skin(SkinError),
@@ -479,6 +486,9 @@ impl fmt::Display for LoftError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
+            Self::NotFinished { findings } => {
+                write!(f, "the lofted body is not a finished body: {findings}")
+            }
             Self::Skin(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
             Self::CapPlane(e) => write!(f, "{e}"),
@@ -1605,15 +1615,9 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     topo::mint_pcurves(&mut body, tol).map_err(LoftError::Pcurve)?;
 
     body.close_already_checked();
-    #[cfg(debug_assertions)]
-    debug_assert_eq!(
-        topo::validate_closed(&built),
-        Ok(()),
-        "loft postcondition: result is not tier-2 valid (kernel bug)",
-    );
 
     Ok(Lofted {
-        body: built,
+        body: T::finish(built, tol).map_err(|findings| LoftError::NotFinished { findings })?,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,

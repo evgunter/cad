@@ -316,7 +316,10 @@ fn corpus() -> Vec<(String, Body<f64>)> {
             let rim = circle_arcs_at_z(&body, z);
             let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
                 .unwrap_or_else(|e| panic!("filleted {name}({n}): carves, got {}", e.error));
-            v.push((format!("filleted {name}_of_arcs({n})"), out.body));
+            v.push((
+                format!("filleted {name}_of_arcs({n})"),
+                out.body.into_body(),
+            ));
         }
     }
     v

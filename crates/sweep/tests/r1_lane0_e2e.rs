@@ -223,7 +223,8 @@ fn the_interval_seam_refuses_at_every_public_door() {
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
-    .body;
+    .body
+    .into_body();
     let face = body
         .faces()
         .find(|(_, f)| {
@@ -309,7 +310,8 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
-    .body;
+    .body
+    .into_body();
     let face = body
         .faces()
         .find(|(_, f)| {

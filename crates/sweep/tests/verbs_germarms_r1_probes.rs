@@ -162,7 +162,7 @@ fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
             &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
             &finished(
                 "the bar",
-                brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
+                brick::<f64>((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
                 tol,
             ),
             tol,
@@ -178,7 +178,7 @@ fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
             &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
             &finished(
                 "the bar",
-                brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
+                brick::<f64>((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
                 tol,
             ),
             tol,
@@ -204,7 +204,7 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     let tol = Tol::witness();
     let bar = finished(
         "the bar",
-        brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol),
+        brick::<f64>((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol),
         tol,
     );
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);

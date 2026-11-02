@@ -277,7 +277,7 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
     for (pose, (x0, x1), v_cut, balls) in poses {
         let box_ = finished(
             "the box",
-            brick((x0, x1), (-2.0, 2.0), (0.0, 2.0), Tol::witness()),
+            brick::<f64>((x0, x1), (-2.0, 2.0), (0.0, 2.0), Tol::witness()),
             Tol::witness(),
         );
         let cut = run(BooleanOp::Subtract, &ball(1.0, o), &box_)

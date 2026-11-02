@@ -232,7 +232,7 @@ fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let operand = finished("the filleted parallelogram", out.body, tol());
     let apart = finished(
         "a brick apart",
-        brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
+        brick::<f64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
         tol(),
     );
     for (op, result, want) in [

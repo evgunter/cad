@@ -25,7 +25,7 @@ fn tol() -> Tol {
 fn plate() -> AtRestBody<f64> {
     finished(
         "the plate",
-        brick((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), tol()),
+        brick::<f64>((0.0, 3.0), (0.0, 2.0), (0.0, 1.0), tol()),
         tol(),
     )
 }
@@ -47,7 +47,7 @@ fn tube() -> AtRestBody<f64> {
 fn slab(top: f64) -> AtRestBody<f64> {
     finished(
         "the slab",
-        brick((1.45, 1.55), (-1.0, 3.0), (0.47, top), tol()),
+        brick::<f64>((1.45, 1.55), (-1.0, 3.0), (0.47, top), tol()),
         tol(),
     )
 }

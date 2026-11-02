@@ -40,6 +40,7 @@ fn line_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 /// A bulged-profile prism: one profile edge is an arc, so that wall's
@@ -62,6 +63,7 @@ fn bulged_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[bulged(), bulged()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the bulged prism builds")
         .body
+        .into_body()
 }
 
 fn kind(p: &Pcurve<f64>) -> &'static str {

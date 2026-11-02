@@ -46,6 +46,7 @@ fn revolved_by(points: &[(f64, f64)], rev: Revolution<f64>) -> Body<f64> {
     )
     .expect("probe polygon revolves")
     .body
+    .into_body()
 }
 
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
@@ -770,7 +771,8 @@ fn a_hex_prisms_side_moves_with_its_corners_on_its_oblique_neighbours() {
         tol,
     )
     .expect("the hexagonal prism extrudes")
-    .body;
+    .body
+    .into_body();
     let planes: Vec<(FaceKey, geom_core::Point3<f64>, geom_core::Vec3<f64>)> = body
         .faces()
         .filter_map(|(k, f)| match body.get_surface(f.surface) {

@@ -52,6 +52,7 @@ fn revolved_tube() -> Body<f64> {
     revolve(&profile, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn cylinder_body() -> Body<f64> {
@@ -65,6 +66,7 @@ fn cylinder_body() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
@@ -255,7 +257,8 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     assert_eq!(prism.pcurves().count(), 0);
     topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");

@@ -55,6 +55,7 @@ fn notched() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face

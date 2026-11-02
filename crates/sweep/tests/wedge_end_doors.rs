@@ -75,6 +75,7 @@ fn plate_with_hole() -> Body<f64> {
         1.0,
     )
     .body
+    .into_body()
 }
 
 /// The lune between the internally tangent circles `(0,1) r 1` and

@@ -69,6 +69,12 @@ impl<T: Real> Replay<T> {
         crate::validate::validate_closed(&body).map_err(NotFinished::new)?;
         Ok(Self { body })
     }
+
+    /// The body, the replay given up.
+    #[must_use]
+    pub fn into_body(self) -> Body<T> {
+        self.body
+    }
 }
 
 impl<T: Real> Deref for Replay<T> {
@@ -83,7 +89,7 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
     type Scalar = T;
 
     fn into_body(self) -> Body<T> {
-        self.body
+        Replay::into_body(self)
     }
 }
 
@@ -124,6 +130,19 @@ impl NotFinished {
     #[must_use]
     pub fn as_slice(&self) -> &[ValidationError] {
         &self.findings
+    }
+
+    /// A refusal over `findings`, for the rows that render a door's
+    /// error without running its gate.
+    ///
+    /// # Panics
+    ///
+    /// On an empty list.
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn for_tests(findings: Vec<ValidationError>) -> Self {
+        Self::new(findings)
     }
 
     /// The findings, the refusal given up.

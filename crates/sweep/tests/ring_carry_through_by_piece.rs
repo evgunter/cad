@@ -487,7 +487,7 @@ mod interval_lane {
         .unwrap();
         let body: AtRestBody<Interval> = boolean_op_with(
             BooleanOp::Subtract,
-            &finished("the cube", cube(1.0, t()), t()),
+            &finished("the cube", cube::<geom_core::Interval>(1.0, t()), t()),
             &finished("the diamond", diamond, t()),
             &topo::BooleanInputs::default(),
             SweepStrategy::Realized,

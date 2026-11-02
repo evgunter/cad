@@ -123,7 +123,7 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
 /// The tabbed pocket or boss at `T`: a `6 × 5 × 2` block less the
 /// prism over `outline` from `z = 1` (convex), or a `6 × 5 × 1` block
 /// with it from `z = 0.5` (concave).
-fn tabbed<T: geom_core::Decide + Bounds + topo::AtRestPolicy>(
+fn tabbed<T: geom_core::Decide + Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     convex: bool,
     outline: &[(f64, f64)],
     tol: Tol,
@@ -245,7 +245,7 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
 /// The sheared box `parallelepiped_at(s)` at `T`, as itself (convex) or
 /// as a void in a block (concave, its top edge a pocket's ceiling edge),
 /// and its top edge out of `(s, s, 1)`, whose end faces both lean.
-fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
+fn sheared<T: Decide + Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     s: f64,
     convex: bool,
     tol: Tol,

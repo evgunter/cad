@@ -57,7 +57,7 @@ use topo::Body;
 /// Any other refusal panics.
 fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
     let tol = Tol::witness();
-    match topo::AtRestBody::validate(topo::Body::clone(body), tol) {
+    match topo::finish(topo::Body::clone(body), tol) {
         Ok(finished) => topo::test_support::pinned_volume("props", &finished, tol),
         Err(errors) => {
             let named = major == 1300.0
@@ -477,7 +477,7 @@ mod certified {
                 }
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
-            let m = match topo::AtRestBody::validate(topo::Body::clone(&t.body), Tol::witness()) {
+            let m = match topo::finish(topo::Body::clone(&t.body), Tol::witness()) {
                 Ok(finished) => topo::mass_properties(
                     &finished,
                     Tol::witness(),

@@ -253,7 +253,7 @@ fn a_radial_hole_through_the_tube_stops_at_the_volume() {
             assert!(v.starts_with("Ok("), "{what}: {v}");
         }
         match topo::subtract(&d, &r, Tol::witness()) {
-            Err(topo::BooleanError::ResultInvalid { errors }) => assert!(
+            Err(topo::BooleanError::ResultInvalid { findings: errors }) => assert!(
                 matches!(
                     errors.as_slice(),
                     [topo::ValidationError::VolumeUncomputable {

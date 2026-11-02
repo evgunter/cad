@@ -38,7 +38,8 @@ fn try_revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Option<Body<f64>
             tol(),
         )
         .ok()?
-        .body,
+        .body
+        .into_body(),
     )
 }
 
@@ -130,7 +131,7 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
         // a body thin in two directions belongs to,
         // `work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`):
         // every pose validates at rest.
-        let operand = topo::AtRestBody::validate(rev.body.clone(), tol())
+        let operand = topo::finish(rev.body.clone().into_body(), tol())
             .unwrap_or_else(|e| panic!("R = {major:e}: the torus validates at rest, got {e:?}"));
         match topo::shell(&operand, minor * 0.1, tol()) {
             Ok(out) => {
@@ -615,7 +616,7 @@ fn p3b_probe_the_tori_aimed_rays() {
             continue;
         };
         for body in [
-            rev.body.clone(),
+            rev.body.clone().into_body(),
             rev.body.revert().expect("the torus reverts"),
         ] {
             for r in topo::test_support::aimed_rays(

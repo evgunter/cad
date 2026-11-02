@@ -95,6 +95,7 @@ pub fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .expect("a rod extrudes")
     .body
+    .into_body()
 }
 
 /// `base` less `tool`, demanding that the cut succeed and leave

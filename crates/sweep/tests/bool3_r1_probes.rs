@@ -40,6 +40,7 @@ fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn clearance(q: Point3<f64>) -> f64 {

@@ -124,7 +124,7 @@ fn r2_the_prism_closed_form_scales_with_the_rod_length() {
 /// retired — is that fixture.
 #[test]
 fn r2_naming_is_total_on_the_planar_open_band_and_its_corners() {
-    let source = cube(1.0, tol());
+    let source = cube::<f64>(1.0, tol());
     let edges = query::all_edges(&source);
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
@@ -200,7 +200,7 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
             },
         ),
     ] {
-        let mut body = out.body.clone();
+        let mut body = out.body.clone().into_body();
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {

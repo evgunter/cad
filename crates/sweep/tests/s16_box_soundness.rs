@@ -141,7 +141,7 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
 fn a_part_in_a_blind_bore_passes_the_census() {
     let block = finished(
         "the block",
-        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let tool = finished("the tool", cylinder(0.5, 1.0), Tol::witness());
@@ -260,7 +260,7 @@ fn a_lofted_operand_reaches_the_fallbacks_re_gate() {
     // net's box, its edges at `|y| = 5` or `|z| = 5`.
     let beside = finished(
         "the slab beside the wall",
-        brick((1.55, 1.6), (-5.0, 5.0), (-5.0, 5.0), Tol::witness()),
+        brick::<f64>((1.55, 1.6), (-5.0, 5.0), (-5.0, 5.0), Tol::witness()),
         Tol::witness(),
     );
     let err = topo::boolean::union(&a, &beside, Tol::witness())

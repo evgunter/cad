@@ -43,6 +43,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// `sf2b_axial`'s sphere-zone vase: a belly on a sphere centred on the
@@ -146,7 +147,7 @@ fn dump_shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) -> Opti
     ) {
         Ok(s) => {
             dump_rows(label, &s.body);
-            Some(s.body)
+            Some(s.body.into_body())
         }
         Err(e) => {
             println!("[r1rows] {label}: Err {e}");

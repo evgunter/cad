@@ -57,7 +57,7 @@ fn r2_a_box_through_the_washer_hole_reads_disjoint() {
     let a = washer(1.0, 0.5, 0.0, 2.0);
     let b = finished(
         "the box",
-        brick((-0.2, 0.2), (-0.2, 0.2), (-1.0, 3.0), tol),
+        brick::<f64>((-0.2, 0.2), (-0.2, 0.2), (-1.0, 3.0), tol),
         tol,
     );
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("disjoint operands")
@@ -82,7 +82,7 @@ fn r2_a_box_through_the_washer_solid_part_is_never_silent() {
     // (0.3) and rim (1.0) at y in [-0.15, 0.15].
     let b = finished(
         "the box",
-        brick((0.5, 0.8), (-0.15, 0.15), (1.0, 3.0), tol),
+        brick::<f64>((0.5, 0.8), (-0.15, 0.15), (1.0, 3.0), tol),
         tol,
     );
     match topo::union(&a, &b, tol) {
@@ -134,7 +134,7 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     // standing a unit above its top.
     let b = finished(
         "the box",
-        brick((-0.1, 0.1), (-0.1, 0.1), (1.0, 3.0), tol),
+        brick::<f64>((-0.1, 0.1), (-0.1, 0.1), (1.0, 3.0), tol),
         tol,
     );
     let silent_wrong = va + 0.2 * 0.2 * 2.0;
@@ -168,7 +168,7 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     // half-disc that bows to y > 0, outside the one that bows to y < 0.
     let b = finished(
         "the box",
-        brick((0.1, 0.35), (0.3, 0.55), (1.0, 3.0), tol),
+        brick::<f64>((0.1, 0.35), (0.3, 0.55), (1.0, 3.0), tol),
         tol,
     );
     let half = PI / 2.0 * 2.0; // half-disc area * height = pi
@@ -219,8 +219,16 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
 #[test]
 fn r2_stacked_boxes_calibrate_the_cosurface_claim() {
     let tol = Tol::witness();
-    let a: AtRestBody<f64> = finished("A", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
-    let b = finished("B", brick((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol), tol);
+    let a: AtRestBody<f64> = finished(
+        "A",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "B",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), tol),
+        tol,
+    );
     match topo::union(&a, &b, tol) {
         Err(e) => println!("stacked boxes refuse: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
@@ -259,7 +267,7 @@ fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
     let cyl = finished("the pancake", cyl, tol);
     let b = finished(
         "the box",
-        brick((-0.1, 0.1), (-0.1, 0.1), (0.1, 0.3), tol),
+        brick::<f64>((-0.1, 0.1), (-0.1, 0.1), (0.1, 0.3), tol),
         tol,
     );
     match topo::union(&cyl, &b, tol) {
@@ -310,7 +318,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     .body;
     let boss = three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
 
-    let mut body = plate.clone();
+    let mut body = plate.clone().into_body();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();
     topo::graft_disjoint(&mut body, &boss).unwrap();
     let is_cyl = |body: &Body<f64>, f: &topo::Face| {

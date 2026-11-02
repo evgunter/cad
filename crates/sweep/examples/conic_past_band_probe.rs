@@ -326,7 +326,7 @@ fn outcome(body: &AtRestBody<f64>, origin: Point3<f64>, n: Vec3<f64>) -> String 
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).expect("a valid operand")
+    topo::finish(body, tol()).expect("a valid operand")
 }
 
 fn fracs() -> Vec<f64> {

@@ -25,7 +25,7 @@ fn tol() -> Tol {
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).expect("a valid operand")
+    topo::finish(body, tol()).expect("a valid operand")
 }
 
 fn turned(body: &AtRestBody<f64>, about: Point3<f64>, axis: Vec3<f64>, a: f64) -> AtRestBody<f64> {

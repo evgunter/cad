@@ -142,6 +142,8 @@ mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
+#[path = "a_split_operand_does_not_finish.rs"]
+mod a_split_operand_does_not_finish;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -412,8 +414,6 @@ mod two_rims_review_probes;
 mod two_tubes_in_the_zero_band;
 #[path = "two_wedge_ends_on_one_line.rs"]
 mod two_wedge_ends_on_one_line;
-#[path = "unjoined_operand_at_a_dual.rs"]
-mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]

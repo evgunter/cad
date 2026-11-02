@@ -79,7 +79,7 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
     use topo::{MassPropsError, ValidationError};
     match got {
         Ok(r) => format!("body {:?}", r.body().map(|b| b.kind)),
-        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+        Err(BooleanError::ResultInvalid { findings: errors }) => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },

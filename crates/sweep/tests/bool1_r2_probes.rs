@@ -27,6 +27,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("the probe profile extrudes")
     .body
+    .into_body()
 }
 
 fn split_at_y(body: &Body<f64>, y: f64) -> topo::SplitResult<f64> {

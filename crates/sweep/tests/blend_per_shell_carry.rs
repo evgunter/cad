@@ -17,7 +17,7 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::finished;
-use topo::{AtRestBody, Body, EdgeKey, EntityId, ShellKey};
+use topo::{Body, EdgeKey, EntityId, ShellKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -107,8 +107,7 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
 }
 
 fn validate(what: &str, body: &Body<f64>) {
-    AtRestBody::validate(body.clone(), tol())
-        .unwrap_or_else(|e| panic!("{what}: tier 3 refuses: {e:?}"));
+    topo::finish(body.clone(), tol()).unwrap_or_else(|e| panic!("{what}: tier 3 refuses: {e:?}"));
 }
 
 fn volume(body: &Body<f64>) -> f64 {

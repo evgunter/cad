@@ -44,12 +44,14 @@ fn validated<T: Decide>(r: T, b: T, z: T) -> ValidatedProfile<T> {
 
 /// Every wall pole and weight of a loft, in face order, as bits of
 /// their value channel.
-fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
+fn wall_bits<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
+    lofted: &Lofted<T>,
+) -> Vec<u64> {
     wall_values(lofted, |x| x.value_channel().to_bits())
 }
 
 /// Every wall pole and weight of a loft, in face order, through `f`.
-fn wall_values<T: geom_core::spline::SpanLocate, R>(
+fn wall_values<T: topo::AtRestPolicy + geom_core::spline::SpanLocate, R>(
     lofted: &Lofted<T>,
     f: impl Fn(T) -> R,
 ) -> Vec<R> {

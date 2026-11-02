@@ -682,7 +682,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         ),
     ];
     for (label, carrier) in mutants {
-        let mut body = out.body.clone();
+        let mut body = out.body.clone().into_body();
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
@@ -744,7 +744,7 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
     assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
 
-    let body = cube(1.0, tol());
+    let body = cube::<f64>(1.0, tol());
     let e = query::all_edges(&body)[0];
     fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], R, tol())
         .expect("one box edge is cut off at its end faces");

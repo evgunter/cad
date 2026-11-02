@@ -131,7 +131,11 @@ mod certified {
     fn interval_one_pip_composed_die_is_bracketed() {
         let pipped = boolean_op_with(
             BooleanOp::Subtract,
-            &finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness()),
+            &finished(
+                "the cube",
+                cube::<geom_core::Interval>(DIE_L, Tol::witness()),
+                Tol::witness(),
+            ),
             &finished("the pip ball", pip_ball(), Tol::witness()),
             &topo::BooleanInputs::default(),
             SweepStrategy::Realized,

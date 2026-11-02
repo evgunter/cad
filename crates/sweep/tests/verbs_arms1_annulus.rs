@@ -380,7 +380,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
 fn a_planted_horn_torus_is_reported_by_tier_3() {
     let source = dome(1.0);
     let rim = sweep::test_support::one_edge_rim_at(&source, 1.0, 0.0);
-    let mut out = fillet_edges(
+    let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &[rim],
         0.05,
@@ -405,23 +405,23 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
         panic!("the band's surface is a torus");
     };
     // Lifts RechartStrandsDescriptions: the planted horn torus is what tier 3 must report.
-    out.body
-        .set_face_surface_unvouched_for_tests(
-            band_face,
-            FaceSurface::New {
-                surface: Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    // A spindle: the tube swallows the axis.
-                    minor_radius: major_radius * 2.0,
-                    u_ref,
-                },
-                sense: true,
+    let mut body = out.body.clone().into_body();
+    body.set_face_surface_unvouched_for_tests(
+        band_face,
+        FaceSurface::New {
+            surface: Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                // A spindle: the tube swallows the axis.
+                minor_radius: major_radius * 2.0,
+                u_ref,
             },
-        )
-        .unwrap();
-    let errors = validate_geometric(&out.body, tol())
+            sense: true,
+        },
+    )
+    .unwrap();
+    let errors = validate_geometric(&body, tol())
         .expect_err("a spindle torus must not pass tier 3")
         .into_iter()
         .filter(|e| matches!(e, ValidationError::DegenerateTorus { .. }))

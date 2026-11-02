@@ -244,7 +244,7 @@ fn corpus() -> Vec<(String, Body<f64>)> {
     let carve = |name: &str, body: &Body<f64>, edges: &[EdgeKey], r: f64| {
         let out = fillet_edges(&sweep::test_support::at_rest(body, tol), edges, r, tol)
             .unwrap_or_else(|e| panic!("{name} carves on the corpus: {e}"));
-        (name.to_owned(), out.body)
+        (name.to_owned(), out.body.into_body())
     };
     let mut rows = Vec::new();
     let body = cube(1.0, tol);
@@ -582,7 +582,7 @@ fn the_near_osculating_family_is_screened_by_the_battery_before_the_rule() {
 #[test]
 fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = cube::<f64>(1.0, tol());
     let r = 1.5 * b.escalate();
     in_band_refusal(
         fillet_edges(
@@ -620,7 +620,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
-    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
+    let die = sweep::test_support::finished("die", cube::<f64>(1.0, tol()), tol());
     in_band_refusal(
         fillet_edges(&die, &query::all_edges(&die), 1.5 * b.escalate(), tol()),
         "the die at r = 1.5·Kε",

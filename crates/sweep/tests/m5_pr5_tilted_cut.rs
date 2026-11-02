@@ -46,6 +46,7 @@ fn cylinder_body() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Every certified `Ellipse` edge of a body, with its curve.

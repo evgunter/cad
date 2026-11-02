@@ -48,6 +48,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     )
     .expect("the box extrudes")
     .body
+    .into_body()
 }
 
 fn volume(b: &Body<f64>) -> f64 {

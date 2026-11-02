@@ -184,8 +184,7 @@ fn prism_beyond(m: [f64; 3]) -> f64 {
 
 /// `body` as a boolean operand: the at-rest gate's finished body.
 fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol())
-        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+    topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }
 
 type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;

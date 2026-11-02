@@ -201,7 +201,7 @@ fn facing() -> ((Lofted<I>, FaceKey), (Lofted<I>, FaceKey)) {
 #[test]
 fn facing_loft_walls_hold_above_the_gap_and_violate_below_it() {
     let ((left, lw), (right, rw)) = facing();
-    let (a, b) = ((&left.body, lw), (&right.body, rw));
+    let (a, b) = ((&*left.body, lw), (&*right.body, rw));
     assert_eq!(
         bound(a, b, 0.5 * GAP),
         BoundVerdict::Holds,
@@ -315,8 +315,8 @@ fn a_sweep_wall_against_a_plane_holds_above_the_gap_and_violates_below_it() {
         Tol::witness(),
     )
     .expect("the slab lofts");
-    let a = (&swept.body, outer);
-    let b = (&slab.body, slab.top);
+    let a = (&*swept.body, outer);
+    let b = (&*slab.body, slab.top);
     let (holds, violated) = (0.5 * separation, 5.0 * separation);
     assert_eq!(
         bound(a, b, holds),

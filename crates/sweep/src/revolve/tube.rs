@@ -573,7 +573,8 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // certified pcurves at rest.
     topo::mint_pcurves(&mut out.body, tol)
         .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
-    Ok(out)
+    out.finished(tol)
+        .map_err(|findings| TubeError::Revolve(RevolveError::NotFinished { findings }))
 }
 
 /// The circle of `radius` about `centre` as a two-arc swept

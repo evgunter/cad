@@ -567,7 +567,7 @@ fn every_order(
 fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
     let plate = finished(
         "the plate",
-        brick(PLATE[0], PLATE[1], PLATE[2], tol()),
+        brick::<f64>(PLATE[0], PLATE[1], PLATE[2], tol()),
         tol(),
     );
     let rod_volume = PI * R * R * (ROD_Z.1 - ROD_Z.0);
@@ -683,7 +683,7 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
 fn a_ringed_wall_holding_the_pierce_builds_either_operand_first_and_pocketed_last() {
     let plate = finished(
         "the plate",
-        brick(PLATE[0], PLATE[1], PLATE[2], tol()),
+        brick::<f64>(PLATE[0], PLATE[1], PLATE[2], tol()),
         tol(),
     );
     let (px, py) = bearing(2.0f64.to_degrees(), R);
@@ -691,7 +691,7 @@ fn a_ringed_wall_holding_the_pierce_builds_either_operand_first_and_pocketed_las
         ((px - 0.06, px + 0.06), (py - 0.06, py + 0.06), (1.3, 1.6));
     let pocket = finished(
         "the pocket",
-        brick(pocket_x, pocket_y, pocket_z, tol()),
+        brick::<f64>(pocket_x, pocket_y, pocket_z, tol()),
         tol(),
     );
     let in_pocket = |q: [f64; 3]| {
@@ -747,7 +747,11 @@ fn a_ringed_wall_holding_the_pierce_builds_either_operand_first_and_pocketed_las
 #[test]
 fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
     const SLAB_Z: (f64, f64) = (0.8, 1.2);
-    let slab = finished("the slab", brick(PLATE[0], PLATE[1], SLAB_Z, tol()), tol());
+    let slab = finished(
+        "the slab",
+        brick::<f64>(PLATE[0], PLATE[1], SLAB_Z, tol()),
+        tol(),
+    );
     let in_slab = |q: [f64; 3]| {
         PLATE[0].0 < q[0]
             && q[0] < PLATE[0].1

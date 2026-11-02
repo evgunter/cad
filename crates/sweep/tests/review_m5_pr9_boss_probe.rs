@@ -46,7 +46,7 @@ fn plate() -> AtRestBody<f64> {
 
 /// [`m5_boss`], finished.
 fn boss(n: usize, z0: f64, len: f64) -> AtRestBody<f64> {
-    finished("the boss", m5_boss(n, z0, len), Tol::witness())
+    finished("the boss", m5_boss::<f64>(n, z0, len), Tol::witness())
 }
 
 /// Tier-3 + closed-form volume + seam inventory + pcurve coverage.
@@ -366,7 +366,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     // door (CurvedPierceUnsupported), never a wrong body.
     let boss_over = finished(
         "the overhanging boss",
-        n_arc_boss(Point2::new(0.0, 1.5), 3, 0.3, 1.0),
+        n_arc_boss::<f64>(Point2::new(0.0, 1.5), 3, 0.3, 1.0),
         Tol::witness(),
     );
     match topo::union(&plate(), &boss_over, Tol::witness()) {

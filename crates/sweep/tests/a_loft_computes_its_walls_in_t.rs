@@ -51,7 +51,9 @@ fn pole<T: Real>(wall: &geom::NurbsSurface<T>, iu: usize, iv: usize) -> usize {
 }
 
 /// The arc's wall: canonical segment 1, from `(1, −1)` to `(1, 1)`.
-fn arc_wall<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> geom::NurbsSurface<T> {
+fn arc_wall<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
+    lofted: &Lofted<T>,
+) -> geom::NurbsSurface<T> {
     let face = lofted
         .body
         .get_face(lofted.side_faces[0][1][0])
@@ -562,7 +564,9 @@ fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
 
 /// The wall poles, weights and knots of every face a loft built, in face
 /// order, as bits of their value channel.
-fn wall_bits<T: geom_core::spline::SpanLocate>(lofted: &Lofted<T>) -> Vec<u64> {
+fn wall_bits<T: topo::AtRestPolicy + geom_core::spline::SpanLocate>(
+    lofted: &Lofted<T>,
+) -> Vec<u64> {
     lofted
         .side_faces
         .iter()
@@ -635,7 +639,7 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
 
 /// Every value of every wall a loft built, in face order: poles,
 /// weights, then the v knots, each read through `f`.
-fn wall_values<T: geom_core::spline::SpanLocate, R>(
+fn wall_values<T: topo::AtRestPolicy + geom_core::spline::SpanLocate, R>(
     lofted: &Lofted<T>,
     f: impl Fn(T) -> R,
 ) -> Vec<R> {

@@ -37,7 +37,7 @@ fn one_flipped_sibling_is_check_4s_lamina_and_not_the_census() {
     );
     let block = finished(
         "block",
-        brick((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick::<f64>((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let mut body = Body::clone(
@@ -91,7 +91,7 @@ fn a_flipped_ringed_member_is_named_by_its_own_read_and_not_the_census() {
     );
     let bar = finished(
         "bar",
-        brick((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol),
+        brick::<f64>((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol),
         tol,
     );
     let body = Body::clone(

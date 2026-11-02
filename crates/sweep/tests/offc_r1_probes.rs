@@ -466,8 +466,8 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
     // takes it: the germ-pair refusal naming `Approx` against `Plane` is
     // reached by no row through the public door
     // (`work/gauge/an-approx-face-on-line-edges-has-no-finished-fixture.md`).
-    let errors = topo::AtRestBody::validate(a, Tol::witness())
-        .expect_err("the stranded cap is not a finished body");
+    let errors =
+        topo::finish(a, Tol::witness()).expect_err("the stranded cap is not a finished body");
     assert_eq!(
         errors
             .iter()

@@ -24,7 +24,6 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use test_utils::vacuity::Exposure;
-use topo::AtRestBody;
 use topo::splitting::split;
 
 use crate::common::oracles::volume_slack;
@@ -65,7 +64,7 @@ const POSES: [(f64, f64, f64, [f64; 3], f64); 8] = [
 fn a_turned_sliver_validates_and_measures_its_own_volume() {
     let tol = Tol::witness();
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let cylinder = AtRestBody::validate(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
+    let cylinder = topo::finish(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
     let mut seen = Exposure::new("turned slivers");
     for (psi, phi, l, axis, angle) in POSES {
         let pose = format!("ψ {psi:e}, φ {phi}, L {l}, about {axis:?} by {angle}");

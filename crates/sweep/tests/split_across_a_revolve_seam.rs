@@ -32,6 +32,7 @@ fn revolved(sketch: SketchPlane<f64>, pts: &[(f64, f64)]) -> Body<f64> {
     sweep::revolve(&profile, axis, sweep::Revolution::Full, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 const TUBE: [(f64, f64); 4] = [(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)];

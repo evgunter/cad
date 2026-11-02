@@ -132,7 +132,7 @@ fn join1_r1_battery() {
         for &x in &ranges {
             for &y in &ranges {
                 for &z in &zs {
-                    let b = finished("the brick", brick(x, y, z, tol()), tol());
+                    let b = finished("the brick", brick::<f64>(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = area(&clip_rect(pts, x, y)) * overlap(h, z);
                     for (op, want_ab, want_ba) in [
@@ -255,7 +255,7 @@ fn join1_r1_seam_battery() {
         for &x in &ranges {
             for &z in &ranges {
                 for &y in &ys {
-                    let b = finished("the brick", brick(x, y, z, tol()), tol());
+                    let b = finished("the brick", brick::<f64>(x, y, z, tol()), tol());
                     let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                     let vi = if name == "rcyl" {
                         area(&clip_rect(&disc, x, z)) * overlap((0.0, 2.0), y)
@@ -333,7 +333,7 @@ fn join1_r1_hex_detail() {
     );
     let b = finished(
         "the box",
-        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        brick::<f64>((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
         tol(),
     );
     let r = topo::union(&hex, &b, tol()).expect("builds");
@@ -500,7 +500,7 @@ fn join1_r1_tube_battery() {
     for &x in &ranges {
         for &z in &ranges {
             for &y in &ys {
-                let b = finished("the brick", brick(x, y, z, tol()), tol());
+                let b = finished("the brick", brick::<f64>(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ann(x, z) * overlap((0.0, h), y);
                 run(&format!("box x={x:?} y={y:?} z={z:?}"), &b, vb, vi);
@@ -564,7 +564,7 @@ fn join1_r1_bored_capsule_battery() {
     for &x in &ranges {
         for &z in &ranges {
             for y in [(1.0, 3.0), (0.5, 3.0), (-1.0, 1.0), (1.0, 1.1)] {
-                let b = finished("the brick", brick(x, y, z, tol()), tol());
+                let b = finished("the brick", brick::<f64>(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let lo = (y.0.max(0.0), y.1.min(c));
                 let hi = (y.0.max(c), y.1.min(top));

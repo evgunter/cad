@@ -307,7 +307,7 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     use geom_brep::PropsError;
     use topo::{MassPropsError, ValidationError};
     match e {
-        BooleanError::ResultInvalid { errors } => match errors.as_slice() {
+        BooleanError::ResultInvalid { findings: errors } => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },

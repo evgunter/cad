@@ -395,6 +395,7 @@ fn donut(sweep: f64, big: f64, r: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **Torus.** The 270° revolution of the donut (`R = 2`, `r = 1/2`)

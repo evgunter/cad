@@ -172,7 +172,7 @@ fn split_circle_carrier_intersection_edge() {
         Tol::witness(),
     )
     .unwrap();
-    let mut body: Body<f64> = out.body;
+    let mut body: Body<f64> = out.body.into_body();
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let (edge, parent) = body
         .edges()
@@ -408,7 +408,7 @@ fn split_then_null_lifecycle_on_prism() {
         Tol::witness(),
     )
     .unwrap();
-    let mut body: Body<f64> = out.body;
+    let mut body: Body<f64> = out.body.into_body();
     let vol0 = topo::test_support::pinned_volume(
         "the measured body",
         &topo::test_support::finished(

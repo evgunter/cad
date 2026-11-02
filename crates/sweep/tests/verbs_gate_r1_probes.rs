@@ -103,6 +103,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A DONUT: a full circle of radius 0.15 about (0.5, 1.25) in the
@@ -129,6 +130,7 @@ fn donut() -> Body<f64> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The vase carries a torus face, minted by the kernel itself.
@@ -169,7 +171,7 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
         let a = finished("the vase", vase_with_caps(sphere_caps), Tol::witness());
         let b = finished(
             "the brick",
-            brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness()),
+            brick::<f64>((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness()),
             Tol::witness(),
         );
         let out = match topo::union(&a, &b, Tol::witness()) {
@@ -232,7 +234,7 @@ fn the_same_union_posed_into_the_torus_band_builds() {
     let a = finished("the vase", vase(), Tol::witness());
     let b = finished(
         "the brick",
-        brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
+        brick::<f64>((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let out = topo::union(&a, &b, Tol::witness()).expect("the union builds");
@@ -280,7 +282,7 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
     let a = finished("the donut", donut(), Tol::witness());
     let b = finished(
         "the brick",
-        brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let out = match topo::union(&a, &b, Tol::witness()) {
@@ -364,7 +366,7 @@ fn refused_on_the_relabelled_face(b: Body<f64>, face: topo::FaceKey) -> topo::Pc
         .collect();
     edges.sort();
     assert_eq!(edges.len(), 4);
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
+    let errors = topo::finish(b, Tol::witness())
         .expect_err("a relabel over a brick's lines does not finish");
     assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
     let mut not_adjacent: Vec<_> = errors

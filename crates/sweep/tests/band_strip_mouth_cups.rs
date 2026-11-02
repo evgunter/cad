@@ -44,7 +44,7 @@ fn mid<T: Bounds>(x: T) -> f64 {
 
 /// A round post of radius `a` from `from` along the unit `dir` for
 /// `len`, its section two semicircles.
-pub(crate) fn post<T: Decide + AtRestPolicy>(
+pub(crate) fn post<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     from: Point3<f64>,
     dir: Vec3<f64>,
     len: f64,
@@ -55,7 +55,7 @@ pub(crate) fn post<T: Decide + AtRestPolicy>(
 
 /// A square post of half-side `b`, as [`post`], its sides along the
 /// section frame's axes.
-fn square_post<T: Decide + AtRestPolicy>(
+fn square_post<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     from: Point3<f64>,
     dir: Vec3<f64>,
     len: f64,
@@ -68,7 +68,7 @@ fn square_post<T: Decide + AtRestPolicy>(
 /// A prism of the bulged section `verts` from `from` along the unit
 /// `dir` for `len`, its section frame `x` turned square to `dir` and
 /// `dir × x`.
-fn shaft<T: Decide + AtRestPolicy>(
+fn shaft<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     from: Point3<f64>,
     dir: Vec3<f64>,
     len: f64,
@@ -170,7 +170,7 @@ fn mouth(convex: bool, on: On, k: f64, (u, x): (f64, f64)) -> (Point3<f64>, Vec3
 
 /// The block at scale `k` less a dimple of radius `a` and depth `h` on
 /// `on`, `u` from the edge at `x` along it.
-pub(crate) fn dimple<T: Decide + Bounds + AtRestPolicy>(
+pub(crate) fn dimple<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     k: f64,
     on: On,
     c: (f64, f64),
@@ -184,7 +184,7 @@ pub(crate) fn dimple<T: Decide + Bounds + AtRestPolicy>(
 
 /// The die at scale `k` with a boss of radius `a` standing `h` off
 /// `on`, `u` from the crease at `x` along it.
-pub(crate) fn boss<T: Decide + Bounds + AtRestPolicy>(
+pub(crate) fn boss<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     k: f64,
     on: On,
     c: (f64, f64),

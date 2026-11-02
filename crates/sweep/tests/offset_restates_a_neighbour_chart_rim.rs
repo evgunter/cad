@@ -66,7 +66,8 @@ fn drum_with_a_rim_in_the_caps_chart(
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let kind = |key| body.get_surface(key).unwrap();
     let wall = body
         .faces()

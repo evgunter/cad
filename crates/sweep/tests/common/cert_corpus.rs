@@ -23,6 +23,7 @@ use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::FinishedBody as _;
 use topo::construction::Construct;
 use topo::{Body, SplitPart, split};
 
@@ -63,7 +64,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     )
     .unwrap()
     .body;
-    out.push(("l_prism".into(), l_prism));
+    out.push(("l_prism".into(), l_prism.into_body()));
     // Cylinder (two semicircular arcs), closed form.
     let c = bulge_loop(vec![v(-1.0, 0.0, 1.0), v(1.0, 0.0, 1.0)]);
     let cyl = extrude(
@@ -76,7 +77,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     )
     .unwrap()
     .body;
-    out.push(("cylinder".into(), cyl.clone()));
+    out.push(("cylinder".into(), cyl.clone().into_body()));
     // Cylinder cut by an oblique plane: the ellipse-trimmed face needs the
     // quadrature lane (DL3's `cut_cylinder` class).
     let phi = 0.4;
@@ -89,7 +90,6 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         ),
         geom_core::Tol::witness(),
     );
-    let cyl = sweep::test_support::finished("the cylinder", cyl, tol);
     let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {
         out.push(("cut_cylinder_above".into(), topo::Body::clone(above)));
@@ -111,7 +111,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     let washer = revolve(&profile(w), axis, Revolution::Full, tol)
         .unwrap()
         .body;
-    out.push(("washer".into(), washer));
+    out.push(("washer".into(), washer.into_body()));
     // Quarter washer (partial revolve — wedge caps).
     let w2 = bulge_loop(vec![
         v(1.0, 0.0, 0.0),
@@ -131,7 +131,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     )
     .unwrap()
     .body;
-    out.push(("quarter_washer".into(), quarter));
+    out.push(("quarter_washer".into(), quarter.into_body()));
     // Grooved washer: a semicircular arc in the outer wall (torus face,
     // quadrature at certifying scalars).
     let g = bulge_loop(vec![
@@ -147,7 +147,7 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         dir: Vec2::new(T::from_f64(0.0), T::from_f64(1.0)),
     };
     if let Ok(t) = revolve(&profile(g), axis3, Revolution::Full, tol) {
-        out.push(("grooved_washer".into(), t.body));
+        out.push(("grooved_washer".into(), t.body.into_body()));
     }
     // Reverted twins.
     let reverted: Vec<(String, Body<T>)> = out
@@ -184,7 +184,8 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     for (what, body, y) in [("raw_glue_on_the_vessel_cap", vessel, 0.4)] {
         let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .expect("sealed shell")
-            .body;
+            .body
+            .into_body();
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =
@@ -221,7 +222,7 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     )
     .unwrap();
     let wall = tq.walls()[0][1].expect("outer wall");
-    let mut body = tq.body;
+    let mut body = tq.body.into_body();
     let outer = body.get_face(wall).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("cycle");

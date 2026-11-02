@@ -185,7 +185,7 @@ fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
 /// (implementer-discipline §8); each row carries its own label.
 #[test]
 fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
@@ -248,7 +248,7 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
 ///   angle" — the cube's edges are such edges, and they build.
 #[test]
 fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
@@ -321,7 +321,7 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
 /// a roster name both verbs meter under — still opens as the chamfer.
 #[test]
 fn a_chamfer_escalation_speaks_as_the_chamfer() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let eps = Tol::witness().get().eps;
     // gap 1.0, two setbacks: margin = 1.0 − 2d = 5·eps, inside the band.
@@ -442,6 +442,7 @@ fn l_bracket() -> Body<f64> {
     )
     .expect("an L-bracket extrudes")
     .body
+    .into_body()
 }
 
 /// The bracket's one concave edge: both supports planes, the dihedral

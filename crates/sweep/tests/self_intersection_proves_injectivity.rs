@@ -77,8 +77,14 @@ fn band() -> Band {
 }
 
 /// The scalars a row builds its body at.
-trait Scalar: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy {}
-impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy> Scalar for T {}
+trait Scalar:
+    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<Self>>
+{
+}
+impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>
+    Scalar for T
+{
+}
 
 /// The middle of `x`'s bracket: `x` itself at `f64`.
 fn mid<T: Bounds>(x: T) -> f64 {
@@ -531,12 +537,13 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
 #[test]
 fn a_revolved_cone_holds() {
     fn cone<T: Scalar>() -> Body<T> {
-        let profile = validated(&[ProfileLoop::polygon(
+        let profile = validated::<T>(&[ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)].map(|(x, y)| Point2::new(x, y)),
         )]);
         revolve(&profile, axis_y(), Revolution::Full, tol())
             .unwrap()
             .body
+            .into_body()
     }
     holds_at_both("the cone", cone::<f64>(), cone::<Interval>());
 }
@@ -548,7 +555,7 @@ fn a_revolved_cone_holds() {
 fn a_pyramid_holds() {
     fn pyramid<T: Scalar>() -> Body<T> {
         use topo::test_support::meeting::{Pose, posed_pyramid_at};
-        posed_pyramid_at(
+        posed_pyramid_at::<T>(
             &[
                 [0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0],
@@ -580,6 +587,7 @@ fn an_embedded_triangle_loft_holds() {
         loft_body::<T>(&sections, &places, 1, tol())
             .expect("the triangles loft")
             .body
+            .into_body()
     }
     holds_at_both("the triangle loft", loft::<f64>(), loft::<Interval>());
 }
@@ -592,9 +600,10 @@ fn an_embedded_triangle_loft_holds() {
 #[test]
 fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
     fn kiss<T: Scalar>() -> Body<T> {
-        extrude(&validated(&[lune()]), to_offset(1.0), tol())
+        extrude(&validated::<T>(&[lune()]), to_offset(1.0), tol())
             .unwrap()
             .body
+            .into_body()
     }
     fn lune() -> ProfileLoop<f64> {
         Open.at(Point2::new(0.0, 4.0))
@@ -648,11 +657,11 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
 #[test]
 fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
     fn walls<T: Scalar>() -> (Body<T>, FaceKey, FaceKey) {
-        let profile = validated(&quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]));
+        let profile = validated::<T>(&quad([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]));
         let built = extrude(&profile, to_offset(1.0), tol()).unwrap();
         let walls = built.side_faces();
         let (fa, fb) = (walls[0][0], walls[0][1]);
-        (built.body, fa, fb)
+        (built.body.into_body(), fa, fb)
     }
     fn apart<T: Scalar>(
         body: &Body<T>,
@@ -722,13 +731,14 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
 fn a_full_torus_certifies_by_kind() {
     fn torus<T: Scalar>() -> Body<T> {
         revolve(
-            &validated(&[donut_profile()]),
+            &validated::<T>(&[donut_profile()]),
             axis_y(),
             Revolution::Full,
             tol(),
         )
         .unwrap()
         .body
+        .into_body()
     }
     let body = torus::<f64>();
     for report in holds_at_both("the torus", body.clone(), torus::<Interval>()) {
@@ -759,6 +769,7 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
         sweep_body::<T>(&profile, place, &path, 65, 3, tol())
             .expect("the helix sweeps")
             .body
+            .into_body()
     }
     holds_at_both("the helical sweep", helical::<f64>(), helical::<Interval>());
 }
@@ -766,7 +777,10 @@ fn a_long_helical_sweep_certifies_within_the_default_budget() {
 // ------------------------------------- walls one half of an axis spans
 
 /// A loft face's role: `top`, `bottom`, or `wall j` of the outer loop.
-fn role<T: Real>(lofted: &sweep::Lofted<T>, f: FaceKey) -> String {
+fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
+    lofted: &sweep::Lofted<T>,
+    f: FaceKey,
+) -> String {
     if f == lofted.top {
         return "top".into();
     }
@@ -1240,12 +1254,8 @@ fn kind<T: Real>(body: &Body<T>, f: FaceKey) -> &'static str {
 fn a_filleted_drum_certifies_across_its_fillet() {
     fn filleted<T: Scalar>() -> Body<T> {
         use sweep::blend::fillet_edges;
-        use sweep::test_support::finished;
-        let drum = finished(
-            "the drum",
-            extrude(&disc(), to_offset(2.0), tol()).unwrap().body,
-            tol(),
-        );
+
+        let drum = extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body;
         let rim: Vec<topo::EdgeKey> = drum
             .edges()
             .filter(|(_, e)| {
@@ -1260,6 +1270,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .map_err(|e| e.error)
             .expect("the rim fillets")
             .body
+            .into_body()
     }
     let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
@@ -1347,13 +1358,15 @@ fn slab<T: Scalar>(top: f64) -> topo::AtRestBody<T> {
     use sweep::test_support::{brick, finished};
     finished(
         "the slab",
-        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, top), tol()),
+        brick::<T>((-50.0, 50.0), (-50.0, 50.0), (-100.0, top), tol()),
         tol(),
     )
 }
 
 /// The body a boolean built.
-fn built<T: Real>(r: Result<topo::BooleanResult<T>, topo::BooleanError>) -> topo::AtRestBody<T> {
+fn built<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
+    r: Result<topo::BooleanResult<T>, topo::BooleanError>,
+) -> topo::AtRestBody<T> {
     match r {
         Ok(topo::BooleanResult::Body(b)) => b.body,
         other => panic!("the op builds: {other:?}"),
@@ -1385,12 +1398,8 @@ fn rod<T: Scalar>((z0, z1): (f64, f64)) -> topo::AtRestBody<T> {
 fn oblique_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
-    let drum = finished(
-        "the drum",
-        extrude(&disc(), to_offset(2.0), tol()).unwrap().body,
-        tol(),
-    );
+
+    let drum = extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body;
     let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
     built(topo::subtract(&drum, &moved(&slab(1.0), &tilt), tol()))
 }
@@ -1665,6 +1674,7 @@ fn corpus_pot<T: Scalar>() -> Body<T> {
     revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// **The corpus pot holds at both scalars, reading no corner.** At
@@ -1717,7 +1727,7 @@ fn cavity_of<T: Scalar>(body: Body<T>, t: f64) -> (Body<T>, Vec<FaceKey>) {
         .filter(|(_, f)| f.shell == void)
         .map(|(k, _)| k)
         .collect();
-    (hollow, faces)
+    (hollow.into_body(), faces)
 }
 
 /// **The klein elbow** (`torax_interval`'s): a disc of radius `0.275`
@@ -1736,7 +1746,10 @@ fn klein_elbow<T: Scalar>() -> Body<T> {
         dir: geom_core::Vec2::new(0.0, -1.0).map(T::from_f64),
     };
     let quarter = Revolution::Partial(T::from_f64(-core::f64::consts::FRAC_PI_2));
-    revolve(&profile, axis, quarter, tol()).unwrap().body
+    revolve(&profile, axis, quarter, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 /// **The klein elbow's cavity holds across its spiric caps at both
@@ -2024,6 +2037,7 @@ fn frustum<T: Scalar>(r1: f64) -> Body<T> {
     revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// **A cone frustum holds at both scalars, and so does its cavity**
@@ -2131,6 +2145,7 @@ fn lens_loft<T: Scalar>() -> Body<T> {
     loft_body::<T>(&sections, &places, 2, tol())
         .expect("the lens loft lofts")
         .body
+        .into_body()
 }
 
 /// **A lens loft's rational walls hold against themselves, at both
@@ -2252,6 +2267,7 @@ fn a_twisted_loft_holds_along_its_seams_at_both_scalars() {
         loft_body::<T>(&sections, &places, 2, tol())
             .expect("the twisted sections loft")
             .body
+            .into_body()
     }
     /// Each seam's receipt and depth, every one holding, nothing
     /// refused, well under the depth budget.
@@ -2318,6 +2334,7 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
         sweep_body::<T>(&profile, place, &path, 33, 3, tol())
             .expect("the helix sweeps")
             .body
+            .into_body()
     }
     fn holds<T: Scalar>(what: &str, body: &Body<T>) -> usize {
         let pairs = adjacent(body, true);

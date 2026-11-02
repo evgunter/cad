@@ -65,7 +65,7 @@ fn delta_needle_cone_near_apex_reads_as_main() {
                 let y = foot.y;
                 let bx = sweep::test_support::finished(
                     "box",
-                    sweep::test_support::brick((-2.0, 2.0), (y - 3.0, y), (-2.0, 2.0), tol),
+                    sweep::test_support::brick::<f64>((-2.0, 2.0), (y - 3.0, y), (-2.0, 2.0), tol),
                     tol,
                 );
                 for (op, name) in [(0, "∩"), (1, "∖")] {

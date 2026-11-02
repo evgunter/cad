@@ -50,6 +50,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("the probe profile extrudes")
     .body
+    .into_body()
 }
 
 /// The Fig. 14.2 notched block of issue 1152's reproduction, with the

@@ -867,7 +867,7 @@ fn bored(brick: [(f64, f64); 3], rod: Body<f64>) -> Body<f64> {
     let tol = Tol::witness();
     let brick = finished(
         "the brick",
-        sweep::test_support::brick(brick[0], brick[1], brick[2], tol),
+        sweep::test_support::brick::<f64>(brick[0], brick[1], brick[2], tol),
         tol,
     );
     topo::subtract(&brick, &finished("the rod", rod, tol), tol)
@@ -1487,8 +1487,11 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     ];
     for (what, rod, one_decision, builds) in poses {
         for (op, f) in [
-            ("∩", topo::intersect::<f64> as fn(_, _, _) -> _),
-            ("∪", topo::union::<f64>),
+            (
+                "∩",
+                topo::intersect::<topo::AtRestBody<f64>> as fn(_, _, _) -> _,
+            ),
+            ("∪", topo::union::<topo::AtRestBody<f64>>),
         ] {
             let (rb, br) = (outcome(f(&rod, &bore, tol)), outcome(f(&bore, &rod, tol)));
             let alike = match (&rb, &br) {

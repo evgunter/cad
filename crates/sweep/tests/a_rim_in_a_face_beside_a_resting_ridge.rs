@@ -60,7 +60,7 @@ fn rod(c: (f64, f64), z0: f64, len: f64) -> AtRestBody<f64> {
 fn block() -> AtRestBody<f64> {
     finished(
         "the block",
-        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), t()),
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), t()),
         t(),
     )
 }
@@ -245,7 +245,7 @@ fn edges_run_into_a_walls_foot(poses: &[(bool, f64, f64)], boxes: &[Box3], ops: 
         };
         let y_volume = 4.0 + PI * R * R;
         for &(bx, by, bz) in boxes {
-            let x = finished("the box", brick(bx, by, bz, t()), t());
+            let x = finished("the box", brick::<f64>(bx, by, bz, t()), t());
             let x_volume = (bx.1 - bx.0) * (by.1 - by.0) * (bz.1 - bz.0);
             let common = if bz.0 >= 1.0 {
                 // Above the top: the box's part in the cylinder.

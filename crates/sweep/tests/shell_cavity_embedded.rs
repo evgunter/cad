@@ -25,6 +25,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::time::Instant;
+use topo::FinishedBody as _;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Decide, Interval, Point2, Point3, Sign, Sym, Tol, Vec2};
@@ -104,7 +105,7 @@ fn box_with_void<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     let cavity = revolve(&profile, axis, Revolution::Full, tol())
         .expect("the meridian revolves")
         .body;
-    with_void(dst, cavity)
+    with_void(dst, cavity.into_body())
 }
 
 /// `cavity` inserted into `dst`'s solid as a void, with the carried
@@ -140,7 +141,7 @@ fn is_cylinder<T: Decide>(body: &Body<T>, face: FaceKey) -> bool {
 
 /// The witness of a `CavityCrosses` refusal, or a panic naming what
 /// `what` returned instead.
-fn crossing<T: Decide>(
+fn crossing<T: topo::AtRestPolicy + Decide>(
     what: &str,
     r: Result<Shelled<T>, ShellError<T>>,
 ) -> (FaceKey, FaceKey, [(f64, f64); 2], f64) {
@@ -176,7 +177,7 @@ fn vessel_with_void<T: Decide + topo::AtRestPolicy>() -> Body<T> {
 
 /// The coaxial void's crossing: the witness on the vessel's cylinder
 /// wall and one of the void's planar caps.
-fn coaxial_crossing<T: Decide>(
+fn coaxial_crossing<T: topo::AtRestPolicy + Decide>(
     what: &str,
     operand: &Body<T>,
     r: Result<Shelled<T>, ShellError<T>>,
@@ -402,6 +403,7 @@ fn klein_elbow<T: Decide + topo::AtRestPolicy>() -> Body<T> {
     revolve(&profile, axis, quarter, tol())
         .expect("the elbow revolves")
         .body
+        .into_body()
 }
 
 /// `what` shells Ok at `T` with the self-intersection site decided
@@ -481,7 +483,7 @@ fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
     let rigid = geom_core::test_support::rigid(&turn.map(at), tol());
     let slab = finished(
         "the slab",
-        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.3), tol()),
+        brick::<Interval>((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.3), tol()),
         tol(),
     );
     let slab = finished(

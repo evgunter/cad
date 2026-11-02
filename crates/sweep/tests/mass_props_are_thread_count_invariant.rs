@@ -67,6 +67,7 @@ fn arc_loft(s: f64) -> Body<f64> {
     )
     .expect("the arc loft lofts")
     .body
+    .into_body()
 }
 
 /// The thin curved strip, two stations high: two large rational walls
@@ -86,6 +87,7 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     )
     .expect("the strip lofts")
     .body
+    .into_body()
 }
 
 /// The roster: the reporting-door digest's three lanes that this walk
@@ -205,6 +207,7 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
     )
     .expect("the arc loft lofts at Sym")
     .body
+    .into_body()
 }
 
 /// The thin strip at `Sym<f64>`.
@@ -224,6 +227,7 @@ fn sym_thin_strip() -> Body<Sym<f64>> {
     )
     .expect("the strip lofts at Sym")
     .body
+    .into_body()
 }
 
 /// `retried` is not a column: the session block opens `with_session`,

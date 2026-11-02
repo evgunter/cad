@@ -59,6 +59,7 @@ fn ball() -> topo::Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The probe offset: a multiple of the RESOLVED band, so each ε lane
@@ -328,7 +329,7 @@ fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
 
 /// The slab `[−2, 2]² × [0, h]` and the ball of [`ball`], at rest.
 fn die_slab_and_ball(h: f64) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
-    let slab = topo::test_support::brick((-2.0, 2.0), (-2.0, 2.0), (0.0, h), Tol::witness());
+    let slab = topo::test_support::brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, h), Tol::witness());
     (
         finished("the slab", slab, Tol::witness()),
         finished("the ball", ball(), Tol::witness()),

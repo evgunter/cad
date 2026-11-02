@@ -64,6 +64,7 @@ fn plate_with_hole() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn is_circle(body: &Body<f64>, k: EdgeKey) -> bool {

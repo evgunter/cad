@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use topo::FinishedBody as _;
 use topo::construction::Construct;
 
 use geom::{Curve3, Surface};
@@ -359,7 +360,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = topo::AtRestBody::validate(cavity, tol())
+    let cavity = topo::finish(cavity, tol())
         .unwrap_or_else(|e| panic!("the cavity passes the at-rest gate, check 7 included: {e:?}"));
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
@@ -1078,6 +1079,7 @@ mod interval_rows {
         )
         .expect("the vessel revolves")
         .body
+        .into_body()
     }
 
     /// **Row 8 — the `Interval` lane.** The sectioned vessel's cavity at

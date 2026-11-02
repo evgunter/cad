@@ -78,6 +78,7 @@ fn cone() -> Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A frustum: base disc radius 1 at y = 0, top disc radius 0.5 at
@@ -95,6 +96,7 @@ fn frustum() -> Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A quarter cone: the same triangle through a π/2 revolve. Its ONE
@@ -109,6 +111,7 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **The fixture scale these bodies are built at.** Every body in this
@@ -458,7 +461,7 @@ fn the_azimuth_window_selects_the_swept_quadrant() {
 #[test]
 fn a_disjoint_union_with_a_cone_face_now_assembles() {
     let a = finished("the cone", cone(), Tol::witness());
-    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = brick::<f64>((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let b = finished("the brick", b, Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,

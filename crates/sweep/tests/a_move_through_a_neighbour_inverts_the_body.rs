@@ -30,7 +30,7 @@ use geom::Surface;
 use geom_core::Tol;
 use sweep::Revolution;
 use sweep::test_support::{corners, revolved_about_y};
-use topo::{AtRestBody, Body, FaceKey, ShellError, ValidationError};
+use topo::{Body, FaceKey, ShellError, ValidationError};
 
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
     revolved_about_y(corners(points), Revolution::Full, Tol::witness())
@@ -54,7 +54,7 @@ fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey
 fn volume(body: &Body<f64>) -> f64 {
     topo::test_support::pinned_volume(
         "the measured body",
-        &AtRestBody::validate(Body::clone(body), Tol::witness()).expect("the body is finished"),
+        &topo::finish(Body::clone(body), Tol::witness()).expect("the body is finished"),
         Tol::witness(),
     )
     .volume
@@ -103,7 +103,7 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
         ),
     ];
     for (what, operand, pick, d, want_v, rings) in rows {
-        AtRestBody::validate(operand.clone(), tol).expect("the operand is finished");
+        topo::finish(operand.clone(), tol).expect("the operand is finished");
         let face = face_where(&operand, pick);
         let mut moved = operand;
         topo::replace_face_offset(&mut moved, face, d, tol)
@@ -124,7 +124,7 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
             want_v < 0.0 && (v - want_v).abs() <= 1e-12,
             "{what}: signed volume {v}, want the moved meridian's {want_v}"
         );
-        let errors = AtRestBody::validate(moved, tol)
+        let errors = topo::finish(moved, tol)
             .expect_err(&format!("{what}: the inverted body is not finished"));
         rings_outside(what, &errors, rings);
     }
@@ -141,13 +141,13 @@ fn the_shell_verb_refuses_the_crossing_at_its_closing_gate() {
         ("the tube", tube(), 0.15, 0.25, 2),
     ];
     for (what, operand, finishes, crosses, rings) in rows {
-        let operand = AtRestBody::validate(operand, tol).expect("the operand is finished");
+        let operand = topo::finish(operand, tol).expect("the operand is finished");
         let shelled = topo::shell(&operand, finishes, tol)
             .unwrap_or_else(|e| panic!("{what}: a {finishes} wall shells, got {e}"));
-        AtRestBody::validate(shelled.body, tol)
+        topo::finish(shelled.body.into_body(), tol)
             .unwrap_or_else(|e| panic!("{what}: the {finishes} shell is finished, got {e:?}"));
         match topo::shell(&operand, crosses, tol) {
-            Err(ShellError::NotValid { errors }) => rings_outside(what, &errors, rings),
+            Err(ShellError::NotValid { findings: errors }) => rings_outside(what, &errors, rings),
             other => panic!(
                 "{what}: a {crosses} wall crosses the cavity and refuses NotValid, got {:?}",
                 other.map(|s| volume(&s.body))
@@ -156,7 +156,7 @@ fn the_shell_verb_refuses_the_crossing_at_its_closing_gate() {
     }
     // The tube's finishing wall, closed form: the tube less its cavity
     // `[0.55, 0.65] × [0.15, 0.45]`.
-    let tube = AtRestBody::validate(tube(), tol).unwrap();
+    let tube = topo::finish(tube(), tol).unwrap();
     let v = volume(&topo::shell(&tube, 0.15, tol).unwrap().body);
     let want = PI * (0.8f64.powi(2) - 0.4f64.powi(2)) * 0.6
         - PI * (0.65f64.powi(2) - 0.55f64.powi(2)) * 0.3;

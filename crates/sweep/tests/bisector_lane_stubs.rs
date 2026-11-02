@@ -311,7 +311,7 @@ fn a_wall_stored_far_off_its_faces_builds_at_the_closed_form() {
         let rod = spin(&cyl(1.0, far), Vec3::new(0.0, 0.0, 1.0), phi);
         let cutter = finished(
             "the cutter",
-            sweep::test_support::brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+            sweep::test_support::brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
             tol,
         );
         let cut = topo::intersect(&finished("the rod", rod, tol), &cutter, tol);

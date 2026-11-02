@@ -40,7 +40,7 @@ fn cap(body: &Body<f64>) -> FaceKey {
 fn a_record_on_a_cap_a_band_carves_is_read() {
     let cube = finished(
         "cube",
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-9;

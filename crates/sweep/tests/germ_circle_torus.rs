@@ -57,6 +57,7 @@ fn tube(
     )
     .expect("tube builds")
     .body
+    .into_body()
 }
 
 fn b_quarter() -> Body<f64> {

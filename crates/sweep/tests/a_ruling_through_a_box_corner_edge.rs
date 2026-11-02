@@ -41,7 +41,7 @@ fn tol() -> Tol {
 fn the_box() -> AtRestBody<f64> {
     finished(
         "the box",
-        brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
         tol(),
     )
 }
@@ -269,7 +269,7 @@ fn post(axis: Axis, (u, v): (f64, f64), (su, sv): (f64, f64)) -> AtRestBody<f64>
     let span = |p: f64, q: f64| (p.min(q), p.max(q));
     finished(
         "the post",
-        brick(span(a.0, b.0), span(a.1, b.1), span(a.2, b.2), tol()),
+        brick::<f64>(span(a.0, b.0), span(a.1, b.1), span(a.2, b.2), tol()),
         tol(),
     )
 }

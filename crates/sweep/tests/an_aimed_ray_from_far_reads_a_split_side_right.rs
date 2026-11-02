@@ -22,7 +22,7 @@ use crate::split_seam_vanishing_tilt::carrier_resolution;
 /// The unit cylinder `0 ≤ z ≤ 1`, turned `phi` about its axis.
 fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let body = AtRestBody::validate(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
+    let body = topo::finish(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
     let turn = geom_core::Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
@@ -30,7 +30,7 @@ fn cylinder(phi: f64, tol: Tol) -> AtRestBody<f64> {
     );
     let turned =
         topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
-    AtRestBody::validate(turned, tol).unwrap()
+    topo::finish(turned, tol).unwrap()
 }
 
 /// How a split of the census reads: both sides built and holding the
@@ -94,32 +94,34 @@ fn read(phi: f64, psi: f64, l: f64, sign: f64, tol: Tol) -> Read {
             );
             Read::Built
         }
-        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. }))
-            if errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::NegativeVolume { .. })) =>
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
+            findings: errors, ..
+        })) if errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })) =>
         {
             Read::InsideOut
         }
-        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. }))
-            if errors
-                .iter()
-                .all(|e| matches!(e, ValidationError::VolumeSignUnresolved { .. })) =>
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
+            findings: errors, ..
+        })) if errors
+            .iter()
+            .all(|e| matches!(e, ValidationError::VolumeSignUnresolved { .. })) =>
         {
             Read::Unread
         }
-        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. })) => {
+        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
+            findings: errors, ..
+        })) => {
             assert!(
                 !errors.is_empty() && errors.iter().all(carrier_resolution),
                 "{pose}: a side refuses on the ellipse's own rounding alone: {errors:?}"
             );
             Read::CarrierRefused
         }
-        Err(
-            e @ SplitError::Finish(
-                SplitFinishError::ResultInvalid { .. } | SplitFinishError::ResultEscalated { .. },
-            ),
-        ) => panic!("{pose}: a side the at-rest gate refuses is `ResultNotAtRest`: {e:?}"),
+        Err(e @ SplitError::Finish(SplitFinishError::ResultInvalid { .. })) => {
+            panic!("{pose}: a side the at-rest gate refuses is `ResultNotAtRest`: {e:?}")
+        }
         Err(_) => Read::Refused,
     }
 }

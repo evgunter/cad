@@ -74,6 +74,7 @@ fn d_hole_block(flat: f64) -> Body<f64> {
     )
     .expect("the D-holed profile extrudes")
     .body
+    .into_body()
 }
 
 /// **The fixture holds together**, and its creases' ends sit in the

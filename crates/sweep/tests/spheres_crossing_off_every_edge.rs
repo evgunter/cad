@@ -69,7 +69,11 @@ fn toward(r: f64, dist: f64, dir: Vec3<f64>, spin: f64) -> AtRestBody<f64> {
 }
 
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
-    finished("the box", brick(x, y, z, Tol::witness()), Tol::witness())
+    finished(
+        "the box",
+        brick::<f64>(x, y, z, Tol::witness()),
+        Tol::witness(),
+    )
 }
 
 fn body(out: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<f64> {

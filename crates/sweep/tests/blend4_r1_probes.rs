@@ -404,7 +404,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
     .expect("the chamfered cavity carves");
     let cav_digest = digest(&cav.body);
 
-    let cube_body = cube(2.0, Tol::witness());
+    let cube_body = cube::<f64>(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cvx = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, Tol::witness()),

@@ -82,7 +82,7 @@ fn cap(r: f64, h: f64) -> f64 {
 /// silently wrong (typed refusal is acceptable; a wrong volume is not).
 #[test]
 fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
-    let fin = brick((0.0, 4.0), (1.9, 2.1), (0.0, 0.8), Tol::witness());
+    let fin = brick::<f64>((0.0, 4.0), (1.9, 2.1), (0.0, 0.8), Tol::witness());
     let fin = finished("the fin", fin, Tol::witness());
     let ball = ball_poled_y(0.6, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let ball = finished("the ball", ball, Tol::witness());
@@ -127,7 +127,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
 fn probe_exact_tangency_from_inside_refuses_typed() {
     let b = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let (slab, b) = (
-        finished("the slab", slab(), Tol::witness()),
+        finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the ball", b, Tol::witness()),
     );
     let err = topo::union(&slab, &b, Tol::witness()).expect_err("tangency must not answer");
@@ -164,7 +164,7 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 fn probe_edge_escape_lands_a_ring_before_the_scan() {
     let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let (slab, b) = (
-        finished("the slab", slab(), Tol::witness()),
+        finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the ball", b, Tol::witness()),
     );
     let out = topo::union(&slab, &b, Tol::witness())
@@ -181,7 +181,7 @@ fn probe_edge_escape_lands_a_ring_before_the_scan() {
 /// debug-identical (within-run D9; cross-version bits are NOT pinned).
 #[test]
 fn probe_flipped_row_replays_bit_identical() {
-    let a = finished("the slab", slab(), Tol::witness());
+    let a = finished("the slab", slab::<f64>(), Tol::witness());
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let b = finished("the ball", b, Tol::witness());
     let one = boolean_op_with(
@@ -222,7 +222,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
     let b0 = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let b = rot_x_about(&b0, Vec3::new(2.0, 2.0, 1.2), 0.3);
     let (slab, b) = (
-        finished("the slab", slab(), Tol::witness()),
+        finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the tilted ball", b, Tol::witness()),
     );
     let cut = boolean_op_with(
@@ -258,7 +258,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
         core::f64::consts::FRAC_PI_2 - 0.05,
     );
     let (slab, b) = (
-        finished("the slab", slab(), Tol::witness()),
+        finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the tilted ball", b, Tol::witness()),
     );
     match boolean_op_with(
@@ -387,7 +387,7 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
     let b1 = rot_x_about(&b0, pivot, -0.2137);
     let b = rot_y_about(&b1, pivot, 0.312);
     let (slab, b) = (
-        finished("the slab", slab(), Tol::witness()),
+        finished("the slab", slab::<f64>(), Tol::witness()),
         finished("the turned ball", b, Tol::witness()),
     );
     for strat in [SweepStrategy::Realized, SweepStrategy::Idealized] {

@@ -18,7 +18,7 @@ fn band() -> Band {
 }
 
 fn at_rest(b: topo::Body<f64>) -> topo::AtRestBody<f64> {
-    topo::AtRestBody::validate(b, tol()).unwrap()
+    topo::finish(b, tol()).unwrap()
 }
 
 /// A full turn about the `y` axis from radius `inner` (0 for a rod)

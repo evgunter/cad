@@ -39,12 +39,13 @@ fn sorted_marks<K: core::fmt::Debug, V: core::fmt::Debug>(
 }
 
 /// The certified doors — every scalar whose bound names the right.
-fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Doors<T> {
+fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>()
+-> Doors<T> {
     Doors {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
         mass: |body, tol| {
-            match T::gate_at_rest_kept(topo::Body::clone(body), tol) {
+            match topo::finish(topo::Body::clone(body), tol) {
                 Ok(finished) => topo::mass_properties(
                     &finished,
                     tol,
@@ -70,7 +71,7 @@ fn structural<T: geom_core::Bounds + topo::AtRestPolicy>() -> Doors<T> {
         marks: |body, tol| {
             topo::contact_marks_structural(body, tol).map(|m| sorted_marks(m.iter()))
         },
-        mass: |body, tol| match T::gate_at_rest_kept(topo::Body::clone(body), tol) {
+        mass: |body, tol| match topo::finish(topo::Body::clone(body), tol) {
             Ok(finished) => topo::mass_properties_structural(&finished, tol),
             // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump records the door's answer on each; a body tier 3 passes reads the typed door above.
             Err(_) => topo::test_support::measure_unvalidated_structural(body, tol),
@@ -102,7 +103,11 @@ fn dump<T: geom_core::Decide + core::fmt::Debug>(
     );
 }
 
-fn dump_composed<T: geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy>(
+fn dump_composed<
+    T: geom_core::CertifiedBounds
+        + core::fmt::Debug
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     scalar: &str,
     name: &str,
     body: &Body<T>,
@@ -184,7 +189,7 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
         assert_eq!(name, dname);
         // The f64 body's verdict decides both doors: the dual twin carries
         // no verdict of its own (DL3's pairing).
-        let at_rest = topo::AtRestBody::validate(topo::Body::clone(b), tol);
+        let at_rest = topo::finish(topo::Body::clone(b), tol);
         if let Err(errors) = &at_rest {
             assert!(
                 name.ends_with("~reverted")

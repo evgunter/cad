@@ -26,7 +26,7 @@ fn tol() -> Tol {
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).expect("a valid operand")
+    topo::finish(body, tol()).expect("a valid operand")
 }
 
 fn moved(body: &AtRestBody<f64>, by: Affine3<f64>) -> AtRestBody<f64> {
@@ -494,7 +494,7 @@ fn capped_cylinder() -> AtRestBody<f64> {
     )
     .expect("the meridian revolves")
     .body;
-    finished(body)
+    finished(body.into_body())
 }
 
 /// **A plane touching the solid only at a vertex reads no section
@@ -557,7 +557,8 @@ fn the_shallowest_entered_face_decides() {
             tol(),
         )
         .expect("the meridian revolves")
-        .body,
+        .body
+        .into_body(),
     );
     let (tilt, beta) = (8f64.to_radians(), 2f64.to_radians());
     let n = Vec3::new(tilt.cos() * beta.cos(), tilt.sin() * beta.cos(), beta.sin());

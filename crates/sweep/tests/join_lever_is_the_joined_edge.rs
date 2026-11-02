@@ -57,7 +57,7 @@ fn cut_d(sin: f64) -> (Body<f64>, EdgeKey, f64) {
     let c = (1.0 - sin * sin).sqrt();
     let b = finished(
         "the brick",
-        brick((c, 4.0), (-4.0, 4.0), (-3.0, 3.0), tol()),
+        brick::<f64>((c, 4.0), (-4.0, 4.0), (-3.0, 3.0), tol()),
         tol(),
     );
     let Ok(BooleanResult::Body(r)) = intersect(&d_prism(), &b, tol()) else {

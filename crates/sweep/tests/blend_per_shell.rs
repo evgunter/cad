@@ -112,7 +112,7 @@ fn carried_through(what: &str, source: &Body<f64>, out: &Blended<f64>, kept: She
 
 fn volume(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
-    AtRestBody::validate(body.clone(), tol)
+    topo::finish(body.clone(), tol)
         .unwrap_or_else(|e| panic!("{what}: the result is a finished body: {e:?}"));
     topo::test_support::pinned_volume(
         "closed-form mass properties",

@@ -45,6 +45,7 @@ fn extruded_loops(loops: Vec<profile::ProfileLoop<f64>>) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn plane(o: (f64, f64), n: (f64, f64)) -> SplitPlane<f64> {
@@ -575,6 +576,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The plane tangent to the cone `ρ = r0 + slope·y` along its ruling at

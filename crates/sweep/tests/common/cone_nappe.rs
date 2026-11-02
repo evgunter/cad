@@ -54,6 +54,7 @@ pub fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// A frustum of height [`H`], `r0` at the base and `r1` at the top.

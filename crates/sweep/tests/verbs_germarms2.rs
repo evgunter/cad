@@ -325,7 +325,8 @@ fn the_fenced_poses_keep_their_own_outcomes() {
         tol,
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     // The overlap of two unit discs whose centres are 1.2 apart, four
     // high.
     let lens = 2.0 * 0.6_f64.acos() - 0.6 * (4.0_f64 - 1.44).sqrt();

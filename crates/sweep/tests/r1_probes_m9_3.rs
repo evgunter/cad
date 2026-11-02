@@ -25,7 +25,7 @@ fn body_of(r: BooleanResult<f64>) -> AtRestBody<f64> {
 
 /// [`plate6`], finished.
 fn plate(z0: f64) -> AtRestBody<f64> {
-    finished("the plate", plate6(z0), Tol::witness())
+    finished("the plate", plate6::<f64>(z0), Tol::witness())
 }
 
 /// [`plate6_cyl`], finished.
@@ -237,7 +237,7 @@ fn probe_partial_engagement_never_silent() {
 fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> AtRestBody<f64> {
     let mut b = finished(
         "the plate",
-        brick((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness()),
+        brick::<f64>((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness()),
         Tol::witness(),
     );
     for &(hx, hy) in holes {
@@ -246,7 +246,7 @@ fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> AtRestBody<f64> {
                 &b,
                 &finished(
                     "the hole's brick",
-                    brick(
+                    brick::<f64>(
                         (hx, hx + 1.0),
                         (hy, hy + 1.0),
                         (z0 - 0.5, z1 + 0.5),

@@ -150,7 +150,7 @@ fn rotated(body: &AtRestBody<f64>, about: [f64; 3], angle: f64) -> AtRestBody<f6
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).expect("a valid operand")
+    topo::finish(body, tol()).expect("a valid operand")
 }
 
 fn offsets(e: f64) -> Vec<f64> {

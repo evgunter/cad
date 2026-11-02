@@ -17,6 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use topo::FinishedBody as _;
 
 use geom_core::{Decide, Dual, Dual64, Point2, Tol};
 use sweep::blend::{chamfer_edges, fillet_edges};
@@ -39,26 +40,24 @@ fn blended<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let edges = query::all_edges(body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
     match verb {
-        Verb::Fillet => {
-            fillet_edges(
-                &sweep::test_support::at_rest(body, Tol::witness()),
-                &edges,
-                size,
-                Tol::witness(),
-            )
-            .expect("the filleted cube")
-            .body
-        }
-        Verb::Chamfer => {
-            chamfer_edges(
-                &sweep::test_support::at_rest(body, Tol::witness()),
-                &edges,
-                size,
-                Tol::witness(),
-            )
-            .expect("the chamfered cube")
-            .body
-        }
+        Verb::Fillet => fillet_edges(
+            &sweep::test_support::at_rest(body, Tol::witness()),
+            &edges,
+            size,
+            Tol::witness(),
+        )
+        .expect("the filleted cube")
+        .body
+        .into_body(),
+        Verb::Chamfer => chamfer_edges(
+            &sweep::test_support::at_rest(body, Tol::witness()),
+            &edges,
+            size,
+            Tol::witness(),
+        )
+        .expect("the chamfered cube")
+        .body
+        .into_body(),
     }
 }
 

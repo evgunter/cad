@@ -202,7 +202,7 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
 /// `body`'s volume through the typed door, or `None` where tier 3 refuses
 /// it (an over-cover) or the measurement does.
 pub(crate) fn volume(body: &Body<f64>, tol: Tol) -> Option<f64> {
-    let finished = topo::AtRestBody::validate(Body::clone(body), tol).ok()?;
+    let finished = topo::finish(Body::clone(body), tol).ok()?;
     topo::mass_properties(&finished, tol, topo::test_support::pinned_resolution(tol))
         .ok()
         .map(|m| m.enclosure.volume)

@@ -62,6 +62,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **The boundary just past the pin.** The unit pins r in {3, 4, 5, 6};
@@ -81,7 +82,7 @@ fn past_the_pinned_radius_the_door_refuses_or_meters_exactly() {
         // the corpus `rounded_plate` above carries.
         let pocket = finished(
             "the pocket",
-            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
             tol,
         );
         match topo::subtract(&plate, &pocket, tol) {
@@ -116,7 +117,7 @@ fn the_tangential_radius_ten_refuses_or_meters_exactly() {
     // the corpus `rounded_plate` above carries.
     let pocket = finished(
         "the pocket",
-        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
         tol,
     );
     match topo::subtract(&plate, &pocket, tol) {

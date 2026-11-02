@@ -83,7 +83,11 @@ fn circle<T: Real>(cx: f64, cy: f64, r: f64, az: f64) -> ProfileLoop<T> {
 }
 
 /// `loops` extruded from `z = z0` up by `h`.
-fn extruded<T: Decide + AtRestPolicy>(loops: Vec<ProfileLoop<T>>, z0: f64, h: f64) -> Body<T> {
+fn extruded<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    loops: Vec<ProfileLoop<T>>,
+    z0: f64,
+    h: f64,
+) -> Body<T> {
     let f = T::from_f64;
     let profile = Profile::new(SketchPlane::<T>::xy(), loops)
         .validate(tol())
@@ -97,12 +101,15 @@ fn extruded<T: Decide + AtRestPolicy>(loops: Vec<ProfileLoop<T>>, z0: f64, h: f6
     topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol()), tol()).unwrap()
 }
 
-fn fin<T: AtRestPolicy>(what: &str, body: Body<T>) -> AtRestBody<T> {
+fn fin<T: AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    what: &str,
+    body: Body<T>,
+) -> AtRestBody<T> {
     topo::test_support::finished(what, body, tol())
 }
 
 /// The plate `[−1, 1]² × [−0.5, 0]`: 2.
-fn plate<T: Decide + AtRestPolicy>() -> AtRestBody<T> {
+fn plate<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>() -> AtRestBody<T> {
     fin(
         "the plate",
         brick((-1.0, 1.0), (-1.0, 1.0), (-0.5, 0.0), tol()),
@@ -302,7 +309,7 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
         "the second boss",
         extruded(vec![circle(0.5, 0.0, 0.3, 1.0)], 0.0, 1.0),
     );
-    let one = topo::union(&plate(), &first, tol())
+    let one = topo::union(&plate::<f64>(), &first, tol())
         .unwrap()
         .body()
         .unwrap()

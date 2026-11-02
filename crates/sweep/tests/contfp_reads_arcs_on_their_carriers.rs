@@ -102,6 +102,7 @@ fn filleted_bored_d_rod() -> Body<f64> {
     )
     .expect("the D-rod's creases fillet")
     .body
+    .into_body()
 }
 
 /// The lune point: in the rod, out of the bore, and on the far side of

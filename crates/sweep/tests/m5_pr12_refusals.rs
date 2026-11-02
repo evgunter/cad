@@ -662,7 +662,8 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         tol(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     // The raised rim: every arc whose stored carrier circle is the
     // raised one. Its lever arm is that circle's own radius.
     let raised: Vec<(EdgeKey, f64)> = body

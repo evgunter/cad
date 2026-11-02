@@ -172,7 +172,7 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     // the centre and every minted face must therefore face AWAY from
     // it. A single-sided convention passes one of these two, never
     // both.
-    let cube_body = cube(2.0, Tol::witness());
+    let cube_body = cube::<f64>(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cut = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, Tol::witness()),

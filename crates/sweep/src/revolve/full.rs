@@ -110,7 +110,7 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let outer = collapse_runs(&loops[0], &classes[0], 0, band)?;
     let runs = super::axis::analyze_contact(&outer.segs, &outer.cls, 0)?;
     let (mut out, pockets) = match runs[..] {
@@ -349,9 +349,9 @@ struct Grafted {
 /// profile's carried containment (`build_full`'s docs), records the
 /// cavity under `origin`, and re-keys the pocket's handles into the
 /// result body.
-fn insert_pocket<T: Decide>(
-    out: &mut Revolved<T>,
-    pocket: Revolved<T>,
+fn insert_pocket<T: Decide + topo::AtRestPolicy>(
+    out: &mut Revolved<T, Body<T>>,
+    pocket: Revolved<T, Body<T>>,
     origin: CavityOrigin,
 ) -> Result<Grafted, RevolveError> {
     let evidence = topo::VoidEvidence {
@@ -430,7 +430,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let (segs, cls) = (&col.segs[..], &col.cls);
     let place = frame.place;
     let n = segs.len();
@@ -601,6 +601,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
             pi_meridians: vec![None; nc],
             pi_rims: vec![None; nc],
         },
+        scalar: core::marker::PhantomData,
     })
 }
 
@@ -621,7 +622,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
     col: &Collapsed<T>,
     theta: T,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let seg = &col.segs[0];
     let q = frame.world(seg.a);
     let mut built = Body::<T>::new();
@@ -699,6 +700,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             pi_meridians: vec![None; nc],
             pi_rims: vec![None; nc],
         },
+        scalar: core::marker::PhantomData,
     })
 }
 
@@ -764,7 +766,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let (segs, walls, verts) = (&wire.segs[..], &wire.walls[..], &wire.verts[..]);
     let place = frame.place;
     let k = segs.len();
@@ -1131,6 +1133,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             pi_meridians: pi_mer,
             pi_rims,
         },
+        scalar: core::marker::PhantomData,
     })
 }
 

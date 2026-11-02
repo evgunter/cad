@@ -30,7 +30,7 @@ fn slab() -> AtRestBody<f64> {
     let tol = Tol::witness();
     finished(
         "the slab",
-        brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
         tol,
     )
 }

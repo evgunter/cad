@@ -56,7 +56,7 @@ fn mid<T: Bounds>(x: T) -> f64 {
 
 /// The union or difference of two fixtures at any scalar, through the
 /// public door.
-pub(crate) fn boolean<T: Decide + Bounds + AtRestPolicy>(
+pub(crate) fn boolean<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     union: bool,
     a: Body<T>,
     b: Body<T>,
@@ -79,7 +79,10 @@ pub(crate) fn boolean<T: Decide + Bounds + AtRestPolicy>(
 }
 
 /// The planar fixture's die at scale `k` and lean `s`, without a bar.
-pub(crate) fn die<T: Decide + Bounds + AtRestPolicy>(k: f64, s: f64) -> Body<T> {
+pub(crate) fn die<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    k: f64,
+    s: f64,
+) -> Body<T> {
     let f = |x: f64| T::from_f64(x * k);
     let block = brick((-k, 2.0 * k), (0.0, k), (0.0, k), tol());
     let pocket = prism_on(
@@ -112,7 +115,7 @@ pub(crate) enum Section {
 /// A bar of `section` whose axis crosses `x = x0` at `p` and `x = x1` at
 /// `q` (both `(y, z)`), run on `over` past each along the axis's `x`, its
 /// section's `u` axis the direction `u` turned square to the axis.
-pub(crate) fn bar<T: Decide + AtRestPolicy>(
+pub(crate) fn bar<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     (x0, p): (f64, (f64, f64)),
     (x1, q): (f64, (f64, f64)),
     over: f64,
@@ -147,7 +150,7 @@ pub(crate) fn bar<T: Decide + AtRestPolicy>(
 /// The planar fixture: [`die`] at scale `k` and lean `s` with a bar of
 /// `section` through its end walls, its axis at `p` (pocket-local
 /// `(y − k/4, z − k/2)`) at `x = k/4` and at `q` at `x = 3k/4`.
-fn barred<T: Decide + Bounds + AtRestPolicy>(
+fn barred<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     k: f64,
     s: f64,
     (p, q): ((f64, f64), (f64, f64)),
@@ -163,7 +166,7 @@ fn barred<T: Decide + Bounds + AtRestPolicy>(
 }
 
 /// [`barred`] with a straight bar along `x` at pocket-local `c`.
-fn straight<T: Decide + Bounds + AtRestPolicy>(
+fn straight<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     k: f64,
     s: f64,
     c: (f64, f64),
@@ -205,7 +208,7 @@ fn bar_walls<T: Real + Bounds>(body: &Body<T>, section: Section, k: f64) -> Vec<
 }
 
 /// `verb` at size `r` on `edges`, at any scalar.
-pub(crate) fn blend<T: Decide + Bounds + AtRestPolicy>(
+pub(crate) fn blend<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     verb: Verb,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -232,7 +235,9 @@ pub(crate) fn rings<T: Real>(body: &Body<T>) -> usize {
 /// enclosure a claim and its midpoint on the closed form. Returns the
 /// build.
 #[allow(clippy::too_many_arguments)] // the row's own reads, one per argument.
-fn assert_absorbed<T: Decide + Bounds + AtRestPolicy + geom_core::CertifiedBounds>(
+fn assert_absorbed<
+    T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>> + geom_core::CertifiedBounds,
+>(
     verb: Verb,
     body: &Body<T>,
     edges: &[EdgeKey],

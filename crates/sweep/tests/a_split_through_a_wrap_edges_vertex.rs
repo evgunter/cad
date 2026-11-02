@@ -87,7 +87,7 @@ fn extruded(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
         depth: HEIGHT,
         side: ExtrudeSide::Along,
     };
-    extrude(&profile, depth, tol()).unwrap().body
+    extrude(&profile, depth, tol()).unwrap().body.into_body()
 }
 
 /// The one-segment cylinder: [`circle`] extruded.
@@ -687,8 +687,12 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
                 let z0 = lift(vertex) + offset;
                 let plane = Plane { n, d: z0 - origin };
                 let what = format!("phase {phase}, sweep {sweep}, tilt {t}, offset {offset:e}");
-                let brick =
-                    sweep::test_support::brick((-half, half), (-half, half), (-half, z0), tol());
+                let brick = sweep::test_support::brick::<f64>(
+                    (-half, half),
+                    (-half, half),
+                    (-half, z0),
+                    tol(),
+                );
                 let slab = 4.0 * half * half * (z0 + half);
                 let b = topo::test_support::finished("the half-space", brick, tol());
                 let (wall_above, above) = closed_form(plane, phase, true, false, band);
@@ -787,7 +791,7 @@ fn tangent_boolean(build: Build, sweep: f64, t: f64, held: bool, what: &str) -> 
     );
     let b = topo::test_support::finished(
         "the half-space",
-        sweep::test_support::brick((-half, half), (-half, half), (-half, z0), tol()),
+        sweep::test_support::brick::<f64>((-half, half), (-half, half), (-half, z0), tol()),
         tol(),
     );
     let slab = 4.0 * half * half * (z0 + half);

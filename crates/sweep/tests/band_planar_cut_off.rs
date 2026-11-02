@@ -123,7 +123,9 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// quadrature lane's pad (zero on a closed-form `f64` inventory, the
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
-pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume_enclosure<
+    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -548,7 +550,7 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 
     // Valence four: a chamfered cube's patch vertex, which a trimline of
     // the chamfer ends at.
-    let cube_body = cube(1.0, tol());
+    let cube_body = cube::<f64>(1.0, tol());
     let chamfered = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, tol()),
         &query::all_edges(&cube_body),

@@ -19,6 +19,7 @@ use geom_core::{Bounds, Decide, Point2, Point3, Real, SpanLocate, Tol, Vec2, Vec
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::AtRestPolicy;
+use topo::FinishedBody as _;
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{Body, FaceKey, LoopBoundary, ValidationError};
 
@@ -60,6 +61,7 @@ fn revolved<T: Scalar>(pts: &[(f64, f64, f64)]) -> Body<T> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// A polygon of the `xy` sketch plane revolved a full turn about `y`.
@@ -1177,7 +1179,8 @@ fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
     ] {
         let lune: Body<f64> = revolve(&profile, axis, Revolution::Partial(deg.to_radians()), tol())
             .unwrap()
-            .body;
+            .body
+            .into_body();
         let face = lune
             .faces()
             .find(|(_, f)| matches!(lune.get_surface(f.surface), Some(Surface::Sphere { .. })))

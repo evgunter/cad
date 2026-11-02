@@ -63,6 +63,7 @@ fn lune_prism(s: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The census's unrecorded touches of `body` as records.

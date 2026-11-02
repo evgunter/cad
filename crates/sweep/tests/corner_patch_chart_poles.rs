@@ -60,7 +60,7 @@ fn strictly_spans(p: Vec3<f64>, [a, b, c]: [Vec3<f64>; 3]) -> bool {
 }
 
 /// Checks every corner face of `out`; returns how many it read.
-fn every_corner_encodes_and_holds_no_pole<T: Decide + Bounds>(
+fn every_corner_encodes_and_holds_no_pole<T: topo::AtRestPolicy + Decide + Bounds>(
     tag: &str,
     out: &Filleted<T>,
 ) -> usize {

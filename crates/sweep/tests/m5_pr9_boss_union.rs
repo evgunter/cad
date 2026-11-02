@@ -31,7 +31,7 @@ fn boss() -> Body<f64> {
 
 #[test]
 fn the_boss_union_lands_end_to_end() {
-    let a = finished("the plate", plate(), Tol::witness());
+    let a = finished("the plate", plate::<f64>(), Tol::witness());
     let b = finished("the boss", boss(), Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the first transverse curved boolean");
     let body = &out.body().expect("a seamed result").body;
@@ -206,6 +206,7 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
@@ -361,7 +362,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         Ok(()),
         "plate is tier-3"
     );
-    let mut body = plate.clone();
+    let mut body = plate.clone().into_body();
     topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
@@ -452,7 +453,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         Ok(()),
         "ball tier-3"
     );
-    let mut body = pac.clone();
+    let mut body = pac.clone().into_body();
     topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());

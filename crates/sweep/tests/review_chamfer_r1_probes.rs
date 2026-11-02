@@ -68,6 +68,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .expect("the prism extrudes")
     .body
+    .into_body()
 }
 
 /// **The material oracle**: on a CONVEX body, every face's sensed

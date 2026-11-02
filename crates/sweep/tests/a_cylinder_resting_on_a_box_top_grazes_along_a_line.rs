@@ -58,7 +58,7 @@ fn the_cylinder() -> Region {
 fn a_box(y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     finished(
         "the box",
-        topo::test_support::brick((-1.0, 1.0), y, z, tol()),
+        topo::test_support::brick::<f64>((-1.0, 1.0), y, z, tol()),
         tol(),
     )
 }

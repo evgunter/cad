@@ -91,7 +91,7 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     )
     .expect("extrudes");
     let face = built.side_faces()[0][1];
-    let mut body = built.body;
+    let mut body = built.body.into_body();
     // The baseline is a genuine tier-3 solid.
     validate_geometric(&body, Tol::witness()).expect("the extrusion validates at tier 3");
 
