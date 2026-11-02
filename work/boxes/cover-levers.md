@@ -32,3 +32,8 @@ Also closes, by reference (they are filed on other programs):
 - TWICE `extent-ball-and-reach-are-two-statements-of-one-extent`.
 
 Coordinate with their owners in the PR.
+
+## Added from PR 6399's review (2026-11-02)
+
+- **`geom_brep::Reach::lever_from` reads the whole carrier's cover**, not the span's. `cover-edge-doors` tried the span cover and seven topo rows went red, because the face reaches depend on the whole turn. This unit narrows it to the span and re-measures those rows.
+- **`splitting::containment::certify_plane`** still matches on `Curve3` for its in-plane levers: a conic's whole-conic `speed_hi`, a spiric's `R + r + |d|`, and a spline's control points. `cover-edge-doors`' sweep missed it. It reads the edge cover.
