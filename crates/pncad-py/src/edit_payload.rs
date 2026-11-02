@@ -50,7 +50,7 @@ use crate::tags::{attr_kind_tag, slot_id_tag};
 fn operand_index(slot: &pncad::document::SlotId) -> Option<usize> {
     use pncad::document::OperandSlot as S;
     match slot {
-        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => usize::try_from(*i).ok(),
+        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => Some(*i),
         _ => None,
     }
 }

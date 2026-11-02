@@ -5155,6 +5155,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "member_edge_tied",
             "missing_upstream",
             "partner_unread",
+            "past_width",
             "seam_vertex_partners",
             "short_tie",
             "split_lineage_cycle",

@@ -1775,6 +1775,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::ShortTie { .. } => "short_tie",
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
+        NamingError::PastWidth { .. } => "past_width",
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Settle(_) => "unsettled_vertex",

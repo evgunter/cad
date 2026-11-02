@@ -140,7 +140,8 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             };
             if piece.family {
                 for (j, body) in bodies.into_iter().enumerate() {
-                    let index = u32::try_from(j).unwrap_or(u32::MAX);
+                    let index = names::narrow(j, names::Numbered::OutputBody)
+                        .map_err(NodeErrorKind::Naming)?;
                     let table = piece
                         .table
                         .project(index)
@@ -246,14 +247,23 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
                     citing.push(input.clone());
                     citing.len() - 1
                 });
-                u32::try_from(at).unwrap_or(u32::MAX)
+                names::narrow(at, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
+        let rows = (base..base + out.coincidences.len())
+            .map(|row| names::narrow(row, names::Numbered::Row))
+            .collect::<Result<Vec<u32>, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         let recited = (**records)
             .clone()
             .recited(|b| match b {
                 topo::Backing::Decided(k) => vec![topo::Backing::Decided(
-                    u32::try_from(base + k as usize).unwrap_or(u32::MAX),
+                    rows.get(k as usize).copied().unwrap_or_else(|| {
+                        unreachable!(
+                            "a piece's record cites its row {k}, though its boolean decided {}",
+                            rows.len()
+                        )
+                    }),
                 )],
                 topo::Backing::Carried { input, record } => vec![topo::Backing::Carried {
                     input: inputs.get(input as usize).copied().unwrap_or_else(|| {
