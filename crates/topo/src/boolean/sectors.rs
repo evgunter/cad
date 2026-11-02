@@ -28,9 +28,10 @@
 //! that lies inside it ([`ApexPlane`], [`crate::sector_shape::apex_corner_shape`]),
 //! so that across each sub-sector the plane's side along its rulings is
 //! monotone, and its middle is the ruling halfway round
-//! ([`BoolSector::middle`]), not its bounds' sum. Only the pierce reads
-//! such a sector; the vertex–vertex lane refuses it
-//! ([`apex_pair_refusal`]).
+//! ([`BoolSector::middle`]), not its bounds' sum. The pierce reads such
+//! a sector through its apex arms; the vertex–vertex lane's pair search
+//! reads it through the fan arms ([`super::fan`]), and refuses a record
+//! that crosses at the apex ([`apex_crossing_refusal`]).
 //!
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
@@ -75,7 +76,7 @@ use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::{ConicDeparture, EntersMaterial, OutwardNormal};
-use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
@@ -184,9 +185,10 @@ impl<T: geom_core::Real> BoolSector<T> {
         self.start_reach.length().max(self.end_reach.length())
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
-    /// Only a pierce reads a sector at a cone's apex, through its own
-    /// arms ([`Self::apex`]); the vertex–vertex lane refuses an apex
-    /// sector before it reads any ([`apex_pair_refusal`]).
+    /// A sector at a cone's apex is read through its own arms
+    /// ([`Self::apex`]): the pierce's, and the vertex–vertex pair
+    /// search's ([`super::fan`]), which refuses a record crossing at the
+    /// apex before any tangent reader sees it ([`apex_crossing_refusal`]).
     ///
     /// The panic at an apex rests on that order, not on the type: the
     /// readers of a tangent are some sixty sites across both lanes'
@@ -265,9 +267,9 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
 /// whose unit widens this.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum ApexPlane<T: geom_core::Real> {
-    /// No plane: the vertex–vertex lane, which refuses an apex sector
-    /// ([`apex_pair_refusal`]), and every walk of a vertex no cone's
-    /// apex is.
+    /// No plane: the vertex–vertex lane, whose pair search reads a fan
+    /// whole ([`super::fan`]), and every walk of a vertex no cone's apex
+    /// is.
     None,
     /// The unit normal of the pierced face's plane through the apex.
     One(Vec3<T>),
@@ -314,8 +316,8 @@ impl<T: geom_core::Real> BoolFace<T> {
 /// lies strictly inside it ([`apex_corner_shape`]), so that between two
 /// neighbouring bounds the plane's side is monotone; a ruling bound is a
 /// bisector's. Against none ([`ApexPlane::None`]), the corner is one
-/// sector, read by nothing but the refusal of the lane that has no apex
-/// algebra ([`apex_pair_refusal`]).
+/// sector, which the vertex–vertex pair search reads whole
+/// ([`super::fan`]).
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
     operand: Operand,
@@ -616,7 +618,7 @@ pub(super) fn orbit_corners<T: Decide>(
 ///
 /// A cone face at its apex is its circle of rulings
 /// ([`VertexFace::Apex`]), which the pierce reads by its apex arms and
-/// the vertex–vertex lane refuses ([`apex_pair_refusal`]). A vertex in
+/// the vertex–vertex lane by its fan arms ([`super::fan`]). A vertex in
 /// the band of a cone's axis, its tangent plane read ill-conditioned or
 /// neither it nor the apex decided, refuses
 /// [`BooleanError::VertexNearConeAxis`].
@@ -682,23 +684,28 @@ pub(super) fn sector_face<T: Decide>(
     }
 }
 
-/// **The vertex–vertex lane at a cone's apex**: a pair one of whose
-/// vertices is the apex of a cone face of its operand refuses
-/// [`BooleanError::VertexPairAtConeApex`], before any pair reading. A
-/// sector there is a fan of rulings, and the pair algebra over two such
-/// fans is unbuilt. The other vertex is in practice an apex too: a flat
-/// corner at the apex has an edge through it, which refuses
-/// [`BooleanError::CrossingAtConeApex`] before the pair is read
+/// **The vertex–vertex lane's crossings at a cone's apex**: a pair
+/// record that crosses (not one carrier) with a sector at a cone's apex
+/// refuses [`BooleanError::VertexPairAtConeApex`], after the pair search
+/// and before any reading of its records. The search reads a fan's side,
+/// membership and meetings ([`super::fan`]), so two fans of one cone (a
+/// cone against its copy) and fans that meet nowhere but the apex (a
+/// cone against its copy turned over about the apex) read through; the
+/// reclassification and the insertion read a crossing record's faces as
+/// planes, and over a fan that algebra is unbuilt
 /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
-pub(super) fn apex_pair_refusal<T: geom_core::Real>(
-    pair: [(Operand, &[BoolSector<T>]); 2],
+pub(super) fn apex_crossing_refusal<T: geom_core::Real>(
+    records: &[PairRecord],
+    [a, b]: [&[BoolSector<T>]; 2],
 ) -> Result<(), BooleanError> {
-    for (operand, sectors) in pair {
-        if let Some(s) = sectors.iter().find(|s| s.apex().is_some()) {
-            return Err(BooleanError::VertexPairAtConeApex {
-                operand,
-                face: s.face,
-            });
+    for r in records.iter().filter(|r| !r.coplanar()) {
+        for (operand, s) in [(Operand::A, &a[r.a]), (Operand::B, &b[r.b])] {
+            if s.apex().is_some() {
+                return Err(BooleanError::VertexPairAtConeApex {
+                    operand,
+                    face: s.face,
+                });
+            }
         }
     }
     Ok(())
@@ -1340,6 +1347,9 @@ fn within_signs<T: Decide>(
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
     let lever = |r: Reach<T>| exact_lever(r.length(), own);
+    if let Some(apex) = s.apex() {
+        return super::fan::fan_within_signs(s, apex, (dir, lever), read, band);
+    }
     let c1 = Margin::levered(
         s.start.cross(dir).dot(s.tangent().vec()),
         lever(s.start_reach),
@@ -2570,15 +2580,15 @@ pub(super) fn pair_codes<T: Decide>(
     sb: &BoolSector<T>,
     band: Band,
 ) -> Result<(SidePair, SidePair), BooleanError> {
-    let code = |dir, reach, normal| plane_side_code(dir, reach, normal, band);
+    let code = |dir, reach, other| super::fan::face_side_code(dir, reach, other, band);
     Ok((
         (
-            code(sa.start, sa.start_reach, sb.tangent())?,
-            code(sa.end, sa.end_reach, sb.tangent())?,
+            code(sa.start, sa.start_reach, (Operand::B, sb))?,
+            code(sa.end, sa.end_reach, (Operand::B, sb))?,
         ),
         (
-            code(sb.start, sb.start_reach, sa.tangent())?,
-            code(sb.end, sb.end_reach, sa.tangent())?,
+            code(sb.start, sb.start_reach, (Operand::A, sa))?,
+            code(sb.end, sb.end_reach, (Operand::A, sa))?,
         ),
     ))
 }
@@ -2592,10 +2602,37 @@ pub(super) struct PairSearch {
     pub touching: Vec<(usize, usize)>,
 }
 
+/// The all-pairs search (15.7) over two vertices' planar sectors:
+/// [`pair_search_at`] with no body to read a fan's section against, which
+/// a pair of planar sectors never needs.
+#[cfg(test)]
+pub(super) fn pair_search<T: Decide>(
+    a_sectors: &[BoolSector<T>],
+    b_sectors: &[BoolSector<T>],
+    band: Band,
+) -> Result<PairSearch, BooleanError> {
+    pair_search_at(None, a_sectors, b_sectors, band)
+}
+
+/// The bodies and vertices of a vertex pair, A's first: what a fan
+/// sector's meeting with a plane is read through
+/// ([`super::fan::meeting`]).
+pub(super) type PairSites<'a, T> = ([&'a Body<T>; 2], [VertexKey; 2]);
+
 /// The all-pairs search (15.7): every intersecting (A-sector, B-sector)
 /// pair becomes a [`PairRecord`] with its four side codes, in
-/// deterministic A-major order.
-pub(super) fn pair_search<T: Decide>(
+/// deterministic A-major order. Where the two faces meet at the vertex
+/// is [`super::fan::meeting`]'s: two planes in their line, or a coincidence
+/// where they are parallel; a fan of a cone's apex against a plane or
+/// another fan in the rulings both hold, or a coincidence where the two
+/// fans are one cone's. A pair meeting along a ray within both sectors
+/// is a crossing; a coincident pair overlaps or only touches
+/// ([`sector_overlap`], [`super::fan::fans_overlap`]).
+///
+/// A fan against a plane needs `sites`, the bodies its section is read
+/// in; a refusal names their absence as a kernel invariant.
+pub(super) fn pair_search_at<T: Decide>(
+    sites: Option<PairSites<'_, T>>,
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     band: Band,
@@ -2604,8 +2641,6 @@ pub(super) fn pair_search<T: Decide>(
     let mut touching = Vec::new();
     for (i, sa) in a_sectors.iter().enumerate() {
         for (j, sb) in b_sectors.iter().enumerate() {
-            let int = sa.tangent().vec().cross(sb.tangent().vec());
-            let arm = sa.arm.min(sb.arm);
             // Parallel normals at the shorter arm make the pair a
             // near-coincidence at this vertex: the bound that sets the
             // arm reads at most `arm·|n_a × n_b|` off the other plane, so
@@ -2615,29 +2650,29 @@ pub(super) fn pair_search<T: Decide>(
             // refuses it; declared, the door has verified it. Its bounds'
             // readings are not consulted — a far bound reading off would
             // make the record half a crossing, which no germ pairing
-            // closes.
-            // A norm levered by a minimum of chord norms: a magnitude.
-            let coplanar = match geom_core::k_stats::decide_magnitude(
-                "bool_faces_parallel",
-                Margin::levered(int.norm(), arm),
-                band,
-            ) {
-                Ok(Magnitude::Zero) => true,
-                Ok(Magnitude::Positive) => false,
-                Err(diag) => {
-                    return Err(BooleanError::coincidence(
-                        Coincide::Sectors,
-                        DeclarationRead::Moot,
-                        diag,
-                    ));
+            // closes. Two fans of one cone are the same coincidence.
+            let site = |k: usize| sites.map(|(bodies, vertices)| (bodies[k], vertices[k]));
+            let meeting =
+                super::fan::meeting((Operand::A, site(0), sa), (Operand::B, site(1), sb), band)?;
+            let coplanar = matches!(meeting, super::fan::Meeting::Coincident);
+            let hit = match &meeting {
+                super::fan::Meeting::Coincident if sa.apex().is_some() => {
+                    super::fan::fans_overlap(sa, sb, band)?
                 }
-            };
-            let hit = if coplanar {
-                sector_overlap(sa, sb, band)?
-            } else {
-                let line = Leaned::of_line(int);
-                let (plus, minus) = rays_within(line, &[sa, sb], DeclarationRead::Moot, band)?;
-                plus || minus
+                super::fan::Meeting::Coincident => sector_overlap(sa, sb, band)?,
+                super::fan::Meeting::Rays(rays) => {
+                    let mut hit = false;
+                    for &ray in rays {
+                        let (plus, _) = rays_within(
+                            Leaned::upright(ray),
+                            &[sa, sb],
+                            DeclarationRead::Moot,
+                            band,
+                        )?;
+                        hit |= plus;
+                    }
+                    hit
+                }
             };
             if !hit {
                 if coplanar {

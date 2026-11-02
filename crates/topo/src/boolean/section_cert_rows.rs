@@ -158,7 +158,7 @@ pub(super) fn tangent(s: &Section<f64>) -> &'static str {
     }
 }
 
-fn touch(s: &Section<f64>) -> Touch<f64> {
+pub(super) fn touch(s: &Section<f64>) -> Touch<f64> {
     match s {
         Section::Touch(t) => *t,
         other => panic!("not a touch: {other:?}"),
@@ -1250,9 +1250,12 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
     }
 }
 
-/// **A touch clears only on a pair with no event, and only out of a
-/// face.** `Out` of either face clears on that side; a touch on both
-/// faces, or one no face places, refuses R-tan; and an event on the
+/// **A touch clears out of a face on a pair with no event, or at a
+/// vertex of both faces.** `Out` of either face clears on that side; a
+/// touch at a vertex each face holds is that vertex pair's, its event
+/// the pair's own, so it clears evented or not; a touch inside both
+/// faces, or at a vertex of one alone, or one no face places, refuses
+/// R-tan; and any other event on the
 /// pair refuses whatever the placement — the clearance argument needs
 /// the pair's own silence (mutant: reading the placement on an evented
 /// pair).
@@ -1270,6 +1273,19 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
     assert_eq!(rule(false, [IN, IN]), tan);
     assert_eq!(rule(false, [None, None]), tan);
+    let vertex = Some(FaceContainment::OnVertex(
+        crate::entity::VertexKey::default(),
+    ));
+    assert_eq!(
+        rule(false, [vertex, vertex]),
+        Ok(vec![Cleared::TouchAtVertex])
+    );
+    assert_eq!(rule(false, [vertex, IN]), tan);
+    assert_eq!(
+        rule(true, [vertex, vertex]),
+        Ok(vec![Cleared::TouchAtVertex])
+    );
+    assert_eq!(rule(true, [vertex, OUT]), tan);
     assert_eq!(rule(true, [OUT, OUT]), tan);
     assert_eq!(rule(true, [OUT, IN]), tan);
 }

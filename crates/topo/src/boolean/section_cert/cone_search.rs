@@ -474,6 +474,8 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
                     && parts[0].witness.is_none());
         return match &sec {
             Section::Tangent(_) if !matches!(pose.partner, Surface::Plane { .. }) => Vec::new(),
+            // Coaxial apexes in the band: R-tan as a touch at the apex.
+            Section::Touch(t) if t.name == "section_cone_coaxial_apexes" => Vec::new(),
             _ if parabola => Vec::new(),
             other => vec![format!("margin {m} in the band, answered {other:?}")],
         };
@@ -481,6 +483,9 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let (parts, single) = match &sec {
         Section::Components { parts, single } => (parts.clone(), *single),
         Section::Tangent(_) if m < 4.0 * b.escalate() => return Vec::new(),
+        Section::Touch(t) if t.name == "section_cone_coaxial_apexes" && m < 4.0 * b.escalate() => {
+            return Vec::new();
+        }
         other => return vec![format!("margin {m}: not classified: {other:?}")],
     };
     let mut bad = Vec::new();

@@ -736,7 +736,14 @@ fn read_edge(
     let he = probe.he;
     let classes = [(he, touched.map_or(SideCode::On, |(_, class)| class))];
     let touched = touched.map(|(n, _)| (OutwardNormal::from_chart(n, true), &classes[..]));
-    let published = match cone_classes(o, &[probe], &[he], &partners, touched, band) {
+    let published = match cone_classes(
+        o,
+        &[probe],
+        &[he],
+        (crate::boolean::Operand::B, &partners),
+        touched,
+        band,
+    ) {
         Ok(Ok(rows)) => match rows.as_slice() {
             &[(h, class)] if h == he => Ok(Some(class)),
             _ => Err(format!("rows {rows:?}, not the probe edge's one")),

@@ -544,6 +544,10 @@ pub(crate) enum Cleared {
     /// A touch on a pair with no event, its centre placed `Out` of the
     /// named face.
     TouchOut(Side),
+    /// A touch whose centre is a vertex of both faces: the touch is that
+    /// vertex pair's, whose contact is the pair's event there and whose
+    /// neighbourhood the vertex lanes read (two cones through one apex).
+    TouchAtVertex,
 }
 
 /// Why a pair refused.
@@ -1129,8 +1133,12 @@ fn cone_pair<T: Decide>(
             band,
         ) {
             // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
-            // two parallels, each essential on both; a common apex is the
-            // cones touching there or coinciding.
+            // two parallels, each essential on both. Apexes decided one
+            // (Zero) are a touch at the apex: the forms differ by
+            // `(cos²α₂ − cos²α₁)·|X − A|²` up to the apexes' gap, so the
+            // carriers meet within the band of the apex, about that one
+            // point (or are one double cone, whose faces' overlap is the
+            // glue door's). Undecided, it stays R-tan.
             AxisPose::Coaxial { slack, .. } => match signs_across(
                 [(
                     "section_cone_coaxial_apexes",
@@ -1141,7 +1149,7 @@ fn cone_pair<T: Decide>(
                 band,
             ) {
                 Ok(_) => essential_pair(true, true),
-                Err(tan) => tan.into(),
+                Err(tan) => touch(tan, &["section_cone_coaxial_apexes"], || apex),
             },
             AxisPose::Parallel { .. } => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1954,8 +1962,21 @@ pub(crate) fn certify<T: Decide>(
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
-        Section::Touch(t) if !evented => {
+        // A touch at a vertex both faces hold is that vertex pair's,
+        // whose contact is the pair's event there: the vertex lanes read
+        // the touch's neighbourhood, so it clears evented or not.
+        Section::Touch(t) => {
             let placed = place(t.at, band);
+            if let [
+                Some(FaceContainment::OnVertex(_)),
+                Some(FaceContainment::OnVertex(_)),
+            ] = placed
+            {
+                return Ok(vec![Cleared::TouchAtVertex]);
+            }
+            if evented {
+                return Err(Refusal::Tangent(t.name));
+            }
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
@@ -1963,7 +1984,6 @@ pub(crate) fn certify<T: Decide>(
                 .map(|(side, _)| vec![Cleared::TouchOut(side)])
                 .ok_or(Refusal::Tangent(t.name));
         }
-        Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
         Section::NoLane(scalar) => return Err(Refusal::NoLane(scalar)),
         Section::Unmarched => return Err(Refusal::Unmarched),

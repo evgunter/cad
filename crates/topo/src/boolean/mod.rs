@@ -98,6 +98,7 @@ mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
+mod fan;
 mod fate;
 mod finish;
 mod fragments;
@@ -287,6 +288,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
+        | "bool_fan_side"
+        | "bool_fan_side_bend"
+        | "bool_fan_nappe"
+        | "bool_fans_coaxial"
+        | "bool_fans_one_cone"
+        | "bool_fans_meet"
+        | "bool_fan_bounds_along"
         | "bool_flank_offset"
         | "bool_wedge_reflex"
         | "bool_rider_wall_side"
@@ -6269,7 +6277,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             sectors::ApexPlane::None,
             band,
         )?;
-        sectors::apex_pair_refusal([(Operand::A, &a_sectors), (Operand::B, &b_sectors)])?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
@@ -6335,7 +6342,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let sectors::PairSearch {
             mut records,
             touching,
-        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        } = sectors::pair_search_at(Some(([&a, &b], [c.a, c.b])), &a_sectors, &b_sectors, band)?;
+        sectors::apex_crossing_refusal(&records, [&a_sectors, &b_sectors])?;
         if op == BooleanOp::Union {
             sectors::crescent_refusal(
                 [&a, &b],
@@ -6402,7 +6410,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own_point(operand, vertex),
             own,
             &edges,
-            &touch.pairs,
+            (operand.other(), &touch.pairs),
             Some((touch.datum.normal, &touch.classes)),
             band,
         )?
@@ -6419,8 +6427,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     }
     for (&(operand, vertex), (own, pairs)) in &paired {
         let edges: Vec<_> = own.iter().filter(|s| s.end_edge()).map(|s| s.he).collect();
-        let classes =
-            vtxfac::cone_classes(own_point(operand, vertex), own, &edges, pairs, None, band)?;
+        let classes = vtxfac::cone_classes(
+            own_point(operand, vertex),
+            own,
+            &edges,
+            (operand.other(), pairs),
+            None,
+            band,
+        )?;
         let classes = match (classes, pairs.as_slice()) {
             (Ok(classes), _) => classes,
             (Err(_), [one]) => {

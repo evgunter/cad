@@ -292,7 +292,7 @@ pub(crate) fn cone_classes<T: Decide>(
     p: Point3<T>,
     own: &[BoolSector<T>],
     edges: &[HalfEdgeKey],
-    partners: &[Partner<T>],
+    (partner_operand, partners): (Operand, &[Partner<T>]),
     touched: Option<Touched<'_, T>>,
     band: Band,
 ) -> Result<Result<Vec<(HalfEdgeKey, SideCode)>, HalfEdgeKey>, BooleanError> {
@@ -306,6 +306,17 @@ pub(crate) fn cone_classes<T: Decide>(
                 .ok_or(invariant("a vertex's edge is no edge of its own sectors"))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // A partner at a cone's apex is a fan of rulings, which a gathered
+    // cone of tangent sectors does not hold: where the partner is one
+    // cone face's whole turn, its material is the nappe's inside or
+    // outside, read in closed form ([`super::fan::nappe_classes`]).
+    if partners
+        .iter()
+        .any(|partner| partner.sectors.iter().any(|s| s.apex().is_some()))
+    {
+        return super::fan::nappe_classes(&bounds, (partner_operand, partners), touched, band)
+            .map(Ok);
+    }
     let corners: Vec<_> = partners
         .iter()
         .flat_map(|partner| super::sectors::fans(&partner.sectors, partner.at))
@@ -3360,7 +3371,7 @@ mod tests {
             (he[4], Out),
         ];
         let read = |edges: &[HalfEdgeKey], partners: &[Partner<f64>], touched| {
-            cone_classes(o, &own, edges, partners, touched, band).unwrap()
+            cone_classes(o, &own, edges, (Operand::B, partners), touched, band).unwrap()
         };
         let classes = |cs: &[SideCode]| he.iter().copied().zip(cs.iter().copied()).collect();
         assert_eq!(
@@ -3390,7 +3401,7 @@ mod tests {
                 o,
                 &graze,
                 &[graze[0].he, graze[1].he],
-                &[partner(1, 1.0)],
+                (Operand::B, &[partner(1, 1.0)]),
                 None,
                 band
             )
