@@ -305,7 +305,9 @@ pub(crate) fn quiescent(app: &ViewerApp) -> bool {
 /// worker after the evaluation lands, so a driven step read only to
 /// [`quiescent`] can see the findings before the door has answered.
 /// A staged run ([`crate::session::SessionOp::Stage`]) is waited for
-/// too: the panel that asked says "checking" until it answers.
+/// too: the panel that asked says "checking" until it answers. So is a
+/// clearance requirement's certified answer, which its row reads
+/// `certifying…` until it lands.
 /// The in-crate rows wait on [`quiescent`] alone: a row about the
 /// checks waits for them itself.
 fn at_rest(app: &ViewerApp) -> bool {
@@ -315,6 +317,7 @@ fn at_rest(app: &ViewerApp) -> bool {
             .checks()
             .is_none_or(|report| report.pending.is_empty())
         && !app.session.staging()
+        && !app.session.certifying()
 }
 
 /// **Paint until `until` holds of the app**, and answer the first

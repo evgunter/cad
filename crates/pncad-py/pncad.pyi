@@ -1819,6 +1819,13 @@ class StepId:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
+class SectionId:
+    """A minted loft section id: what a loft's wall, seam and ring
+    names spell. NOT a position."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class Role:
     """Which of its step's pieces a piece is."""
 
@@ -3434,13 +3441,14 @@ class DocEdit:
     @staticmethod
     def set_loft_sections(
         node: NodeId,
-        first: _Operand,
-        then: Sequence[tuple[_Operand, Sequence[StationMove]]],
+        first: tuple[_Operand, SectionId | None],
+        then: Sequence[tuple[_Operand, Sequence[StationMove], SectionId | None]],
     ) -> DocEdit:
         """Write a `Node.loft`'s sections whole, each with its station:
-        `first`'s profile, then each later section as `(profile,
-        station)`, `Node.loft`'s own shape. The edit that adds, drops or
-        reorders a loft's sections; the degree is kept.
+        `first` as `(profile, keep)`, then each later section as
+        `(profile, station, keep)`, `Node.loft`'s own shape with each
+        section's `keep` last. The edit that adds, drops or reorders a
+        loft's sections; the degree is kept.
 
         It admits a loft exactly where `Doc.insert` would, through the
         same kernel checks: `slot_var_kind` for a section that is not a
@@ -3448,7 +3456,15 @@ class DocEdit:
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
         `empty_station`, `station_in_first_plane`,
         `degree_out_of_range`). A node that is not a
-        loft refuses `set_loft_sections_on_non_loft`."""
+        loft refuses `set_loft_sections_on_non_loft`.
+
+        Each section's `keep` is the `SectionId` of the old section it
+        keeps (`Doc.section_ids`), or `None` for one it adds; it is part
+        of the tuple, so none is left out by omission. A loft's walls,
+        seams and rings are named by their sections' ids, so a kept
+        section's names survive the edit. Refuses `section_ids_refused`
+        (`inner_variant`: `not_this_lofts`, `repeated`) for a `keep`
+        this loft does not hold, or one kept twice."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
@@ -3780,6 +3796,11 @@ class Doc:
         values (a pair that contradicts, a pose that does not evaluate,
         an escalated verdict) is the placement's own refusal where it
         evaluates."""
+
+    def section_ids(self, loft: NodeId) -> list[SectionId]:
+        """The minted id of every section of the loft at `loft`, first
+        to last: what `DocEdit.set_loft_sections` keeps a section by.
+        Raises `ValueError` for a node that is not a loft."""
 
     def step_ids(self, profile: NodeId) -> list[list[StepId]]:
         """The minted id of every step of the profile at `profile`, one
@@ -4486,8 +4507,6 @@ class SegTag:
     CapVertex: Final[SegTag]
     LoftWall: Final[SegTag]
     LoftSeam: Final[SegTag]
-    LoftSlabWall: Final[SegTag]
-    LoftSlabSeam: Final[SegTag]
     LoftSectionEdge: Final[SegTag]
     LoftSectionVertex: Final[SegTag]
     Band: Final[SegTag]
@@ -6609,6 +6628,9 @@ class SplitOutcome:
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
+    @property
+    def section_map(self) -> dict[SectionId, SectionId]:
+        """Each carried loft section's id -> the id the other document minted for it."""
 
 def split(
     doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
@@ -6659,6 +6681,9 @@ class InlineOutcome:
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
+    @property
+    def section_map(self) -> dict[SectionId, SectionId]:
+        """Each carried loft section's id -> the id the other document minted for it."""
     @property
     def placement(self) -> NodeId:
         """The placement standing where the instance stood: the part's

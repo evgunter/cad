@@ -1070,6 +1070,24 @@ impl<T: Real> Body<T> {
         self.surfaces.get(key)
     }
 
+    /// **The surface `face` is a region of**, or `None` where `face`
+    /// does not resolve; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    ///
+    /// The one walk from a face key to its surface. `None` means exactly
+    /// that the face key is stale, and the caller decides what that means
+    /// for its own input: a refusal, or an honest no.
+    ///
+    /// # Panics
+    ///
+    /// Where a live face's surface key does not resolve, which only a
+    /// kernel bug reaches (D2 row 4).
+    #[must_use]
+    #[track_caller]
+    pub fn face_surface(&self, face: FaceKey) -> Option<&Surface<T>> {
+        let data = self.get_face(face)?;
+        Some(self.face_surface_linked(face, data))
+    }
+
     /// The D5 provenance of a topology entity, or `None` if the key is
     /// stale; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     /// Always `Some` for a live entity: the builder API

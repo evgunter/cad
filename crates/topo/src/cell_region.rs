@@ -83,9 +83,9 @@ pub enum CellRegion {
 /// **The verdict on the cell `u × v` of `face`'s stored chart.**
 ///
 /// `u` and `v` are closed ranges of the face's own carrier parameters,
-/// the chart [`Surface::eval`] reads. A face or a surface that does
-/// not resolve, a loop that does not walk, and a carrier with no point
-/// door are all [`CellRegion::Undecided`].
+/// the chart [`Surface::eval`] reads. A face that does not resolve, a
+/// loop that does not walk, and a carrier with no point door are all
+/// [`CellRegion::Undecided`].
 pub fn cell_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -93,10 +93,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(stored) = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-    else {
+    let Some(stored) = body.face_surface(face) else {
         return CellRegion::Undecided;
     };
     cell_region_lifted(
@@ -167,7 +164,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
 /// [`crate::curved_face_containment`] on a curved carrier. `None` for
-/// a face or a surface that does not resolve, a door that refuses, and
+/// a face that does not resolve, a door that refuses, and
 /// a curved door's unread remainder.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
@@ -175,9 +172,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Option<FaceContainment> {
-    let surface = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))?;
+    let surface = body.face_surface(face)?;
     let station = surface.eval(T::from_computed(u), T::from_computed(v));
     place(body, face, surface, station, band)
 }

@@ -4390,7 +4390,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
+    let Some(surface) = body.face_surface(f) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -6880,7 +6880,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             face,
             solid: body.solid_of_face(face)?,
             surface: f.surface,
-            kind: body.get_surface(f.surface)?.kind(),
+            kind: body.face_surface_linked(face, f).kind(),
             edges: face_cycles(body, f)
                 .filter_map(Result::ok)
                 .flatten()
@@ -8550,14 +8550,11 @@ impl<T: Decide> FaceSector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        // A face or surface that does not resolve, or a loop that does
-        // not walk, is a defect (tier 1 admits none); a face that
-        // resolves off a plane is curved.
+        // A face that does not resolve, or a loop that does not walk, is
+        // a defect (tier 1 admits none); a face that resolves off a plane
+        // is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = body
-            .get_surface(face.surface)
-            .cloned()
-            .ok_or(TouchUnread::Corrupt)?;
+        let surface = body.face_surface_linked(f, face).clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
         if !fg.walked {
             return Err(TouchUnread::Corrupt);
@@ -8752,7 +8749,7 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body.get_surface(face.surface).ok_or(TouchUnread::Corrupt)?;
+    let surface = body.face_surface_linked(f, face);
     let Some(round) = crate::link::Round::of(surface, face.sense) else {
         return Ok(None);
     };
@@ -10914,9 +10911,12 @@ fn flush_pairs<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.get_surface(body.get_face(f)?.surface)?.kind());
+    let kind = |f: FaceKey| Some(body.face_surface(f)?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
-    let edges: Vec<Option<BTreeSet<EdgeKey>>> = faces.iter().map(|&f| edge_set(body, f)).collect();
+    let edges: Vec<BTreeSet<EdgeKey>> = faces
+        .iter()
+        .map(|&f| body.proven_face_edge_set(f))
+        .collect();
     let mut out = FlushAtRest::default();
     for (i, &fa) in faces.iter().enumerate() {
         for j in boxes.later(i) {
@@ -10945,11 +10945,7 @@ fn flush_pairs<T: Decide>(
                 what,
                 reason,
             };
-            let (Some(ea), Some(eb)) = (&edges[i], &edges[j]) else {
-                out.findings
-                    .push(unread(FLUSH_UNREAD, Undecidable::MayOverlap));
-                continue;
-            };
+            let (ea, eb) = (&edges[i], &edges[j]);
             match shared_run(body, ea, eb, band) {
                 Ok(true) => {}
                 Ok(false) => continue,
@@ -11019,17 +11015,8 @@ fn flush_pairs<T: Decide>(
 /// Whether `f` lies on a cylinder or a sphere, the curved kinds Door 1
 /// decides exactly ([`crate::boolean::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
-    body.get_face(f)
-        .and_then(|face| body.get_surface(face.surface))
+    body.face_surface(f)
         .is_some_and(crate::boolean::carrier_eq::exact_curved)
-}
-
-/// Each edge bounding `f`, once (a seam once), `None` where a loop does
-/// not walk.
-fn edge_set<T: Real>(body: &Body<T>, f: FaceKey) -> Option<BTreeSet<EdgeKey>> {
-    crate::boolean::solid_contain::face_edges(body, f)
-        .ok()
-        .map(|edges| edges.into_iter().map(|e| e.edge).collect())
 }
 
 /// **Whether two faces' boundaries share a run**: an edge of each whose
@@ -11208,7 +11195,7 @@ fn shared_interior_witness<T: Decide>(
             false
         }
     };
-    let edges = |f| edge_set(body, f).unwrap_or_default();
+    let edges = |f| body.proven_face_edge_set(f);
     let (edges_a, edges_b) = (edges(fa), edges(fb));
     for (x, y, edges) in [(fa, fb, &edges_a), (fb, fa, &edges_b)] {
         let corners = face_vertices(body, x)
@@ -11312,7 +11299,7 @@ fn arc_interiors_meet<T: Decide>(
         }
     };
     let spans = |f| -> Result<Vec<_>, InteriorsUnread> {
-        let edges = edge_set(body, f).ok_or(InteriorsUnread::Unbuilt)?;
+        let edges = body.proven_face_edge_set(f);
         if edges.is_empty() {
             return Err(InteriorsUnread::Unbuilt);
         }
