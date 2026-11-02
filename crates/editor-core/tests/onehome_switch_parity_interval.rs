@@ -14,6 +14,8 @@
 //! and a body that does not finish at a box scalar is that output's
 //! finding (`CheckEvidence::NotAtRest`); the walk goes on.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use crate::fixture::Recorder;
 use crate::m10_3_driver_interval::{param, uniform, unit_square};
 
