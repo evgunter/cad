@@ -249,7 +249,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/profilerest/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
     "Profile/EmptyLoop",
-    "Profile/EmptyProfile",
     "Profile/MultipleOuterLoops",
     "Profile/NearFullArc",
     "Profile/NestingTooDeep",
@@ -810,7 +809,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `ExtrudeError`'s arms, for the `Extrude/` rows.
         pub(super) const EXTRUDE_ERROR: ExtrudeError = [
-            Band, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
+            Band, EmptyProfile, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
             ExtrusionEscalated, CosurfaceEscalated, SliverJoin, SliverRim,
             SmoothJoinRefuted, CapPlane, SidePlane, Op, Pcurve, NotFinished,
         ];
@@ -819,7 +818,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `RevolveError`'s arms, for the `Revolve/` rows.
         pub(super) const REVOLVE_ERROR: RevolveError = [
-            Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
+            Band, EmptyProfile, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
@@ -839,7 +838,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `SkinError`'s arms, for the `Skin/` rows.
         pub(super) const SKIN_ERROR: SkinError = [
-            TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
+            TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
             PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
@@ -873,7 +872,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `ProfileError`'s arms, for the `Profile/` rows.
         pub(super) const PROFILE_ERROR: ProfileError = [
-            Band, EmptyProfile, PlaneNotFinite, EmptyLoop, DegenerateSegment,
+            Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
             NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
@@ -1937,6 +1936,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
     use sweep::ExtrudeError as E;
     [
         ("Band", E::Band(band_error())),
+        ("EmptyProfile", E::EmptyProfile),
         ("DegenerateExtrusion", E::DegenerateExtrusion),
         (
             "NegativeDepth",
@@ -2053,6 +2053,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
     use sweep::RevolveError as E;
     vec![
         ("Band", E::Band(band_error())),
+        ("EmptyProfile", E::EmptyProfile),
         ("NonFiniteAxis", E::NonFiniteAxis),
         ("UnderflowedAxis", E::UnderflowedAxis),
         ("DegenerateAxis", E::DegenerateAxis),
@@ -3352,9 +3353,11 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             "SectionProfile",
             E::SectionProfile {
                 section: 2,
-                source: profile::ProfileError::EmptyProfile,
+                source: profile::ProfileError::EmptyLoop { loop_index: 0 },
             },
         ),
+        ("EmptyProfile", E::EmptyProfile { section: Some(2) }),
+        ("EmptyProfile", E::EmptyProfile { section: None }),
         (
             "DomainNotUnit",
             E::DomainNotUnit {
@@ -3908,7 +3911,6 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     );
     [
         ("Band", E::Band(band_error())),
-        ("EmptyProfile", E::EmptyProfile),
         ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),

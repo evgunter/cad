@@ -518,7 +518,7 @@ mod tests {
                 slot: SlotId::Distance,
                 source: EvalError::NonFiniteResult,
             },
-            C::Profile => K::Profile(profile::ProfileError::EmptyProfile),
+            C::Profile => K::Profile(profile::ProfileError::PlaneNotFinite),
             C::ProfileReplay => K::ProfileReplay {
                 loop_: 0,
                 error: profile::ReplayError {

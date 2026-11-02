@@ -535,6 +535,8 @@ pub enum RevolveError {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
+    /// The profile has no loops: the empty region sweeps nothing.
+    EmptyProfile,
     /// The axis direction's length is **not a finite number**: its
     /// components overflow the norm (past ~1e154), or one of them is
     /// not a number. Distinct from [`RevolveError::DegenerateAxis`]
@@ -852,6 +854,7 @@ impl fmt::Display for RevolveError {
             Self::NotFinished { findings } => {
                 write!(f, "the revolved body is not a finished body: {findings}")
             }
+            Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
             Self::NonFiniteAxis => write!(
                 f,
                 "the revolve axis direction has no finite length (a component overflows \
@@ -1137,6 +1140,9 @@ pub(crate) fn revolve_construction<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let band = Band::linear(tol).map_err(RevolveError::Band)?;
+    if profile.loops().is_empty() {
+        return Err(RevolveError::EmptyProfile);
+    }
     let frame = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
 
     // ---- Angle classification (module docs), metered at the

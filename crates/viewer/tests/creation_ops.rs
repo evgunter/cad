@@ -562,6 +562,78 @@ fn the_rectangle_template_is_the_rectangle_as_written() {
     );
 }
 
+/// **A profile with no loops is a document state**: the add-profile
+/// op inserts it, it evaluates to the empty region, and its tree row
+/// is an ordinary profile row. What sweeps it refuses at its own door,
+/// on its own row, in the words `EmptyProfile` has.
+#[test]
+fn a_profile_with_no_loops_inserts_and_what_sweeps_it_refuses() {
+    use pncad::document::NodeErrorKind;
+    use pncad::sweep::{ExtrudeError, RevolveError};
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(&mut session, SessionOp::AddProfile { loops: vec![] });
+    let extrude = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let revolve = session_insert(
+        &mut session,
+        SessionOp::AddRevolve {
+            profile,
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(TAU),
+        },
+    );
+    session.pump();
+    let eval = session.evaluation().expect("evaluated");
+    assert!(
+        matches!(
+            eval.value(profile).map(|v| &v.payload),
+            Some(ValuePayload::Profile(p)) if p.validated.loops().is_empty()
+        ),
+        "the profile evaluates to no loops: {:?}",
+        eval.node_error(profile)
+    );
+    let refused = |node| eval.node_error(node).map(|e| &e.kind);
+    assert!(
+        matches!(
+            refused(extrude),
+            Some(NodeErrorKind::Extrude(ExtrudeError::EmptyProfile))
+        ),
+        "the extrude refuses at its own door: {:?}",
+        refused(extrude)
+    );
+    assert!(
+        matches!(
+            refused(revolve),
+            Some(NodeErrorKind::Revolve(RevolveError::EmptyProfile))
+        ),
+        "the revolve refuses at its own door: {:?}",
+        refused(revolve)
+    );
+    let rows = session.tree_rows();
+    assert_eq!(
+        common::status_of(&rows, profile),
+        viewer::tree::RowStatus::Ok,
+        "the profile's row is an ordinary row"
+    );
+    match common::status_of(&rows, extrude) {
+        viewer::tree::RowStatus::Failed { message, .. } => assert!(
+            message.contains("profile has no loops — nothing to sweep"),
+            "the extrude's badge says it: {message}"
+        ),
+        other => panic!("the extrude's row is its own failure: {other:?}"),
+    }
+}
+
 /// Every profile refusal but the non-finite literal is the EDIT
 /// DOOR's — the authoring-time check replaying the program — so the
 /// sentence a hand-written program gets and the sentence the template
@@ -571,15 +643,6 @@ fn profile_refusals_are_typed_at_the_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let states = session.history().len();
-
-    // No loops: the profile layer's own refusal ("no loops — nothing
-    // to sweep"), through the edit door.
-    let empty = session.perform(SessionOp::AddProfile { loops: vec![] });
-    assert!(
-        matches!(empty.refusal, Some(Refusal::Edit(_))),
-        "{:?}",
-        empty.refusal
-    );
 
     // Degenerate loops — zero and negative radius — refuse the same
     // way; no rule about them is restated in the session.
@@ -642,7 +705,12 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         SessionOp::NewDocument {
             name: String::new(),
         },
-        SessionOp::AddProfile { loops: vec![] },
+        SessionOp::AddProfile {
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.0,
+            })],
+        },
         SessionOp::AddExtrude {
             profile: block,
             distance: len(0.01),

@@ -1849,7 +1849,9 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum, with every refusal
-/// [`crate::sweep_places`] makes arriving through [`LoftError::Skin`].
+/// [`crate::sweep_places`] makes arriving through [`LoftError::Skin`];
+/// a profile with no loops is [`SkinError::EmptyProfile`] with no
+/// section.
 ///
 /// # Panics
 ///
@@ -1879,6 +1881,9 @@ pub(crate) fn sweep_body_construction<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T, Body<T>>, LoftError> {
+    if profile.is_empty() {
+        return Err(LoftError::Skin(SkinError::EmptyProfile { section: None }));
+    }
     // One carry, composed onto the start frame in `T` and onto its
     // point value in `f64`, where the stations' structure is selected.
     let carry = PathCarry::of(path, stations, tol).map_err(LoftError::Skin)?;

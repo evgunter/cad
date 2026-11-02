@@ -1,8 +1,9 @@
-//! **What the two ℝ⁴ section handles share.** The plane × NURBS handle
-//! ([`super::plane::PlaneSection`]) and the NURBS × NURBS one
+//! **What the chart lanes' section handles share.** The plane × NURBS
+//! handle ([`super::plane::PlaneSection`]) and the NURBS × NURBS one
 //! ([`super::pair::Section`]) read one section two ways under one
-//! contract, and differ in the charts, the boundary pass and the cells a
-//! tube is proved over. The rules that are the same on both live here:
+//! contract, and differ in the system, the charts, the boundary pass and
+//! the cells a tube is proved over. The rules that are the same on every
+//! lane live here, generic over the lane's system:
 //! settling a seed, the branch through a settled seed and the check that
 //! its tube holds it, the crossings a certified branch already ends at,
 //! and the closed loops from the subdivision's seeds.
@@ -32,25 +33,27 @@ use super::four::Box4;
 use super::march::{
     BranchEnd, RectEnd, StepperMode, decide_transversality, domain_margin, march, newton_refine,
 };
-use super::system::LocalSystem;
+use super::system::SectionSystem;
 use super::{SsiBranch, SsiError};
 use geom_core::linalg::svd::Svd;
 
-/// A cell of a certified tube, read against an ℝ⁴ state.
-pub(crate) trait TubeCell: Copy {
+/// A cell of a certified tube, read against a state of the lane's
+/// system.
+pub(crate) trait TubeCell<const N: usize>: Copy {
     /// Whether the cell holds the state `x`.
-    fn holds_state(&self, x: &[f64; 4]) -> bool;
+    fn holds_state(&self, x: &[f64; N]) -> bool;
 }
 
 /// The two-chart tube's cell: the state's four coordinates.
-impl TubeCell for Box4 {
+impl TubeCell<4> for Box4 {
     fn holds_state(&self, x: &[f64; 4]) -> bool {
         self.holds(x)
     }
 }
 
-/// The chart tube's cell: the wall's coordinates, the state's last two.
-impl TubeCell for UvRect {
+/// The chart tube's cell on the ℝ⁴ plane lane: the wall's coordinates,
+/// the state's last two.
+impl TubeCell<4> for UvRect {
     fn holds_state(&self, x: &[f64; 4]) -> bool {
         self.holds((x[2], x[3]))
     }
@@ -88,7 +91,10 @@ pub(crate) fn passed<P>(
     Ok(cell.get_or_init(|| p))
 }
 
-impl Ends<'_> {
+impl<const M: usize, const N: usize, S> Ends<'_, S, M, N>
+where
+    S: SectionSystem<M, N>,
+{
     /// **A seed settled onto the section**: Newton from `start`, the
     /// state inside the march's rectangles, and the two surfaces
     /// transverse there.
@@ -99,7 +105,7 @@ impl Ends<'_> {
     /// [`SsiError::SeedOffDomain`] when it settles outside a rectangle,
     /// and the transversality decision at the settled state
     /// ([`SsiError::TransversalityBand`] where the surfaces are tangent).
-    pub(crate) fn settle(&self, start: [f64; 4]) -> Result<[f64; 4], SsiError> {
+    pub(crate) fn settle(&self, start: [f64; N]) -> Result<[f64; N], SsiError> {
         let mode = StepperMode::Realized;
         let x = newton_refine(self.sys, start, self.ctx.tol)
             .ok_or(SsiError::SeedRefinementFailed { mode: mode.name() })?;
@@ -109,7 +115,7 @@ impl Ends<'_> {
                 margin: domain_margin(&x, &self.ctx, self.sys, &x),
             });
         }
-        let sigma = Svd::<3, 4>::new(self.sys.jacobian(&x)).sigma_min();
+        let sigma = Svd::<M, N>::new(self.sys.jacobian(&x)).sigma_min();
         decide_transversality(self.sys, &x, sigma, self.ctx.extent, self.band)?;
         Ok(x)
     }
@@ -126,7 +132,7 @@ pub(crate) struct Banked<T> {
     tube_of: fn(&SsiBranch) -> Vec<T>,
 }
 
-impl<T: TubeCell> Banked<T> {
+impl<T: Copy> Banked<T> {
     /// Nothing certified yet, each tube to be read by `tube_of`.
     pub(crate) fn new(tube_of: fn(&SsiBranch) -> Vec<T>) -> Self {
         Self {
@@ -137,7 +143,10 @@ impl<T: TubeCell> Banked<T> {
     }
 
     /// The certified branch whose tube holds `x`, by index.
-    pub(crate) fn holding(&self, x: &[f64; 4]) -> Option<usize> {
+    pub(crate) fn holding<const N: usize>(&self, x: &[f64; N]) -> Option<usize>
+    where
+        T: TubeCell<N>,
+    {
         self.tubes
             .iter()
             .position(|t| t.iter().any(|c| c.holds_state(x)))
@@ -167,23 +176,27 @@ impl<T: TubeCell> Banked<T> {
     /// hold `x` (a trace or certificate fault: the branch is traced
     /// through `x`, so this does not detect a seed settled onto another
     /// component).
-    pub(crate) fn through(
+    pub(crate) fn through<const M: usize, const N: usize, S>(
         &mut self,
-        ends: &Ends<'_>,
-        x: [f64; 4],
-        crossings: &[Crossing],
-    ) -> Result<usize, SsiError> {
+        ends: &Ends<'_, S, M, N>,
+        x: [f64; N],
+        crossings: &[Crossing<[f64; N]>],
+    ) -> Result<usize, SsiError>
+    where
+        S: SectionSystem<M, N>,
+        T: TubeCell<N>,
+    {
         let (states, end) = ends.through_seed(x, crossings)?;
         let branch = ends.finish(&states, end)?;
         let tube = (self.tube_of)(&branch);
         if !tube.iter().any(|c| c.holds_state(&x)) {
-            return Err(SsiError::SeedOutsideTube { state: x });
+            return Err(ends.sys.seed_outside_tube(x));
         }
         Ok(self.push(branch, tube))
     }
 
     /// The `crossings` no certified branch already ends at.
-    pub(crate) fn open(&self, crossings: &[Crossing]) -> Vec<Crossing> {
+    pub(crate) fn open<X: Copy>(&self, crossings: &[Crossing<X>]) -> Vec<Crossing<X>> {
         let ended: Vec<_> = self
             .branches
             .iter()
@@ -214,16 +227,20 @@ impl<T: TubeCell> Banked<T> {
     /// that refuses from a seed some later branch's tube turns out to
     /// hold was a wasted march, not the operation's refusal), and any
     /// refusal of a closed loop's fit or certificate.
-    pub(crate) fn closed_loops(
+    pub(crate) fn closed_loops<const M: usize, const N: usize, S>(
         &mut self,
-        ends: &Ends<'_>,
-        seeds: impl IntoIterator<Item = [f64; 4]>,
+        ends: &Ends<'_, S, M, N>,
+        seeds: impl IntoIterator<Item = [f64; N]>,
         also: &[T],
-    ) -> Result<(), SsiError> {
-        let held = |bank: &Self, x: &[f64; 4]| {
+    ) -> Result<(), SsiError>
+    where
+        S: SectionSystem<M, N>,
+        T: TubeCell<N>,
+    {
+        let held = |bank: &Self, x: &[f64; N]| {
             bank.holding(x).is_some() || also.iter().any(|c| c.holds_state(x))
         };
-        let mut refused: Vec<([f64; 4], SsiError)> = Vec::new();
+        let mut refused: Vec<([f64; N], SsiError)> = Vec::new();
         for state in seeds {
             let landed = newton_refine(ends.sys, state, ends.ctx.tol).unwrap_or(state);
             if held(self, &landed) {
