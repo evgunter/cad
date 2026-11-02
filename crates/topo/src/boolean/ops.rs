@@ -1865,24 +1865,12 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
 }
 
 /// The section certificate's [`Reach`](super::section_cert::Reach) of
-/// two overlapping face boxes, which are `f64` hulls the face walk
-/// computed: the ball enters as computed values.
+/// two overlapping face boxes ([`super::glue::overlap_ball`]).
 fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::section_cert::Reach<T> {
-    let (lo, hi) = (
-        Vec3::new(
-            box_a.min_x.max(box_b.min_x),
-            box_a.min_y.max(box_b.min_y),
-            box_a.min_z.max(box_b.min_z),
-        ),
-        Vec3::new(
-            box_a.max_x.min(box_b.max_x),
-            box_a.max_y.min(box_b.max_y),
-            box_a.max_z.min(box_b.max_z),
-        ),
-    );
+    let ball = super::glue::overlap_ball(box_a, box_b);
     super::section_cert::Reach {
-        centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_computed),
-        radius: T::from_computed((hi - lo).norm() * 0.5),
+        centre: ball.center(),
+        radius: ball.radius(),
     }
 }
 
@@ -1935,6 +1923,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             &fa.surface,
             &fb.surface,
             overlap_reach(&fa.bbox, &fb.bbox),
+            sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
             super::spline_known::shared((a, fa.face, &fa.surface), (b, fb.face, &fb.surface), band),
@@ -4222,6 +4211,7 @@ fn carried<T: Decide + AtRestPolicy>(
             &mut confirms,
             band,
             T::region_lane(),
+            None,
         )
         .map_err(|refusal| {
             // A carried record cites the operand's record it is; a ring
@@ -5371,9 +5361,16 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
             what: "the carry refused a row it places by lineage",
         },
     };
-    let landed =
-        super::records::landings(&[row], &lineage, &[body], confirms, band, T::region_lane())
-            .map_err(refused)?;
+    let landed = super::records::landings(
+        &[row],
+        &lineage,
+        &[body],
+        confirms,
+        band,
+        T::region_lane(),
+        None,
+    )
+    .map_err(refused)?;
     landed
         .into_iter()
         .map(|l| {
@@ -5598,6 +5595,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
+    pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
     let kept = T::gate_at_rest_kept(body, tol);
@@ -5612,6 +5610,46 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     }
     coincident_wedges_disjoint(&kept, band)?;
     Ok(kept)
+}
+
+/// **No cone face of the result pinches at its apex**: a loop that
+/// starts two of its half-edges at one vertex, decided the cone's apex
+/// ([`crate::face_normal::cone_point`]), is two lobes meeting only
+/// there. The body is well formed, but the mass-properties closed form
+/// refuses a cone loop that meets itself at a vertex, so the at-rest
+/// gate would refuse it as the kernel's own finding; read first, it
+/// refuses by name. An apex reading in band reads as not the apex, and
+/// leaves the loop to the gate.
+///
+/// # Errors
+///
+/// [`BooleanError::ResultPinchedAtConeApex`].
+fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
+    for (face, data) in body.faces() {
+        let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(face, data) else {
+            continue;
+        };
+        for (_, members) in body.face_boundary_by_loop(face, data) {
+            let mut starts = BTreeSet::new();
+            for member in members {
+                let BoundaryMember::Edge { half, .. } = member else {
+                    continue;
+                };
+                if starts.insert(half.start) {
+                    continue;
+                }
+                let p = body.linked_vertex_point(half.start, EntityId::Face(face), "loop");
+                if let Ok(crate::face_normal::ConePoint::Apex) =
+                    crate::face_normal::cone_point(apex, axis, p, band)
+                {
+                    return Err(BooleanError::ResultPinchedAtConeApex {
+                        apex: crate::census::witness(p),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// **How the at-rest gate's refusal of a door's result is typed** (D10,

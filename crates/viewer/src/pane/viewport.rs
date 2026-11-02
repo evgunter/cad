@@ -605,14 +605,26 @@ mod composed {
         };
         // One tool is open at a time, so the mate tool's two held faces
         // and the mirror tool's plane share these two slots.
-        let [a, b] = match (tools.mate(), tools.mirror()) {
-            (Some(tool), _) => tool.state().picks(),
+        // The mate tool's edge and vertex picks are drawn as geometry.
+        let mate = tools.mate().map(|tool| tool.state().picks());
+        let [a, b] = match (mate, tools.mirror()) {
+            (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(tool)) => [tool.plane(), None],
             (None, None) => [None, None],
         };
+        let entities = mate.map_or([None, None], |picks| {
+            picks.map(|pick| match pick.map(crate::tree::HeldPick::pick) {
+                Some(crate::matetool::MatePick::Edge(edge)) => Some(marks::HeldEntity::Edge(edge)),
+                Some(crate::matetool::MatePick::Vertex(vertex)) => {
+                    Some(marks::HeldEntity::Vertex(vertex))
+                }
+                Some(crate::matetool::MatePick::Face(_)) | None => None,
+            })
+        });
         let held = marks::Held {
             faces: [drafts.marked_face(create_drawn), a, b],
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
+            entities,
         };
         let (highlight, edges) =
             marks::compose(index, display, session.selection(), session.hover(), &held);
@@ -1161,7 +1173,7 @@ impl ViewerBehavior<'_> {
         // vocabulary, and the narrowing travels through `hovered_for`,
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
-        let kinds = self.tools.pick_kinds();
+        let kinds = self.tools.pick_kinds_choosing(self.drafts.mate_kind());
         // **The index the PICTURE was drawn from**, which is the index
         // in hand on every frame but the ones `drawn_index` exists for.
         // Every read of an index below this line asks this one:
@@ -1169,7 +1181,7 @@ impl ViewerBehavior<'_> {
         // pass's answer read back through an id map, and — since Ev's
         // 2026-09-15 ruling — the pick itself, which would otherwise
         // answer about geometry the screen is not showing.
-        let on_screen = drawn_index(self.index, self.scene_key);
+        let on_screen = drawn_index(self.index, self.scene_key.clone());
         // Read before the loop spends `actions`: whether a pick action
         // below asks the ray at this frame's cursor, and so words its
         // refusal itself ([`cursor_news`] reads it).
@@ -1196,7 +1208,7 @@ impl ViewerBehavior<'_> {
                             && let Some(kind) = self.tools.open_kind()
                         {
                             self.notices.push(frame::tool_notice(
-                                &crate::tools::ToolNotice::Missed(kind),
+                                &crate::tools::ToolNotice::Missed { tool: kind, kinds },
                                 Some((doc, eval)),
                             ));
                         }
@@ -1839,12 +1851,18 @@ mod tests {
         let generation = session
             .landed_generation()
             .expect("a landed evaluation has a generation");
-        PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
-            .expect("the plate indexes")
+        PickIndex::build(
+            doc,
+            eval,
+            PictureKey::of(generation, delta, crate::world::Shown::none()),
+            session.tol(),
+        )
+        .expect("the plate indexes")
     }
 
-    /// **The picture's alphabet is `(generation, δ)`, and the guard
-    /// holds both halves.**
+    /// **The picture's alphabet is its whole key — generation, δ and
+    /// the shows — and the guard holds the δ part a generation-only
+    /// check would drop.**
     ///
     /// The half a generation-only check would drop is δ: a δ typed
     /// while the document stands rebuilds the index at the SAME
@@ -2305,7 +2323,7 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                idpass::SaidFace(by, face).to_string()
+                pncad::document::Said(&crate::tree::PickedName::face(face), by).to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
@@ -2514,7 +2532,7 @@ mod tests {
             .face_of(id)
             .expect("an id of this index names its patch cleanly");
         let hidden = DisplayView {
-            hidden_placements: std::collections::BTreeSet::from([copy]),
+            hidden_drawn: vec![crate::world::Drawn::whole(copy)],
             ..DisplayView::none()
         };
         let camera = framed();
@@ -2623,7 +2641,7 @@ mod tests {
         let landed = plate_index(&session, a_delta(0.05));
         let picture = drawn.key();
         assert!(
-            drawn_index(Some(&landed), Some(picture)).is_none(),
+            drawn_index(Some(&landed), Some(picture.clone())).is_none(),
             "the index in hand describes a rebuild the picture is not"
         );
 

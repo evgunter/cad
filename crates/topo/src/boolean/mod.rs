@@ -170,6 +170,7 @@ use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
+use crate::live::Proven;
 use crate::merge_faces::MergeCoplanarError;
 use crate::validate::ValidationError;
 
@@ -210,8 +211,8 @@ pub use ops::{
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
-pub(crate) use records::incident;
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
+pub(crate) use records::{Parting, incident};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
@@ -288,11 +289,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_sector_within"
         | "bool_flank_offset"
         | "bool_wedge_reflex"
-        | "bool_cone_arc"
-        | "bool_cone_arc_span"
-        | "bool_cone_within"
-        | "bool_cone_facing"
-        | "bool_cone_apart"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
@@ -303,7 +299,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_fate_corner_bend"
         | "bool_fate_corner_bend_straddle"
         | "bool_rim_face_opposed" => Coincide::Sectors.subject(),
-        "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
         // the result and ∖ of an operand part it reverts unjoined
         // (`census::collinear_overlaps`).
@@ -578,21 +573,17 @@ impl SideCode {
 ///   read against the pierced face: the side codes that pass decided
 ///   and acted on, recorded as it read them (D5's birth row), before
 ///   any reclassification lumps them.
-/// - The vertex-vertex pass records every edge at each vertex of a pair
-///   whose other vertex lies inside an edge of its body (two faces
-///   meeting along it), read against that wedge, or at a corner of
-///   three faces or more, read against its faces' planes, as a polygon
-///   cone where it is neither convex nor hollow
-///   (`sectors::wedge_classes`). The
-///   classification itself decides sector pairs, not edges, so these
-///   rows are a measurement of their own, taken beside it from the same
-///   sectors, not a record of what it decided.
-/// - A vertex that touches a face and pairs too records each edge once,
-///   read against the face and its partners together, or the boolean
-///   refuses (`vtxfac::touch_classes`). A vertex in several pairs alone
-///   does the same where its partners' layering decides, refuses where
-///   a partner's cone reads nothing, and keeps each pair's rows where
-///   the layering leaves an edge undecided (`vtxfac::pair_classes`).
+/// - The vertex-vertex pass records every edge at each vertex in a
+///   pair, read through one cone of the other operand at the vertex's
+///   point: every partner's faces, and the face the vertex touches where
+///   it touches one, its pierce's side codes standing for the edges'
+///   sides of that face (`vtxfac::cone_classes`). The classification
+///   itself decides sector pairs, not edges, so these rows are a
+///   measurement of their own, taken beside it from the same sectors,
+///   not a record of what it decided. A vertex whose edges the cone
+///   does not read records none: in one pair alone it names its partner
+///   ([`UnreadPartner`]); touching a face, or beside several partners,
+///   the boolean refuses ([`BooleanError::VertexReadTwice`]).
 ///
 /// `In` and `On` both lie in the other operand's closed body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -613,10 +604,13 @@ pub struct EdgePieceClass {
 }
 
 /// **A vertex in one pair whose partner the classification read
-/// nothing of** (`vtxfac::pair_classes`): the vertex publishes no
+/// nothing of** (`vtxfac::cone_classes`): the vertex publishes no
 /// [`EdgePieceClass`], and the result is built all the same. Its edges
 /// meet the other operand only at the point, through its partner's
-/// neighbourhood, which no wedge or corner reading classes them against.
+/// neighbourhood, and some edge of the vertex reads in band of the
+/// partner's faces there, as one cone at the vertex's point
+/// (`link::Cone::reads_tied`'s `None`), so the cone classes none of
+/// them.
 /// A reader that needs a class there reads why from here rather than
 /// finding a row missing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -629,24 +623,6 @@ pub struct UnreadPartner {
     /// Its partner, the other operand's vertex, in that operand's clone
     /// keys.
     pub partner: VertexKey,
-    /// What the partner's neighbourhood is.
-    pub neighbourhood: UnreadNeighbourhood,
-}
-
-/// Why an [`UnreadPartner`]'s partner read nothing, as the reading of
-/// its neighbourhood (`sectors::wedge_read`) found it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum UnreadNeighbourhood {
-    /// Its sectors lie on fewer than two faces: inside one smooth face
-    /// of its operand, with no edge or corner to read.
-    OneFace,
-    /// Its sectors lie on two faces, and neither holds the subdivision
-    /// bisector a wedge is read by.
-    NoBisector,
-    /// Its edge or corner was read as a polygon cone, and some edge of
-    /// the vertex has no reference whose every reading is decided
-    /// (`sectors::cone_side`'s `None`).
-    ConeUnread,
 }
 
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
@@ -2982,16 +2958,11 @@ pub enum BooleanError {
         /// The band the apex distance was classified against.
         band: Band,
     },
-    /// A vertex the boolean classifies sits within the band of the APEX
-    /// of a cone face of `operand`: the cone's own apex vertex as the
-    /// corner of one of its sectors, or another operand's vertex landing
-    /// on the cone there. The face has no tangent plane at its apex:
-    /// each ruling out of it has a normal of its own, and what the
-    /// Boolean lacks is the sector pair algebra that reads a material
-    /// side over that fan of rulings, so the sector and pierce lanes
-    /// refuse rather than read one normal. The definite half: an in-band
-    /// distance off the axis refuses the same way, with no tolerance
-    /// named.
+    /// A vertex of the other operand pierces a cone face of `operand`
+    /// within the band of the cone's APEX. The face has no tangent plane
+    /// there, so the pierce has no datum to read the vertex's sectors
+    /// against. The definite half: an in-band distance off the axis
+    /// refuses the same way, with no tolerance named.
     NormalAtConeApex {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -2999,6 +2970,60 @@ pub enum BooleanError {
         face: FaceKey,
         /// The band the distance off the axis was classified against.
         band: Band,
+    },
+    /// A vertex the boolean classifies is the apex of a cone face of
+    /// `operand` and pairs with a vertex of the other operand. A sector
+    /// there is a fan of the cone's rulings, and the vertex–vertex pair
+    /// algebra over a fan is unbuilt. Only an apex against an apex
+    /// reaches it: a corner or an edge of the other operand at the apex
+    /// has an edge through the apex, which refuses
+    /// [`BooleanError::CrossingAtConeApex`] first
+    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`);
+    /// a pierce of the other operand's face at the apex reads.
+    VertexPairAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+    },
+    /// A vertex the boolean classifies, a corner of a cone face of
+    /// `operand`, lies within the band of the cone's axis: definitely
+    /// off its apex, where the tangent plane is read ill-conditioned, or
+    /// neither off it nor at it decided.
+    VertexNearConeAxis {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
+    /// A vertex of `operand` at the apex of its cone face pierces a planar
+    /// face of the other operand, and the section table's reading of that
+    /// plane against the cone disagrees with the walk, which read the
+    /// plane crossing one of the face's sub-sectors at the apex: the
+    /// split's refusal of the same reading
+    /// ([`crate::SplitReduceError::ApexSection`]).
+    ApexSection {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// How the table disagrees.
+        reading: crate::splitting::ApexSectionReading,
+    },
+    /// The result has a cone face whose boundary loop passes the cone's
+    /// apex vertex twice: two lobes of the face pinched at the apex, as a
+    /// cut through the apex along two rulings leaves them. The body is
+    /// well formed, but the mass-properties closed form refuses a cone
+    /// loop that meets itself at a vertex, so the finished-body gate
+    /// cannot certify its volume
+    /// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+    /// Refused here, before that gate, so the refusal names the shape
+    /// rather than reading as the kernel's own defect.
+    ResultPinchedAtConeApex {
+        /// The apex the loop passes twice.
+        apex: String,
     },
     /// A vertex the sector walk reads, or a point the pierce pass reads a
     /// pierced face's normal at, sits within the band of a crease or an
@@ -3428,9 +3453,8 @@ pub enum BooleanError {
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
     /// it while crossing the face, or while that vertex's link does not
-    /// lie on one side of the face; or, in pairs alone, a partner's cone
-    /// reads nothing beside another partner's (`vtxfac::pair_classes`). That other solid holds its
-    /// own contact at the vertex's point: two of its faces meet there in
+    /// lie on one side of the face. That other solid holds its own
+    /// contact at the vertex's point: two of its faces meet there in
     /// their interiors, or a vertex of it rests on one of its faces. A
     /// vertex-on-face pass hangs struts at a vertex that crosses the
     /// face, so a later pass would read an orbit an earlier one wrote
@@ -3440,6 +3464,13 @@ pub enum BooleanError {
     /// solid touches itself there alone, so the operation applied to
     /// each piece, with the results then combined, meets one read at the
     /// vertex.
+    ///
+    /// Or, touching a face beside a partner, or in pairs alone beside
+    /// more than one, an edge of the vertex reads in band of the other
+    /// solid's cone gathered at the point (`vtxfac::cone_classes`):
+    /// within the input tolerance of one of its faces' planes or rays
+    /// there, so the cone holds no class for it, and the vertex's edges
+    /// are classed together or not at all (`in_band` names the edge).
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -3447,9 +3478,15 @@ pub enum BooleanError {
         /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Its first pierce, then its next read: a second pierce, or a
-        /// pair; in pairs alone, the partner whose cone reads nothing,
-        /// then one beside it.
+        /// pair; in pairs alone, its first two partners.
         reads: [SectorRead; 2],
+        /// The vertex's edge, by its half-edge leaving the vertex (a key
+        /// of the operand's working copy), that the gathered cone read in
+        /// band, where that is what refuses; `None` where the two reads
+        /// themselves are. The cone's reading names no one face it was in
+        /// band of, so a touch's `reads[1]` is its first partner, not
+        /// necessarily the one the edge reads against.
+        in_band: Option<HalfEdgeKey>,
     },
     /// A vertex of `operand` touches `face` of the other solid and pairs
     /// with `partner`, a vertex of it whose link runs along that face,
@@ -3467,22 +3504,6 @@ pub enum BooleanError {
         partner: VertexKey,
         /// How the partner meets the face.
         along: AlongFace,
-    },
-    /// A vertex of `operand` in pairs alone, where every edge of one
-    /// partner's corner lies on another's faces, so which holds which
-    /// is read off a direction strictly inside the first, and none
-    /// reads: the corner is thinner than the input tolerance (ε_input,
-    /// K·ε) wherever `vtxfac::interior` probes it, its candidates
-    /// reading on its faces or in band before any reads inside it
-    /// (`vtxfac::pair_classes`).
-    NestingUnread {
-        /// The operand whose vertex the partners pair with.
-        operand: Operand,
-        /// That vertex: a key of the operand's working copy.
-        vertex: VertexKey,
-        /// The other solid's corners, as keys of its working copy: the
-        /// one no direction inside reads, then the one its edges lie on.
-        partners: [VertexKey; 2],
     },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
@@ -4222,6 +4243,14 @@ pub enum BooleanErrorKind {
     CrossingAtConeApex,
     /// [`BooleanError::NormalAtConeApex`].
     NormalAtConeApex,
+    /// [`BooleanError::VertexPairAtConeApex`].
+    VertexPairAtConeApex,
+    /// [`BooleanError::VertexNearConeAxis`].
+    VertexNearConeAxis,
+    /// [`BooleanError::ResultPinchedAtConeApex`].
+    ResultPinchedAtConeApex,
+    /// [`BooleanError::ApexSection`].
+    ApexSection,
     /// [`BooleanError::NormalAtSplineCrease`].
     NormalAtSplineCrease,
     /// [`BooleanError::PierceLeverUnread`].
@@ -4280,8 +4309,6 @@ pub enum BooleanErrorKind {
     VertexReadTwice,
     /// [`BooleanError::PartnerAlongFace`].
     PartnerAlongFace,
-    /// [`BooleanError::NestingUnread`].
-    NestingUnread,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -4501,6 +4528,10 @@ impl BooleanError {
             Self::CurvedPierceEscalated { .. } => BooleanErrorKind::CurvedPierceEscalated,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
+            Self::VertexPairAtConeApex { .. } => BooleanErrorKind::VertexPairAtConeApex,
+            Self::VertexNearConeAxis { .. } => BooleanErrorKind::VertexNearConeAxis,
+            Self::ResultPinchedAtConeApex { .. } => BooleanErrorKind::ResultPinchedAtConeApex,
+            Self::ApexSection { .. } => BooleanErrorKind::ApexSection,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
             Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
@@ -4534,7 +4565,6 @@ impl BooleanError {
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
-            Self::NestingUnread { .. } => BooleanErrorKind::NestingUnread,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -4733,6 +4763,35 @@ impl core::fmt::Display for BooleanError {
                 "a corner of one part sits at the tip of a cone face of the {} operand, \
                  where the face has no direction to read the other part's side by. \
                  Recourse: move the parts so nothing meets the cone's tip",
+                operand_word(*operand),
+            ),
+            Self::VertexPairAtConeApex { operand, .. } => write!(
+                f,
+                "the tip of a cone face of the {} operand meets the tip of a cone face of \
+                 the other part, and two cone tips meeting is not yet supported. \
+                 Recourse: move the parts so the two tips are apart",
+                operand_word(*operand),
+            ),
+            Self::ApexSection { reading, .. } => write!(
+                f,
+                "a face of one part passes through the tip of a cone face of the other, \
+                 and {}. Recourse: move the parts so the face passes clear of the cone's \
+                 tip, or through it clearly across the cone",
+                reading.what(),
+            ),
+            Self::ResultPinchedAtConeApex { apex } => write!(
+                f,
+                "the result has a cone face pinched at its tip {apex} into two pieces \
+                 that meet only there, and the volume of such a face cannot yet be \
+                 measured. Recourse: move the parts so the cut does not pass through the \
+                 cone's tip along two of its lines",
+            ),
+            Self::VertexNearConeAxis { operand, .. } => write!(
+                f,
+                "a corner of a cone face of the {} operand lies so near the cone's tip \
+                 that the face's direction there cannot be read at this tolerance. \
+                 Recourse: move the parts so the corner lies clear of the cone's tip, \
+                 or tighten the tolerance",
                 operand_word(*operand),
             ),
             Self::NormalAtSplineCrease { operand, .. } => write!(
@@ -5174,18 +5233,27 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::VertexReadTwice {
                 operand,
-                reads: [SectorRead::Pair(_), SectorRead::Pair(_)],
+                reads,
+                in_band: Some(_),
                 ..
             } => write!(
                 f,
-                "a corner of the {} solid lands where two corners of the other solid meet \
-                 at one point, and one of those corners gives no side for its edges: its \
-                 faces fold onto one another, exactly or to within the input tolerance \
-                 (ε_input, K·ε), or it lies on fewer than two faces. The Boolean cannot \
-                 classify the first corner against both without it. Recourse: move the \
-                 parts so the other solid's corners do not meet at that point, or open its \
-                 folded faces apart by more than ε_input",
-                operand_word(*operand)
+                "a corner of the {} solid lands where {}, and one of its edges lies within \
+                 the input tolerance (ε_input, K·ε) of a face of the other solid there, or of \
+                 a line two of those faces meet in, so which side of the other solid that \
+                 edge leaves on is unread. The Boolean classes every edge of the corner \
+                 against the other solid there at once, or none. Recourse: move the parts so \
+                 each edge of that corner lies clearly on or clearly off each face of the \
+                 other solid at that point, by more than ε_input",
+                operand_word(*operand),
+                match reads[0] {
+                    SectorRead::Pierce(_) =>
+                        "it touches a face of the other solid beside a \
+                                              corner of it",
+                    SectorRead::Pair(_) =>
+                        "two or more corners of the other solid meet at one \
+                                            point",
+                }
             ),
             Self::VertexReadTwice { operand, reads, .. } => write!(
                 f,
@@ -5212,15 +5280,6 @@ impl core::fmt::Display for BooleanError {
                     AlongFace::Flush => "a face of the first corner on that face",
                     AlongFace::FacesInOnePlane => "a face of each corner in one plane",
                 }
-            ),
-            Self::NestingUnread { operand, .. } => write!(
-                f,
-                "a corner of the {} solid lands where corners of the other solid meet, one \
-                 lying along another's faces and thinner than the input tolerance (ε_input, \
-                 K·ε) wherever it is read, so the Boolean cannot tell which holds which. \
-                 Recourse: move the parts so that corner lands clear of the point, or make \
-                 the other solid's corner there thicker than ε_input",
-                operand_word(*operand)
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -5973,8 +6032,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 
     let rereads = vtxfac::pierced_and_paired(&contacts)?;
     // Each vertex that touches a face and pairs, its rows combined once
-    // every pair is read (`vtxfac::touch_classes`), and each vertex in
-    // pairs alone, likewise (`vtxfac::pair_classes`).
+    // every pair is read, and each vertex in pairs alone, likewise
+    // (`vtxfac::cone_classes`).
     let mut touches = std::collections::BTreeMap::new();
     // Each vertex's own sectors, with its pairs.
     let mut paired = std::collections::BTreeMap::new();
@@ -6194,20 +6253,47 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], band)?;
-        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], band)?;
+        let a_sectors = sectors::build_sectors(
+            &a,
+            Operand::A,
+            c.a,
+            &tips[0],
+            sectors::ApexPlane::None,
+            band,
+        )?;
+        let b_sectors = sectors::build_sectors(
+            &b,
+            Operand::B,
+            c.b,
+            &tips[1],
+            sectors::ApexPlane::None,
+            band,
+        )?;
+        sectors::apex_pair_refusal([(Operand::A, &a_sectors), (Operand::B, &b_sectors)])?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
-        for (operand, vertex, own, other, partner) in [
-            (Operand::A, c.a, &a_sectors, &b_sectors, c.b),
-            (Operand::B, c.b, &b_sectors, &a_sectors, c.a),
+        for (operand, vertex, own, other, partner, at) in [
+            (
+                Operand::A,
+                c.a,
+                &a_sectors,
+                &b_sectors,
+                c.b,
+                b.resolve_vertex_point(c.b, Proven),
+            ),
+            (
+                Operand::B,
+                c.b,
+                &b_sectors,
+                &a_sectors,
+                c.a,
+                a.resolve_vertex_point(c.a, Proven),
+            ),
         ] {
-            let read = sectors::wedge_read(own, other, band)?;
-            let mut pair = vtxfac::PairRead {
-                partner,
-                side: None,
-                read,
+            let pair = vtxfac::Partner {
+                vertex: partner,
+                at,
                 sectors: other.clone(),
             };
             match touches.get_mut(&(operand, vertex)) {
@@ -6221,11 +6307,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         along,
                     };
                     match vtxfac::partner_side(other, touch.datum, touch.flush, band)? {
-                        vtxfac::PartnerRead::Side { side, along: on } => {
+                        vtxfac::PartnerRead::Side { along: on } => {
                             if on {
                                 along.get_or_insert(along_face(AlongFace::FacesInOnePlane));
                             }
-                            pair.side = Some(side);
                             touch.own.get_or_insert_with(|| own.clone());
                             touch.pairs.push(pair);
                         }
@@ -6234,6 +6319,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                                 operand,
                                 vertex,
                                 reads: [SectorRead::Pierce(face), SectorRead::Pair(partner)],
+                                in_band: None,
                             });
                         }
                         vtxfac::PartnerRead::Along(how) => return Err(along_face(how)),
@@ -6259,8 +6345,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 band,
             )?;
         }
-        // The layering beside a partner along the face reads no sector
-        // pair on one plane: it refuses before `recl_sectors` reads one.
+        // A partner along the touched face, its side unread, refuses
+        // where a sector pair lies on one plane, before `recl_sectors`
+        // reads one.
         if let Some(refusal) = along
             && records.iter().any(sectors::PairRecord::coplanar)
         {
@@ -6301,50 +6388,62 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         line_touches.extend(touched.into_iter().map(|he| (i, he)));
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
     }
-    // A vertex's partners are the other operand's: the shape of a
-    // partner's face is read on that body.
-    let partner_shape = |operand: Operand| {
-        let body = match operand {
-            Operand::A => &b,
-            Operand::B => &a,
-        };
-        move |face| sectors::FaceShape::of_face(body, face, "a partner's face has no carrier")
-    };
     let mut read = Vec::with_capacity(touches.len() + paired.len());
+    let own_point = |operand: Operand, vertex| match operand {
+        Operand::A => a.resolve_vertex_point(vertex, Proven),
+        Operand::B => b.resolve_vertex_point(vertex, Proven),
+    };
     for (&(operand, vertex), touch) in &touches {
         // A touching vertex classes every edge or refuses, as it did
         // before its touch was read at all.
         let own = touch.own.as_deref().unwrap_or_default();
-        let classes = vtxfac::touch_classes(
+        let edges: Vec<_> = touch.classes.iter().map(|&(he, _)| he).collect();
+        let classes = vtxfac::cone_classes(
+            own_point(operand, vertex),
             own,
-            &touch.classes,
+            &edges,
             &touch.pairs,
-            &partner_shape(operand),
+            Some((touch.datum.normal, &touch.classes)),
             band,
-        )
-        .map_err(|undecided| match undecided {
-            vtxfac::TouchUndecided::Beside(Some(partner)) => BooleanError::VertexReadTwice {
-                operand,
-                vertex,
-                reads: [SectorRead::Pierce(touch.face), SectorRead::Pair(partner)],
-            },
-            vtxfac::TouchUndecided::Beside(None) => BooleanError::ClassificationInvariant {
-                what: "a touching vertex's undecided edge has no partner on its side",
-            },
-            vtxfac::TouchUndecided::Along(refusal) => refusal,
+        )?
+        .map_err(|edge| BooleanError::VertexReadTwice {
+            operand,
+            vertex,
+            reads: [
+                SectorRead::Pierce(touch.face),
+                SectorRead::Pair(touch.pairs[0].vertex),
+            ],
+            in_band: Some(edge),
         })?;
         read.push(((operand, vertex), classes));
     }
-    for (&key, (own, pairs)) in &paired {
-        let shape = partner_shape(key.0);
-        let (classes, unread) = vtxfac::pair_classes(key.0, key.1, own, pairs, &shape, band)?;
-        unread_partners.extend(unread.map(|(partner, neighbourhood)| UnreadPartner {
-            operand: key.0,
-            vertex: key.1,
-            partner,
-            neighbourhood,
-        }));
-        read.push((key, classes));
+    for (&(operand, vertex), (own, pairs)) in &paired {
+        let edges: Vec<_> = own.iter().filter(|s| s.end_edge()).map(|s| s.he).collect();
+        let classes =
+            vtxfac::cone_classes(own_point(operand, vertex), own, &edges, pairs, None, band)?;
+        let classes = match (classes, pairs.as_slice()) {
+            (Ok(classes), _) => classes,
+            (Err(_), [one]) => {
+                unread_partners.push(UnreadPartner {
+                    operand,
+                    vertex,
+                    partner: one.vertex,
+                });
+                Vec::new()
+            }
+            (Err(edge), pairs) => {
+                return Err(BooleanError::VertexReadTwice {
+                    operand,
+                    vertex,
+                    reads: [
+                        SectorRead::Pair(pairs[0].vertex),
+                        SectorRead::Pair(pairs[1].vertex),
+                    ],
+                    in_band: Some(edge),
+                });
+            }
+        };
+        read.push(((operand, vertex), classes));
     }
     for ((operand, vertex), classes) in read {
         let body = match operand {
@@ -6602,7 +6701,7 @@ fn held_faces<T: Real>(
     })
 }
 
-/// A vertex that touches a face and pairs ([`vtxfac::touch_classes`]).
+/// A vertex that touches a face and pairs ([`vtxfac::cone_classes`]).
 struct Touch<T: Real> {
     /// Its pierce's classes, as first read.
     classes: Vec<(HalfEdgeKey, SideCode)>,
@@ -6615,8 +6714,8 @@ struct Touch<T: Real> {
     /// Its own sectors, as its first pair read them (`None` before it):
     /// a re-read pierce writes nothing, so its orbit is the operand's.
     own: Option<Vec<sectors::BoolSector<T>>>,
-    /// Each pair's partner side and rows, in pair order.
-    pairs: Vec<vtxfac::PairRead<T>>,
+    /// Its partners, in pair order.
+    pairs: Vec<vtxfac::Partner<T>>,
 }
 
 /// The reduction's null edges as it records them, both operands, in
@@ -8940,6 +9039,23 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::VertexPairAtConeApex {
+                operand: Operand::B,
+                face,
+            },
+            BooleanError::VertexNearConeAxis {
+                operand: Operand::A,
+                face,
+                band,
+            },
+            BooleanError::ResultPinchedAtConeApex {
+                apex: "(0.0, 0.0, 0.0)".into(),
+            },
+            BooleanError::ApexSection {
+                operand: Operand::A,
+                face,
+                reading: crate::splitting::ApexSectionReading::NoRulingInside,
+            },
             BooleanError::NormalAtSplineCrease {
                 operand: Operand::B,
                 face,
@@ -9071,6 +9187,7 @@ mod tests {
                     SectorRead::Pierce(face),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+                in_band: None,
             },
             BooleanError::PartnerAlongFace {
                 operand: Operand::A,
@@ -9078,11 +9195,6 @@ mod tests {
                 face,
                 partner: VertexKey::default(),
                 along: AlongFace::Curved,
-            },
-            BooleanError::NestingUnread {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                partners: [VertexKey::default(); 2],
             },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
@@ -9280,6 +9392,10 @@ mod tests {
                 BooleanErrorKind::CurvedPierceEscalated => "CurvedPierceEscalated",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
+                BooleanErrorKind::VertexPairAtConeApex => "VertexPairAtConeApex",
+                BooleanErrorKind::VertexNearConeAxis => "VertexNearConeAxis",
+                BooleanErrorKind::ResultPinchedAtConeApex => "ResultPinchedAtConeApex",
+                BooleanErrorKind::ApexSection => "ApexSection",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
                 BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
@@ -9309,7 +9425,6 @@ mod tests {
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
-                BooleanErrorKind::NestingUnread => "NestingUnread",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

@@ -751,14 +751,15 @@ fn stager() -> Result<Box<dyn crate::evalseam::StagedService>, StartupError> {
 /// door.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct DocumentDerived {
-    /// A camera fit is owed as soon as the next rebuilt scene lands.
+    /// A camera fit is owed until a rebuilt scene with bounds lands.
     /// The document arrives asynchronously, so fitting at the door
     /// would frame the outgoing picture.
     fit_camera: bool,
-    /// Whether the next scene to land should have its δ CHOSEN by the
-    /// triangle budget, rather than drawn at the δ already in force.
+    /// Whether the first landing with a body to price should have its
+    /// δ CHOSEN by the triangle budget, rather than drawn at the δ
+    /// already in force.
     ///
-    /// Cleared the moment it is spent. It is what makes the budget a
+    /// Cleared the moment it is spent, or when the user sets δ. It is what makes the budget a
     /// DEFAULT: a document arrives, the budget picks a δ that draws it
     /// in a reasonable time, and from then on δ is whatever the user
     /// asked for. Anything stronger — clamping every rebuild — would
@@ -1063,16 +1064,18 @@ impl ViewerApp {
         // the seam was cut for. So the shape is the index seam's:
         // submit, keep painting, take the answer when it comes.
         self.take_fit();
-        if self.derived.fit_delta && self.session.landed_generation().is_some() {
-            // Spent on the first landing, whether or not that landing
-            // has a body to price: a document whose product refuses has
-            // no size to fit a δ to, and leaving the budget armed for
-            // its first successful EDIT would make it something other
-            // than the δ a document OPENS at.
+        // Spent on the first landing with a body to price. A landing
+        // with none (an empty new document, a product that refuses) has
+        // no size to fit a δ to, so the budget waits for the edit that
+        // gives the document one: until then the δ in force is the
+        // outgoing document's, which says nothing about this one. A δ
+        // the user types in the meantime disarms it
+        // ([`ViewerApp::set_delta`]), so it stays a default.
+        if self.derived.fit_delta
+            && let Some(request) = self.session.fit_request(self.delta)
+        {
             self.derived.fit_delta = false;
-            if let Some(request) = self.session.fit_request(self.delta) {
-                self.fit.submit(request);
-            }
+            self.fit.submit(request);
         }
         // **The index seam answers here.** A build that finished is
         // installed or refused now, before the currency check below
@@ -1166,8 +1169,11 @@ impl ViewerApp {
                 // The badge's read, ended by the rebuild it was
                 // waiting for.
                 self.scene_fault = None;
+                // A boundless scene is framed (the origin) but does not
+                // spend the fit: the document's first body is what it
+                // is owed for.
                 if self.derived.fit_camera {
-                    self.derived.fit_camera = false;
+                    self.derived.fit_camera = self.scene.bounds().is_none();
                     self.pending_fit = true;
                 }
                 // The gather's own verdict is NOT written here: it is
@@ -1216,6 +1222,7 @@ impl ViewerApp {
         // finer than it would have picked, which is the whole
         // difference between a default and a cap.
         self.derived.budget_delta = None;
+        self.derived.fit_delta = false;
         self.sync_scene();
     }
 
@@ -1328,7 +1335,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
-            let mut outcome = self.session.perform(op);
+            let outcome = self.session.perform(op);
             answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
@@ -1343,7 +1350,7 @@ impl ViewerApp {
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
-            let minted = core::mem::take(&mut outcome.minted);
+            let made = outcome.made;
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -1358,14 +1365,14 @@ impl ViewerApp {
                     self.tools.close();
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
                 None => {
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
             }
             // After the match, so a replaced document's held picks are
@@ -2086,6 +2093,7 @@ impl eframe::App for ViewerApp {
         }
 
         let display = self.session.display_view();
+        let toggles = self.session.toggles();
         // **The preview is taken once, before the panes draw**, from
         // the drafts as they stand — so the panel's refusal line and
         // the viewport's wireframe are two views of one replay rather
@@ -2181,7 +2189,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.derived.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
-                    scene_key: self.scene_key,
+                    scene_key: self.scene_key.clone(),
                     indexing: self.picks.index_seam(self.fit.as_ref()),
                     revision: self.revision,
                     camera: &mut self.camera,
@@ -2190,6 +2198,7 @@ impl eframe::App for ViewerApp {
                     notation: &mut notation,
                     drafts: &mut self.drafts,
                     display: &display,
+                    toggles: &toggles,
                     tools: &mut self.tools,
                     part_chooser: &mut self.part_chooser,
                     profile_previews: &profile_previews,
@@ -2358,6 +2367,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     pub(crate) display: &'a DisplayView,
+    /// Every show/hide toggle, read once over the committed document:
+    /// what the View pane lists and the tree's and the Properties
+    /// pane's checkboxes read.
+    pub(crate) toggles: &'a crate::display::Toggles,
     /// The modal tools, at most one open.
     pub(crate) tools: &'a mut Tools,
     /// The `Add part…` chooser, if open.
@@ -4206,9 +4219,10 @@ mod properties_pane_tests {
         let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
             vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
-        // A pick is on the drawn copy, and says so.
+        // A pick is the face in its words, on the copy clicked.
         let line = format!(
-            "on: face of Place {}; to: —",
+            "on: the end cap of Extrude {}, on Place {}; to: none picked",
+            test_utils::refusal::tag(extrude().0.digest()),
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -5090,24 +5104,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// A session over two instances of one part, and the two instance
-    /// ids in document order: placed in the world through one union
-    /// when `fused`, and each its own placement either way. Also the union's
-    /// id, when there is one.
+    /// A session over two instances of one part, each placed into the
+    /// world by itself, and the two instance ids in document order.
     ///
-    /// The part is never resolved: the display admission is a question
-    /// about the recipe's edges, so the rows fail to evaluate and the
-    /// tree draws them, with their checkboxes, all the same.
-    fn two_instances(
-        fused: bool,
-    ) -> (
-        crate::session::DocSession,
-        [RecipeNodeId; 2],
-        Option<RecipeNodeId>,
-    ) {
-        use pncad::document::{
-            Bodies, BodyRead, ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId,
-        };
+    /// The part is never resolved: the hide's admission is a question
+    /// about the recipe, so the rows fail to evaluate and the tree draws
+    /// them, with their checkboxes, all the same.
+    fn two_instances() -> (crate::session::DocSession, [RecipeNodeId; 2]) {
+        use pncad::document::{ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId};
         let tol = pncad::tolerance::witness();
         let part = DocRef {
             id: DocumentId::derive("shown-part"),
@@ -5115,94 +5119,20 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
-        // Each instance is a placement of its own, into the world at
-        // the identity.
         let world = || Operand::Var(VarId::WORLD);
         let stand = || pncad::document::stand().bundle();
         let a = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
         let b = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
-        let union = fused.then(|| {
-            // An instance defines one body, its part's product: the
-            // edges are what the admission reads.
-            let copy = |instance| BodyRead::plain(Operand::Node(instance));
-            let union = insert(
-                &mut doc,
-                Node::Union {
-                    members: Bodies::Spelled(vec![copy(a), copy(b)]),
-                },
-            );
-            // Placed at the identity: the part never resolves, so no
-            // pose is read off its copies to place it by.
-            insert(
-                &mut doc,
-                Node::place(BodyRead::plain(Operand::from(union)), world(), stand()),
-            );
-            union
-        });
         let mut session = crate::session::DocSession::inline(doc, tol);
         session.pump();
-        (session, [a, b], union)
+        (session, [a, b])
     }
 
-    /// **A fused instance's tree checkbox is drawn, cannot be flipped,
-    /// and says on hover what `SetInstanceHidden` would refuse with**
-    /// — the whole app, the real feature tree, each row read for its
-    /// own instance.
-    ///
-    /// The runtime value that makes it false is a checkbox gated on
-    /// anything weaker than the op's admission (the row's kind, which
-    /// a fused instance passes): hovered, it would say nothing, and
-    /// clicked it would push an op the session then refuses.
+    /// **An instance row's tree checkbox is live, silent, and the click
+    /// hides its own row's body.**
     #[test]
-    fn a_fused_instances_tree_checkbox_is_disabled_with_the_refusal_it_would_get() {
-        let (session, ids, union) = two_instances(true);
-        let union = union.expect("the fused fixture has a union");
-        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
-        let at = pane.each("shown");
-        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
-        for (id, at) in ids.into_iter().zip(at) {
-            let said = pane
-                .app
-                .session
-                .instance_hidden_refusal(id)
-                .expect("SetInstanceHidden refuses a fused instance")
-                .to_string();
-            let quiet = pane.quiet();
-            assert_eq!(
-                Driven::gained(&quiet, pane.hovered(at)),
-                vec![said.clone()],
-                "the hover is the op's own sentence"
-            );
-            // Planted, not only compared with the one home: the words
-            // a reader gets, naming this row's instance.
-            let other = ids.into_iter().find(|&other| other != id).expect("two");
-            assert_eq!(
-                said,
-                format!(
-                    "InstantiatePart {}'s geometry is fused into Union {} together with \
-                     InstantiatePart {} — a display operation cannot address it separately",
-                    test_utils::refusal::tag(id.0.digest()),
-                    test_utils::refusal::tag(union.0.digest()),
-                    test_utils::refusal::tag(other.0.digest())
-                )
-            );
-            pane.click_at(at);
-            pane.quiet();
-            assert!(
-                pane.app.session.display().hidden().is_empty(),
-                "a refused checkbox hides nothing"
-            );
-            assert_eq!(status(&pane), None, "and pushes nothing the op refused");
-        }
-    }
-
-    /// **The same drive over two unfused instances: live, silent, and
-    /// the click hides its own row's instance** — the row that keeps
-    /// the one above from passing because the harness missed the
-    /// checkbox.
-    #[test]
-    fn an_addressable_instances_tree_checkbox_is_live_and_says_nothing() {
-        let (session, [a, _], _) = two_instances(false);
+    fn an_instances_tree_checkbox_is_live_and_hides_its_own_body() {
+        let (session, [a, _]) = two_instances();
         let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
         let at = pane.each("shown");
         assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
@@ -5211,8 +5141,68 @@ mod properties_pane_tests {
         pane.click_at(at[0]);
         pane.quiet();
         assert_eq!(
-            pane.app.session.display().hidden(),
-            &std::collections::BTreeSet::from([a])
+            pane.app.session.display().toggled(),
+            &std::collections::BTreeMap::from([(a, false)])
+        );
+    }
+
+    /// [`two_instances`] with a copy of the first placed into the world,
+    /// which reads it as a body: the first instance is one the default
+    /// picture leaves out.
+    fn an_undrawn_instance() -> (crate::session::DocSession, RecipeNodeId) {
+        use pncad::document::{BodyRead, Node, Operand, VarId};
+        let (session, [a, _]) = two_instances();
+        let tol = session.tol();
+        let mut doc = session.committed_doc().clone();
+        crate::test_support::insert_into(
+            &mut doc,
+            Node::place(
+                BodyRead::plain(Operand::from(a)),
+                Operand::Var(VarId::WORLD),
+                pncad::document::stand().bundle(),
+            ),
+            tol,
+        );
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        session.pump();
+        assert!(!session.toggles().body_on(a), "the premise: a reads off");
+        (session, a)
+    }
+
+    /// **The tree's checkbox on an instance the default leaves out reads
+    /// off, so its click shows it.** A checkbox that read the hides
+    /// alone would show it on, and its click would ask for it off,
+    /// which holds nothing.
+    #[test]
+    fn the_tree_checkbox_of_an_undrawn_instance_shows_it() {
+        let (session, a) = an_undrawn_instance();
+        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
+        let at = pane.each("shown");
+        pane.click_at(at[0]);
+        pane.quiet();
+        assert_eq!(
+            pane.app.session.display().toggled(),
+            &std::collections::BTreeMap::from([(a, true)]),
+            "the click showed the instance"
+        );
+    }
+
+    /// **The Properties pane's checkbox reads the same toggle**: over the
+    /// selected undrawn instance, a click shows it.
+    #[test]
+    fn the_properties_checkbox_of_an_undrawn_instance_shows_it() {
+        let (session, a) = an_undrawn_instance();
+        let mut pane = Driven::with_seams(vec![SessionOp::Select(Selection::Node(a))], |app| {
+            app.session = session
+        });
+        let at = pane.each("shown in viewport");
+        assert_eq!(at.len(), 1, "one display toggle: {at:?}");
+        pane.click_at(at[0]);
+        pane.quiet();
+        assert_eq!(
+            pane.app.session.display().toggled(),
+            &std::collections::BTreeMap::from([(a, true)]),
+            "the click showed the instance"
         );
     }
 
@@ -5836,7 +5826,7 @@ mod properties_pane_tests {
         assert!(!shown(&rest, FREE_MOVE), "no probe, no door: {rest:?}");
         driven
             .app
-            .perform_batch(vec![SessionOp::BeginFreeMove { instance }]);
+            .perform_batch(vec![SessionOp::BeginFreeMove { node: instance }]);
         assert!(
             driven.app.session.display().probing().is_some(),
             "the probe began: {:?}",
@@ -5886,12 +5876,12 @@ mod properties_pane_tests {
             .node_space(instance)
             .expect("the copy is placed into a space");
         driven.app.perform_batch(vec![
-            SessionOp::BeginFreeMove { instance },
+            SessionOp::BeginFreeMove { node: instance },
             SessionOp::PreviewFreeMove {
-                instance,
+                node: instance,
                 frame: pncad::document::Frame::translation([0.0, 0.0, 0.05]),
             },
-            SessionOp::CommitFreeMove { instance },
+            SessionOp::CommitFreeMove { node: instance },
         ]);
         assert!(
             driven.app.session.display().free_move_of(space).is_some(),
@@ -5912,6 +5902,105 @@ mod properties_pane_tests {
         );
         driven.settle();
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    }
+
+    /// **The free-move probe drives the instance its panel row draws.**
+    /// Of two instances, each in a space of its own, the selected one's
+    /// probe is dragged through the whole app: the probe held mid-drag
+    /// is the selected instance's, and on release the selected
+    /// instance's space carries the free-move and the other's does not.
+    /// `widgets::free_move_gesture` minting its vocabulary for any other
+    /// node reds here.
+    #[test]
+    fn the_free_move_probe_drives_the_instance_its_row_draws() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("probe target", tol);
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "probe-target".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let instances: Vec<RecipeNodeId> = doc
+            .ids()
+            .iter()
+            .copied()
+            .filter(|id| matches!(doc.node(*id), Some(Node::InstantiatePart { .. })))
+            .collect();
+        let [selected, other] = instances[..] else {
+            panic!("the fixture holds two instances: {instances:?}");
+        };
+        driven.app.perform_batch(vec![
+            SessionOp::IntoOwnSpace {
+                placement: selected,
+            },
+            SessionOp::IntoOwnSpace { placement: other },
+        ]);
+        driven.settle();
+        let space_of = |driven: &Driven, node| {
+            driven
+                .app
+                .session
+                .committed_doc()
+                .node_space(node)
+                .expect("each copy is placed into a space of its own")
+        };
+        let (selected_space, other_space) = (space_of(&driven, selected), space_of(&driven, other));
+        assert_ne!(selected_space, other_space, "two spaces");
+        driven.select(Selection::Node(selected));
+        let painted = driven.quiet();
+        let label = painted
+            .iter()
+            .find(|(run, _)| run.starts_with("free-move probe ("))
+            .map(|(_, rect)| *rect)
+            .unwrap_or_else(|| panic!("the selected copy is offered the probe: {painted:?}"));
+        // The probe's first box: the first number painted below its
+        // label.
+        let at = painted
+            .iter()
+            .filter(|(run, rect)| rect.top() >= label.bottom() && run.parse::<f64>().is_ok())
+            .map(|(_, rect)| rect.center())
+            .min_by(|a, b| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)))
+            .unwrap_or_else(|| panic!("the probe's boxes are painted: {painted:?}"));
+
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        driven.frame(vec![egui::Event::PointerMoved(at)]);
+        driven.frame(vec![button(at, true)]);
+        let mut to = at;
+        for _ in 0..4 {
+            to += egui::vec2(12.0, 0.0);
+            driven.frame(vec![egui::Event::PointerMoved(to)]);
+        }
+        assert_eq!(
+            driven.app.session.display().probing(),
+            Some(selected),
+            "mid-drag, the probe held is the selected copy's: {:?}",
+            status(&driven)
+        );
+        driven.frame(vec![button(to, false)]);
+        driven.frame(Vec::new());
+        let display = driven.app.session.display();
+        let removed = std::fs::remove_dir_all(&dir);
+        assert_eq!(display.probing(), None, "the release committed the probe");
+        assert!(
+            display.free_move_of(selected_space).is_some(),
+            "the selected copy's space carries the free-move: {:?}",
+            status(&driven)
+        );
+        assert!(
+            display.free_move_of(other_space).is_none(),
+            "the other copy's space does not"
+        );
+        removed.expect("the fixture directory is removable");
     }
 
     /// **The Properties pane reads the evaluation the op does**, so
@@ -6113,7 +6202,7 @@ mod properties_pane_tests {
         /// The index the picture on screen was drawn from — the one
         /// the viewport marks against (`pane::viewport::drawn_index`).
         fn on_screen(&self) -> &crate::pickindex::PickIndex {
-            crate::pane::viewport::drawn_index(self.app.picks.index(), self.app.scene_key)
+            crate::pane::viewport::drawn_index(self.app.picks.index(), self.app.scene_key.clone())
                 .expect("the settled app draws from an index")
         }
 
@@ -6174,7 +6263,12 @@ mod properties_pane_tests {
             let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
-                driven.app.drafts.sketch_face.as_ref(),
+                driven
+                    .app
+                    .drafts
+                    .sketch_face
+                    .as_ref()
+                    .map(crate::tree::HeldPick::face),
                 Some(&top),
                 "the rows latched it"
             );
@@ -6269,7 +6363,12 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(
-            driven.app.drafts.sketch_face.as_ref(),
+            driven
+                .app
+                .drafts
+                .sketch_face
+                .as_ref()
+                .map(crate::tree::HeldPick::face),
             Some(&bottom),
             "kept, not cleared"
         );
@@ -6410,7 +6509,10 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .sketch_face_said()
+                .sketch_face
+                .as_ref()
+                .expect("the form holds the top cap")
+                .said()
                 .spoken(extrude())
                 .to_string(),
             plinth,
@@ -6589,7 +6691,10 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let (target, _) = camera_pose(&driven.app);
         assert_eq!(target, [0.0; 3], "a new document frames the origin");
-        assert!(!driven.app.derived.fit_camera, "its landing spent the fit");
+        assert!(
+            driven.app.derived.fit_camera,
+            "its boundless landing keeps the fit owed"
+        );
 
         driven.perform(SessionOp::Open(path.clone()));
         driven.settle();
@@ -6597,6 +6702,113 @@ mod properties_pane_tests {
         let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(camera_pose(&driven.app), plate, "the next open re-frames");
         removed.expect("the row removes the document it saved");
+    }
+
+    /// A fit seam that records the generation of every request it is
+    /// handed, then runs it as the seam it wraps would.
+    struct Recorded {
+        inner: Box<dyn crate::evalseam::FitService>,
+        asked: std::sync::Arc<std::sync::Mutex<Vec<crate::generation::Generation>>>,
+    }
+
+    impl crate::evalseam::FitService for Recorded {
+        fn submit(&mut self, request: crate::evalseam::FitRequest) {
+            self.asked
+                .lock()
+                .expect("the record is not poisoned")
+                .push(request.generation);
+            self.inner.submit(request);
+        }
+        fn poll(&mut self) -> Option<crate::evalseam::FitDone> {
+            self.inner.poll()
+        }
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// **An empty new document's first body is framed, and its first
+    /// body to price is budgeted.** The empty document lands a
+    /// boundless scene with nothing to price, so neither fit is spent
+    /// on it. The instance added next lands with both owed: its scene
+    /// has bounds, so the camera is framed on it, but it is in a space
+    /// of its own and the document's product is empty, so there is
+    /// still nothing for the budget to price and the δ fit stays owed.
+    /// The landing that first has a product is priced, once — spliced
+    /// in here as the plate's session, since no op this harness drives
+    /// puts a body in the world.
+    #[test]
+    fn an_empty_new_documents_first_body_is_framed_and_budgeted() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("first body fits", tol);
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let inner = std::mem::replace(
+            &mut driven.app.fit,
+            Box::new(crate::evalseam::InlineFitter::new()),
+        );
+        driven.app.fit = Box::new(Recorded {
+            inner,
+            asked: std::sync::Arc::clone(&asked),
+        });
+        let asked_for = || asked.lock().expect("the record is not poisoned").clone();
+
+        driven.perform(SessionOp::NewDocument {
+            name: "first-body-fits".to_owned(),
+        });
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.scene.bounds().is_none(),
+            "the fixture's empty document lands a boundless scene"
+        );
+        let derived = driven.app.derived;
+        assert!(
+            derived.fit_camera && derived.fit_delta,
+            "a boundless landing spends neither fit: {derived:?}"
+        );
+        assert_eq!(asked_for(), Vec::new(), "nothing was priced");
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::Save(dir.join("assembly.pncad")));
+        driven.perform(SessionOp::AddInstance { id: part.id() });
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let removed = std::fs::remove_dir_all(&dir);
+        assert!(
+            driven.app.scene.bounds().is_some(),
+            "the instance landed a scene with a body"
+        );
+        let derived = driven.app.derived;
+        assert!(
+            !derived.fit_camera && derived.fit_delta,
+            "the first body spends the camera fit, and with no product the δ fit stays owed: \
+             {derived:?}"
+        );
+        assert_eq!(asked_for(), Vec::new(), "still nothing was priced");
+        let framed = camera_pose(&driven.app);
+        driven.app.pending_fit = true;
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert_eq!(
+            camera_pose(&driven.app),
+            framed,
+            "the camera already stands at the first body's fit"
+        );
+
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = crate::session::DocSession::inline(document, tol);
+        session.pump();
+        driven.app.session = session;
+        driven.quiet();
+        assert!(
+            !driven.app.derived.fit_delta,
+            "the product's landing spent the δ fit"
+        );
+        assert_eq!(
+            asked_for().into_iter().map(Some).collect::<Vec<_>>(),
+            vec![driven.app.session.landed_generation()],
+            "the budget priced that landing, once"
+        );
+        removed.expect("the row removes its workspace");
     }
 
     /// **A camera moved before the index lands is kept**: startup's
@@ -6787,7 +6999,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of Place "),
+            refused_said.contains("edges it draws on Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -7010,14 +7222,15 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the kept label
-    /// while the landed document is behind**: the run that would land
-    /// the rename and the delete is held, so the landed document still
-    /// says the picked copy's placement by its old label and the survival step keeps the
-    /// picks; the commit's refusal says the last label the shown
-    /// document gave it.
+    /// **The mate tool's same-copy refusal says the landed label while
+    /// the landed document is behind**: the run that would land the
+    /// rename and the delete is held, so the landed document still says
+    /// the picked copy's placement by its old label and the survival
+    /// step keeps the picks. The chrome speaks the landed document, so
+    /// the commit's refusal says that label, as the panel line does —
+    /// not the rename the shown document made since.
     #[test]
-    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+    fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
             node: placement(),
@@ -7063,15 +7276,88 @@ mod properties_pane_tests {
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
-        let plinth = format!(
-            "Place \"plinth\" ({})",
+        let base = format!(
+            "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
         // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("both picks are on {plinth},")),
-            "the refusal says the kept label: {said}"
+            said.contains(&format!("both picks are on {base},")),
+            "the refusal says the landed label: {said}"
+        );
+    }
+
+    /// **An edge-on-edge direction mate committed at the panel's own
+    /// default sense does not turn its copy over**: the plate duplicated
+    /// beside itself, one vertical corner edge of each picked, the panel
+    /// switched to `direction` and committed untouched. The default is
+    /// the kind's own (`matetool::sense_offer`), not a plane's rest
+    /// carried across, and the panel says what turning it round does.
+    #[test]
+    fn an_edge_direction_mate_at_the_panels_default_keeps_its_copy_upright() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.perform(SessionOp::Duplicate {
+            input: pncad::document::Operand::Node(extrude()),
+            beside: Some(placement()),
+        });
+        let doc = driven.app.session.committed_doc().clone();
+        let [copy] = crate::world::placements_of(&doc, extrude())
+            .into_iter()
+            .filter(|&at| at != placement())
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("the duplicate is one more copy")
+        };
+        let index = driven.on_screen();
+        let vertical = |node| {
+            index
+                .edges_in(node, 0)
+                .iter()
+                .find(|&&id| {
+                    let points = index.edge_polyline_for(id, &crate::display::DisplayView::none());
+                    let (a, b) = (points[0], points[points.len() - 1]);
+                    points.len() == 2 && (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9
+                })
+                .map(|&id| index.edge_name_of(id).expect("named").clone())
+                .expect("the plate draws a vertical edge")
+        };
+        let name = vertical(copy);
+        let edge = |node| {
+            Selection::Edge(crate::session::EdgeSelection {
+                name: name.clone(),
+                node,
+                body: 0,
+            })
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![edge(copy), edge(placement()), Selection::None]);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        driven.click("direction");
+        let shown: Vec<String> = driven.quiet().into_iter().map(|(text, _)| text).collect();
+        assert!(
+            shown
+                .iter()
+                .any(|t| t == "turned round: the two run opposite ways")
+                && !shown.iter().any(|t| t == "faces rest against each other"),
+            "the direction's sense control says what it does: {shown:?}"
+        );
+        driven.click(&crate::tools::ToolKind::Mate.commit());
+        driven.quiet();
+        let (doc, ev) = driven.app.session.landed_pair().expect("landed");
+        assert!(
+            matches!(doc.node(copy), Some(Node::Place { constraints, .. })
+                if constraints.iter().any(|c| c.mate().is_some())),
+            "the mate commits: {:?}",
+            status(&driven)
+        );
+        let at = pncad::document::SolvedPoses::of(doc, ev)
+            .relative(copy)
+            .expect("the copy is solved");
+        assert!(
+            at.columns[2][2] > 0.999,
+            "the copy stands upright, not turned over: {at:?}"
         );
     }
 
@@ -7452,7 +7738,8 @@ mod properties_pane_tests {
             pane.quiet();
             assert!(*pane.app.session.committed_doc() == before, "Add is held");
 
-            pane.app.drafts.trace_face = Some(wall);
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
             pane.quiet();
             assert!(
                 pane.app

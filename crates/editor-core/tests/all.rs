@@ -105,6 +105,8 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "blend_carries_contacts.rs"]
+mod blend_carries_contacts;
 #[path = "blend_dual_sensitivity.rs"]
 mod blend_dual_sensitivity;
 #[path = "bool12r2_ec_probe.rs"]
@@ -627,6 +629,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_and_shell_carry_contacts.rs"]
+mod split_and_shell_carry_contacts;
 #[path = "split_carries_spaces.rs"]
 mod split_carries_spaces;
 #[path = "split_pinch_keeps.rs"]

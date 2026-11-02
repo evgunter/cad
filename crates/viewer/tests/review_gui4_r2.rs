@@ -207,14 +207,12 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     // post_b in a space of its own, which the probe moves, the frame
     // composed so it moves the post from where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     // p' = R(π/2 about z)·p + (0.12, 0, 0): the authored box
     // x ∈ [0.06, 0.08], y ∈ [0, 0.02] maps to x' ∈ [0.10, 0.12],
     // y' ∈ [0.06, 0.08]; z is unchanged.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: asm::where_b_stood(
             Frame::rotate_then_translate(
                 [0.0, 0.0, 1.0],
@@ -226,9 +224,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
         ),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
 
     let index = asm::index_of(&session);
     let (_, eval) = session.landed_pair().expect("landed");
@@ -377,11 +373,9 @@ fn a_mate_kills_an_in_flight_gesture() {
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: Frame::translation([0.02, 0.0, 0.0]),
     });
     let outcome = session.perform(proposal.op_into_target_space());
@@ -394,7 +388,7 @@ fn a_mate_kills_an_in_flight_gesture() {
     // The in-flight gesture is dead: a further preview has nothing to
     // preview into.
     let outcome = session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     assert!(
@@ -430,19 +424,15 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
 
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: asm::where_b_stood(Frame::translation([0.02, 0.0, 0.0])),
     });
-    session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
-    session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
-        hidden: true,
+    session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
+    session.perform(SessionOp::SetBodyOn {
+        node: bench.post_b,
+        on: false,
     });
     // Hidden AND probed: the pick index offers it nowhere.
     let index = asm::index_of(&session);
@@ -472,7 +462,8 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     };
     session.pump();
     assert_eq!(
-        superseded.instance, bench.post_b,
+        superseded.held,
+        viewer::display::Held::Node(bench.post_b),
         "the mate's edit discards the probe"
     );
     assert!(
@@ -485,7 +476,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
          the right fault with the wrong instance: {}",
         superseded.cause
     );
-    assert!(session.display().is_hidden(bench.post_b), "hide stands");
+    assert!(!session.toggles().body_on(bench.post_b), "hide stands");
     let index = asm::index_of(&session);
     let scene = index
         .scene_for(&session.display_view())

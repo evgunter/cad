@@ -346,3 +346,19 @@ Signed: (CARVE orchestrator)
   - **The review.** A single FULL review at `14e38c01d5` returned APPROVE-WITH-FIXES. Its exact oracle ran 3.56M coordinates, at translations up to 1e15, with 0 misses. `S_uv` had no deterministic row, the public doc was stale, and non-finite `c` read as 0. The fix pass (`6485ced3`) added a fixed exact `S_uv` row (F, G, H and I red), refusal on a non-finite middle and an uncertified weight, one home for the slope and the mixed term, and per-piece `c` on curves. It re-baselined ZEROSIDE's lily cap-corner pin to `(0, 0)` per pair, the same verdict, now at the root. The orchestrator read it and accepted it.
   - **Mutant J** (no outward rounding) is unobservable by any row, and the rounding is sound by reading; this is noted in the PR body.
   - **The price row** now waits on DIRSUPPORT alone.
+- 2026-11-01 — **DIRSUPPORT merges (#6254)** with this commit last. Where the box margin is indeterminate, the distance arm separates two cells along a direction `n`: either each cell's centre normal or the centre-to-centre line, whichever gives the better bound.
+  - **Supports.** A spline cell uses its restricted, dehomogenised control net (`rect_net`, weights `certainly_positive`). A plane uses its own jet. Anything else uses the box.
+  - **The decision.** `L − c` is decided at `clearance_support_gap` (F29), read through `check_unlogged`. Only `Positive` is logged and discharges.
+  - **Measured.** The Klein loop's gap pairs take about 1.1k pairs each, against 12.6k–14.7k for the box. A slab pair costs 96 pairs both upright and turned 45°, where the box needed 4.45× more turned.
+  - **The review.** A single FULL review at `de4410d8a3` returned APPROVE-WITH-FIXES: no false discharge, with 324.8k fuzz points inside the support. The division by `|n|` was unpinned, and the support was only exercised at the root. The fix pass (`0114d45e82`) added a row for a gap over a metre, a row at depth, and the single-threshold read with its row. It also renamed `separated_by_support`, routed the plane through `jet`, and found the Klein pairs by topology. The orchestrator read it and accepted it.
+  - **Receipts after merging JETFRAME.** The lily cap corner is `(0,0)` (JETFRAME's); the Klein cap corner is `(1,1)×4, (3,3)×4` (the support's).
+  - **Filed:** CLEARTAIL's `support-separation-has-two-vocabularies-for-faces-and-cells` (P2) and `clearance-recomputes-a-cells-net-and-jet-per-pair` (P3).
+  - **Base reds seen in editor-core:** `coincidence_door` is GREEN's open row; `seat7_sweep_lowering` is in FIXTURE's `editor-core-raw-twin-planes-unreconciled`. Neither is CLEAR's.
+  - **The price row is unparked** for re-measurement on main with JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT all in.
+- 2026-11-01 — **The price is re-measured (PRICEMEASURE); the price row closes; NETCACHE is next.** On main after JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT, all 14 tour bodies hold within the default pair budget:
+  - the lily leaves and sepals: 311–3,410 splits, 2.7–27 s;
+  - the Klein loop: 48k splits (73% of the budget), 47 s;
+  - the `skinned` lofts: 0.2–5 s;
+  - the `m8_14` helices: 3.7–8.4 s.
+
+  Nothing refuses. **The remaining cost is per pair,** 100–6,000× the build. The callgrind profile puts 57% of the time in `nurbs::read_net`, which restricts the net again for every pair; `Interval::between` alone is 47%. So `clearance-recomputes-a-cells-net-and-jet-per-pair` moves from CLEARTAIL to CLEAR, re-banded P0 because CARVE's P0 spines row now waits on it. The door-policy question for CARVE's door (whether loft and sweep run injectivity on every rebuild, at which scalars) goes to Ev with NETCACHE's numbers, as the designers advised.

@@ -454,7 +454,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         .expect("the third instance's wall is under this ray");
     assert_eq!(
         face.node,
-        common::copy_of(session.committed_doc(), third),
+        common::drawn_node(session.committed_doc(), third),
         "the youngest instance's copy is hit"
     );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
@@ -466,11 +466,11 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     assert!(!session.standing().live(), "its birth was undone");
     assert!(session.standing().unresolved().is_some());
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, delta()))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            delta(),
+            viewer::world::Shown::none()
+        ))),
         "and the index that answered the pick is stale, to be discarded"
     );
 
@@ -602,11 +602,11 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     assert!(session.standing().unresolved().is_some());
     assert!(session.slot_rows().is_empty());
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, ring_delta))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            ring_delta,
+            viewer::world::Shown::none()
+        ))),
         "the pick index is stale after the re-evaluation and is discarded whole"
     );
 

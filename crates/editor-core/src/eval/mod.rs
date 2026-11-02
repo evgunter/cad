@@ -1483,6 +1483,16 @@ pub enum NodeErrorKind {
     Tube(Box<TubeError>),
     /// The split op refused.
     Split(SplitError),
+    /// **Its operand's contact records do not carry onto what it
+    /// built**, through the kernel's carry for its op
+    /// ([`topo::SplitResult::carry_contacts`],
+    /// [`topo::Shelled::carry_contacts`],
+    /// [`sweep::blend::naming::BlendNaming::carry_contacts`]): the
+    /// carry's refusal, unaltered, citing the operand's record.
+    ContactCarry {
+        /// The carry's refusal.
+        refusal: topo::CarryRefusal,
+    },
     /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
     /// a structural precondition on the requested chain, one of the
     /// numbered predicates, a corner or spine class the in-place
@@ -2109,6 +2119,24 @@ impl crate::spoken::Say for NodeErrorKind {
             // would read a hollow refusal as a solid one half the time.
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
+            Self::ContactCarry { refusal } => {
+                use topo::CarryRefusal as R;
+                let what = match refusal {
+                    R::Unmapped { .. } => "lies on geometry it lost without removing it",
+                    R::Pair { .. } => "lands only on cells that are one or adjacent",
+                    R::Parted { .. } => "lands on both sides of the cut away from the cut",
+                    R::Unread { .. } => "could not be read where it divided the touch",
+                    R::Stale { .. } => "no longer touches where it put the touch",
+                    R::MintedMeeting { .. } => "meets where it minted cells it cannot back",
+                };
+                write!(
+                    f,
+                    "a touch its operand records {what}. {}",
+                    crate::sentence::Recourse(
+                        "move the touch, or this operation's geometry off it"
+                    )
+                )
+            }
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
@@ -4061,15 +4089,15 @@ where
     T: EvalScalar,
 {
     let prior = prior.and_then(|p| p.value(id));
-    match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => Ok(NodeStep {
+    let step = match chains.get(&id) {
+        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,
-        }),
+        },
         Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
             members::eval_family(
                 doc,
@@ -4081,11 +4109,34 @@ where
                 cancel,
                 op_env,
                 |env, results, prior, op_env, at| {
-                    eval_node(doc, env, id, results, prior, op_env, at, tol)
+                    let member = eval_node(doc, env, id, results, prior, op_env, at, tol);
+                    #[cfg(debug_assertions)]
+                    own_bodies(id, &member);
+                    member
                 },
-            )
+            )?
         }
-        _ => Ok(eval_node(doc, env, id, results, prior, op_env, &[], tol)),
+        _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+    };
+    #[cfg(debug_assertions)]
+    own_bodies(id, &step);
+    Ok(step)
+}
+
+/// The names' `OWN_BODIES` invariant over a step's value: a body's
+/// tables seat rows at body 0 alone, a family's below its count.
+#[cfg(debug_assertions)]
+fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
+    let Some(value) = step.result.value() else {
+        return;
+    };
+    let count = match &value.payload {
+        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => 1,
+        ValuePayload::Instances(bodies) => bodies.len(),
+        _ => return,
+    };
+    for names in value.outputs.iter() {
+        crate::names::assert_own_bodies(names.table(), count, id);
     }
 }
 

@@ -172,7 +172,8 @@ fn every_surgery_verb_carries_a_corner_kiss() {
 /// **A record whose cells the cut parts is refused**, never dropped: a
 /// pair of a cell below the cut and one above it (bookkeeping, not a
 /// touch) has no side to land on. Red if the carry drops it or files it
-/// on one side.
+/// on one side. Carried across the cut it refuses too: neither face is
+/// on the cut, so it is no touch between the sides.
 #[test]
 fn a_record_the_cut_parts_is_refused() {
     let base = kiss();
@@ -192,6 +193,17 @@ fn a_record_the_cut_parts_is_refused() {
             Some(topo::RegionLane::certified())
         ),
         Err(CarryRefusal::Parted { record: 1 })
+    );
+    assert_eq!(
+        split
+            .carry_contacts_across(
+                &records,
+                geom_core::Band::linear(tol()).unwrap(),
+                Some(topo::RegionLane::certified())
+            )
+            .map(|(_, retired)| retired),
+        Err(CarryRefusal::Parted { record: 1 }),
+        "a parted record whose cells are off the cut refuses across it too"
     );
 }
 

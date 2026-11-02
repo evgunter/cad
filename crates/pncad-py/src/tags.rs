@@ -883,6 +883,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // happened to be written last.
         C::Tube => "tube",
         C::Split => "split",
+        C::ContactCarry => "contact_carry",
         // The two blends share one kernel error type, so the class
         // splits on the VERB the node is: a chamfer's refusal must not
         // reach Python calling itself a fillet's.
@@ -1048,6 +1049,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
         NodeErrorKind::Split(inner) => Some(split_op_error_tag(inner)),
+        NodeErrorKind::ContactCarry { .. } => None,
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
         NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
         NodeErrorKind::Transform(inner) | NodeErrorKind::Mirror(inner) => {
@@ -1493,6 +1495,10 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPierceEscalated => "curved_pierce_escalated",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
+        BooleanErrorKind::VertexPairAtConeApex => "vertex_pair_at_cone_apex",
+        BooleanErrorKind::VertexNearConeAxis => "vertex_near_cone_axis",
+        BooleanErrorKind::ResultPinchedAtConeApex => "result_pinched_at_cone_apex",
+        BooleanErrorKind::ApexSection => "apex_section",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
         BooleanErrorKind::PierceLeverUnread => "pierce_lever_unread",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
@@ -1522,7 +1528,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
-        BooleanErrorKind::NestingUnread => "nesting_unread",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",

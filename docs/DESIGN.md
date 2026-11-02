@@ -1657,7 +1657,9 @@ defect (`ResultInvalid`).
 
 **An assertion checks and never places.** `Assert { measure,
 relation, bound }` (`≤`, `≥`, `=`, the bound a variable) states a
-relation the author claims and the kernel checks.
+relation the author claims and the kernel checks. Its subject may be `clearance(a, b)` between two
+selections, decided by ERROR-DESIGN E7's sweep at the bound without
+computing the minimum.
 
 **The at-rest census.** The census is each `⊔`'s door: at rest it
 examines the meetings between that operator's operands pairwise, and
@@ -2163,7 +2165,13 @@ these. All are shipped in `editor-core` except where noted:
 - **Cancelation** (`CancelToken`, yielding between nodes/levels and
   before each member of a family; a canceled run returns the completed
   prefix as a typed outcome, a family canceled part-way holding no
-  result). Remaining: progress reporting (nothing exists) and in-op
+  result). A run stops by cancelation or by exhausting its member
+  budget (one recorded default in the evaluation options, which a
+  caller may raise or lower), and either returns the completed prefix
+  as a typed outcome. The budget counts the index values bound while
+  families are listed, across the whole evaluation, charged at
+  admission in the schedule's order before anything is built; no
+  document caps a family. Remaining: progress reporting (nothing exists) and in-op
   yield points — a long single boolean or fillet, a union folding a
   family's members among them, is still uninterruptible.
 - **Selection stability across edits** — the user face of [identity]'s
