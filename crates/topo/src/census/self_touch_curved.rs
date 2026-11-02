@@ -96,7 +96,7 @@ fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey
                     matches!(
                         body.curves.get(edge.curve).and_then(crate::null::CurveGeom::certified)
                             .map(|c| c.carrier().clone()),
-                        Some(geom::Curve3::Circle { center, .. }) if (center.z - c.z).abs() < 1e-12
+                        Some(geom::Curve3::Circle(arc)) if (arc.frame.center.z - c.z).abs() < 1e-12
                     )
                 })
                 .map(|(k, _)| k)
@@ -261,12 +261,7 @@ fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
 #[test]
 fn an_edge_leaves_its_vertex_along_its_tangent_there() {
     let center = Point3::new(0.3, -0.2, 0.1);
-    let circle = geom::Curve3::Circle {
-        center,
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = geom::Curve3::circle(center, Vec3::unit_z(), 1.0, Vec3::unit_x());
     let (body, _) = crate::test_support_fixtures::arc_cap(
         circle,
         (0.3, 1.9),
@@ -311,12 +306,7 @@ fn a_cusp_corner_is_left_to_second_order() {
     use crate::test_support_fixtures::line;
     let tol = Tol::witness();
     let o = Point3::origin();
-    let circle = geom::Curve3::Circle {
-        center: o,
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = geom::Curve3::circle(o, Vec3::unit_z(), 1.0, Vec3::unit_x());
     let (a, b, c) = (
         Point3::new(1.0, 0.0, 0.0),
         Point3::new(0.0, 1.0, 0.0),
