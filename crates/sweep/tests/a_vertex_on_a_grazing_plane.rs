@@ -672,7 +672,7 @@ fn an_unadmitted_section_reading_offers_no_lever_at_either_door() {
     let along = Vec3::new(-phi.sin(), phi.cos(), 0.0);
     for side in [1.0, -1.0] {
         let d = side * k.sqrt() * e * psi.sin();
-        let label = format!("ψ {psi:e} L {reach} δ {:+.3}ε", d / e);
+        let label = format!("ψ {psi:e} L {reach} δ {d:+e}");
         let plane = topo::test_support::split_plane(v + along * reach + n * d, n, tol());
         let (r, unadmitted) = reading_unadmitted(|| split(&cyl, &plane, tol()));
         assert!(
