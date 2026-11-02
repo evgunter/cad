@@ -2,8 +2,9 @@
 id: the-gui-cannot-author-a-profile-of-several-loops
 kind: issue
 title: The GUI offers no way to author a profile of several loops; the bore preset is the only one
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
 priority: P0
 cost: M
 ---
@@ -51,3 +52,34 @@ already exist, and loops are one program entry each. Neighbours:
 `a-profile-cannot-refer-to-its-own-earlier-parts` (a hole centred on
 its boss), and `the-profile-editor-grew-past-a-small-window` (more loops
 make a taller pane).
+
+## 2026-11-02 — closed: both doors add and remove loops
+
+Reproduced on main first: neither door had an add-loop control.
+
+- **The create form** (`ViewerBehavior::added_loops_ui`,
+  `crates/viewer/src/pane/create.rs`) draws, under the first loop's
+  fields, one header per added loop (`loop 1`, `loop 2`, … with its own
+  circle / rectangle / path choice and `Remove loop`) and that shape's
+  fields, then the add-loop row: `Add circle loop`, `Add rectangle
+  loop`, `Add path loop`. Added loops are `Drafts::profile_more`;
+  `Drafts::profile_loops` appends them, so the preview, the commit and
+  a sketch on a face all take every loop. A new loop starts as
+  `drafts::fresh_loop`: its template at half the form's defaults,
+  centred on the origin.
+- **The edit door** (`edit_door_ui`, `crates/viewer/src/pane/profile.rs`)
+  puts `Remove loop` on each loop header when there is more than one,
+  and the same add-loop row (`add_loop_row`) under the loops; a template
+  added there is held as its path steps (`sketch::shape_steps`).
+  `ProfileEdit::add_loop` / `remove_loop` keep `loaded_as` the shape of
+  the loops, so the kept loops keep their step ids, their expressions
+  ride `carry_unmoved` as before, and a name on a removed loop's step
+  is counted on Apply and reported in the outcome, as a removed step's
+  is.
+- The circle's "with bore" checkbox stays, and is now redundant: a bore
+  is a second circle loop. Removing it is
+  `the-rectangle-and-circle-templates-reopen-as-paths`.
+
+Filed: `a-traced-chain-is-the-profiles-only-loop` (the traced door
+withholds its commit while loops are added) and
+`a-template-rectangle-has-no-centre`.

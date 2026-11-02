@@ -18,11 +18,15 @@ use crate::forms::{
 };
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateTool};
-use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
+use crate::pane::profile::{
+    REMOVE_LOOP, add_loop_row, notation_row, path_steps_ui, preview_verdict,
+};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
+use crate::session::{
+    Creation, NodeKindWanted, ProfileShape, Selection, SessionOp, Staged, admits,
+};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -734,8 +738,10 @@ impl ViewerBehavior<'_> {
     /// the form is one control, and it closes with its commit
     /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
     ///
-    /// The circle's optional bore is what lets this template author
-    /// the hollow ring's annulus (one profile node, two loops).
+    /// The first loop is the chosen shape; loops added under it
+    /// ([`Self::added_loops_ui`]) are each their own shape, and
+    /// containment decides which are holes. The circle's optional bore
+    /// is a second circle loop spelled on the first's fields.
     ///
     /// The bore field is guarded IN THE FORM: loop roles come from
     /// the profile layer's containment forest, not from list order,
@@ -859,6 +865,9 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+        if shape.is_some() {
+            withholds.extend(self.added_loops_ui(ui));
+        }
         let blocked = withheld_for(withholds);
         if let Some(withheld) = blocked {
             withheld_line(ui, &self.theme, withheld);
@@ -915,6 +924,88 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// **The loops the form authors after its first**
+    /// ([`crate::drafts::Drafts::profile_more`]): per loop, a header
+    /// with its shape choice and its [`REMOVE_LOOP`], then its shape's
+    /// fields; and under them the editor's add-loop row. A shape chosen
+    /// on an added loop starts it again as that shape's template
+    /// ([`crate::drafts::fresh_loop`]). Answers what the commit waits
+    /// for: a traced chain is the profile's one loop.
+    fn added_loops_ui(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
+        let unit = self.notation.length.def();
+        let tol = self.session.tol();
+        let mut written = crate::widgets::WrittenIn::of(*self.notation);
+        let mut removed = None;
+        let mut reshaped = None;
+        for (index, shape) in self.drafts.profile_more.iter_mut().enumerate() {
+            // The first loop is loop 0, as the edit door counts.
+            let number = index + 1;
+            let kind = match shape {
+                ProfileShape::Circle { .. } => ShapeKind::Circle,
+                ProfileShape::Rectangle { .. } => ShapeKind::Rectangle,
+                ProfileShape::Path { .. } => ShapeKind::Path,
+            };
+            ui.horizontal(|ui| {
+                ui.label(format!("loop {number}"));
+                for (option, label) in ShapeKind::ALL {
+                    if ui.radio(kind == option, label).clicked() && kind != option {
+                        reshaped = Some((index, option));
+                    }
+                }
+                if ui.button(REMOVE_LOOP).clicked() {
+                    removed = Some(index);
+                }
+            });
+            match shape {
+                ProfileShape::Circle { centre, radius } => {
+                    ui.horizontal(|ui| {
+                        ui.label("centre");
+                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
+                        unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
+                        ui.label("radius");
+                        unit_field(ui, unit, FIELD_DRAG_SPEED, radius);
+                    });
+                }
+                ProfileShape::Rectangle { width, height } => {
+                    ui.horizontal(|ui| {
+                        ui.label("width");
+                        unit_field(ui, unit, FIELD_DRAG_SPEED, width);
+                        ui.label("height");
+                        unit_field(ui, unit, FIELD_DRAG_SPEED, height);
+                    });
+                }
+                ProfileShape::Path { steps } => {
+                    let salt = format!("path_loop_{number}");
+                    if let Some(row) = path_steps_ui(ui, &salt, tol, &mut written, steps) {
+                        row.apply(steps);
+                    }
+                }
+            }
+        }
+        if let Some(index) = removed {
+            self.drafts.profile_more.remove(index);
+        }
+        if let Some((index, kind)) = reshaped {
+            self.drafts.profile_more[index] = crate::drafts::fresh_loop(kind);
+        }
+        if self.drafts.traces() {
+            return if self.drafts.profile_more.is_empty() {
+                Vec::new()
+            } else {
+                vec![Withheld::Refused(
+                    "a chain traced along a face is the profile's one loop — remove the added \
+                     loops, or untick the trace",
+                )]
+            };
+        }
+        if let Some(kind) = add_loop_row(ui) {
+            self.drafts
+                .profile_more
+                .push(crate::drafts::fresh_loop(kind));
+        }
+        Vec::new()
     }
 
     /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the

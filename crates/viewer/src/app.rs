@@ -5439,6 +5439,102 @@ mod properties_pane_tests {
         );
     }
 
+    /// **A plate with two holes is authored in the add-profile form**:
+    /// through the real app, the form's door opened, `rectangle` chosen
+    /// and `Add circle loop` clicked twice, with the plate's extent and
+    /// the holes' centres written into their fields, `Add profile`
+    /// lands ONE profile of three loops. Extruded through the session
+    /// door, it is a body of genus two — two through-holes — whose
+    /// volume is the plate's less the two bores'.
+    #[test]
+    fn the_add_profile_form_authors_a_plate_with_two_holes() {
+        use crate::forms::ShapeKind;
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::session::{DocSession, ProfileShape};
+        use pncad::document::ValuePayload;
+
+        let mut driven = Driven::with(Vec::new());
+        let before = driven.app.session.committed_doc().ids();
+        driven.click(ADD_FEATURE);
+        driven.click(ADD_PROFILE_DOOR);
+        driven.click("rectangle");
+        let (width, height, radius, depth) = (0.02, 0.01, 0.002, 0.003);
+        driven.app.drafts.profile_extent = [width, height];
+        let added = crate::pane::profile::add_loop_label(ShapeKind::Circle);
+        driven.click(&added);
+        driven.click(&added);
+        assert_eq!(
+            driven.app.drafts.profile_more.len(),
+            2,
+            "each click added a loop"
+        );
+        for (hole, x) in driven
+            .app
+            .drafts
+            .profile_more
+            .iter_mut()
+            .zip([-0.005, 0.005])
+        {
+            let ProfileShape::Circle { centre, radius: r } = hole else {
+                panic!("{added} added a circle: {hole:?}")
+            };
+            *centre = [x, 0.0];
+            *r = radius;
+        }
+        driven.click(ADD_PROFILE);
+        let doc = driven.app.session.committed_doc().clone();
+        let new: Vec<RecipeNodeId> = doc
+            .ids()
+            .into_iter()
+            .filter(|id| !before.contains(id))
+            .collect();
+        let [profile] = new[..] else {
+            panic!("the commit added one node: {new:?}")
+        };
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("the commit added a profile")
+        };
+        assert_eq!(program.loops.len(), 3, "one profile of three loops");
+
+        let tol = pncad::tolerance::witness();
+        let mut session = DocSession::inline(doc, tol);
+        let out = session.perform(SessionOp::AddExtrude {
+            profile,
+            distance: crate::test_support::len(depth),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let extrude = session
+            .committed_doc()
+            .ids()
+            .into_iter()
+            .find(|id| {
+                matches!(
+                    session.committed_doc().node(*id),
+                    Some(Node::Extrude { .. })
+                ) && !before.contains(id)
+            })
+            .expect("the extrude landed");
+        session.pump();
+        let eval = session.evaluation().expect("the inline seam landed");
+        let value = eval
+            .value(extrude)
+            .unwrap_or_else(|| panic!("the extrude evaluated: {:?}", eval.node_error(extrude)));
+        let ValuePayload::Body(body) = &value.payload else {
+            panic!("an extrude is a body: {:?}", value.payload)
+        };
+        assert_eq!(
+            topo::readback::euler_counts(body.body()).genus(),
+            Ok(2),
+            "two through-holes"
+        );
+        let volume = crate::test_support::evaluated_volume(eval, extrude, tol);
+        let want = (width * height - 2.0 * std::f64::consts::PI * radius * radius) * depth;
+        assert!(
+            ((volume - want) / want).abs() < 1e-9,
+            "the plate less its two bores: {volume} against {want}"
+        );
+    }
+
     /// **Every tool the chrome has opens from it**: for each kind, with
     /// the Properties section that hosts the kind's activation button
     /// clicked open, the app paints that button once, in

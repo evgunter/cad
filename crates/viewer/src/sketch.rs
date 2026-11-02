@@ -379,6 +379,31 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
         .collect()
 }
 
+/// **A shape as the path steps it is a shortcut for** — what the edit
+/// door, which holds every loop as a path, adds when a template loop
+/// is added to it: a circle is its one `circle` step, and a rectangle
+/// is `at` its lower-left corner and four `line_to`s round it, counter-
+/// clockwise, the last back to the start.
+pub fn shape_steps(shape: &ProfileShape) -> Vec<Step<f64>> {
+    match shape {
+        ProfileShape::Circle { centre, radius } => vec![Step::Circle {
+            centre: Point2::from_array(*centre),
+            radius: *radius,
+        }],
+        ProfileShape::Rectangle { width, height } => {
+            let (hw, hh) = (width / 2.0, height / 2.0);
+            vec![
+                Step::At(Point2::new(-hw, -hh)),
+                Step::LineTo(Target::Point(Point2::new(hw, -hh))),
+                Step::LineTo(Target::Point(Point2::new(hw, hh))),
+                Step::LineTo(Target::Point(Point2::new(-hw, hh))),
+                Step::LineTo(Target::Start),
+            ]
+        }
+        ProfileShape::Path { steps } => steps.clone(),
+    }
+}
+
 // ------------------------------------------------------------------
 // The edit door: a committed program into the editor, and back
 // ------------------------------------------------------------------
