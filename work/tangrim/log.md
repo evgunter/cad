@@ -57,3 +57,10 @@
   - `a-leaves-verdict-carries-no-witness-point` on `tangrim/leaves-witness`, as its own cloud session. Review tier: single FULL. It is a certificate on a topology-deciding verdict whose correctness takes more than reading to believe. Its done-condition is the deletion of `Unresolved::{Gap, Uncertified}` where a witness decides.
   - `a-union-across-a-tangent-crescent-refuses-unbuilt` on `tangrim/tangent-crescent`, locally. It is told to measure first: re-read the crescent's bounds on the new reading with `crescent_refusal` bypassed, and report before building steps 3–4 if a bound lands `Unresolved` (then it waits on the witness) or if the join's next refusal needs a design call. Review tier: set at hand-back.
   - The two lanes are coupled through `bound_side`'s fallback arm; each was told of the other. (TANGRIM orchestrator)
+- 2026-11-02 — The crescent lane opened PR 6375, green.
+  - **Phase 1:** every crescent bound now decides: a rim riding the coplanar face `Rides`, and a rim against the curved partner wall `Leaves(Below)`. None read `Unresolved`, so the witness does not stand in front of the crescent.
+  - **Step 1:** recording each crescent half as a coplanar `(On,On)` record let the four crossing records survive, and the existing join built steps 3–4 with no further change. All 48 union cells are SOUND (one shell through, two pocketed); ∩ is empty and the differences are SOUND.
+  - `crescent_refusal` and `TangentCrescentUnsupported` are gone. The outcome diff shows only refused→built moves at default ε and 1e-6.
+  - Aligned faces stay unread (the opposed gate is kept), because reading them moves one union from built to refused. Filed as P2.
+  - Review tier: single FULL review. The crescent verdict now mints records that decide topology, but the change is local to one record source.
+  - The witness lane was told that `crescent` now decides topology. (TANGRIM orchestrator)

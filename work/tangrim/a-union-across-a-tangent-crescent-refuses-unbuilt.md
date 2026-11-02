@@ -2,11 +2,12 @@
 id: a-union-across-a-tangent-crescent-refuses-unbuilt
 kind: issue
 title: A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle
-status: dispatched
+status: review
 opened: 2026-10-25
 priority: P1
 cost: H
 branch: tangrim/tangent-crescent
+pr: 6375
 ---
 
 
