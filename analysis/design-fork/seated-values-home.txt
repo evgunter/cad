@@ -1,0 +1,3 @@
+fork: seated-values-home (work/forms/a-seated-tools-values-have-no-home-after-insert)
+byte1 (arm): 24 -> three designers
+byte2 (labels): 227 mod 3 = 2 -> Fable is C; A = Opus, B = Opus
