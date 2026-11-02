@@ -239,3 +239,14 @@ and bodies unchanged. No orchestrator yet.
     - The seams row moves at the lever change (fork 224).
   - **Also:** a ruling-sweep cut fix.
   - **Review:** dual review dispatched to two cloud sessions (R1 `session_01VyvYnLxpmpgJaDabW3UtZe`, R2 `session_01VyvYnKGe2QchhxrQ33ztCU`), with cost asked as claim 7.
+
+- 2026-11-02 16:45 — **PR 6373 dual review in**: R1 and R2 both APPROVE-WITH-FIXES, no MAJOR. Fix pass sent to the cylinder lane.
+  - **A second axes reading survives in the node path** (R2): `bool_node_tangent_toward_axis` and `node.rs`'s hand-rebuilt bisector normals and midpoint. Fix from the value, not file.
+  - **Stale lever prose and the dead frame span:** user-facing `CylinderAxes` text, the `join.rs` header, `frame_reading`, and `FrameExtent::Span`. Delete now.
+  - **A geom-brep row for the ruling cut fix:** only a sweep row kills its mutant.
+  - **§5 misses:** open `work/` rows that cite retired sites, and `carrier_eq`'s coaxiality ladder.
+  - **Fail loud:** `face_surface(..).is_ok_and` in `cylinder_read`, and the node pass's silent skip of a missing table entry.
+  - **Cost (both lanes):** about 6–7 s per op in release, just to refuse. The P2 is raised to P1, named "decide before marching that no volume lane can take it". It is built here only as a gate on an existing capability predicate. Not blocking.
+  - **Fix-or-file:** one ladder for cut shifts, a `bisector_loops` invariant assert, operand order at `mint_nodes`, the `rulings_normal` codomain check, docs, and the `cone_frame_rows` lever.
+  
+  Both sessions archived. Blind coding is running on the stripped reports (byte 51, A = R2).
