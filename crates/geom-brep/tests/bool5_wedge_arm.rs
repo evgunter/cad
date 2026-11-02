@@ -337,12 +337,12 @@ fn leaned_meridian(theta: f64, lean: f64, a: u32, b: u32) -> LoopEdge<f64> {
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let (s, c) = lean.sin_cos();
     topo::edge(
-        geom::Curve3::Circle {
-            center: geom_core::Point3::origin(),
-            axis: n * c + axis * s,
-            radius: RS,
-            u_ref: axis * -c + n * s,
-        },
+        geom::Curve3::circle(
+            geom_core::Point3::origin(),
+            n * c + axis * s,
+            RS,
+            axis * -c + n * s,
+        ),
         0.0,
         PI,
         a,

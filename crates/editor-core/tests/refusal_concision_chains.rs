@@ -868,7 +868,7 @@ mod kernel {
         /// `BlendError`'s arms, for the `Blend/` rows.
         pub(super) const BLEND_ERROR: BlendError = [
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
-            FaceClearance, TangentialEdge, SpineIrregular, ChainNotG1,
+            FaceClearance, KnifeEdge, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
             ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
@@ -3625,8 +3625,8 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "TangentialEdge",
-            E::TangentialEdge {
+            "KnifeEdge",
+            E::KnifeEdge {
                 edge,
                 margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
             },
@@ -3897,6 +3897,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Blend {
                 verb: BlendKind::Fillet,
                 error: e,
+                edge: None,
             },
         )
     })
@@ -4725,6 +4726,22 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::UnsupportedUnionName {
                 name: Box::new(stable(EntityKind::Vertex, 3)),
                 shape: editor_core::UnionNameShape::SeveralParents,
+            },
+        ),
+        (
+            "UnsupportedUnjudgedGlue",
+            NamingError::UnsupportedUnjudgedGlue {
+                face: topo::FaceKey::default(),
+                faces: vec![
+                    (
+                        editor_core::VarId::new(0, tagged(41)),
+                        stable(EntityKind::Face, 3),
+                    ),
+                    (
+                        editor_core::VarId::new(0, tagged(43)),
+                        stable(EntityKind::Face, 4),
+                    ),
+                ],
             },
         ),
         (
@@ -6372,6 +6389,7 @@ fn every_blend_detail_renders_within_the_budget() {
                 as_the_viewer_shows_it(NodeErrorKind::Blend {
                     verb,
                     error: error(),
+                    edge: None,
                 }),
             ));
         }

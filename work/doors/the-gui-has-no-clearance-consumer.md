@@ -2,11 +2,12 @@
 id: the-gui-has-no-clearance-consumer
 kind: issue
 title: the GUI has no clearance consumer: no verdict, no witness, no refusal
-status: dispatched
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
 branch: doors/clearance-consumer
+closed: 2026-11-02
 ---
 
 ## What the GUI is missing
@@ -104,3 +105,25 @@ CLEARTAIL's
 `clearance-violated-verdict-names-its-pair-by-bare-keys` and
 `violated-witness-can-sit-off-the-trimmed-face` become the GUI's
 witness rows.
+
+## Closed
+
+PR 6357. A landing that holds a clearance requirement submits an
+at-rest certify job (`CertifyService`, keyed by generation, cancelled
+by the next request, settled into `LandedRun.clearances`); the row
+reads as the kernel's equation, then `certifying…`, the verdict with
+its pair's distance, a refusal with its recourse, or "not certified"
+when certifying stopped. The witness pair is drawn as a leg with both
+faces lit while the row is selected or hovered, on the member each side
+resolved to, and only for the shown landing (`name_run`). The create
+pane's "Requirements" section writes `≥`, `≤`, `=` and a band; seats
+are read where drawn. A clearance over a pattern's members refuses
+(`OverMembers`). Residue, each its own file:
+`a-clearance-over-a-patterns-members-is-not-certified`,
+`assertion-rows-spell-at-least-two-ways`,
+`the-certify-seam-is-a-third-copy-of-the-door-seam`,
+`the-clearance-tool-copies-the-seat-machinery`,
+`a-clearance-seat-on-an-undrawn-body-certifies-and-draws-a-leg-to-nothing`,
+`the-clearance-tools-seats-are-narrower-than-the-other-tools`; CLEARTAIL
+`a-clearance-sweep-is-not-cancellable-inside-its-node`,
+`clearance-bound-refusals-say-their-bound-in-raw-metres`.

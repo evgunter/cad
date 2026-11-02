@@ -281,7 +281,7 @@ fn is_strut(c: &Curve3<f64>) -> bool {
 /// The bored ring's smooth latitude join: the one circle at the bore
 /// radius. Every other latitude circle of the fixture is wider.
 fn is_bore_circle(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool {
-    move |c| matches!(c, Curve3::Circle { radius, .. } if (radius - r_bore).abs() < r_bore * 1e-9)
+    move |c| matches!(c, Curve3::Circle(geom::Circle { radius, .. }) if (radius - r_bore).abs() < r_bore * 1e-9)
 }
 
 /// The typed escalation an in-band row must carry: the predicate name
@@ -595,12 +595,12 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
         radius: MERIDIAN_R,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let arc = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: MERIDIAN_R,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let arc = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        MERIDIAN_R,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     assert!(
         geom_brep::tangent_certificate_lane(&arc, &cap, &band_wall)
             && geom_brep::tangent_certificate_lane(&arc, &band_wall, &cap),

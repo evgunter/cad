@@ -780,6 +780,30 @@ fn run(r: &PieceRun, feature: RecipeNodeId, by: Speaker<'_>) -> String {
     pieces(r.pieces().iter().map(|e| piece(e, feature, by)))
 }
 
+/// **The sections a loft wall or seam spans, said** before its pieces:
+/// nothing for one that spans the whole loft ([`Speaker::spans_loft`]),
+/// `between sections <a> and <b> ` for a slab's two, each by its
+/// numeral, and `through sections ...` for a wall the document at hand
+/// no longer holds whole.
+fn between(
+    sections: impl Iterator<Item = crate::node::SectionId>,
+    feature: RecipeNodeId,
+    by: Speaker<'_>,
+) -> String {
+    let sections: Vec<_> = sections.collect();
+    if by.spans_loft(feature, &sections) {
+        return String::new();
+    }
+    let said: Vec<String> = sections
+        .iter()
+        .map(|&s| by.section_numeral(feature, s))
+        .collect();
+    match said.as_slice() {
+        [a, b] => format!("between sections {a} and {b} "),
+        _ => format!("through sections {} ", said.join(", ")),
+    }
+}
+
 fn pieces(said: impl Iterator<Item = String>) -> String {
     said.collect::<Vec<_>>().join(", then ")
 }
@@ -890,36 +914,24 @@ fn role<'n, 's>(
             cap(*c),
             vertex(v, f, by)
         )),
-        RoleSeg::LoftWall(edges) => one(format!(
-            "the loft wall over {}",
-            pieces(edges.iter().map(|e| piece(e, f, by)))
+        RoleSeg::LoftWall(at) => one(format!(
+            "the loft wall {}over {}",
+            between(at.iter().map(|&(s, _)| s), f, by),
+            pieces(at.iter().map(|(_, e)| piece(e, f, by)))
         )),
-        RoleSeg::LoftSeam(vertices) => one(format!(
-            "the loft seam over {}",
-            pieces(vertices.iter().map(|v| vertex(v, f, by)))
+        RoleSeg::LoftSeam(at) => one(format!(
+            "the loft seam {}over {}",
+            between(at.iter().map(|&(s, _)| s), f, by),
+            pieces(at.iter().map(|(_, v)| vertex(v, f, by)))
         )),
-        // Slabs and sections are counted from 1 in words: slab `s`
-        // spans the author's sections `s + 1` and `s + 2`.
-        RoleSeg::LoftSlabWall(slab, edges) => one(format!(
-            "the loft wall between sections {} and {} over {}",
-            slab + 1,
-            slab + 2,
-            pieces(edges.iter().map(|e| piece(e, f, by)))
-        )),
-        RoleSeg::LoftSlabSeam(slab, vertices) => one(format!(
-            "the loft seam between sections {} and {} over {}",
-            slab + 1,
-            slab + 2,
-            pieces(vertices.iter().map(|v| vertex(v, f, by)))
-        )),
-        RoleSeg::LoftSectionEdge(section, e) => one(format!(
+        RoleSeg::LoftSectionEdge(s, e) => one(format!(
             "the loft section {} edge over {}",
-            section + 1,
+            by.section_numeral(f, *s),
             piece(e, f, by)
         )),
-        RoleSeg::LoftSectionVertex(section, v) => one(format!(
+        RoleSeg::LoftSectionVertex(s, v) => one(format!(
             "the loft section {} vertex over {}",
-            section + 1,
+            by.section_numeral(f, *s),
             vertex(v, f, by)
         )),
         RoleSeg::Band(r) => one(format!("the band face over {}", run(r, f, by))),

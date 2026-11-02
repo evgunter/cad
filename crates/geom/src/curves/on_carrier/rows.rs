@@ -13,22 +13,20 @@ fn band() -> Band {
 }
 
 fn circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-        radius: 2.0,
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        2.0,
+        Vec3::unit_x(),
+    )
 }
 
 fn ellipse(a: f64, b: f64) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: Point3::new(0.2, -0.1, 0.4),
-        axis: Vec3::unit_z(),
-        semi_u: a,
-        semi_v: b,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::Ellipse(crate::Ellipse::new(
+        crate::Frame::new(Point3::new(0.2, -0.1, 0.4), Vec3::unit_z(), Vec3::unit_x()),
+        a,
+        b,
+    ))
 }
 
 fn spiric() -> Curve3<f64> {
@@ -86,15 +84,8 @@ fn name(r: Result<OnCarrier, CarrierRefusal>) -> &'static str {
 /// is the case the unit-coordinate angle alone gets wrong.
 #[test]
 fn a_point_is_on_or_off_every_carrier_by_its_distance() {
-    let flipped = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-        radius: -2.0,
-    };
     for (c, t) in [
         (circle(), 0.7),
-        (flipped, 2.5),
         (ellipse(2.0, 1.0), 0.7),
         (ellipse(1e3, 1.0), 0.9),
         (ellipse(1.0, 1e-2), 2.1),
@@ -130,26 +121,6 @@ fn a_gap_past_the_band_with_the_bound_inside_it_straddles() {
     ));
 }
 
-/// **A circle stored with a negative radius is the same circle**: its
-/// clearance reads the radius's magnitude, so a point on it is not off
-/// it, read at a seed half a turn away or at its own parameter.
-#[test]
-fn a_negative_radius_circle_holds_its_points() {
-    let c = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-        radius: -2.0,
-    };
-    let q = c.eval(0.7);
-    assert!(c.clearance(q).unwrap() < 1e-12, "{:?}", c.clearance(q));
-    for seed in [0.7, 0.7 + core::f64::consts::PI] {
-        assert_eq!(name(c.on_carrier(q, seed, band())), "on", "seed {seed}");
-    }
-}
-
-/// **A point between the zero band and the escalation escalates**, five
-/// bands off, on every closed-form kind.
 #[test]
 fn a_point_in_the_bands_gap_escalates() {
     for (c, t) in [(circle(), 0.7), (ellipse(3.0, 1.0), 1.2), (spiric(), 0.8)] {

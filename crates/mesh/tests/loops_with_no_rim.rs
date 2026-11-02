@@ -75,22 +75,22 @@ fn unit_sphere() -> Surface<f64> {
 /// The great circle in the xz plane from the north pole:
 /// `eval(t) = (sin t, 0, cos t)`.
 fn meridian_from_the_pole() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 1.0,
-        u_ref: z_axis(),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        1.0,
+        z_axis(),
+    )
 }
 
 /// The same great circle by latitude: `eval(t) = (cos t, 0, sin t)`.
 fn meridian_by_latitude() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: 1.0,
-        u_ref: x_axis(),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        x_axis(),
+    )
 }
 
 /// **The one-face, one-seam sphere** (V2 / E1 / F1).
@@ -167,12 +167,12 @@ fn torus_on_one_meridian_circle() -> Body<f64> {
         minor_radius: 0.5,
         u_ref: x_axis(),
     };
-    let minor = Curve3::Circle {
-        center: Point3::new(2.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: 0.5,
-        u_ref: x_axis(),
-    };
+    let minor = Curve3::circle(
+        Point3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        0.5,
+        x_axis(),
+    );
     one_circle_cut(&minor, torus, None)
 }
 

@@ -306,9 +306,7 @@ fn aim_at<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surface = body
-        .get_surface(f.surface)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surface = body.face_surface_linked(face, f);
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
             match region.aim() {
@@ -368,7 +366,7 @@ fn aim_at<T: Decide>(
 /// ([`ray_crossings`]). `None` for a face with another edge, or one whose
 /// outer loop has none.
 fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
-    let edges = crate::boolean::solid_contain::face_edges(body, face).ok()?;
+    let edges = body.proven_face_edges(face);
     let outer = body.get_face(face)?.outer;
     let first = *edges.first()?;
     if body.get_half_edge(first.half)?.parent_loop != outer {
@@ -387,7 +385,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
     let half = T::from_f64(0.5);
     let mut step = match *curve(first.edge)?.carrier() {
         geom::Curve3::Line(_) => None,
-        geom::Curve3::Circle { radius, .. } => Some(radius.abs() * half),
+        geom::Curve3::Circle(geom::Circle { radius, .. }) => Some(radius * half),
         _ => return None,
     };
     for e in &edges {
@@ -412,7 +410,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 ///
 /// # Errors
 ///
-/// A face or surface that does not resolve.
+/// A face that does not resolve.
 fn beyond<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -421,8 +419,7 @@ fn beyond<T: Decide>(
     let mut reach = selection_reach(body, faces, aim)?;
     for &face in faces {
         let surface = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
+            .face_surface(face)
             .ok_or(PointInSolidError::CorruptFace { face })?;
         let whole = match *surface {
             geom::Surface::Sphere { center, radius, .. } => (aim - center).norm() + radius.abs(),
@@ -453,7 +450,7 @@ pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -
     if a == b {
         return true;
     }
-    // Not `face_edges`, which collects and resolves every mate: this reads
+    // Not `Body::proven_face_edges`, which collects and resolves every mate: this reads
     // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
         body.get_face(face)
@@ -620,7 +617,7 @@ fn cast_aims<T: Decide>(
     // `face_geo`, whatever it aims at: no aim can read, so none is cast,
     // and the volume reads with that face as the limit.
     for &face in faces {
-        if let Some(e) = uncrossable(body, face)? {
+        if let Some(e) = uncrossable(body, face) {
             return Ok(Rays::Unread {
                 aimed: 0,
                 set_aside: vec![SetAside {
@@ -862,14 +859,12 @@ pub struct EdgeFrame {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
-        body.get_face(f)
-            .and_then(|fc| body.get_surface(fc.surface))
+        body.face_surface(f)
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();
     for (face, _) in body.faces() {
-        // A face whose loops do not walk has no edge to frame.
-        for fe in crate::boolean::solid_contain::face_edges(body, face).unwrap_or_default() {
+        for fe in body.proven_face_edges(face) {
             let Some(edge) = body.edges.get(fe.edge) else {
                 continue;
             };

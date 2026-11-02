@@ -2,7 +2,7 @@
 id: doors
 kind: program
 title: DOORS — the viewer's authoring doors: the halves of AUTHOR's ruled node shapes, and what a takeover keeps of what reads the body it takes over
-status: active
+status: ready
 opened: 2026-10-02
 group: gui/author
 prefix: doors/

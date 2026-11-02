@@ -2,11 +2,13 @@
 id: the-split-reads-a-slit-twice-by-geometry-and-by-topology
 kind: issue
 title: The split reads a slit two ways: spur_tips by geometry, section_kind by topology
-status: dispatched
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
 branch: onehome/small-bundle
+closed: 2026-11-02
+pr: 6365
 ---
 
 
@@ -52,3 +54,13 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: one slit read by geometry and by topology: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (ONEHOME, 2026-11-02, PR 6365)
+
+One slit reader, `join::Tree`, built on the existing homes:
+- a loop's tree is what `surface_boundary::chart_image` drops;
+- struts are killed through `Body::toward_free_end`;
+- the slit is keyed by `census::segment_key`, shared with `shared_segments`;
+- `Body::loop_halves` is the loop walk.
+
+`section_kind`, `strip_spurs` and `drop_slits` read it, which retires `Spur`, `Run`, `spur_tips`, `strut_turn`, `kill_struts`, `turns_back`, `join::loop_cycle_of` and the `split_section_spur` predicate. Closed edges are excluded from the tree, as on main. The coincident-edges caveat was checked against the suites: the old and new readers ran side by side and matched on 652 readings. Bug states panic. Deep and branching trees are pinned. FULL review FIX-THEN-MERGE: the first version was a fourth strut reader. Delta FIX-THEN-MERGE: the round keel; closed edges. Filed: `a-closed-keel-in-the-section-plane-divides-the-section-into-two-regions` (one annulus is right, per `drop_slits`' promise; ruled by the orchestrator).

@@ -19,7 +19,7 @@ pub(super) use super::role::{
     CapEnd, EntityKind, MeridianEnd, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
     RimSupport, SectionCircle,
 };
-pub(super) use crate::node::{RecipeNodeId, StepId};
+pub(super) use crate::node::{RecipeNodeId, SectionId, StepId};
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
@@ -131,12 +131,10 @@ pub(super) enum RoleSeg {
     LateralEdge(ProfileVertexRef),
     CapVertex(CapEnd, ProfileVertexRef),
 
-    LoftWall(Vec<ProfileEdgeRef>),
-    LoftSeam(Vec<ProfileVertexRef>),
-    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
-    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
-    LoftSectionEdge(u32, ProfileEdgeRef),
-    LoftSectionVertex(u32, ProfileVertexRef),
+    LoftWall(Vec<(SectionId, ProfileEdgeRef)>),
+    LoftSeam(Vec<(SectionId, ProfileVertexRef)>),
+    LoftSectionEdge(SectionId, ProfileEdgeRef),
+    LoftSectionVertex(SectionId, ProfileVertexRef),
 
     Band(PieceRun),
     BandRim(ProfileVertexRef),

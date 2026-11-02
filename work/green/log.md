@@ -233,6 +233,48 @@ closed-row routing and #6093's re-bless).
 - Not done, for a later row: a member-manifest edit that only adds a
   target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.
 
+## 2026-11-02 — picked up; four lanes
+
+- No `triage/nightly-*` PR exists for 10-31 or 11-01, so the charter's
+  wait-for-the-triage rule has nothing to wait on. The slate's own rows
+  were filed from lane evidence and are worked from it. Nightly 11-01's
+  full suite (run 41276693129) fit in 130 min and was red at 1e-12 on
+  rows beyond the slate (`refusal_concision_chains` ×3,
+  `seat7_sweep_lowering` digest, `certified_endpoint_census`,
+  `sym_rule_f_rows` copysign census, `m5_pr12_die_body`, `m6_surgery`,
+  `spline_spiric_operands` pin passing). Those wait for a triage table.
+- Lanes, each on its own `green/` branch:
+  - `green/full-suite-split` (P1 E): the nightly's full suite as one
+    archive build and one job per ε row. FULL review: a workflow change
+    whose failure mode is a row that silently stops running.
+  - `green/main-red-sweep` (P0) and `green/main-red-editor-core` (P1 and
+    the unbanded coincidence-door row), cloud sessions: reproduce on main,
+    attribute, then re-bless, pin or `#[ignore]` with the owner's row. STYLE
+    review per PR, as in nightly 77's pins.
+  - `green/pr-latency` (the user, in chat, 2026-11-02: improve test-suite
+    latency without increasing queueing). The alarm reads median 14.3 /
+    p90 24.6 min, n=193 (nightly 11-01). The lane measures the p90 tail
+    and proposes levers that cut wall clock without adding runner-minutes
+    or jobs. FULL review per lever.
+- A fifth lane, `green/slow-test-census` (the user, in chat, 2026-11-02:
+  the full suite's runtime suggests the kernel code is "pretty unusable
+  unless there's an insane amount of debug_assert going on"): a
+  per-test, per-ε time census from nightly 11-01's log, debug assertions
+  on vs off for the costliest tests, and speed rows filed on the programs
+  that own the slow code. Tracker-only PR; orchestrator's read.
+- #6323 merged (full-suite split): FULL review, no blocker, every claim
+  held. Not dispatched on its branch: a dispatch runs all ~27 nightly jobs,
+  which is the queueing the user asked not to add. Nightly 11-03 is its
+  first run; check there that each leg's `full-suite-junit-<eps>` artifact
+  is populated (a wrong junit path is hidden by the copy's `|| true` and
+  `if-no-files-found: warn`) and the build runner's disk while archiving.
+  Class from the review, logged here: `render.yml` keeps a hand-written
+  census of `nightly.yml`'s checkout count in a comment, already one
+  behind before #6323, and nothing guards it.
+## 2026-11-02 — editor-core interval and coincidence-door reds (lane `green/main-red-editor-core`)
+
+- Six interval rows bisect to PR 6105, CLEAR's `cylinder_rim_axial` decision. The four that are that decision's own symbolic count are re-blessed. m10_3's two drives refuse every leaf; they are pinned and filed on PCERT.
+- The coincidence door bisects to PR 6047 (SECT's rehome by path). It is pinned and filed on SECT at P0.
 ## 2026-11-02 — latency lane: the gates run one per CPU, and a script read by pncad-py stops forcing TIER=all
 
 The user asked for lower test-suite latency without more queueing.
@@ -267,3 +309,51 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   on a slower runner. And `SCRIPT_READERS` did not land as a table: the
   filter derives a script's readers on every run (`_script_reader_members`).
 - 2026-11-02 — Slow-test census of the `full-suite` job (runs 41276693129 and 41172334943) appended to `the-full-suite-jobs-three-eps-rows-outgrow-its-180-minutes`: rows of 17.2, 13.4 and 40.3 minutes on 11-01, each saturating four threads; 1e-12 is 57 % of row time and sweep is 64 % of that; the 10-31 runner was 1.75× slower per test. Debug assertions cost under 2 % on seven runs of six of the slowest tests; the cost is the curved boolean pipeline, filed on SECTRUNG (P1). (GREEN lane)
+- #6343 (sweep main reds) STYLE review: merge, with a fix pass (stale
+  docs and rows, test names that now contradict their pins, per-pin
+  "what lands next" clauses, owner split of the conic-trim refusal).
+  Class, logged here: the sweep slow tests spell one door vocabulary
+  three ways (`Door` in `cylinder_sphere_frame`, `Stop` in
+  `torus_doors_join`, `stop_word` in `germ_tilted_rod`, plus
+  `germ_plane_torus_frame::TorusDoor`), each matching the same refusal
+  prose by `starts_with`; a refusal re-worded upstream moves them apart.
+- #6324 merged (parallel gates; script readers derived per PR so a
+  `payload-rung-sweep.py` edit seeds pncad-py). FULL review, then three
+  fix passes. Each pass's re-review found compiled code the filter read
+  as prose (a Rust `#[doc]` attribute, an indented `///` doctest, a
+  hidden `# ` rustdoc line in a consumed `.md`). The class: deciding
+  "comment or code" by a line's leading characters fails open wherever
+  rustdoc compiles text. The final rule bails on any mention inside a
+  fence or an indented block, reads `#` as a comment only in yml, toml
+  and sh, and scans `git ls-files`. Sibling gap filed:
+  `read-reach-blanks-doctests`.
+- #6343 merged (sweep main reds, P0): 7 of 18 rows already green; 11
+  moved at PR 6013 (FOREIGN's crease rule, Ev's PR 5913 ruling) past the
+  spline join to SPIRICARM's volume gaps, pinned per owner. STYLE review,
+  one fix pass (test names now say where they stop).
+- #6355 merged (editor-core main reds, P1 and the coincidence-door row):
+  four interval counts re-blessed as PR 6105's new
+  `pcurve_cylinder_chart_axial` decision, proved by dropping only that
+  `decide` call; the m10_3 drive pinned on a new PCERT row (P2); the
+  coincidence door pinned on a new SECT row (P0, bisected to PR 6047).
+  STYLE review, one fix pass.
+- #6361 (integration-test binaries at opt 0 in the PR test job, kernel
+  build 882 → 539 s paired): FULL review, fix pass in flight.
+- `read-reach-blanks-doctests` banded P3 E (a guard that cannot see a
+  read edge: tooling that prevents a silent bug).
+
+## 2026-11-02 — handed back
+
+- #6361 merged after its fix pass: the shipped wrapper re-measured
+  paired (kernel 814 → 537 s on the slow runner, app 502 → 420 s on a
+  fast one), 14 tests moved to the slow set, a step reds the build if
+  the wrapper stops applying, `test-fast.sh` uses the same wrapper. The
+  0.5–0.8 s cohort is a P4 row.
+- Not taken: `test-shards-rebuild-dependencies-their-cache-holds`. Its
+  wall payoff is small and per-shard priming adds runner-minutes on
+  every main push, against the user's no-more-queueing condition.
+- P0 and P1 are closed, so the sitting ends and the track goes back
+  `ready`. Review tiers: FULL on every workflow/filter lever (#6323,
+  #6324, #6361), STYLE on each pin PR (#6343, #6355), the census
+  tracker-only on the orchestrator's read. Every review that ran found
+  something worth a fix pass; #6324 took three.

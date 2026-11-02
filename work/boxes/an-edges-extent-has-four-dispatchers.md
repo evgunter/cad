@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-06
 priority: P1
 cost: M
-blocked_on: [the-region-an-entity-occupies-is-one-cover]
+blocked_on: [cover-edge-doors]
 ---
 
 

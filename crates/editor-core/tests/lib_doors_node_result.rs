@@ -333,6 +333,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: sweep::blend::BlendError::RepeatedEdge {
                 edge: topo::EdgeKey::default(),
             },
+            edge: None,
         },
         K::Transform(topo::transform::TransformError::NurbsPlaceholder),
         K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(

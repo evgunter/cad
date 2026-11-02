@@ -131,8 +131,8 @@ use pncad::document::{
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
     PersistError, PinRefusal, ProductReadFault, ProgramFault, ProgramRefusal, ReachRefusal,
-    RecordedProgramError, ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
-    StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
+    RecordedProgramError, ResolveFault, SectionIdFault, ShellClassifyError, SlotId, SnapshotError,
+    SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -604,6 +604,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::LoftSectionCount { .. } => "loft_section_count",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
+        EditError::SectionIdsRefused { .. } => "section_ids_refused",
         // The read doors: a read that resolves to no output, and a node
         // named alone that defines two or nothing. A read of a kind its
         // slot does not admit is `slot_var_kind`, at any slot.
@@ -1144,6 +1145,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::LoftSectionCount { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
+        EditError::SectionIdsRefused { fault, .. } => Some(section_id_fault_tag(fault)),
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
@@ -1427,7 +1429,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::RadiusHeadroom { .. } => "radius_headroom",
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
-        BlendError::TangentialEdge { .. } => "tangential_edge",
+        BlendError::KnifeEdge { .. } => "knife_edge",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
@@ -1775,6 +1777,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
+        NamingError::UnsupportedUnjudgedGlue { .. } => "unsupported_unjudged_glue",
         NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
@@ -2002,6 +2005,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
+        SnapshotError::SectionIds { .. } => "section_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameReadNotMinted { .. } => "name_read_not_minted",
         SnapshotError::AppearanceReadNotABody { .. } => "appearance_read_not_a_body",
@@ -2523,6 +2527,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        SplitError::NameOnDroppedSection { .. } => "name_on_dropped_section",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
@@ -2553,6 +2558,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
+        InlineError::NameOnDroppedSection { .. } => "name_on_dropped_section",
         InlineError::Edit { .. } => "inline_edit",
     }
 }
@@ -3365,6 +3371,17 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
+    }
+}
+
+/// The stable tag for what is wrong with a loft's section ids — the
+/// fault `EditError::SectionIdsRefused` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn section_id_fault_tag(fault: &SectionIdFault) -> &'static str {
+    match fault {
+        SectionIdFault::Preminted => "preminted",
+        SectionIdFault::NotThisLofts { .. } => "not_this_lofts",
+        SectionIdFault::Repeated { .. } => "repeated",
     }
 }
 

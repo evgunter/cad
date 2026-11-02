@@ -294,6 +294,51 @@ the kernel or the file.
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.
 
+## Float rounding
+
+DESIGN `[simple.conditioned]`: every computation is posed well-conditioned
+where its result is decided, and at `f64` is then computed as if exact.
+This section is where that rule's parts live.
+
+- **The run's admission rule** (`Tolerance`). The *floor* is the
+  rounding of a short, division-free chain of operations on in-box
+  coordinates: a fixed count of unit roundoffs times the session box.
+  The *headroom* is `(K − 1)·ε`, the room between "the same point"
+  (within ε) and "definitely apart" (beyond Kε). A run is admitted only
+  where the headroom covers the floor. The check is a comparison
+  against a constant, so the least admissible ε follows from K, and
+  K < 2 is allowed at the price of a larger least ε. This is the one
+  statement about rounding, and no site charges it.
+- **Re-posing, never charging.** A quantity a formula would divide by
+  that can vanish (a sine, a radius, a determinant) is a pose decided
+  first (coaxial, parallel, tangent), and the formula divides only on
+  the pose's definite arm. A formula that loses digits where its
+  result is decided (a squared residual over a small `2r`) is re-posed
+  (as a distance). A stored form that loses digits (a conic whose centre
+  lies far from the arc it serves) is re-minted in a well-conditioned
+  form. No `Margin` door takes hand-written slack. The backstop is a
+  tree gate on bare `f64::EPSILON` and `UNIT_ROUNDOFF` outside this
+  crate, whose allowlist only shrinks: each entry is a formula or a
+  stored form owed a re-posing.
+- **A verdict's lever arm** (`Lever<T>`, the arm of
+  `Margin::levered`). It is built only from its sources: a read of the
+  consumed extent, a curvature arm `1/κ_rel`, or the session box where
+  no geometry is in hand. Rates are not levers: they go through
+  `levered_inv` and the metric doors.
+- **The consumed extent** (`geom_brep::Reach`): the region a verdict
+  is used over. It is one type, built only from the geometry consumed
+  (an edge's span, a face's boundary, two boxes' overlap, a bounded
+  carrier), never from a length a caller vouches for. `ExtentBall` is
+  its ball payload.
+- **The session box** is one predicate over a body's consumed extent
+  (its vertices, edges' spans and faces' boundaries, never a carrier's
+  stored terms). The finished-body gate asks it, and the refusal names
+  the operation. A kernel-bug panic that reads a margin on derived
+  geometry takes "in the box" as its premise.
+- **The Interval lane** makes an ill-posed formula loud (its
+  enclosure lands in the band, which is terminal); it does not certify
+  around it.
+
 ## Related pages
 
 `docs/DESIGN.md` (D2's addendum on refusal design, D4 poison, D9

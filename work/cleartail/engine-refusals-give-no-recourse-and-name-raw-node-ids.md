@@ -34,3 +34,22 @@ A recourse per engine arm, in the shell op's mould
 lever, not-yet-built, or the kernel's defect). The viewer and pncad
 render through the document's speaker (`doc.spoken`). DOORS' next
 unit (the GUI's clearance consumer) is where the sentence is drawn.
+
+## Update (2026-11-02, DOORS' `the-gui-has-no-clearance-consumer`)
+
+The raw-id half is closed at both doors that draw the sentence today:
+`pncad::analysis::ClearanceOutcome::of` takes the speaker and says a
+refusal through it (`Said(refusal, by)`), `clearances_at_nominal`
+passes the document's (`Speaker::of(doc)`), and the viewer's clearance
+row reads its `f64` refusal through the same door with the landed
+document's speaker (`viewer::tree`'s `cleared`). A labelled side now
+reads `body 0 of Extrude "left" (…)`, never `body 0 of node <tag>`
+(`pncad/tests/all.rs`'s
+`a_clearance_refusal_names_each_side_as_the_document_says_it`).
+`ClearanceRefusal`'s own `Display` still says each node by tag, as a
+document-free rendering must, and one consumer still reads it there:
+`pncad-py`'s `Value.assertion` (`crates/pncad-py/src/py/value.rs`, the
+`ClearanceVerdict::Refused` arm's `r.to_string()`), which holds a value
+and no document — BIND's ground; it wants the document the value came
+from, or `clearances_at_nominal`'s already-spoken sentence. The recourse half is open: the engine's
+arms (`EngineRefusal::say`) still end without one.

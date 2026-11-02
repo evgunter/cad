@@ -84,17 +84,20 @@ pub(crate) fn plus_zero_curve(c: geom::Curve3<f64>) -> geom::Curve3<f64> {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(plus_zero_point(origin), plus_zero(dir))
         }
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: plus_zero_point(center),
-            axis: plus_zero(axis),
+        }) => Curve3::circle(
+            plus_zero_point(center),
+            plus_zero(axis),
             radius,
-            u_ref: plus_zero(u_ref),
-        },
+            plus_zero(u_ref),
+        ),
         other => other,
     }
 }

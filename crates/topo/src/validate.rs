@@ -4154,7 +4154,7 @@ pub(crate) fn classify_point_in_solid(
             "a solid the check read holds the side at infinity in its material, so it is \
              inside-out"
                 .into(),
-            "Recourse: build it with its faces pointing outward, or revert it".into(),
+            format!("Recourse: {}", S::INSIDE_OUT_RECOURSE).into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -4628,9 +4628,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
-            Self::SliverInsideOut { .. } => f.write_str(
+            Self::SliverInsideOut { .. } => write!(
+                f,
                 "a solid is inside-out: a ray from outside it crosses into its material. \
-                 Recourse: build it with its faces pointing outward, or revert it",
+                 Recourse: {}",
+                crate::boolean::PointInSolidError::INSIDE_OUT_RECOURSE
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
@@ -9202,9 +9204,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
     );
     let departure = match curve.carrier() {
         geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
-        | geom::Curve3::Spiric { .. } => {
+        geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
             let lever = geom_brep::edge_reach_bounds(curve.carrier(), t0, t1, p0);
             Some(Departure::along(
@@ -9801,12 +9801,15 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
                 center,
@@ -10141,12 +10144,14 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             t0,
             t1,
         } => {
-            let carrier = geom::Curve3::Circle {
-                center,
-                axis,
+            let carrier = geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-                u_ref,
-            };
+            });
             let mid = geom::mid_param(t0, t1);
             match crate::splitting::containment::arc_trim(
                 p,
@@ -10364,12 +10369,10 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         }
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } => {
+        }) => {
             let d = p - *center;
             let along = d.dot(*axis);
             let radial = (d - *axis * along).norm() - *radius;
@@ -10382,10 +10385,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
 /// A loop's half-edge cycle, or `None` for an empty loop (which bounds
 /// nothing and can meet nothing).
 fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
-        return None;
-    };
-    body.loop_cycle(first)
+    body.loop_halves(r#loop).filter(|cycle| !cycle.is_empty())
 }
 
 /// The point a vertex stands at.
@@ -10748,9 +10748,11 @@ impl Unfinished {
     /// What every door refusing an inside-out operand says after naming
     /// the operand: true of a solid check 7 decides negative and of a
     /// shell check 10 finds bounding negative material.
-    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
-        its shells, so faces there point into its material and bound negative volume, and \
-        it is refused. Recourse: build it with its faces pointing outward, or revert it";
+    pub const INSIDE_OUT_REFUSAL: &'static str = concat!(
+        "is inside-out, as a whole or in one of its shells, so faces there point into its \
+         material and bound negative volume, and it is refused. Recourse: ",
+        crate::boolean::solid_contain::inside_out_recourse!()
+    );
     /// What every door refusing an operand that holds a joinable vertex
     /// says after naming the operand: a body every finisher would have
     /// joined, or one whose join reads in the sliver band (its finding
@@ -14701,12 +14703,7 @@ mod tests {
                     pair: geom_brep::SurfacePair::new(cyl, plane),
                     selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v0)),
                 },
-                carrier: geom::Curve3::Circle {
-                    center: centre,
-                    axis,
-                    radius: frame.radius,
-                    u_ref: seam,
-                },
+                carrier: geom::Curve3::circle(centre, axis, frame.radius, seam),
                 param_start: t0,
                 param_end: t1,
             }
@@ -15003,12 +15000,14 @@ mod tests {
         assert!(s.distance(t) == 0.0, "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
-        let carrier = geom::Curve3::Circle {
-            center,
-            axis,
+        let carrier = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
@@ -15743,13 +15742,11 @@ mod tests {
                 (t1 - t0 < std::f64::consts::PI).then_some((axis, t0, t1))
             })
             .expect("one sense of the ellipse is the short arc");
-        let carrier = geom::Curve3::Ellipse {
-            center: Point3::origin(),
-            axis,
-            semi_u: m,
-            semi_v: 1.0,
-            u_ref,
-        };
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), axis, u_ref),
+            m,
+            1.0,
+        ));
         let spec = geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(plane, cylinder),
@@ -16220,12 +16217,14 @@ mod tests {
                 ((t1 - t0 < std::f64::consts::PI) != long).then_some((axis, t0, t1))
             })
             .expect("one sense of the circle is the arc asked for");
-        let carrier = geom::Curve3::Circle {
-            center,
-            axis,
+        let carrier = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
         let curve = geom_brep::EdgeCurve::certify(
             spec,

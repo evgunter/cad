@@ -74,12 +74,7 @@ fn arc3(s: Sph, a: Point3<f64>, v: Point3<f64>, b: Point3<f64>) -> Arc3 {
         let (tv, tb) = (par(v), par(b));
         if tv < tb {
             return Arc3 {
-                carrier: geom::Curve3::Circle {
-                    center,
-                    axis: n,
-                    radius,
-                    u_ref: u,
-                },
+                carrier: geom::Curve3::circle(center, n, radius, u),
                 end: tb,
                 plane: (center, n),
             };

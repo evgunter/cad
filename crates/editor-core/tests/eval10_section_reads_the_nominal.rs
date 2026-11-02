@@ -115,6 +115,7 @@ fn loft_doc_of(
         Node::Loft {
             first: lower.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: upper.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -122,6 +123,7 @@ fn loft_doc_of(
                 }],
             }],
             v_degree: Formula::count(1),
+            first_id: None,
         },
     )
 }
