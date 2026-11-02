@@ -251,3 +251,135 @@ fn span_enclosure_and_span_deriv_contain_every_sampled_value() {
     // name.
     assert!(speed(d_inner) < 100.0, "{d_inner:?}");
 }
+
+/// **A range's few-ulp meet with the span past a knot narrows like any
+/// other.** A cubic with a simple knot at `k = ½ − 2 ulp` and
+/// coordinates no float holds exactly; the range `[¼, ½]` meets the span
+/// past `k` over two ulps. Every sampled `C′` meets `span_deriv`, and
+/// its enclosure is no wider than a hundredth of the curve's speed
+/// there: red if the derivative were read by differencing the meet's
+/// own two-ulp restriction, whose rounding over its width is slope.
+#[test]
+fn span_deriv_narrows_on_a_few_ulp_meet_past_a_knot() {
+    let k = 0.5f64.next_down().next_down();
+    let p = |x: f64, y: f64| Point3::new(0.3 + 0.1 * x, 0.7 + 0.1 * y, 0.1 * x * y);
+    let control = vec![
+        p(0.0, 0.0),
+        p(1.0, 0.5),
+        p(2.0, 1.5),
+        p(3.0, 1.0),
+        p(4.0, 2.5),
+    ];
+    let ni = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, k, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+        control,
+        vec![1.0; 5],
+    )
+    .unwrap()
+    .map_scalar(Interval::from_f64);
+    let (lo, hi) = (0.25, 0.5);
+    let der = ni.span_deriv(lo, hi).expect("a range inside the domain");
+    for t in [lo, 0.375, k, hi] {
+        let d = ni.deriv(Interval::from_f64(t));
+        assert!(
+            meets(d.x, der.x) && meets(d.y, der.y) && meets(d.z, der.z),
+            "C′({t}) = {d:?} misses span_deriv({lo}, {hi}) = {der:?}"
+        );
+    }
+    let at_knot = ni.deriv(Interval::from_f64(k));
+    let speed = [at_knot.x, at_knot.y, at_knot.z]
+        .map(|c| c.lo().abs().max(c.hi().abs()))
+        .into_iter()
+        .fold(0.0f64, f64::max);
+    let ranged = ni.span_deriv(lo, k).expect("the near span alone");
+    for (c, near) in [(der.x, ranged.x), (der.y, ranged.y), (der.z, ranged.z)] {
+        assert!(
+            c.hi() - c.lo() <= (near.hi() - near.lo()) + speed / 100.0,
+            "the two-ulp meet widens span_deriv({lo}, {hi}) = {der:?} past the near span's \
+             {ranged:?}"
+        );
+    }
+}
+
+/// **`span_deriv` does not move with the curve.** The circle and its
+/// twin moved by `(1e3, −1e3, 1e3)`, over ranges from a quarter to
+/// `2⁻³⁰`: each coordinate's width matches its twin's within 1% plus a
+/// rounding allowance of `1e-9`. Read in the absolute frame, the moved
+/// circle's derivative carries the distance times the weight's slope.
+#[test]
+fn span_deriv_does_not_move_with_the_curve() {
+    let home = nurbs_circle();
+    let by = geom_core::Vec3::new(1e3, -1e3, 1e3);
+    let away = home.map_points(|p| p + by).map_scalar(Interval::from_f64);
+    let home = home.map_scalar(Interval::from_f64);
+    let width = |d: geom_core::Vec3<Interval>| [d.x, d.y, d.z].map(|c| c.hi() - c.lo());
+    for k in [2, 5, 10, 20, 30] {
+        let h = 2f64.powi(-k);
+        for lo in [0.0, 0.1, 0.3, 0.5 - h, 0.6] {
+            let (a, b) = (
+                width(home.span_deriv(lo, lo + h).unwrap()),
+                width(away.span_deriv(lo, lo + h).unwrap()),
+            );
+            for c in 0..3 {
+                assert!(
+                    b[c] <= 1.01 * a[c] + 1e-9 && a[c] <= 1.01 * b[c] + 1e-9,
+                    "C′[{c}] over [{lo}, {}]: {} wide moved against {} at home",
+                    lo + h,
+                    b[c],
+                    a[c]
+                );
+            }
+        }
+    }
+}
+
+/// **`span_deriv` is tight against the curve's own turning, off the
+/// origin.** The circle moved by `(1e3, −1e3, 1e3)`, over ranges `2⁻²` to
+/// `2⁻³⁰` long, some straddling its double knots: the widest coordinate
+/// of the enclosure is at most 4× that coordinate's spread over 33
+/// sampled points of the range, plus `1e-9`. A range read about a point
+/// far from its piece carries that distance times the weight's slope,
+/// which shrinks no faster than the range's own spread.
+#[test]
+fn span_deriv_is_tight_against_its_own_range_off_the_origin() {
+    let by = geom_core::Vec3::new(1e3, -1e3, 1e3);
+    let away = nurbs_circle()
+        .map_points(|p| p + by)
+        .map_scalar(Interval::from_f64);
+    let mut worst = 0.0f64;
+    for k in [2, 4, 8, 16, 30] {
+        let h = 2f64.powi(-k);
+        for lo in [0.0, 0.1, 0.25 - h / 2.0, 0.6, 1.0 - h] {
+            let d = away.span_deriv(lo, lo + h).unwrap();
+            let samples: Vec<_> = (0..=32)
+                .map(|i| {
+                    let t = (lo + h * f64::from(i) / 32.0).min(lo + h);
+                    away.deriv(Interval::from_f64(t))
+                })
+                .collect();
+            let spread = |pick: fn(&geom_core::Vec3<Interval>) -> Interval| {
+                let lo = samples
+                    .iter()
+                    .map(|d| pick(d).hi())
+                    .fold(f64::INFINITY, f64::min);
+                let hi = samples
+                    .iter()
+                    .map(|d| pick(d).lo())
+                    .fold(f64::NEG_INFINITY, f64::max);
+                (hi - lo).max(0.0)
+            };
+            let spread = spread(|d| d.x).max(spread(|d| d.y)).max(spread(|d| d.z));
+            let width = [d.x, d.y, d.z]
+                .iter()
+                .map(|c| c.hi() - c.lo())
+                .fold(0.0, f64::max);
+            worst = worst.max(width / spread.max(1e-300));
+            assert!(
+                width <= 4.0 * spread + 1e-9,
+                "C′ over [{lo}, {}]: {width} wide against a sampled spread of {spread}",
+                lo + h
+            );
+        }
+    }
+    println!("[jet frame] the circle off the origin: worst width / spread {worst}");
+}

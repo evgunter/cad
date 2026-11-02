@@ -151,7 +151,7 @@ use pncad::sweep::ExtrudeSide;
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
 };
-use pncad::prelude::{CurveKind, Open, Start, SurfaceKind, SurfaceKindSet, query};
+use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
 use pncad::sweep::{
@@ -159,8 +159,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeCarrierSite, EdgeKey, Operand,
-    PairRefusalSite,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand, PairRefusalSite,
+    SpiricLoops,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2453,12 +2453,20 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    cap. That reading is not asserted: nothing in the kernel reads
     //    this crossing yet, and the refusal below comes before any.
     //
-    //    What refuses is the first thing the union reads: a spline seam
-    //    of the leaf, operand B, against the tube's torus wall. The
-    //    curved crossing lane has rows for a line, a circle and an
-    //    ellipse and none for a spline span, so it cannot say whether the
-    //    seam crosses the wall, at 1e-9 and 1e-6 alike
-    //    (`work/splice/a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).
+    //    The union's sweep reads the leaf's spline seams against the
+    //    tube's torus wall through the curve × face table's ring
+    //    composite, and gets past them. A vertex of the stem, operand A,
+    //    pierces the first of the leaf's two NURBS walls, at (−0.061, 0,
+    //    0.105). The vertex-on-face pass reads the wall's outward normal
+    //    at the chart point the sweep placed the pierce at, and mints the
+    //    pierce's ring there with the wall's rows standing as found.
+    //    The join then frames the germ pair of the lower stem's torus
+    //    wall (A) against the leaf's lower cap (B), the cap the tube
+    //    crosses in two chords. That plane is tilted against the torus's axis, so it
+    //    cuts a general spiric quartic whose loops wind round the tube,
+    //    and C5 routes that section to its unbuilt general rung
+    //    (`work/sectsite/c5-plane-torus-cone-cylinder-arms`). It refuses
+    //    the same way at 1e-9 and 1e-6, at `boolean::join::frame_refusal`.
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
     //    declared frontier stands the lily walls down before this one.
@@ -2468,16 +2476,46 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
+            // The leaf's lower cap is its first loft station's plane:
+            // through the root, square to the sheath's direction there.
+            let (root, (sheath_dir, _, _), _, _) = leaf_a_spine(tol);
+            let lower_cap = |f| match leaf_a
+                .get_face(f)
+                .and_then(|d| leaf_a.get_surface(d.surface))
+            {
+                Some(pncad::topo::Surface::Plane { origin, normal, .. }) => {
+                    let n = Vec3::new(normal.x.f(), normal.y.f(), normal.z.f());
+                    let o = Point3::new(origin.x.f(), origin.y.f(), origin.z.f());
+                    n.cross(sheath_dir).norm() < 1e-9 && (o - root).dot(n).abs() < 1e-9
+                }
+                _ => false,
+            };
+            // The lower stem's tube: the torus on its ring.
+            let (lower, _) = lower_stem();
+            let lower_tube = |f| match stem.get_face(f).and_then(|d| stem.get_surface(d.surface)) {
+                Some(pncad::topo::Surface::Torus {
+                    center,
+                    major_radius,
+                    ..
+                }) => {
+                    let c = Point3::new(center.x.f(), center.y.f(), center.z.f());
+                    (c - lower.center).norm() < 1e-9 && (major_radius.f() - lower.ring).abs() < 1e-9
+                }
+                _ => false,
+            };
             matches!(
                 e,
-                BooleanError::EdgeCarrierUnsupported {
-                    operand: Operand::B,
-                    edge,
-                    face,
-                    face_of: Operand::A,
-                    site: EdgeCarrierSite::CurvedCrossing,
-                } if query::edge_carrier_kind(leaf_a, *edge) == Some(CurveKind::Nurbs)
-                    && query::face_surface_kind(stem, *face) == Some(SurfaceKind::Torus)
+                BooleanError::GermSectionSpiric {
+                    a_face,
+                    a_kind: SurfaceKind::Torus,
+                    b_face,
+                    b_kind: SurfaceKind::Plane,
+                    loops: SpiricLoops::AroundTube,
+                    section: pncad::geom_brep::SectionError::RoutesToGeneralRung {
+                        pair: "plane×torus",
+                        ..
+                    },
+                } if lower_tube(*a_face) && lower_cap(*b_face)
             )
         },
         "join the long leaf to the stem it grows from",

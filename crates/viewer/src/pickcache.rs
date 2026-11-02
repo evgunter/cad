@@ -522,6 +522,23 @@ impl PickCache {
         }
     }
 
+    /// **The held index, or why there is none** — [`unindexed`]'s
+    /// reading of an absence, for a consumer that needs the index rather
+    /// than a refusal: [`NotIndexed::Building`] while one is on its way,
+    /// [`NotIndexed::Absent`] when nothing is building one (the last
+    /// attempt refused, [`PickCache::error`], or nothing has evaluated).
+    ///
+    /// # Errors
+    ///
+    /// [`NotIndexed`]: `Building` or `Absent`, never `AnotherPicture`,
+    /// which is a question about the picture this cache does not hold.
+    pub fn index_or_why(&self, fit: &dyn FitService) -> Result<&PickIndex, NotIndexed> {
+        self.index().ok_or(match self.index_seam(fit) {
+            IndexSeam::Building => NotIndexed::Building,
+            IndexSeam::Idle => NotIndexed::Absent,
+        })
+    }
+
     /// Why the last attempt refused, if it did.
     pub fn error(&self) -> Option<&PickIndexError> {
         self.error.as_ref()
@@ -586,11 +603,9 @@ pub enum NotIndexed {
     /// rather than in a vocabulary of its own because this type's
     /// subject is *no index describes the picture on screen* and this
     /// is the third way that sentence is true. `ViewerApp::sync_scene`
-    /// marks the scene's `(generation, δ)` pair current only on a
-    /// successful rebuild — a refused one must not consume the pair,
-    /// or the stale picture stays marked as current and is never
-    /// retried — so a landing over a refused rebuild leaves a newer
-    /// index beside an older picture, and nothing retries while the
+    /// keys the scene to an index only on a successful rebuild, so a
+    /// landing over a refused rebuild leaves a newer index beside the
+    /// empty picture that refusal drew, and nothing retries while the
     /// display revision and the focus set hold still.
     ///
     /// **Refusing is a ruling, not a repair** (Ev, 2026-09-15). The

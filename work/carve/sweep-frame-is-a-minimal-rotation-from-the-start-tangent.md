@@ -2,12 +2,13 @@
 id: sweep-frame-is-a-minimal-rotation-from-the-start-tangent
 kind: issue
 title: sweep_places carries each station by the minimal rotation from the START tangent, so the section spins about its tangent near anti-parallel
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [a-half-turn-spine-sweeps-only-off-its-exact-tangents]
-branch: carve/sweep-frame
+closed: 2026-10-31
+pr: 6138
 ---
 
 
@@ -126,3 +127,18 @@ blinding is on `analysis/design-fork/carve-sweep-frame`.
   does not close, and no closed sweep exists today (refuse, or spread
   the twist: the designers differ, and that waits for the ring-sweep
   work).
+
+## Closed (2026-10-31, PR 6138)
+
+The sweep carries its start frame by the rotation-minimizing frame, built by double reflection (`PathCarry`), and pivots at the path's start point. Its v is the path parameter. The law is written as `crates/sweep/README.md` `[sweep.frame]`. Three rows pin it: Wang agreement on a helix (≤1e-12), the sweep not depending on where the sketch origin sits, and a helix rolling by its torsion.
+
+- **Refusals.** `PathTangentReversal` is gone. The sweep refuses `PathFoldsBack` where the arrival tangent mirrors the departure tangent in the chord's normal plane; its recourse is to smooth the kink or add stations. It refuses `PathStationsCoincide` where two stations coincide. Each has an in-band twin, `PathUndecided`, reachable from a real path.
+- **Measured.**
+  - End roll on the coil helix: 9.2e-7 / 5.7e-8 / 3.5e-9 rad at 16/32/64 stations a turn, fourth order.
+  - The coil's Pappus gap fell from 3.6e-3 to 4.1e-6, so `COIL_GAP` goes from 5e-3 to 6e-6. `m8_14`'s θ_slab²/4 gap was the old frame's spin; it now reads about 3e-6.
+- **Cost, stated in the README.** A rational path's parameter is not arc length, so the swept elbow fits about 2.7× worse than under chord-length v. Its STEP fixture, kernel sidecar and two `m7` caps are re-baselined with that cause.
+- **Render.** The tour coil rolls its wire by 196°, and the klein loop sweeps its exact spine. `twisted_duct` rolls less, because the old spin is gone.
+- **Waits on CLEAR.** `a_long_helical_sweep_waits_on_the_window_doors_halving` pins a refusal that `work/clear/clearance-refines-reads-only-the-lower-halves.md` fixes; that row's experiment certifies the sweep.
+- **Also closes** INLANE's `a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps`.
+
+Review: single FULL, verdict NOT-MERGEABLE on one MAJOR. Six slow rows the change reaches were red and unrun, because the PR gate runs only the slow rows whose names the diff touches. The fix pass re-baselined them with their causes, renamed the fold-back refusal, gave the cusp its recourse, and added the reviewer's probes as rows. The orchestrator read the re-baselines: each cap is the measured value plus a tenth, and none was loosened beyond its measurement.

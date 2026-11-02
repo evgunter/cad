@@ -36,7 +36,7 @@ fn sphere(d: f64, big: f64) -> Surface<f64> {
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>) -> PairSection<f64> {
-    match geom_brep::pair_section(a, b, band()) {
+    match geom_brep::pair_section(a, b, None, None, band()) {
         Ok(SectionRead::Built(section)) => section,
         other => panic!("expected the section, got {other:?}"),
     }
@@ -216,7 +216,7 @@ fn a_pose_in_the_band_escalates() {
         ("far reach", 0.25, 0.75 + mid, "cs_far_reach"),
         ("wall reach", 0.0, 0.5 + mid, "cs_wall_reach"),
     ] {
-        match geom_brep::pair_section(&cylinder(0.5), &sphere(d, big), b) {
+        match geom_brep::pair_section(&cylinder(0.5), &sphere(d, big), None, None, b) {
             Err(SectionError::Escalated(diag)) => {
                 assert_eq!(diag.predicate, Some(want), "{label}");
             }
@@ -262,7 +262,7 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
             assert!(
                 matches!(
-                    geom_brep::pair_section(a, b, band()),
+                    geom_brep::pair_section(a, b, None, None, band()),
                     Err(SectionError::DegenerateOperand { .. })
                 ),
                 "{label}: the section value"
@@ -314,7 +314,7 @@ fn a_radius_in_the_band_escalates_by_its_name() {
         ),
     ] {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
-            match geom_brep::pair_section(a, b, band()) {
+            match geom_brep::pair_section(a, b, None, None, band()) {
                 Err(SectionError::RadiusEscalated { radius, diag }) => {
                     assert_eq!(radius, want, "{label}");
                     assert_eq!(diag.predicate, Some(predicate), "{label}");
@@ -349,7 +349,7 @@ fn the_general_rung_carries_through_its_door() {
         panic!("one carried component");
     };
     assert!(
-        c.closed && c.certificate.is_some(),
+        c.closed() && c.certificate.is_some(),
         "a closed certified loop"
     );
     let witness = section.counted().expect("a counted section")[0]
@@ -371,7 +371,7 @@ fn the_general_rung_carries_through_its_door() {
         .seat(Some(SsiLane::marched()), c, at, band())
         .expect("the loop seats");
     assert!(
-        seated.closed && seated.certificate.is_some(),
+        seated.closed() && seated.certificate.is_some(),
         "the seated loop is closed and certified again"
     );
     let (s0, s1) = seated.span;
@@ -438,7 +438,7 @@ fn a_seated_loop_is_the_loop_point_for_point() {
                     .seat(Some(SsiLane::marched()), c, at, band())
                     .unwrap_or_else(|e| panic!("d {d}, R {big}: seat {at}: {e:?}"));
                 assert!(
-                    seated.closed && seated.certificate.is_some(),
+                    seated.closed() && seated.certificate.is_some(),
                     "d {d}, R {big}: seat {at} is closed and certified"
                 );
                 let (s0, s1) = seated.span;
@@ -484,9 +484,8 @@ fn every_other_pair_is_read_elsewhere() {
     for (a, b) in [
         (&plane, &sphere(0.0, 1.0)),
         (&sphere(0.0, 1.0), &sphere(0.5, 1.0)),
-        (&cylinder(1.0), &cylinder(0.5)),
     ] {
-        match geom_brep::pair_section(a, b, band()) {
+        match geom_brep::pair_section(a, b, None, None, band()) {
             Ok(SectionRead::Elsewhere(route)) => {
                 assert_eq!(route, geom_brep::route(a.kind(), b.kind()));
             }
@@ -593,7 +592,7 @@ fn decided_offset(e: f64) -> f64 {
 /// The value's reading of a pair: its guard class, and whether it
 /// records a coincidence.
 fn read_class(a: &Surface<f64>, b: &Surface<f64>) -> (Class, bool) {
-    match geom_brep::pair_section(a, b, band()) {
+    match geom_brep::pair_section(a, b, None, None, band()) {
         Ok(SectionRead::Built(s)) => {
             let class = if s.tangency().is_some() {
                 match s.counted().expect("a counted section") {
@@ -797,22 +796,6 @@ fn turns_once(ts: &[f64], period: f64) -> bool {
 /// the slow set.
 #[test]
 fn two_loops_keep_their_sites_and_order_near_the_node() {
-    // Pinned red at 1e-6 since PR 6011: the closest pair escalates at
-    // the straddle
-    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
-    test_utils::pinned_red::row(
-        Tol::witness().eps(),
-        &[1e-6],
-        "two loops near the node",
-        &[
-            "d 0.2, R 0.701, θ 2.7842143000352855: Escalated(Indeterminate { margin: MarginDiag(Enclosure { lo: 0.10006928966127418, hi: 0.2063515605648144, tag: None, zero: ZeroWord(0) }), terminal_sliver: false, band: Band { zero: 0.10979844554160123, escalate: 0.10980744554160123 }, predicate: Some(\"curve_carrier_straddle\") })",
-        ],
-        two_loops_keep_their_sites_and_order_near_the_node_row,
-    );
-}
-
-/// The row [`two_loops_keep_their_sites_and_order_near_the_node`] runs, under its pin.
-fn two_loops_keep_their_sites_and_order_near_the_node_row() {
     let r = 0.5;
     for (d, big) in [(0.1, 0.7), (0.2, 0.71), (0.2, 0.701)] {
         let (cyl, sph) = (cylinder(r), sphere(d, big));
@@ -886,4 +869,54 @@ fn one_loop_keeps_its_order_near_the_node() {
             assert!(turns_once(&ts, hi - lo), "d {d}, R {big}");
         }
     }
+}
+
+/// **Near the node, no site reads on the other sheet's loop**: the two
+/// loops of the sphere at `d 0.2` whose radius `R` runs across
+/// `0.7003–0.705`, past `d + r` by hairs, in either order. Every site
+/// whose foot is read lies on its own sheet's component, and the two
+/// sheets' components differ; a refusal, of the carry or of a foot, is
+/// allowed, but most sites read. Marches: in the slow set.
+#[test]
+fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
+    let (r, d) = (0.5, 0.2);
+    let (mut read, mut refused) = (0usize, 0usize);
+    for k in 0..8 {
+        let big = 0.7003 + (0.705 - 0.7003) * f64::from(k) / 7.0;
+        let (cyl, sph) = (cylinder(r), sphere(d, big));
+        for (x, y) in [(&cyl, &sph), (&sph, &cyl)] {
+            let Ok(c) = built(x, y).carry(Some(SsiLane::marched()), band()) else {
+                refused += 1;
+                continue;
+            };
+            let mut owner: [Option<usize>; 2] = [None, None];
+            for (s, sheet) in [1.0, -1.0].into_iter().enumerate() {
+                for i in 0..97 {
+                    let u = f64::from(i) / 97.0;
+                    let theta = std::f64::consts::PI * (1.0 + (2.0 * u - 1.0).powi(3));
+                    let Some(p) = wall_point(r, d, big, theta, sheet) else {
+                        continue;
+                    };
+                    let Ok(f) = c.foot(p, band()) else {
+                        refused += 1;
+                        continue;
+                    };
+                    read += 1;
+                    let at = format!("R {big}, sheet {sheet}, θ {theta}");
+                    assert_eq!(
+                        *owner[s].get_or_insert(f.component),
+                        f.component,
+                        "{at}: a site on its sheet's own loop"
+                    );
+                }
+            }
+            if let [Some(a), Some(b)] = owner {
+                assert_ne!(a, b, "R {big}: each sheet its own loop");
+            }
+        }
+    }
+    eprintln!("near the node: {read} sites read, {refused} refusals");
+    // The row is a reading, not a run of refusals: 2716 of its 3104
+    // sites read at every ε when it landed.
+    assert!(read >= 2500, "{read} sites read, {refused} refusals");
 }

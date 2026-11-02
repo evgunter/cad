@@ -2,11 +2,13 @@
 id: the-backstops-positivity-arms-retire-behind-the-result-gate
 kind: issue
 title: The volume backstop's vol ≥ 0 arms read the result's sign after the tier-3 result gate has: retire them once check 7 reads it the same way
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
 refs: [3987]
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -29,3 +31,7 @@ same way". Check 7's sign read and the backstop's differ until check 7
 takes the backstop's interval re-derivation (PR 3977,
 `reach/check7-interval`). Once that lands: delete the two arms and their
 `Posture::PlusV`, and re-point the two unit rows at the result gate.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. The two arms, `Posture::PlusV` and `validate::plus_v_read` are deleted; tier 3's check 7 at the result gate is the one reading of the result's sign. The two unit rows went with the backstop; the oracle's `a_planted_result_breaks_its_relation` flags an inside-out ∩ and ∖ result.

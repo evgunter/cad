@@ -36,3 +36,14 @@ order through that one carrier. The march, the seat and the chords then
 see the same bits whichever operand is A. Only the readers that name a
 side (the germ's branch, the foot cache's operand) keep the operand.
 Not built here.
+
+## What the second order costs (SECT `sect-seamslow`, 2026-10-30)
+
+In the seam-region door rows a ball's ∪, ∩ and A ∖ B with a cylinder
+cut the same chord arcs, so after the first operation limb 2's rounds
+and the projected rows' span hulls are memo hits; B ∖ A carries the
+section in the other order, cuts other bits and computes them all
+again. At the default ε `unit b-a rod` costs 6.3 s against `unit i rod`'s
+3.5 s and `unit a-b rod`'s 2.5 s (opt-level 2, with
+`sect/seam-region-speed`'s span memo). A canonical order would make B ∖ A
+a reader of the same memo entries.

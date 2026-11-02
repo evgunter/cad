@@ -392,3 +392,61 @@ Tier: **orchestrator's read** (a test-only counter and two pins).
 - The account's weekly usage limit stopped `sect-seamslow` mid-poll
   (2026-10-30); resumed today, as was `sect-rehome`'s PR 6047 fix pass
   (review: APPROVE-WITH-FIXES, no MAJOR).
+
+## 2026-10-31 — the seam-region door row at its cost again (PR 6062)
+
+PR 6062 closes `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`:
+PR 5894 let 20 of the row's 24 ball × cylinder booleans certify chords
+before refusing at the result gate; the projected-pcurve door recomputed
+`twin_span_hulls` per image, now memoized (`pcurve_cache::span_memo`, keyed
+by everything `spans_of` reads); the row is five tests, each pinning every
+boolean's stop by variant and raising door; the nightly's 1e-12 hold-out is
+removed (each part ≤ ~190 s at 1e-12). Tier: **single FULL**:
+APPROVE-WITH-FIXES, no MAJOR; one fix pass took all items, including a
+latent key collision (uncertified knots/weights keyed NaN) closed here and
+its twin in `limb2_memo` filed on PCERT. The lane found the nightly
+`full-suite` job no longer fits 180 min on slow nights (build 50–76 min);
+filed on GREEN (P1).
+
+## 2026-10-31 — a cylinder face re-homes its rings by the path (PR 6047)
+
+PR 6047 closes `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`:
+every curved face re-homes a bystander ring by the path parity
+(`path_ring_side`), the cylinder's chart walk (`chart_ring_side` and its
+predicates) is deleted, and `ring_path::path_parity` reads a segment ending
+on an arc's plane as a crossing at that end (all curved kinds). The drum ×
+two balls and drum × donut placement 5 now pass the join. Tier: **single
+FULL**: APPROVE-WITH-FIXES, no MAJOR (43,200 random bystanders, 0 wrong);
+one fix pass; every slow row it adds or re-pins run by the lane at
+opt-level 2 at all three ε (drum × donut 12.7 min, two balls 4.7 min at
+1e-12). An essential run on a seamless band is documented, not refused
+(not a regression; `pctail/a-seamless-band-mints-…`).
+
+## 2026-10-31 — the torus rows read at 1e-6 again (PR 6153)
+
+PR 6153 closes `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`.
+Cause: PR 6011's second fix pass grew each marched loop's pad to 0.11–0.13 m
+at 1e-6, reaching the axis or core. Now `winds` reads a loop's turns over
+its tube boxes (limb 3's one piece per box), checks the walk has degree ±1
+(`once_round` or `gated`, else `Unordered`), the pad is the tube's farthest
+point from the carrier, and W3 reads a witness `reach`. Four rows un-pinned
+(two now stop at GREEN's open default-ε P0, as on main); `close_rings` stays
+pinned on SSIMARCH's `an-r3-tube-no-rung-makes-a-graph-is-never-refined`.
+Tier: **single FULL** (APPROVE-WITH-FIXES, no MAJOR; independent winding
+oracle 1,612 comparisons, 0 wrong), then a **confirmation review** of the
+fix pass's degree check (no MAJOR; mutation run showed the guards
+untested alone, now each pinned). Filed: the closed chain's seam link
+(SSIMARCH P3), the oracle's blindness and residue (SECT P3). Process note:
+the lane pushed a comment-only commit to re-run CI after an unrelated
+editor-core fast-set timing flake (1.020 s vs 1.0 s) when a re-run was
+refused (403); the brief's rule forbids kicking CI that way.
+
+## 2026-10-31 — handed back (`ready`)
+
+PR 6153 merged; lane reclaimed. SECT has no P0 or P1 row left, so the
+sitting hands the track back per the orchestration model; the remaining
+rows are P2 (`a-counted-sections-winding-is-a-claim-not-a-reading`,
+`a-wall-islands-planar-closing-reads-its-run-on-the-chart`), P3 and P4,
+none an E this sitting is best placed for. `plan.md` "Where it stands"
+says what landed and what is left.
+- 2026-11-01 — **A note from SPLITDOOR** (`splitdoor/sided-followups`): `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`, cited in the two 2026-10-28 entries above, is now `subtract_and_intersect_reach_the_doors_union_does`. PR 6070 made its dumbbell row build: each difference is its minuend, and the intersection is nothing. The two-tori, slab and grazing-cylinder rows that PR 5925 re-pinned still refuse `FallbackExtentUnsupported` with the R-loop sentence. (SPLITDOOR)

@@ -1,1 +1,2 @@
 - 2026-10-27 — **Opened** by the re-cut of FLUX and FLUXTAIL by logical thread (`docs/doc-ledger/flux-leaves-the-tracker.md`). Nothing dispatched; the slate is in `plan.md`.
+- 2026-10-27 — (seam, CLEAVE PR 5842) The volume backstop left the boolean's operation path under `[ev]` PR 5780: closed `a-kept-rim-off-its-sphere-is-read-on-its-own-sphere-so-member-orders-diverge` — both member orders build within `slack(k)` at every ε.

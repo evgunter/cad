@@ -2,10 +2,11 @@
 id: injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams
 kind: issue
 title: The injectivity check's departure arm refuses Uncertified at depth 40 on every cap-wall pair of the tour's lily blades, Klein loop and m8_14's half-turn helix, and along each seam of the tour's twisted loft
-status: open
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: H
+closed: 2026-11-01
 ---
 
 
@@ -46,3 +47,32 @@ at 33 stations all refuse Departure.
 CLEAR's injectivity arms (`crates/topo/src/injective.rs`). A loft or
 sweep door that certifies embedding refuses all of these until this
 is fixed. That is CARVE's `self-overlapping-spines-build-and-validate`.
+
+## Diagnosis (SEAMDIAG, 2026-11-01)
+
+Each locus was instrumented at its depth-40 cells. Every cause is a
+reader's (`crates/topo/src/injective.rs`), and no producer fix
+applies, so `injective.rs` is unchanged.
+
+- **Cap against wall** (`lily_leaf_a`, `lily_leaf_b`, the Klein loop):
+  - The cell sits at a vertex of the cap where two circular arcs meet:
+    the lens tip on the lily, and a wall seam on the Klein loop's
+    four-arc circle.
+  - The cap is unpresented there (`Structural`, then `Local` beside
+    it). The carrier arm, where the wall departs the cap's plane,
+    certifies only once its second-order zero-side residual passes the
+    band, at depth 51–73.
+  - It is the cleartail row's two-curved-edges case, not its plane
+    line-edge case.
+  - Fix shape and measurements:
+    `departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget`.
+- **`m8_14`'s half-turn helix** no longer reproduces: every cap–wall
+  pair holds at depth 6–8 on today's main. Pinned holding there too.
+- **Twisted seam** (all four of `twisted_loft`'s):
+  - The graph separator's normal weighs each face's heading by its
+    cell's offset along the seam, and at the seams' 51° dihedral it
+    leaves both faces on one side.
+  - Bisecting the headings flips all four seams to `Holds` at depth
+    21–24 (measured locally).
+  - Fix shape:
+    `departure-graph-separator-weighs-each-heading-by-its-cells-offset-along-the-edge`.

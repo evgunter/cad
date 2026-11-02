@@ -60,6 +60,8 @@ mod seam_region_common;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
+mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -158,12 +160,18 @@ mod a_torus_off_its_ring_reads_as_at_rest;
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]
 mod a_vertex_on_a_grazing_plane;
+#[path = "a_vertex_piercing_a_lens_wall.rs"]
+mod a_vertex_piercing_a_lens_wall;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
+#[path = "a_wrap_tip_reads_its_full_turn_in_the_boolean.rs"]
+mod a_wrap_tip_reads_its_full_turn_in_the_boolean;
 #[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]
 mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_apex_lying_in_a_partners_face.rs"]
+mod an_apex_lying_in_a_partners_face;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
@@ -240,6 +248,8 @@ mod curved_copy_review_probes;
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
 mod curved_edge_ray_probes;
+#[path = "curved_trims_build_at_their_volumes.rs"]
+mod curved_trims_build_at_their_volumes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "degree1_loft_slabs.rs"]
@@ -268,6 +278,8 @@ mod offset_doors_end_with_the_join;
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
 mod one_door_for_coincident_sections;
+#[path = "one_region_rows.rs"]
+mod one_region_rows;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
 #[path = "onpair_rim_pcurves.rs"]
@@ -521,6 +533,8 @@ mod contfp_reads_arcs_on_their_carriers;
 mod copied_carriers_at_interval;
 #[path = "corner_patch_chart_poles.rs"]
 mod corner_patch_chart_poles;
+#[path = "edges_lying_in_a_face_part_wherever_they_lie.rs"]
+mod edges_lying_in_a_face_part_wherever_they_lie;
 #[path = "ellipse_torus.rs"]
 mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
@@ -665,8 +679,6 @@ mod reach_split_gate_per_face;
 mod reach_split_gate_pose;
 #[path = "reach_split_gate_window.rs"]
 mod reach_split_gate_window;
-#[path = "reach_volume_backstop.rs"]
-mod reach_volume_backstop;
 #[path = "reach_wall_chord_rows.rs"]
 mod reach_wall_chord_rows;
 #[path = "readback_doors.rs"]
@@ -795,6 +807,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "shell_cavity_embedded.rs"]
+mod shell_cavity_embedded;
 #[path = "shell_general_door.rs"]
 mod shell_general_door;
 #[path = "strut_cover_on_cylinder_pairs.rs"]
@@ -925,6 +939,8 @@ mod m9_3_wall_door;
 
 #[path = "a_boolean_on_a_pole_touching_octant.rs"]
 mod a_boolean_on_a_pole_touching_octant;
+#[path = "a_ringed_wall_divided_by_a_carried_chord.rs"]
+mod a_ringed_wall_divided_by_a_carried_chord;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
@@ -1005,6 +1021,8 @@ mod mate7a_torus_rest;
 mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
+#[path = "nurbs_plane_guard.rs"]
+mod nurbs_plane_guard;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "pierce_tangent_off_face.rs"]
@@ -1306,18 +1324,32 @@ mod a_body_built_turned_is_the_body_turned;
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
+#[path = "a_cylinder_through_a_hole_tangent_to_its_wall.rs"]
+mod a_cylinder_through_a_hole_tangent_to_its_wall;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
+#[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
+mod a_seam_inside_a_face_is_no_boundary_of_it;
+#[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
+mod an_aimed_ray_from_far_reads_a_split_side_right;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+#[path = "side_reader_aims_ask_nothing.rs"]
+mod side_reader_aims_ask_nothing;
+#[path = "sphere_aims_reader_ties.rs"]
+mod sphere_aims_reader_ties;
 
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
 
+#[path = "a_box_along_a_fillets_line_arc_junction.rs"]
+mod a_box_along_a_fillets_line_arc_junction;
+#[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
+mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]

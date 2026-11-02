@@ -84,3 +84,40 @@ and bodies unchanged. No orchestrator yet.
   - **To file once the build row is written:** `ssi-domain-extent-means-three-things` (SSIEDGE P2), `a-long-ssi-arc-fails-limb-three-over-its-chain` (P2), and a faster general sweep for marched poses (P3, with the two failed steering prototypes as evidence).
 - 2026-10-31 — **Accounting fork decided** (PR 6137 merged; fork row 227). Ev chose B and placed its oracle as a `debug_assert`: cardinality with one-to-one end/witness matching closes, and the ruling-angle coverage is DESIGN's row-5 debug assertion ("in production we don't want to waste time double checking things"). The ruling sweep, one-to-one matching and sweep seeding become a new cylinder-unit stage, after stage 1 and before stage 3. My ruling (2) is retired.
 - 2026-10-31 — **Cylinder stage 1 open: PR 6139**, frozen at `b61ee71`, CI green. **Dual concurrent review dispatched** (arm: concurrent, unit difficulty H), R1 and R2 on the same head with identical briefs and eight claims to falsify. Also cleared the finished lanes' clones and the cylinder lane's target for disk (90% → 32%).
+- 2026-10-31 — **Cylinder stage 1 (PR 6139) reviewed and fixed.**
+  - **Dual concurrent review** on `b61ee71`: both reviewers APPROVE-WITH-FIXES, and the one MAJOR is bilateral. Coaxial cylinders of unequal radii refused `CoincidentSurfaces` because the reorder dropped main's premise that the radii were already decided equal.
+  - **Fix pass `a865b8f`:**
+    - coincidence needs both coaxial Zero and radii Zero;
+    - closed forms obey the domain through one `placement()`;
+    - rows added for the unequal chord, the off-centre region, coplanar unequal radii, pipes and bosses;
+    - the parallel ladder lives in one place;
+    - docs say the march domain is the cube of one ball.
+  - **Two calls I accepted:**
+    - `crossing_ball`'s `|e|/2` never binds (measured), so it stays a conservative bound;
+    - the crossing `Pinched` arm stays row 1, because `Band::new` admits an escalation edge under twice the zero.
+  - **Behaviour that moved:** the replace_face neighbour gate now refuses `VertexDisagreement` (filed on SHELF, P3).
+  - **Filed** `a-one-loop-cylinder-pair-refuses-winds-unseparated-at-coarse-eps` (P2), unmeasured.
+  - **Class to watch:** reordering margin reads can drop a premise a later read relied on. That is what made this MAJOR. A unit that reorders pose decisions sweeps every later read for that premise.
+- 2026-10-31 — **PR 6139 merged**: cylinder stage 1, with its dual-review row as the last commit. **Stage 2 dispatched** (`sectarms/cylinder-pair-readers`, tier single full): the operation's region at the glue door, and `section_door` and `section_cert` reading the value. The ruling-sweep stage and stage 3 follow, one at a time, because disk holds about one warm lane plus reviewers.
+  - **New process rules on main today** (Ev on #6132): a drawn third of design forks get a second Opus designer, and reconciliation runs until all designers agree or a round changes no one's mind, replacing the crossover rule. Both apply to this track's forks from now on.
+- 2026-10-31 — (SPLICE orchestrator) **PR 6026 merged (`6335ffd3`); W5 dispatched** (`splice/w5-loop-free-sweep`).
+  - 6026 adopted 6139's shapes: `ComponentShape::Open { ends: ComponentEnds { rims, .. } }`, with SPLICE's exact-sides `ChartReach` as the type in `rims`. `pair_section_with` is folded into `pair_section(a, b, region, lane, band)`.
+  - W5 is built per PR 6121 as the plane instance of the pose classification's regularity sweep, in `pair_section/plane_spline.rs`, and the guard reads its verdict. It may move W0 (`section_cert::nurbs_plane`) into the pose as stage 1.
+  - Krawczyk isolation and the Hessian decision are left to your NURBS × implicit build, with the plug-in point named in W5's PR.
+- 2026-10-31 — **Stage 2 open: PR 6151** (`cf488e3`, CI green).
+  - **Region at the glue door.** `section_door` and `section_cert` read two cylinders through the value, and node-joined arcs read as one component.
+  - **A guard I didn't ask for:** a `carried_at_the_join` gate keeps cylinder pairs off the join's carried lane until stage 3, because a node site desyncs before then.
+  - **SPLICE's 6026 merged mid-stage** and was absorbed: its march door and rim reaches.
+  - **Eight rows moved to the slow set** (1.3–4.1 s), because the guard now marches cut pairs. The ruling-sweep stage should bring them back.
+  - **Held before review:** GREEN's new P0 (18 sweep rows red on main) names 6139 as a suspect, so the same lane bisects it first. P0 work outranks the P1 review.
+- 2026-10-31 — **GREEN's P0 is not ours.** All 18 rows were red before PR 6139 (17 with identical panics at 6139's parent, at its merge and at stage 2; the 18th still running after 22 minutes at the parent). The evidence is on GREEN's row, and 6139 leaves its suspect list. **Stage 2's review dispatched** (single full, on `cf488e3`).
+- 2026-10-31 — (SPLICE orchestrator) **W5 landed (PR 6150, `8b890892`).** The `(Plane, Nurbs)` arm your NURBS × implicit build generalises is now in place.
+  - **The stages in code:**
+    - stage 1, `PlaneSplinePose::hull`: apart, coincident (D10) or in band;
+    - a door that refuses a collapsed side not decided clear over its whole row (`chart_singularity::spline_collapsed_row`);
+    - stage 2, C3's own pass (`PlaneSection::pass()`), run once and carried to `all()` and `read_whole`;
+    - stage 3, `plane_spline/sweep.rs` on the shared recursion (`exhaust::SweepDuty::Regular`), with a union-find same-side join.
+    - The guard reads `Components::Reaching(Reached)`; `Reached::new` refuses an empty reach.
+  - **Krawczyk and Hessian isolation** plug in at `Declined::Floor`.
+  - **A class the review found, which bears on your build:** W5 first ran its sweep ahead of stages 1 and 2. A wall within the band everywhere, and a boundary graze, then cleared where main refuses them as tangent. Run the hull's coincidence call and the boundary pass before the sweep for every implicit `f`. The re-review also showed that the sweep alone reads a long thin in-band wall as loop-free, so the guarantee lives in stages 1 and 2.
+  - **Also:** "excluded or regular ⇒ loop-free" is unsound without the same-side join, because an excluded cell can hold the loop's extremum.

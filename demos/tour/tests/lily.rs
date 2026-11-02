@@ -1933,3 +1933,36 @@ mod verbs_gate_r1_probes {
         )
     }
 }
+
+/// **A blade's cap holds against its walls at its lens tip.**
+/// `lily_leaf_a`'s section is a lens of two circular arcs, so each cap
+/// is a plane bounded by two circles meeting at the tip. A cap cell
+/// holding the tip holds both arcs and no presentation reads that
+/// corner; the wall's departure from the cap's plane certifies it, the
+/// wall's side on the shared edge read off its own restricted iso net,
+/// which lies in the cap's plane. The tour builds at `f64` only; the
+/// `Interval` twin of this locus is
+/// `self_intersection_proves_injectivity`'s lens-loft row.
+mod cap_corner_departure {
+    use crate::common::cap_corner::{assert_holds, cap_wall_pairs};
+    use demo_tour::lily::{leaf_a, leaf_a_plan};
+    use pncad::geom_core::Tol;
+    use pncad::topo::Body;
+
+    #[test]
+    fn each_cap_of_a_lens_blade_holds_against_its_walls_at_its_tip() {
+        let tol = Tol::witness();
+        let float: Body<f64> = leaf_a(leaf_a_plan(), tol);
+        let pairs = cap_wall_pairs(&float);
+        assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
+        let receipts: Vec<(usize, u32)> = pairs
+            .iter()
+            .map(|&pair| assert_holds("lily_leaf_a", &float, pair))
+            .collect();
+        assert_eq!(
+            receipts,
+            [(0, 0), (0, 0), (0, 0), (0, 0)],
+            "each pair's (splits, deepest cell): the root cell certifies, as on the lens loft"
+        );
+    }
+}

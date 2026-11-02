@@ -1,12 +1,13 @@
 ---
 id: section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made
 kind: issue
-title: NodeValue does not carry the profile node's ProfilePre structure record, so profile_edges_of has no caller that can hand it one (wire::section_of, which re-derived it whole, left in PR 4741)
+title: ProfileValue does not carry ProfilePre's structure record, so profile_edges_of has no production caller
 status: open
 opened: 2026-09-12
 refs: [2435]
-priority: P1
-cost: H
+priority: P2
+cost: M
+design: true
 ---
 
 
@@ -109,3 +110,16 @@ unchanged.
 Read against the tree at `fd218851f9`. `section_of` is gone (PR 4741) but `ProfileValue` still carries no structure record and `profile_edges_of` has no production caller. Stage 3 D makes a profile 2-D with no plane, which reshapes `ProfilePre`; the carry question survives on the 2-D record. Its waiting consumer is LIB's `python-has-no-step-to-profile-edge-door`. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Changed. The cost item is gone; the subject stands.**
+- `wire::section_of` and its re-derivation went in PR 4741.
+- `ProfilePre.structure` (`eval/anchor.rs:432`) is not carried on `ProfileValue` (`anchor.rs:349`). `ProgramProfile::profile_edges_of` (`program.rs:2102`) has only test callers (`tests/edit_step_segments.rs:204, 1438, …`).
+- D made the profile 2-D (validated on its own xy plane, `anchor.rs:422`). That reshapes the record, but the carry question survives.
+- Two consumers wait on it, both open: `lib/python-has-no-step-to-profile-edge-door` and `vgeom/focus-marking-is-per-node-not-per-segment`.
+- It still reaches the ratified PP1/PP2 (`crates/editor-core/README.md:177, 194`), so carrying the structure record is a design choice: designer pair, then `[ev]`.
+- Repriced from P1/H to P2/M, with design: the per-section re-derivation that made it expensive is gone, and what is left is a blocked door and a fork.
+- `anchor.rs:381` cites this row as `work/wire/…`; repoint it with the fix.

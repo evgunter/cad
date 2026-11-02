@@ -283,10 +283,7 @@ pub enum Refusal {
         /// The evaluator's refusal, in its own words.
         source: EvalError,
     },
-    /// The New door was asked for a blank name. The document id is
-    /// derived from the name (`DocumentId::derive` — the identity
-    /// rule GAUTH's orchestrator decided at the program's opening), so a nameless document
-    /// would carry an identity nobody could ever re-derive.
+    /// The New door was asked for a blank name.
     EmptyName,
     /// A creation op named a node that is not the kind its seat
     /// requires — absent, or of another kind. Refusing here keeps
@@ -593,13 +590,14 @@ impl Refusal {
                 DisplayFault::Admission(fault) => match fault {
                     AdmissionFault::NotEvaluated { .. } => 2,
                     AdmissionFault::NoSuchNode { .. }
-                    | AdmissionFault::NotAnInstance { .. }
+                    | AdmissionFault::NotABody { .. }
+                    | AdmissionFault::NotDrawn { .. }
+                    | AdmissionFault::NotASpace { .. }
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::MovedSpace { .. }
                     | AdmissionFault::NoSuchSpace { .. }
-                    | AdmissionFault::NotShown { .. }
-                    | AdmissionFault::FusedGeometry { .. } => 1,
+                    | AdmissionFault::NotShown { .. } => 1,
                 },
             },
             Self::NoGesture
@@ -667,13 +665,10 @@ impl Refusal {
     /// refuses, and the New-document form's Create button, which
     /// disables and shows the words.
     ///
-    /// **It hands back the NAME rather than a verdict** because the
-    /// trim is part of the rule and not each caller's own step. A
-    /// control that gated on the raw text would offer a click the door
-    /// refuses; a caller that trimmed again on its own would be a
-    /// second copy of the normalisation with nothing holding the two
-    /// in step — which is the defect one home for the emptiness alone
-    /// still leaves open.
+    /// It hands back the trimmed name, which the form sends in the op.
+    /// Nothing past this check reads the name yet: the door validates
+    /// it and discards it
+    /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
     ///
     /// The name says `new_document` and not `name`: a blank
     /// *variable* name is a different question with a different
@@ -850,12 +845,7 @@ impl core::fmt::Display for Refusal {
                 "{var} already has a name, and the slot shares it by that name — accept \
                  the offer without giving it another"
             ),
-            Self::EmptyName => {
-                write!(
-                    f,
-                    "a new document needs a name; its identity is derived from it"
-                )
-            }
+            Self::EmptyName => write!(f, "a new document needs a name"),
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
@@ -908,6 +898,12 @@ impl core::fmt::Display for Refusal {
 }
 
 impl core::error::Error for Refusal {}
+
+impl From<WorkspaceError> for Refusal {
+    fn from(error: WorkspaceError) -> Self {
+        Self::Workspace(Box::new(error))
+    }
+}
 
 /// **The choice a save that would give the document a second file
 /// puts in front of the person** (DI4), drawn from

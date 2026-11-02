@@ -190,15 +190,89 @@ impl<T: Decide> SplitResult<T> {
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<SplitContacts, CarryRefusal> {
-        let sides: Vec<(PlaneSide, &Body<T>)> = [
+        self.carried(records, band, region, None)
+    }
+
+    /// **[`Self::carry_contacts`], a record the cut parts across the cut
+    /// retired**: a record whose two cells the cut puts on different
+    /// sides, each cell with an image on the cut, is a touch between the
+    /// two sides, as their meeting across the cut is, and no one side's
+    /// records state it. An image is on the cut where it is a face its
+    /// side holds of the plane ([`SplitNaming::plane_pieces`]) or a cell
+    /// bounding one. The records retired, by index in `records`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::carry_contacts`], whose [`CarryRefusal::Parted`] stands
+    /// for a parted record a cell of which has no image on the cut.
+    pub fn carry_contacts_across(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
+    ) -> Result<(SplitContacts, Vec<u32>), CarryRefusal> {
+        let mut parted = Vec::new();
+        let carried = self.carried(records, band, region, Some(&mut parted))?;
+        let sides = self.sides();
+        let pieces: Vec<Vec<FaceKey>> = sides
+            .iter()
+            .map(|&(side, body)| self.naming.plane_pieces(side, body).faces)
+            .collect();
+        let on_cut = |s: usize, cell: Cell| {
+            let body = sides[s].1;
+            let piece = |f: FaceKey| pieces[s].contains(&f);
+            match cell {
+                Cell::Face(f) => piece(f),
+                Cell::Edge(e) => body.get_edge(e).is_some_and(|edge| {
+                    [edge.he_plus, edge.he_minus]
+                        .into_iter()
+                        .filter_map(|he| body.face_of_half_edge(he))
+                        .any(piece)
+                }),
+                Cell::Vertex(v) => body
+                    .faces_of_vertex(v)
+                    .is_some_and(|faces| faces.into_iter().any(piece)),
+            }
+        };
+        let mut retired = Vec::with_capacity(parted.len());
+        for parting in parted {
+            if !parting
+                .held
+                .iter()
+                .all(|held| held.iter().any(|&(s, c)| on_cut(s, c)))
+            {
+                return Err(CarryRefusal::Parted {
+                    record: parting.record,
+                });
+            }
+            retired.push(parting.record);
+        }
+        Ok((carried, retired))
+    }
+
+    /// The sides that hold material, each with its body.
+    fn sides(&self) -> Vec<(PlaneSide, &Body<T>)> {
+        [
             (PlaneSide::Above, self.above.body()),
             (PlaneSide::Below, self.below.body()),
         ]
         .into_iter()
         .filter_map(|(side, body)| body.map(|b| (side, &**b)))
-        .collect();
+        .collect()
+    }
+
+    /// `records` carried onto the sides, each record the cut parts
+    /// listed in `parted` where it is given.
+    fn carried(
+        &self,
+        records: &crate::boolean::ContactRecords,
+        band: geom_core::Band,
+        region: Option<crate::RegionLane<T>>,
+        parted: Option<&mut Vec<crate::boolean::Parting>>,
+    ) -> Result<SplitContacts, CarryRefusal> {
+        let sides = self.sides();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
-        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
+        let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region, parted)?;
         let mut out = SplitContacts::default();
         for ((side, _), list) in sides.iter().zip(carried) {
             match side {

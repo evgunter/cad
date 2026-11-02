@@ -99,6 +99,8 @@ mod coplanar_ellipses_one_locus;
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
 mod cylinder_green_conditioning;
+#[path = "cylinder_pair_section.rs"]
+mod cylinder_pair_section;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
@@ -139,6 +141,8 @@ mod m5_pr9_tangent;
 mod m7_8_plane_nurbs_edge;
 #[path = "m8_f67_r1_probes.rs"]
 mod m8_f67_r1_probes;
+#[path = "marched_windings.rs"]
+mod marched_windings;
 #[path = "offa_r1_probes.rs"]
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
