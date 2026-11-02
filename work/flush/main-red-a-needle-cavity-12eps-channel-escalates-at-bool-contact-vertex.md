@@ -16,4 +16,4 @@ Found by ONEREAD's PR 6247 dual review (R1, NOTE 3; slow set, default ε 1e-9). 
 
 > brick ∖ slab ∪ fill leaving a 12ε channel, tilt 0, Turned, at ε 1e-9: refuses on the sector question, got Err(Escalated { decision: Containment { decision: Some(Loop(Boundary)), escalation: Margin }, diag: Indeterminate { margin: 6.000000011551611e-9, band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("bool_contact_vertex") } })
 
-Reproduce: `cargo nextest run -p topo --profile ci --ignore-default-filter -E 'test(=a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void)'`. Related: `work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`. Owed: bisect the commit that turned it red, then the fix.
+Reproduce: `cargo nextest run -p topo --profile ci --ignore-default-filter -E 'test(=a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void)'`. Related: `work/germ/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`. Owed: bisect the commit that turned it red, then the fix.

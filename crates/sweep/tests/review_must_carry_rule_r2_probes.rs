@@ -213,12 +213,7 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
         origin: p,
         dir: axis,
     });
-    let circle = Curve3::Circle {
-        center: p,
-        axis,
-        radius: 1.0,
-        u_ref,
-    };
+    let circle = Curve3::circle(p, axis, 1.0, u_ref);
     let reps: Vec<Surface<f64>> = vec![
         Surface::Plane {
             origin: p,
@@ -362,12 +357,12 @@ fn varying_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>, f64, f64, f64) 
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let b = band();
     let extent = (2.0 * (b.zero() * b.escalate()).sqrt()).sqrt();
     // Walked from the pole end, so the big curvatures come first.

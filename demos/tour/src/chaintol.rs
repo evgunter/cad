@@ -55,7 +55,7 @@
 //! first transform's re-certification of a moved edge: its endpoint and
 //! its carrier are mapped and enclosed APART, so the endpoint's
 //! residual on its carrier encloses `[0, 9.0e-5]`
-//! (`work/shelf/transform-rigid-recertifies-images-enclosed-apart`).
+//! (`work/shell/transform-rigid-recertifies-images-enclosed-apart`).
 //! Bisected on one leaf, the plain lane certifies the whole box up to
 //! `σ = 6.49e-9` rad at one link and `6.73e-10` at four, where the
 //! moved pcurve's envelope (`pcurve_envelope`, `FidelityU`) refuses
@@ -100,7 +100,7 @@
 //!   with "the surfaces' tangent planes at sample 4 are undefined". The
 //!   box where that happens does not move with ε. It is set by the
 //!   transform enclosing the two images apart
-//!   (`work/shelf/transform-rigid-recertifies-images-enclosed-apart`),
+//!   (`work/shell/transform-rigid-recertifies-images-enclosed-apart`),
 //!   and at the default ε it is the wall, so the tip's certified box is
 //!   half the pin radius.
 //! - **The straddle, before it.** `sin θ = ‖n1 × n2‖/(‖n1‖·‖n2‖)`

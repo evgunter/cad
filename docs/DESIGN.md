@@ -1511,21 +1511,26 @@ target's (`x: +x, z: −z`), a discrete kind, the identity unless
 written; the gesture writes the one nearest where the copy stands.
 The orientation says where the copy's mated direction should point,
 and the **least turn** carries that onto the mated direction. Every
-value beside the mate is read through it: a **slide** runs along one
-of the target space's axes as the least turn carries it, so a slide a
-plane mate leaves runs in that plane however the plane is tilted, and
-where the face is where the orientation puts it the least turn is the
-identity and a slide is a coordinate on the target's own axes; the
+value beside the mate is read through it: a **slide** runs along a
+direction it names: the mated direction itself; one of the target
+space's axes as the least turn carries it, so a slide a plane mate
+leaves runs in that plane however the plane is tilted, and where the
+face is where the orientation puts it the least turn is the identity
+and a slide is a coordinate on the target's own axes; or a `Direction`
+or `Axis` read off a body in the target space that does not read this
+placement, as a mate's target is; the
 one **spin** is the angle about the target's own direction (its
 outward normal for a plane), whatever the contact's sense, left after
 the least turn, so no reference axis is chosen on either side, a
 flip written on either side of a rest turns the spin the same way, and
 zero says the two spaces agree, up to the orientation, as far as the mates
-allow. Where the source's own mated direction is one of its axes, one
-carried axis lands on the mated direction and the mate takes that
-slide; otherwise the written slides are admitted only where they span
-the plane (or line) the mate leaves, decided once from the source's
-geometry. Where the mated direction is opposite to where the
+allow. The written slides are admitted only where they are
+independent and span what the mates leave: for carried axes decided
+once from the source's geometry, for a read direction decided at
+evaluation, since it moves with its body, refusing typed as the least
+turn's pole does. A slide along the mated direction refuses beside a
+plane mate, which fixes it, and where no mate fixes a direction, as
+the axisless spin does. Where the mated direction is opposite to where the
 orientation puts it (the orientation written backwards) the least
 turn has no answer, and within the band about that one pole the chart
 refuses, typed at evaluation and naming the orientation to write, as
@@ -1535,13 +1540,16 @@ moves a held value's meaning, or the copy's place on the face. The
 orientation and a mate's `Flip` are two facts, the copy's attitude and
 the contact's sense; only the pole band refuses. Where no direction is
 fixed (no mate, or a lone point mate), there is no orientation: a
-slide is a coordinate on the target space's own axes, and the
-rotation is a written chain of at most three spins, each about the
-target space's x, y or z (through the mated point, for a point mate),
+slide runs along one of the target space's own axes or a read
+direction, and the rotation is a written chain of at most three
+spins, each about the target space's x, y or z or about an `Axis`
+read off a body in the target space (through the mated point, for a
+point mate),
 no two in a row about one axis; turns do not commute, so the author
-writes the order and the kernel chooses none. A slide is the copy's
-origin measured from the target's, a function of the relative pose
-alone, so no slide is ordered. Every freedom is set explicitly, as a
+writes the order and the kernel chooses none. The copy stands where
+its mates and spins seat it plus the sum of its slides, each its value
+along its direction, so no slide is ordered; on the target's own axes
+this is the copy's origin measured from the target's. Every freedom is set explicitly, as a
 written value: zero is always a valid value, a placement whose values
 are all zero and which has no mate is the identity, and the façade
 writes the constant `0` for each freedom a gesture leaves unnamed. A
@@ -2410,7 +2418,7 @@ the project publishes with one still in the shipped state.
   runs every row-5 postcondition. That is the right posture for a
   kernel nobody depends on yet; deleting the stanza is a real reduction
   in what a release build checks, so it is a decision to take at
-  publish rather than a chore (**S65**, `work/predtail/S65.md`, is
+  publish rather than a chore (**S65**, `work/honeone/S65.md`, is
   the worked example).
 - **The name ([open.name]).**
 - **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN

@@ -1200,7 +1200,10 @@ fn rim_circle(
                 .and_then(|g| g.certified())
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
-                Curve3::Circle { center, radius, .. } => {
+                Curve3::Circle(pncad::geom::Circle {
+                    frame: pncad::geom::Frame { center, .. },
+                    radius,
+                }) => {
                     assert!(
                         center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
                         "a latitude rim's circle is centred ON the axis: got {center:?}"

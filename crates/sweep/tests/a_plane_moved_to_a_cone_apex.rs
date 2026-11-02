@@ -145,7 +145,7 @@ fn a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts() {
             .carrier()
             .clone();
         assert!(
-            matches!(carrier, geom::Curve3::Ellipse { .. }),
+            matches!(carrier, geom::Curve3::Ellipse(..)),
             "{edge:?}: the rim is the cut's ellipse, got {carrier:?}"
         );
         assert!(

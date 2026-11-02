@@ -78,19 +78,21 @@ fn pole_crossing_half_cap() -> (Body<f64>, EdgeKey) {
     let r = rim_r();
     let a = Point3::new(r, 0.0, RIM_Z);
     let b = Point3::new(-r, 0.0, RIM_Z);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     // The great circle in the plane y = 0, oriented so the arc from `b`
     // to `a` passes over the north pole (increasing z first).
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(-r, 0.0, RIM_Z),
+    let great = |axis: Vec3<f64>| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            1.0,
+            Vec3::new(-r, 0.0, RIM_Z),
+        )
     };
     let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < RIM_Z {
@@ -149,12 +151,12 @@ fn chord_wobble(metres: f64) -> Body<f64> {
     let theta = 2.0 * metres / rr;
     let a = Point3::new(rr, 0.0, 0.0);
     let b = Point3::new(rr * theta.cos(), rr * theta.sin(), 0.0);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rr,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        rr,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
@@ -215,18 +217,18 @@ fn two_circle_rim_cap(c: f64) -> Body<f64> {
     let r = rim_r();
     let a = Point3::new(r, 0.0, RIM_Z);
     let b = Point3::new(-r, 0.0, RIM_Z);
-    let true_rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let other = Curve3::Circle {
-        center: Point3::new(0.0, c, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: (r * r + c * c).sqrt(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let true_rim = Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let other = Curve3::circle(
+        Point3::new(0.0, c, RIM_Z),
+        Vec3::new(0.0, 0.0, 1.0),
+        (r * r + c * c).sqrt(),
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let s = other.param_near(b, 0.0).unwrap();
     let e = other.param_near(a, 0.0).unwrap();
     let e = if e > s { e } else { e + core::f64::consts::TAU };
@@ -500,11 +502,13 @@ fn split_meridian_wobble(metres: f64) -> Body<f64> {
     let mid = on(0.9, 0.5);
     let top = on(0.9 + w, 1.0);
     let tl = on(0.0, 1.0);
-    let rim = |z: f64, sense: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, sense),
-        radius: rr,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim = |z: f64, sense: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, sense),
+            rr,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(v0, true).unwrap();
@@ -627,18 +631,22 @@ fn tilted_lune(radius: f64, theta: f64, offset: f64) -> Option<Body<f64>> {
     let c = Point3::new(0.0, 0.0, 0.0);
     // A meridian circle at azimuth `az`, oriented so that its forward
     // parameter runs south pole → equator → north pole.
-    let meridian = |az: f64| Curve3::Circle {
-        center: c,
-        axis: (u_ref * az.sin() - v_ref * az.cos()),
-        radius,
-        u_ref: (u_ref * az.cos() + v_ref * az.sin()),
+    let meridian = |az: f64| {
+        Curve3::circle(
+            c,
+            u_ref * az.sin() - v_ref * az.cos(),
+            radius,
+            u_ref * az.cos() + v_ref * az.sin(),
+        )
     };
     // The return side, oriented north → south.
-    let back = |az: f64| Curve3::Circle {
-        center: c,
-        axis: (v_ref * az.cos() - u_ref * az.sin()),
-        radius,
-        u_ref: (u_ref * az.cos() + v_ref * az.sin()),
+    let back = |az: f64| {
+        Curve3::circle(
+            c,
+            v_ref * az.cos() - u_ref * az.sin(),
+            radius,
+            u_ref * az.cos() + v_ref * az.sin(),
+        )
     };
     let (ta, tb) = (-core::f64::consts::FRAC_PI_2, core::f64::consts::FRAC_PI_2);
     let m0 = meridian(0.0);

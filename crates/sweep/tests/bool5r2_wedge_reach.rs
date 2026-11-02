@@ -142,7 +142,7 @@ fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
         .edges()
         .filter_map(|(_, e)| {
             let c = t.body.get_curve_geom(e.curve)?.certified()?;
-            matches!(c.carrier(), geom::Curve3::Circle { radius, .. } if (radius - R_SPHERE).abs() < 1e-12)
+            matches!(c.carrier(), geom::Curve3::Circle(geom::Circle { radius, .. }) if (radius - R_SPHERE).abs() < 1e-12)
                 .then(|| c.description().clone())
         })
         .collect();

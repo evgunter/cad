@@ -169,7 +169,7 @@ fn probe_d_rim_arc_orientation() {
         let c0 = carrier.eval(t0);
         let c1e = carrier.eval(t1);
         let aligned = (c0 - sp).norm() <= (c1e - sp).norm();
-        let is_circle = matches!(carrier, geom::Curve3::Circle { .. });
+        let is_circle = matches!(carrier, geom::Curve3::Circle(..));
         if is_circle {
             let req = BlendRequest {
                 body: &pipped,
@@ -177,7 +177,12 @@ fn probe_d_rim_arc_orientation() {
                 size: 0.02,
             };
             let verdict = run_battery(&req, band());
-            let conv = verdict.as_ref().ok().map(|v| v.chains[0].first().convexity);
+            // A meridian is a smooth seam: no chain, no convexity.
+            let conv = verdict
+                .as_ref()
+                .ok()
+                .and_then(|v| v.chains.first())
+                .map(|c| c.first().convexity);
             println!(
                 "PROBE D: rim arc {k:?}: he_plus aligned with carrier = {aligned}, single-edge battery => {:?} (err: {})",
                 conv,

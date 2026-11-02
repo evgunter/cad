@@ -242,8 +242,10 @@ fn a_near_axial_sections_readback_u_ref_is_its_major_direction() {
     let mut seamed_across = 0;
     for body in [res.above.body(), res.below.body()].into_iter().flatten() {
         for (edge, _) in body.edges() {
-            let Ok(&geom::Curve3::Ellipse { u_ref, .. }) =
-                topo::readback::edge_carrier_ref(body, edge)
+            let Ok(&geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { u_ref, .. },
+                ..
+            })) = topo::readback::edge_carrier_ref(body, edge)
             else {
                 continue;
             };

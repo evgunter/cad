@@ -300,7 +300,7 @@ pub(crate) enum Door {
     /// the sphere reads only where circles bound it (the same row).
     Ring,
     /// The edge join on a spline carrier
-    /// (`work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`),
+    /// (`work/splice/joining-a-spline-carrier-is-unbuilt.md`),
     /// which no pose here reaches.
     Join,
 }

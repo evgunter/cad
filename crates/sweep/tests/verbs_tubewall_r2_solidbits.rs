@@ -50,7 +50,7 @@ fn r2_solid_door_bits_dump() {
         // arc window (10, 0.2), bounds its wall's meridian circles past
         // the finest band: the torus composite's conditioning, limb 2's
         // kernel limit
-        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
         let rows: &[f64] = if arc.is_some() && major >= 40.0 * minor {
             &[1e-12]
         } else {

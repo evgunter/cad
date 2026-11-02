@@ -877,7 +877,7 @@ fn seam_vertex_fires_only_where_rim_of_lists_the_rim() {
             .filter(|(_, e)| {
                 b.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .map(|(k, _)| k)
             .collect();

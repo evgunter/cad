@@ -76,7 +76,7 @@ enum Stop {
     /// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`).
     ConicTrim,
     /// The edge join on a spline carrier, open or closed
-    /// (`work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`),
+    /// (`work/splice/joining-a-spline-carrier-is-unbuilt.md`),
     /// which no pose here reaches.
     Join { closed: bool },
 }

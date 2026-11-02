@@ -142,7 +142,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
     ),
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     (
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
@@ -170,7 +170,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Boolean/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
     ),
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
@@ -199,12 +199,12 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Extrude/SmoothJoinRefuted",
         span: "EdgeKey(null)",
-        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     Admission {
         row: "Revolve/SmoothJoinRefuted",
         span: "EdgeKey(null)",
-        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A merge refusal names its edge by key.
     Admission {
@@ -280,7 +280,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
-    // work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Revolve/PinnedRunStation",
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
@@ -303,7 +303,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
     "Extrude/SidePlane",
@@ -861,7 +861,7 @@ mod kernel {
         /// `BlendError`'s arms, for the `Blend/` rows.
         pub(super) const BLEND_ERROR: BlendError = [
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
-            FaceClearance, TangentialEdge, SpineIrregular, ChainNotG1,
+            FaceClearance, KnifeEdge, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
             ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
@@ -3626,8 +3626,8 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "TangentialEdge",
-            E::TangentialEdge {
+            "KnifeEdge",
+            E::KnifeEdge {
                 edge,
                 margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
             },
@@ -3886,6 +3886,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Blend {
                 verb: BlendKind::Fillet,
                 error: e,
+                edge: None,
             },
         )
     })
@@ -6348,6 +6349,7 @@ fn every_blend_detail_renders_within_the_budget() {
                 as_the_viewer_shows_it(NodeErrorKind::Blend {
                     verb,
                     error: error(),
+                    edge: None,
                 }),
             ));
         }

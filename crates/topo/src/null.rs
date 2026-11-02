@@ -1394,12 +1394,12 @@ mod tests {
             )
             .unwrap();
         let t0 = p.y.atan2(p.x);
-        let circle = geom::Curve3::Circle {
-            center: frame.origin + frame.axis * p.z,
-            axis: frame.axis,
-            radius: frame.radius,
-            u_ref: frame.u_ref,
-        };
+        let circle = geom::Curve3::circle(
+            frame.origin + frame.axis * p.z,
+            frame.axis,
+            frame.radius,
+            frame.u_ref,
+        );
         let spec = || {
             geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t0 + core::f64::consts::TAU)
                 .unwrap()
@@ -1493,12 +1493,12 @@ mod tests {
             .unwrap();
         let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let t0 = p.y.atan2(p.x);
-        let circle = geom::Curve3::Circle {
-            center: frame.origin + frame.axis * p.z,
-            axis: frame.axis,
-            radius: frame.radius,
-            u_ref: frame.u_ref,
-        };
+        let circle = geom::Curve3::circle(
+            frame.origin + frame.axis * p.z,
+            frame.axis,
+            frame.radius,
+            frame.u_ref,
+        );
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, t0, t0 + core::f64::consts::TAU)
             .unwrap();
         TwoFaced {
@@ -1613,12 +1613,15 @@ mod tests {
             .edges()
             .find_map(|(e, data)| {
                 let c = body.get_curve_geom(data.curve)?.certified()?;
-                let geom::Curve3::Circle {
-                    center,
-                    axis,
-                    u_ref,
+                let geom::Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     ..
-                } = *c.carrier()
+                }) = *c.carrier()
                 else {
                     return None;
                 };

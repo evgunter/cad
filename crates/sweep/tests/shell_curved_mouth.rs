@@ -567,7 +567,7 @@ pub(crate) fn split_d_section(r: f64, h: f64) -> Body<f64> {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
         })
         .map(|(k, _)| k)
         .collect();

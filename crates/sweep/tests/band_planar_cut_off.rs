@@ -82,7 +82,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
             .get_curve_geom(e.curve)
             .and_then(|g| g.certified())
             .expect("a certified arc");
-        if !matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. }) {
+        if !matches!(c.carrier(), Curve3::Circle(..) | Curve3::Ellipse(..)) {
             continue;
         }
         arcs += 1;

@@ -558,7 +558,7 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
                 .and_then(|c| match *c.carrier() {
-                    pncad::geom::Curve3::Circle { radius, .. } => Some(radius),
+                    pncad::geom::Curve3::Circle(pncad::geom::Circle { radius, .. }) => Some(radius),
                     _ => None,
                 });
             let two_sided = pncad::topo::readback::edge_sides(&body, *k)

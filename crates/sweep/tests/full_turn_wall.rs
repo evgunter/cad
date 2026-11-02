@@ -295,7 +295,7 @@ fn a_zone_merged_with_half_a_cap_is_not_a_full_turn() {
                     .and_then(topo::null::CurveGeom::certified)
                     .map(|c| c.carrier().clone());
                 let is_rim =
-                    matches!(circle, Some(geom::Curve3::Circle { axis, .. }) if axis.y.abs() > 0.9);
+                    matches!(circle, Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { axis, .. }, .. })) if axis.y.abs() > 0.9);
                 if is_rim != rim {
                     return None;
                 }

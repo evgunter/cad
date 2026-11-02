@@ -1164,7 +1164,7 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
     };
     let (t0, t1) = (spec.param_start, spec.param_end);
     let image = match spec.carrier {
-        Curve3::Circle { .. } => geom_brep::pick_arc_rim(
+        Curve3::Circle(..) => geom_brep::pick_arc_rim(
             &spec.carrier,
             (t0, t1 - t0),
             &Surface::Nurbs(Arc::clone(wall)),

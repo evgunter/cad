@@ -496,6 +496,13 @@ fn both_sweeps_evaluate_in_one_document() {
 /// the edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+/// RE-BLESSED when `Curve3::Circle` and `Curve3::Ellipse` came to hold a
+/// `geom::Circle` / `geom::Ellipse` over a `geom::Frame`
+/// (`Circle(Circle { frame: Frame { .. }, radius })` where it spelled
+/// `Circle { center, axis, radius, u_ref }`), which changes the edge
+/// curve's `Debug` the digest feeds. With that `Debug` written in main's
+/// shape every row here reproduces main's value at all three ε rows, so
+/// nothing else moved.
 /// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
 /// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
@@ -506,9 +513,9 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x29ab_9b8c_2c18_a18c),
         ("corner_table", 0x8078_f0ef_e3f1_1dd2),
-        ("cut_cylinder", 0x1b67_5045_b07d_c96e),
-        ("boss_union", 0x7826_3eb1_91fe_0027),
-        ("kitchen_sink", 0x64f5_d641_5746_f16a),
+        ("cut_cylinder", 0x6102_93d4_6278_840a),
+        ("boss_union", 0xb2d0_2f71_80ea_a36b),
+        ("kitchen_sink", 0x510a_2f5d_167b_a85a),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

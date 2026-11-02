@@ -27,7 +27,6 @@ use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::loop_winding::ConicFrame;
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -335,16 +334,24 @@ where
         for half in &halves {
             let c = chart(half.corner - plane.origin);
             uv.push(Point2::new(c.x, c.y));
-            edges.push(match half.carrier {
+            edges.push(match &half.carrier {
                 HalfCarrier::Chord => SectionEdge::Line,
-                HalfCarrier::Conic { conic, start, end } => {
-                    let c = chart(conic.center - plane.origin);
+                HalfCarrier::Conic {
+                    carrier,
+                    start,
+                    end,
+                } => {
+                    let conic = carrier
+                        .conic()
+                        .unwrap_or_else(|| unreachable!("a conic half's carrier is a conic"));
+                    let c = chart(conic.frame().center - plane.origin);
+                    let (a, b) = conic.semi_axis_vectors();
                     SectionEdge::Arc {
                         center: Point2::new(c.x, c.y),
-                        a: chart(conic.a()),
-                        b: chart(conic.b()),
-                        start,
-                        end,
+                        a: chart(a),
+                        b: chart(b),
+                        start: *start,
+                        end: *end,
                     }
                 }
                 // The split's carrier gate admits no spiric or NURBS edge,
@@ -433,7 +440,7 @@ enum HalfCarrier<T: Real> {
     /// An arc of `conic` from parameter `start` to `end`, in traversal
     /// order.
     Conic {
-        conic: ConicFrame<T>,
+        carrier: geom::Curve3<T>,
         start: T,
         end: T,
     },
@@ -478,14 +485,18 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
             .certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
-            Some(curve) => match ConicFrame::of(curve.carrier()) {
-                Some(conic) => {
+            Some(curve) => match curve.carrier() {
+                carrier @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => {
                     let (t0, t1) = curve.params();
                     let (start, end) = if forward { (t0, t1) } else { (t1, t0) };
-                    HalfCarrier::Conic { conic, start, end }
+                    HalfCarrier::Conic {
+                        carrier: carrier.clone(),
+                        start,
+                        end,
+                    }
                 }
-                None if !curve.carrier().is_curved() => HalfCarrier::Chord,
-                None => HalfCarrier::Unread,
+                geom::Curve3::Line(_) => HalfCarrier::Chord,
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => HalfCarrier::Unread,
             },
         };
         halves.push(Half {

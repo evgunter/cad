@@ -40,12 +40,7 @@ struct Cap {
 }
 
 fn cap(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> Cap {
-    let carrier = Curve3::Circle {
-        center,
-        axis,
-        radius: 1.0,
-        u_ref,
-    };
+    let carrier = Curve3::circle(center, axis, 1.0, u_ref);
     let (mut body, face) = crate::test_support_fixtures::arc_cap(
         carrier,
         (0.0, core::f64::consts::PI),
@@ -226,13 +221,15 @@ fn a_curves_clearance_is_a_lower_bound_on_its_carriers_distance() {
     let w = axis.cross(u_ref);
     let center = p(0.4, -1.1, 2.3);
     for (semi_u, semi_v) in [(2.0, 0.7), (0.5, 1.6)] {
-        let e = Curve3::Ellipse {
-            center,
-            axis,
+        let e = Curve3::Ellipse(geom::Ellipse {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             semi_u,
             semi_v,
-            u_ref,
-        };
+        });
         let walk: Vec<Point3<f64>> = (0..20_000)
             .map(|k| {
                 let t = core::f64::consts::TAU * f64::from(k) / 20_000.0;
@@ -256,13 +253,11 @@ fn a_curves_clearance_is_a_lower_bound_on_its_carriers_distance() {
             }
         }
     }
-    let long = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: v(0.0, 0.0, 1.0),
-        semi_u: 1000.0,
-        semi_v: 1e-3,
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let long = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::origin(), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+        1000.0,
+        1e-3,
+    ));
     let bound = long.clearance(p(1000.1, 0.0, 0.0)).unwrap();
     assert!(
         bound > 1e-6 && bound <= 0.1 + 1e-9,
@@ -367,12 +362,7 @@ fn a_keel_off_the_arcs_is_read_at_the_faces_reach_not_the_cleared_radius() {
 /// `u_ref`, bulging `1 − cos δ` toward `axis × u_ref`.
 fn sliver(chord_mid: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>, delta: f64) -> Cap {
     let w = axis.cross(u_ref);
-    let carrier = Curve3::Circle {
-        center: chord_mid - w * delta.cos(),
-        axis,
-        radius: 1.0,
-        u_ref,
-    };
+    let carrier = Curve3::circle(chord_mid - w * delta.cos(), axis, 1.0, u_ref);
     let (mut body, face) = crate::test_support_fixtures::arc_cap(
         carrier,
         (

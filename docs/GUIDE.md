@@ -1266,8 +1266,9 @@ with one spherical pip cut into its top face, then ONE fillet whose
 selection is said twice geometrically — the box edges by carrier
 kind, the pip rim by the plane/sphere pair across it. What is NOT
 selected is the point: the cavity's two meridian seams are sphere on
-BOTH sides (no dihedral wedge — unfilletable at any radius), and
-they match neither filter, so the refusal falls out of the geometry.
+BOTH sides (no dihedral wedge — a fillet would leave them as they
+are), and they match neither filter, so the exclusion falls out of
+the geometry.
 
 ```python
 import math

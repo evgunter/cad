@@ -432,7 +432,7 @@ mod tests {
             .filter(|(_, e)| {
                 body.get_curve_geom(e.curve)
                     .and_then(topo::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .map(|(k, _)| k)
             .collect();

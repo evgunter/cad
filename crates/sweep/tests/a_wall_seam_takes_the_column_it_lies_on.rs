@@ -335,7 +335,7 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
             let curve = body
                 .get_curve_geom(edge.curve)
                 .and_then(topo::CurveGeom::certified)?;
-            matches!(curve.carrier(), geom::Curve3::Circle { .. }).then(|| (e, curve.clone()))
+            matches!(curve.carrier(), geom::Curve3::Circle(..)).then(|| (e, curve.clone()))
         })
         .expect("the prism has an arc rim");
     let (t0, t1) = geom.params();

@@ -58,7 +58,7 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 - `review_4781_r1_probes::review_4781_touch_pairs_every_op`: its 1e-12
   stop moved again, from `RayExhausted` to limb 2's `KernelLimit` on a
   cylinder, since PR 5728. Pinned there and filed as
-  `work/offset/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`.
+  `work/shell/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`.
   The `RayExhausted` stop this row names is now behind it, unmeasured.
 - `verbs_germarms2_interval::the_meeting_axes_pose_…`: pinned at every
   ε on `bool_ruled_region_span`

@@ -168,6 +168,6 @@ The axial (together) door is now closed under its own output, so `shell_open`'s 
 The PR implements every point of the `## Decided` spec. Two further arms (the cap-pair pole and the extruded-point re-author) read the posture they are given, and each is pinned by one row. The work was reviewed by a concurrent pair, row DR-91; the fix pass came from the adjudicated union of both reviews.
 
 Residues, each filed:
-- the door's strict-subset body when the caps' meeting line enters the tube: `work/shelf/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md` (P1);
-- the adjacent-mouth glue limit: `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md` (P3);
+- the door's strict-subset body when the caps' meeting line enters the tube: `work/shell/axial-door-builds-a-strict-subset-when-the-caps-meeting-line-enters-the-tube.md` (P1);
+- the adjacent-mouth glue limit: `work/shell/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md` (P3);
 - the sealed elbow's props door: FLUX's `spiric-bounded-face-area-is-unimplemented`.

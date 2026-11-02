@@ -62,12 +62,7 @@ fn plane(z0: f64, up: bool) -> Surface<f64> {
 
 /// The rim about +Z at height `z`, radius `r`.
 fn rim(z: f64, r: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: z_axis(),
-        radius: r,
-        u_ref: x_axis(),
-    }
+    Curve3::circle(Point3::new(0.0, 0.0, z), z_axis(), r, x_axis())
 }
 
 /// The unit sphere's rim at height `z`.

@@ -13,17 +13,17 @@
 //!   over-reports.
 //! - **The #554 pair at randomized geometry**: full and partial
 //!   revolves of one profile DECIDE the same dihedral — red if the
-//!   closed form regresses to `TangentialEdge`. Past that decision the
+//!   closed form regresses to a zero wedge. Past that decision the
 //!   closed rim's band is built and the open arc reaches its
 //!   unimplemented seam-meridian corner.
 //! - **The detector differential**: a co-surface seam meridian still
-//!   refuses `TangentialEdge` at margin exactly 0.0 — red if the fix
-//!   removed the detector rather than the false positive.
+//!   reads Zero at margin exactly 0.0 — red if the fix removed the
+//!   detector rather than the false positive.
 //! - **A closed one-edge chain has no junctions**: the structural fact
 //!   the explicit wrap-around G1 site rests on — red if the walk
 //!   starts minting junctions for self-closed links.
 //! - **The newly reachable frontier builds**: a convex plane–sphere
-//!   closed rim PASSES the battery (it used to refuse `TangentialEdge`
+//!   closed rim PASSES the battery (it used to decide a zero wedge
 //!   before any construction) and `fillet_edges` mints its annulus
 //!   band — red if a one-edge rim stops reaching, or stops building
 //!   at, the surgery's closed-chain door.
@@ -255,7 +255,7 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
 /// same cone×cylinder corner DECIDES its dihedral — never reporting
 /// tangency on a transverse corner — whether its rim is CLOSED (full
 /// revolve) or open (partial at any sweep). Red if the closed form
-/// regresses to the false `TangentialEdge`.
+/// regresses to the false `KnifeEdge`.
 ///
 /// Past that decision the forms part: the closed rim's band is built by
 /// the cylinder×cone arm, the open arc terminates at the revolve's
@@ -293,7 +293,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             )
             .map_err(|r| r.error);
             assert!(
-                !matches!(v, Err(BlendError::TangentialEdge { .. })),
+                !sweep::test_support::read_as_tangent(&body, &rims[..1], 0.05 * a, &v, tol()),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
                  got {v:?}; {}",
                 fuzz::replay()
@@ -315,10 +315,11 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
 
 /// **The detector differential**: a full ball's seam meridian is a
 /// co-surface edge (one sphere on both sides, dihedral sine exactly
-/// zero) and still refuses `TangentialEdge` at margin exactly 0.0 —
-/// the fix removed the collapsed lever, not the tangency detector.
+/// zero) and still reads Zero at margin exactly 0.0, a smooth seam the
+/// blend leaves as it is — the fix removed the collapsed lever, not the
+/// tangency detector.
 #[test]
-fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
+fn a_co_surface_seam_reads_smooth_at_exactly_zero_margin() {
     let mut rng = fuzz::start("rim-r1 seam differential");
     for _ in 0..fuzz::scaled(4) {
         let r = rng.range(0.5, 2.0);
@@ -333,28 +334,14 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             just(SurfaceKind::Sphere),
         );
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
-        match fillet_edges(
-            &sweep::test_support::at_rest(&ball, tol()),
-            &seams[..1],
-            0.05 * r,
-            tol(),
-        )
-        .map_err(|r| r.error)
-        {
-            Err(BlendError::TangentialEdge { margin, .. }) => {
-                assert_eq!(margin.predicate, "fillet3_convexity_sign");
-                assert_eq!(
-                    margin.reading.diagnostic_f64_for_error_text().value(),
-                    Some(0.0),
-                    "a co-surface seam's sine is structurally zero; {}",
-                    fuzz::replay()
-                );
-            }
-            other => panic!(
-                "expected TangentialEdge at 0.0, got {other:?}; {}",
-                fuzz::replay()
-            ),
-        }
+        let margin = sweep::test_support::smooth_reading(&ball, seams[0], 0.05 * r, tol());
+        assert_eq!(margin.predicate, "fillet3_convexity_sign");
+        assert_eq!(
+            margin.reading.diagnostic_f64_for_error_text().value(),
+            Some(0.0),
+            "a co-surface seam's sine is structurally zero; {}",
+            fuzz::replay()
+        );
     }
 }
 
@@ -391,7 +378,7 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
 }
 
 /// **The newly reachable frontier BUILDS.** Before the lever fix, every
-/// closed edge refused `TangentialEdge` inside the battery, so the
+/// closed edge refused `KnifeEdge` inside the battery, so the
 /// surgery's closed-chain door had never seen a one-link closed chain;
 /// the fix made it live and this row pinned the typed refusal that met
 /// it. The annulus band is the construction that door now reaches: a
@@ -464,7 +451,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
     )
     .map_err(|r| r.error);
     assert!(
-        !matches!(v, Err(BlendError::TangentialEdge { .. })),
+        !sweep::test_support::read_as_tangent(&body, &corner[..1], 0.05, &v, tol()),
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(

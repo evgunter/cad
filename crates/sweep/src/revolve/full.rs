@@ -959,12 +959,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 })
                 .restrict(T::from_f64(0.5), T::one()),
             ),
-            carrier: geom::Curve3::Circle {
-                center,
-                axis: axis_c,
-                radius: verts[i].r,
-                u_ref: rim.normalize(),
-            },
+            carrier: geom::Curve3::circle(center, axis_c, verts[i].r, rim.normalize()),
             param_start: T::zero(),
             param_end: half.abs(),
         };

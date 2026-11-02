@@ -32,8 +32,9 @@ The neighbours since the split:
 - **BLIND** (`work/blind/`) holds the rows where one discipline gate's
   matcher misses a spelling. Its gate scripts are shared ground; what a
   matcher sees is BLIND's, the reader it runs on is GUARD's.
-- **UNREAD** (`work/unread/`) holds the rows with no gate at all. Its
-  new gates land in this directory on this harness, announced here.
+- **CIW** (`work/ciw/`) holds the rows with no gate at all (UNREAD's,
+  merged into CIW on 2026-11-02). Its new gates land in this directory
+  on this harness, announced here.
 
 ## Territory and the seams
 

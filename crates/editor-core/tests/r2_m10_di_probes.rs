@@ -90,25 +90,31 @@ impl Fnv {
                 self.p3(origin);
                 self.v3(dir);
             }
-            Curve3::Circle {
-                center,
-                axis,
+            Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => {
+            }) => {
                 self.u64(41);
                 self.p3(center);
                 self.v3(axis);
                 self.s(*radius);
                 self.v3(u_ref);
             }
-            Curve3::Ellipse {
-                center,
-                axis,
+            Curve3::Ellipse(geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 semi_u,
                 semi_v,
-                u_ref,
-            } => {
+            }) => {
                 self.u64(42);
                 self.p3(center);
                 self.v3(axis);

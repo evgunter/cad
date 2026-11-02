@@ -147,7 +147,7 @@ fn assert_rims_on_cylinders(body: &Body<f64>, face: FaceKey) {
             .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
-        if let geom::Curve3::Circle { radius, .. } = *curve.carrier() {
+        if let geom::Curve3::Circle(geom::Circle { radius, .. }) = *curve.carrier() {
             assert!(
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"

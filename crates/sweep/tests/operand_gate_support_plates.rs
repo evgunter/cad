@@ -210,7 +210,7 @@ fn verdict(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
 #[test]
 fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op() {
     // Pinned since PR 5728 (limb 2 for every carrier). Both pins are
-    // `work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`'s
+    // `work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`'s
     // to close, and each goes red the day its row passes.
     let eps = tol().eps();
     // At ε = 1e-6 a torus fixture refuses to revolve, `NoOffsetBound`

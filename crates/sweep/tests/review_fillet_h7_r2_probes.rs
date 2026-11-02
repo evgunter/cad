@@ -162,12 +162,14 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         .and_then(|g| g.certified())
         .unwrap()
         .clone();
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = *c.carrier()
+    }) = *c.carrier()
     else {
         panic!("a cut-off arc is a circle");
     };
@@ -183,21 +185,11 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
     for (label, carrier) in [
         (
             "wrong radius",
-            Curve3::Circle {
-                center,
-                axis,
-                radius: radius * 1.05,
-                u_ref,
-            },
+            Curve3::circle(center, axis, radius * 1.05, u_ref),
         ),
         (
             "wrong centre",
-            Curve3::Circle {
-                center: center + Vec3::new(0.01, 0.0, 0.0),
-                axis,
-                radius,
-                u_ref,
-            },
+            Curve3::circle(center + Vec3::new(0.01, 0.0, 0.0), axis, radius, u_ref),
         ),
     ] {
         let mut body = out.body.clone().into_body();

@@ -237,7 +237,7 @@ fn the_apex_closed_bands_partition_their_wall() {
                 let c = body
                     .get_curve_geom(e.curve)
                     .and_then(topo::CurveGeom::certified)?;
-                let geom::Curve3::Circle { .. } = c.carrier() else {
+                let geom::Curve3::Circle(..) = c.carrier() else {
                     return None;
                 };
                 let (t0, t1) = c.params();

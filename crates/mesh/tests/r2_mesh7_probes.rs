@@ -96,7 +96,7 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
                 .unwrap();
             let (t0, t1) = curve.params();
             let radius = match curve.carrier() {
-                geom::Curve3::Circle { radius, .. } => *radius,
+                geom::Curve3::Circle(geom::Circle { radius, .. }) => *radius,
                 _ => f64::NAN,
             };
             for f in *fracs {

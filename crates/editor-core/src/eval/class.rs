@@ -554,6 +554,7 @@ mod tests {
                     BlendKind::Chamfer
                 },
                 error: sweep::blend::BlendError::NonpositiveSize { size: 0.0 },
+                edge: None,
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),

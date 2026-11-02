@@ -223,7 +223,7 @@ fn a_void_dilated_through_the_curved_wall_refuses_with_a_witness() {
 /// `f64`, the curved window, and at `Interval` refuses in the general
 /// offset door before the cavity is built, an escalation at
 /// `offset_corner_on_surface`. It waits on
-/// `work/offset/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
+/// `work/shell/offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude.md`,
 /// whose fix turns this row's second half into a `CavityCrosses` row.
 #[test]
 fn the_curved_dumbbell_is_the_window_at_f64_and_waits_on_the_offset_door_at_interval() {

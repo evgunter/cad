@@ -77,24 +77,22 @@ mod closed_form_and_walk {
     }
 
     fn section(n: Vec3<f64>, d: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0) + n * d,
-            axis: n,
-            radius: (1.0 - d * d).sqrt(),
-            u_ref: frame(n),
-        }
+        Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0) + n * d,
+            n,
+            (1.0 - d * d).sqrt(),
+            frame(n),
+        )
     }
 
     /// The same circle as a sampled carrier (an ellipse with equal semis).
     fn section_sampled(n: Vec3<f64>, d: f64) -> Curve3<f64> {
         let r = (1.0 - d * d).sqrt();
-        Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0) + n * d,
-            axis: n,
-            semi_u: r,
-            semi_v: r,
-            u_ref: frame(n),
-        }
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 0.0) + n * d, n, frame(n)),
+            r,
+            r,
+        ))
     }
 
     fn run(
@@ -225,12 +223,7 @@ mod closed_form_and_walk {
 
     /// Great circle with unit normal `n`, parametrized from `u_ref`.
     fn great(n: Vec3<f64>, u_ref: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: n,
-            radius: 1.0,
-            u_ref,
-        }
+        Curve3::circle(Point3::new(0.0, 0.0, 0.0), n, 1.0, u_ref)
     }
 
     /// The great-circle arc from `p` to `q` (short way), as a loop edge.
@@ -337,12 +330,12 @@ mod closed_form_and_walk {
     }
 
     fn parallel(z: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, z),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: z.abs(),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, 1.0),
+            z.abs(),
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     }
 
     /// **Cone orientation pinned** (the PR's own row sorts the two answers,
@@ -434,12 +427,12 @@ mod closed_form_and_walk {
     fn a_spur_short_of_the_pole_leaves_it_inside() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let rim = section(Vec3::new(0.0, 0.0, 1.0), 0.5);
-        let meridian = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, -1.0, 0.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let meridian = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let lat0 = 0.5_f64.asin();
         // `section`'s u_ref for n = z is x × z = -y: the rim starts at -y.
         // rim from -y round to +x (a quarter turn), spur up and back, rest of rim.
@@ -489,12 +482,12 @@ mod sampled_and_fuzzed {
             Vec3::new(1.0, 0.0, 0.0)
         };
         let u_ref = side.cross(n);
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0) + n * d,
-            axis: n,
-            radius: (1.0 - d * d).sqrt(),
-            u_ref: u_ref / u_ref.norm(),
-        }
+        Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0) + n * d,
+            n,
+            (1.0 - d * d).sqrt(),
+            u_ref / u_ref.norm(),
+        )
     }
 
     fn run(loops: &[Vec<LoopEdge<f64>>], sense: bool, band: Band) -> Vec<Located<f64>> {
@@ -511,12 +504,12 @@ mod sampled_and_fuzzed {
     fn sampled_edge_masks_a_decidable_inside_edge() {
         let a = 0.05_f64;
         // A: great circle in the xz-plane, angle t: (cos t, 0, sin t).
-        let arc = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, -1.0, 0.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let arc = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         // B: an ellipse from P2 = (-sin a, 0, cos a) to P1 = (sin a, 0, cos a)
         // whose mid point is (0, 1e-4, 1).
         let c = Point3::new(0.0, 0.0, a.cos());
@@ -525,13 +518,11 @@ mod sampled_and_fuzzed {
         let v_dir = mid / semi_v;
         let u_ref = Vec3::new(-1.0, 0.0, 0.0);
         let axis = u_ref.cross(v_dir);
-        let ellipse = Curve3::Ellipse {
-            center: c,
-            axis,
-            semi_u: a.sin(),
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(c, axis, u_ref),
+            a.sin(),
             semi_v,
-            u_ref,
-        };
+        ));
         // θ = 0 at P2, θ = π/2 at mid, θ = π at P1.
         let p_mid = ellipse.eval(FRAC_PI_2);
         assert!(
@@ -635,12 +626,15 @@ mod sampled_and_fuzzed {
                     let s = (1.0 - d * d).sqrt();
                     let ends = [n1 * d + chord * s, n1 * d - chord * s];
                     let ang = |c: &Curve3<f64>, p: Vec3<f64>| {
-                        let Curve3::Circle {
-                            center,
-                            axis,
-                            u_ref,
+                        let Curve3::Circle(geom::Circle {
+                            frame:
+                                geom::Frame {
+                                    center,
+                                    axis,
+                                    u_ref,
+                                },
                             ..
-                        } = c
+                        }) = c
                         else {
                             unreachable!()
                         };
@@ -713,12 +707,7 @@ mod sampled_and_fuzzed {
         let axis = unit(a.cross(b));
         let ang = a.cross(b).norm().atan2(a.dot(b));
         (
-            Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis,
-                radius: 1.0,
-                u_ref: a,
-            },
+            Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, a),
             0.0,
             ang,
         )
@@ -858,12 +847,15 @@ mod sampled_and_fuzzed {
         let z = 0.5_f64;
         let rim = section(Vec3::new(0.0, 0.0, 1.0), z);
         // The rim's angle-0 point, in its frame.
-        let Curve3::Circle {
-            center,
-            axis,
-            u_ref,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             ..
-        } = rim.clone()
+        }) = rim.clone()
         else {
             unreachable!()
         };
@@ -871,12 +863,12 @@ mod sampled_and_fuzzed {
         let az = Vec3::new(p0.x, p0.y, 0.0);
         let az = az / az.norm();
         // Meridian through p0: angle t measured from the equator toward north.
-        let meridian = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: az.cross(Vec3::new(0.0, 0.0, 1.0)),
-            radius: 1.0,
-            u_ref: az,
-        };
+        let meridian = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            az.cross(Vec3::new(0.0, 0.0, 1.0)),
+            1.0,
+            az,
+        );
         let lat0 = z.asin();
         assert!(
             (meridian.eval(lat0) - p0).norm() < 1e-12,
@@ -981,20 +973,9 @@ mod small_arc_fuzz {
             t1 += TAU;
         }
         let carrier = if sampled {
-            Curve3::Ellipse {
-                center: c,
-                axis: n,
-                semi_u: r,
-                semi_v: r,
-                u_ref: u,
-            }
+            Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(c, n, u), r, r))
         } else {
-            Curve3::Circle {
-                center: c,
-                axis: n,
-                radius: r,
-                u_ref: u,
-            }
+            Curve3::circle(c, n, r, u)
         };
         LoopEdge::hand_built(carrier, 0.0, t1, true, s, e)
     }

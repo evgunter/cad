@@ -129,12 +129,12 @@ fn circle_at_rest(
     );
     let mut rested = a.clone();
     let chart = rested.get_face(top).unwrap().surface;
-    let carrier = geom::Curve3::Circle {
-        center: Point3::new(2.0 * s, 2.0 * s, s),
-        axis: geom_core::Vec3::new(0.0, 0.0, -1.0),
+    let carrier = geom::Curve3::circle(
+        Point3::new(2.0 * s, 2.0 * s, s),
+        geom_core::Vec3::new(0.0, 0.0, -1.0),
         radius,
-        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-    };
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+    );
     rested
         .set_edge_curve(
             edge,
@@ -235,12 +235,7 @@ fn hemispheres() -> Body<f64> {
         },
     )
     .unwrap();
-    let equator = geom::Curve3::Circle {
-        center: origin,
-        axis: z,
-        radius: 1.0,
-        u_ref: x,
-    };
+    let equator = geom::Curve3::circle(origin, z, 1.0, x);
     body.mef(
         topo::construction::MefSite::Lone {
             r#loop: seed.r#loop,

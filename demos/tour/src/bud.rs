@@ -215,7 +215,10 @@ fn rim_station(body: &Body<f64>, e: EdgeKey) -> f64 {
         .certified()
         .expect("a revolved rim carries a certified carrier");
     match *c.carrier() {
-        Curve3::Circle { center, .. } => center.y,
+        Curve3::Circle(pncad::geom::Circle {
+            frame: pncad::geom::Frame { center, .. },
+            ..
+        }) => center.y,
         ref other => panic!("a latitude rim is a circle, got {other:?}"),
     }
 }
