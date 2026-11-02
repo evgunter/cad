@@ -2,10 +2,11 @@
 id: section-cert-reach-parallels-extent-ball
 kind: issue
 title: section_cert's Reach is a parallel type to ExtentBall, adapted at every use; line_tilt is hosted in carrier_eq for two consumers
-status: open
+status: dispatched
 opened: 2026-10-11
 priority: P1
 cost: E
+branch: onehome/one-extent
 ---
 
 

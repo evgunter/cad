@@ -132,6 +132,10 @@ vocabulary! {
         DuplicateBody,
         /// The body a mirror reflects.
         MirrorBody,
+        /// A clearance requirement's first seat, held as a body.
+        ClearedFirst,
+        /// Its second seat, held as a body.
+        ClearedSecond,
     }
 
     /// Every seat, so a sweep over the vocabulary cannot silently
@@ -166,7 +170,9 @@ impl Seat {
             | Self::SplitTarget
             | Self::PatternBody
             | Self::DuplicateBody
-            | Self::MirrorBody => NodeKindWanted::Body,
+            | Self::MirrorBody
+            | Self::ClearedFirst
+            | Self::ClearedSecond => NodeKindWanted::Body,
         }
     }
 
@@ -182,6 +188,8 @@ impl Seat {
             Self::PartInstance => "pattern to project",
             Self::DuplicateBody => "duplicated body",
             Self::MirrorBody => "mirrored body",
+            Self::ClearedFirst => FaceRole::ClearedFirst.name(),
+            Self::ClearedSecond => FaceRole::ClearedSecond.name(),
         }
     }
 }
@@ -192,6 +200,11 @@ impl Seat {
 pub enum FaceRole {
     /// The face whose plane a mirror reflects across.
     MirrorPlane,
+    /// A clearance requirement's first seat, held as a face — the
+    /// seat [`Seat::ClearedFirst`] holds as a body, and named as it is.
+    ClearedFirst,
+    /// Its second seat, held as a face.
+    ClearedSecond,
 }
 
 impl FaceRole {
@@ -199,6 +212,8 @@ impl FaceRole {
     pub fn name(self) -> &'static str {
         match self {
             Self::MirrorPlane => "mirror plane",
+            Self::ClearedFirst => "first seat",
+            Self::ClearedSecond => "second seat",
         }
     }
 }
