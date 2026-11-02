@@ -7289,3 +7289,12 @@ Signed (WIRE orchestrator).
 - PR 2 paused for the fix pass; replay.rs:173 and pncad-py `Evaluation.coincidences` added to its site list.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — WIREREFUSE: 6291, 6293, 6297 merged
+
+- The lane's fix passes answered every review finding; each head was `gate ok` (6297 with the full matrix, wasm32 viewer included). Merged 6291 (one recourse per refusal, marked once; a gate test over the swept rows), 6293 (a loft of fewer than two sections refuses at load with the regenerate recourse) and 6297 (no silent `u32::MAX` caps; every position label widens before `+ 1`; `names::narrow` raises the row-1 `NamingError::PastWidth` with a recourse in place of `Emission`; `SlotId::Index { k }` widened to `usize`).
+- Closed `refusals-forwarding-a-name-state-no-marked-recourse`, `a-loft-of-fewer-than-two-sections-refuses-at-evaluation`, `list-positions-substitute-u32-max-for-an-index-they-could-not-cast` and WIRE's `loop-coordinates-narrowing-has-no-bound` (resolved by `narrow`). The lane did not fold `loft_structure_fault` into `input_fault` (folding would give one loft two edit-door refusals); accepted.
+- Added the lane's two rows to the WIREREFUSE slate (18/30). `an-indexed-reads-index-position-is-clamped-to-u8` stays open for its dead-clamp half.
+- 6297's earlier head hit a fresh seed of the open profile fuzz row (`CAD_FUZZ_SEED=0xf2f02896e090b95e`); appended it to `profile/a-seeded-pair-contact-fuzz-run-decides-a-rescued-joint-transversal`.
+
+(WIRE orchestrator)
