@@ -751,14 +751,15 @@ fn stager() -> Result<Box<dyn crate::evalseam::StagedService>, StartupError> {
 /// door.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct DocumentDerived {
-    /// A camera fit is owed as soon as the next rebuilt scene lands.
+    /// A camera fit is owed until a rebuilt scene with bounds lands.
     /// The document arrives asynchronously, so fitting at the door
     /// would frame the outgoing picture.
     fit_camera: bool,
-    /// Whether the next scene to land should have its δ CHOSEN by the
-    /// triangle budget, rather than drawn at the δ already in force.
+    /// Whether the first landing with a body to price should have its
+    /// δ CHOSEN by the triangle budget, rather than drawn at the δ
+    /// already in force.
     ///
-    /// Cleared the moment it is spent. It is what makes the budget a
+    /// Cleared the moment it is spent, or when the user sets δ. It is what makes the budget a
     /// DEFAULT: a document arrives, the budget picks a δ that draws it
     /// in a reasonable time, and from then on δ is whatever the user
     /// asked for. Anything stronger — clamping every rebuild — would
@@ -1063,16 +1064,18 @@ impl ViewerApp {
         // the seam was cut for. So the shape is the index seam's:
         // submit, keep painting, take the answer when it comes.
         self.take_fit();
-        if self.derived.fit_delta && self.session.landed_generation().is_some() {
-            // Spent on the first landing, whether or not that landing
-            // has a body to price: a document whose product refuses has
-            // no size to fit a δ to, and leaving the budget armed for
-            // its first successful EDIT would make it something other
-            // than the δ a document OPENS at.
+        // Spent on the first landing with a body to price. A landing
+        // with none (an empty new document, a product that refuses) has
+        // no size to fit a δ to, so the budget waits for the edit that
+        // gives the document one: until then the δ in force is the
+        // outgoing document's, which says nothing about this one. A δ
+        // the user types in the meantime disarms it
+        // ([`ViewerApp::set_delta`]), so it stays a default.
+        if self.derived.fit_delta
+            && let Some(request) = self.session.fit_request(self.delta)
+        {
             self.derived.fit_delta = false;
-            if let Some(request) = self.session.fit_request(self.delta) {
-                self.fit.submit(request);
-            }
+            self.fit.submit(request);
         }
         // **The index seam answers here.** A build that finished is
         // installed or refused now, before the currency check below
@@ -1166,8 +1169,11 @@ impl ViewerApp {
                 // The badge's read, ended by the rebuild it was
                 // waiting for.
                 self.scene_fault = None;
+                // A boundless scene is framed (the origin) but does not
+                // spend the fit: the document's first body is what it
+                // is owed for.
                 if self.derived.fit_camera {
-                    self.derived.fit_camera = false;
+                    self.derived.fit_camera = self.scene.bounds().is_none();
                     self.pending_fit = true;
                 }
                 // The gather's own verdict is NOT written here: it is
@@ -1216,6 +1222,7 @@ impl ViewerApp {
         // finer than it would have picked, which is the whole
         // difference between a default and a cap.
         self.derived.budget_delta = None;
+        self.derived.fit_delta = false;
         self.sync_scene();
     }
 
@@ -5831,6 +5838,105 @@ mod properties_pane_tests {
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 
+    /// **The free-move probe drives the instance its panel row draws.**
+    /// Of two instances, each in a space of its own, the selected one's
+    /// probe is dragged through the whole app: the probe held mid-drag
+    /// is the selected instance's, and on release the selected
+    /// instance's space carries the free-move and the other's does not.
+    /// `widgets::free_move_gesture` minting its vocabulary for any other
+    /// node reds here.
+    #[test]
+    fn the_free_move_probe_drives_the_instance_its_row_draws() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("probe target", tol);
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "probe-target".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let doc = driven.app.session.committed_doc();
+        let instances: Vec<RecipeNodeId> = doc
+            .ids()
+            .iter()
+            .copied()
+            .filter(|id| matches!(doc.node(*id), Some(Node::InstantiatePart { .. })))
+            .collect();
+        let [selected, other] = instances[..] else {
+            panic!("the fixture holds two instances: {instances:?}");
+        };
+        driven.app.perform_batch(vec![
+            SessionOp::IntoOwnSpace {
+                placement: selected,
+            },
+            SessionOp::IntoOwnSpace { placement: other },
+        ]);
+        driven.settle();
+        let space_of = |driven: &Driven, node| {
+            driven
+                .app
+                .session
+                .committed_doc()
+                .node_space(node)
+                .expect("each copy is placed into a space of its own")
+        };
+        let (selected_space, other_space) = (space_of(&driven, selected), space_of(&driven, other));
+        assert_ne!(selected_space, other_space, "two spaces");
+        driven.select(Selection::Node(selected));
+        let painted = driven.quiet();
+        let label = painted
+            .iter()
+            .find(|(run, _)| run.starts_with("free-move probe ("))
+            .map(|(_, rect)| *rect)
+            .unwrap_or_else(|| panic!("the selected copy is offered the probe: {painted:?}"));
+        // The probe's first box: the first number painted below its
+        // label.
+        let at = painted
+            .iter()
+            .filter(|(run, rect)| rect.top() >= label.bottom() && run.parse::<f64>().is_ok())
+            .map(|(_, rect)| rect.center())
+            .min_by(|a, b| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)))
+            .unwrap_or_else(|| panic!("the probe's boxes are painted: {painted:?}"));
+
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        driven.frame(vec![egui::Event::PointerMoved(at)]);
+        driven.frame(vec![button(at, true)]);
+        let mut to = at;
+        for _ in 0..4 {
+            to += egui::vec2(12.0, 0.0);
+            driven.frame(vec![egui::Event::PointerMoved(to)]);
+        }
+        assert_eq!(
+            driven.app.session.display().probing(),
+            Some(selected),
+            "mid-drag, the probe held is the selected copy's: {:?}",
+            status(&driven)
+        );
+        driven.frame(vec![button(to, false)]);
+        driven.frame(Vec::new());
+        let display = driven.app.session.display();
+        let removed = std::fs::remove_dir_all(&dir);
+        assert_eq!(display.probing(), None, "the release committed the probe");
+        assert!(
+            display.free_move_of(selected_space).is_some(),
+            "the selected copy's space carries the free-move: {:?}",
+            status(&driven)
+        );
+        assert!(
+            display.free_move_of(other_space).is_none(),
+            "the other copy's space does not"
+        );
+        removed.expect("the fixture directory is removable");
+    }
+
     /// **The Properties pane reads the evaluation the op does**, so
     /// between an edit and its landing it says what the probe would
     /// refuse — the copy's picture is not known yet — rather than offer
@@ -6519,7 +6625,10 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let (target, _) = camera_pose(&driven.app);
         assert_eq!(target, [0.0; 3], "a new document frames the origin");
-        assert!(!driven.app.derived.fit_camera, "its landing spent the fit");
+        assert!(
+            driven.app.derived.fit_camera,
+            "its boundless landing keeps the fit owed"
+        );
 
         driven.perform(SessionOp::Open(path.clone()));
         driven.settle();
@@ -6527,6 +6636,113 @@ mod properties_pane_tests {
         let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(camera_pose(&driven.app), plate, "the next open re-frames");
         removed.expect("the row removes the document it saved");
+    }
+
+    /// A fit seam that records the generation of every request it is
+    /// handed, then runs it as the seam it wraps would.
+    struct Recorded {
+        inner: Box<dyn crate::evalseam::FitService>,
+        asked: std::sync::Arc<std::sync::Mutex<Vec<crate::generation::Generation>>>,
+    }
+
+    impl crate::evalseam::FitService for Recorded {
+        fn submit(&mut self, request: crate::evalseam::FitRequest) {
+            self.asked
+                .lock()
+                .expect("the record is not poisoned")
+                .push(request.generation);
+            self.inner.submit(request);
+        }
+        fn poll(&mut self) -> Option<crate::evalseam::FitDone> {
+            self.inner.poll()
+        }
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// **An empty new document's first body is framed, and its first
+    /// body to price is budgeted.** The empty document lands a
+    /// boundless scene with nothing to price, so neither fit is spent
+    /// on it. The instance added next lands with both owed: its scene
+    /// has bounds, so the camera is framed on it, but it is in a space
+    /// of its own and the document's product is empty, so there is
+    /// still nothing for the budget to price and the δ fit stays owed.
+    /// The landing that first has a product is priced, once — spliced
+    /// in here as the plate's session, since no op this harness drives
+    /// puts a body in the world.
+    #[test]
+    fn an_empty_new_documents_first_body_is_framed_and_budgeted() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("first body fits", tol);
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let inner = std::mem::replace(
+            &mut driven.app.fit,
+            Box::new(crate::evalseam::InlineFitter::new()),
+        );
+        driven.app.fit = Box::new(Recorded {
+            inner,
+            asked: std::sync::Arc::clone(&asked),
+        });
+        let asked_for = || asked.lock().expect("the record is not poisoned").clone();
+
+        driven.perform(SessionOp::NewDocument {
+            name: "first-body-fits".to_owned(),
+        });
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.scene.bounds().is_none(),
+            "the fixture's empty document lands a boundless scene"
+        );
+        let derived = driven.app.derived;
+        assert!(
+            derived.fit_camera && derived.fit_delta,
+            "a boundless landing spends neither fit: {derived:?}"
+        );
+        assert_eq!(asked_for(), Vec::new(), "nothing was priced");
+
+        driven.app.camera = backed_off(&driven.app, 3.0);
+        driven.perform(SessionOp::Save(dir.join("assembly.pncad")));
+        driven.perform(SessionOp::AddInstance { id: part.id() });
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        let removed = std::fs::remove_dir_all(&dir);
+        assert!(
+            driven.app.scene.bounds().is_some(),
+            "the instance landed a scene with a body"
+        );
+        let derived = driven.app.derived;
+        assert!(
+            !derived.fit_camera && derived.fit_delta,
+            "the first body spends the camera fit, and with no product the δ fit stays owed: \
+             {derived:?}"
+        );
+        assert_eq!(asked_for(), Vec::new(), "still nothing was priced");
+        let framed = camera_pose(&driven.app);
+        driven.app.pending_fit = true;
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert_eq!(
+            camera_pose(&driven.app),
+            framed,
+            "the camera already stands at the first body's fit"
+        );
+
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = crate::session::DocSession::inline(document, tol);
+        session.pump();
+        driven.app.session = session;
+        driven.quiet();
+        assert!(
+            !driven.app.derived.fit_delta,
+            "the product's landing spent the δ fit"
+        );
+        assert_eq!(
+            asked_for().into_iter().map(Some).collect::<Vec<_>>(),
+            vec![driven.app.session.landed_generation()],
+            "the budget priced that landing, once"
+        );
+        removed.expect("the row removes its workspace");
     }
 
     /// **A camera moved before the index lands is kept**: startup's
