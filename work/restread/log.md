@@ -163,3 +163,7 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Rows filed:**
     - `tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face` (P1);
     - `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1). — (RESTREAD orchestrator)
+- 2026-11-02 — PR 5918 (`restread/arm1-coplanar-regions`) merges. It closes `census-arm-1-cannot-part-coplanar-faces-no-line-separates` (P1): arm 1 clears a planar × planar pair no line parts (`census::in_plane`), either both faces on one decided carrier, or one face standing on the other's plane at a slope decided past sin θ = ½.
+  - **Results:** JOIN-2's grid goes 794 → 750 `BAD`. The 44 apart L-notch lines read `SOUND`; the 750 left are touches, held by D10.
+  - **Tier:** dual, arm concurrent (class H). Both reviews were NOT-MERGEABLE-AS-IS on the same two MAJORs: reading 2 read a `Zero` vertex as on the plane, so a face hovering or dipping in band cleared; and the topo slow-set `boxes` inventory pin was red, unseen by the per-PR gate. Coded bilateral (byte 42), +0/+0, and the pair is excluded under 6(e): the weekly usage limit stopped both reviews mid-run.
+  - **Fix pass:** reading 2 kept, because all 44 notch lines need it for the walls, and gated on the slope; the `boxes` entry; the reviewers' fixtures ported as rows. Verifier: VERIFIED-WITH-NITS. One surviving mutant (a touching edge needing both ends on the plane) was killed by a corner-down cube row in a follow-up push. — (RESTREAD orchestrator)
