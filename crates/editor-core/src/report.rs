@@ -371,7 +371,8 @@ impl LeafHistogram {
 ///
 /// # Errors
 ///
-/// Nothing: a leaf that cannot be read is accounted, not refused. The
+/// [`crate::Stopped`] where a leaf's replay stopped short (`stop`): a
+/// leaf that cannot be read is otherwise accounted, not refused. The
 /// mass columns carry [`MeasureUnavailable`] where a band blocks
 /// pricing, exactly as the drive's own accounting does.
 /// # What it costs (M10-6's review, MINOR-13)
@@ -393,15 +394,16 @@ pub fn leaf_histogram(
     analyzed: &AnalyzedBox,
     verdict: &crate::drive::ParamBoxVerdict,
     measurement: crate::VarId,
+    stop: &crate::Stop,
     tol: geom_core::Tol,
-) -> LeafHistogram {
+) -> Result<LeafHistogram, crate::Stopped> {
     let mut rows = Vec::new();
     let mut unplaced: Result<f64, MeasureUnavailable> = Ok(0.0);
     let lane = verdict.lane();
     for leaf in verdict.certified() {
         let opts = crate::eval::EvalOptions {
             param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
-            ..crate::eval::EvalOptions::default()
+            ..stop.options(crate::eval::EvalOptions::default())
         };
         // On the drive's own lane (`ParamBoxVerdict::symbolic`): a row
         // this table cannot place is reported as unplaced mass, so a
@@ -412,13 +414,17 @@ pub fn leaf_histogram(
             &opts,
             lane,
             &crate::eval::LeafPrior::None,
+            &stop.cancel,
             crate::eval::LeafRequest {
                 measure: Some(measurement),
                 ..crate::eval::LeafRequest::default()
             },
             tol,
-        )
-        .measure_bracket;
+        );
+        if let Some(stopped) = enclosure.stopped {
+            return Err(stopped);
+        }
+        let enclosure = enclosure.measure_bracket;
         let mass = leaf.box_.mass(analyzed);
         match enclosure {
             Some(enclosure) => rows.push(HistogramRow {
@@ -443,13 +449,13 @@ pub fn leaf_histogram(
         (Ok(a), Ok(b)) => Ok(a + b),
         (Err(e), _) | (_, Err(e)) => Err(e),
     };
-    LeafHistogram {
+    Ok(LeafHistogram {
         document: doc.id(),
         measurement,
         rows,
         uncovered,
         basis: MassBasis::of(analyzed),
-    }
+    })
 }
 
 /// **The cache seam** (E10: "content-key cached on the bit-content of

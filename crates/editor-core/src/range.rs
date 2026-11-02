@@ -736,6 +736,7 @@ pub fn certified_range(
     field: &RangeField,
     seed: RangeSeed,
     config: &DriveConfig,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<CertifiedRange, RangeRefusal> {
     let derived = derive(doc, field, seed, tol)?;
@@ -759,7 +760,7 @@ pub fn certified_range(
     if varying != 1 {
         return Err(RangeRefusal::MoreThanOneAxisVaries { varying });
     }
-    let verdict = drive(&derived.doc, &analyzed, config, tol)
+    let verdict = drive(&derived.doc, &analyzed, config, stop, tol)
         .map_err(|e| RangeRefusal::Drive(Box::new(e)))?;
     let leaves = walkable_leaves(&verdict, derived.axis, seed)?;
     Ok(CertifiedRange {

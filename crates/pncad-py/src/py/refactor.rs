@@ -178,7 +178,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     };
     let none = || py.None();
     let (node, consumer, input, param, name, doc_id) = match err {
-        E::EmptyCut | E::CutsTheWorld => (none(), none(), none(), none(), none(), none()),
+        E::EmptyCut | E::CutsTheWorld | E::Stopped(_) => {
+            (none(), none(), none(), none(), none(), none())
+        }
         E::UnknownCutNode { id: n } | E::NoMaterial { node: n } => {
             (id(n), none(), none(), none(), none(), none())
         }
@@ -425,8 +427,15 @@ pub(crate) fn split(
     // is minting, which it holds itself; absent, an edit that needs a
     // solved frame of another part refuses typed.
     let store = resolver.map(super::store::Workspace::resolver);
-    let out = d::split(&doc.inner, &set, part_id, tol, store.as_ref())
-        .map_err(|err| split_err(py, &err))?;
+    let out = d::split(
+        &doc.inner,
+        &set,
+        part_id,
+        tol,
+        store.as_ref(),
+        &d::Stop::default(),
+    )
+    .map_err(|err| split_err(py, &err))?;
     let node_map = pairs_in_order(&out.node_map, &out.part);
     Ok(SplitOutcome {
         remainder: out.remainder,

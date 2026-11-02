@@ -88,7 +88,7 @@ use topo::entity::FaceKey;
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts};
-use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
+use crate::eval::{EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, EntityKind, EntityRef, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -232,6 +232,9 @@ pub struct ClearanceQuery<'a> {
     /// The monotonicity seam. [`NoTangents`] forfeits every pruning,
     /// which is the state every verdict is defined against.
     pub oracle: &'a dyn MonotoneOracle,
+    /// What stops the replays the query runs: its caller's token and
+    /// member budget.
+    pub stop: &'a crate::Stop,
     /// The seam a document's instantiated parts resolve through, as
     /// an evaluation over options carrying it would
     /// ([`EvalOptions::resolver`]); `None` for a document that
@@ -246,35 +249,36 @@ pub struct ClearanceQuery<'a> {
     pub symbolic: crate::drive::SymbolicDials,
 }
 
-impl ClearanceQuery<'_> {
+impl<'a> ClearanceQuery<'a> {
     /// The plain `separation ≥ c` question at the shipped dials, with
     /// no accelerator, over a leaf a default drive certified
-    /// ([`crate::drive::DriveConfig::default`]'s tier).
-    pub fn at_least(c: f64, tol: Tol) -> Self {
+    /// ([`crate::drive::DriveConfig::default`]'s tier), stopped by
+    /// `stop`.
+    pub fn at_least(c: f64, stop: &'a crate::Stop, tol: Tol) -> Self {
         Self {
             bound: ClearanceBound::AtLeast(c),
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            stop,
             resolver: None,
             symbolic: crate::drive::SymbolicDials::default(),
         }
     }
 
-    /// The self-intersection question at the shipped dials.
-    pub fn strictly_positive(tol: Tol) -> Self {
+    /// The self-intersection question at the shipped dials, stopped by
+    /// `stop`.
+    pub fn strictly_positive(stop: &'a crate::Stop, tol: Tol) -> Self {
         Self {
             bound: ClearanceBound::StrictlyPositive,
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            stop,
             resolver: None,
             symbolic: crate::drive::SymbolicDials::default(),
         }
     }
-}
-
-impl<'a> ClearanceQuery<'a> {
     /// The same question over a document whose parts resolve through
     /// `resolver` ([`ClearanceQuery::resolver`]).
     #[must_use]
@@ -511,6 +515,9 @@ pub enum ClearanceRefusal {
         /// Its second.
         b: topo::Cell,
     },
+    /// The leaf's replay stopped short: the caller canceled, or it ran
+    /// out of its member budget ([`crate::Stop`]).
+    Stopped(crate::Stopped),
 }
 
 impl ClearanceRefusal {
@@ -526,6 +533,7 @@ impl ClearanceRefusal {
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
             Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
+            Self::Stopped(stopped) => format!("{stopped:?}"),
         }
     }
 
@@ -539,6 +547,7 @@ impl ClearanceRefusal {
             Self::NotADistance { .. } => "not_a_distance",
             Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
+            Self::Stopped(_) => "stopped",
         }
     }
 }
@@ -580,6 +589,7 @@ impl crate::spoken::Say for ClearanceRefusal {
                 "the body records a contact between {a:?} and {b:?}, so its boundary meets \
                  itself there by declaration and the injectivity question is not asked"
             ),
+            Self::Stopped(stopped) => write!(f, "the leaf's replay stopped: {stopped}"),
         }
     }
 }
@@ -1042,9 +1052,10 @@ pub fn clearance(
     a: &Selection,
     b: &Selection,
     c: f64,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> ClearanceReport {
-    clearance_with(doc, leaf, a, b, &ClearanceQuery::at_least(c, tol))
+    clearance_with(doc, leaf, a, b, &ClearanceQuery::at_least(c, stop, tol))
 }
 
 /// **Global self-intersection freedom over one certified leaf** (E7's
@@ -1061,9 +1072,16 @@ pub fn self_intersection(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     of: &Selection,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> ClearanceReport {
-    clearance_with(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
+    clearance_with(
+        doc,
+        leaf,
+        of,
+        of,
+        &ClearanceQuery::strictly_positive(stop, tol),
+    )
 }
 
 /// The full door: both questions, both budgets, and the accelerator
@@ -1128,7 +1146,7 @@ fn clearance_on(
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
         resolver: query.resolver.cloned(),
-        ..lane_opts()
+        ..lane_opts(query.stop)
     };
     let replayed = Replayed {
         doc,
@@ -1138,7 +1156,8 @@ fn clearance_on(
         query,
         band,
     };
-    crate::eval::read_leaf_with(doc, &opts, lane, query.tol, replayed)
+    crate::eval::read_leaf_with(doc, &opts, lane, &query.stop.cancel, query.tol, replayed)
+        .unwrap_or_else(|stopped| ClearanceReport::refused(ClearanceRefusal::Stopped(stopped)))
 }
 
 /// The clearance question over one leaf's replay, at the replay's
@@ -1262,7 +1281,7 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 (a, b),
                 (faces, || engine.on_face_stations(candidate)),
                 (query.bound, band),
-                query.resolver,
+                (query.resolver, query.stop),
                 query.tol,
             )
         });
@@ -1765,7 +1784,7 @@ fn verify_witness(
     (sel_a, sel_b): (&Selection, &Selection),
     ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
     (bound, band): (ClearanceBound, Band),
-    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    (resolver, stop): (Option<&Arc<dyn crate::part::PartResolver>>, &crate::Stop),
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let mid: BTreeMap<VarId, BoxAxis> = leaf
@@ -1779,9 +1798,12 @@ fn verify_witness(
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes_in(mid, leaf.order()))),
         resolver: resolver.cloned(),
-        ..lane_opts()
+        ..lane_opts(stop)
     };
-    let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let ev: Evaluation<f64> = evaluate(doc, None, &stop.cancel, &opts, tol);
+    if let Some(stopped) = crate::Stopped::of(ev.outcome) {
+        return Err(format!("the f64 rebuild stopped: {stopped}"));
+    }
     // The SAME chart the interval pass subdivided in: the stored one.
     // A witness's `(u, v)` are coordinates in that chart, and the `f64`
     // replay of the same node mints the same frame, so reading them

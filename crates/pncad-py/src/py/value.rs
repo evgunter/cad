@@ -1475,7 +1475,7 @@ impl Evaluation {
             &[(node.0, &*value.coincidences)],
             self.inner.resolver(),
             Tol::witness(),
-            &d::CancelToken::new(),
+            &d::Stop::default(),
         ) else {
             unreachable!("a token no one else holds is never canceled")
         };

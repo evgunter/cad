@@ -1050,6 +1050,10 @@ pub enum SplitError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
+    /// The evaluation the split reads its copies' poses from stopped
+    /// short: its caller canceled, or it ran out of its member budget
+    /// ([`crate::Stop`]).
+    Stopped(crate::Stopped),
 }
 
 impl core::fmt::Display for SplitError {
@@ -1256,6 +1260,9 @@ impl core::fmt::Display for SplitError {
                 error.problem(),
                 ReplayTail(error, Replay::SplitRemainder)
             ),
+            Self::Stopped(stopped) => {
+                write!(f, "split: the evaluation it reads stopped: {stopped}")
+            }
         }
     }
 }
@@ -2623,6 +2630,7 @@ pub fn split(
     part_id: DocumentId,
     tol: Tol,
     resolver: Option<&std::sync::Arc<dyn PartResolver>>,
+    stop: &crate::Stop,
 ) -> Result<SplitOutcome, SplitError> {
     if cut.is_empty() {
         return Err(SplitError::EmptyCut);
@@ -2701,14 +2709,16 @@ pub fn split(
     let cut = &joined;
     // Which copies are the world's: a part delivers only its world
     // (A10), so a cut copy in another space crosses nowhere.
-    let opts = crate::eval::EvalOptions {
+    let opts = stop.options(crate::eval::EvalOptions {
         resolver: resolver.cloned(),
         ..crate::eval::EvalOptions::default()
-    };
+    });
     // A placement's space is its target, read off the recipe (D10:
     // spaces are decided from the recipe, never from a value).
-    let evaluation =
-        crate::eval::evaluate::<f64>(doc, None, &crate::CancelToken::new(), &opts, tol);
+    let evaluation = crate::eval::evaluate::<f64>(doc, None, &stop.cancel, &opts, tol);
+    if let Some(stopped) = crate::Stopped::of(evaluation.outcome) {
+        return Err(SplitError::Stopped(stopped));
+    }
     let poses = crate::mate::SolvedPoses::of(doc, &evaluation);
     let world = |placement: RecipeNodeId| {
         doc.node(placement)

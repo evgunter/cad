@@ -764,7 +764,11 @@ impl DoorService for InlineProver {
         let request = self.pending.take()?;
         Some(DoorDone {
             generation: request.generation,
-            findings: request.job.run(&request.doc, &CancelToken::new()),
+            // The inline seam holds no token: its cancel drops the
+            // pending request before it runs.
+            findings: request
+                .job
+                .run(&request.doc, &pncad::document::Stop::default()),
         })
     }
 
@@ -1691,7 +1695,9 @@ mod threaded {
                     "viewer-door",
                     |request: DoorRequest, cancel| DoorDone {
                         generation: request.generation,
-                        findings: request.job.run(&request.doc, cancel),
+                        findings: request
+                            .job
+                            .run(&request.doc, &pncad::document::Stop::canceled_by(cancel)),
                     },
                 )?,
             })

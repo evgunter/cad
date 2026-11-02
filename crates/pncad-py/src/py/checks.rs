@@ -941,7 +941,8 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
         // the WHOLE document; none has a node to name.
         d::ChecksError::Band { .. }
         | d::ChecksError::EvaluationOfAnotherDocument { .. }
-        | d::ChecksError::Product { .. } => none(),
+        | d::ChecksError::Product { .. }
+        | d::ChecksError::Canceled(_) => none(),
     };
     typed_err(
         py,

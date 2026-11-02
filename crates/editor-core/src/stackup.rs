@@ -126,8 +126,7 @@ use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind, NodeResult,
-    evaluate,
+    ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind, NodeResult, evaluate,
 };
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -544,9 +543,19 @@ pub fn sensitivities(
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, value, of_record, chamber, parallel, resolver, tol).map(|d| d.entries)
+    driver(
+        doc,
+        value,
+        of_record,
+        chamber,
+        parallel,
+        (resolver, stop),
+        tol,
+    )
+    .map(|d| d.entries)
 }
 
 /// What the driver's shared core hands back: the build of record's
@@ -565,7 +574,7 @@ fn driver(
     of_record: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
-    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    (resolver, stop): (Option<&Arc<dyn crate::part::PartResolver>>, &crate::Stop),
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
     if doc.var(value).and_then(|v| v.kind().dimension()).is_none() {
@@ -577,7 +586,7 @@ fn driver(
     // the whole entry set, tied to this build once.
     let chamber = match chamber {
         None => Chamber::LocalOnly,
-        Some(verdict) => bind_verdict(doc, verdict, resolver, tol)?,
+        Some(verdict) => bind_verdict(doc, verdict, resolver, stop, tol)?,
     };
 
     // The revision every evaluation below reads, pinned once: the
@@ -596,11 +605,11 @@ fn driver(
                 evaluate::<f64>(
                     doc,
                     None,
-                    &CancelToken::new(),
-                    &EvalOptions {
+                    &stop.cancel,
+                    &stop.options(EvalOptions {
                         resolver: resolver.cloned(),
                         ..EvalOptions::default()
-                    },
+                    }),
                     tol,
                 ),
                 pin,
@@ -626,8 +635,8 @@ fn driver(
         evaluate(
             doc,
             None,
-            &CancelToken::new(),
-            &pass_opts(None, resolver),
+            &stop.cancel,
+            &pass_opts(None, resolver, stop),
             tol,
         ),
         pin,
@@ -641,8 +650,8 @@ fn driver(
             evaluate(
                 doc,
                 Some(&base),
-                &CancelToken::new(),
-                &pass_opts(Some(*name), resolver),
+                &stop.cancel,
+                &pass_opts(Some(*name), resolver, stop),
                 tol,
             ),
             pin,
@@ -697,23 +706,28 @@ fn stamped<T: geom_core::Decide>(mut ev: Evaluation<T>, pin: crate::ContentPin) 
 fn pass_opts(
     seed: Option<VarId>,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
 ) -> EvalOptions {
-    EvalOptions {
+    stop.options(EvalOptions {
         seed,
         resolver: resolver.cloned(),
         ..EvalOptions::default()
-    }
+    })
 }
 
 /// The options a leaf is replayed with — the drive's own, so the
 /// replay's content keys are the drive's record bit for bit — over the
 /// parts' resolver.
-fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver>>) -> EvalOptions {
-    EvalOptions {
+fn leaf_opts(
+    box_: ParamBox,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
+) -> EvalOptions {
+    stop.options(EvalOptions {
         param_box: Some(Arc::new(box_)),
         resolver: resolver.cloned(),
         ..EvalOptions::default()
-    }
+    })
 }
 
 /// The stackup's NOMINAL column: the f64 value, or the typed reason
@@ -797,6 +811,15 @@ impl ValueBits for f64 {
 impl ValueBits for Dual64 {
     fn value_bits(self) -> u64 {
         self.value.to_bits()
+    }
+}
+
+impl From<crate::Stopped> for BindingViolation {
+    fn from(stopped: crate::Stopped) -> Self {
+        match stopped {
+            crate::Stopped::Canceled => Self::Incomplete,
+            crate::Stopped::Exhausted { budget } => Self::Exhausted { budget },
+        }
     }
 }
 
@@ -1034,6 +1057,7 @@ fn bind_verdict(
     doc: &Doc<ProfileProgram>,
     verdict: &ParamBoxVerdict,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<Chamber, SensitivityRefusal> {
     if !box_spans_doc_params(verdict.root(), doc) {
@@ -1052,15 +1076,19 @@ fn bind_verdict(
     // perfectly good build as "not of this build".
     let readback = crate::eval::replay_leaf(
         doc,
-        &leaf_opts(tied.box_.clone(), resolver),
+        &leaf_opts(tied.box_.clone(), resolver, stop),
         verdict.lane(),
         &crate::eval::LeafPrior::None,
+        &stop.cancel,
         crate::eval::LeafRequest {
             keys: true,
             ..crate::eval::LeafRequest::default()
         },
         tol,
     );
+    if let Some(stopped) = readback.stopped {
+        return Err(SensitivityRefusal::Binding(stopped.into()));
+    }
     tie(doc, tied, &readback.keys)?;
     Ok(
         chamber.map_or(Chamber::LocalOnly, |leaf| Chamber::ChamberCertified {
@@ -1812,6 +1840,7 @@ pub fn stackup(
     of_record: Option<&Evaluation<f64>>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<Stackup, StackupRefusal> {
     if ParamBox::of(analyzed) != *verdict.root() {
@@ -1827,7 +1856,7 @@ pub fn stackup(
         of_record,
         Some(verdict),
         parallel,
-        resolver,
+        (resolver, stop),
         tol,
     )
     .map_err(StackupRefusal::Sensitivity)?;
@@ -1861,7 +1890,7 @@ pub fn stackup(
             receipt: verdict.receipt(),
         });
     }
-    let worst_case = worst_case(doc, value, verdict, parallel, resolver, tol)?;
+    let worst_case = worst_case(doc, value, verdict, parallel, resolver, stop, tol)?;
 
     // The advisory columns. Half-widths and σ come off the analyzed
     // box's own axes (the pairing-safe doors), derivatives off the
@@ -1972,6 +2001,7 @@ fn worst_case(
     verdict: &ParamBoxVerdict,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<WorstCase, StackupRefusal> {
     let leaves = verdict.certified();
@@ -1995,13 +2025,20 @@ fn worst_case(
     // one's, verbatim, so the BRACKETS are the same bits either way —
     // only which leaves have one changes. The prior is the numeric
     // lane's alone; `LeafPrior` states why the symbolic lane has none.
-    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box, resolver), lane, tol);
+    let prior = crate::eval::LeafPrior::of(
+        doc,
+        &leaf_opts(nominal_box, resolver, stop),
+        lane,
+        &stop.cancel,
+        tol,
+    );
     let one = |leaf: &CertifiedLeaf| -> Result<(f64, f64), StackupRefusal> {
         let readback = crate::eval::replay_leaf(
             doc,
-            &leaf_opts(leaf.box_.clone(), resolver),
+            &leaf_opts(leaf.box_.clone(), resolver, stop),
             lane,
             &prior,
+            &stop.cancel,
             crate::eval::LeafRequest {
                 keys: true,
                 measure: Some(value),
@@ -2009,6 +2046,11 @@ fn worst_case(
             },
             tol,
         );
+        if let Some(stopped) = readback.stopped {
+            return Err(StackupRefusal::Sensitivity(SensitivityRefusal::Binding(
+                stopped.into(),
+            )));
+        }
         tie(doc, leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
         readback
             .measure
@@ -2259,7 +2301,7 @@ mod tests {
             doc,
             None,
             &CancelToken::new(),
-            &pass_opts(None, None),
+            &pass_opts(None, None, &crate::Stop::default()),
             Tol::witness(),
         );
         stamped(ev, pin(doc))
@@ -2267,7 +2309,7 @@ mod tests {
 
     /// `doc`'s `Dual64` pass seeded at `seed`, stamped likewise.
     fn pass_run(doc: &ProfileDoc, seed: VarId) -> Evaluation<Dual64> {
-        let opts = pass_opts(Some(seed), None);
+        let opts = pass_opts(Some(seed), None, &crate::Stop::default());
         stamped(
             evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness()),
             pin(doc),

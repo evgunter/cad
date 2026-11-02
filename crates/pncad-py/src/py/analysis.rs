@@ -776,7 +776,9 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
         a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
             text(&param.to_string())
         }
-        a::McRefusal::NoSamples | a::McRefusal::NominalDoesNotBuild { .. } => py.None(),
+        a::McRefusal::NoSamples
+        | a::McRefusal::NominalDoesNotBuild { .. }
+        | a::McRefusal::Stopped(_) => py.None(),
     };
     let (node, cause) = match refusal {
         a::McRefusal::NominalDoesNotBuild { node, cause } => (
@@ -786,7 +788,9 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
             },
             text(cause),
         ),
-        a::McRefusal::BandHasNoMeasure(_) | a::McRefusal::NoSamples => (py.None(), py.None()),
+        a::McRefusal::BandHasNoMeasure(_) | a::McRefusal::NoSamples | a::McRefusal::Stopped(_) => {
+            (py.None(), py.None())
+        }
     };
     typed_err(
         py,
@@ -1206,7 +1210,10 @@ fn monte_carlo(
     let box_ = &analyzed.0;
     // One full document evaluation per sample is the lane's honest
     // price, so the interpreter runs while it is paid.
-    let answer = py.detach(|| a::monte_carlo(recipe, box_, &config, tol));
+    // No `cancel=` reaches this door: the run is stopped by nothing but
+    // the kernel's one member budget.
+    let stop = d::Stop::default();
+    let answer = py.detach(|| a::monte_carlo(recipe, box_, &config, &stop, tol));
     match answer {
         Ok(report) => Ok(McReport {
             report,

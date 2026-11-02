@@ -3143,6 +3143,7 @@ impl DocSession {
                 spin,
                 None,
                 &opts,
+                &pncad::document::CancelToken::new(),
             )?;
             takeover.repoint(run, sketched.union, None)?;
             Ok(sketched.union)
@@ -3455,7 +3456,13 @@ impl DocSession {
         // are in its space's, so they are carried back first.
         let opts = self.eval_options();
         let at = match crate::world::read_output(doc, body).and_then(|(node, _)| {
-            pncad::document::solve_document(doc, &opts, self.tol).relative(node)
+            pncad::document::solve_document(
+                doc,
+                &opts,
+                &pncad::document::CancelToken::new(),
+                self.tol,
+            )
+            .relative(node)
         }) {
             Some(pose) => Frame::from_affine(pose.affine().inverse() * at.affine()),
             None => at,

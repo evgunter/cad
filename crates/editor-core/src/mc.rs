@@ -51,7 +51,7 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
 use crate::doc::Doc;
-use crate::eval::{CancelToken, ContentKey, EvalOptions, Evaluation, ValuePayload, evaluate};
+use crate::eval::{ContentKey, EvalOptions, Evaluation, ValuePayload, evaluate};
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -117,6 +117,9 @@ pub enum McRefusal {
         /// Its error, rendered.
         cause: String,
     },
+    /// An evaluation the run made stopped short: its caller canceled,
+    /// or it ran out of its member budget ([`crate::Stop`]).
+    Stopped(crate::Stopped),
 }
 
 impl core::fmt::Display for McRefusal {
@@ -135,6 +138,7 @@ impl core::fmt::Display for McRefusal {
                 "the document does not build at its nominal ({node}), so there is nothing \
                  to replay: {cause}"
             ),
+            Self::Stopped(stopped) => write!(f, "the Monte-Carlo run stopped: {stopped}"),
         }
     }
 }
@@ -428,6 +432,7 @@ pub fn monte_carlo(
     doc: &Doc<ProfileProgram>,
     analyzed: &AnalyzedBox,
     config: &McConfig,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<McReport, McRefusal> {
     if config.samples == 0 {
@@ -439,9 +444,12 @@ pub fn monte_carlo(
     // document as the samples do (`ParamBox::at_nominal`).
     let nominal_opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
-        ..lane_opts()
+        ..lane_opts(stop)
     };
-    let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &nominal_opts, tol);
+    let nominal: Evaluation<f64> = evaluate(doc, None, &stop.cancel, &nominal_opts, tol);
+    if let Some(stopped) = crate::Stopped::of(nominal.outcome) {
+        return Err(McRefusal::Stopped(stopped));
+    }
     if let Some(standing) = nominal
         .order
         .iter()
@@ -490,7 +498,7 @@ pub fn monte_carlo(
         }
     }
 
-    let one = |index: usize| -> Sample {
+    let one = |index: usize| -> Result<Sample, crate::Stopped> {
         let mut rng = Rng::for_sample(config.seed, index);
         let mut axes = std::collections::BTreeMap::new();
         let mut outside = false;
@@ -529,9 +537,12 @@ pub fn monte_carlo(
         // the MC lane uses it rather than a second binding path.
         let opts = EvalOptions {
             param_box: Some(Arc::new(ParamBox::from_axes_in(axes, analyzed.order()))),
-            ..lane_opts()
+            ..lane_opts(stop)
         };
-        let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+        let ev: Evaluation<f64> = evaluate(doc, None, &stop.cancel, &opts, tol);
+        if let Some(stopped) = crate::Stopped::of(ev.outcome) {
+            return Err(stopped);
+        }
         let readings = sinks
             .iter()
             .map(|&(id, is_measure)| {
@@ -563,22 +574,28 @@ pub fn monte_carlo(
                 _ => None,
             })
             .collect();
-        Sample {
+        Ok(Sample {
             readings,
             values: read,
             outside,
-        }
+        })
     };
 
     // D9 idiom 1: an INDEXED map, then one sequential fold — so the two
     // schedules see the same samples in the same order and the report
     // is the same bits either way.
-    let samples: Vec<Sample> = if config.parallel {
+    // Every sample is collected before a stop is chosen, so the one
+    // reported is the first in sample order whatever the schedule.
+    let samples: Vec<Result<Sample, crate::Stopped>> = if config.parallel {
         use rayon::prelude::*;
         (0..config.samples).into_par_iter().map(one).collect()
     } else {
         (0..config.samples).map(one).collect()
     };
+    let samples: Vec<Sample> = samples
+        .into_iter()
+        .collect::<Result<_, _>>()
+        .map_err(McRefusal::Stopped)?;
 
     let mut measures = Vec::new();
     let mut assertions = Vec::new();
@@ -655,8 +672,8 @@ pub fn monte_carlo(
 /// The replay's evaluation options: the defaults, which are the
 /// driver's leaves' own, so a sampled profile dimension reaches the
 /// geometry the same way (M10-P).
-fn lane_opts() -> EvalOptions {
-    EvalOptions::default()
+fn lane_opts(stop: &crate::Stop) -> EvalOptions {
+    stop.options(EvalOptions::default())
 }
 
 /// What one sample read at each sink, in `sinks` order, and at each

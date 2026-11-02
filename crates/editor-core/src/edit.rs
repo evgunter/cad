@@ -6770,9 +6770,10 @@ impl Recording<'_, crate::ProfileProgram> {
         spin: Formula,
         orient: Option<crate::Orientation>,
         opts: &crate::EvalOptions,
+        cancel: &crate::CancelToken,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
-        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts));
+        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
             profile: profile.into(),
@@ -6864,8 +6865,9 @@ impl Recording<'_, crate::ProfileProgram> {
         placement: RecipeNodeId,
         mate: crate::mate::Mate<Formula>,
         opts: &crate::EvalOptions,
+        cancel: &crate::CancelToken,
     ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
-        self.rebundle_by_geometry(placement, Some(mate), None, opts)
+        self.rebundle_by_geometry(placement, Some(mate), None, (opts, cancel))
     }
 
     /// **Take `constraint` out of `placement`'s bundle, as a gesture**:
@@ -6881,8 +6883,9 @@ impl Recording<'_, crate::ProfileProgram> {
         placement: RecipeNodeId,
         constraint: crate::node::ConstraintId,
         opts: &crate::EvalOptions,
+        cancel: &crate::CancelToken,
     ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
-        self.rebundle_by_geometry(placement, None, Some(constraint), opts)
+        self.rebundle_by_geometry(placement, None, Some(constraint), (opts, cancel))
     }
 
     /// [`Self::constrain`] and [`Self::remove_mate`]: the structural
@@ -6893,7 +6896,7 @@ impl Recording<'_, crate::ProfileProgram> {
         placement: RecipeNodeId,
         added: Option<crate::mate::Mate<Formula>>,
         removed: Option<crate::node::ConstraintId>,
-        opts: &crate::EvalOptions,
+        (opts, cancel): (&crate::EvalOptions, &crate::CancelToken),
     ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
         self.open()?;
         let raw = match (&added, removed) {
@@ -6910,7 +6913,9 @@ impl Recording<'_, crate::ProfileProgram> {
         };
         let tried = apply_spaced(self.doc(), &raw, self.tol, None);
         let tried = tried.map_err(|e| self.end(e))?;
-        let along = match crate::mate::solve_document(&tried.doc, opts, self.tol).fault(placement) {
+        let along = match crate::mate::solve_document(&tried.doc, opts, cancel, self.tol)
+            .fault(placement)
+        {
             Some(crate::MateFault::NoChart {
                 why: crate::NoChartWhy::SlidesDoNotSpan { write, .. },
                 ..
@@ -6965,6 +6970,7 @@ impl Recording<'_, crate::ProfileProgram> {
         body: &crate::Operand,
         face: &crate::StableName,
         opts: &crate::EvalOptions,
+        cancel: &crate::CancelToken,
     ) -> crate::Orientation {
         let doc = self.doc();
         let at = match body {
@@ -6975,8 +6981,7 @@ impl Recording<'_, crate::ProfileProgram> {
             crate::Operand::Var(var) => crate::At::Read(*var),
             _ => return crate::Orientation::IDENTITY,
         };
-        let ev: crate::Evaluation<f64> =
-            crate::evaluate(doc, None, &crate::CancelToken::new(), opts, self.tol);
+        let ev: crate::Evaluation<f64> = crate::evaluate(doc, None, cancel, opts, self.tol);
         crate::names::interrogate::face_frame(&ev, at, face).map_or(
             crate::Orientation::IDENTITY,
             |pose| {
@@ -7017,10 +7022,12 @@ pub fn sketch_on_face(
     spin: Formula,
     orient: Option<crate::Orientation>,
     opts: &crate::EvalOptions,
+    cancel: &crate::CancelToken,
     tol: Tol,
 ) -> Result<SketchOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
-    let sketched = action.sketch_on_face(body, face, profile, distance, spin, orient, opts)?;
+    let sketched =
+        action.sketch_on_face(body, face, profile, distance, spin, orient, opts, cancel)?;
     let Recorded {
         doc,
         edits,
