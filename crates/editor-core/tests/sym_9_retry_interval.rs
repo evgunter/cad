@@ -666,7 +666,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // 979 -> 991 there); the rest is unbisected, and the same documents'
     // counts moved with PR 5728 and PR 5811
     // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`,
-    // `work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // `work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     // With the ladder and without it still read alike. Then PR 5952
     // (the profile's simplicity pass reads no gap on a line pair that
     // shares a vertex) took 8 numeric decisions off the plate and 10 off

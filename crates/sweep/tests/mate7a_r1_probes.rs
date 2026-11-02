@@ -30,7 +30,7 @@ fn deg(d: f64) -> f64 {
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
 /// The stem, or `None` at ε = 1e-12, where its torus wall is past limb
 /// 2's reach: the kernel's limit
-/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+/// (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
 pub(crate) fn stem() -> Option<AtRestBody<f64>> {
     let stem = tube_along_arc(
         tube_frame(

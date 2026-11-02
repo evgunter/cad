@@ -30,7 +30,7 @@ So props' own region guards follow, per PR 4822's list:
 Each retires where the arm covers the class it guards: a hole outside its
 face, a hole inside another, a hole whose winding contradicts its role.
 What the arm does not read (its residue,
-`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`)
+`work/restfront/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`)
 keeps its guard until it does.
 
 `cone-holes-outside-their-face-are-subtracted-silently` is answered at

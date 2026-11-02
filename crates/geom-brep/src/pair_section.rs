@@ -2839,7 +2839,7 @@ mod wiring {
     fn close_rings_carry_counted_and_marched() {
         // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
         // graph, and nothing refines it
-        // (`work/ssimarch/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
+        // (`work/ssiarith/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
         test_utils::pinned_red::row(
             geom_core::Tol::witness().eps(),
             &[1e-6],

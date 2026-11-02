@@ -27,7 +27,7 @@ fail-fast = false
 failure-output = "immediate-final"
 # Limb 2 at a parameter-family scalar, where the box's spread keeps its
 # first reading from clearing and its rounds decide
-# (work/offset/closed-form-limb-2-costs-milliseconds-per-curved-edge.md):
+# (work/shell/closed-form-limb-2-costs-milliseconds-per-curved-edge.md):
 #    1.43 s  editor-core::all m10_4_stackup_interval::a_foreign_verdict_or_box_refuses_typed
 # The filter's own entries are its count; the last measured total, under
 # 817 s of test time on 4 vCPU, was taken when it held 145.

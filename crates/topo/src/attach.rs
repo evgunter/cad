@@ -3536,7 +3536,7 @@ mod tests {
     /// **Where the new face keeps the parent's key, `mef` takes a chord
     /// whose description names a key neither face wears, unasked** —
     /// pinned as it stands: the boolean pipeline's chord joins rely on
-    /// it (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    /// it (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
     /// The rim circle described as the cylinder's intersection with the
     /// plane, under `Inherit`, is `Ok`; and so is the chord across the
     /// described membrane as an image in a second key holding the cap's

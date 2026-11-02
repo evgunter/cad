@@ -2157,7 +2157,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // derivation, rather than more work inside the gated one: the
         // describer needs the gate's verdict before it runs, and the
         // descriptions it writes need the sweep after
-        // (`work/offset/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`).
+        // (`work/shell/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`).
         if !outcome.groups.is_empty() {
             let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
             let Some(boundary) =
