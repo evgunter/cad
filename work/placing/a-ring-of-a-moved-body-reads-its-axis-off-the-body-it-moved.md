@@ -2,10 +2,12 @@
 id: a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved
 kind: issue
 title: the circular-pattern gesture reads a moved body's axis off the body it was moved from, so the ring's mate is refused NotOnTheCopy
-status: open
+status: review
 opened: 2026-11-02
 priority: P1
 cost: M
+pr: 6394
+branch: placing/values-direction
 ---
 
 

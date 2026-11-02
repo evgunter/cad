@@ -275,6 +275,11 @@ mod test_support_fixtures;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_meeting;
+// The n-ary union's holdings read back for a row, and the rejoin
+// oracle, shared with sweep's rows over curved members.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_holdings;
 // One `ValidationError` of every arm, for the rows that render them —
 // this crate's Display-coverage row and a downstream refusal-budget
 // row — so it sits behind the same door, on the same gate.
@@ -623,6 +628,12 @@ pub mod test_support {
             })
             .collect()
     }
+    /// The n-ary union's holdings read back for a row
+    /// ([`crate::test_support_holdings`]).
+    pub mod holdings {
+        pub use crate::test_support_holdings::{Table, rejoin_oracle, union_in};
+    }
+
     /// Holes meeting at one vertex of a plate's top
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
@@ -1261,6 +1272,8 @@ pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
+#[doc(hidden)]
+pub use boolean::MemberLineage;
 pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
@@ -1269,21 +1282,22 @@ pub use boolean::{
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
     ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
     EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment,
-    FaceDescent, FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading,
-    JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace,
-    MemberInputs, MemberLineage, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
-    NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace,
-    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt,
-    SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
-    SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops,
-    SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadPartner,
-    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
-    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
-    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
-    nary_boolean_apart, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
-    rest_locus, subtract, tangent_pair_relation, union,
+    FaceDescent, FfContact, Fusions, GlueVerdict, Held, HeldRefusal, Holdings, JOIN_LEVER,
+    JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread,
+    LineWedgeFault, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember, NaryOp,
+    NaryRefusal, NaryRun, NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
+    OperandRecords, OverlapRefusal, PairFace, PairRefusalSite, PairSite, PairUnread,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError,
+    ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
+    Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace,
+    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
+    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
+    joined_cell, joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap,
+    point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus, subtract,
+    tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
