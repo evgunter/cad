@@ -189,10 +189,12 @@ pub fn step_for_node(
 }
 
 /// **A body value as it stands in its space**, the façade's read-out
-/// door: the body composed through [`editor_core::in_space`] and
-/// finished at the end of the map, as every placement finishes what it
-/// ships; shared as it is where it is in its space's coordinates
-/// already.
+/// door: the body composed through [`editor_core::in_space`] and ended
+/// at the end of the map as its scalar's leaf
+/// ([`topo::AtRestPolicy::leaf`]: finished at `f64` and `Probe`, tier 2
+/// at the box scalars, where a read-out reads geometry and a taker that
+/// needs a finished body finishes it); shared as it is where it is in
+/// its space's coordinates already.
 ///
 /// A read-out is an export in D10 `[placement.world]`'s sense: what it
 /// answers (a host-language body, its points and measures) has no way
@@ -202,17 +204,17 @@ pub fn step_for_node(
 /// # Errors
 ///
 /// [`ComposeError`] when the kernel refuses the frame's rigid map or
-/// the mapped body does not finish.
+/// the mapped body's leaf refuses.
 pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     body: &editor_core::Framed<T>,
     tol: Tol,
-) -> Result<std::sync::Arc<T::Finished>, ComposeError> {
+) -> Result<std::sync::Arc<T::Leaf>, ComposeError> {
     match editor_core::in_space(body) {
-        None => body.finished_body(tol).map_err(ComposeError::NotFinished),
+        None => Ok(std::sync::Arc::clone(body.shared())),
         Some(map) => {
             let mapped =
                 topo::transform_rigid(body.body(), &map, tol).map_err(ComposeError::Transform)?;
-            T::finish(mapped, tol)
+            T::leaf(mapped, tol)
                 .map(std::sync::Arc::new)
                 .map_err(ComposeError::NotFinished)
         }

@@ -455,7 +455,7 @@ let value = ev.value(uni).expect("the union evaluates");
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
-let body = body.finished().clone();
+let body = (*body.finished(tol).expect("an f64 value holds a finished body")).clone();
 assert_eq!(mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass").met().expect("mass").volume, 1.125);
 assert_eq!(
     value.coincidences.len(),
