@@ -69,7 +69,7 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap. Where the shared bound is a conic, the
 //! two can overlap one order down, in a crescent from the vertex, which
-//! [`crescent_records`] records as a coplanar pair.
+//! [`sector_overlap`] reads as an overlap.
 
 use geom_brep::LeverBounds;
 #[cfg(test)]
@@ -1278,6 +1278,19 @@ pub(super) struct PairRecord {
 }
 
 impl PairRecord {
+    /// The record of a coplanar pair that overlaps: every code `On`,
+    /// which sends it to the carrier ladder as a coincidence.
+    pub(super) const fn coincident(a: usize, b: usize) -> Self {
+        let on = (SideCode::On, SideCode::On);
+        Self {
+            a,
+            b,
+            sa: on,
+            sb: on,
+            intersect: true,
+        }
+    }
+
     /// Whether every code reads on: the pair lies in one plane.
     pub(super) fn coplanar(&self) -> bool {
         self.sa == (SideCode::On, SideCode::On) && self.sb == (SideCode::On, SideCode::On)
@@ -2213,7 +2226,7 @@ pub(super) fn faces_at<T: Decide>(
 /// into the face off it one order down: along a bound, the edge enters
 /// the face where it stands past the bound toward `s`
 /// ([`geom_brep::parting`], decided at the shorter reach). A bound or an edge
-/// with no bend to read (a fitted edge, a bisector) reads no entry.
+/// with no bend to read ([`bound_bend`]) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
     (dir, reach): (Vec3<T>, Reach<T>),
@@ -2234,13 +2247,6 @@ pub(super) fn runs_into<T: Decide>(
         let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
             return Ok(false);
         };
-        for r in [reach, along] {
-            if let Reach::Conic { bend, .. } = r
-                && matches!(bend.bounds, geom_brep::BendBounds::Unbounded)
-            {
-                return Ok(false);
-            }
-        }
         let d = bound.normalize();
         let u = {
             let m = s.middle();
@@ -2309,8 +2315,42 @@ pub(super) fn direction_sense<T: Decide>(
     )
 }
 
-/// `sectoroverlap` — coplanar sectors overlap test (module docs).
+/// **Whether two coplanar sectors, one of each operand, overlap**: at
+/// first order ([`first_order_overlap`]), or, where that reads them only
+/// touching, one order down. Two plane faces lying on each other with
+/// opposed normals whose sectors share one bound direction from
+/// opposite sides of it overlap in a region of the plane narrowing to
+/// the vertex between two curves tangent there ([`crescent`]); that
+/// crescent is an overlap like any other, so the sector passes
+/// reclassify it and the crossing pairs beside it keep their germs.
+///
+/// Faces aligned are not read one order down: there the operands
+/// overlap beside the crescent, and a one-segment rim's section does
+/// not yet join with it read
+/// (`a-crescent-between-aligned-faces-is-read-as-a-touch`).
 fn sector_overlap<T: Decide>(
+    a: Corner<'_, T>,
+    b: Corner<'_, T>,
+    contacts: &super::ReductionContacts,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (sa, sb) = (a.sector, b.sector);
+    if first_order_overlap(sa, sb, band)? {
+        return Ok(true);
+    }
+    if sa.bend.shape() != FaceShape::Plane || sb.bend.shape() != FaceShape::Plane {
+        return Ok(false);
+    }
+    let arm = sa.arm.min(sb.arm);
+    Ok(
+        !direction_sense(sa.tangent().vec(), sb.tangent().vec(), arm, band)?
+            && crescent(a, b, contacts, band)?,
+    )
+}
+
+/// `sectoroverlap` — coplanar sectors overlap test at first order
+/// (module docs).
+fn first_order_overlap<T: Decide>(
     a: &BoolSector<T>,
     b: &BoolSector<T>,
     band: Band,
@@ -2343,61 +2383,17 @@ fn sector_overlap<T: Decide>(
     Ok(straight || crossed)
 }
 
-/// **The coplanar pairs that overlap one order down**: the crescents
-/// among the pairs [`pair_search`] read `touching`. Two plane faces, one
-/// of each operand, lie on each other with opposed normals at a vertex
-/// pair, and their sectors there share one bound direction from
-/// opposite sides of it: at first order they only touch, while one
-/// order down they overlap in a region of the plane narrowing to the
-/// vertex between two curves tangent there ([`crescent`]). Each such
-/// pair is a coplanar record, every code `On`, as [`pair_search`]
-/// records a coplanar pair that overlaps at first order, so the sector
-/// passes reclassify it and the crossing pairs beside it keep their
-/// germs.
-///
-/// Faces aligned are not read: there the operands overlap beside the
-/// crescent, and a one-segment rim's section does not yet join with it
-/// read (`a-crescent-between-aligned-faces-is-read-as-a-touch`).
-pub(super) fn crescent_records<T: Decide>(
-    bodies: [&Body<T>; 2],
-    sectors: [&[BoolSector<T>]; 2],
-    touching: &[(usize, usize)],
-    contacts: &super::ReductionContacts,
-    band: Band,
-) -> Result<Vec<PairRecord>, BooleanError> {
-    let mut records = Vec::new();
-    for &(i, j) in touching {
-        let (sa, sb) = (&sectors[0][i], &sectors[1][j]);
-        if sa.bend.shape() != FaceShape::Plane || sb.bend.shape() != FaceShape::Plane {
-            continue;
-        }
-        let corner = |k: usize, sector| Corner {
-            body: bodies[k],
-            sectors: sectors[k],
-            sector,
-        };
-        let arm = sa.arm.min(sb.arm);
-        if !direction_sense(sa.tangent().vec(), sb.tangent().vec(), arm, band)?
-            && crescent(corner(0, sa), corner(1, sb), contacts, band)?
-        {
-            let on = (SideCode::On, SideCode::On);
-            records.push(PairRecord {
-                a: i,
-                b: j,
-                sa: on,
-                sb: on,
-                intersect: true,
-            });
-        }
-    }
-    Ok(records)
-}
-
 /// A bound's curvature vector at the base vertex and its reach, where
 /// the bound is an edge whose bend the sector reads: a curved edge's
-/// own, a line edge's zero; `None` for a bisector or a probe.
+/// own, a line edge's zero; `None` for a bisector, a probe, or a conic
+/// whose bend is uncertified (a spiric section's). A one-order-down
+/// reading of a bound with none reads nothing, so the first-order
+/// reading stands.
 fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
     match reach {
+        Reach::Conic { bend, .. } if matches!(bend.bounds, geom_brep::BendBounds::Unbounded) => {
+            None
+        }
         Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
         Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
         Reach::Extent(_) | Reach::Bisector { .. } => None,
@@ -2411,12 +2407,11 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// shared direction into `a`, and `b` on the other side of its own, the
 /// two overlap from the vertex where `b`'s bound stands past `a`'s
 /// toward `û` ([`geom_brep::parting`]). A line edge bends by zero, so two line
-/// edges read none; a fitted edge or a bisector reads no bend, and a
-/// pair holding one reads no crescent. Equal bends (one circle bounding
-/// both) read none.
+/// edges read none; a bound with no bend to read ([`bound_bend`]) reads
+/// no crescent. Equal bends (one circle bounding both) read none.
 ///
 /// The shared direction is read at the sector arm, no longer than the
-/// bounds' own reaches [`pair_search`] read the pair touching at. Two
+/// bounds' own reaches [`first_order_overlap`] read the pair touching at. Two
 /// bounds that part at their own reach leave the site at an angle the
 /// arm is too short to resolve; where the corners' other edges run on
 /// together from the site
@@ -2431,8 +2426,6 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// the term at the shorter bound's reach with its own ½, answers only
 /// whether the band resolves that sign there; no witness point of
 /// either bound is read (`a-leaves-verdict-carries-no-witness-point`).
-/// A spiric section certifies no bend, and refuses as
-/// [`geom_brep::conic_bend_side`] does.
 fn crescent<T: Decide>(
     ca: Corner<'_, T>,
     cb: Corner<'_, T>,
@@ -2452,24 +2445,6 @@ fn crescent<T: Decide>(
             }
             if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
                 continue;
-            }
-            for reach in [ra, rb] {
-                if let Reach::Conic { bend, .. } = reach
-                    && matches!(bend.bounds, geom_brep::BendBounds::Unbounded)
-                {
-                    let diag = match crate::validate::decide_positive(
-                        "bool_sector_crescent",
-                        Margin::of(T::zero()),
-                        band,
-                    ) {
-                        Err(diag) => diag,
-                        Ok(()) => unreachable!("a zero margin is never decided positive"),
-                    };
-                    return Err(BooleanError::Escalated {
-                        decision: BooleanDecision::ConicBend,
-                        diag,
-                    });
-                }
             }
             let d = da.normalize();
             let square = |v: Vec3<T>| v - d * v.dot(d);
@@ -2683,28 +2658,24 @@ pub(super) fn pair_codes<T: Decide>(
     ))
 }
 
-/// What [`pair_search`] read of a vertex pair's sectors.
-pub(super) struct PairSearch {
-    /// Every intersecting (A-sector, B-sector) pair, in A-major order.
-    pub records: Vec<PairRecord>,
-    /// The coplanar pairs read as not overlapping, by index: sectors
-    /// that share at most a bound ([`crescent_records`] reads them one
-    /// order down).
-    pub touching: Vec<(usize, usize)>,
-}
-
-/// The all-pairs search (15.7): every intersecting (A-sector, B-sector)
-/// pair becomes a [`PairRecord`] with its four side codes, in
-/// deterministic A-major order.
+/// The all-pairs search (15.7) over a vertex pair, each operand's body
+/// and its sectors there: every intersecting (A-sector, B-sector) pair
+/// becomes a [`PairRecord`] with its four side codes, in deterministic
+/// A-major order.
 pub(super) fn pair_search<T: Decide>(
-    a_sectors: &[BoolSector<T>],
-    b_sectors: &[BoolSector<T>],
+    bodies: [&Body<T>; 2],
+    sectors: [&[BoolSector<T>]; 2],
+    contacts: &super::ReductionContacts,
     band: Band,
-) -> Result<PairSearch, BooleanError> {
+) -> Result<Vec<PairRecord>, BooleanError> {
     let mut records = Vec::new();
-    let mut touching = Vec::new();
-    for (i, sa) in a_sectors.iter().enumerate() {
-        for (j, sb) in b_sectors.iter().enumerate() {
+    let corner = |k: usize, sector| Corner {
+        body: bodies[k],
+        sectors: sectors[k],
+        sector,
+    };
+    for (i, sa) in sectors[0].iter().enumerate() {
+        for (j, sb) in sectors[1].iter().enumerate() {
             let int = sa.tangent().vec().cross(sb.tangent().vec());
             let arm = sa.arm.min(sb.arm);
             // Parallel normals at the shorter arm make the pair a
@@ -2733,25 +2704,18 @@ pub(super) fn pair_search<T: Decide>(
                     ));
                 }
             };
-            let hit = if coplanar {
-                sector_overlap(sa, sb, band)?
-            } else {
-                let line = Leaned::of_line(int);
-                let (plus, minus) = rays_within(line, &[sa, sb], DeclarationRead::Moot, band)?;
-                plus || minus
-            };
-            if !hit {
-                if coplanar {
-                    touching.push((i, j));
+            if coplanar {
+                if sector_overlap(corner(0, sa), corner(1, sb), contacts, band)? {
+                    records.push(PairRecord::coincident(i, j));
                 }
                 continue;
             }
-            let on = (SideCode::On, SideCode::On);
-            let (sa_codes, sb_codes) = if coplanar {
-                (on, on)
-            } else {
-                pair_codes(sa, sb, band)?
-            };
+            let line = Leaned::of_line(int);
+            let (plus, minus) = rays_within(line, &[sa, sb], DeclarationRead::Moot, band)?;
+            if !(plus || minus) {
+                continue;
+            }
+            let (sa_codes, sb_codes) = pair_codes(sa, sb, band)?;
             // A curved bound's code reads the edge, which can lie
             // wholly off the plane where its tangent holds the line.
             if one_side(sa_codes) || one_side(sb_codes) {
@@ -2766,7 +2730,7 @@ pub(super) fn pair_search<T: Decide>(
             });
         }
     }
-    Ok(PairSearch { records, touching })
+    Ok(records)
 }
 
 /// **A vertex's sectors as the corners of a cone at its point**
@@ -2892,6 +2856,18 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// [`pair_search`] over sectors built by hand, on an empty body: no
+    /// bound of theirs has a bend to read one order down.
+    fn search(
+        a: &[BoolSector<f64>],
+        b: &[BoolSector<f64>],
+        band: Band,
+    ) -> Result<Vec<PairRecord>, BooleanError> {
+        let body = Body::new();
+        let contacts = super::super::ReductionContacts::default();
+        pair_search([&body, &body], [a, b], &contacts, band)
     }
 
     /// **A sector at a cone's apex has its middle on the cone**: the
@@ -3281,8 +3257,8 @@ mod tests {
         );
         let (codes, _) = pair_codes(&floor, &wall, b).unwrap();
         assert_eq!(codes, (SideCode::Out, SideCode::Out), "the floor's codes");
-        let found = pair_search(&[floor], &[wall], b).unwrap();
-        assert!(found.records.is_empty(), "records: {:?}", found.records);
+        let found = search(&[floor], &[wall], b).unwrap();
+        assert!(found.is_empty(), "records: {found:?}");
     }
 
     /// Two upright faces through the z axis 10° apart, as a tilted
@@ -3338,12 +3314,11 @@ mod tests {
             rays_within(Leaned::of_line(m), &[a, b_], DeclarationRead::Moot, b).unwrap()
         };
         let read = |a, b_: BoolSector<f64>| {
-            let found = pair_search(&[a], &[b_], b).unwrap_or_else(|e| panic!("refused: {e:?}"));
-            let records: Vec<_> = found.records.iter().map(|r| (r.sa, r.sb)).collect();
-            (records, found.touching)
+            let found = search(&[a], &[b_], b).unwrap_or_else(|e| panic!("refused: {e:?}"));
+            found.iter().map(|r| (r.sa, r.sb)).collect::<Vec<_>>()
         };
         let upright = read(ua.clone(), ub.clone());
-        assert_eq!(upright.0.len(), 1, "upright: one record, {upright:?}");
+        assert_eq!(upright.len(), 1, "upright: one record, {upright:?}");
         assert_eq!(read(ta.clone(), tb.clone()), upright, "tilted as upright");
         assert_eq!(rays(&ta, &tb), rays(&ua, &ub), "the rays the germ reads");
     }
@@ -3391,9 +3366,9 @@ mod tests {
                 code.is_err(),
                 "{what}: the bound's code reads in band: {code:?}"
             );
-            match pair_search(std::slice::from_ref(&sa), std::slice::from_ref(&sb), b) {
+            match search(std::slice::from_ref(&sa), std::slice::from_ref(&sb), b) {
                 Ok(found) => assert_eq!(
-                    found.records.len(),
+                    found.len(),
                     usize::from(inside),
                     "{what}: the pair's records"
                 ),
@@ -3446,10 +3421,10 @@ mod tests {
         let b = band();
         let s1 = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
         let deep = sector([0.5, 0.5, 0.0], [-0.5, 0.5, 0.0], [0.0, 0.0, 1.0]);
-        assert!(sector_overlap(&s1, &deep, b).unwrap());
-        assert!(sector_overlap(&s1, &s1.clone(), b).unwrap());
+        assert!(first_order_overlap(&s1, &deep, b).unwrap());
+        assert!(first_order_overlap(&s1, &s1.clone(), b).unwrap());
         let touch = sector([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        assert!(!sector_overlap(&s1, &touch, b).unwrap());
+        assert!(!first_order_overlap(&s1, &touch, b).unwrap());
     }
 
     /// **The curvature charge, on the R1 review's witness.** A HOLE
@@ -4257,7 +4232,7 @@ mod tests {
             arm: 10.0,
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
-        let recs = pair_search(&[tilted], &[top], band()).unwrap().records;
+        let recs = search(&[tilted], &[top], band()).unwrap();
         assert_eq!(recs.len(), 1, "the sectors overlap");
         let on = (SideCode::On, SideCode::On);
         assert_eq!((recs[0].sa, recs[0].sb), (on, on), "a coincidence record");
@@ -4296,7 +4271,7 @@ mod tests {
         // +z → +x CCW around +y. They share the boundary ray +x.
         let a = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
         let bsec = sector([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
-        let recs = pair_search(&[a], &[bsec], band()).unwrap().records;
+        let recs = search(&[a], &[bsec], band()).unwrap();
         assert_eq!(recs.len(), 1);
         let r = recs[0];
         // A's start (+x) lies in B's face plane: On; A's end (+y) has

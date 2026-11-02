@@ -6385,18 +6385,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let sectors::PairSearch {
-            mut records,
-            touching,
-        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
-        records.extend(sectors::crescent_records(
-            [&a, &b],
-            [&a_sectors, &b_sectors],
-            &touching,
-            &contacts,
-            band,
-        )?);
-        records.sort_by_key(|r| (r.a, r.b));
+        let mut records =
+            sectors::pair_search([&a, &b], [&a_sectors, &b_sectors], &contacts, band)?;
         // A partner along the touched face, its side unread, refuses
         // where a sector pair lies on one plane, before `recl_sectors`
         // reads one.

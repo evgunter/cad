@@ -20,8 +20,8 @@ Found by the lane that built `a-union-across-a-tangent-crescent-refuses-unbuilt`
 The boss `r = 0.3`, `z ∈ [0, 1]`, beside a plate `z ∈ [0, 0.5]` holed by
 `r = 0.1` about `(0.2, 0)`: the two floors lie on each other with
 aligned normals over a crescent narrowing to `(0.3, 0, 0)`, the same
-crescent the opposed pose glues. `boolean/sectors.rs` `crescent_records`
-records a crescent as a coplanar overlap only between opposed faces
+crescent the opposed pose glues. `boolean/sectors.rs` `sector_overlap`
+reads a crescent as a coplanar overlap only between opposed faces
 (`direction_sense`), so here the floor pair stays `touching`. On main
 the unions build `SOUND` in the one-segment form (the join reads its
 section loops at the seam, `join.rs` `seam_germ_side`), ∩ refuses
@@ -30,7 +30,7 @@ refuses `Join(UnpairedLooseEnds { count: 4 })` in every op.
 
 ## Measured with the crescent read in either orientation
 
-(2026-11-02, the branch with `crescent_records`' `direction_sense` gate
+(2026-11-02, the branch with the crescent reading's `direction_sense` gate
 removed, default ε, every op in both orders.)
 
 | form | ∪ | ∩ | ∖ |

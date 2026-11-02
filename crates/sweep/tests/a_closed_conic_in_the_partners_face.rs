@@ -52,8 +52,8 @@ use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
 use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{
-    AtRestBody, AtRestPolicy, Body, BooleanError, BooleanResult, CensusContact, SplitJoinError,
-    ValidationError,
+    AtRestBody, AtRestPolicy, Body, BooleanError, BooleanResult, CensusContact, ContactKind,
+    SplitJoinError, ValidationError,
 };
 
 use crate::common::differential::{
@@ -745,7 +745,7 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 /// there puts a vertex pair at the point (the other rim is split
 /// there), and so does a touch with no vertex there, where the sweep
 /// splits both rims. The two faces' sectors there touch at first order
-/// and overlap one order down (`boolean::sectors` `crescent_records`),
+/// and overlap one order down (`boolean::sectors` `sector_overlap`),
 /// and the union glues them over the crescent: one shell through, and
 /// pocketed two, the cavity touching the outer shell at the point. The
 /// intersection is empty and the differences keep the operands.
@@ -763,7 +763,7 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 /// concentric hole of the
 /// boss's radius leaves two solids touching along the rim, and the
 /// union's records name only the vertex pair
-/// (`work/cleave/a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair.md`);
+/// (`work/heldrecords/a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair.md`);
 /// a larger one leaves them apart.
 ///
 /// The same crescent between faces aligned (a holed plate standing on
@@ -820,14 +820,183 @@ fn a_boss_over_a_hole_by_pose() {
 
 /// **The tangent poses turned**: each tangent pose of
 /// [`a_boss_over_a_hole_by_pose`], both operands turned rigidly off the
-/// axes ([`torax_pose`]), reads the cells it reads at rest. The crescent
-/// refusal's two faces are named at rest only ([`floor_or_top`] reads
-/// them in the rest frame).
+/// axes ([`torax_pose`]), reads the cells it reads at rest.
 #[test]
 fn a_boss_over_a_hole_tangent_to_it_turned() {
     let turn = torax_pose();
     for pose in poses().into_iter().filter(|p| p.0.contains("tangent")) {
         by_pose(pose, Some(&turn));
+    }
+}
+
+/// **A crescent's bodies read right point by point**: each
+/// tangent-inside pose of [`a_boss_over_a_hole_by_pose`] (the hole
+/// `r = 0.1` about `(0.2, 0)`, the vertices at the azimuths given), both
+/// forms, through and pocketed, every op in both orders. Each body is
+/// read by `point_in_solid` against the operands' membership on a grid
+/// and in and beside the crescent near its tip: none reads wrong or
+/// undecided. On `z = 0` inside the boss's rim and outside the hole the
+/// union is interior, the two faces glued. A union holds one shell
+/// through and two pocketed, two vertices at the tangent point, and one
+/// vertex–vertex record between them: the pinch.
+#[test]
+fn a_crescents_bodies_read_right_and_pinch_at_one_vertex_pair() {
+    let band = geom_core::Band::linear(tol()).expect("the band");
+    let m = 2e-4;
+    let near = |v: f64, a: f64| (v - a).abs() < m;
+    let touch = Point3::new(0.3, 0.0, 0.0);
+    let n = 9;
+    let at = |t: usize, lo: f64, hi: f64| lo + (hi - lo) * (t as f64 + 0.37) / (n as f64 + 1.0);
+    let mut samples: Vec<Point3<f64>> = (0..=n)
+        .flat_map(|i| (0..=n).flat_map(move |j| (0..=n).map(move |k| (i, j, k))))
+        .map(|(i, j, k)| Point3::new(at(i, -0.4, 0.45), at(j, -0.4, 0.4), at(k, -0.6, 1.1)))
+        .collect();
+    for phi in [-0.6, -0.3, -0.15, -0.08, -0.04, 0.03, 0.06, 0.12, 0.25, 0.5] {
+        // Along azimuth `phi` about the boss's axis, from the hole's rim
+        // (`t² − 0.4·cos φ·t + 0.03 = 0`, where the ray meets it) to the
+        // boss's at `0.3`.
+        let (s, c) = f64::sin_cos(phi);
+        let disc = 0.16 * c * c - 0.12;
+        let t_hole = if disc > 0.0 {
+            (0.4 * c + disc.sqrt()) / 2.0
+        } else {
+            0.0
+        };
+        for f in [0.25, 0.5, 0.75] {
+            let t = t_hole + (0.3 - t_hole) * f;
+            for z in [-1e-3, 0.0, 1e-3, 2e-2, -2e-2] {
+                samples.push(Point3::new(t * c, t * s, z));
+            }
+        }
+        for t in [0.305, 0.32, t_hole * 0.98] {
+            for z in [-1e-3, 0.0, 1e-3] {
+                samples.push(Point3::new(t * c, t * s, z));
+            }
+        }
+    }
+    for dz in [-5e-3, 5e-3, -5e-4, 5e-4] {
+        for dx in [-2e-3, 2e-3] {
+            samples.push(Point3::new(0.3 + dx, 0.0, dz));
+        }
+    }
+    let poses = poses();
+    for (pose, hx, hr, hole_az, boss_az, _) in poses
+        .into_iter()
+        .filter(|p| p.0.starts_with("tangent inside"))
+    {
+        assert_eq!((hx, hr), (0.2, 0.1), "{pose}: the crescent's hole");
+        for form in [true, false] {
+            for (pocket, floor) in [(false, -0.5), (true, -0.25)] {
+                let what = format!(
+                    "{pose}, {}, {}",
+                    if form { "one segment" } else { "two arcs" },
+                    if pocket { "pocket" } else { "through" }
+                );
+                let boss = fin(
+                    "the boss",
+                    extruded(vec![rim(form, 0.0, 0.3, boss_az)], 0.0, 1.0),
+                );
+                let holed = if pocket {
+                    let cutter = fin(
+                        "the cutter",
+                        extruded(vec![rim(form, 0.2, 0.1, hole_az)], -0.25, 0.5),
+                    );
+                    let cut = topo::subtract(&plate(), &cutter, tol()).unwrap();
+                    fin(
+                        "the pocketed plate",
+                        cut.body().unwrap().body.clone().into_body(),
+                    )
+                } else {
+                    fin(
+                        "the holed plate",
+                        extruded(vec![square(), rim(form, 0.2, 0.1, hole_az)], -0.5, 0.5),
+                    )
+                };
+                let in_boss = |p: Point3<f64>| {
+                    let r = p.x.hypot(p.y);
+                    (!(near(r, 0.3) || near(p.z, 0.0) || near(p.z, 1.0)))
+                        .then_some(r < 0.3 && p.z > 0.0 && p.z < 1.0)
+                };
+                let in_holed = |p: Point3<f64>| {
+                    let r = (p.x - 0.2).hypot(p.y);
+                    let on = near(r, 0.1)
+                        || [p.x, p.y].iter().any(|&c| near(c.abs(), 1.0))
+                        || near(p.z, -0.5)
+                        || near(p.z, 0.0)
+                        || near(p.z, floor);
+                    let inside = p.x.abs() < 1.0 && p.y.abs() < 1.0 && p.z > -0.5 && p.z < 0.0;
+                    (!on).then_some(inside && !(r < 0.1 && p.z > floor))
+                };
+                // On `z = 0`, where both operands are material on either
+                // side: the union's interior.
+                let glued = |p: Point3<f64>| {
+                    (p.z == 0.0 && p.x.hypot(p.y) < 0.3 - m && (p.x - 0.2).hypot(p.y) > 0.1 + m)
+                        .then_some(true)
+                };
+                let vh = 2.0 - PI * 0.01 * (-floor);
+                for (op, r, want) in
+                    every_op_both_orders(&boss, &holed, (0.09 * PI, vh, 0.0), tol())
+                {
+                    let row = format!("{what}: {op}");
+                    let union = op.contains('∪');
+                    if let Ok(BooleanResult::Body(res)) = &r {
+                        let body = &res.body;
+                        let truth = |p: Point3<f64>| {
+                            if union && let Some(t) = glued(p) {
+                                return Some(t);
+                            }
+                            let (x, y) = (in_boss(p)?, in_holed(p)?);
+                            Some(match op {
+                                _ if union => x || y,
+                                "A ∖ B" => x && !y,
+                                "B ∖ A" => y && !x,
+                                _ => x && y,
+                            })
+                        };
+                        let (mut read, mut wrong) = (0, Vec::new());
+                        for &p in &samples {
+                            let Some(inside) = truth(p) else { continue };
+                            read += 1;
+                            let got = topo::point_in_solid(body, p, band, tol());
+                            if !matches!(
+                                (&got, inside),
+                                (Ok(topo::SolidContainment::In), true)
+                                    | (Ok(topo::SolidContainment::Out), false)
+                            ) {
+                                wrong.push((p, got));
+                            }
+                        }
+                        assert!(
+                            read > 1000 && wrong.is_empty(),
+                            "{row}: of {read} points, read wrong or undecided at {wrong:?}"
+                        );
+                        if union {
+                            let at_touch: Vec<_> = body
+                                .vertices()
+                                .filter(|(_, v)| {
+                                    (*body.get_point(v.point).unwrap() - touch).norm() < 1e-6
+                                })
+                                .map(|(k, _)| k)
+                                .collect();
+                            let pinch = res
+                                .contacts
+                                .kinds()
+                                .filter(|k| {
+                                    matches!(k, ContactKind::VertexVertex(a, b)
+                                        if at_touch.contains(a) && at_touch.contains(b))
+                                })
+                                .count();
+                            assert_eq!(
+                                (body.shells().count(), at_touch.len(), pinch),
+                                (if pocket { 2 } else { 1 }, 2, 1),
+                                "{row}: shells, vertices at the touch, vertex pairs there"
+                            );
+                        }
+                    }
+                    holds(&row, r, want, VOLUME_PAD_BUDGET);
+                }
+            }
+        }
     }
 }
 
@@ -1075,6 +1244,48 @@ fn ellipse_pad_ceiling() -> f64 {
 /// touch, on one point.
 #[test]
 fn ellipse_rims_tangent_outside_build_every_op() {
+    ellipse_rims(
+        0.4,
+        &[
+            ("vertices there", true, PI, 0.0),
+            ("the boss's there", true, 0.0, 0.0),
+            ("the hole's there", true, PI, PI),
+            ("neither there", true, 0.0, PI),
+            ("two arcs", false, PI, 0.0),
+        ],
+        Some(1),
+    );
+}
+
+/// **Ellipse rims tangent inside**: [`ellipse_rims_tangent_outside_build_every_op`]
+/// with the hole about `(0.2, 0)`, inside the boss's rim and tangent to
+/// it at `(0.3, 0, 0)`, so the boss's floor and the plate's top overlap
+/// in a crescent between two ellipses narrowing to the touch
+/// (`boolean::sectors` `sector_overlap`). The same five vertex
+/// placements, every op in both orders, at rest and turned, held by
+/// [`holds`] within [`ellipse_pad_ceiling`] and read by `point_in_solid`
+/// against the operands' membership.
+#[test]
+fn ellipse_rims_tangent_inside_build_every_op() {
+    ellipse_rims(
+        0.2,
+        &[
+            ("vertices there", true, 0.0, 0.0),
+            ("the boss's there", true, PI, 0.0),
+            ("the hole's there", true, 0.0, PI),
+            ("neither there", true, PI, PI),
+            ("two arcs", false, 0.0, 0.0),
+        ],
+        None,
+    );
+}
+
+/// The tilted boss over the plate holed about `(hole_cx, 0)` by `r =
+/// 0.1`, each pose `(name, one segment, the hole's vertex azimuth, the
+/// boss's)`, every op in both orders at rest and turned
+/// ([`ellipse_rims_tangent_outside_build_every_op`]); a union holds
+/// `at_touch` vertices at the touch, where given.
+fn ellipse_rims(hole_cx: f64, poses: &[(&str, bool, f64, f64)], at_touch: Option<usize>) {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
     let tilted = |body: Body<f64>| {
         topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol()), tol()).unwrap()
@@ -1101,7 +1312,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
             .then_some(r < 0.3 && p.z > 0.0 && p.z < 1.0)
     };
     let in_holed = |p: Point3<f64>| {
-        let r = rho(p, 0.4);
+        let r = rho(p, hole_cx);
         let on = near(r, 0.1)
             || [p.x, p.y].iter().any(|&c| near(c.abs(), 1.0))
             || near(p.z, -0.5)
@@ -1121,13 +1332,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
         .collect();
     let band = geom_core::Band::linear(tol()).expect("the band");
     let touch = Point3::new(0.3, 0.0, 0.0);
-    for (pose, one, hole_az, boss_az) in [
-        ("vertices there", true, PI, 0.0),
-        ("the boss's there", true, 0.0, 0.0),
-        ("the hole's there", true, PI, PI),
-        ("neither there", true, 0.0, PI),
-        ("two arcs", false, PI, 0.0),
-    ] {
+    for &(pose, one, hole_az, boss_az) in poses {
         let tall = fin(
             "the tall boss",
             tilted(extruded(vec![rim(one, 0.0, 0.3, boss_az)], -3.0, 6.0)),
@@ -1140,7 +1345,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
             .clone();
         let bore = fin(
             "the tilted bore",
-            tilted(extruded(vec![rim(one, 0.4, 0.1, hole_az)], -3.0, 6.0)),
+            tilted(extruded(vec![rim(one, hole_cx, 0.1, hole_az)], -3.0, 6.0)),
         );
         let holed = topo::subtract(&plate(), &bore, tol())
             .unwrap()
@@ -1190,19 +1395,179 @@ fn ellipse_rims_tangent_outside_build_every_op() {
                         read > 2000 && wrong.is_empty() && undecided == 0,
                         "{row}: of {read} points, wrong at {wrong:?}, {undecided} undecided"
                     );
-                    if union {
-                        let at_touch: Vec<_> = body
+                    if union && let Some(want_at_touch) = at_touch {
+                        let at: Vec<_> = body
                             .vertices()
                             .map(|(_, v)| v.point)
                             .filter(|&k| (*body.get_point(k).unwrap() - moved(touch)).norm() < 1e-4)
                             .collect();
                         assert!(
-                            at_touch.len() == 1,
-                            "{row}: vertices at the touch, on points {at_touch:?}"
+                            at.len() == want_at_touch,
+                            "{row}: vertices at the touch, on points {at:?}"
                         );
                     }
                 }
                 holds(&row, r, want, ellipse_pad_ceiling());
+            }
+        }
+    }
+}
+
+/// **A hole sharing the boss's rim along an arc, then leaving it
+/// tangent.** The one-segment boss `r = 0.3`, `z ∈ [0, 1]`, its vertex
+/// at azimuth 0, `θ` or `π`, over the plate holed through by a loop that
+/// runs along the boss's rim from azimuth `−θ` to `θ`, leaves it tangent
+/// there on an arc of radius `ρ` turning a quarter, and closes with a
+/// line. Past the vertex at azimuth `θ` the boss's floor and the plate's
+/// top overlap in a crescent (`boolean::sectors` `sector_overlap`).
+///
+/// ∩ is empty and both differences are `SOUND`. Each union builds one
+/// shell at the closed form, tier 2 and the certificate passing, and its
+/// point set reads right at the crescent and on either side of the
+/// shared arc. Tier 3′ fails `UnrecordedContact { EdgeEdgeOverlap }`
+/// alone: the rims lie on each other along the shared arc, and the
+/// records hold no edge–edge row for it
+/// (`work/heldrecords/a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair.md`).
+#[test]
+fn a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent() {
+    let band = geom_core::Band::linear(tol()).expect("the band");
+    let boss_volume = PI * 0.09;
+    for (theta, rho) in [(0.5f64, 0.1f64), (0.3, 0.2), (0.8, 0.15)] {
+        let p = |a: f64| Point2::new(0.3 * a.cos(), 0.3 * a.sin());
+        let c2 = Point2::new((0.3 - rho) * theta.cos(), (0.3 - rho) * theta.sin());
+        let sigma = FRAC_PI_2;
+        let q = Point2::new(
+            c2.x + rho * (theta + sigma).cos(),
+            c2.y + rho * (theta + sigma).sin(),
+        );
+        let hole: ProfileLoop<f64> = RawLoop::new([
+            (
+                p(-theta),
+                Segment::Arc(Arc2 {
+                    centre: Point2::new(0.0, 0.0),
+                    radius: 0.3,
+                    sweep: 2.0 * theta,
+                }),
+            ),
+            (
+                p(theta),
+                Segment::Arc(Arc2 {
+                    centre: c2,
+                    radius: rho,
+                    sweep: sigma,
+                }),
+            ),
+            (q, Segment::Line),
+        ]);
+        // The hole's area by Green's theorem: an arc about `c` of radius
+        // `r` from azimuth `a0` to `a1` adds
+        // `(r²(a1 − a0) + r·cx·(sin a1 − sin a0) − r·cy·(cos a1 − cos a0))/2`,
+        // a chord from `u` to `v` adds `(u × v)/2`.
+        let arc = |c: Point2<f64>, r: f64, a0: f64, a1: f64| {
+            (r * r * (a1 - a0) + r * c.x * (a1.sin() - a0.sin()) - r * c.y * (a1.cos() - a0.cos()))
+                / 2.0
+        };
+        let start = p(-theta);
+        let hole_area = arc(Point2::new(0.0, 0.0), 0.3, -theta, theta)
+            + arc(c2, rho, theta, theta + sigma)
+            + (q.x * start.y - q.y * start.x) / 2.0;
+        let plate_volume = 2.0 - 0.5 * hole_area;
+        // A point of the crescent at `z = 0`, midway between the tighter
+        // arc and the boss's rim along azimuth `θ + 0.1`.
+        let (s, c) = (theta + 0.1).sin_cos();
+        let along = c * c2.x + s * c2.y;
+        let t_arc = along + (along * along - (c2.x * c2.x + c2.y * c2.y - rho * rho)).sqrt();
+        let t = 0.5 * (t_arc + 0.3);
+        let crescent = Point3::new(t * c, t * s, 0.0);
+        let points = [
+            ("in the crescent", crescent, true),
+            (
+                "over the crescent",
+                crescent + Vec3::new(0.0, 0.0, 1e-3),
+                true,
+            ),
+            (
+                "under the crescent",
+                crescent - Vec3::new(0.0, 0.0, 1e-3),
+                true,
+            ),
+            (
+                "in the hole under the shared arc",
+                Point3::new(0.295, 0.0, -1e-3),
+                false,
+            ),
+            (
+                "in the boss over the shared arc",
+                Point3::new(0.295, 0.0, 1e-3),
+                true,
+            ),
+            (
+                "in the plate past the shared arc",
+                Point3::new(0.305, 0.0, -1e-3),
+                true,
+            ),
+            (
+                "over the plate past the shared arc",
+                Point3::new(0.305, 0.0, 1e-3),
+                false,
+            ),
+        ];
+        let holed = fin("the holed plate", extruded(vec![square(), hole], -0.5, 0.5));
+        for boss_az in [0.0, theta, PI] {
+            let boss = fin(
+                "the boss",
+                extruded(vec![circle(0.0, 0.0, 0.3, boss_az)], 0.0, 1.0),
+            );
+            let what = format!("θ = {theta}, ρ = {rho}, the boss's vertex at {boss_az}");
+            for (op, r, want) in
+                every_op_both_orders(&boss, &holed, (boss_volume, plate_volume, 0.0), tol())
+            {
+                let row = format!("{what}: {op}");
+                if !op.contains('∪') {
+                    holds(&row, r, want, VOLUME_PAD_BUDGET);
+                    continue;
+                }
+                let r = r.unwrap_or_else(|e| panic!("{row}: {e:?}"));
+                let b = r.body().unwrap_or_else(|| panic!("{row}: empty"));
+                assert_eq!(census(&b.body)[0], 1, "{row}: shells");
+                let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts, tol());
+                assert!(
+                    t3p.as_ref().is_err_and(|es| !es.is_empty()
+                        && es.iter().all(|e| matches!(
+                            e,
+                            ValidationError::UnrecordedContact {
+                                contact: CensusContact::EdgeEdgeOverlap { .. },
+                                ..
+                            }
+                        ))),
+                    "{row}: tier 3′ {t3p:?}"
+                );
+                for (at, point, inside) in points {
+                    let got = topo::point_in_solid(&b.body, point, band, tol());
+                    assert!(
+                        matches!(
+                            (&got, inside),
+                            (Ok(topo::SolidContainment::In), true)
+                                | (Ok(topo::SolidContainment::Out), false)
+                        ),
+                        "{row}: {at} reads {got:?}"
+                    );
+                }
+                let v = topo::mass_properties(
+                    &b.body,
+                    tol(),
+                    topo::test_support::pinned_resolution(tol()),
+                )
+                .expect("the measured body")
+                .met()
+                .expect("the measured body")
+                .volume;
+                assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
+                let line = outcome(Ok(r), want, tol());
+                assert!(
+                    line.starts_with("OK BAD t2=true t3p=false cert=true operand=true"),
+                    "{row}: {line}"
+                );
             }
         }
     }

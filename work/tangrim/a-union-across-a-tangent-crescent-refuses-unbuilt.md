@@ -189,9 +189,11 @@ through and pocket, `A ∪ B` and `B ∪ A`, default ε, with
 
 ## Built (2026-11-02, `tangrim/tangent-crescent`)
 
-Step 1 as measured above: `sectors::crescent_records` records each
-crescent half between two opposed plane faces as a coplanar `(On, On)`
-pair, read by `sectors::crescent` (`geom_brep::parting`) in every op.
+Step 1 as measured above: `sectors::sector_overlap` reads each
+crescent half between two opposed plane faces as an overlap one order
+down (`sectors::crescent`, `geom_brep::parting`) where first order
+reads it touching, and `pair_search` records it as a coplanar
+`(On, On)` pair, in every op.
 Steps 3 and 4 needed no change. Step 5: `crescent_refusal` and
 `TangentCrescentUnsupported` are gone; `a_boss_over_a_hole_by_pose`'s
 tangent-inside cells read `Sound(1)` through and `Sound(2)` pocketed at
@@ -199,3 +201,14 @@ the default ε, 1e-6 and 1e-12, and so does the turned row;
 `short_arcs_at_a_crescents_tip`'s "one side" row builds (one shell). The
 aligned crescent stays read as a touch:
 `a-crescent-between-aligned-faces-is-read-as-a-touch`.
+
+**Fix pass (2026-11-02).** A bend no
+reading certifies (a spiric section's) reads no bend in `bound_bend`,
+so `crescent` and `runs_into` both leave the first-order reading
+standing there. New pins: `ellipse_rims_tangent_inside_build_every_op`,
+`a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent` (built
+with tier 3′'s typed `UnrecordedContact { EdgeEdgeOverlap }`, filed on
+the heldrecords row) and
+`a_crescents_bodies_read_right_and_pinch_at_one_vertex_pair`. The
+crescents the plane-only gate leaves unread:
+`a-crescent-on-a-curved-carrier-or-a-spline-bound-is-read-as-a-touch`.
