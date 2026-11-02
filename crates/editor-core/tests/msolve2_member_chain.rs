@@ -143,13 +143,7 @@ fn ring(
     step_angle: f64,
     count: i64,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
-    fixture::circular(
-        doc,
-        input,
-        (RoleRead::plain(axis), TargetAxis::Z),
-        step_angle,
-        count,
-    )
+    fixture::circular(doc, input, RoleRead::plain(axis), step_angle, count)
 }
 
 /// A quarter turn — the step every rotating rule here takes.

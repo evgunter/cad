@@ -1195,15 +1195,13 @@ pub fn axis_operand(
 /// apart** (D10 `[repetition]`), under a fresh index: one placement in
 /// `input`'s space whose `Axis` mate equates `axis` read off the copy
 /// with `axis` read off `input`, spun `scalar(k)·step` and slid zero
-/// along the target axis `along` it runs on. `axis` reads `input`'s own
-/// geometry. The document, the index and the placement.
+/// along the mated direction, about an axis of any direction. `axis`
+/// reads `input`'s own geometry. The document, the index and the
+/// placement.
 pub fn circular(
     doc: ProfileDoc,
     input: RecipeNodeId,
-    (axis, along): (
-        editor_core::pose::RoleRead<editor_core::Operand>,
-        editor_core::TargetAxis,
-    ),
+    axis: editor_core::pose::RoleRead<editor_core::Operand>,
     step: f64,
     count: i64,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
@@ -1218,7 +1216,7 @@ pub fn circular(
         vec![mate(axis.clone(), axis)],
         vec![
             (editor_core::Coord::SPIN, spin),
-            (editor_core::Coord::slide(along), len(0.0)),
+            (editor_core::Coord::SLIDE, len(0.0)),
         ],
     );
     let (doc, ring) = insert(

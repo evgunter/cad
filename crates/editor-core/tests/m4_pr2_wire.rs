@@ -176,7 +176,7 @@ fn a_ring_rotates_about_an_axis_read_off_the_body() {
     let (doc, cube) = unit_cube(doc, 2.0, 0.0);
     // The z axis through the origin, read off the cube.
     let axis = fixture::axis_on(&doc, cube, [0.0; 3], [0.0, 0.0, 1.0]);
-    let (doc, _, ring) = fixture::circular(doc, cube, (axis, TargetAxis::Z), FRAC_PI_2, 4);
+    let (doc, _, ring) = fixture::circular(doc, cube, axis, FRAC_PI_2, 4);
     let ev = run(&doc);
     let ValuePayload::Instances(members) = &ev
         .value(ring)
