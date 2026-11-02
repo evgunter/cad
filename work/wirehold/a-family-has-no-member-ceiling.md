@@ -26,3 +26,9 @@ refused in `eval_family` from a running count beside the cancel check, with
 `FamilyTooLarge { at_least, bound }` whose recourse is lowering a count or
 splitting the family, in line with `IndexCountOutOfRange`. A per-index
 range alone would not bound nested indices.
+
+## Design fork (2026-11-02, WIRE orchestrator)
+
+Weighed by two designers over three reconciliation rounds; fork-log row 235, `[ev]` PR on branch `wirehold/a-run-holds-a-member-budget`. Agreed: no cap in the document. A run-wide member budget in the evaluation options counts the index values bound while families are listed, charged at admission in the schedule's order before anything is built. Running out is `EvalOutcome::Exhausted { at, held, budget }` beside `Canceled`, keeping the completed prefix. Evaluations run inside a door take the caller's stop condition (`kernel-run-evaluations-mint-their-own-cancel-token`). Cheaper members are a separate row. Open for Ev: whether the budget has a recorded default.
+
+Ev on PR 6287 (2026-11-02): "this plan broadly sounds good". On the default: "many defaults is far worse than one default or always explicit". With no stronger preference stated, the build takes one recorded default in the evaluation options (drive's `DEFAULT_MAX_LEAVES` stands), and no caller restates it.

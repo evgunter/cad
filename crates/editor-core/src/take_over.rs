@@ -187,22 +187,25 @@ impl Recording<'_, ProfileProgram> {
             return Ok(taken);
         }
         // A link down a chain may itself read the copy (a mirror's plane
-        // on one of its faces): it evaluates only once that read is
-        // rebound. So the door evaluates, rebinds, and evaluates again
-        // from that run until a round rebinds nothing; each round takes
-        // the names it moved out of the document, so it ends within the
-        // chain's depth.
+        // on one of its faces): it does not evaluate until that read is
+        // rebound, so its body has no table in the round's run. Only
+        // then does the door evaluate again, from that run, and rebind
+        // what the link's table now answers; a round in which every link
+        // evaluated is the last, so where no link reads the copy the
+        // door evaluates once. Each round takes the names it moved out
+        // of the document, so the rounds end within the chain's depth.
         let mut ev: Evaluation<f64> =
             crate::evaluate(doc, prior, &crate::CancelToken::new(), opts, self.tol());
         loop {
             let doc = self.doc();
             let (edits, moved) = rebinds_of(doc, &ev, &taken, &chains, &bodies);
-            if edits.is_empty() {
+            let unanswered = bodies.keys().any(|&var| ev.table(var).is_none());
+            for edit in &edits {
+                self.apply(edit.clone())?;
+            }
+            if edits.is_empty() || !unanswered {
                 taken.moved = moved;
                 break;
-            }
-            for edit in edits {
-                self.apply(edit)?;
             }
             ev = crate::evaluate(
                 self.doc(),

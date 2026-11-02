@@ -494,7 +494,7 @@ impl MirrorTool {
     pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
         self.plane
             .iter_mut()
-            .map(crate::session::select::Held::Pick)
+            .map(|held| crate::session::select::Held::One(held))
             .collect()
     }
 
@@ -549,7 +549,7 @@ impl Say for MirrorEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { plane, .. } => {
-                crate::matetool::face_lost(f, FaceRole::MirrorPlane.name(), plane, by)
+                crate::matetool::pick_lost(f, FaceRole::MirrorPlane.name(), plane, by)
             }
         }
     }

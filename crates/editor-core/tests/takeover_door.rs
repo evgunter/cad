@@ -469,3 +469,144 @@ fn a_reader_of_a_split_of_the_copy_is_rebound_on_an_intact_face() {
         "and the split's intact names are answered moved"
     );
 }
+
+/// **The door evaluates again only for a link it could not answer**: a
+/// shell reading the copy's top is rebound off the door's one run, so
+/// that run (the seed it hands out) predates the rebind and the shell
+/// still fails in it; a mirror of the copy whose plane reads the copy
+/// does not evaluate until that plane is rebound, so the door runs a
+/// second round, and its run answers the mirror. Goes red if the door
+/// runs a round for every rebind, or stops for a link it could not
+/// answer.
+#[test]
+fn the_door_evaluates_again_only_for_a_link_it_could_not_answer() {
+    let doc = ProfileDoc::empty_derived("takeover-rounds", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let (shell_doc, shell) = insert(
+        doc.clone(),
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(out(&doc, copy)), vec![cap(b, CapEnd::End)]),
+        },
+    );
+    let seed = |doc: &ProfileDoc| {
+        take_over(
+            doc,
+            &[copy],
+            &Operand::Node(u),
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+        .expect("applies")
+        .taken
+        .evaluation
+        .expect("a reader: the door evaluated")
+    };
+    assert!(
+        seed(&shell_doc).node_error(shell).is_some(),
+        "one round: the run predates the shell's rebind"
+    );
+    let plane = crate::fixture::plane_on(&doc, copy, [0.0, 1.0, 0.5], [1.0, 0.0, 0.0]);
+    let (mirror_doc, mirror) = insert(
+        doc,
+        Node::Mirror {
+            body: copy.into(),
+            plane,
+        },
+    );
+    let mirror_out = out(&mirror_doc, mirror);
+    let (mirror_doc, _) = insert(
+        mirror_doc,
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(mirror_out), vec![cap(b, CapEnd::End)]),
+        },
+    );
+    assert!(
+        seed(&mirror_doc).table(mirror_out).is_some(),
+        "a second round answers the mirror once its plane is rebound"
+    );
+}
+
+/// **A deep chain ends, and rebinds each site once**: copy → mirror M1
+/// (its plane on the copy) → placement P of M1 → mirror M2 of P (its
+/// plane on P) → a shell on M2 holding `b`'s top. Each link evaluates
+/// only once the one above is rebound, so the door runs a round per
+/// link; no (site, name) is rebound twice, the deep reader resolves, and
+/// every node of the chain is answered moved. Goes red if the rounds
+/// stop short of the chain's depth, or rebind a site twice.
+#[test]
+fn a_deep_chain_ends_and_rebinds_each_site_once() {
+    let doc = ProfileDoc::empty_derived("rv3-deep", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let plane = crate::fixture::plane_on(&doc, copy, [0.0, 1.0, 0.5], [1.0, 0.0, 0.0]);
+    let (doc, m1) = insert(
+        doc,
+        Node::Mirror {
+            body: copy.into(),
+            plane,
+        },
+    );
+    let (doc, p) = insert(doc, stood(m1));
+    let plane2 = crate::fixture::plane_on(&doc, p, [0.0, 1.0, 0.5], [0.0, 1.0, 0.0]);
+    let (doc, m2) = insert(
+        doc,
+        Node::Mirror {
+            body: p.into(),
+            plane: plane2,
+        },
+    );
+    let m2_out = out(&doc, m2);
+    let (doc, _) = insert(
+        doc,
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(m2_out), vec![cap(b, CapEnd::End)]),
+        },
+    );
+    let o = EvalOptions::default();
+    let before = crate::fixture::run(&doc, &o);
+    assert!(before.table(m2_out).is_some(), "the chain evaluates before");
+    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    let rebinds: Vec<_> = done
+        .edits
+        .iter()
+        .filter_map(|e| match e {
+            DocEdit::Rebind { body, from, .. } => Some((*body, from.clone())),
+            _ => None,
+        })
+        .collect();
+    let mut seen = std::collections::BTreeSet::new();
+    for r in &rebinds {
+        assert!(
+            seen.insert(r.clone()),
+            "a (site, from) rebound twice: {r:?}"
+        );
+    }
+    let ev = crate::fixture::run(&done.doc, &o);
+    let held = done
+        .doc
+        .vars()
+        .values()
+        .filter_map(|v| v.def().select())
+        .find(|s| s.body == m2_out)
+        .expect("the deep reader's selection");
+    let t2 = ev.table(m2_out).expect("m2 evaluates after");
+    assert!(
+        held.names.iter().all(|n| t2.lookup(n).is_some()),
+        "the deep reader resolves: {:?}",
+        held.names
+    );
+    for node in [copy, m1, p, m2] {
+        assert!(
+            done.taken.moved.0.get(&node).is_some_and(|m| !m.is_empty()),
+            "{node} answered moved"
+        );
+    }
+}

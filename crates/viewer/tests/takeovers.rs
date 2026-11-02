@@ -628,3 +628,88 @@ fn rv2_a_fresh_pick_off_the_older_picture() {
         "a stale reference committed: {bad:?}"
     );
 }
+
+/// **A pick made after an unlanded takeover is undone is judged by the
+/// undone document's run, and stands**: a fillet committed (its door
+/// evaluated, so a run of the fillet's document is in hand), undone
+/// before it lands, and the top picked afresh. The shown document is the
+/// one the landed run answers again, so that run judges the pick: an
+/// open mate tool keeps it, and the selection stands live. Goes red if a
+/// name is judged by a run of a document that is no longer shown (the
+/// newer, undone one).
+#[test]
+fn rv3_a_fresh_pick_after_undoing_an_unlanded_takeover() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![a_lateral_edge(&session, block)],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(session.busy(), "the undo's run is owed");
+    let fresh = top(&session);
+    let shown = viewer::tree::pick_resolution(
+        session.committed_doc(),
+        &pncad::document::evaluate::<f64>(
+            session.committed_doc(),
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            Tol::witness(),
+        ),
+        fresh.node,
+        fresh.body,
+        &fresh.name,
+    );
+    assert!(
+        matches!(shown, pncad::select::Resolution::Resolved(_)),
+        "the fresh pick resolves in the shown document: {shown:?}"
+    );
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Mate);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(Selection::Face(fresh.clone()))],
+    );
+    let dropped = tools.reconcile(session.doc(), session.name_run());
+    session.perform(SessionOp::Select(Selection::Face(fresh)));
+    let standing = session.standing();
+    assert!(
+        dropped.is_empty(),
+        "the tool's live pick is dropped: {dropped:?}"
+    );
+    assert!(standing.live(), "a live pick stands stale: {standing:?}");
+}
+
+/// **A selection's last verdict stands while no run answers the shown
+/// document**: the top selected and live, then a label set (no
+/// takeover, so no door run of the new document is in hand) and its run
+/// not landed. No run answers the shown document, so the selection is
+/// not judged again, and its verdict stands: live, rows offered. Goes
+/// red if an abstaining name question reads as no verdict.
+#[test]
+fn a_selection_keeps_its_verdict_while_no_run_answers_the_shown_document() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    session.perform(SessionOp::Select(Selection::Face(top(&session))));
+    assert!(session.standing().live(), "the top stands");
+    let rows = session.slot_rows().len();
+    let labelled = session.perform(SessionOp::SetLabel {
+        node: block,
+        label: Some(pncad::document::Label::new("b").expect("a label")),
+    });
+    assert!(labelled.refusal.is_none(), "{:?}", labelled.refusal);
+    assert!(session.busy(), "the label's run has not landed");
+    assert!(
+        session.name_run().is_none(),
+        "no run answers the shown document"
+    );
+    assert!(session.standing().live(), "the last verdict stands");
+    assert_eq!(session.slot_rows().len(), rows, "and the rows with it");
+}

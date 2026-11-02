@@ -103,7 +103,10 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Holds, HoldsNothing, Hovered, Selection, Standing};
+pub use select::{
+    EdgeSelection, FaceSelection, Holds, HoldsNothing, Hovered, Selection, Standing,
+    VertexSelection,
+};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -548,6 +551,25 @@ struct Derived {
     /// ([`DocSession::name_run`]). Dropped with everything else here
     /// when the document is replaced.
     seeded: Option<SeededRun>,
+    /// **Which run answers the shown document's names** while its own
+    /// run is owed, decided at its request ([`DocSession::name_run`]).
+    names: Names,
+    /// **The selection's last verdict**, with the selection it is of:
+    /// what its standing reads while no run answers the shown document
+    /// ([`DocSession::name_run`]).
+    verdict: Option<(Selection, Option<Box<Resolution>>)>,
+}
+
+/// **Which run answers the shown document's names while its own run is
+/// owed** ([`DocSession::name_run`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Names {
+    /// The landed run: its document is the shown one.
+    Landed,
+    /// A takeover door's run of the shown document (`Derived::seeded`).
+    Seeded,
+    /// None in hand.
+    Abstain,
 }
 
 /// A door's evaluation of a committed document, kept for the name
@@ -593,6 +615,8 @@ impl Derived {
             offer: None,
             stage: None,
             seeded: None,
+            names: Names::Abstain,
+            verdict: None,
         }
     }
 }
@@ -621,6 +645,8 @@ impl core::fmt::Debug for Derived {
             offer,
             stage,
             seeded,
+            names,
+            verdict,
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
@@ -632,6 +658,8 @@ impl core::fmt::Debug for Derived {
             .field("offer", offer)
             .field("stage", &stage.as_ref().map(|stage| stage.key))
             .field("seeded", &seeded.as_ref().map(|run| run.generation))
+            .field("names", names)
+            .field("verdict", verdict)
             .finish()
     }
 }
@@ -1102,11 +1130,15 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self.entity_resolution(face.node, face.body, &face.name),
+                resolution: self.standing_verdict(face.node, face.body, &face.name),
             },
             Selection::Edge(edge) => Standing::Edge {
                 edge: edge.clone(),
-                resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
+                resolution: self.standing_verdict(edge.node, edge.body, &edge.name),
+            },
+            Selection::Vertex(vertex) => Standing::Vertex {
+                vertex: vertex.clone(),
+                resolution: self.standing_verdict(vertex.node, vertex.body, &vertex.name),
             },
         }
     }
@@ -1151,49 +1183,92 @@ impl DocSession {
     }
 
     /// **The run a name question is asked of**: an evaluation that
-    /// answers the document the name lives in, with that document. The
-    /// one gate every held name is judged through — the selection's
-    /// standing, an open tool's survival, the sketch trace and the held
-    /// edges' marks.
+    /// answers the shown document, with that document; `None` where no
+    /// run in hand answers it. The one gate every held name is judged
+    /// through — the selection's standing, an open tool's survival, the
+    /// sketch trace and the held edges' marks.
     ///
-    /// The landed run, while it answers the shown document. While the
-    /// next run is owed ([`Self::busy`]), the newest run in hand: the
-    /// evaluation a takeover's door made of the committed document
-    /// (`Derived::seeded`), where it is newer than the landed one, since
-    /// a name that followed the takeover at its commit lives only from
-    /// that document on; else the landed run. A pick follows only where
-    /// the door evaluated, so a name the landed run is asked of here did
-    /// not move: its verdict is the one it had before the edit, which
-    /// stands until the landing.
+    /// Which run that is, is decided by identity, once per request
+    /// (`Derived::names`, [`Self::request_eval_from`]), never by which
+    /// run is newer:
     ///
-    /// After a cancel (`SessionOp::CancelEvaluation`) the same holds
-    /// until the next run: nothing answers the shown document, so no
-    /// held name is judged against one newer than the run in hand, and
-    /// none is dropped for a verdict that run cannot give.
+    /// - the landed run, while it answers the shown document: when it
+    ///   is the run of the shown document's request, or while that run
+    ///   is owed, when the document it answers is the shown document
+    ///   (an undo back onto it);
+    /// - the evaluation a takeover's door made of the shown document
+    ///   (`Derived::seeded`), while that document's run is owed: a name
+    ///   that followed the takeover at its commit lives in it;
+    /// - else no run: the question abstains. A held pick is then judged
+    ///   by nothing and dropped by nothing, and the selection's last
+    ///   verdict stands (`Derived::verdict`) until a run answers.
+    ///
+    /// An undo or a redo is no special case: it is a request whose
+    /// document either is the landed one's, or has no run in hand. After
+    /// a cancel (`SessionOp::CancelEvaluation`) the decision of the
+    /// cancelled request stands until the next one.
     pub fn name_run(&self) -> Option<(&Doc<ProfileProgram>, &Evaluation<f64>)> {
-        match self.ahead_of_the_picture() {
-            Some(run) => Some((run.doc.as_ref(), run.evaluation.as_ref())),
-            None => self.landed_pair(),
+        let landed = self.derived.landed.as_ref();
+        if !self.busy() {
+            return landed.map(|run| (run.doc.as_ref(), run.evaluation.as_ref()));
+        }
+        match self.derived.names {
+            Names::Landed => landed.map(|run| (run.doc.as_ref(), run.evaluation.as_ref())),
+            Names::Seeded => self
+                .derived
+                .seeded
+                .as_ref()
+                .filter(|run| run.generation == self.generation)
+                .map(|run| (run.doc.as_ref(), run.evaluation.as_ref())),
+            Names::Abstain => None,
         }
     }
 
-    /// **Whether names are judged by a run newer than the picture**
-    /// ([`Self::name_run`]): a reader that maps a held name onto what is
-    /// drawn (the held marks) then cannot, and says nothing of it until
-    /// the picture catches up.
+    /// **Whether names are judged by a run the picture is not drawn
+    /// from** ([`Self::name_run`]: a door's run of the shown document
+    /// while its landing is owed). A reader that maps a held name onto
+    /// what is drawn (the held marks) then cannot, and says nothing of
+    /// it until the picture catches up.
     pub fn names_ahead_of_the_picture(&self) -> bool {
-        self.ahead_of_the_picture().is_some()
+        self.busy() && self.derived.names == Names::Seeded
     }
 
-    /// The door's run [`Self::name_run`] asks while it is newer than the
-    /// landed one and the landing is owed.
-    fn ahead_of_the_picture(&self) -> Option<&SeededRun> {
-        let landed = self.derived.landed.as_ref();
+    /// **The selection's verdict, taken again where a run answers the
+    /// shown document**: kept for the frames in which none does
+    /// ([`Self::name_run`]), so the last verdict stands rather than
+    /// none. Called after every operation and every landing.
+    fn judge_selection(&mut self) {
+        if self.name_run().is_none() {
+            return;
+        }
+        let resolution = match &self.derived.selection {
+            Selection::Face(face) => self.entity_resolution(face.node, face.body, &face.name),
+            Selection::Edge(edge) => self.entity_resolution(edge.node, edge.body, &edge.name),
+            Selection::Vertex(vertex) => {
+                self.entity_resolution(vertex.node, vertex.body, &vertex.name)
+            }
+            Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
+        };
+        self.derived.verdict = Some((self.derived.selection.clone(), resolution));
+    }
+
+    /// One picked name's standing verdict: asked of the run that answers
+    /// the shown document, or where none does, the selection's last
+    /// verdict while it is still this selection's.
+    fn standing_verdict(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+        name: &StableName,
+    ) -> Option<Box<Resolution>> {
+        if self.name_run().is_some() {
+            return self.entity_resolution(node, body, name);
+        }
         self.derived
-            .seeded
+            .verdict
             .as_ref()
-            .filter(|_| self.busy())
-            .filter(|seeded| landed.is_none_or(|run| run.generation < seeded.generation))
+            .filter(|(selection, _)| *selection == self.derived.selection)
+            .and_then(|(_, verdict)| verdict.clone())
     }
 
     /// The most recent evaluation that answered the current document.
@@ -1534,6 +1609,7 @@ impl DocSession {
         while let Some(done) = self.eval.poll() {
             landings.push(self.land(done));
         }
+        self.judge_selection();
         while let Some(done) = self.door.poll() {
             self.settle(done);
         }
@@ -1814,6 +1890,7 @@ impl DocSession {
     /// ([`Self::create`]).
     pub fn perform_with(&mut self, op: SessionOp, outside: &mut dyn Holds) -> OpOutcome {
         let outcome = self.perform_op(op, None, outside);
+        self.judge_selection();
         // Every document change is an operation, so this is the one
         // place the kept nodes follow the newest document that holds
         // them. A landing changes only the landed run, an earlier
@@ -3173,7 +3250,7 @@ impl DocSession {
                 ))));
             }
         };
-        let faces = traced.iter().map(|face| face_read(doc, face)).collect();
+        let faces = traced.iter().map(|face| pick_read(doc, face)).collect();
         match pncad::trace::drawn_profile(frame, faces, chains) {
             Ok(node) => Ok(creating(move |run| run.insert(node))),
             Err(error) => Err(Refusal::Edit(Box::new(error))),
@@ -3203,7 +3280,7 @@ impl DocSession {
             doc,
             ev,
             frame,
-            face_read(doc, face),
+            pick_read(doc, face),
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
             self.tol,
@@ -3731,13 +3808,12 @@ impl DocSession {
     /// **The takeover of the body `read` names, by a copy of it** (the
     /// transform's: a placement of the body it takes over, whose pieces
     /// its copy carries, so no pick is stranded), reading the result's
-    /// table under the session's runs: their options and resolver, and
+    /// table under the session's runs: their resolver, and
     /// the landed run as the memo.
     fn takeover_by_a_copy(&self, read: &Operand) -> Takeover {
         let resolver = self.run_resolver();
         Takeover {
             reads: TakeoverReads {
-                opts: crate::evalseam::options(&resolver),
                 prior: self.memo_under(&resolver),
                 resolver,
             },
@@ -4284,13 +4360,25 @@ impl DocSession {
         // A door's evaluation of this document answers the names that
         // followed its takeover until this run lands
         // ([`Self::name_run`]).
-        if let Some(seed) = &seed {
-            self.derived.seeded = Some(SeededRun {
-                generation: self.generation,
-                doc: Arc::clone(&self.requested_doc),
-                evaluation: Arc::clone(&seed.evaluation),
-            });
-        }
+        self.derived.names = match &seed {
+            Some(seed) => {
+                self.derived.seeded = Some(SeededRun {
+                    generation: self.generation,
+                    doc: Arc::clone(&self.requested_doc),
+                    evaluation: Arc::clone(&seed.evaluation),
+                });
+                Names::Seeded
+            }
+            None if self
+                .derived
+                .landed
+                .as_ref()
+                .is_some_and(|run| *run.doc == *self.requested_doc) =>
+            {
+                Names::Landed
+            }
+            None => Names::Abstain,
+        };
         self.requested_resolver = self.run_resolver();
         // The landing this request will replace no longer wants its door.
         self.door.cancel();
@@ -4585,7 +4673,7 @@ impl Takeover {
         let mut taken = run.take_over(
             &self.copies,
             &result.into(),
-            &self.reads.opts,
+            &crate::evalseam::options(&self.reads.resolver),
             self.reads.prior.as_deref(),
             held,
         )?;
@@ -4615,12 +4703,11 @@ impl Takeover {
 /// [`Takeover`]'s until the session gives it its own.
 #[derive(Default)]
 struct TakeoverReads {
-    opts: EvalOptions,
-    prior: Option<Arc<Evaluation<f64>>>,
-    /// The resolver `opts` resolves through: the one the door's
-    /// evaluation ran under, which its seed carries
-    /// ([`crate::evalseam::Seed`]).
+    /// The resolver the door's evaluation runs under: its options are
+    /// this resolver's ([`crate::evalseam::options`]), and its seed
+    /// carries it ([`crate::evalseam::Seed`]).
     resolver: Option<Arc<dyn PartResolver>>,
+    prior: Option<Arc<Evaluation<f64>>>,
 }
 
 /// **The body `node` defines, as a read**: its first `Body` output (a
@@ -5059,13 +5146,17 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The body a face pick is read on, and the face's name there**
+/// **The body a pick is read on, and the entity's name there**
 /// (`crate::world::body_of`; a copy carries its body's names, so the
 /// name is the pick's): the node's output by its port where it holds
 /// several, its body output otherwise.
-fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
-    let (at, port) = crate::world::body_of(doc, face.node, face.body);
-    let name = face.name.clone();
+fn picked_body(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> (Operand, StableName) {
+    let on = pick.on();
+    let (at, port) = crate::world::body_of(doc, on.node(), on.body());
+    let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
@@ -5073,10 +5164,14 @@ fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, Sta
     (body, name)
 }
 
-/// **The face `face` selects, as an operand**: its name on the body the
-/// pick is read on ([`picked_body`]).
-pub(crate) fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
-    let (body, name) = picked_body(doc, face);
+/// **The entity a pick selects, as an operand** — a face, or for the
+/// mate tool an edge or a vertex: its name on the body the pick is read
+/// on ([`picked_body`]).
+pub(crate) fn pick_read(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> Operand {
+    let (body, name) = picked_body(doc, pick);
     Operand::select(body, vec![name])
 }
 
@@ -5096,8 +5191,8 @@ fn drawn_frame(
     pncad::trace::traced_frame(
         doc,
         ev,
-        &face_read(doc, plane),
-        &face_read(doc, traced),
+        &pick_read(doc, plane),
+        &pick_read(doc, traced),
         tol,
     )
 }
