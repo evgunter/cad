@@ -1755,7 +1755,13 @@ mod tests {
         };
         // A case's name, its first shape, extent and radius, and the
         // loops added after it.
-        type Case = (&'static str, Option<ShapeKind>, [f64; 2], f64, Vec<ProfileShape>);
+        type Case = (
+            &'static str,
+            Option<ShapeKind>,
+            [f64; 2],
+            f64,
+            Vec<ProfileShape>,
+        );
         let cases: Vec<Case> = vec![
             (
                 "outside",

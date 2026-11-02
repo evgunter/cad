@@ -961,7 +961,8 @@ impl ViewerBehavior<'_> {
         // contradicting it.
         // A traced chain is drawn by the evaluation, which the preview
         // does not run: the trace rows say what it shows instead.
-        let at_rest = shape.is_none() || waits_on_a_step && blocked.is_some() || self.drafts.traces();
+        let at_rest =
+            shape.is_none() || waits_on_a_step && blocked.is_some() || self.drafts.traces();
         let refused = preview_verdict(
             ui,
             self.theme,
