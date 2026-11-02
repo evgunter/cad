@@ -1127,8 +1127,8 @@ suits the slot.
 - *Discrete kinds:* a side, a half, a sense, an orientation
   ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
-- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
   ([variables.poses]).
+- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
@@ -1340,7 +1340,12 @@ construction placed into the space the face's body is in, against the
 face by mates and values, then combined, and which side of the face
 its material lies on is the mates' to say. A sketch on a face is not
 placed: it is a profile drawn on a frame read off the face's own
-geometry, and it and every sweep of it are in the face's body's space. Only a placement relates
+geometry, and it and every sweep of it are in the face's body's space.
+The frame's x points toward a cell of the body off the face's normal
+where the gesture names one; on a face with none (a bare disc) it is
+the space's x carried onto the face by the least turn, as a
+placement's spin is measured ([placement.values]). Either way the
+frame's spin then turns it. Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 
