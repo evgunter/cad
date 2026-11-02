@@ -204,8 +204,6 @@ pub enum NodeErrorClass {
     MeasureUnsupported,
     /// [`NodeErrorKind::PayloadExpr`].
     PayloadExpr,
-    /// [`NodeErrorKind::MeasureClearanceRefused`].
-    MeasureClearanceRefused,
     /// [`NodeErrorKind::AssertionDimension`].
     AssertionDimension,
 }
@@ -297,7 +295,6 @@ impl NodeErrorKind {
             Self::MeasureNotParallel { .. } => C::MeasureNotParallel,
             Self::MeasureUnsupported(_) => C::MeasureUnsupported,
             Self::PayloadExpr { .. } => C::PayloadExpr,
-            Self::MeasureClearanceRefused(_) => C::MeasureClearanceRefused,
             Self::AssertionDimension { .. } => C::AssertionDimension,
         }
     }
@@ -440,7 +437,6 @@ mod tests {
         MeasureNotParallel,
         MeasureUnsupported,
         PayloadExpr,
-        MeasureClearanceRefused,
         AssertionDimension,
     }
 
@@ -554,6 +550,7 @@ mod tests {
                     BlendKind::Chamfer
                 },
                 error: sweep::blend::BlendError::NonpositiveSize { size: 0.0 },
+                edge: None,
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
             C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),
@@ -809,13 +806,6 @@ mod tests {
                 index: 2,
                 source: EvalError::NonFiniteResult,
             },
-            C::MeasureClearanceRefused => {
-                K::MeasureClearanceRefused(topo::clearance::MinSeparationRefusal::Unsupported {
-                    carrier: "an approximated face",
-                    face: topo::FaceKey::default(),
-                    side: topo::clearance::Which::First,
-                })
-            }
             C::AssertionDimension => K::AssertionDimension {
                 measured: crate::Dimension::Length,
                 bound: crate::Dimension::Angle,

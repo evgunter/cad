@@ -57,12 +57,12 @@ fn split_rim_patch(
     };
     let rim = |z: f64, t0: f64, t1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: p(0.0, 0.0, z),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: Probe(r),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p(0.0, 0.0, z),
+                v3(0.0, 0.0, 1.0),
+                Probe(r),
+                v3(1.0, 0.0, 0.0),
+            ),
             Probe(t0),
             Probe(t1),
             forward,
@@ -72,10 +72,7 @@ fn split_rim_patch(
     };
     let meridian = |u: f64, z0: f64, z1: f64, forward: bool, tags: (u32, u32)| {
         LoopEdge::hand_built(
-            Curve3::Line {
-                origin: p(r * u.cos(), r * u.sin(), 0.0),
-                dir: v3(0.0, 0.0, 1.0),
-            },
+            Curve3::line(p(r * u.cos(), r * u.sin(), 0.0), v3(0.0, 0.0, 1.0)),
             Probe(z0),
             Probe(z1),
             forward,

@@ -1004,12 +1004,7 @@ pub fn plant_disc_face<T: geom_core::Decide + crate::props::AtRestPolicy>(
         .mev_line(MevSite::Fan { he1: at, he2: at }, center + x * radius, tol)
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
-    let carrier = Curve3::Circle {
-        center,
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        radius,
-        u_ref: x,
-    };
+    let carrier = Curve3::circle(center, Vec3::new(T::zero(), T::zero(), T::one()), radius, x);
     let spec =
         EdgeCurveSpec::arc_of_circle(carrier, T::zero(), T::from_f64(core::f64::consts::TAU))
             .unwrap();
@@ -1418,12 +1413,12 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         } else {
             (-frame.axis, frame.radial(u1), 0.0, u1 - u0)
         };
-        let carrier = Curve3::Circle {
-            center: centre,
-            axis: axis.map(T::from_f64),
-            radius: T::from_f64(frame.radius),
-            u_ref: seam.map(T::from_f64),
-        };
+        let carrier = Curve3::circle(
+            centre,
+            axis.map(T::from_f64),
+            T::from_f64(frame.radius),
+            seam.map(T::from_f64),
+        );
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
@@ -1622,12 +1617,12 @@ pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
 /// [`CylFrame`]'s axis from azimuth `u0` up to `u1`, its parameter the
 /// azimuth.
 pub fn cyl_arc_at(v: f64, u0: f64, u1: f64) -> EdgeCurveSpec<f64> {
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, v),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, v),
+        Vec3::unit_z(),
+        1.0,
+        Vec3::unit_x(),
+    );
     EdgeCurveSpec::arc_of_circle(carrier, u0, u1).unwrap()
 }
 
@@ -1655,7 +1650,7 @@ pub fn arc_chain_over_the_jump(
                 .get_curve_geom(body.get_edge(e).unwrap().curve)
                 .and_then(crate::CurveGeom::certified)
                 .unwrap();
-            matches!(c.carrier(), Curve3::Circle { .. }) && c.params() == (4.2, 5.4)
+            matches!(c.carrier(), Curve3::Circle(..)) && c.params() == (4.2, 5.4)
         })
         .unwrap();
     let cycle = |body: &Body<f64>| {
@@ -1761,7 +1756,7 @@ pub fn kill_under_a_null_strut(
                 .get_curve_geom(body.get_edge(e).unwrap().curve)
                 .and_then(crate::CurveGeom::certified)
                 .unwrap();
-            matches!(c.carrier(), Curve3::Circle { .. }) && c.params() == (0.2, 1.4)
+            matches!(c.carrier(), Curve3::Circle(..)) && c.params() == (0.2, 1.4)
         })
         .unwrap();
     let m = body.split_edge(rim, 0.8, tol).unwrap().vertex;
@@ -1813,13 +1808,15 @@ pub fn kill_under_a_null_strut(
 pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKey) {
     let tol = Tol::witness();
     let (s, c) = phi.sin_cos();
-    let carrier = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(-s, 0.0, c),
-        semi_u: 1.0 / c,
-        semi_v: 1.0,
-        u_ref: Vec3::new(c, 0.0, s),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(-s, 0.0, c),
+            Vec3::new(c, 0.0, s),
+        ),
+        1.0 / c,
+        1.0,
+    ));
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
     body.set_face_surface(
@@ -1867,22 +1864,24 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
 /// start corner at the carrier's start, its end corner at the carrier's
 /// end plus `off` (certified, so `off` lies within the run's zero band).
 /// Returns the body and the cap face.
-pub fn arc_cap(
-    carrier: Curve3<f64>,
-    span: (f64, f64),
-    off: Vec3<f64>,
+pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    carrier: Curve3<T>,
+    span: (T, T),
+    off: Vec3<T>,
     tol: Tol,
-) -> (Body<f64>, FaceKey) {
-    let Curve3::Circle {
-        center,
-        axis,
+) -> (Body<T>, FaceKey) {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = carrier
+    }) = carrier
     else {
         unreachable!("an arc cap is cut from a circle, and the caller passed another curve")
     };
-    let mut body = Body::<f64>::new();
+    let mut body = Body::<T>::new();
     let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1) + off);
     let seed = body.mvfs(p0, true).unwrap();
     let plane = body.add_surface(Surface::Plane {
@@ -1906,7 +1905,7 @@ pub fn arc_cap(
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(wall, plane),
                     selector: geom_brep::CurveSelector::Witness(
-                        carrier.eval(0.5 * (span.0 + span.1)),
+                        carrier.eval(geom::mid_param(span.0, span.1)),
                     ),
                 },
                 carrier,
@@ -1938,12 +1937,7 @@ pub fn arc_cap(
 /// along `-y` from the carrier's end. Returns the body, the cap face, and
 /// the carrier's end at `π`.
 pub fn half_disc_cap(off: f64, tol: Tol) -> (Body<f64>, FaceKey, Point3<f64>) {
-    let carrier = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     let span = (0.0, core::f64::consts::PI);
     let end = carrier.eval(span.1);
     let (body, cap) = arc_cap(carrier, span, -Vec3::unit_y() * off, tol);
@@ -2048,7 +2042,10 @@ mod tests {
             .edges()
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                    Curve3::Circle { axis, .. } => Some(axis.to_array()),
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { axis, .. },
+                        ..
+                    }) => Some(axis.to_array()),
                     _ => None,
                 },
             )

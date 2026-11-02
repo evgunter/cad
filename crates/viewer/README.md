@@ -21,7 +21,7 @@ it rather than using it. The ratified plan that record answers to is
 
 | Gesture | Action |
 | --- | --- |
-| LEFT click | select (face pick; also feeds the mate tool's picks) |
+| LEFT click | select (a face, edge or vertex pick, or a profile by its drawn outline; also feeds the mate tool's picks) |
 | MIDDLE drag | orbit (shift+middle: pan) |
 | ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
 | RIGHT drag | pan |
@@ -463,7 +463,7 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — the transform's placement, a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec`, `PartSelectSpec`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
@@ -605,13 +605,20 @@ writes its cleared value, at one site, by hand. That is the whole
 mechanism — one site to update instead of three, and a compiler error
 instead of a silent omission.
 
-`LandedRun` is the same rule one level down. Its seven fields — the
+`LandedRun` is the same rule one level down. Its eight fields — the
 evaluation, the resolver it ran through, the document it answers, its
-generation, the gather's outcome, the advisory report and the part
-files the resolver could name — are statements about one (document,
-evaluation) pair, taken in that pair's single `land`. As one value
-they cannot come from different runs, which is the property
-`landed_pair` needs: it returns two of the seven, and the two it
+generation, the gather's outcome, the advisory report, the part files
+the resolver could name and the certified clearance answers — are
+statements about one (document, evaluation) pair. A landing may owe
+answers that settle later: the coincidence door's, which the advisory
+report reads pending, and the certifying scalar's for a clearance
+requirement, which reads certifying. Each runs at rest on its own seam,
+keyed by the landing's generation and cancelled by the next request,
+and settles into this same value (`DocSession::settle`,
+`DocSession::certified`); an answer for a landing since replaced is
+dropped. Everything else is taken in the pair's single `land`. As one
+value they cannot come from different runs, which is the property
+`landed_pair` needs: it returns two of the eight, and the two it
 returns are the pair a single run answered. The gather's outcome is
 one `Result`, the refusal or what the gather left (the at-rest badge
 and the body); `LandedRun`'s doc says what that shape does and does not
@@ -707,8 +714,9 @@ history's length and `checks` is its two counts (`ChecksReport` is a
 the thing these walks exist to keep readable); `scratch`, `body`,
 `gesture` and `resolver` are their presence, rendered as the elisions
 `Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
-`Some(<DirResolver>)`; and `index` is the generation it describes
-inside one, `Some(<PickIndex for Generation(4)>)`. Summarising is what
+`Some(<DirResolver>)`; `index` is the generation it describes
+inside one, `Some(<PickIndex for Generation(4)>)`; and `stage` and
+`seeded` are the key and the generation they are for. Summarising is what
 a `#[derive(Debug)]` cannot do at all, which is the reason these are
 written out rather than derived; the recipe and result DAGs are what
 makes that reason bite.
@@ -725,11 +733,12 @@ answered at the field, which is the only place a two-valued marker
 could not have said it. **The sweep behind that list**, and it is a
 reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
-`PickCache` in `pickcache` — read every `.field(…)` call, **21 of
+`PickCache` in `pickcache` — read every `.field(…)` call, **30 of
 them**, and take the ones whose value argument is not the destructured
-binding itself. **Nine calls, seven fields**: `checks` and `index` each spend two arms, and the absent
-arm renders `None`, which is the whole field. `viewer`'s
-`tests/debug_dumps.rs` holds the seven to their spellings, and is the
+binding itself. **Eleven calls, nine fields**: `checks` and `index`
+each spend two arms, and the absent arm renders `None`, which is the
+whole field. `viewer`'s `tests/debug_dumps.rs` holds seven of them to
+their spellings — all but `stage` and `seeded` — and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in
@@ -914,7 +923,7 @@ neither.
 | Module | Holds |
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind`, `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
-| `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
+| `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is a committed profile's program held as written, for the edit door, which the add-profile form's step list edits through each step's view at plain numbers, and `RowEdit` a change to the shape of one of its step lists), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-profile form's `SessionOp` (on its own plane, or sketched on a picked face) — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
 | `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, how its reply travels back, and what that reply is worth when it comes (`IdQueryLog`, `IdSubject`, `IdStep`, `IdChannel`, `IdReply`, `ReadbackFault`, `IdAnswer`, `Disagreement`, `IdNews`, `compare`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module REMEMBERS, or carries what is remembered from the frame that asked to the frame that reads. That includes the reply's failure, `ReadbackFault`: `gpu` raises it, but the frame reads it and `gpu` is `app`-only, so it is named here, carrying the device's words as text and no driver type. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
@@ -1538,7 +1547,14 @@ box of the `f32` corners that crossed the display seam, widened back.
 A preview that failed to replay draws nothing and frames nothing; a
 loop of one vertex frames its point. The previews' step marks are not
 in it, nor is anything else sized by the view: a fit that framed them
-would depend on the camera it is choosing. So a frame builds the
+would depend on the camera it is choosing. Nor is a preview's
+construction — the two sides each fused fillet step's fit was handed,
+whole, each with a heading mark at its anchor, and the fillet circle
+the fit found (`sketch::drawn`, out of the preview's own replay),
+drawn in their own lane under the kept pieces, and drawn when the
+step's fit refuses too: a carrier is a whole circle, and one large
+enough to fillet against would frame the profile as a speck. So a
+frame builds the
 geometry lanes, derives the extent, fits, folds the pointer's events,
 and only then sizes the marks against the camera that settled — one
 pure function, `pane::viewport::frame_camera`, whose order a row
@@ -2051,21 +2067,26 @@ the tool lists it twice and the session door commits it like any other
 document; the door's only per-operand check is the node kind
 (`Refusal::WrongNodeKind`), at every operand.
 
-### The picture draws bodies
+### What the picture shows
 
-A new body lands unplaced, in a space of its own (Ev, 2026-10-31), and
-the picture draws bodies, not placements. **A body is drawn unless an
-operation reads it as a body**: as an operator's operand (`∪ − ∩ ⊔`),
-as a one-input operation's input (a fillet, a split, a mirror), or as a
-placement's source, wherever the copy lands. A read of one member of a
-family takes over that member alone. A mate reads a pose, a selection
-or a measure observes, an assertion states: none of them hides a body.
-So an extrude is drawn at once; a fillet of it is drawn in its place;
-a pattern of it draws the family, member 0 standing where the body
-stood; and once the body is placed into the world its own picture goes,
-while a body beside it that nothing reads stays drawn. The product
-stays the slot the document writes: only the picture is derived, and
-nothing it derives re-enters the model.
+**Every body is shown by default except intermediate ones, and the
+View pane can show or hide any body.** A body is intermediate when
+another body is built from it:
+- an operand of `∪ − ∩ ⊔`;
+- the input of a fillet, split or mirror;
+- the source of a placement, whose copy is shown in its place.
+
+A read of one member of a family makes that member alone intermediate.
+Mates, selections, measurements and assertions build no body, so they
+make nothing intermediate. So an extrude is shown as soon as it exists
+(it lands unplaced, in a space of its own: Ev, 2026-10-31), a fillet of
+it is shown in its place, a pattern of it shows the family with member
+0 standing where the body stood, and once the body is placed into the
+world its copy is shown and the body is not. A body beside it that
+nothing builds from stays shown. The default is derived from the recipe
+alone. Show and hide in the View pane are display state on top of it,
+and never enter the model. The product stays the slot the document
+writes.
 
 Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
@@ -2086,10 +2107,25 @@ where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other within a session (Ev, PR 6209: one way to store where
-something is displayed, not a derived layout beside it). Display frames
-are not saved with the document yet, so a reopened document draws them
-at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
+each other (Ev, PR 6209: one way to store where something is displayed,
+not a derived layout beside it). A save keeps every committed display
+frame in a layout file beside the document (`crate::layout`:
+`part.pncad.layout`), outside the document's bytes, its content pin and
+its evaluation, and an open restores them, so a reopened document draws
+its parts where they were drawn. Each saved frame carries a witness, a
+node drawn in its space at the save: a frame is restored while its
+space is shown (the one rule a held frame is asked by, DI5) and its
+witness still stands in it, which is what tells the space apart from
+another minted under the same id after an undo
+(`DisplayState::restore`). Any other frame is dropped and said, by the
+names the saving document gave it. The file is read as the preferences
+are: a key the viewer does not know, or a frame it cannot read, is
+skipped and said while the rest applies; a layout of another document
+or one that is not TOML restores nothing and is said. A document with
+no layout draws every space at the identity. A document written
+through the API or `docio` over a file the viewer saved leaves that
+file's layout in place, and the next open restores it by the same rule.
+Hides and shows are not saved.
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
@@ -2104,45 +2140,91 @@ camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is
 admitted, whatever kind of node drew it.
 
-### The mate tool commits into a placement's bundle
+### The placement editor commits a placement's whole bundle
 
 A copy is made by a placement — a `Node::Place`, or an instance, which
 is a placement of its part's world — into the space its `target` names,
 and a placement's constraints are its mates and the values that set
-their freedoms. Every bundle pins its copy. A mate is two poses
-of one kind: the first pick is `on`, read off the copy the mate
-places, and the second is `to`, read where it was picked; each is the
-picked face read as its plane or its carrier's axis
-(`matetool::MATE_KINDS`), and `to` is flipped where the faces rest
-against each other (a plain plane mate equates outward normals). So
-the mate tool's one committed action adds the mate to the `on` pick's
-placement's bundle (`DocEdit::AddConstraint`), which writes the bundle
-whole: the values whose freedoms the mate fixes go, each freedom the
-bundle's mates leave keeps its value or is written the constant `0`,
-and the door refuses what overconstrains. The person's numbers on the
-freedoms the kind leaves (`matetool::MateFreedom`) are then written
-over those values, in the same action (`DocEdit::SetConstraints`); the
-panel states that a freedom left unset is written where the copy
-stands, snapped onto the mate (every bundle pins its copy). A value is measured on the axes of the space the copy is placed
-into, carried onto the mated direction by the least turn from where
-the mate's orientation puts the copy's. The gesture writes the
-orientation nearest where the copy stands, the spin the least turn
-leaves, and each slide it keeps at the copy's snapped coordinate, so a
-freshly mated copy moves only by the snap: its mated direction turned
-the least way onto the target's, its mated point moved the shortest
-way onto the target's plane or line (`session/snap.rs`). So a freshly
-inserted copy, standing by the identity bundle, is mated as it is. Where `to` is read
-in another space than the one the copy is placed into, the door
-refuses the mate, `EditError::SpaceMismatch` naming both spaces: the
-gesture never moves a copy as a side effect. The panel's "move the
-copy into the target's space" choice asks for the move by name
-(`MateProposal::op_into_target_space`, `SessionOp::AddMate`'s
-`into_target_space`): the same action then stands the copy by the
-identity bundle where its bundle holds a mate and re-targets the
-placement into `to`'s space (`SetParam` of its `target`) before adding
-the mate. A pick on a `Place`'s copy reads `on` off the shape it
-copies; a pick elsewhere is read through the member walk to the
-instance it places.
+their freedoms. Every bundle pins its copy. The mate tool is the
+**placement editor** (`matetool::MateTool`), whose draft is one
+placement's whole bundle, as the profile editor's is one profile's
+program, with two doors (`matetool::PlaceDoor`): **Create**, on a body
+not yet placed, whose Apply inserts one placement of it holding the
+whole bundle (`SessionOp::Place`, taking over what read the body along
+a seen path, never a copy's source); and **Edit**, on a placement —
+opened from its tree row (`edit placement`), a mate row's `remove`, or
+a pick on its copy — whose Apply writes the bundle whole
+(`SessionOp::SetBundle`, `DocEdit::SetConstraints`), keeping the id of
+every constraint it loaded. Either Apply is one undo step; nothing
+enters the document before it; a draft over a bundle the document has
+since changed reloads, said (`MateToolEvent::Reloaded`), and its old
+Apply is refused (`Refusal::BundleStale`).
+
+The draft is **mate rows** (`matetool::MateRow`), each a kind of
+`matetool::MATE_KINDS` (a plane, an axis, a point, a direction, a
+frame), a sense of two named values (`matetool::senses`: `opposed` or
+`flush` for a plane, `same` or `reversed` for an axis and a direction,
+`same` or `turned over` for a frame, none for a point) written as the
+flip of `to`, its seats, and a stroke. **Picks are seated by body**: a
+pick on the draft's copy fills the active row's `on` seat and any other
+pick its `to` seat; order carries nothing. A frame's side has an axis
+seat an edge fills and a point seat a vertex fills, written
+`PoseDef::Through`; every other kind reads one entity
+(`matetool::MateReading`): a face as its plane, a face's carrier or an
+edge's line as an axis, a vertex or a carrier's or a circle's centre as
+a point, a face's normal or an edge's line as a direction. Whether the
+pose's read admits the entity is the kernel's seat; the cursor's rule
+follows the active row's kind (`matetool::pick_kinds`). A lost pick
+empties its seat, typed (`MateToolEvent::PickLost`), the seated tools'
+rule.
+
+The **value rows** are derived, never held: exactly the freedoms the
+live mates leave, by the kernel's rule (`Placed::freedoms`), the slides
+those the copy's geometry leaves (`editor_core::mate::slides_left_along`).
+Each is prefilled where the copy stands snapped onto the mates
+(`session/snap.rs`): the mate fixing a direction turns the copy's mated
+direction the least way onto the target's and moves its mated point the
+shortest way onto the target's plane or line, a point mate beside it
+carries the point onto the target's, and the orientation written is the
+one nearest the snapped turn. The numbers are read back where the snap
+stands the copy through the chart that will place it
+(`editor_core::mate::read_back`). A number the person typed on a
+surviving freedom is kept, and so is a loaded value reading a named
+variable or an expression, or read on the same chart as loaded (whose
+slides are then the loaded ones); only a constant whose chart changed
+is measured again. A loaded turn whose freedom goes is carried onto the
+new freedom's turn only where the kernel states the two one rotation
+about one line (`editor_core::mate::spin_as_chain_turn`: the spin's
+line the chain's last turn's, exactly, with the exact quarter turns
+between their zeros); every other value the person wrote whose
+freedom goes is said dropped in the draft, with its formula, before
+Apply, and the constants the new mates fix are said once. Each value row is a field showing its
+formula as the person reads it (`matetool::value_text`: a variable by
+its name, never its id), and typing replaces it. A freedom that reads
+no number where the copy stands, or a mate whose kind does not
+resolve, is said, never written as `0` or read as a plane. "A mate in place of a
+slide or a spin" is *add a mate*: the value rows shrink to what the
+admitted mates leave.
+
+**The verdict comes before Apply.** The session runs the draft's Apply
+on a scratch recording and evaluates it
+(`DocSession::bundle_verdict`), so the panel names the door's refusal
+or the placement's fault — mates repeating an equation, a freedom left
+unpinned, two spaces, a side off the copy, a pick its kind cannot read
+— while the draft can still change, and a refused Apply leaves the
+editor open (`ToolKind::commits`). A copy the verdict says would not
+stand (a fault, or a read that does not evaluate) is not applied: the
+panel withholds Apply, and `SessionOp::Place` and `SessionOp::SetBundle`
+refuse it (`Refusal::PlacementFails`). Where `to` is read in another space
+than the one the copy is placed into, the door refuses the Edit,
+`EditError::SpaceMismatch` naming both spaces: the gesture never moves
+a copy as a side effect. The panel's "move the copy into the target's
+space" choice asks for the move by name
+(`MateProposal::op_into_target_space`): the same action stands the copy
+by the identity bundle where its bundle holds a mate and re-targets the
+placement into `to`'s space before writing the bundle.
+`SessionOp::AddMate` is the API's spelling of one mate added to a
+placement's draft and applied as the editor applies it.
 
 **A new body lands unplaced** (Ev, 2026-10-31). No gesture writes a
 world `Place` on the person's behalf. A construction, a feature or a
@@ -2152,24 +2234,41 @@ inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
-was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A duplicate of a copy
+was seen through: picked on a copy, it reads that copy in the copy's
+space and takes over the `⊔` operands and the product slot that read
+it, writing no placement's source, and the result says it belongs to
+that placed copy, with a way to the original body; picked as the body
+itself, it makes a new body and offers, as one explicit step, to
+re-point the variable the body's placements share onto it, member 0 standing where that body stood. A split takes the seen
+body over the same way, by `above ⊔ below`, its two halves standing
+where that body stood; where nothing reads the body along such a
+path, the split's halves are drawn in its place. A duplicate of a copy
 is one more copy in that copy's space, by values on every freedom at
 the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own
 space, a stand-in by the identity and the stepped one. Projecting a
 pattern member writes nothing: a pick on a drawn member seats
-`family[k]`. The transform gesture places an unplaced body into its own
-space by values on that space's axes: the three slides as the person
-wrote them, and the spin about the axis the rotation names where it is
-one of the space's, else the chain of turns its frame makes; on a copy
-it edits the copy's placement. A combine re-places an operand from
+`family[k]`. The Transform tool is the placement editor opened on its
+pick with no mate row (`MateTool::moving`), through one of its two
+doors. On a body nothing places it is the Create door, into the body's
+own space, its six value rows where the body stands; its Apply places
+the body and takes over what read it along the path it was seen
+through (a `⊔` operand, the product), never a copy's source. On a copy,
+and on a body one copy places, which is seen through that copy, it is
+that copy's Edit door, the bundle's values as written; its Apply writes
+the bundle in place. The editor's own first pick takes the same route
+(`matetool::door_on`, A11's member walk included). What is no body opens
+no door, said: a profile, a pattern's family (its values are the rule;
+the pattern is edited instead), a body several copies place, and a split
+picked whole, which asks for its half. The Create door refuses a copy
+(`Refusal::CreateOnACopy`) and a body a placement already copies
+(`Refusal::BodyPlaced`, naming the copy whose Edit door moves it). A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
 
 **A body reaches the product through one door.** Nothing joins the
 product unasked, a document's first body included. **Add to the
-product** is offered on the body under a viewport pick, on a drawn
+product** (`SessionOp::AddToProduct`) is offered on the body under a viewport pick, on a drawn
 body's tree row, and as the action of the `EmptyProduct`,
 `StrandedProduct` and `unused` recourses, each one action and one undo:
 a copy in the world is added to the slot (`SetProduct`); a placement's
@@ -2181,17 +2280,17 @@ fresh body therefore reports `unused` (D10 `[operations]`), with this
 door as its recourse.
 
 **A mate beyond the pin refuses, typed.** The edit door reads the
-bundle's families and measures nothing, so a mate added to a bundle
-whose mates already fix any of its equations is refused where it is
-authored (`EditError::MateRefused` carrying
-`MateFault::Overconstrained`), whether it agrees or not; the document
-stays as it was, and the mate is never dropped silently. Taking a
-constraint off is `SessionOp::RemoveConstraint`
-(`DocEdit::RemoveConstraint`), which writes the bundle whole without
-it by the same rule: the freedoms it fixed are written `0`, so the
-copy stays pinned. `SessionOp::IntoOwnSpace` gives a copy a space of
-its own — a `new_space()`, the placement re-targeted into it at the
-identity — which the Properties pane offers beside the free-move
+bundle's families and measures nothing, so a draft whose mates fix an
+equation twice is refused where it is authored
+(`EditError::MateRefused` carrying `MateFault::Overconstrained`),
+whether they agree or not; the verdict says so before Apply, and the
+mate is never dropped silently. The tree's `remove` sits on mate rows
+alone — a value's freedom is always set, and `SessionOp::RemoveConstraint`
+refuses one (`Refusal::ValueNotRemoved`) — and opens the editor with
+that mate struck out, the freed values measured where the copy stands;
+the op applies the same draft. `SessionOp::IntoOwnSpace` gives a copy a
+space of its own — a `new_space()`, the placement re-targeted into it
+at the identity — which the Properties pane offers beside the free-move
 probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off
@@ -2201,8 +2300,10 @@ is drawn — never enters a bundle.
 
 **The tree shows a placement's constraints as its children**
 (`tree::ConstraintRow`, on `TreeRow::constraints`): one line per
-constraint under its placement's row, in bundle order, each with the
-button that removes it. A constraint is no node, so it has no row in
+constraint under its placement's row, in bundle order, a mate's with
+the `remove` that opens the placement editor with it struck out, and
+the placement's row with `edit placement`; a value has no button, its
+freedom always set. A constraint is no node, so it has no row in
 the order of its own. The world, which every document holds and no
 edit deletes, has no row.
 

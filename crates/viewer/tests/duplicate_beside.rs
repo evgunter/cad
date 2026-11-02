@@ -35,7 +35,8 @@ fn volume_of(size: [f64; 3]) -> f64 {
     size.iter().product()
 }
 
-/// A session holding the block placed into the world by hand, landed.
+/// A session holding the block added to the product, so placed into
+/// the world, landed.
 fn block(tol: Tol) -> (DocSession, RecipeNodeId) {
     let mut session = common::inline_without_door(Doc::empty_derived("duplicate-start", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);

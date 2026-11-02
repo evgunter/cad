@@ -4,6 +4,7 @@ kind: issue
 title: min_separation prices each pair's floor by its boxes' separation, so near-parallel walls tilted against the axes floor the bracket low where a support along a direction would raise it
 status: open
 opened: 2026-11-01
+priority: P3
 ---
 
 Found by DIRSUPPORT's sweep (2026-11-01). DIRSUPPORT gave the bound

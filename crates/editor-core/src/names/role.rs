@@ -43,7 +43,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use super::canonical;
 use super::nest::{Descent, Kept, Stopped, descend};
-use crate::node::{RecipeNodeId, StepId};
+use crate::node::{RecipeNodeId, SectionId, StepId};
 use crate::var::VarId;
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
@@ -1205,28 +1205,21 @@ pub enum RoleSeg {
     CapVertex(CapEnd, ProfileVertexRef),
 
     // ---- Loft ----
-    /// A loft wall: the pieces the skin paired into it, one per
-    /// section, in section order. A loft's caps, rims and cap vertices
-    /// are the extrude's roles, each spelled with its own end
+    /// A loft wall: each section it spans, by its id, with the piece
+    /// the skin paired into the wall there, in section order — every
+    /// section, or a degree-1 slab's two. A loft's caps, rims and cap
+    /// vertices are the extrude's roles, each spelled with its own end
     /// section's locator.
-    LoftWall(Vec<ProfileEdgeRef>),
+    LoftWall(Vec<(SectionId, ProfileEdgeRef)>),
     /// A loft seam: the wall–wall edge through the vertices the skin
-    /// paired, one per section, in section order.
-    LoftSeam(Vec<ProfileVertexRef>),
-    /// A wall of a loft built one per slab (v-degree 1 through three
-    /// sections or more): the slab, counted from the start section, and
-    /// the pieces the skin paired into it at the slab's two sections.
-    LoftSlabWall(u32, Vec<ProfileEdgeRef>),
-    /// A seam of a loft built one per slab: the slab, and the vertices
-    /// it joins at the slab's two sections.
-    LoftSlabSeam(u32, Vec<ProfileVertexRef>),
+    /// paired, each with its section's id, in section order.
+    LoftSeam(Vec<(SectionId, ProfileVertexRef)>),
     /// An edge of an interior section's ring, between two slabs' walls:
-    /// the section, counted from the start section, and the piece it
-    /// lies on there.
-    LoftSectionEdge(u32, ProfileEdgeRef),
-    /// A vertex of an interior section: the section, and the profile
-    /// vertex it lies on there.
-    LoftSectionVertex(u32, ProfileVertexRef),
+    /// the section's id, and the piece it lies on there.
+    LoftSectionEdge(SectionId, ProfileEdgeRef),
+    /// A vertex of an interior section: the section's id, and the
+    /// profile vertex it lies on there.
+    LoftSectionVertex(SectionId, ProfileVertexRef),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a run of profile pieces on one
@@ -1752,19 +1745,34 @@ pub(crate) enum VerbatimEdge<'a> {
     },
 }
 
+impl VerbatimEdge<'_> {
+    /// **The read whose names the edge carries**: the split's target,
+    /// the mirror's body, the copy's source; `None` for an instance,
+    /// whose names are its part's and are read in no body here.
+    pub(crate) fn carried_read(&self) -> Option<crate::VarId> {
+        match *self {
+            Self::Intact { target } => Some(target),
+            Self::Reflected { body, .. } => Some(body),
+            Self::Copied { source } => source,
+        }
+    }
+}
+
 /// **The name-carrying edge `node` is, if any**: a part's projection,
 /// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
 /// is classified as re-minting what it carries.
 ///
-/// Three walks read the set here: split's test of which cut placement's
-/// copy carries a name (`refactor::split`'s `in_world`), the mate
-/// member walk (`mate::member::walk`) and the coincidence door's walk
-/// to a cell's construction (`coincide::construction`); they differ
-/// only in where each stops. The compiler holds the four together:
-/// this match is exhaustive, so a new node kind does not compile until
-/// it is classified here, and each walk matches [`VerbatimEdge`]
-/// without a wildcard, so a new kind of edge does not compile until
-/// each decides what to do with it.
+/// The walks that read the set here: the mate member walk
+/// (`mate::member::walk`) and the coincidence door's walk to a cell's
+/// construction (`coincide::construction`), which differ only in where
+/// each stops, and the takeover door's walk to every node that carries
+/// a re-pointed copy's names (`take_over::chains`). The compiler holds
+/// them together: this match is exhaustive, so a new node kind does not
+/// compile until it is classified here. The first two match
+/// [`VerbatimEdge`] without a wildcard, so a new kind of edge does not
+/// compile until each decides what to do with it; `chains` follows
+/// every edge alike, through [`VerbatimEdge::carried_read`], whose own
+/// match is the one a new kind of edge has to pass.
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
@@ -1805,7 +1813,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::World
         | Node::Space
         | Node::Measure { .. }
-        | Node::Assertion { .. } => None,
+        | Node::Assertion(_) => None,
     }
 }
 
@@ -1874,8 +1882,6 @@ macro_rules! locator_seg {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
-            | $crate::names::RoleSeg::LoftSlabWall(..)
-            | $crate::names::RoleSeg::LoftSlabSeam(..)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
@@ -1894,15 +1900,16 @@ pub(crate) use locator_seg;
 pub(crate) use name_free_seg;
 
 /// **What a rewrite of a role path does to each thing a segment
-/// carries** — the four holes in the one walk [`RoleSeg::rewrite`]
+/// carries** — the holes in the one walk [`RoleSeg::rewrite`]
 /// makes over [`RoleSeg`]'s shape.
 ///
-/// Three walks of a name's path exist: `refactor`'s re-mapping of node
-/// and step ids across a split or an inline, the union emitter's
-/// citing of whole member edges, and [`StableName::piece_steps`]'s
-/// collection of the steps a name spells. What differs between them is
-/// only what each does with a locator, a carried name and a member
-/// edge; what they share — which variant carries which, and putting
+/// Every walk of a name's path is an implementor of this trait (the
+/// implementors list is the census, and is not restated here: a
+/// re-mapping of ids across a refactoring, a citing of whole member
+/// edges, a collection of the steps a name spells and a recarrying of
+/// carries are examples). What differs between them is only what each
+/// does with a locator, a carried name, a carry with its read and a
+/// member edge; what they share — which variant carries which, and putting
 /// the rewritten path back in canonical form
 /// ([`StableName::rewrite_path`], through `names::canonical`) — is the
 /// walk, written once. This trait is the part that differs.
@@ -1941,6 +1948,17 @@ pub(crate) trait SegRewrite {
         Ok(v)
     }
 
+    /// A loft section's id the segment carries directly. Required, with
+    /// no identity default: a rewriter that moves a name between
+    /// documents maps its section ids or refuses, and one that keeps a
+    /// name in its document says so by returning `s`, so no rewriter
+    /// passes an id through unmapped by omission.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error>;
+
     /// What becomes of a name the segment carries ([`Carry`]).
     ///
     /// # Errors
@@ -1949,6 +1967,21 @@ pub(crate) trait SegRewrite {
     fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
         let _ = n;
         Ok(Carry::Keep)
+    }
+
+    /// What becomes of the name a [`RoleSeg::From`] carries, asked with
+    /// the read it is carried in from, as the segment spells it (before
+    /// [`SegRewrite::read`] moves it). A rewrite whose answer depends
+    /// on which input carried the name in says so here, a function of
+    /// the pair; one that does not leaves the default, which asks
+    /// [`SegRewrite::name`] of the name alone.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn carried(&mut self, read: VarId, of: &StableName) -> Result<Carry, Self::Error> {
+        let _ = read;
+        self.name(of)
     }
 
     /// A carried name this rewriter descends into, once its path has
@@ -2012,8 +2045,32 @@ struct Deep<'d, 's, W: SegRewrite> {
 
 impl<'s, W: SegRewrite> Deep<'_, 's, W> {
     /// `n` through the rewriter: `None` where it is kept.
-    fn carried(&mut self, n: &'s StableName) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
-        match self.w.name(n).map_err(Stopped::Refused)? {
+    fn through_name(
+        &mut self,
+        n: &'s StableName,
+    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        let carry = self.w.name(n).map_err(Stopped::Refused)?;
+        self.settled(carry, n)
+    }
+
+    /// The name a `From` carries in from `read`, through the rewriter
+    /// ([`SegRewrite::carried`]): `None` where it is kept.
+    fn through_carry(
+        &mut self,
+        read: VarId,
+        n: &'s StableName,
+    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        let carry = self.w.carried(read, n).map_err(Stopped::Refused)?;
+        self.settled(carry, n)
+    }
+
+    /// `n` as the rewriter's answer for it leaves it.
+    fn settled(
+        &mut self,
+        carry: Carry,
+        n: &'s StableName,
+    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        match carry {
             Carry::Keep => Ok(None),
             Carry::Replace(next) => Ok(Some(next)),
             Carry::Descend => match (self.kept.get(n), &mut self.listing) {
@@ -2033,6 +2090,10 @@ impl<'s, W: SegRewrite> Deep<'_, 's, W> {
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
         self.w.vertex(v).map_err(Stopped::Refused)
+    }
+
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Stopped<'s, W::Error>> {
+        self.w.section(s).map_err(Stopped::Refused)
     }
 
     fn read(&mut self, r: VarId) -> Result<VarId, Stopped<'s, W::Error>> {
@@ -2100,7 +2161,7 @@ fn rewrite_ref<'s, W: SegRewrite>(
     n: &'s NameRef,
     w: &mut Deep<'_, 's, W>,
 ) -> Result<NameRef, Stopped<'s, W::Error>> {
-    Ok(match w.carried(n.name())? {
+    Ok(match w.through_name(n.name())? {
         Some(next) => NameRef::new(next),
         None => n.clone(),
     })
@@ -2132,7 +2193,7 @@ fn rewrite_set<'s, W: SegRewrite>(
     w: &mut Deep<'_, 's, W>,
 ) -> Result<Vec<StableName>, Stopped<'s, W::Error>> {
     v.iter()
-        .map(|n| Ok(w.carried(n)?.unwrap_or_else(|| n.clone())))
+        .map(|n| Ok(w.through_name(n)?.unwrap_or_else(|| n.clone())))
         .collect()
 }
 
@@ -2173,21 +2234,18 @@ impl RoleSeg {
             R::RimEdge(c, run) => R::RimEdge(*c, run.try_map(|e| w.edge(e))?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
-            R::LoftWall(es) => {
-                R::LoftWall(es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
-            }
-            R::LoftSeam(vs) => {
-                R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
-            }
-            R::LoftSlabWall(s, es) => {
-                R::LoftSlabWall(*s, es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
-            }
-            R::LoftSlabSeam(s, vs) => R::LoftSlabSeam(
-                *s,
-                vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?,
+            R::LoftWall(es) => R::LoftWall(
+                es.iter()
+                    .map(|&(s, e)| Ok((w.section(s)?, w.edge(e)?)))
+                    .collect::<Result<_, Stopped<'s, W::Error>>>()?,
             ),
-            R::LoftSectionEdge(s, e) => R::LoftSectionEdge(*s, w.edge(*e)?),
-            R::LoftSectionVertex(s, v) => R::LoftSectionVertex(*s, w.vertex(*v)?),
+            R::LoftSeam(vs) => R::LoftSeam(
+                vs.iter()
+                    .map(|&(s, v)| Ok((w.section(s)?, w.vertex(v)?)))
+                    .collect::<Result<_, Stopped<'s, W::Error>>>()?,
+            ),
+            R::LoftSectionEdge(s, e) => R::LoftSectionEdge(w.section(*s)?, w.edge(*e)?),
+            R::LoftSectionVertex(s, v) => R::LoftSectionVertex(w.section(*s)?, w.vertex(*v)?),
             R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
@@ -2199,9 +2257,15 @@ impl RoleSeg {
             // The carried names.
             // BOTH halves: the read is a local id like the minting node,
             // and a rewrite of the id space moves it too.
+            // The name is asked with the read it is carried in from
+            // ([`SegRewrite::carried`]), so no rewriter depends on the
+            // order these two are visited in.
             R::From { read, of } => R::From {
                 read: w.read(*read)?,
-                of: rewrite_ref(of, w)?,
+                of: match w.through_carry(*read, of.name())? {
+                    Some(next) => NameRef::new(next),
+                    None => of.clone(),
+                },
             },
             R::Seam { a, b } => R::Seam {
                 a: rewrite_ref(a, w)?,
@@ -2345,22 +2409,8 @@ impl StableName {
         Ok(canonical::form(now))
     }
 
-    /// **Every authored step this name spells a piece of** — in its own
-    /// path and in every name it carries.
-    ///
-    /// What a `SetProgram` that drops a step asks of each name the
-    /// document holds (DM7): a step id is unique across the document,
-    /// so a name that spells it is a name on that step's pieces,
-    /// whichever node minted the name.
-    pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
-        self.step_pieces()
-            .iter()
-            .filter_map(ProfileEdgeRef::step)
-            .collect()
-    }
-
     /// **Every authored step's piece this name spells**, over the same
-    /// walk as [`Self::piece_steps`]: an edge locator as itself, a
+    /// walk as the steps every level spells: an edge locator as itself, a
     /// vertex locator as the piece that starts there (N1: a vertex is
     /// named by the piece of the same spelling), a kernel-built
     /// section's not at all.
@@ -2369,36 +2419,107 @@ impl StableName {
     /// document holds (DM7): whether the new program still draws the
     /// piece the name spells.
     pub(crate) fn step_pieces(&self) -> std::collections::BTreeSet<ProfileEdgeRef> {
-        let mut pieces = StepPieces(std::collections::BTreeSet::new());
-        let Ok(_) = self.clone().rewrite_path(&mut pieces);
-        pieces.0
+        self.step_pieces_outside(&|_| false)
+    }
+
+    /// **The ids this name spells in its own document**, where the
+    /// levels `part` marks are another document's: the walk records
+    /// each level's node, every read a level carries and every authored
+    /// step it spells, and stops at each carried name `part` holds for.
+    ///
+    /// What a door asks of a name read where an instance is: a level
+    /// spelled in its part's ids carries the part's nodes, reads and
+    /// steps, which the host's mint log never held and the part answers
+    /// for, while every level around it is the host's and is held to
+    /// the host's log. The outer name is the caller's to ask `part` of
+    /// first: it is always recorded here.
+    pub(crate) fn spelled_outside(&self, part: &dyn Fn(&StableName) -> bool) -> Spelled {
+        let mut walk = StepPieces {
+            spelled: Spelled {
+                nodes: std::collections::BTreeSet::from([self.node]),
+                ..Spelled::default()
+            },
+            pieces: std::collections::BTreeSet::new(),
+            part,
+        };
+        let Ok(_) = self.clone().rewrite_path(&mut walk);
+        walk.spelled.steps = walk
+            .pieces
+            .iter()
+            .filter_map(ProfileEdgeRef::step)
+            .collect();
+        walk.spelled
+    }
+
+    fn step_pieces_outside(
+        &self,
+        part: &dyn Fn(&StableName) -> bool,
+    ) -> std::collections::BTreeSet<ProfileEdgeRef> {
+        let mut walk = StepPieces {
+            spelled: Spelled::default(),
+            pieces: std::collections::BTreeSet::new(),
+            part,
+        };
+        let Ok(_) = self.clone().rewrite_path(&mut walk);
+        walk.pieces
     }
 }
 
-/// [`StableName::step_pieces`]'s walk: every step locator collected
-/// as the piece it names, every carried name descended, nothing
-/// rewritten.
-struct StepPieces(std::collections::BTreeSet<ProfileEdgeRef>);
+/// **The ids a name spells in its own document**
+/// ([`StableName::spelled_outside`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Spelled {
+    /// The node of every level walked, the outer name's among them.
+    pub(crate) nodes: std::collections::BTreeSet<RecipeNodeId>,
+    /// Every read a walked level carries (`From`'s).
+    pub(crate) reads: std::collections::BTreeSet<VarId>,
+    /// Every authored step a walked level spells a piece of.
+    pub(crate) steps: std::collections::BTreeSet<StepId>,
+}
 
-impl SegRewrite for StepPieces {
+/// [`StableName::spelled_outside`]'s walk: every step locator collected
+/// as the piece it names, every carried name descended (its node and
+/// reads recorded) but those `part` marks, nothing rewritten.
+struct StepPieces<'p> {
+    spelled: Spelled,
+    pieces: std::collections::BTreeSet<ProfileEdgeRef>,
+    part: &'p dyn Fn(&StableName) -> bool,
+}
+
+impl SegRewrite for StepPieces<'_> {
     type Error = core::convert::Infallible;
+
+    /// Nothing is rewritten: the walk only collects step pieces.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, Self::Error> {
+        Ok(s)
+    }
 
     fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
         if let ProfileEdgeRef::Piece { .. } = e {
-            self.0.insert(e);
+            self.pieces.insert(e);
         }
         Ok(e)
     }
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
         if let ProfileVertexRef::Piece { step, role } = v {
-            self.0.insert(ProfileEdgeRef::Piece { step, role });
+            self.pieces.insert(ProfileEdgeRef::Piece { step, role });
         }
         Ok(v)
     }
 
-    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
-        Ok(Carry::Descend)
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
+        Ok(if (self.part)(n) {
+            Carry::Keep
+        } else {
+            self.spelled.nodes.insert(n.node);
+            Carry::Descend
+        })
+    }
+
+    fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
+        self.spelled.reads.insert(r);
+        Ok(r)
     }
 
     fn descended(
@@ -2448,8 +2569,6 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::CapVertex(..)
             | $crate::names::RoleSeg::LoftWall(_)
             | $crate::names::RoleSeg::LoftSeam(_)
-            | $crate::names::RoleSeg::LoftSlabWall(..)
-            | $crate::names::RoleSeg::LoftSlabSeam(..)
             | $crate::names::RoleSeg::LoftSectionEdge(..)
             | $crate::names::RoleSeg::LoftSectionVertex(..)
             | $crate::names::RoleSeg::Band(_)
@@ -2632,11 +2751,18 @@ mod tests {
         };
         let carried_wall = carried(RecipeNodeId::new(0, 9), crate::VarId::new(1, 9), wall(1, 4));
         assert_eq!(
-            carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
+            carried_wall
+                .spelled_outside(&|_| false)
+                .steps
+                .into_iter()
+                .collect::<Vec<_>>(),
             vec![StepId::new(0, 4)]
         );
         let section = band(N, edges()[1]);
-        assert!(section.piece_steps().is_empty(), "a section has no step");
+        assert!(
+            section.spelled_outside(&|_| false).steps.is_empty(),
+            "a section has no step"
+        );
     }
 
     /// `carried` takes the INNER name's kind, which is the one field

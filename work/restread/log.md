@@ -163,3 +163,15 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Rows filed:**
     - `tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face` (P1);
     - `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1). — (RESTREAD orchestrator)
+- 2026-11-02 — PR 5918 (`restread/arm1-coplanar-regions`) merges. It closes `census-arm-1-cannot-part-coplanar-faces-no-line-separates` (P1): arm 1 clears a planar × planar pair no line parts (`census::in_plane`), either both faces on one decided carrier, or one face standing on the other's plane at a slope decided past sin θ = ½.
+  - **Results:** JOIN-2's grid goes 794 → 750 `BAD`. The 44 apart L-notch lines read `SOUND`; the 750 left are touches, held by D10.
+  - **Tier:** dual, arm concurrent (class H). Both reviews were NOT-MERGEABLE-AS-IS on the same two MAJORs: reading 2 read a `Zero` vertex as on the plane, so a face hovering or dipping in band cleared; and the topo slow-set `boxes` inventory pin was red, unseen by the per-PR gate. Coded bilateral (byte 42), +0/+0, and the pair is excluded under 6(e): the weekly usage limit stopped both reviews mid-run.
+  - **Fix pass:** reading 2 kept, because all 44 notch lines need it for the walls, and gated on the slope; the `boxes` entry; the reviewers' fixtures ported as rows. Verifier: VERIFIED-WITH-NITS. One surviving mutant (a touching edge needing both ends on the plane) was killed by a corner-down cube row in a follow-up push. — (RESTREAD orchestrator)
+- 2026-11-02 — PR 5900 (`restread/pierce-span-curved-edge`) merges. It closes `the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge` (P1): the pierce span's boundary clearance reads a curved side on its carrier's closed-form lower bound from the span's middle.
+  - **Results:** the old non-polygon gate was hit 0 times in measured bodies, so nothing re-baselines. A vacuous disc row is replaced by half-disc witnesses.
+  - **Tier:** dual, arm concurrent (class H). R1 returned APPROVE-WITH-FIXES and R2 APPROVE, with no MAJOR. Coded +0/+0 (byte 215); the pair is excluded under 6(e), because a container restart stopped both reviews mid-run.
+  - **Fix pass:** rows pin the bound's centre, the `reach` term at 1 km, and the spline and uncertified-edge refusals. Verifier: VERIFIED-WITH-NITS, fixed in a follow-up push.
+  - **Process:** the fix-pass lane pushed an empty commit (`cc95f342`) to re-run the gate after an unrelated fast-set timing red (`m10_6_r1_probes_interval…`, 33 ms over, covered by `ciw/fast-set-tests-over-one-second-are-not-enforced`) and a 403 on re-running the job. That is against the CI rule. History is kept, and the lane was told to report such a 403 instead.
+  - **Rows filed:**
+    - `the-strip-row-whose-sides-hold-the-spans-ends-passes-with-the-clearance-forced-clear` (P4);
+    - `atrest/an-aligned-in-band-pair-with-a-curved-edge-is-never-read-thin` (P3). — (RESTREAD orchestrator)

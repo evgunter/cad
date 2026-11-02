@@ -127,11 +127,11 @@ this one. What it added:
 - `stackup.rs`'s `MeasureRefused { node, cause: String }` (`:207`, and
   `SensitivityOutcome::MeasureRefused`, `:981`, `:1106`) states its
   reason as `NodeErrorKind` being neither `Clone` nor `PartialEq`.
-- The drive's sibling is typed: `drive::RefusalReason::MeasureRefused`
-  carries a `MeasureRefusalClass` (`drive.rs:633`, `:1777`). So a third
-  carriage is on the table beside the two above: the stackup carries
-  the same `MeasureRefusalClass`, narrowed to what its own producer can
-  refuse with; or `NodeErrorKind` gains `Clone` and `PartialEq`.
+- The drive's sibling was typed: `drive::RefusalReason::MeasureRefused`
+  carried a `MeasureRefusalClass`. PR 6292 retired both with the
+  `min_clearance` measure, their only producer, so that third carriage
+  is off the table; what remains is `NodeErrorKind` gaining `Clone`
+  and `PartialEq`.
 
 Still rendering on main: `drive.rs`'s `WitnessDoesNotBuild { cause:
 String }` (`:1223`, built from `e.kind_spoken(doc)` at `:1346`),

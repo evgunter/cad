@@ -262,31 +262,33 @@ fn r2_nurbs_arm_interval_hulls_bit_for_bit() {
 
 fn tilted_circle<T: Real>() -> Curve3<T> {
     let f = T::from_f64;
-    Curve3::Circle {
-        center: Point3::new(f(-0.5), f(4.0), f(1.25)),
-        axis: Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
-        radius: f(2.5),
-        u_ref: Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),
-    }
+    Curve3::circle(
+        Point3::new(f(-0.5), f(4.0), f(1.25)),
+        Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
+        f(2.5),
+        Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),
+    )
 }
 
 fn tilted_ellipse<T: Real>() -> Curve3<T> {
     let f = T::from_f64;
-    Curve3::Ellipse {
-        center: Point3::new(f(-0.5), f(4.0), f(1.25)),
-        axis: Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
-        semi_u: f(2.5),
-        semi_v: f(1.0),
-        u_ref: Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(f(-0.5), f(4.0), f(1.25)),
+            Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
+            Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),
+        ),
+        f(2.5),
+        f(1.0),
+    ))
 }
 
 fn line<T: Real>() -> Curve3<T> {
     let f = T::from_f64;
-    Curve3::Line {
-        origin: Point3::new(f(1.0), f(-2.0), f(0.5)),
-        dir: Vec3::new(f(0.3), f(-0.4), f(1.2)),
-    }
+    Curve3::line(
+        Point3::new(f(1.0), f(-2.0), f(0.5)),
+        Vec3::new(f(0.3), f(-0.4), f(1.2)),
+    )
 }
 
 const ANGLES: [f64; 12] = [

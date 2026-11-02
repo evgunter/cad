@@ -88,12 +88,15 @@ fn head_of(s: String) -> String {
 
 fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
     match *c {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let u = (u_ref - axis * u_ref.dot(axis)).normalize();
             let v = axis.cross(u);
             (0..n)
@@ -109,7 +112,7 @@ fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
 
 fn line_pts(c: &Curve3<f64>, from: Point3<f64>, len: f64, n: usize) -> Vec<Point3<f64>> {
     match *c {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let d = dir.normalize();
             let t0 = (from - origin).dot(d);
             (0..=n)
@@ -188,12 +191,7 @@ fn one_sum_differential() {
                 // A tangency's truth: the plane's stand-off from the
                 // tube's crest circle on its side, what flips it.
                 Ok(PlaneTorusSection::TangentCircle(_)) => {
-                    let crest = Curve3::Circle {
-                        center: c + a * (sign * r),
-                        axis: a,
-                        radius: big,
-                        u_ref: x,
-                    };
+                    let crest = Curve3::circle(c + a * (sign * r), a, big, x);
                     let t = circle_pts(&crest, 720)
                         .into_iter()
                         .map(|p| d_plane(p, q, nrm))
@@ -395,10 +393,7 @@ fn one_sum_differential() {
                     format!(
                         "{:.4} {:.4}",
                         stations().map(|dd| (touch - dd).abs()).fold(0.0, f64::max) / z,
-                        ruling(&Curve3::Line {
-                            origin: *origin,
-                            dir: *dir
-                        })
+                        ruling(&Curve3::line(*origin, *dir))
                     )
                 }
                 _ => "nan".into(),

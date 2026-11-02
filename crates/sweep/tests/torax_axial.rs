@@ -739,7 +739,7 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
             .and_then(|g| g.certified())
             .expect("a certified carrier");
         match c.carrier() {
-            geom::Curve3::Line { origin, dir } => {
+            geom::Curve3::Line(geom::Line { origin, dir }) => {
                 lines += 1;
                 let (rho_l, _) = axial(*origin);
                 assert!(
@@ -751,7 +751,10 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle { center, radius, .. } => {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => {
                 rims += 1;
                 let (rho_c, h_c) = axial(*center);
                 assert!(
@@ -1153,7 +1156,7 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
             .and_then(|g| g.certified())
             .expect("a certified carrier");
         match c.carrier() {
-            geom::Curve3::Line { origin, dir } => {
+            geom::Curve3::Line(geom::Line { origin, dir }) => {
                 lines += 1;
                 let (rho_l, _) = axial(*origin);
                 assert!(
@@ -1165,7 +1168,10 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle { center, radius, .. } => {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => {
                 rims += 1;
                 let (rho_c, h_c) = axial(*center);
                 assert!(

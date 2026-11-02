@@ -73,3 +73,7 @@ projection and transform examples about a split's half no longer
 apply. `DuplicateInput` is gone: the boolean door does not refuse a
 node spelled twice. Body seats now also pass `require_read`/`admits_read`
 beside `require_kind`, and a fix should compare against both.
+
+## Update (2026-11-02, PLACING, branch `placing/bundle-editor-transform`)
+
+The "Commit transform" row is gone: the Transform tool commits nothing of its own; its pick opens the placement editor (`MateTool::moving`), whose Apply is judged before it lands (`DocSession::bundle_verdict`).

@@ -105,7 +105,7 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
 /// convexity is the wedge between the strut's two walls, levered at
 /// their extent (`topo::wedge_reach`) like every other reader of it: at
 /// the strut's own length the turn's margin `α·h = ε/2` would refuse
-/// `TangentialEdge`, at the walls' metre it is a definite convex
+/// `KnifeEdge`, at the walls' metre it is a definite convex
 /// corner, and the fillet's refusal, if any, is not that one.
 #[test]
 fn the_fillet_battery_reads_the_short_shallow_strut_as_a_corner() {
@@ -116,7 +116,7 @@ fn the_fillet_battery_reads_the_short_shallow_strut_as_a_corner() {
     let at_rest = sweep::test_support::at_rest(&body, tol);
     // A radius whose trimlines clear the plate's other features at
     // every ε row: smaller ones refuse at 1e-6 on the strut's caps and
-    // corners, each a reading of its own, never `TangentialEdge`.
+    // corners, each a reading of its own, never `KnifeEdge`.
     let out = sweep::blend::fillet_edges(&at_rest, &[strut], 0.9, tol)
         .unwrap_or_else(|e| panic!("the strut fillets as the walls' corner: {e:?}"));
     assert_eq!(

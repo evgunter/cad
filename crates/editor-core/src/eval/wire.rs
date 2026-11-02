@@ -175,6 +175,10 @@ pub(crate) struct LaneEnv<'a, T> {
     /// evaluation of the nominal, built beside this one
     /// ([`Self::nominal_results`]).
     pub nominal_results: Option<&'a Results<f64>>,
+    /// **The `f64` rebuild a clearance assertion's verifier reads**,
+    /// built beside a certifying lane when the document asserts a
+    /// clearance ([`Witnessing`]).
+    pub witness: Option<&'a Witnessing<'a>>,
     /// Whether an `f64` lane over the nominal takes the first pass's
     /// form ([`super::PassTwo`]).
     pub pass_two: super::PassTwo,
@@ -256,11 +260,17 @@ pub(crate) enum OpInput<'n, T: geom_core::Real> {
         /// drawn on one.
         frame: Option<RigidMotion<T>>,
     },
-    /// An assertion, with its value and bound evaluated
+    /// An assertion over a value, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
     Assertion {
         relation: crate::measure::AssertionRelation,
         dims: (crate::expr::Dimension, crate::expr::Dimension),
+        payload: super::Payload<T>,
+    },
+    /// A clearance assertion, with its bounds evaluated: the node, whose
+    /// two seats are read as any operation's are.
+    Clearance {
+        node: &'n Node<ProfileProgram>,
         payload: super::Payload<T>,
     },
     /// Any other node, which carries nothing computed ahead of its key.
@@ -281,7 +291,7 @@ impl<T: geom_core::Real> OpInput<'_, T> {
     /// The assertion's payload, for the content key.
     pub(crate) fn payload(&self) -> Option<&super::Payload<T>> {
         match self {
-            Self::Assertion { payload, .. } => Some(payload),
+            Self::Assertion { payload, .. } | Self::Clearance { payload, .. } => Some(payload),
             Self::Profile { .. } | Self::Other(_) => None,
         }
     }
@@ -291,7 +301,7 @@ impl<T: geom_core::Real> OpInput<'_, T> {
     pub(crate) fn resolved_program(&self) -> Option<&[Vec<profile::Step<f64>>]> {
         match self {
             Self::Profile { resolved, .. } => Some(resolved),
-            Self::Assertion { .. } | Self::Other(_) => None,
+            Self::Assertion { .. } | Self::Clearance { .. } | Self::Other(_) => None,
         }
     }
 
@@ -308,6 +318,7 @@ impl<T: geom_core::Real> OpInput<'_, T> {
                 ..
             }
             | Self::Assertion { .. }
+            | Self::Clearance { .. }
             | Self::Other(_) => None,
         }
     }
@@ -337,10 +348,11 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
-    // An assertion reads no operand, and a profile's frame and traced
-    // faces were read ahead of its key (`trace::drawn`), so neither has
-    // a read to project here.
-    let node = match input {
+    // An assertion over a value reads no operand, and a profile's frame
+    // and traced faces were read ahead of its key (`trace::drawn`), so
+    // neither has a read to project here. A clearance's two seats are
+    // read as any operation's are.
+    let (node, cleared) = match input {
         OpInput::Profile {
             program,
             pre,
@@ -361,7 +373,8 @@ where
         } => {
             return wire_assertion(*dims, *relation, payload, tol);
         }
-        OpInput::Other(node) => *node,
+        OpInput::Clearance { node, payload } => (*node, Some(payload)),
+        OpInput::Other(node) => (*node, None),
     };
     let unprojected = results;
     // A boolean's, a union's and a measure's reads are projected one by
@@ -374,6 +387,7 @@ where
             | Node::Intersect { .. }
             | Node::Assemble { .. }
             | Node::Measure { .. }
+            | Node::Assertion(_)
             | Node::Place { .. }
     );
     let projected = if per_operand {
@@ -392,8 +406,29 @@ where
     // before its op was reached (`eval::read_at`).
     let at = |slot, var| super::read_at(doc, slot, var);
     match node {
-        Node::Profile(_) | Node::Assertion { .. } => {
+        Node::Profile(_) | Node::Assertion(crate::measure::Claim::Value { .. }) => {
             unreachable!("`eval_node` gives a profile and an assertion their own `OpInput` arm")
+        }
+        Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => {
+            let rows = body_rows(node, doc);
+            let each = project_each(&rows)?;
+            let at = |seat: usize| {
+                each.get(seat)
+                    .and_then(Option::as_ref)
+                    .unwrap_or(unprojected)
+            };
+            let seats: [(O, crate::VarId); 2] = node
+                .operand_rows()
+                .try_into()
+                .unwrap_or_else(|_| unreachable!("a clearance reads two seats"));
+            let payload =
+                cleared.unwrap_or_else(|| unreachable!("a clearance carries its bounds' values"));
+            let ends: Vec<geom_core::Interval> = payload
+                .values
+                .iter()
+                .map(|v| geom_core::Interval::from_bounds(v.lo(), v.hi()))
+                .collect();
+            wire_clearance(doc, seats, bounds, &at, &ends, env.lane.witness, tol)
         }
         Node::Extrude { profile, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
@@ -407,13 +442,22 @@ where
             let sections = core::iter::once(*first)
                 .chain(then.iter().map(|section| section.profile))
                 .enumerate()
-                .map(|(i, var)| at(O::Section(u32::try_from(i).unwrap_or(u32::MAX)), var))
+                .map(|(i, var)| at(O::Section(i), var))
                 .collect::<Result<Vec<_>, _>>()?;
             let stations: Vec<&[crate::node::StationMove]> = then
                 .iter()
                 .map(|section| section.station.as_slice())
                 .collect();
-            wire_loft(id, &sections, &stations, results, vals, tol)
+            let Some(ids) = node
+                .loft_section_ids()
+                .and_then(|ids| ids.into_iter().collect::<Option<Vec<_>>>())
+            else {
+                unreachable!(
+                    "loft {id} reached evaluation with a section that carries no id: the insert \
+                     door mints one per section and the load door refuses a section without"
+                )
+            };
+            wire_loft(id, &sections, &ids, &stations, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
@@ -639,7 +683,6 @@ fn payload_reach<T: crate::mate::SolveScalar>(
         ValuePayload::Boolean(BooleanValue::Empty)
         | ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
-        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_)
         | ValuePayload::Family => Ok(0.0),
     }
@@ -1325,11 +1368,9 @@ pub(crate) fn frame_axes<T: Decide>(
 /// not fit: past `u32::MAX` a loop's coordinate would name another
 /// loop's.
 fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
-    u32::try_from(n).map(|n| 0..n).map_err(|_| {
-        NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "a profile holds more loops than a u32 loop index addresses",
-        })
-    })
+    names::narrow(n, names::Numbered::Loop)
+        .map(|n| 0..n)
+        .map_err(NodeErrorKind::Naming)
 }
 
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
@@ -1718,7 +1759,11 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
-            NodeErrorKind::Blend { verb, error }
+            NodeErrorKind::Blend {
+                verb,
+                error,
+                edge: None,
+            }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
@@ -1781,7 +1826,23 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
         .run(&body, tol)
-        .map_err(verb_refused)?;
+        .map_err(|refusal| match verb_refused(refusal) {
+            // The kernel names its edge by key; the reader is told its
+            // name in the operand's table.
+            NodeErrorKind::Blend { verb, error, .. } => NodeErrorKind::Blend {
+                edge: error.edge().and_then(|e| {
+                    target_table
+                        .name_of(&names::EntityRef {
+                            body: 0,
+                            key: names::EntityKey::Edge(e),
+                        })
+                        .map(|name| Box::new(name.clone()))
+                }),
+                verb,
+                error,
+            },
+            other => other,
+        })?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
@@ -2216,46 +2277,6 @@ fn resolve_selection<K: names::interrogate::Denoted>(
     })
 }
 
-/// One resolved measure reference, as a SELECTION rather than as a
-/// carrier: the body the name landed in, where it was read, and which
-/// entity it is.
-///
-/// [`super::measure::Carrier`] is the closed forms' view of the same
-/// resolution; `min_clearance` needs this one (a body and a face
-/// scope). Both come off one ladder walk in [`wire_measure`].
-struct Measured<'v, T: Decide> {
-    at: RecipeNodeId,
-    index: u32,
-    body: &'v topo::Body<T>,
-    key: crate::names::EntityKey,
-}
-
-impl<'v, T: Decide> Measured<'v, T> {
-    /// This selection as one side of a `min_clearance`: every face of
-    /// the body (arena order) for a body read, the one face for a face
-    /// selection.
-    ///
-    /// A `min_clearance` reference reads a `Body` or a `Face` and
-    /// nothing else ([`crate::MeasureVerb::admits`]), which the edit and
-    /// load doors hold as the seat's kind, so the key is one of those
-    /// two by construction.
-    fn clearance_operand(&self) -> crate::measure::MinClearanceOperand<'v, T> {
-        let faces = match self.key {
-            names::EntityKey::Body => self.body.faces().map(|(k, _)| k).collect(),
-            names::EntityKey::Face(k) => vec![k],
-            names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => {
-                unreachable!("a min_clearance reference reads a body or a face (its seat's kind)")
-            }
-        };
-        crate::measure::MinClearanceOperand {
-            at: self.at,
-            index: self.index,
-            body: self.body,
-            faces,
-        }
-    }
-}
-
 /// **A measurement** (E3): read the primitive's two references, read
 /// the carriers they sit on, run the closed form, hand back a typed F1
 /// quantity. No body in, no body out.
@@ -2375,70 +2396,8 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
     let [(_, ca), (_, cb)] = carriers.as_slice() else {
         unreachable!("a primitive reads two references")
     };
-    let measured = if matches!(
-        primitive,
-        crate::measure::MeasurePrimitive::MinClearance { .. }
-    ) {
-        // The E7 engine's, over the bodies this evaluation built: it
-        // wants bodies and face scopes, not carriers.
-        let Some(lane) = T::clearance_lane() else {
-            // No value at this scalar: saying so at the node lets an
-            // assertion over it report `Unevaluated` instead of being
-            // poisoned.
-            return Ok(OpOut::plain(
-                ValuePayload::MeasureUnavailable {
-                    reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
-                        verb: primitive.verb(),
-                        scalar: T::NAME,
-                        door: "topo::ClearanceLane",
-                    },
-                    dim,
-                },
-                names::empty(),
-            ));
-        };
-        let measured = |i: usize| {
-            let (_, at, ent, _, body) = &bodies[i];
-            Measured {
-                at: *at,
-                index: ent.body,
-                body: body.as_ref(),
-                key: ent.key,
-            }
-        };
-        let [_, _] = bodies.as_slice() else {
-            unreachable!("a min_clearance reference reads a body or a face, never a pose")
-        };
-        let (a, b) = (measured(0), measured(1));
-        let (oa, ob) = (a.clearance_operand(), b.clearance_operand());
-        // The pair budget is the engine's small default: a drive of a few
-        // hundred leaves pays this search a few hundred times.
-        match lane.min_separation(
-            &oa.side(),
-            &ob.side(),
-            oa.same_body(&ob),
-            band(tol)?,
-            topo::clearance::Budgets::MIN_SEPARATION,
-        ) {
-            Ok(Some(v)) => super::measure::finite(v),
-            Ok(None) => {
-                return Ok(OpOut::plain(
-                    ValuePayload::MeasureUnavailable {
-                        reason: crate::measure::MeasureUnavailableAt::NoUpperBound {
-                            verb: primitive.verb(),
-                            scalar: T::NAME,
-                            door: "topo::clearance::min_separation",
-                        },
-                        dim,
-                    },
-                    names::empty(),
-                ));
-            }
-            Err(refusal) => return Err(NodeErrorKind::MeasureClearanceRefused(refusal)),
-        }
-    } else {
-        super::measure::primitive(primitive, ca, cb, band(tol)?).and_then(super::measure::finite)
-    };
+    let measured =
+        super::measure::primitive(primitive, ca, cb, band(tol)?).and_then(super::measure::finite);
     let value = measured.map_err(|refusal| match refusal {
         super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
         super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
@@ -2465,6 +2424,201 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
     ))
 }
 
+/// **A clearance assertion's verdict** (E3's clearance amendment, E7):
+/// read the two seats' bodies into one frame, and run the sweep at the
+/// bounds — both bounds in one subdivision. The minimum is never
+/// computed.
+///
+/// Report-ONLY, like every assertion. An engine refusal is the verdict's
+/// third state, never a node failure; so is a scalar that cannot
+/// certify, which names the lane that can. What fails the node is what
+/// fails any reader: a seat that does not resolve, a frame that does not
+/// read.
+///
+/// Each verified pair is confirmed on the `f64` rebuild beside this
+/// evaluation ([`LaneEnv::witness`]).
+fn wire_clearance<'r, T>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    seats: [(crate::OperandSlot, crate::VarId); 2],
+    bounds: &crate::measure::ClearanceBounds<crate::VarId>,
+    results_at: &dyn Fn(usize) -> &'r Results<T>,
+    ends: &[geom_core::Interval],
+    witness: Option<&Witnessing<'_>>,
+    tol: Tol,
+) -> OpResult<T>
+where
+    T: Decide + topo::AtRestPolicy,
+{
+    use crate::clearance::{ClearanceRefusal, ClearanceReport};
+    let answer = |report: ClearanceReport| {
+        Ok(OpOut::plain(
+            ValuePayload::Assertion(crate::measure::AssertionVerdict::Clearance(Box::new(
+                report,
+            ))),
+            names::empty(),
+        ))
+    };
+    // Each seat reads its own body: two ports of one split are two
+    // bodies (`reads_projected`).
+    let mut read = Vec::with_capacity(2);
+    for (index, &(slot, var)) in seats.iter().enumerate() {
+        let results = results_at(index);
+        let (at, ent) = if doc.selection(var).is_some() {
+            select_one(doc, results, slot, var)?
+        } else {
+            (
+                super::read_at(doc, slot, var)?,
+                names::EntityRef {
+                    body: 0,
+                    key: names::EntityKey::Body,
+                },
+            )
+        };
+        read.push((at, ent, reference_body(results, slot, var, (at, ent))?));
+    }
+    let Some(lane) = T::clearance_lane() else {
+        return answer(ClearanceReport::refused(
+            ClearanceRefusal::NeedsCertifyingLane { scalar: T::NAME },
+        ));
+    };
+    let b = band(tol)?;
+    // The bounds arrive as the enclosures they are at this lane (the
+    // caller's `Bounds` reads them), and are asked as a question before
+    // any cell pair is read (`ClearanceRefusal::of_bound`).
+    let bounds = bounds.with(ends);
+    if let Some(refusal) = ClearanceRefusal::of_bound(bounds.sweep_bound()) {
+        return answer(ClearanceReport::refused(refusal));
+    }
+    // In the frame the two seats condition on (`Framed::computing_among`),
+    // each body read into it.
+    let computing = super::Framed::computing_among(read.iter().map(|(.., framed)| *framed))
+        .unwrap_or_else(|| unreachable!("two seats"));
+    let bodies = read
+        .iter()
+        .map(|(.., framed)| computing.read_in(framed, tol))
+        .collect::<Result<Vec<_>, _>>()?;
+    let seat = |i: usize| {
+        let (at, ent, _) = read[i];
+        crate::measure::ClearanceSeat {
+            at,
+            index: ent.body,
+            body: bodies[i].as_ref(),
+            faces: match ent.key {
+                names::EntityKey::Body => bodies[i].faces().map(|(k, _)| k).collect(),
+                names::EntityKey::Face(k) => vec![k],
+                names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => {
+                    unreachable!("a clearance seat reads a body or a face (its seat's kind)")
+                }
+            },
+        }
+    };
+    let (sa, sb) = (seat(0), seat(1));
+    let sides = [(sa.at, sa.index), (sb.at, sb.index)];
+    let refused = |refusal| ClearanceRefusal::Engine { refusal, sides };
+    let (wa, wb) = match (
+        lane.windows(&sa.side(), topo::clearance::Which::First),
+        lane.windows(&sb.side(), topo::clearance::Which::Second),
+    ) {
+        (Ok(wa), Ok(wb)) => (wa, wb),
+        (Err(r), _) | (_, Err(r)) => return answer(ClearanceReport::refused(refused(r))),
+    };
+    // The `f64` bodies the verifier reads, in the same frame.
+    let rebuilt = witness
+        .ok_or_else(|| "no f64 rebuild stands beside this evaluation".to_owned())
+        .and_then(|w| w.bodies([sides[0], sides[1]], tol));
+    let sweep = topo::clearance::Sweep {
+        bound: bounds.sweep_bound(),
+        band: b,
+        budgets: crate::clearance::ClearanceConfig::default().budgets,
+    };
+    // The sweep's decisions are its report's, not the node's log
+    // (audit row F30).
+    let report = geom_core::k_stats::unlogged("F30", || {
+        lane.sweep(&sweep, &wa, &wb, sa.same_body(&sb), |candidate| {
+            let (faces, ask, over) = (candidate.faces(), candidate.ask(), candidate.enclosure());
+            let [bx, by] = rebuilt.as_ref().map_err(Clone::clone)?;
+            crate::clearance::closest_pair(
+                (bx.as_ref(), by.as_ref()),
+                faces,
+                lane.on_face_stations(candidate),
+                (ask, b),
+                &over,
+            )
+        })
+    });
+    let param =
+        || witness.map_or_else(crate::clearance::ParamWitness::nominal, |w| w.param.clone());
+    // **The drive's cue** (audit row F30's one exception): an upper
+    // bound whose proving pair held at one point of the box only is no
+    // verdict over the box, and a narrower box can decide it. The
+    // sweep's own readings stay out of the node's log; this one reading
+    // — the pair's separation over the box against the bound — goes in,
+    // so the drive bisects on it exactly as on an assertion it could
+    // not decide, and a leaf it cannot narrow refuses.
+    if let topo::clearance::BoundVerdict::Refused(topo::clearance::EngineRefusal::BoxDependent {
+        separation: (lo, hi),
+        ..
+    }) = report.verdict
+        && let Some(upper) = sweep.bound.upper()
+    {
+        let reach = geom_core::Interval::from_bounds(lo, hi);
+        // The reading is the cue; its sign is not an answer.
+        let _ = geom_core::k_stats::decide(
+            topo::clearance::CLEARANCE_MARGIN,
+            geom_core::Margin::of(reach - upper),
+            b,
+        );
+    }
+    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, sides, refused);
+    answer(ClearanceReport::of(verdict, &report))
+}
+
+/// **The `f64` rebuild a clearance's verifier reads**, and the parameter
+/// point it stands at: the nominal document where the evaluation is
+/// over no box, the box's midpoint where it is over one
+/// ([`crate::clearance::midpoint_of`]). A pair is a witness about the
+/// box only where the rebuild is a point of it.
+#[derive(Debug)]
+pub(crate) struct Witnessing<'a> {
+    /// The rebuild's results.
+    pub results: &'a Results<f64>,
+    /// The point it stands at, as offsets from the nominal.
+    pub param: crate::clearance::ParamWitness,
+}
+
+impl Witnessing<'_> {
+    /// The two seats' bodies in the rebuild — output `index` of node
+    /// `at`, each — read into the frame the lane's pair is decided in.
+    ///
+    /// # Errors
+    ///
+    /// The prose of what the rebuild could not read.
+    fn bodies(
+        &self,
+        sides: [(RecipeNodeId, u32); 2],
+        tol: Tol,
+    ) -> Result<[Arc<topo::Body<f64>>; 2], String> {
+        let framed = |(at, index): (RecipeNodeId, u32)| {
+            let value = value_of(self.results, at)
+                .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
+            crate::names::interrogate::output_body(&value.payload, index)
+                .map_err(|e| format!("the f64 rebuild has no body for a seat: {e:?}"))
+        };
+        let (fa, fb) = (framed(sides[0])?, framed(sides[1])?);
+        let computing =
+            super::Framed::computing_among([fa, fb]).unwrap_or_else(|| unreachable!("two seats"));
+        let read = |f| {
+            computing.read_in(f, tol).map_err(|kind| {
+                format!(
+                    "the f64 rebuild could not read a seat into the frame its pair is decided \
+                     in: {kind}"
+                )
+            })
+        };
+        Ok([read(fa)?, read(fb)?])
+    }
+}
+
 /// **An assertion's verdict** (E10): compare the value this node reads
 /// against its bound, and report.
 ///
@@ -2476,21 +2630,8 @@ fn wire_assertion<T: Decide>(
     payload: &super::Payload<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    // A measured value with no value at this scalar is not a failed
-    // node, so the assertion answers with E10's third state and the
-    // requirement stays visible in a build that cannot check it.
-    use super::measure::Observed;
-    let (value, bound) = match payload.observed {
-        [Observed::Unavailable(reason), _]
-        | [Observed::Value(_), Observed::Unavailable(reason)] => {
-            return Ok(OpOut::plain(
-                ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
-                    reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),
-                }),
-                names::empty(),
-            ));
-        }
-        [Observed::Value(value), Observed::Value(bound)] => (value, bound),
+    let [value, bound] = payload.values[..] else {
+        unreachable!("a value claim's payload is its value and its bound")
     };
     // The bound's DECLARED dimension must agree (units erase at the
     // evaluation boundary), through the rule the document doors ask.
@@ -2692,7 +2833,8 @@ fn instance_of<T: Decide>(
     slot: SlotId,
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
+    let count = names::narrow(instances.len(), names::Numbered::OutputBody)
+        .map_err(NodeErrorKind::Naming)?;
     let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
         NodeErrorKind::MemberOutOfRange {
             input: of,
@@ -2717,10 +2859,7 @@ fn member_of<T: Decide>(
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let at = (0..rank)
         .map(|k| {
-            let slot = SlotId::Index {
-                seat,
-                k: u8::try_from(k).unwrap_or(u8::MAX),
-            };
+            let slot = SlotId::Index { seat, k };
             slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
         })
         .collect::<Result<Vec<i64>, _>>()?;
@@ -2740,7 +2879,7 @@ fn member_of<T: Decide>(
     let body = instances.get(index).cloned().ok_or_else(out)?;
     Ok((
         body,
-        names::output_body(index).map_err(NodeErrorKind::Naming)?,
+        names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?,
     ))
 }
 
@@ -2954,7 +3093,7 @@ fn split_port<T: Decide>(
     });
     let (of, index, projected) = projected(split, value, body, names, half.output_body())?;
     // A half carries its own side's records, keyed in its arena.
-    let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+    let at = half.output_body() as usize;
     let carry = value.carry.member(at).clone();
     Ok(Some((of, index, super::NodeValue { carry, ..projected })))
 }
@@ -3471,7 +3610,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .iter()
             .enumerate()
             .map(|(i, body)| {
-                let index = u32::try_from(i).unwrap_or(u32::MAX);
+                let index =
+                    names::narrow(i, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?;
                 let table = read_table(value)
                     .project(index)
                     .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
@@ -3493,7 +3633,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let mut members = Vec::with_capacity(reads.len());
             for (i, member) in reads.iter().enumerate() {
                 let read = member.read;
-                let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
+                let slot = O::Member(i);
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals))?;
                 let results = projected.as_ref().unwrap_or(results);
@@ -3702,7 +3842,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
     let inputs = members
         .iter()
-        .zip(member_ranks(&reads))
+        .zip(member_ranks(&reads)?)
         .map(|(m, rank)| topo::MemberInputs {
             records: m.carry.contacts.carried(),
             rank,
@@ -3778,8 +3918,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut coincidences = Vec::new();
     let mut published: Vec<Vec<usize>> = Vec::with_capacity(judged.len());
     for (j, rows) in judgements.iter().zip(&judged) {
-        let place = |m: usize| u32::try_from(m).unwrap_or(u32::MAX);
-        let pair = [place(j.a.min(j.b)), place(j.a.max(j.b))];
+        let place = |m: usize| {
+            names::narrow(m, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
+        };
+        let pair = [place(j.a.min(j.b))?, place(j.a.max(j.b))?];
         published.push(
             rows.iter()
                 .map(|row| {
@@ -3816,7 +3958,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let member_table = Arc::clone(&views[joined]);
         let out = &stepped.body;
         let (kind, naming) = (out.kind, &out.naming);
-        let member = u32::try_from(joined).unwrap_or(u32::MAX);
+        let member =
+            names::narrow(joined, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
         if !pairwise {
             // The pair's rows and links are its one step's, in the two
             // members' own tables and the order its records cite them,
@@ -3899,15 +4042,17 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             );
         }
         let held = Arc::clone(&acc_records);
+        let rows = (base..base + decided)
+            .map(|row| names::narrow(row, names::Numbered::Row))
+            .collect::<Result<Vec<u32>, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         let contacts = out
             .contacts
             .clone()
             .recited(|b| match b {
                 topo::Backing::Decided(k) if pairwise => {
-                    if (k as usize) < decided {
-                        vec![topo::Backing::Decided(
-                            u32::try_from(base + k as usize).unwrap_or(u32::MAX),
-                        )]
+                    if let Some(&row) = rows.get(k as usize) {
+                        vec![topo::Backing::Decided(row)]
                     } else {
                         unreachable!(
                             "union {id:?}'s fold step {step} cites its row {k}, though it \
@@ -3975,7 +4120,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         topo::NaryEnd::Empty => return empty(),
         topo::NaryEnd::Refused(topo::NaryRefusal::Step { member, error }) => {
             return Err(NodeErrorKind::UnionFoldStep {
-                member: u32::try_from(member).unwrap_or(u32::MAX),
+                member: names::narrow(member, names::Numbered::InputPosition)
+                    .map_err(NodeErrorKind::Naming)?,
                 read: members[member].read,
                 refusal: Box::new(NodeErrorKind::Boolean(*error)),
             });
@@ -4009,7 +4155,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // rows, then every fold step's, a fold row a judged row restates
     // being that row; the records are recited onto the rows they cite.
     let contacts = if pairwise {
-        let at: Vec<Vec<usize>> = fold_rows
+        let at: Vec<Vec<u32>> = fold_rows
             .into_iter()
             .map(|row| match row {
                 FoldRow::Restates(judged) => judged,
@@ -4027,20 +4173,20 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         }),
                 ],
             })
-            .collect();
+            .map(|rows| {
+                rows.into_iter()
+                    .map(|row| names::narrow(row, names::Numbered::Row))
+                    .collect::<Result<Vec<u32>, _>>()
+            })
+            .collect::<Result<_, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         Arc::new(
             (*contacts)
                 .clone()
                 .recited(|b| match b {
                     topo::Backing::Decided(k) => at
                         .get(k as usize)
-                        .map(|rows| {
-                            rows.iter()
-                                .map(|&i| {
-                                    topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))
-                                })
-                                .collect()
-                        })
+                        .map(|rows| rows.iter().map(|&i| topo::Backing::Decided(i)).collect())
                         .unwrap_or_else(|| {
                             unreachable!(
                                 "union {id:?}'s records cite fold row {k}, though the fold \
@@ -4108,7 +4254,7 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
 /// whose read is the lesser (the earlier minted), and a read spelled
 /// twice ties, the listed-first then A. One pair is one run of the pair
 /// verb in every member order, and publishes one margin.
-fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
+fn member_ranks(reads: &[crate::VarId]) -> Result<Vec<u32>, NodeErrorKind> {
     let mut distinct = reads.to_vec();
     distinct.sort_unstable();
     distinct.dedup();
@@ -4118,7 +4264,7 @@ fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
             let at = distinct
                 .binary_search(r)
                 .unwrap_or_else(|_| unreachable!("every read is among the distinct reads"));
-            u32::try_from(at).unwrap_or(u32::MAX)
+            names::narrow(at, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
         })
         .collect()
 }
@@ -4146,7 +4292,8 @@ fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
 /// Two of a union's pairwise verdicts glue one accumulation face to one
 /// member face under two relations
 /// ([`topo::NaryRefusal::VerdictsDisagree`]).
-const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
+const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face \
+                                       to one member face under two relations";
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
@@ -4268,7 +4415,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         // A member's own records ride the piece it is, re-keyed through
         // its graft (each member's of a family), citing the member by its
         // read.
-        let input = u32::try_from(citing.len()).unwrap_or(u32::MAX);
+        let input = names::narrow(citing.len(), names::Numbered::InputPosition)
+            .map_err(NodeErrorKind::Naming)?;
         for (i, keys) in bridges.iter().enumerate() {
             crate::product::carry_contacts(
                 &fused,
@@ -4403,6 +4551,7 @@ fn need_count(
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
+    ids: &[crate::SectionId],
     stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4412,14 +4561,13 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|pid| section_value(results, *pid))
         .collect::<Result<Vec<_>, _>>()?;
-    // The v degree admits `1 ..= sections − 1` (`Node::Loft`). Fewer
-    // than two sections admit no degree at all, and what is wrong then
-    // is the section count, which the skin's own door names.
+    // The v degree admits `1 ..= sections − 1` (`Node::Loft`).
     if profiles.len() < 2 {
-        return Err(NodeErrorKind::Skin(sweep::SkinError::TooFewSections {
-            have: profiles.len(),
-            need: 2,
-        }));
+        unreachable!(
+            "loft {id} reached evaluation through {} section(s): every edit door that writes a \
+             loft and the load door refuse fewer than two (`edit::loft_structure_fault`)",
+            profiles.len()
+        );
     }
     let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
     // The first section is the loft's own plane; each after it stands
@@ -4448,8 +4596,9 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
-    // so wall `k` is named by one locator per section.
-    let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
+    // so wall `k` is named by one locator per section it spans, each
+    // with that section's id.
+    let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,
@@ -4533,7 +4682,7 @@ mod loop_coordinates_tests {
         assert!(
             matches!(
                 loop_coordinates(past),
-                Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
+                Err(NodeErrorKind::Naming(NamingError::PastWidth { .. }))
             ),
             "one loop past u32::MAX is refused"
         );
@@ -4799,6 +4948,6 @@ mod union_row_tests {
             VarId::new(5, 5),
             VarId::new(3, 3),
         ];
-        assert_eq!(member_ranks(&reads), [2, 0, 1, 0]);
+        assert_eq!(member_ranks(&reads).ok(), Some(vec![2, 0, 1, 0]));
     }
 }

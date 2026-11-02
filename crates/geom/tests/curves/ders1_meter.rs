@@ -59,31 +59,15 @@ fn ders1_meter() {
     let axis = Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0);
     let u_ref = Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0);
     let arms = [
-        (
-            "line",
-            Curve3::Line {
-                origin: center,
-                dir: Vec3::new(0.3, -0.4, 1.2),
-            },
-        ),
-        (
-            "circle",
-            Curve3::Circle {
-                center,
-                axis,
-                radius: 2.5,
-                u_ref,
-            },
-        ),
+        ("line", Curve3::line(center, Vec3::new(0.3, -0.4, 1.2))),
+        ("circle", Curve3::circle(center, axis, 2.5, u_ref)),
         (
             "ellipse",
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u: 2.5,
-                semi_v: 1.0,
-                u_ref,
-            },
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(center, axis, u_ref),
+                2.5,
+                1.0,
+            )),
         ),
         (
             "spiric",

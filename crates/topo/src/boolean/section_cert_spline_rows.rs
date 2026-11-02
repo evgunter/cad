@@ -539,3 +539,82 @@ fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
         );
     }
 }
+
+/// The flat unit square in `z = 0`, a biquadratic.
+fn square() -> Surface<f64> {
+    net(&|_, _| 0.0)
+}
+
+/// **A sphere cutting a spline wall in one open branch is cleared.** The
+/// sphere about `(½, −0.3, 0)` of radius `0.5` cuts the unit square in an
+/// arc leaving and re-entering its `y = 0` side: the classification
+/// (`spline_implicit`, the curved partner's hull, pass and sweep) reads
+/// it loop-free, one component reaching the wall's chart boundary, which
+/// clears by W1′. Red against the curved spline pairs routed to the
+/// intractable arm, as before the arm classified them.
+#[test]
+fn a_sphere_cutting_a_spline_wall_in_one_open_branch_is_cleared() {
+    let s = read(
+        &Surface::Sphere {
+            center: p(0.5, -0.3, 0.0),
+            radius: 0.5,
+            axis: v(0.0, 0.0, 1.0),
+            u_ref: v(1.0, 0.0, 0.0),
+        },
+        &square(),
+    );
+    assert_eq!(lone(&s).reaches, Some(Side::G), "{s:?}");
+    assert_eq!(
+        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
+        Ok(vec![Cleared::Reaches(Side::G)])
+    );
+}
+
+/// **A cylinder cutting a spline wall in one open branch is cleared**,
+/// the wall asked first: the vertical cylinder about `(½, −0.1)` of
+/// radius `0.3` cuts the unit square's `y = 0` side twice. Red against
+/// the curved spline pairs routed to the intractable arm.
+#[test]
+fn a_cylinder_cutting_a_spline_wall_in_one_open_branch_is_cleared() {
+    let s = read(
+        &square(),
+        &Surface::Cylinder {
+            origin: p(0.5, -0.1, 0.0),
+            axis: v(0.0, 0.0, 1.0),
+            u_ref: v(1.0, 0.0, 0.0),
+            radius: 0.3,
+        },
+    );
+    assert_eq!(lone(&s).reaches, Some(Side::F), "{s:?}");
+    assert_eq!(
+        certify(&s, false, band(), |_| Sheet::Not, at(IN, IN)),
+        Ok(vec![Cleared::Reaches(Side::F)])
+    );
+}
+
+/// **A spline wall touching a sphere at one point is read as a touch.**
+/// The unit sphere standing on the dome's top: the classification decides
+/// the top a touch (a critical point of the composite, its Hessian
+/// definite, its value decided zero), and the guard reads the section as
+/// that touch, at the top, named by its decision, which its touch arm
+/// clears where the point lies outside either face. Red against the
+/// decided touch read as the general rung's (intractable).
+#[test]
+fn a_spline_wall_touching_a_sphere_is_read_as_a_touch() {
+    let s = read(
+        &dome(),
+        &Surface::Sphere {
+            center: p(0.5, 0.5, 1.0),
+            radius: 1.0,
+            axis: v(0.0, 0.0, 1.0),
+            u_ref: v(1.0, 0.0, 0.0),
+        },
+    );
+    let Section::Touch(t) = &s else {
+        panic!("a touch: {s:?}");
+    };
+    assert!(
+        t.name == "spline_critical_value" && (t.at - p(0.5, 0.5, 0.0)).norm() <= 1e-6,
+        "the touch at the dome's top: {t:?}"
+    );
+}

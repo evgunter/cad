@@ -58,7 +58,7 @@ fn symmetric_double_rim_split_volume_at_base() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if !matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+        if !matches!(c.carrier(), geom::Curve3::Circle(..)) {
             continue;
         }
         let on_wall = [e.he_plus, e.he_minus].iter().any(|&he| {

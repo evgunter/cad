@@ -2280,8 +2280,8 @@ fn ring_pieces<'b, T: Decide>(
         .map(|(_, _, edge)| {
             let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
             match *carrier {
-                Curve3::Line { .. } | Curve3::Circle { .. } => Ok((edge, carrier, window)),
-                Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                Curve3::Line(_) | Curve3::Circle(..) => Ok((edge, carrier, window)),
+                Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                     Err(ring_edge_unmetered(edge))
                 }
             }
@@ -2332,22 +2332,20 @@ fn rim_trim_circles<T: Real>(
     first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
-    let Curve3::Circle {
-        center: pc,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: pc, .. },
         radius: pr,
-        ..
-    } = *first_trim
+    }) = *first_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
             "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
-    let Curve3::Circle {
-        center: sc,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: sc, .. },
         radius: sr,
-        ..
-    } = *other_trim
+    }) = *other_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
@@ -2560,7 +2558,7 @@ pub(super) fn piece_distance<T: Bounds>(
     c: Point3<T>,
 ) -> Option<(T, T)> {
     match *carrier {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let (pa, pb) = (origin + dir * ta, origin + dir * tb);
             let d = pb - pa;
             let s = ((c - pa).dot(d) / d.dot(d)).max(T::zero()).min(T::one());
@@ -2569,16 +2567,8 @@ pub(super) fn piece_distance<T: Bounds>(
                 (pa - c).norm().max((pb - c).norm()),
             ))
         }
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => {
-            let (d, major) = (
-                (center - c).norm(),
-                Curve3::semi_axes_by_size(semi_u, semi_v).0,
-            );
+        Curve3::Ellipse(ref e) => {
+            let (d, major) = ((e.frame.center - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
@@ -2601,30 +2591,25 @@ pub(super) fn piece_along<T: Bounds>(
     u: Vec3<T>,
 ) -> Option<(T, T)> {
     match *carrier {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let (la, lb) = (
                 (origin + dir * ta - c).dot(u),
                 (origin + dir * tb - c).dot(u),
             );
             Some((la.min(lb), la.max(lb)))
         }
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let v = axis.cross(u_ref);
+        Curve3::Ellipse(ref e) => {
+            let f = e.frame;
             let unit = CircleFrame {
-                center,
-                axis,
+                center: f.center,
+                axis: f.axis,
                 radius: T::one(),
-                u_ref,
+                u_ref: f.u_ref,
             };
-            let lifted = u_ref * (semi_u * u_ref.dot(u)) + v * (semi_v * v.dot(u));
-            let (low, high) = unit.along((ta, tb), center, lifted);
-            let mid = (center - c).dot(u);
+            let (p, q) = geom::Conic::along(e, u);
+            let lifted = f.u_ref * p + f.v_ref() * q;
+            let (low, high) = unit.along((ta, tb), f.center, lifted);
+            let mid = (f.center - c).dot(u);
             Some((mid + low, mid + high))
         }
         _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
@@ -2647,12 +2632,15 @@ impl<T: Real> CircleFrame<T> {
     /// The frame of a `Circle` carrier; `None` for any other.
     fn of(carrier: &Curve3<T>) -> Option<Self> {
         match *carrier {
-            Curve3::Circle {
-                center,
-                axis,
+            Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => Some(Self {
+            }) => Some(Self {
                 center,
                 axis,
                 radius,
@@ -3200,8 +3188,8 @@ fn strip_clearance<T: Decide + Bounds>(
             }
             let (carrier, window) = stored_piece(body, edge)?;
             let reach = |u: Vec3<T>| match carrier {
-                Curve3::Line { .. } | Curve3::Circle { .. } => piece_along(carrier, window, o, u),
-                Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                Curve3::Line(_) | Curve3::Circle(..) => piece_along(carrier, window, o, u),
+                Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                     let ends = (carrier.eval(window.0), carrier.eval(window.1));
                     boxed_reach(carrier, window, ends, o, Some(u))
                 }
@@ -3311,12 +3299,12 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         // The latitude function's range over one piece, and whether that
         // range is a bound rather than the piece's own.
         let reach = |carrier: &Curve3<T>, (ta, tb): (T, T)| match carrier {
-            Curve3::Line { .. } | Curve3::Circle { .. } => match direction {
+            Curve3::Line(_) | Curve3::Circle(..) => match direction {
                 None => piece_distance(carrier, (ta, tb), ci),
                 Some(u) => piece_along(carrier, (ta, tb), ci, u),
             }
             .map(|r| (r, false)),
-            Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+            Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 let ends = (carrier.eval(ta), carrier.eval(tb));
                 boxed_reach(carrier, (ta, tb), ends, ci, direction).map(|r| (r, true))
             }
@@ -3435,7 +3423,7 @@ fn co_requested_trim<T: Decide>(
         let (origin, dir) = open_trimline(l, face)?;
         let at = |p: Point3<T>| (p - origin).dot(dir) / dir.dot(dir);
         let window = (at(stored.eval(ta)), at(stored.eval(tb)));
-        return Ok(Some((Curve3::Line { origin, dir }, window)));
+        return Ok(Some((Curve3::Line(geom::Line { origin, dir }), window)));
     }
     if let Some(l) = rims
         .iter()
@@ -3457,7 +3445,7 @@ pub(super) fn open_trimline<T: Real>(
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), BlendError> {
     match l.trim_on(face) {
-        Some((Curve3::Line { origin, dir }, _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
         Some(_) => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "an open link's trimline is not a line",
@@ -3509,10 +3497,10 @@ fn boxed_reach<T: Bounds>(
     u: Option<Vec3<T>>,
 ) -> Option<(T, T)> {
     let aabb = match carrier {
-        Curve3::Ellipse { .. } => boxes::ellipse_arc_aabb(carrier, ta, tb, end0, end1)?,
+        Curve3::Ellipse(..) => boxes::ellipse_arc_aabb(carrier, ta, tb, end0, end1)?,
         Curve3::Spiric { .. } => boxes::spiric_arc_aabb(carrier, end0, end1)?,
         Curve3::Nurbs(n) => boxes::nurbs_curve_aabb(n),
-        Curve3::Line { .. } | Curve3::Circle { .. } => return None,
+        Curve3::Line(_) | Curve3::Circle(..) => return None,
     };
     let (lo, hi) = lifted_box(
         [aabb.min_x, aabb.min_y, aabb.min_z],
@@ -3539,17 +3527,10 @@ fn boxed_reach<T: Bounds>(
                 (l.min(v), h.max(v))
             });
             match carrier {
-                Curve3::Ellipse {
-                    center,
-                    axis,
-                    semi_u,
-                    semi_v,
-                    u_ref,
-                } => {
-                    let mid = (*center - c).dot(u);
-                    let amp = ((*semi_u * u_ref.dot(u)).powi(2)
-                        + (*semi_v * axis.cross(*u_ref).dot(u)).powi(2))
-                    .sqrt();
+                Curve3::Ellipse(e) => {
+                    let mid = (e.frame.center - c).dot(u);
+                    let (p, q) = geom::Conic::along(e, u);
+                    let amp = (p.powi(2) + q.powi(2)).sqrt();
                     Some((low.max(mid - amp), high.min(mid + amp)))
                 }
                 _ => Some((low, high)),
@@ -3618,7 +3599,11 @@ fn rim_carrier<T: Decide>(
     let c = certified_curve(body, e)?;
     let host_half = host_side_half(body, link, host)
         .ok_or_else(|| unresolved(EntityId::Edge(e), "a rim edge's host-side half"))?;
-    let Curve3::Circle { axis, u_ref, .. } = *c.carrier() else {
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { axis, u_ref, .. },
+        ..
+    }) = *c.carrier()
+    else {
         return Err(unbuilt_geometry(
             EntityId::Edge(e),
             "a rim edge's carrier is not a circle, the only rim carrier the band is built \
@@ -3645,12 +3630,7 @@ fn scaled<T: Real>(
     radius: T,
     forward: bool,
 ) -> (Curve3<T>, T, T) {
-    let circle = Curve3::Circle {
-        center,
-        axis: rc.axis,
-        radius,
-        u_ref: rc.u_ref,
-    };
+    let circle = Curve3::circle(center, rc.axis, radius, rc.u_ref);
     if forward {
         (circle, rc.t0, rc.t1)
     } else {
@@ -3764,7 +3744,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // A period is a CIRCLE's or an ELLIPSE's: a line carrier (a plane
     // end face's straight rim) has no branch to alias by, and its window
     // is a length that may exceed 2π without meaning anything.
-    let periodic = matches!(sc.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. });
+    let periodic = matches!(sc.carrier(), Curve3::Circle(..) | Curve3::Ellipse(..));
     if periodic {
         let Some(turn) = sc.turn().copied() else {
             unreachable!("check 2 mints a turn for every circle and ellipse")
@@ -5469,14 +5449,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine | ContactCarrier::Chord => {
             let len = p0.distance(p1);
-            (
-                Curve3::Line {
-                    origin: p0,
-                    dir: (p1 - p0) / len,
-                },
-                T::zero(),
-                len,
-            )
+            (Curve3::line(p0, (p1 - p0) / len), T::zero(), len)
         }
         // ONE construction for both arc kinds, deliberately: a corner
         // arc and a band's slit are the same short arc about a stored
@@ -5490,12 +5463,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
             let w = (p1 - center).normalize();
             let turn = u.cross(w);
             (
-                Curve3::Circle {
-                    center,
-                    axis: turn.normalize(),
-                    radius,
-                    u_ref: u,
-                },
+                Curve3::circle(center, turn.normalize(), radius, u),
                 T::zero(),
                 turn.norm().atan2(u.dot(w)),
             )
@@ -5972,12 +5940,12 @@ mod tests {
 
         use super::{piece_along, piece_distance};
 
-        let circle = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let at = |t: f64| Point3::new(t.cos(), t.sin(), 0.0);
         let close = |a: f64, b: f64, what: &str| {
             assert!((a - b).abs() <= 1e-14, "{what}: {a} vs {b}");
@@ -6033,10 +6001,7 @@ mod tests {
         );
         // A segment: the nearest point is the clamped foot, not the
         // carrier's.
-        let line = Curve3::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
         let (near, far) =
             piece_distance(&line, (1.0, 2.0), Point3::new(0.0, 1.0, 0.0)).expect("line");
         close(near, 2.0_f64.sqrt(), "a segment's near is its clamped foot");
@@ -6065,12 +6030,16 @@ mod tests {
 
         let c = Point3::new(0.3, -1.1, 0.7);
         let u = Vec3::new(1.0, 2.0, -2.0) * (1.0 / 3.0);
-        let ellipse = |major: f64, minor: f64| Curve3::Ellipse {
-            center: Point3::new(1.0, 0.5, -0.2),
-            axis: Vec3::new(0.0, 0.6, 0.8),
-            semi_u: major,
-            semi_v: minor,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        let ellipse = |major: f64, minor: f64| {
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::new(1.0, 0.5, -0.2),
+                    Vec3::new(0.0, 0.6, 0.8),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+                major,
+                minor,
+            ))
         };
         let nurbs = Curve3::Nurbs(Arc::new(
             NurbsCurve3::new(
@@ -6197,13 +6166,15 @@ mod tests {
         use super::boxed_reach;
         use core::f64::consts::TAU;
 
-        let ellipse = Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: 0.5,
-            semi_v: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            0.5,
+            2.0,
+        ));
         let c = Point3::new(0.0, 0.0, 0.0);
         let ends = (ellipse.eval(0.0), ellipse.eval(TAU));
         let (near, far) = boxed_reach(&ellipse, (0.0, TAU), ends, c, None).expect("a finite box");

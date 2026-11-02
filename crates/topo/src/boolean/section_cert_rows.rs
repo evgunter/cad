@@ -612,18 +612,16 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
 // -------------------------------------------------------------------
 
 /// **The P0 saddle loop**: `r₁ = 1` about `z`, `r₂ = 0.5` about `x` at
-/// `y = 1.3`. One null loop, witnessed at `(±0.6, 0.8, 0)`. Reading the
-/// middle row as the first (two thin-essential loops) would let W2
-/// clear it on the arc face.
+/// `y = 1.3`. One null loop, witnessed on both walls by the ruling
+/// sweep. Reading the middle row as the first (two thin-essential loops)
+/// would let W2 clear it on the arc face.
 #[test]
 fn the_p0_saddle_loop_is_one_null_component() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let b = cylinder(p(-3.0, 1.3, 0.0), Vec3::unit_x(), 0.5);
     let s = classify(&a, &b);
     assert_eq!(shape(&s), (1, true, vec![false], vec![false], vec![false]));
-    let w = witness(&s);
-    on_both(w, &a, &b);
-    assert!((w.y - 0.8).abs() < 1e-12 && w.z.abs() < 1e-12, "{w:?}");
+    on_both(witness(&s), &a, &b);
     // Tilted 0.15 rad about y: the same class, the angle never read.
     let b = cylinder(
         p(0.0, 1.3, 0.0),
@@ -633,32 +631,22 @@ fn the_p0_saddle_loop_is_one_null_component() {
     on_both(witness(&classify(&a, &b)), &a, &b);
 }
 
-/// **The saddle witness's side is decided, per sign of `δ₀`.** Cylinder
-/// 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x` or
-/// `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
+/// **The saddle witness lies on both walls, per sign of `δ₀`.**
+/// Cylinder 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x`
+/// or `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
 /// of each sign on each side of the axis, taken with either wall the
-/// thinner. The witness is on the arc's middle ruling on cylinder 1's
-/// side of cylinder 2: on both carriers, at `y` of the offset's sign,
-/// `|y| = |offset| − r₂`. The far ruling never meets cylinder 1
-/// (`|δ₀| + r₂ > r₁` wherever the loop is a saddle), so a side chosen
-/// against `δ₀`'s sign reds every pose.
+/// thinner. The thinner is the ruled wall, so the sweep's frame (its
+/// foot, normal and signed gap) is read from either axis and either sign
+/// of the gap, and a frame read wrong puts its witness off a wall.
 #[test]
-fn the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign() {
+fn the_saddle_witness_lies_on_both_walls_for_either_sign() {
     for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
         let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r1);
         for oy in [1.3, -1.3] {
             for run in [1.0, -1.0] {
                 let (o2, d2) = (p(-3.0 * run, oy, 0.0), v(run, 0.0, 0.0));
                 let b = cylinder(o2, d2, r2);
-                let delta = (o2 - p(0.0, 0.0, 0.0)).dot(Vec3::unit_z().cross(d2));
-                let pose = format!("r₁ = {r1}, r₂ = {r2}, offset y = {oy}, δ₀ = {delta}");
-                let w = witness(&classify(&a, &b));
-                on_both(w, &a, &b);
-                let near = oy.signum() * (oy.abs() - r2);
-                assert!(
-                    (w.y - near).abs() < 1e-12 && w.z.abs() < 1e-12,
-                    "{pose}: the witness {w:?} is not on the near ruling y = {near}"
-                );
+                on_both(witness(&classify(&a, &b)), &a, &b);
             }
         }
     }
@@ -747,13 +735,13 @@ fn near_parallel_walls_refuse_as_a_tangency() {
     assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
 }
 
-/// **A cylinder pair the region cuts is marched, and its cut arcs clear
+/// **A cylinder pair the region cuts is counted, and its cut arcs clear
 /// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
 /// off it, `0.1` apart: their own ball (about `20` across) straddles a
-/// region of radius `1.5` about the origin, so the pair's components are
-/// the march's, two arcs that end on the region, each unbounded (W1).
+/// region of radius `1.5` about the origin, and the ruling sweep counts
+/// two arcs that end on the region, each unbounded (W1), with no march.
 #[test]
-fn a_cylinder_pair_the_region_cuts_marches_two_unbounded_arcs() {
+fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
     let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
     let s = super::classify(
@@ -1409,12 +1397,7 @@ fn full_rim(
             pair: SurfacePair::new(cyl, rim_plane),
             selector: geom_brep::CurveSelector::Witness(p(-1.0, 0.0, z)),
         },
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, z),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(p(0.0, 0.0, z), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -1528,10 +1511,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body
-        .get_surface(band_body.get_face(band_face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = band_body.face_surface(band_face).unwrap().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1746,11 +1726,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| {
-        b.get_surface(b.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |b: &Body<f64>, f| b.face_surface(f).unwrap().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(
@@ -1800,12 +1776,7 @@ fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface
             pair: SurfacePair::new(key, cut_plane),
             selector: geom_brep::CurveSelector::Witness(c - u_ref * rho),
         },
-        carrier: Curve3::Circle {
-            center: c,
-            axis: k,
-            radius: rho,
-            u_ref,
-        },
+        carrier: Curve3::circle(c, k, rho, u_ref),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -2006,12 +1977,7 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
                 pair: SurfacePair::new(cone, rim_plane),
                 selector: geom_brep::CurveSelector::Witness(rim_at(0.5 * (t0 + t1))),
             },
-            carrier: Curve3::Circle {
-                center: p(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(p(0.0, 0.0, 1.0), Vec3::unit_z(), 1.0, Vec3::unit_x()),
             param_start: t0,
             param_end: t1,
         }
@@ -2237,20 +2203,20 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
                     },
                     // A descending arc runs forward on the reversed
                     // axis, its seam moved to `t0`.
-                    carrier: Curve3::Circle {
-                        center: p(0.0, 0.0, h),
-                        axis: if t1 > t0 {
+                    carrier: Curve3::circle(
+                        p(0.0, 0.0, h),
+                        if t1 > t0 {
                             Vec3::unit_z()
                         } else {
                             -Vec3::unit_z()
                         },
-                        radius: h.abs(),
-                        u_ref: if t1 > t0 {
+                        h.abs(),
+                        if t1 > t0 {
                             Vec3::unit_x()
                         } else {
                             v(t0.cos(), t0.sin(), 0.0)
                         },
-                    },
+                    ),
                     param_start: if t1 > t0 { t0 } else { 0.0 },
                     param_end: if t1 > t0 { t1 } else { t0 - t1 },
                 };
@@ -2419,12 +2385,14 @@ fn torus_iso(
             pair: SurfacePair::new(torus, cut),
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
-        carrier: Curve3::Circle {
-            center,
-            axis,
+        carrier: Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        },
+        }),
         param_start: 0.0,
         param_end: sweep,
     }

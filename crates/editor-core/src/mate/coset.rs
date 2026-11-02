@@ -255,6 +255,25 @@ impl SubgroupFamily {
         }
     }
 
+    /// **Whether a residual of this family leaves `coord`** (D10
+    /// `[placement.values]`): the one question a value is asked of its
+    /// bundle, the solve's own ([`super::solve`]). Where no direction is
+    /// fixed a spin is a link of a chain about the target space's axes;
+    /// where one is, the spin is the one about the target's own direction.
+    #[must_use]
+    pub fn leaves(self, coord: super::Coord) -> bool {
+        super::solve::leaves(self, coord)
+    }
+
+    /// **Whether a mate of this family fixes one direction** — a plane,
+    /// an axis or a direction: the families whose mate a bundle's value
+    /// chart is read on ([`super::read_back`]). A point fixes none, a
+    /// frame every one.
+    #[must_use]
+    pub fn fixes_one_direction(self) -> bool {
+        matches!(self, Self::Planar | Self::Cylindrical | Self::Parallel)
+    }
+
     /// The family's name, for messages and table rows.
     #[must_use]
     pub fn name(self) -> &'static str {

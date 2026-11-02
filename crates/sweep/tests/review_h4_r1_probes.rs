@@ -115,7 +115,10 @@ fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
 
     // The feet, from the trimlines, and the FACE each one must lie in.
     let foot = |c: &Curve3<f64>| match *c {
-        Curve3::Circle { center, radius, .. } => (radius, center.y),
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            radius,
+        }) => (radius, center.y),
         ref other => panic!("a coaxial trimline is a circle, got {other:?}"),
     };
     let want_x = 0.5 + WAIST_R / 2f64.sqrt();
@@ -221,9 +224,10 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
 
         // (3) The plane's trimline is ON the plane, and the hole widens
         // exactly on the outer offset.
-        let Curve3::Circle {
-            center: tc, radius, ..
-        } = blend.trim_a.0
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center: tc, .. },
+            radius,
+        }) = blend.trim_a.0
         else {
             panic!("the plane trimline is a circle")
         };
@@ -330,14 +334,14 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         "the spine rides the INNER offset sphere, s = √((R−r)² − r²) = {s}, got {major_radius}"
     );
     let (plane_trim, sphere_trim) = {
-        let is_plane = |t: &(Curve3<f64>, f64)| matches!(t.0, Curve3::Circle { center, .. } if (center.y - floor).abs() < 1e-15);
+        let is_plane = |t: &(Curve3<f64>, f64)| matches!(t.0, Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if (center.y - floor).abs() < 1e-15);
         if is_plane(&link.blend.trim_a) {
             (&link.blend.trim_a, &link.blend.trim_b)
         } else {
             (&link.blend.trim_b, &link.blend.trim_a)
         }
     };
-    let Curve3::Circle { radius: tp, .. } = plane_trim.0 else {
+    let Curve3::Circle(geom::Circle { radius: tp, .. }) = plane_trim.0 else {
         panic!("the plane trim is a circle")
     };
     assert!(
@@ -352,11 +356,10 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         plane_trim.1
     );
     let scale = big_r / (big_r - r);
-    let Curve3::Circle {
-        center: sc,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: sc, .. },
         radius: sr,
-        ..
-    } = sphere_trim.0
+    }) = sphere_trim.0
     else {
         panic!("the sphere trim is a circle")
     };

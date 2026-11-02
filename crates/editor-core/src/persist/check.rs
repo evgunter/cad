@@ -45,7 +45,6 @@ use crate::meta::MetaVersionError;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
-use crate::resolve::{derivation_nodes, derivation_reads};
 use crate::spoken::SpokenVar;
 use crate::spoken::{SpokenName, SpokenNode};
 use crate::var::{VarId, VarKind, VarRef};
@@ -1230,6 +1229,29 @@ pub enum OutputFault {
     },
 }
 
+/// **Why a saved loft's section ids are not ones its doors minted**
+/// ([`SnapshotError::SectionIds`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionIdBreak {
+    /// A section carries no id: a file written before a loft's
+    /// sections were minted (`names/README.md`, N1) — a format break,
+    /// not a fault of the document's history.
+    Unminted {
+        /// The section's position, first section 1.
+        section: usize,
+    },
+    /// An id the mint log does not hold as a section's.
+    NotMinted {
+        /// The id.
+        section: crate::node::SectionId,
+    },
+    /// One id stands for two sections anywhere in the document.
+    Repeated {
+        /// The id.
+        section: crate::node::SectionId,
+    },
+}
+
 /// **Why a selection's body read is one no door writes**
 /// ([`SnapshotError::SelectionBody`]).
 #[derive(Debug, Clone, PartialEq)]
@@ -1278,6 +1300,17 @@ pub enum SnapshotError {
         node: SpokenNode,
         /// What is wrong.
         fault: crate::program::StepIdFault,
+    },
+    /// A loft's section ids are not the ones its edit doors would have
+    /// minted (`names/README.md`, N1): a section with none (a file from
+    /// before sections were minted), an id not in the mint log as a
+    /// section's, or one id standing for two sections anywhere in the
+    /// document.
+    SectionIds {
+        /// The loft.
+        node: SpokenNode,
+        /// What is wrong.
+        fault: SectionIdBreak,
     },
     /// The mint's log does not count up from one: an entry's ordinal
     /// is not its place in the log (a repeat, a step down or a gap) —
@@ -1576,6 +1609,17 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::ListFault,
     },
+    /// A loft written as no loft can be (`Node::Loft`): one section, or
+    /// a section after the first with no station. The edit doors refuse
+    /// both (`EditError::LoftShape`), by the same
+    /// `edit::loft_structure_fault`, so a file carrying one is corrupt.
+    /// The shape facts a value moves are evaluation's.
+    LoftShape {
+        /// The offending loft.
+        node: SpokenNode,
+        /// What is wrong with it.
+        fault: crate::LoftFault,
+    },
     /// An assertion whose bound is dimensioned differently from the
     /// value it bounds (E10) — the assertion compares two different
     /// quantities.
@@ -1628,6 +1672,27 @@ impl core::fmt::Display for SnapshotError {
                 "{id} is not in the document's mint log — the document never minted it",
             ),
             Self::StepIds { node, fault } => write!(f, "{node}'s step ids: {fault}"),
+            Self::SectionIds { node, fault } => match fault {
+                SectionIdBreak::Unminted { section } => write!(
+                    f,
+                    "{node}'s section {section} carries no section id: the file was written \
+                     before a loft's sections were minted, a format this build no longer \
+                     reads. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                ),
+                SectionIdBreak::NotMinted { section } => write!(
+                    f,
+                    "{node} spells the section id {section}, which the document's mint log does \
+                     not hold as a section's — the document never minted it. {}",
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                ),
+                SectionIdBreak::Repeated { section } => write!(
+                    f,
+                    "{node}'s section id {section} stands for a second section in the document, \
+                     which no mint writes. {}",
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                ),
+            },
             Self::MintLogOrder { entry } => write!(
                 f,
                 "the mint's log does not count up from one at {entry} — its ordinal is not its \
@@ -1858,6 +1923,14 @@ impl core::fmt::Display for SnapshotError {
                 referenced.article()
             ),
             Self::InputList { node, fault } => write!(f, "{node}: {fault}"),
+            Self::LoftShape { node, fault } => {
+                fault.problem(f, node)?;
+                write!(
+                    f,
+                    ". {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                )
+            }
             Self::AssertionBound {
                 node,
                 measured,
@@ -1918,16 +1991,48 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             fault,
         };
         program.check_id_shape().map_err(fault)?;
-        for ids in &program.ids {
-            for &step in ids {
-                if !doc.mint.has_step(step) {
-                    return Err(fault(crate::program::StepIdFault::NotMinted { step }));
+        crate::mint::admit_ids(
+            program.ids.iter().flatten().copied(),
+            |step| doc.mint.has_step(step),
+            &mut seen_steps,
+        )
+        .map_err(|e| {
+            fault(match e {
+                crate::mint::IdFault::Unknown(step) => {
+                    crate::program::StepIdFault::NotMinted { step }
                 }
-                if !seen_steps.insert(step) {
-                    return Err(fault(crate::program::StepIdFault::Repeated { step }));
+                crate::mint::IdFault::Repeated(step) => {
+                    crate::program::StepIdFault::Repeated { step }
                 }
-            }
-        }
+            })
+        })?;
+    }
+    // Every loft's section ids, as its steps are a profile's: every
+    // section carries one, and they answer the rule every door holds
+    // minted ids to (`mint::admit_ids`), against the mint log and
+    // across the whole document.
+    let mut seen_sections = std::collections::BTreeSet::new();
+    for (&id, node) in &doc.nodes {
+        let Some(ids) = node.loft_section_ids() else {
+            continue;
+        };
+        let fault = |fault| SnapshotError::SectionIds {
+            node: doc.spoken(id),
+            fault,
+        };
+        let ids = ids
+            .iter()
+            .enumerate()
+            .map(|(k, id)| id.ok_or(fault(SectionIdBreak::Unminted { section: k + 1 })))
+            .collect::<Result<Vec<_>, _>>()?;
+        crate::mint::admit_ids(ids, |s| doc.mint.has_section(s), &mut seen_sections).map_err(
+            |e| {
+                fault(match e {
+                    crate::mint::IdFault::Unknown(section) => SectionIdBreak::NotMinted { section },
+                    crate::mint::IdFault::Repeated(section) => SectionIdBreak::Repeated { section },
+                })
+            },
+        )?;
     }
     let mut constraint_ids: std::collections::BTreeSet<crate::node::ConstraintId> =
         std::collections::BTreeSet::new();
@@ -1964,6 +2069,12 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             return Err(SnapshotError::InputList {
                 node: doc.spoken(id),
                 fault: fault.list_fault(),
+            });
+        }
+        if let Some(fault) = crate::edit::loft_structure_fault(node) {
+            return Err(SnapshotError::LoftShape {
+                node: doc.spoken(id),
+                fault,
             });
         }
         // An assertion's bound against its value (E10), by the same
@@ -2004,32 +2115,37 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
+    let holds_instance = doc.holds_instance();
     for carrier in doc.name_carriers() {
-        // A name read in a body that reaches an instance may be its
-        // part's, spelled in ids this mint log never held: the copy
-        // carries its part's names verbatim. Only such a name is let
-        // through, and only there; one spelled wholly in this
-        // document's ids is held to every rule below.
-        let read_in = match carrier {
-            NameCarrier::Store { body, .. } => Some(body),
-            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
-            NameCarrier::Payload { .. } => None,
+        // A name read where an instance is may be its part's, or carry
+        // its part's at any depth, spelled in ids this mint log never
+        // held: the copy carries its part's names verbatim, and an
+        // operation over the copy carries them inside its own. Such a
+        // level is let through, and only it ([`Doc::part_spelled`], the
+        // edit doors' one predicate); every level around it is this
+        // document's and is held to every rule below, level by level as
+        // the edit doors hold it (`edit::check_name_steps`). "Where an
+        // instance is" is theirs too: for a selection or a store key, a
+        // body that reaches one; for a payload name (an instance
+        // record's outer among them), a document that holds one.
+        let parted = match carrier {
+            NameCarrier::Store { body, .. } => doc.reaches_instance(body),
+            NameCarrier::Select { var, .. } => doc
+                .selection(var)
+                .is_some_and(|select| doc.reaches_instance(select.body)),
+            NameCarrier::Payload { .. } => holds_instance,
         };
-        let foreign = derivation_nodes(carrier.name())
-            .into_iter()
-            .any(|n| !doc.has_minted(n));
-        if foreign && read_in.is_some_and(|body| doc.reaches_instance(body)) {
+        let part = |n: &crate::names::StableName| doc.part_spelled(parted, n);
+        if part(carrier.name()) {
             continue;
         }
-        // An instance record's outer may be a face of another
-        // instance's copy, so its part's name: the edit door's rule.
-        if let NameCarrier::Payload { node, name } = carrier
-            && matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
-            && !doc.mint.has_node(name.node)
-        {
-            continue;
-        }
-        for n in derivation_nodes(carrier.name()) {
+        // The ids the name spells in this document: every level's, but
+        // a part's where an instance is (`part`, constantly false
+        // elsewhere). One walk for both (`StableName::spelled_outside`),
+        // so the two cannot read different embedded names.
+        let spelled = carrier.name().spelled_outside(&part);
+        let (nodes, reads, steps) = (spelled.nodes, spelled.reads, spelled.steps);
+        for n in nodes {
             check_id(n)?;
         }
         // And every read it carries, against the mint log: the entity
@@ -2040,7 +2156,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             NameCarrier::Store { body, .. } => Some(body),
             NameCarrier::Payload { .. } | NameCarrier::Select { .. } => None,
         };
-        if let Some(read) = derivation_reads(carrier.name())
+        if let Some(read) = reads
             .into_iter()
             .chain(body)
             .find(|r| !doc.mint.has_var(*r))
@@ -2060,12 +2176,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         }
         // And every profile step it spells, against the mint log: a
         // step a `SetProgram` dropped stays in it.
-        if let Some(&step) = carrier
-            .name()
-            .piece_steps()
-            .iter()
-            .find(|s| !doc.mint.has_step(**s))
-        {
+        if let Some(&step) = steps.iter().find(|s| !doc.mint.has_step(**s)) {
             return Err(SnapshotError::NameStepNotMinted {
                 name: doc.spoken_name(carrier.name()),
                 step,
@@ -2324,6 +2435,7 @@ mod tests {
         const SNAPSHOT_ERROR: SnapshotError = [
             NodeNotMinted,
             StepIds,
+            SectionIds,
             MintLogOrder,
             NameReadNotMinted,
             AppearanceReadNotABody,
@@ -2357,6 +2469,7 @@ mod tests {
             ConstraintNotMinted,
             MateRefused,
             InputList,
+            LoftShape,
             AssertionBound,
             MetadataUnversioned,
         ];
@@ -2404,6 +2517,7 @@ mod tests {
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
+            | SnapshotError::SectionIds { .. }
             | SnapshotError::NameReadNotMinted { .. }
             | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
@@ -2417,6 +2531,7 @@ mod tests {
             | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::MateRefused { .. }
             | SnapshotError::InputList { .. }
+            | SnapshotError::LoftShape { .. }
             | SnapshotError::AssertionBound { .. }
             | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
         }
@@ -2458,6 +2573,12 @@ mod tests {
                 node: node(),
                 fault: crate::program::StepIdFault::Repeated {
                     step: crate::node::StepId::new(0, 2),
+                },
+            },
+            SnapshotError::SectionIds {
+                node: node(),
+                fault: super::SectionIdBreak::Repeated {
+                    section: crate::node::SectionId::new(0, 2),
                 },
             },
             SnapshotError::MintLogOrder {
@@ -2602,6 +2723,10 @@ mod tests {
             SnapshotError::InputList {
                 node: node(),
                 fault: crate::node::ListFault::IndexedFamily,
+            },
+            SnapshotError::LoftShape {
+                node: node(),
+                fault: crate::LoftFault::TooFewSections { have: 1 },
             },
             SnapshotError::AssertionBound {
                 node: node(),

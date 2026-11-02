@@ -135,19 +135,17 @@ fn pipe<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, tol: Tol) -> Body<T> {
     let (s, c) = theta.sin_cos();
     let n = (s, 0.0, c);
     let major = (c, 0.0, -s);
-    let circle = Curve3::Circle {
-        center: f.p((0.0, 0.0, z0)),
-        axis: f.v((0.0, 0.0, 1.0)),
-        radius: T::from_f64(r),
-        u_ref: f.v((1.0, 0.0, 0.0)),
-    };
-    let ellipse = Curve3::Ellipse {
-        center: f.p((0.0, 0.0, z0 + h)),
-        axis: -f.v::<T>(n),
-        semi_u: T::from_f64(r / c),
-        semi_v: T::from_f64(r),
-        u_ref: f.v(major),
-    };
+    let circle = Curve3::circle(
+        f.p((0.0, 0.0, z0)),
+        f.v((0.0, 0.0, 1.0)),
+        T::from_f64(r),
+        f.v((1.0, 0.0, 0.0)),
+    );
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(f.p((0.0, 0.0, z0 + h)), -f.v::<T>(n), f.v(major)),
+        T::from_f64(r / c),
+        T::from_f64(r),
+    ));
     let mut body = Body::<T>::new();
     let seed = body.mvfs(f.p((r, 0.0, z0)), true).unwrap();
     let cyl = body
@@ -447,7 +445,7 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
             }
         }
         let (w, d) = best.ok_or("no station")?;
-        match decide(bound.predicate(), Margin::of(d - at(bound.c())), band) {
+        match decide(bound.predicate(), Margin::of(d - at(0.0)), band) {
             Ok(Sign::Negative | Sign::Zero) => Ok(w),
             _ => Err(format!("the closest station pair is {} apart", w.d)),
         }
@@ -463,6 +461,8 @@ fn class<W>(verdict: &topo::clearance::BoundVerdict<W>) -> String {
     match verdict {
         BoundVerdict::Holds => "Holds".to_owned(),
         BoundVerdict::Violated(_) => "Violated".to_owned(),
+        BoundVerdict::Within(_) => "Within".to_owned(),
+        BoundVerdict::Exceeded => "Exceeded".to_owned(),
         BoundVerdict::Refused(EngineRefusal::Uncertified { shared, arm, .. }) => {
             let cell = match shared {
                 SharedCell::Vertex(_) => "vertex",
@@ -579,19 +579,17 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
     let major = (c, 0.0, -s);
     // The mirror of the wall's axis through the roof: `z − 2(z·n)n`.
     let a2 = (-2.0 * c * s, 0.0, 1.0 - 2.0 * c * c);
-    let circle = Curve3::Circle {
-        center: f.p((0.0, 0.0, z0)),
-        axis: f.v((0.0, 0.0, 1.0)),
-        radius: T::from_f64(r),
-        u_ref: f.v((1.0, 0.0, 0.0)),
-    };
-    let ellipse = Curve3::Ellipse {
-        center: f.p((0.0, 0.0, z0 + h)),
-        axis: -f.v::<T>(n),
-        semi_u: T::from_f64(r / c),
-        semi_v: T::from_f64(r),
-        u_ref: f.v(major),
-    };
+    let circle = Curve3::circle(
+        f.p((0.0, 0.0, z0)),
+        f.v((0.0, 0.0, 1.0)),
+        T::from_f64(r),
+        f.v((1.0, 0.0, 0.0)),
+    );
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(f.p((0.0, 0.0, z0 + h)), -f.v::<T>(n), f.v(major)),
+        T::from_f64(r / c),
+        T::from_f64(r),
+    ));
     let mut body = Body::<T>::new();
     let seed = body.mvfs(f.p((r, 0.0, z0)), true).unwrap();
     let cyl = body
@@ -705,12 +703,7 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
         o2.1 + (along + drop) * a2.1,
         o2.2 + (along + drop) * a2.2,
     );
-    let lower = Curve3::Circle {
-        center: f.p(centre),
-        axis: f.v(a2),
-        radius: T::from_f64(r),
-        u_ref: f.v(u2),
-    };
+    let lower = Curve3::circle(f.p(centre), f.v(a2), T::from_f64(r), f.v(u2));
     let strut = body
         .mev_line(
             MevSite::Fan {
@@ -894,12 +887,8 @@ fn across_a_rim<T: Decide + AtRestPolicy>(
     let at = T::from_f64;
     let p = |x, y, z| Point3::new(at(x), at(y), at(z));
     let v = |x, y, z| Vec3::new(at(x), at(y), at(z));
-    let circle = |r: f64| Curve3::Circle {
-        center: p(0.0, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
-        radius: at(r),
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let circle =
+        |r: f64| Curve3::circle(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), at(r), v(1.0, 0.0, 0.0));
     let mut body = Body::<T>::new();
     let seed = body.mvfs(p(1.0, 0.0, 0.0), true).unwrap();
     let plane = body

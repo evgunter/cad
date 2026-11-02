@@ -17,18 +17,13 @@ use geom_core::{Bounds, Point3, Real, Vec3, interval::Interval};
 fn pair() -> (Curve3<f64>, Curve3<Interval>) {
     let center = Point3::new(1.0, 2.0, 3.0);
     (
-        Curve3::Circle {
-            center,
-            axis: Vec3::unit_z(),
-            radius: 1.5,
-            u_ref: Vec3::unit_x(),
-        },
-        Curve3::Circle {
-            center: center.map(Interval::from_f64),
-            axis: Vec3::unit_z().map(Interval::from_f64),
-            radius: Interval::from_f64(1.5),
-            u_ref: Vec3::unit_x().map(Interval::from_f64),
-        },
+        Curve3::circle(center, Vec3::unit_z(), 1.5, Vec3::unit_x()),
+        Curve3::circle(
+            center.map(Interval::from_f64),
+            Vec3::unit_z().map(Interval::from_f64),
+            Interval::from_f64(1.5),
+            Vec3::unit_x().map(Interval::from_f64),
+        ),
     )
 }
 
@@ -188,10 +183,10 @@ fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
 /// projection's own, and it does not move with the anchor.
 #[test]
 fn the_line_arm_has_no_cut_to_widen_at() {
-    let line = Curve3::Line {
-        origin: Point3::new(0.5, -1.0, 2.0).map(Interval::from_f64),
-        dir: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0).map(Interval::from_f64),
-    };
+    let line = Curve3::line(
+        Point3::new(0.5, -1.0, 2.0).map(Interval::from_f64),
+        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0).map(Interval::from_f64),
+    );
     let p = line.eval(Interval::from_f64(3.25));
     let first = line.param_near(p, Interval::from_f64(0.0)).unwrap();
     for near in [-100.0, 0.0, 1e6] {
@@ -224,12 +219,14 @@ fn the_line_arm_has_no_cut_to_widen_at() {
 #[test]
 fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
     let (carrier64, carrier) = pair();
-    let Curve3::Circle {
-        center,
-        axis,
-        u_ref,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         ..
-    } = carrier
+    }) = carrier
     else {
         panic!("a circle fixture")
     };

@@ -31,6 +31,12 @@ use crate::widgets::{
 /// What the door that opens the add-variable form says.
 pub(crate) const NEW_VARIABLE: &str = "New variable…";
 
+/// What the product door's button says ([`SessionOp::AddToProduct`]).
+pub(crate) const ADD_TO_THE_PRODUCT: &str = "Add to the product";
+
+/// What the button taking a copy out of the product says.
+pub(crate) const TAKE_OUT_OF_THE_PRODUCT: &str = "Take out of the product";
+
 /// What the add-variable form's commit button says: what it makes, so
 /// it reads apart from every other commit on screen.
 pub(crate) const NEW_VARIABLE_COMMIT: &str = "Create variable";
@@ -45,8 +51,8 @@ impl ViewerBehavior<'_> {
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
             self.display_ui(ui, node);
-            self.product_ui(ui, node);
         }
+        self.product_ui(ui);
         // The forms whose op takes the selection, under its header and
         // above its rows, where a reader who picked it looks first:
         // nothing at all unless the selection is a profile.
@@ -76,7 +82,7 @@ impl ViewerBehavior<'_> {
             // pick is a way of reaching that feature, which is what
             // G3's click-to-select is for, and an edge reaches it the
             // same way a face does.
-            Selection::Face(_) | Selection::Edge(_) => {
+            Selection::Face(_) | Selection::Edge(_) | Selection::Vertex(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     crate::widgets::message_toned(
@@ -462,6 +468,10 @@ impl ViewerBehavior<'_> {
                 let picked = PickedName::edge(edge);
                 self.entity_header_ui(ui, &picked, standing);
             }
+            Standing::Vertex { vertex, .. } => {
+                let picked = PickedName::vertex(vertex);
+                self.entity_header_ui(ui, &picked, standing);
+            }
         }
         standing_verdict(ui, &self.theme, standing, landed, said);
     }
@@ -605,30 +615,36 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// **Whether a world copy is in what the document makes**, and the
-    /// control that says it is or is not (D10 `[operations]`): a copy in
-    /// the product can be taken out of it, any other copy in the world
-    /// added to it, through [`SessionOp::SetProduct`]. Nothing joins the
-    /// product by being placed, so this is where a document made in the
-    /// viewer says what it delivers. Read off the committed document, the
-    /// one the op reads.
-    fn product_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        let doc = self.session.committed_doc();
-        let Some(copy) = crate::world::world_copy(doc, node) else {
+    /// **Whether the selected body is in what the document makes**, and
+    /// the control that says it is or is not (D10 `[operations]`): a body
+    /// the product slot reads can be taken out of it
+    /// ([`SessionOp::SetProduct`]),
+    /// and any other drawn body added to it through the one door
+    /// ([`SessionOp::AddToProduct`]). The body is the one the selection
+    /// draws ([`Selection::seat_node`]): under a viewport pick the copy
+    /// the ray met, not the feature that minted the face. Read off the
+    /// committed document, the one the ops read.
+    fn product_ui(&mut self, ui: &mut egui::Ui) {
+        let selection = self.session.selection();
+        let Some(node) = selection.seat_node() else {
             return;
         };
-        let bodies = if crate::world::product_reads(doc).contains(&copy) {
+        let body = selection.seat_body();
+        let doc = self.session.committed_doc();
+        let read = crate::world::body_read(doc, node, body)
+            .and_then(|read| crate::world::read_var(doc, &read));
+        if let Some(var) = read.filter(|var| crate::world::product_reads(doc).contains(var)) {
             crate::widgets::message(ui, "in the product");
-            ui.button("Take out of the product")
-                .clicked()
-                .then(|| crate::world::product_without(doc, copy))
-        } else {
-            ui.button("Add to the product")
-                .clicked()
-                .then(|| crate::world::product_with(doc, copy))
-        };
-        if let Some(bodies) = bodies {
-            self.ops.push(SessionOp::SetProduct { bodies });
+            if ui.button(TAKE_OUT_OF_THE_PRODUCT).clicked() {
+                self.ops.push(SessionOp::SetProduct {
+                    bodies: crate::world::product_without(doc, var),
+                });
+            }
+        } else if read.is_some()
+            && crate::world::is_drawn(doc, node)
+            && ui.button(ADD_TO_THE_PRODUCT).clicked()
+        {
+            self.ops.push(SessionOp::AddToProduct { node, body });
         }
     }
 
@@ -656,7 +672,7 @@ impl ViewerBehavior<'_> {
         match group {
             SlotGroup::Scalar(row) => {
                 ui.horizontal(|ui| {
-                    ui.label(row.slot.label());
+                    ui.label(row.label.as_str());
                     self.slot_value_ui(ui, node, row);
                     self.slot_unit_ui(ui, node, core::slice::from_ref(row));
                     ui.weak(row.dimension.to_string());
@@ -1028,8 +1044,8 @@ impl ViewerBehavior<'_> {
             .map(|(_, refusal)| refusal.to_string())
             .collect();
         let refusals = refusals.join("\n");
-        let written: Vec<String> = writable.iter().map(|(row, _)| row.slot.label()).collect();
-        let skipped: Vec<String> = refused.iter().map(|(row, _)| row.slot.label()).collect();
+        let written: Vec<String> = writable.iter().map(|(row, _)| row.label.clone()).collect();
+        let skipped: Vec<String> = refused.iter().map(|(row, _)| row.label.clone()).collect();
         let skips = format!(
             "a pick writes {} and skips {}:\n{refusals}",
             written.join(", "),
@@ -1467,6 +1483,7 @@ pub(crate) fn standing_verdict(
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
+        Standing::Vertex { resolution, .. } => ("vertex", resolution.as_deref()),
     };
     let by = crate::frame::landed_speaker(landed).or_held(said);
     let said = match resolution {
@@ -1752,7 +1769,7 @@ fn slot_notes(
     reading: Option<&str>,
     notation: Notation,
 ) -> Option<VarId> {
-    for line in reading_notes(&row.slot.label(), &row.value, row.dimension, notation) {
+    for line in reading_notes(&row.label, &row.value, row.dimension, notation) {
         crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
     }
     let mut clicked = None;
@@ -1760,7 +1777,7 @@ fn slot_notes(
         if let Some(source) = &row.source {
             crate::widgets::message_toned(
                 ui,
-                format!("{} {} {source}", row.slot.label(), props::DRIVEN),
+                format!("{} {} {source}", row.label, props::DRIVEN),
                 theme,
                 Tone::Advisory,
             );
@@ -1769,7 +1786,7 @@ fn slot_notes(
             ui,
             format!(
                 "{}: {}",
-                row.slot.label(),
+                row.label,
                 Refusal::affordance(
                     variables,
                     row.slot,
@@ -1793,7 +1810,7 @@ fn slot_notes(
     if let Some(reading) = reading {
         crate::widgets::message_toned(
             ui,
-            format!("{}: {reading}", row.slot.label()),
+            format!("{}: {reading}", row.label),
             theme,
             Tone::Advisory,
         );
@@ -1939,6 +1956,7 @@ mod layout_tests {
     fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
         SlotRow {
             slot: SlotId::Distance,
+            label: SlotId::Distance.label(),
             dimension: Dimension::Length,
             structural: false,
             driver,
@@ -2233,6 +2251,7 @@ mod tests {
     fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
         SlotRow {
             slot: SlotId::Distance,
+            label: SlotId::Distance.label(),
             dimension: Dimension::Length,
             structural: false,
             driver,

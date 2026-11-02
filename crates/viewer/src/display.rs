@@ -11,8 +11,11 @@
 //! transform is the G3 fit probe — a display frame composed over a shown
 //! space's drawn bodies so a user can hold a part against another
 //! BEFORE authoring the mate — and it involves no solver, enters no
-//! history, and is never persisted: `save` writes the document, and a
-//! reopened session starts with this state empty. DI5
+//! history, and never enters the document: `save` writes the document
+//! as it is, and keeps the committed frames beside it as viewer data
+//! ([`crate::layout`]; DI5's display metadata), which an open restores
+//! ([`DisplayState::restore`]). Hides and shows are not kept, and a
+//! reopened session starts with them empty. DI5
 //! (`crates/editor-core/IDENTITY.md`) states the rule over shown spaces:
 //! a free-move moves the picture of one shown space, its release writes
 //! nothing to the document, and the frame is keyed by the space — its
@@ -94,6 +97,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::layout::SavedFrame;
 use pncad::document::{
     Doc, Evaluation, Frame, OperandSlot, ProfileProgram, RecipeNodeId, SpokenNode, SpokenSpace,
     VarId, VarKind,
@@ -650,19 +654,99 @@ fn shown_check(
     space: VarId,
     node: RecipeNodeId,
 ) -> Result<(), AdmissionFault> {
+    space_standing(doc, shown, space).map_err(|unstanding| {
+        let (node, space) = (doc.spoken(node), Box::new(doc.spoken_space(space)));
+        match unstanding {
+            Unstanding::Gone => AdmissionFault::NoSuchSpace { node, space },
+            Unstanding::NotShown => AdmissionFault::NotShown { node, space },
+        }
+    })
+}
+
+/// **Whether a frame keyed by `space` still belongs to it** — the ONE
+/// rule a held frame is asked by, at a prune ([`shown_check`]), at a
+/// restore ([`DisplayState::restore`]) and of a gesture in flight
+/// ([`gesture_check`]): the space is in `doc` and among the spaces
+/// `shown` (DI5).
+fn space_standing(
+    doc: &Doc<ProfileProgram>,
+    shown: &BTreeSet<VarId>,
+    space: VarId,
+) -> Result<(), Unstanding> {
     if doc.var(space).is_none() {
-        return Err(AdmissionFault::NoSuchSpace {
-            node: doc.spoken(node),
-            space: Box::new(doc.spoken_space(space)),
-        });
-    }
-    if shown.contains(&space) {
+        Err(Unstanding::Gone)
+    } else if shown.contains(&space) {
         Ok(())
     } else {
-        Err(AdmissionFault::NotShown {
-            node: doc.spoken(node),
-            space: Box::new(doc.spoken_space(space)),
-        })
+        Err(Unstanding::NotShown)
+    }
+}
+
+/// Why a space no longer holds its frame ([`space_standing`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Unstanding {
+    /// The space is not in the document.
+    Gone,
+    /// The space holds no body the picture draws.
+    NotShown,
+}
+
+/// **Why a saved frame was not restored** ([`DisplayState::restore`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unheld {
+    /// The space is not in the opened document.
+    Gone,
+    /// The space holds no body the opened document's picture draws.
+    NotShown,
+    /// The node that stood in the space when the layout was saved does
+    /// not stand in it now, so the id names another space than the one
+    /// the frame was drawn for (one minted again after an undo).
+    Replaced {
+        /// The witness, as the saving document said it.
+        witness: String,
+    },
+}
+
+impl From<Unstanding> for Unheld {
+    fn from(unstanding: Unstanding) -> Self {
+        match unstanding {
+            Unstanding::Gone => Self::Gone,
+            Unstanding::NotShown => Self::NotShown,
+        }
+    }
+}
+
+/// **A saved frame an open did not restore**: its space, said as the
+/// document that saved the layout said it — the last document known to
+/// hold it, so a space or a witness gone is still said by name — and
+/// why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unrestored {
+    /// The space the frame was keyed by.
+    pub space: VarId,
+    /// The space as the saving document said it.
+    pub said: String,
+    /// Why it was not restored.
+    pub why: Unheld,
+}
+
+impl core::fmt::Display for Unrestored {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { said, why, .. } = self;
+        match why {
+            Unheld::Gone => write!(
+                f,
+                "the saved placement of {said} was not restored: the opened document has no                  such space"
+            ),
+            Unheld::NotShown => write!(
+                f,
+                "the saved placement of {said} was not restored: the opened document draws no                  body in it"
+            ),
+            Unheld::Replaced { witness } => write!(
+                f,
+                "the saved placement of {said} was not restored: {witness}, which stood in it                  when the layout was saved, does not stand in it now, so the space is another"
+            ),
+        }
     }
 }
 
@@ -774,7 +858,7 @@ fn free_move_words() -> g1::Refusals<DisplayFault> {
 /// Owned rather than borrowed so a caller can hold one across the
 /// mutation that would invalidate a borrow, and because the maps are
 /// a handful of entries.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct DisplayView {
     /// Space → the display frame composed over its drawn bodies. An
     /// in-flight preview overrides that space's committed value.
@@ -787,6 +871,41 @@ pub struct DisplayView {
     /// Drawn node → the probe frame governing it — what the scene
     /// displaces and marks, and the pick carries rays into.
     pub moved_nodes: BTreeMap<RecipeNodeId, Frame>,
+    /// **The committed profile drawn by its edit preview instead**
+    /// ([`DisplayView::previewing`]): the committed-profile lane leaves
+    /// its committed outline out, and the pick and the selection marks
+    /// read the preview's outline as that node's
+    /// ([`crate::pickindex::PickIndex::drawn_outline`]), so a cursor
+    /// meets what is drawn. `None` from [`DisplayState::view`], which
+    /// knows no editor.
+    pub previewed_profile: Option<PreviewedProfile>,
+}
+
+/// **A committed profile as its edit preview draws it**: the node, and
+/// the world polyline of each loop the preview draws
+/// ([`crate::sketch::PreviewLoop::drawn_on`]). No loop where the preview
+/// has nothing to draw, and the node is then drawn, and picked, by
+/// nothing.
+#[derive(Debug, Clone)]
+pub struct PreviewedProfile {
+    /// The profile node the edit door holds.
+    pub node: RecipeNodeId,
+    /// One world polyline per drawn loop, in authoring order.
+    pub outline: Vec<Vec<pncad::geom_core::Point3<f64>>>,
+}
+
+impl PreviewedProfile {
+    /// `node` drawn by `preview`, the one the frame's preview lane draws.
+    pub fn of(node: RecipeNodeId, preview: Option<&crate::sketch::ProfilePreview>) -> Self {
+        let outline = preview.map_or_else(Vec::new, |preview| {
+            preview
+                .loops
+                .iter()
+                .map(|lp| lp.drawn_on(&preview.plane))
+                .collect()
+        });
+        Self { node, outline }
+    }
 }
 
 impl DisplayView {
@@ -794,6 +913,21 @@ impl DisplayView {
     /// non-assembly consumer reads.
     pub fn none() -> Self {
         Self::default()
+    }
+
+    /// This view with a committed profile drawn by its edit preview
+    /// instead ([`DisplayView::previewed_profile`]).
+    #[must_use]
+    pub fn previewing(self, profile: Option<PreviewedProfile>) -> Self {
+        Self {
+            previewed_profile: profile,
+            ..self
+        }
+    }
+
+    /// The node [`DisplayView::previewed_profile`] draws by its preview.
+    pub fn previewed_node(&self) -> Option<RecipeNodeId> {
+        self.previewed_profile.as_ref().map(|profile| profile.node)
     }
 
     /// Whether the picture drops body `body` of `node`: a hidden
@@ -1196,6 +1330,7 @@ impl DisplayState {
             hidden_drawn,
             shown_drawn,
             moved_nodes,
+            previewed_profile: None,
         }
     }
 
@@ -1220,6 +1355,81 @@ impl DisplayState {
             self.moves.remove(&space);
             self.revision += 1;
         }
+    }
+
+    /// **The committed frames, as a save keeps them** beside the
+    /// document ([`crate::layout`]), in space order: each space's frame
+    /// with a witness — a node `doc` draws in the space now, the one
+    /// whose gesture wrote the frame where it still is one — and how
+    /// `doc` says the two. A frame is the space's (DI5) whichever node
+    /// wrote it, so a writer since deleted or moved away does not lose
+    /// it: the witness is whatever stands in the space at the save. A
+    /// gesture in flight is not committed and is not among them.
+    pub fn saved_frames(&self, doc: &Doc<ProfileProgram>) -> Vec<SavedFrame> {
+        let drawn = crate::world::Picture::of(doc).nodes();
+        self.moves
+            .iter()
+            .map(|(&space, held)| {
+                let stands = |node: &RecipeNodeId| doc.node_space(*node) == Some(space);
+                let witness = Some(held.node)
+                    .filter(|node| drawn.contains(node) && stands(node))
+                    .or_else(|| drawn.iter().copied().find(stands))
+                    .unwrap_or(held.node);
+                SavedFrame {
+                    space,
+                    witness,
+                    frame: held.frame,
+                    space_said: doc.spoken_space(space).to_string(),
+                    witness_said: doc.spoken(witness).to_string(),
+                }
+            })
+            .collect()
+    }
+
+    /// **Restore the frames a layout saved** over the document just
+    /// opened, and answer the ones it cannot hold, each with why.
+    ///
+    /// A frame belongs to its space while the space is shown — the one
+    /// rule every held frame is asked by ([`space_standing`]; DI5) — so
+    /// that is asked here as the prune asks it. What a restore adds is
+    /// not a second rule about belonging but the check that the space
+    /// the id names is the one the frame was drawn for: its witness
+    /// still stands in it ([`Unheld::Replaced`]). The recipe answers
+    /// both, so no evaluation is needed.
+    pub fn restore(&mut self, doc: &Doc<ProfileProgram>, frames: &[SavedFrame]) -> Vec<Unrestored> {
+        let shown = crate::world::shown_spaces(doc);
+        let mut dropped = Vec::new();
+        for saved in frames {
+            let held = space_standing(doc, &shown, saved.space)
+                .map_err(Unheld::from)
+                .and_then(|()| {
+                    if doc.node_space(saved.witness) == Some(saved.space) {
+                        Ok(())
+                    } else {
+                        Err(Unheld::Replaced {
+                            witness: saved.witness_said.clone(),
+                        })
+                    }
+                });
+            match held {
+                Ok(()) => {
+                    self.moves.insert(
+                        saved.space,
+                        Moved {
+                            frame: saved.frame,
+                            node: saved.witness,
+                        },
+                    );
+                    self.revision += 1;
+                }
+                Err(why) => dropped.push(Unrestored {
+                    space: saved.space,
+                    said: saved.space_said.clone(),
+                    why,
+                }),
+            }
+        }
+        dropped
     }
 
     /// **Turn the toggle of the body `node` builds `on` or off**, over
@@ -1555,9 +1765,11 @@ impl DisplayState {
     /// the loss is news and its cause is the whole content of the
     /// sentence. **A replacement is the act itself.** `Open` and
     /// `NewDocument` change what the session is about; display state
-    /// is state of a session over ONE document (G3 — it is never
-    /// persisted, and "save, reopen, layer-3 state gone" is a property
-    /// of the structure), so a user who replaces the document has
+    /// is state of a session over ONE document (G3 — it never enters
+    /// the document; the frames an open restores from the document's
+    /// saved layout are put back AFTER this, by
+    /// [`DisplayState::restore`], over the incoming document), so a
+    /// user who replaces the document has
     /// asked for exactly this. A per-body notice would report the
     /// act back to the person who performed it.
     ///

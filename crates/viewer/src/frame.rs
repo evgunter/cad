@@ -240,6 +240,7 @@ use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{PruneReport, Withdrawn};
 use crate::idpass::IdStep;
+use crate::layout::LayoutReport;
 use crate::matetool::MateToolEvent;
 use crate::parts::PartFiles;
 use crate::pickcache::{IndexSeam, NotIndexed};
@@ -799,6 +800,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
+        | SessionOp::SetBundle { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
@@ -809,7 +811,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
+        | SessionOp::AddClearance { .. }
+        | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
@@ -819,7 +822,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. } => true,
+        | SessionOp::SetProduct { .. }
+        | SessionOp::AddToProduct { .. } => true,
         SessionOp::CreateLabelled { creation, .. } => acts(creation.op()),
     }
 }
@@ -1398,12 +1402,13 @@ impl<'a> Withdrawal<'a> {
 /// [`frame_status`]'s rank 2 — the ONE door from an [`OpOutcome`] to
 /// the frame's notices, and the call `app` makes per operation.
 ///
-/// Two kinds of news, both provoked by the act the user just took and
-/// both true of the document it left: what the transition WITHDREW
+/// Three kinds of news, each provoked by the act the user just took and
+/// true of the document it left: what the transition WITHDREW
 /// from the display state ([`Withdrawal::all`]), then what the
 /// committed edits did that the user did not ask for by name
-/// ([`maintenance_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
-/// reason: the edit that produced them was accepted, so the same
+/// ([`maintenance_notices`]), then what of the document's saved layout
+/// an open or a save did not carry ([`layout_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
+/// reason: the act that produced them was accepted, so the same
 /// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
 /// holds any operation [`acts`] counts — [`batch_status`] answers it
@@ -1425,10 +1430,38 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
+        layout,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance_notices(maintenance))
+        .chain(layout_notices(layout))
+}
+
+/// **What of a document's saved layout an open or a save did not
+/// carry, as notices** ([`OpOutcome::layout`]): one per frame an open
+/// dropped, one per key or frame it skipped, and one for a layout not
+/// read or not written, each in its own sentence
+/// ([`crate::display::Unrestored`], [`crate::layout::Skipped`],
+/// [`crate::layout::LayoutFault`]). One notice each rather than a
+/// joined list, because a space is said by the name the saving
+/// document gave it, which may hold any mark.
+///
+/// [`Retold::Never`]: the picture shows a space at the identity and
+/// says nothing of a frame that was saved for it.
+pub fn layout_notices(report: &LayoutReport) -> impl Iterator<Item = Message> + '_ {
+    let LayoutReport {
+        dropped,
+        skipped,
+        fault,
+    } = report;
+    let said =
+        |text: String| Message::new(Subject::Document, format!("layout: {text}"), Retold::Never);
+    dropped
+        .iter()
+        .map(move |entry| said(entry.to_string()))
+        .chain(skipped.iter().map(move |entry| said(entry.to_string())))
+        .chain(fault.iter().map(move |fault| said(fault.to_string())))
 }
 
 /// **One edit's maintenance rows as notices**: each row
@@ -2152,15 +2185,29 @@ pub fn tool_notice(
 ) -> Message {
     // A miss is about the open tool, so it retires with it.
     let subject = match notice {
-        ToolNotice::Missed(_) => Subject::Tool,
+        ToolNotice::Missed { .. } => Subject::Tool,
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
+        | ToolNotice::Clearance(_)
         | ToolNotice::Seated { .. } => Subject::Document,
     };
     let retold = match notice {
-        ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Mate(
+            MateToolEvent::PickLost { .. }
+            | MateToolEvent::Reloaded { .. }
+            | MateToolEvent::PlacementGone { .. }
+            | MateToolEvent::NotPlaceable { .. }
+            | MateToolEvent::SeenThroughSeveral { .. }
+            | MateToolEvent::HalfUnchosen { .. }
+            | MateToolEvent::PatternFamily { .. },
+        ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
+        // A declined pick: the same pick says it again.
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::SeveralCopies { .. }) => {
+            Retold::Again
+        }
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..
@@ -2170,7 +2217,7 @@ pub fn tool_notice(
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         // A declined click, like the blend tool's other-target pick:
         // the same miss says it again.
-        ToolNotice::Missed(_) => Retold::Again,
+        ToolNotice::Missed { .. } => Retold::Again,
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
@@ -2346,6 +2393,11 @@ pub struct CheckRow {
     /// selects it: a face or an edge as itself, any other cell as the
     /// node whose table names it. Empty for every other finding.
     pub cells: Vec<(String, Selection)>,
+    /// The body an `unused` finding's row offers to the product door
+    /// ([`SessionOp::AddToProduct`]): the finding's node where it draws
+    /// one body ([`crate::world::body_read`], the door's own test).
+    /// `None` for every other finding.
+    pub add_to_product: Option<RecipeNodeId>,
 }
 
 /// An unproven coincidence's cells as the selections that show them,
@@ -2428,6 +2480,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                         button: by.read(var),
                         sentence: Said(finding, by).to_string(),
                         cells: Vec::new(),
+                        add_to_product: None,
                     };
                 }
                 FindingSubject::Output { placement, .. } => {
@@ -2452,14 +2505,63 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     .operation_of(a.var)
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
+            let add_to_product = (matches!(finding.evidence, CheckEvidence::Unused { .. })
+                && crate::world::body_read(landed, node, None).is_some())
+            .then_some(node);
             CheckRow {
                 select: Selection::Node(node),
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
                 cells: coincidence_cells(finding, by, landed),
+                add_to_product,
             }
         })
         .collect()
+}
+
+/// **The actions a product fault's recourse names** (D10
+/// `[operations]`), each with its button's label: for a slot that reads
+/// nothing ([`ProductError::EmptyProduct`]) or a body that is gone
+/// ([`ProductError::StrandedProduct`]), **Add to the product** on each
+/// body the picture draws outside the product; for a slot reading a
+/// copy outside the world ([`ProductError::ProductOutsideWorld`]), the
+/// same door on each such copy it can move back
+/// ([`crate::world::movable_into_world`]). Empty for any other fault
+/// and for none. Read off `doc`, the committed document the op reads.
+pub fn product_recourse(
+    fault: Option<&ProductError>,
+    doc: &Doc<ProfileProgram>,
+) -> Vec<(String, SessionOp)> {
+    let by = Speaker::of(doc);
+    match fault.map(ProductError::kind) {
+        Some(ProductErrorKind::EmptyProduct | ProductErrorKind::StrandedProduct) => {
+            let picture = crate::world::Picture::of(doc);
+            picture
+                .nodes()
+                .into_iter()
+                .filter(|&node| !picture.product.iter().any(|piece| piece.node == node))
+                .filter(|&node| crate::world::body_read(doc, node, None).is_some())
+                .map(|node| {
+                    (
+                        format!("Add {} to the product", by.node(node)),
+                        SessionOp::AddToProduct { node, body: None },
+                    )
+                })
+                .collect()
+        }
+        Some(ProductErrorKind::ProductOutsideWorld) => crate::world::product_reads(doc)
+            .into_iter()
+            .filter_map(|var| doc.operation_of(var))
+            .filter(|&node| crate::world::movable_into_world(doc, node).is_some())
+            .map(|node| {
+                (
+                    format!("Move {} into the world", by.node(node)),
+                    SessionOp::AddToProduct { node, body: None },
+                )
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// **What the chrome badges about the δ the display budget chose**,
@@ -2905,15 +3007,16 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
 ///
 /// **Two of its names are [`Outstanding`]'s, because they are the same
 /// facts.** `Progress::Evaluating` holds exactly when
-/// `Outstanding::Evaluating` does, and `Progress::Canceled` exactly
-/// when `Outstanding::Canceled` does; `Current` is the one session
+/// `Outstanding::Evaluating` does, `Progress::Canceled` exactly when
+/// `Outstanding::Canceled` does, and `Progress::Exhausted` exactly when
+/// `Outstanding::Exhausted` does; `Current` is the one session
 /// state the index seam splits, into [`Self::Indexing`] and no state
 /// at all. Where two vocabularies share a spelling for two meanings
 /// the spelling is the defect, and [`RankedVerdict`] exists to remove
 /// one; here a second spelling would be the defect, telling a reader
 /// the states differ where they do not. Nor is this [`Outstanding`]
 /// beside an [`IndexSeam`]: an evaluation outranks the index build
-/// behind it, so the six pairs are five states, and the one pair the
+/// behind it, so the eight pairs are seven states, and the one pair the
 /// chrome does not tell apart has no variant to be drawn from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Progress {
@@ -2939,6 +3042,16 @@ pub enum Progress {
         /// Whether an index build is on its way behind the cancel.
         index: IndexSeam,
     },
+    /// [`Self::Canceled`]'s state, reached because the run ran out of
+    /// its member budget rather than by a cancel
+    /// ([`Outstanding::Exhausted`]): the recourse is a smaller count,
+    /// not a re-evaluation.
+    Exhausted {
+        /// Whether an index build is on its way behind the run.
+        index: IndexSeam,
+        /// Where the run ran out.
+        out: crate::session::OutOfBudget,
+    },
     /// The document is evaluated and its index is being built: the
     /// picture is the last one that finished, and picks are refused
     /// until this lands ([`crate::pickcache::unindexed`]).
@@ -2958,6 +3071,7 @@ pub fn progress(outstanding: Outstanding, index: IndexSeam) -> Option<Progress> 
     match (outstanding, index) {
         (Outstanding::Evaluating, _) => Some(Progress::Evaluating),
         (Outstanding::Canceled, index) => Some(Progress::Canceled { index }),
+        (Outstanding::Exhausted(out), index) => Some(Progress::Exhausted { index, out }),
         (Outstanding::Current, IndexSeam::Building) => Some(Progress::Indexing),
         (Outstanding::Current, IndexSeam::Idle) => None,
     }

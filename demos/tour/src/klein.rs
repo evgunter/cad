@@ -91,7 +91,7 @@
 //!    its 30° dihedral, as the SAME profile revolved PARTIALLY does.
 //!    (This pair once split: the
 //!    endpoint-chord lever read ~0 on the closed rim and the
-//!    dihedral classifier decided Zero — a false `TangentialEdge` on
+//!    dihedral classifier decided Zero — a false zero wedge on
 //!    a 30° corner, #554. Both forms are still probed back to back
 //!    because agreement between them is exactly what #554 restored.)
 //! 3. **`fillet_edges` rolls the blend the meridian draws** (not a
@@ -647,7 +647,7 @@ pub fn wall3_pinned<S: Scalar>(
         let straight = matches!(
             bulb.get_curve_geom(e.curve),
             Some(pncad::topo::CurveGeom::Certified(c))
-                if matches!(c.carrier(), pncad::geom::Curve3::Line { .. })
+                if !c.carrier().is_curved()
         );
         straight
             && matches!(ends, [Some(p), Some(q)]

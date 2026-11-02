@@ -233,12 +233,7 @@ fn rim_edge(
         // carrier interval [−u1, −u0] covers the same arc; traversal
         // +u is the DECREASING-t direction (forward = !up).
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center,
-                axis: -axis,
-                radius,
-                u_ref,
-            },
+            Curve3::circle(center, -axis, radius, u_ref),
             -u1,
             -u0,
             !up,
@@ -247,12 +242,14 @@ fn rim_edge(
         )
     } else {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center,
-                axis,
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-                u_ref,
-            },
+            }),
             u0,
             u1,
             up,
@@ -284,14 +281,7 @@ fn meridian_edge(
             u_ref,
         } => {
             let (radial, _) = frame(axis, u_ref);
-            (
-                Curve3::Line {
-                    origin: origin + radial * radius,
-                    dir: axis,
-                },
-                v0,
-                v1,
-            )
+            (Curve3::line(origin + radial * radius, axis), v0, v1)
         }
         Surface::Cone {
             apex,
@@ -302,7 +292,7 @@ fn meridian_edge(
             let (sa, ca) = half_angle.sin_cos();
             let (radial, _) = frame(axis, u_ref);
             let dir = axis * ca + radial * sa; // unit generator; p(v) = apex + dir·v
-            (Curve3::Line { origin: apex, dir }, v0, v1)
+            (Curve3::Line(geom::Line { origin: apex, dir }), v0, v1)
         }
         Surface::Sphere {
             center,
@@ -323,16 +313,7 @@ fn meridian_edge(
             // radial×axis = −tangential). (−tangential)×radial = −axis?
             // tangential×radial = −axis ⇒ n×radial = +axis. Good.
             let _ = tangential;
-            (
-                Curve3::Circle {
-                    center,
-                    axis: n,
-                    radius,
-                    u_ref: radial,
-                },
-                v0,
-                v1,
-            )
+            (Curve3::circle(center, n, radius, radial), v0, v1)
         }
         Surface::Torus {
             center,
@@ -344,12 +325,7 @@ fn meridian_edge(
             let (radial, _) = frame(axis, u_ref);
             let n = radial.cross(axis).normalize(); // n×radial = axis: minor angle = t
             (
-                Curve3::Circle {
-                    center: center + radial * major_radius,
-                    axis: n,
-                    radius: minor_radius,
-                    u_ref: radial,
-                },
+                Curve3::circle(center + radial * major_radius, n, minor_radius, radial),
                 v0,
                 v1,
             )
@@ -534,29 +510,19 @@ fn torus_patch_matches_oracle_arbitrary_minor_intervals() {
 fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
     let d = b - a;
     let len = d.norm();
-    LoopEdge::hand_built(
-        Curve3::Line {
-            origin: a,
-            dir: d * (1.0 / len),
-        },
-        0.0,
-        len,
-        true,
-        0,
-        0,
-    )
+    LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, true, 0, 0)
 }
 
 /// Full circle in the z = h plane as a single self-loop edge, CCW
 /// (+z) when `ccw`.
 fn circle_loop(cx: f64, cy: f64, h: f64, r: f64, ccw: bool) -> Vec<LoopEdge<f64>> {
     vec![LoopEdge::hand_built(
-        Curve3::Circle {
-            center: Point3::new(cx, cy, h),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(
+            Point3::new(cx, cy, h),
+            Vec3::new(0.0, 0.0, 1.0),
+            r,
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         0.0,
         TAU,
         ccw,
@@ -593,12 +559,7 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
     let (t0, t1) = (0.25, 0.25 + 1.5 * PI);
     let c = Point3::new(0.4, -0.2, 0.0);
     let arc = LoopEdge::hand_built(
-        Curve3::Circle {
-            center: c,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: r,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        Curve3::circle(c, Vec3::new(0.0, 0.0, 1.0), r, Vec3::new(1.0, 0.0, 0.0)),
         t0,
         t1,
         true,
@@ -647,7 +608,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     let _ = origin;
     // (b) wrong-radius rim.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Circle { radius, .. } = &mut lp.edges[0].carrier {
+    if let Curve3::Circle(geom::Circle { radius, .. }) = &mut lp.edges[0].carrier {
         *radius += 0.05;
     }
     assert!(
@@ -659,7 +620,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     );
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Line { dir, .. } = &mut lp.edges[1].carrier {
+    if let Curve3::Line(geom::Line { dir, .. }) = &mut lp.edges[1].carrier {
         *dir = (*dir + u_ref * 0.2).normalize();
     }
     assert!(
@@ -737,12 +698,7 @@ fn off_surface_boundaries_must_refuse_typed() {
     // off-axis by 0.4 — that circle is nowhere on the cylinder.
     let rim = |z: f64, off: f64, fwd: bool, tag: u32| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: Point3::new(off, 0.0, z),
-                axis,
-                radius: 1.0,
-                u_ref,
-            },
+            Curve3::circle(Point3::new(off, 0.0, z), axis, 1.0, u_ref),
             0.0,
             TAU,
             fwd,

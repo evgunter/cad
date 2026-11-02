@@ -50,7 +50,7 @@ use crate::tags::{attr_kind_tag, slot_id_tag};
 fn operand_index(slot: &pncad::document::SlotId) -> Option<usize> {
     use pncad::document::OperandSlot as S;
     match slot {
-        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => usize::try_from(*i).ok(),
+        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => Some(*i),
         _ => None,
     }
 }
@@ -275,6 +275,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
+        | EditError::TakeOverRepeatsCopy { node }
         | EditError::WorldIsUndeletable { node }
         | EditError::ConstraintOnNonPlacement { node }
         | EditError::SpaceMismatch { node, a: _, b: _ }
@@ -287,7 +288,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
+        | EditError::StepIdsRefused { node, fault: _ }
+        | EditError::SectionIdsRefused { node, fault: _ } => EditPayload {
             node: Some(node.id()),
             ..none
         },

@@ -31,17 +31,14 @@ fn pole_crossing_half_cap() -> Body<f64> {
     let r = (1.0 - z * z).sqrt();
     let a = Point3::new(r, 0.0, z);
     let b = Point3::new(-r, 0.0, z);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(-r, 0.0, z),
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let great = |axis: Vec3<f64>| {
+        Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, Vec3::new(-r, 0.0, z))
     };
     let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
@@ -97,11 +94,13 @@ fn apex_crossing_bowtie() -> Body<f64> {
         Point3::new(-s, 0.0, s),
         Point3::new(s, 0.0, s),
     );
-    let rim = |z: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: s,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    let rim = |z: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::new(0.0, 0.0, 1.0),
+            s,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     };
     let line = EdgeCurveSpec::line_between;
     let mut body = Body::<f64>::new();

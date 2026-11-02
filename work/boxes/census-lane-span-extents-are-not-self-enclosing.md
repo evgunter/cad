@@ -2,10 +2,11 @@
 id: census-lane-span-extents-are-not-self-enclosing
 kind: issue
 title: The census lane's Span extents do not enclose their locus at f64 by themselves; their soundness rests on what each reader compares them against, which nothing guards
-status: open
+status: parked
 opened: 2026-10-18
 priority: P3
 cost: M
+blocked_on: [cover-topo-faces]
 ---
 
 Found by the review of PR 5308 (`restread/one-edge-box-map`, MINOR 2).
@@ -56,3 +57,7 @@ scalar by itself. Either charge each extent's rounding at its scale, as
 `spiric_period_box` does, or charge the census entry (`edge_rule_box`,
 `face_reach_in`) once by a stated bound on the extents' error. The
 claim then needs no reader roster.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+The sampled torus window this row cites is gone. The census lane's closed-form torus window (`ring_window_extent`) adds no rounding slack, where `sphere_reach` adds `SPHERE_REACH_ULPS` around the same `torus_rect_extent` call. PR 6336's review measured a worst escape of 1.4e-15 relative to R + r over 20k random cases: one more instance of this row's class. (BOXES orchestrator)

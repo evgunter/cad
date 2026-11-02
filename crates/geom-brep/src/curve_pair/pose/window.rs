@@ -78,9 +78,9 @@ const MAX_TURNS: usize = 64;
 /// What one window reads: the two conics, `a`'s span, `b`'s carrier,
 /// `a`'s height above `b`'s plane as `(c₀, c₁, s₁)` and its rounding.
 pub(super) struct Window<'w, T: geom_core::Real> {
-    pub(super) a: &'w Conic<T>,
+    pub(super) a: &'w dyn Conic<T>,
     pub(super) span_a: (T, T),
-    pub(super) b: &'w Conic<T>,
+    pub(super) b: &'w dyn Conic<T>,
     pub(super) carrier_b: &'w Curve3<T>,
     pub(super) height: (T, T, T),
     pub(super) noise: T,
@@ -216,7 +216,7 @@ impl<T: Decide> Window<'_, T> {
         let (m, w) = ((l + r) / two, (r - l) / two);
         let speed = self.a.speed_hi();
         let reach = speed * w;
-        let q = self.a.point(m);
+        let q = self.a.point_at(m);
         let lower = self.carrier_b.clearance(q).unwrap_or_else(T::zero) - reach;
         let row = "curve_pair_window_recedes";
         let h = bounds(&self.height_poly(), m, w, self.noise);
@@ -226,10 +226,7 @@ impl<T: Decide> Window<'_, T> {
         // it rests on `rounding_charge`'s estimate, as the subdivision's
         // does, and an Interval reading carries its own enclosure.
         let f = bounds(poly, m, w, geom_core::rounding_charge(*terms));
-        let (big, small) = (
-            self.b.semi_u.abs().max(self.b.semi_v.abs()),
-            self.b.semi_u.abs().min(self.b.semi_v.abs()),
-        );
+        let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
         let height_recedes = positive(row, h.lo)
             && positive(row, h.slope_lo)
             && same_way(row, h.at, h.slope_at, away);
@@ -276,14 +273,7 @@ impl<T: Decide> Window<'_, T> {
     /// encloses each step and is raised alike.
     fn along_b(&self, m: T, w: T, foot: &geom::Foot<'_, T>) -> T {
         let eps = T::from_f64(f64::EPSILON);
-        let a = Curve3::Ellipse {
-            center: self.a.center,
-            axis: self.a.axis,
-            semi_u: self.a.semi_u,
-            semi_v: self.a.semi_v,
-            u_ref: self.a.u_ref,
-        };
-        let (_, va) = a.ders1(m);
+        let (_, va) = self.a.jet_at(m);
         let (_, vb) = self.carrier_b.ders1(foot.t());
         let k = va.dot(vb) / vb.dot(vb);
         let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
@@ -299,11 +289,7 @@ impl<T: Decide> Window<'_, T> {
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
     /// `b`'s unit coordinates.
     fn foot_seed(&self, q: Point3<T>) -> T {
-        let d = q - self.b.center;
-        let (x, y) = (
-            d.dot(self.b.u_ref) / self.b.semi_u,
-            d.dot(self.b.v_ref()) / self.b.semi_v,
-        );
+        let (x, y) = self.b.unit_in_plane(q);
         super::angle(y, x)
     }
 
@@ -346,7 +332,7 @@ impl<T: Decide> Window<'_, T> {
     /// `a(ta)` to it and `speed` `a`'s greatest. `None` where `g` leaves
     /// no such arc.
     fn ring(&self, j: &Joint<T>, ta: T, band: Band) -> Option<T> {
-        let gap = (self.a.point(ta) - j.point).norm();
+        let gap = (self.a.point_at(ta) - j.point).norm();
         let e = T::from_f64(band.escalate());
         let radius = (e - gap) / (T::from_f64(2.0) * self.a.speed_hi());
         positive("curve_pair_window_ring", radius).then_some(radius)
@@ -481,7 +467,6 @@ mod rows {
     use geom_core::{Band, Point3, Vec3};
 
     use super::{Joint, Window};
-    use crate::Conic;
     use crate::half_angle::TrigPoly;
 
     fn band() -> Band {
@@ -496,18 +481,18 @@ mod rows {
         window: (f64, f64),
         joint: f64,
     ) -> bool {
-        let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
+        let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
         let lever = ka.speed_hi().max(kb.speed_hi());
         let o = Point3::origin();
         let noise = geom_core::rounding_charge(
-            (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
+            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
         );
         let w = Window {
             a: &ka,
             span_a,
             b: &kb,
             carrier_b: b,
-            height: super::super::height(&ka, kb.center, kb.axis),
+            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
             noise,
         };
         let j = Joint {
@@ -543,12 +528,12 @@ mod rows {
     /// `10⁻⁴` about its radius at `θ_r = 5·10⁻⁶`, so that it crosses the
     /// first's plane there and `J`, at `θ = 0`, lies `5·10⁻¹⁰` above it.
     fn crossing_at(psi: f64) -> (Curve3<f64>, Curve3<f64>, f64) {
-        let b = Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let b = Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let u = Vec3::new(psi.cos(), psi.sin(), 0.0);
         let v = Vec3::new(0.0, 0.0, 1.0).cross(u);
         let c = Point3::new(1.0, 0.0, 0.0) - u;
@@ -556,12 +541,12 @@ mod rows {
         let k = u * root.cos() + v * root.sin();
         let pivot = c + k;
         let tilt = 1e-4;
-        let a = Curve3::Circle {
-            center: pivot + turn(c - pivot, k, tilt),
-            axis: turn(u.cross(v), k, tilt),
-            radius: 1.0,
-            u_ref: turn(u, k, tilt),
-        };
+        let a = Curve3::circle(
+            pivot + turn(c - pivot, k, tilt),
+            turn(u.cross(v), k, tilt),
+            1.0,
+            turn(u, k, tilt),
+        );
         (a, b, root)
     }
 
@@ -595,19 +580,21 @@ mod rows {
     fn a_window_read_receding_past_the_ring_holds_the_joint_alone() {
         let x = -178.819_660_112_501_03;
         let h = FRAC_1_SQRT_2;
-        let a = Curve3::Ellipse {
-            center: Point3::new(x, -5.0, 95.0),
-            axis: Vec3::new(h, h, 0.0),
-            semi_u: 7.071_067_811_865_475_5,
-            semi_v: 5.0,
-            u_ref: Vec3::new(-h, h, 0.0),
-        };
-        let b = Curve3::Circle {
-            center: Point3::new(x, 0.0, 95.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: 5.0,
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let a = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(x, -5.0, 95.0),
+                Vec3::new(h, h, 0.0),
+                Vec3::new(-h, h, 0.0),
+            ),
+            7.071_067_811_865_475_5,
+            5.0,
+        ));
+        let b = Curve3::circle(
+            Point3::new(x, 0.0, 95.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            5.0,
+            Vec3::new(0.0, 0.0, 1.0),
+        );
         assert!(
             holds((&a, (0.0, FRAC_PI_2)), &b, (-6.3e-5, 6.3e-5), 0.0),
             "the receding window holds the joint alone"
@@ -628,19 +615,19 @@ mod rows {
     #[test]
     fn a_window_holding_a_second_meeting_is_not_the_joints() {
         let t = 3e-8_f64;
-        let a = Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, -t.sin(), t.cos()),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let a = Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, -t.sin(), t.cos()),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let cb = 0.5 + 1e-4;
-        let b = Curve3::Circle {
-            center: Point3::new(cb, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let b = Curve3::circle(
+            Point3::new(cb, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let xp = (1.0 + cb * cb - 0.25) / (2.0 * cb);
         let th = -((1.0 - xp * xp).sqrt() / t.cos()).asin();
         assert!(
@@ -660,19 +647,19 @@ mod rows {
     #[test]
     fn a_window_across_the_seam_is_read_on_both_sides() {
         let t = 3e-8_f64;
-        let a = Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, -t.sin(), t.cos()),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let a = Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, -t.sin(), t.cos()),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let cb = 0.5 + 1e-4;
-        let b = Curve3::Circle {
-            center: Point3::new(cb, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let b = Curve3::circle(
+            Point3::new(cb, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let xp = (1.0 + cb * cb - 0.25) / (2.0 * cb);
         let th = ((1.0 - xp * xp).sqrt() / t.cos()).asin();
         let tau = core::f64::consts::TAU;
@@ -701,25 +688,25 @@ mod rows {
     fn a_ring_lies_within_the_escalation_of_its_meeting() {
         let band = band();
         let e = band.escalate();
-        let a = Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 2.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let b = Curve3::Circle {
-            center: Point3::new(5.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: 3.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+        let a = Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            2.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let b = Curve3::circle(
+            Point3::new(5.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            3.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
         let w = Window {
             a: &ka,
             span_a: (-1.0, 1.0),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.center, kb.axis),
+            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
             noise: 0.0,
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
@@ -833,42 +820,44 @@ mod rows {
         let big = 6.406_f64;
         let (c, s) = (0.1 / big, (1.0 - (0.1 / big) * (0.1 / big)).sqrt());
         let u = Vec3::new(c, 0.0, s);
-        Curve3::Ellipse {
-            center: Point3::new(0.1, 0.0, 0.0) - u * big,
-            axis: u.cross(Vec3::new(0.0, 1.0, 0.0)),
-            semi_u: big,
-            semi_v: 0.1,
-            u_ref: u,
-        }
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.1, 0.0, 0.0) - u * big,
+                u.cross(Vec3::new(0.0, 1.0, 0.0)),
+                u,
+            ),
+            big,
+            0.1,
+        ))
     }
 
     /// A circle of `radius` in `z = 0` through `J = (0.1, 0, 0)`, tangent
     /// to `ŷ` there, its centre on the `x` axis, `J` at its angle `0`.
     fn rim_circle(radius: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(0.1 - radius, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+        Curve3::circle(
+            Point3::new(0.1 - radius, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     }
 
     /// `a`'s window `(-reach, reach)` about `J` at `θ = 0` against `b` at
     /// the fine band: whether it holds `J` alone, and the pieces the arc
     /// past `J`'s ring reads in, outward.
     fn touch(a: &Curve3<f64>, b: &Curve3<f64>, reach: f64) -> (bool, Option<usize>) {
-        let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
+        let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
         let lever = ka.speed_hi().max(kb.speed_hi());
         let o = Point3::origin();
         let noise = geom_core::rounding_charge(
-            (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
+            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
         );
         let w = Window {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
             carrier_b: b,
-            height: super::super::height(&ka, kb.center, kb.axis),
+            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
             noise,
         };
         let j = Joint {
@@ -922,13 +911,13 @@ mod rows {
         // The rim's projection is the circle: its distance is its height.
         let far = a.eval(1e-5).z.abs();
         assert!(far > 1e-10, "the far end lies {far:e} off");
-        let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+        let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
         let w = Window {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.center, kb.axis),
+            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
             noise: 0.0,
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
@@ -957,18 +946,18 @@ mod rows {
     /// about `2.9·10⁻¹⁴` under on a third of the pieces.
     #[test]
     fn the_half_width_covers_a_piece_one_ulp_wide_far_from_zero() {
-        let b = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let a = Curve3::Circle {
-            center: Point3::new(1.0, 0.0, 1.0),
-            axis: Vec3::new(0.0, -1.0, 0.0),
-            radius: 1.0,
-            u_ref: Vec3::new(-400f64.sin(), 0.0, -400f64.cos()),
-        };
+        let b = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let a = Curve3::circle(
+            Point3::new(1.0, 0.0, 1.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            1.0,
+            Vec3::new(-400f64.sin(), 0.0, -400f64.cos()),
+        );
         let at = a.eval(400.0);
         assert!(
             (at - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-12,
@@ -979,13 +968,13 @@ mod rows {
             let q = a.eval(t);
             (q.z.powi(2) + (q.x.hypot(q.y) - 1.0).powi(2)).sqrt()
         };
-        let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+        let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
         let w = Window {
             a: &ka,
             span_a: (399.0, 401.0),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.center, kb.axis),
+            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
             noise: 0.0,
         };
         let mut l = 400.0_f64;

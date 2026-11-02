@@ -34,7 +34,10 @@ bvh = { path = "../bvh" }
 # anything now that it did not compile before.
 editor-core = { path = "../editor-core" }
 
-# The preferences document's format (`crates/viewer/src/prefs.rs`).
+# The preferences document's format (`crates/viewer/src/prefs.rs`),
+# and the saved layout's (`crates/viewer/src/layout.rs`), which is read
+# through the same dynamic door, so this crate takes no serde edge
+# (`scripts/gates/kernel-serde-free.sh`).
 #
 # A real dependency rather than a hand-rolled parser: TOML is not the
 # trivial grammar it looks like, and a format chosen BECAUSE people

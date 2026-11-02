@@ -245,7 +245,7 @@ fn ring_radius(body: &Body<f64>, face: FaceKey) -> f64 {
     };
     let he = body.loop_cycle(first).unwrap()[0];
     let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-    let Curve3::Circle { radius, .. } = *body
+    let Curve3::Circle(geom::Circle { radius, .. }) = *body
         .get_curve_geom(e.curve)
         .unwrap()
         .certified()

@@ -173,7 +173,11 @@ fn verify<T: Scalar>(
             }
         }
         let (w, d) = best.ok_or("no station")?;
-        let definite = match decide(bound.predicate(), Margin::of(d - at(bound.c())), band()) {
+        let definite = match decide(
+            bound.predicate(),
+            Margin::of(d - at(bound.lower().map_or(0.0, |lo| lo.lo()))),
+            band(),
+        ) {
             Ok(Sign::Negative) => true,
             Ok(Sign::Zero) => !bound.zero_discharges(),
             _ => false,
@@ -308,6 +312,8 @@ fn class<W>(verdict: &BoundVerdict<W>) -> String {
     match verdict {
         BoundVerdict::Holds => "Holds".to_owned(),
         BoundVerdict::Violated(_) => "Violated".to_owned(),
+        BoundVerdict::Within(_) => "Within".to_owned(),
+        BoundVerdict::Exceeded => "Exceeded".to_owned(),
         BoundVerdict::Refused(EngineRefusal::Uncertified { shared, arm, .. }) => {
             let cell = match shared {
                 SharedCell::Vertex(_) => "vertex",
@@ -668,7 +674,7 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
             sa.windows(Which::First).unwrap(),
             sb.windows(Which::Second).unwrap(),
         );
-        let bound = ClearanceBound::AtLeast(0.1);
+        let bound = ClearanceBound::at_least(0.1);
         let sweep = Sweep {
             bound,
             band: band(),
@@ -704,7 +710,7 @@ fn clearance_between_scopes_sharing_an_edge_is_violated_at_zero() {
         matches!(met, Some(SharedCell::Edge(_))),
         "named on the shared edge: {met:?}"
     );
-    assert_eq!(CLEARANCE_MARGIN, ClearanceBound::AtLeast(0.1).predicate());
+    assert_eq!(CLEARANCE_MARGIN, ClearanceBound::at_least(0.1).predicate());
     let side = |f| Side {
         body: &body,
         faces: vec![f],
@@ -1251,7 +1257,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .filter(|(_, e)| {
                 matches!(
                     drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Circle { center, .. }) if (mid(center.z) - 2.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })) if (mid(center.z) - 2.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1326,7 +1332,7 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
             .unwrap()
             .certified()
             .map(|g| g.carrier().clone()),
-        Some(geom::Curve3::Ellipse { .. })
+        Some(geom::Curve3::Ellipse(..))
     )
 }
 
@@ -2483,11 +2489,11 @@ fn a_wall_pair_closer_than_the_bound_is_violated_not_separated() {
     for (what, report) in [
         (
             "f64",
-            wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(0.08)),
+            wall_against_wall(&float.body, walls, ClearanceBound::at_least(0.08)),
         ),
         (
             "Interval",
-            wall_against_wall(&twin.body, twin_walls, ClearanceBound::AtLeast(0.08)),
+            wall_against_wall(&twin.body, twin_walls, ClearanceBound::at_least(0.08)),
         ),
     ] {
         let BoundVerdict::Violated(w) = report.verdict else {
@@ -2501,7 +2507,7 @@ fn a_wall_pair_closer_than_the_bound_is_violated_not_separated() {
             "{what}: the witness is closer than the bound: {w:?}"
         );
     }
-    let report = wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(0.03));
+    let report = wall_against_wall(&float.body, walls, ClearanceBound::at_least(0.03));
     assert!(
         matches!(report.verdict, BoundVerdict::Holds),
         "walls 0.05 apart hold AtLeast(0.03): {:?} {:?}",
@@ -2561,7 +2567,7 @@ fn the_support_at_depth_never_separates_a_pair_closer_than_the_bound() {
     let phi = core::f64::consts::FRAC_PI_4;
     let (float, walls) = slab_wall_pair::<f64>(0.05, 0.3, phi);
     let held =
-        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::AtLeast(0.045), BUDGET);
+        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::at_least(0.045), BUDGET);
     println!(
         "[dirsupport] held at depth: {:?} {:?} deepest {}",
         held.verdict, held.receipt, held.widths.deepest
@@ -2573,7 +2579,7 @@ fn the_support_at_depth_never_separates_a_pair_closer_than_the_bound() {
         held.receipt
     );
     let broken =
-        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::AtLeast(0.08), 2048);
+        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::at_least(0.08), 2048);
     println!(
         "[dirsupport] broken at depth: {:?} {:?} deepest {}",
         broken.verdict, broken.receipt, broken.widths.deepest
@@ -2600,11 +2606,11 @@ fn a_gap_over_a_metre_is_read_in_metres() {
         for (what, report) in [
             (
                 "f64",
-                wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(1.62)),
+                wall_against_wall(&float.body, walls, ClearanceBound::at_least(1.62)),
             ),
             (
                 "Interval",
-                wall_against_wall(&twin.body, twin_walls, ClearanceBound::AtLeast(1.62)),
+                wall_against_wall(&twin.body, twin_walls, ClearanceBound::at_least(1.62)),
             ),
         ] {
             let BoundVerdict::Violated(w) = report.verdict else {
@@ -2619,4 +2625,67 @@ fn a_gap_over_a_metre_is_read_in_metres() {
             );
         }
     }
+}
+
+/// **The walk reads its charts and edges through their memos.** A
+/// half-turn helical sweep's spline walls and spline edges, read into
+/// windows and asked a few dozen pairs: every spline
+/// chart and spline edge of the windows keeps a memo, and the walk has
+/// filled the charts' and the edges'. Red if a window's chart or a
+/// lifted edge is read without its memo, so that each pair restricts
+/// its cells afresh.
+#[test]
+fn the_walk_reads_its_charts_and_edges_through_their_memos() {
+    let path = helix(0.5, 0.4);
+    let place = normal_start_place(&path);
+    let body = sweep_body::<f64>(
+        &lifted(&quad([
+            (-0.08, -0.08),
+            (0.08, -0.08),
+            (0.08, 0.08),
+            (-0.08, 0.08),
+        ])),
+        plane_at(&place),
+        &path,
+        9,
+        3,
+        tol(),
+    )
+    .expect("the half-turn helix sweeps")
+    .body;
+    let side = Side {
+        body: &body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let windows = side.windows(Which::First).expect("every face has a window");
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: 64,
+        },
+    };
+    let _ = sweep.run(
+        &windows,
+        &windows,
+        true,
+        verify(&body, ClearanceBound::StrictlyPositive),
+    );
+    let (charts, edges) = windows.spline_memos();
+    assert!(
+        !charts.is_empty() && !edges.is_empty(),
+        "the sweep has spline walls ({}) and spline edges ({})",
+        charts.len(),
+        edges.len()
+    );
+    assert!(
+        charts.iter().chain(&edges).all(Option::is_some),
+        "every spline chart and edge keeps a memo: charts {charts:?}, edges {edges:?}"
+    );
+    let filled = |m: &[Option<usize>]| m.iter().flatten().sum::<usize>();
+    assert!(
+        filled(&charts) > 0 && filled(&edges) > 0,
+        "the walk read through the memos: charts {charts:?}, edges {edges:?}"
+    );
 }

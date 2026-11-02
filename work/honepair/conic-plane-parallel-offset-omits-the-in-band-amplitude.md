@@ -34,3 +34,7 @@ shrunk toward zero by the tilt, the tilt row kept only to route.
 
 - Re-banded P3 → P2: offset decided without the in-band amplitude beside it: margins decided one at a time, or one verdict read off two decisions: interval and error propagation, P2 by `work/README.md` Priority.
 - Moved to HONEPAIR (`work/honepair/`) by `git mv`, id and body unchanged: the P2 track opened for one verdict decided on one margin at its own reach: rows that decide two margins one at a time, compose two readings, or lever a reading at the wrong extent. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Evidence (ONEHOME, PR 6327, 2026-11-02)
+
+The `bool_arc_plane_side` half is gone: `reduce::boundary_meets_circle_only_at` no longer reads plane crossings and reads the boundary pass (`geom_brep::curve_face::read`) over the circle instead. The `bool_conic_face_plane_offset` half stands.

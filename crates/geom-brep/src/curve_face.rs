@@ -7,7 +7,8 @@
 //!   face's interior. An arm that is not built says so
 //!   ([`Route::implemented`]) and names what it lacks, and its caller
 //!   refuses typed with that routing.
-//! - **The boundary first** ([`boundary`]): before any arm, the span is
+//! - **The boundary first** ([`read`], and [`boundary`] its answer for
+//!   the span's interior): before any arm, the span is
 //!   read against each of the face's boundary edges through the
 //!   curve-pair table ([`crate::curve_pair::meet`]), each boundary
 //!   edge's start vertex on the span before its meeting. A shared run
@@ -17,7 +18,8 @@
 //!   ([`Boundary::Clear`]) is read against the face's interior.
 //!
 //! The pass is given no topology and no surface: the boundary is its
-//! spans, in the face's walk order, so it serves every face kind alike.
+//! spans, in the face's walk order, and its lone vertices, so it serves
+//! every face kind alike.
 
 use geom::{CurveKind, SurfaceKind};
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -162,15 +164,53 @@ pub enum BoundaryRefusal {
     Fault(MeetFault),
 }
 
-/// **The boundary pass**: `span` read against each of a face's boundary
-/// edges, given in the face's walk order as each edge's start vertex and
-/// its span. Every edge is read, so a refusal anywhere on the boundary
-/// refuses the pass. Each vertex is read on the span first
-/// ([`Span::contact`]), then the edge's span through
-/// [`crate::curve_pair::meet`]. A vertex on the span's interior, or a
-/// point meeting there, is a meeting on the boundary; a shared run is
-/// read through its witnesses, of which one strictly inside the span is a
-/// run of positive length, and leaves the run's ends to the vertex
+/// Where a meeting of the span sits on the face's boundary
+/// ([`BoundaryMeeting`]).
+#[derive(Clone, Copy, Debug)]
+pub enum OnBoundary<T: geom_core::Real> {
+    /// The start vertex of the edge at this index in the walk.
+    Vertex(usize),
+    /// The lone vertex at this index.
+    Lone(usize),
+    /// On the edge at this index in the walk, where its span reads the
+    /// meeting: inside it, or at one of its ends.
+    Edge(usize, Hit<T>),
+}
+
+/// A meeting of the span with the face's boundary: its point, where it
+/// sits on the span, and where on the boundary.
+#[derive(Clone, Copy, Debug)]
+pub struct BoundaryMeeting<T: geom_core::Real> {
+    /// The point.
+    pub point: Point3<T>,
+    /// Where it sits on the span.
+    pub on_span: Hit<T>,
+    /// Where it sits on the boundary.
+    pub on_boundary: OnBoundary<T>,
+}
+
+/// **Every meeting of a span with a face's boundary** ([`read`]), in the
+/// order the pass reads them.
+#[derive(Clone, Debug)]
+pub struct BoundaryReading<T: geom_core::Real> {
+    /// The meetings: each vertex read on the span, then each point
+    /// meeting of an edge the span shares no curve with.
+    pub meetings: Vec<BoundaryMeeting<T>>,
+    /// The edges, by index in the walk, whose carrier the pose read as the
+    /// span's own curve, each with whether they share a run of positive
+    /// length ([`shares_a_run`]). Their point meetings are the run's
+    /// witnesses and are not in `meetings`.
+    pub shared: Vec<(usize, bool)>,
+}
+
+/// **The boundary pass**: `span` read against a face's boundary, given
+/// as its edges in the face's walk order (each edge's start vertex and
+/// its span) and its lone vertices. Every member is read, so a refusal
+/// anywhere on the boundary refuses the pass. Each vertex is read on the
+/// span ([`Span::contact`]); each edge's start vertex before the edge's
+/// span, which is read through [`crate::curve_pair::meet`]. A shared run
+/// is read through its witnesses, of which one strictly inside the span
+/// is a run of positive length, and leaves the run's ends to the vertex
 /// readings, since every end of a run strictly inside the span is a
 /// vertex of the boundary.
 ///
@@ -179,44 +219,86 @@ pub enum BoundaryRefusal {
 /// [`BoundaryRefusal`], as its variants say. A refusal's meetings are not
 /// read: a stretch that escalates holds meetings whose stretch is
 /// undecided.
+pub fn read<T: Decide>(
+    span: &Span<'_, T>,
+    edges: &[(Point3<T>, Span<'_, T>)],
+    lone: &[Point3<T>],
+    band: Band,
+) -> Result<BoundaryReading<T>, BoundaryRefusal> {
+    let (t0, t1) = span.params();
+    let mid = geom::mid_param(t0, t1);
+    let mut reading = BoundaryReading {
+        meetings: Vec::new(),
+        shared: Vec::new(),
+    };
+    let mut vertex = |point: Point3<T>, on_boundary| -> Result<(), BoundaryRefusal> {
+        if let Some(on_span) = span.contact(point, mid, band).map_err(carrier)? {
+            reading.meetings.push(BoundaryMeeting {
+                point,
+                on_span,
+                on_boundary,
+            });
+        }
+        Ok(())
+    };
+    for (i, &point) in lone.iter().enumerate() {
+        vertex(point, OnBoundary::Lone(i))?;
+    }
+    let mut met_edges = Vec::with_capacity(edges.len());
+    for (i, (start, edge)) in edges.iter().enumerate() {
+        vertex(*start, OnBoundary::Vertex(i))?;
+        let met = meet(span, edge, band).map_err(|refusal| BoundaryRefusal::of(refusal.fault))?;
+        met_edges.push((i, met));
+    }
+    for (i, met) in met_edges {
+        if met.shared.is_some() {
+            reading.shared.push((i, shares_a_run(&met)));
+            continue;
+        }
+        reading
+            .meetings
+            .extend(met.points.iter().map(|m| BoundaryMeeting {
+                point: m.point,
+                on_span: m.on_a,
+                on_boundary: OnBoundary::Edge(i, m.on_b),
+            }));
+    }
+    Ok(reading)
+}
+
+/// **The boundary pass's answer for a span's interior** ([`read`] over the
+/// edges alone): the first meeting strictly inside the span, in walk
+/// order, else a run shared with a boundary edge, else clear.
+///
+/// # Errors
+///
+/// [`read`]'s.
 pub fn boundary<T: Decide>(
     span: &Span<'_, T>,
     edges: &[(Point3<T>, Span<'_, T>)],
     band: Band,
 ) -> Result<Boundary<T>, BoundaryRefusal> {
-    let (t0, t1) = span.params();
-    let mid = geom::mid_param(t0, t1);
-    let mut first = None;
-    let mut along = None;
-    for (i, (start, edge)) in edges.iter().enumerate() {
-        match span.contact(*start, mid, band) {
-            Ok(Some(Hit::On { t, .. })) => {
-                first.get_or_insert(Boundary::Meets {
-                    t,
-                    point: *start,
-                    edge: i,
-                });
-            }
-            Ok(Some(Hit::End(_)) | None) => {}
-            Err(refusal) => return Err(carrier(refusal)),
-        }
-        let met = meet(span, edge, band).map_err(|refusal| BoundaryRefusal::of(refusal.fault))?;
-        if met.shared.is_some() {
-            if shares_a_run(&met) {
-                along.get_or_insert(i);
-            }
-            continue;
-        }
-        for m in &met.points {
-            if let Hit::On { t, .. } = m.on_a {
-                first.get_or_insert(Boundary::Meets {
+    let reading = read(span, edges, &[], band)?;
+    // Walk order: an edge's start vertex, then the edge's meetings, and
+    // `meetings` holds every vertex before any edge's.
+    let first = reading
+        .meetings
+        .iter()
+        .filter_map(|m| match (m.on_span, m.on_boundary) {
+            (Hit::On { t, .. }, OnBoundary::Vertex(edge) | OnBoundary::Edge(edge, _)) => {
+                Some(Boundary::Meets {
                     t,
                     point: m.point,
-                    edge: i,
-                });
+                    edge,
+                })
             }
-        }
-    }
+            _ => None,
+        })
+        .min_by_key(|b| match *b {
+            Boundary::Meets { edge, .. } => edge,
+            Boundary::Along { .. } | Boundary::Clear => usize::MAX,
+        });
+    let along = reading.shared.iter().find(|(_, run)| *run).map(|&(i, _)| i);
     Ok(first.unwrap_or(along.map_or(Boundary::Clear, |edge| Boundary::Along { edge })))
 }
 

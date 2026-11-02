@@ -198,12 +198,12 @@ fn wobbled_sliver(metres: f64) -> Option<Body<f64>> {
     let theta = 2.0 * metres / rr;
     let a = Point3::new(rr, 0.0, 0.0);
     let b = Point3::new(rr * theta.cos(), rr * theta.sin(), 0.0);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rr,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        rr,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
@@ -315,17 +315,19 @@ fn pole_crossing_half_cap() -> Body<f64> {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.5),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rim_r,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: Vec3::new(-rim_r, 0.0, 0.5),
+    let rim = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        rim_r,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let great = |axis: Vec3<f64>| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            1.0,
+            Vec3::new(-rim_r, 0.0, 0.5),
+        )
     };
     let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < 0.5 {

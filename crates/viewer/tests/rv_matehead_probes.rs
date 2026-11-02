@@ -1,18 +1,10 @@
-//! **The viewer's boundary between a picked face and a mate head.**
+//! **The viewer's boundary between a pick and a mate side.**
 //!
-//! A mate head is a `FaceName`, and the viewer is one of the three
-//! places that turn data into one. Its input is a `FaceSelection`,
-//! whose `name` is a bare `StableName`: a face by the PICKING DOOR's
-//! rule (`SelectionRefusal::NotAFace`, refused before a selection
-//! exists) and not by its type, with every field public. So the mate
-//! tool asks the head constructor and answers its refusal typed, in
-//! every build — the two rows below are that answer and its sentence.
-//!
-//! `work/view/face-selection-carries-a-bare-stable-name` is the row
-//! that removes the question: `FaceSelection::name` becomes a
-//! `FaceName`, made where the pick is made, and
-//! `MateToolError::PickIsNotAFace` goes away with the constructor call
-//! it answers.
+//! A pick reaches the mate tool as a selection whose `name` is a bare
+//! `StableName` with every field public, so what a pick reads as is its
+//! NAME's entity kind, whatever selection carried it, and a kind that
+//! reads no such entity is refused typed (`KindDoesNotRead`), in every
+//! build — the two rows below are that answer and its sentence.
 
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
@@ -20,19 +12,19 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::MateSide;
+use pncad::document::{MateSide, VarKind};
 use pncad::geom_core::Tol;
 use pncad::select::EntityKind;
 use viewer::matetool::{MateTool, MateToolError};
 
-/// **An edge-named selection is refused, not asserted against.** The
-/// tool's own public doors take a `FaceSelection` by value, and
-/// nothing but the picking door's rule keeps its `name` a face. A
-/// selection that names an edge is answered `PickIsNotAFace` — naming
-/// the side and carrying the head constructor's refusal — in debug and
-/// in release alike.
+/// **An edge-named pick is read as an edge, and a plane refuses it.**
+/// The tool's public door takes a selection by value, and nothing but
+/// the picking door's rule keeps a face selection's `name` a face. A
+/// face selection whose name names an edge is an edge to the tool —
+/// so the seat's plane mate refuses it, naming the side, the kind and
+/// the entity — where a kind reading edges would read it as one.
 #[test]
-fn an_edge_named_pick_is_refused_by_the_mate_tool() {
+fn an_edge_named_pick_is_refused_by_a_plane_mate() {
     let tol = Tol::witness();
     let bench = asm::bench("rv-matehead", tol);
     let session = asm::open_bench(&bench, tol);
@@ -44,40 +36,44 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, asm::seat_choice()) {
-        Err(MateToolError::PickIsNotAFace { side, refusal }) => {
+    match common::proposed(&session, &tool, asm::seat_choice()) {
+        Err(MateToolError::KindDoesNotRead {
+            side, kind, entity, ..
+        }) => {
             assert_eq!(side, MateSide::On);
-            assert_eq!(refusal.found, EntityKind::Edge);
+            assert_eq!(kind, VarKind::Plane);
+            assert_eq!(entity, EntityKind::Edge);
         }
         other => panic!("an edge-named pick must refuse as the kind, got {other:?}"),
     }
 }
 
-/// **The refusal says the kind, in the constructor's own words.** The
-/// operand arm (`NotACopyPick`) names a node and says nothing about
-/// what the selection denoted, so it is the wrong sentence for this
-/// mistake; the kind arm forwards `NotAFaceName`'s rendering rather
-/// than re-spelling it.
+/// **The refusal says the entity and what the kind reads**, the
+/// latter read off the kernel's seats (`MateReading::of`): a plane
+/// reads a face, an axis a face or an edge. The door arm
+/// (`NotAPlacement`) names a node and says nothing about what a
+/// selection denoted, so it stays silent about the kind.
 #[test]
-fn the_kind_refusal_forwards_the_head_constructors_sentence() {
-    let refusal = pncad::document::FaceName::new(pncad::prelude::StableName {
-        kind: EntityKind::Edge,
-        node: pncad::document::RecipeNodeId::new(0, 0),
-        path: Vec::new(),
-    })
-    .expect_err("an edge is not a face name");
-    let shown = MateToolError::PickIsNotAFace {
-        side: MateSide::To,
-        refusal,
-    }
-    .to_string();
-    assert!(
-        shown.contains(&refusal.to_string()) && shown.contains("an edge"),
-        "the kind refusal drops the constructor's sentence: {shown:?}"
+fn the_kind_refusal_says_the_entity_and_what_the_kind_reads() {
+    let said = |kind, entity| {
+        MateToolError::KindDoesNotRead {
+            row: 0,
+            side: MateSide::To,
+            kind,
+            entity,
+        }
+        .to_string()
+    };
+    assert_eq!(
+        said(VarKind::Plane, EntityKind::Edge),
+        "mate 1's to pick is an edge, and a plane mate reads a face"
+    );
+    assert_eq!(
+        said(VarKind::Axis, EntityKind::Vertex),
+        "mate 1's to pick is a vertex, and an axis mate reads a face or an edge"
     );
 
-    let operand = MateToolError::NotACopyPick {
+    let operand = MateToolError::NotAPlacement {
         node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId::new(0, 0)),
     }
     .to_string();
@@ -88,13 +84,12 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
 }
 
 /// **A face name at an instance that its copy does not carry is the
-/// placement's refusal where it evaluates.** The tool reads no pose
-/// before committing, so a hand-built selection naming a face at the
-/// instance that its part's product holds no row of proposes and
-/// commits; the instance's copy holds only its part's rows, so the
-/// mate's `on` does not evaluate and the post's row fails
-/// `SideUnevaluated` on the `on` side — never a placement that
-/// silently stands somewhere.
+/// placement's refusal, judged before Apply.** A hand-built selection
+/// naming a face at the instance that its part's product holds no row
+/// of proposes; the instance's copy holds only its part's rows, so the
+/// mate's `on` does not evaluate. The verdict is `SideUnevaluated` on
+/// the `on` side, and Apply is withheld with it — never a placement
+/// that silently stands somewhere, and never one committed failing.
 #[test]
 fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates() {
     let tol = Tol::witness();
@@ -110,24 +105,16 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
     let mut bare = a.name.clone();
     bare.path = Vec::new();
     a.name = bare;
+    asm::unpin(&mut session, bench.post_b);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
+    let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("no pose is read before the commit");
+    let states = session.history().len();
     let outcome = session.perform(proposal.op_into_target_space());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-    let (_, eval) = session.landed_pair().expect("landed");
-    match eval
-        .result(bench.post_b)
-        .and_then(|r| r.error())
-        .map(|e| &e.kind)
-    {
-        Some(pncad::document::NodeErrorKind::Mate(fault))
+    match &outcome.refusal {
+        Some(viewer::session::Refusal::PlacementFails { fault: Some(fault) })
             if matches!(
                 fault.as_ref(),
                 pncad::document::MateFault::SideUnevaluated {
@@ -136,7 +123,8 @@ fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates
                 }
             ) => {}
         other => {
-            panic!("a face name its copy does not carry refuses where it evaluates, got {other:?}")
+            panic!("a face name its copy does not carry is withheld at Apply, got {other:?}")
         }
     }
+    assert_eq!(session.history().len(), states, "nothing is recorded");
 }

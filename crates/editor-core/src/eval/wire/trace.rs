@@ -60,8 +60,10 @@ pub(crate) fn drawn<T: crate::mate::SolveScalar>(
     };
     let sketch = Frame::Map(Arc::new(frame));
     let identity = RigidMotion::identity;
-    let faces = (0u32..)
-        .zip(&on.faces)
+    let faces = on
+        .faces
+        .iter()
+        .enumerate()
         .map(|(at, &var)| {
             let slot = OperandSlot::Traced(at);
             let body_var = doc.selection(var).map_or(var, |select| select.body);

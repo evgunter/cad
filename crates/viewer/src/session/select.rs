@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{RecipeNodeId, SpokenVar, VarId};
+use pncad::document::{Moved, RecipeNodeId, SpokenVar, VarId};
 use pncad::prelude::StableName;
 use pncad::select::Resolution;
 
@@ -68,6 +68,136 @@ impl FaceSelection {
     }
 }
 
+/// **The name a pick of `name` on the copy `node` holds following a
+/// takeover**: the one the takeover moved the copy's entity to
+/// ([`Moved::of`]), or `name` where it did not move it. The one
+/// spelling of a held name following, for every holder (a face or edge
+/// pick, a tool's held edges).
+pub(crate) fn followed_name(node: RecipeNodeId, name: &StableName, moved: &Moved) -> StableName {
+    moved
+        .of(node, name)
+        .map_or_else(|| name.clone(), Clone::clone)
+}
+
+/// **What holds picks across operations**: the session's selection,
+/// the chrome's forms and its open tool. A holder states what it holds
+/// once ([`Holds::held`]); which drawn copies it holds names on
+/// ([`held_on`]) and every held name following a takeover
+/// ([`follow`]) are both read off that one list, so the two cannot
+/// disagree about what is held (`DocSession::perform_with`).
+pub trait Holds {
+    /// **Every pick held**, as a handle that reads or moves it.
+    fn held(&mut self) -> Vec<Held<'_>>;
+}
+
+/// **A pick that follows a takeover**: it names an entity of one drawn
+/// copy ([`Follows::node`]), and moves onto the name a takeover moved
+/// that entity to ([`Follows::follow`]).
+pub trait Follows {
+    /// The drawn copy the pick names an entity of.
+    fn node(&self) -> RecipeNodeId;
+
+    /// The pick on the name a takeover moved its own to
+    /// ([`followed_name`]), its words spoken from `doc`, the document
+    /// the takeover made, where it keeps words.
+    fn follow(
+        &mut self,
+        moved: &Moved,
+        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    );
+}
+
+/// The three picked-entity vocabularies follow alike: by name, on the
+/// drawn copy they were picked on.
+macro_rules! follows_by_name {
+    ($($pick:ty),*) => {$(
+        impl Follows for $pick {
+            fn node(&self) -> RecipeNodeId {
+                self.node
+            }
+
+            fn follow(
+                &mut self,
+                moved: &Moved,
+                _: &pncad::document::Doc<pncad::document::ProfileProgram>,
+            ) {
+                self.name = followed_name(self.node, &self.name, moved);
+            }
+        }
+    )*};
+}
+
+follows_by_name!(FaceSelection, EdgeSelection, VertexSelection);
+
+/// **One held pick, as a handle**: what [`Holds::held`] lists.
+pub enum Held<'a> {
+    /// One pick: a selection, a form's latch, a tool's pick.
+    One(&'a mut dyn Follows),
+    /// Edges held on one drawn copy (the blend tool's), singly and as
+    /// rims.
+    Edges {
+        /// The drawn copy they are edges of.
+        node: RecipeNodeId,
+        /// The edges held one by one.
+        edges: &'a mut std::collections::BTreeSet<StableName>,
+        /// The rims, each held whole.
+        rims: &'a mut std::collections::BTreeSet<std::collections::BTreeSet<StableName>>,
+    },
+}
+
+impl Held<'_> {
+    /// The drawn copy the pick names an entity of.
+    fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::One(pick) => pick.node(),
+            Self::Edges { node, .. } => *node,
+        }
+    }
+
+    /// The pick following a takeover ([`Follows::follow`]).
+    fn follow(self, moved: &Moved, doc: &pncad::document::Doc<pncad::document::ProfileProgram>) {
+        match self {
+            Self::One(pick) => pick.follow(moved, doc),
+            Self::Edges { node, edges, rims } => {
+                let now = |name: &StableName| followed_name(node, name, moved);
+                *edges = edges.iter().map(now).collect();
+                *rims = rims
+                    .iter()
+                    .map(|rim| rim.iter().map(now).collect())
+                    .collect();
+            }
+        }
+    }
+}
+
+/// **The drawn copies `holder` holds names on** ([`Holds::held`]).
+pub fn held_on(holder: &mut dyn Holds, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
+    nodes.extend(holder.held().iter().map(Held::node));
+}
+
+/// **Every pick `holder` holds, following a takeover** onto the names it
+/// moved them to ([`Holds::held`]), each kept pick's words spoken from
+/// `doc`, the document the takeover made.
+pub fn follow(
+    holder: &mut dyn Holds,
+    moved: &Moved,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) {
+    for held in holder.held() {
+        held.follow(moved, doc);
+    }
+}
+
+/// A holder holding nothing: what [`crate::session::DocSession::perform`]
+/// hands a takeover when its caller keeps no picks of its own.
+pub struct HoldsNothing;
+
+impl Holds for HoldsNothing {
+    fn held(&mut self) -> Vec<Held<'_>> {
+        Vec::new()
+    }
+}
+
 /// A picked edge: the stable name it is, and the node whose body
 /// carried it when it was picked.
 ///
@@ -97,6 +227,28 @@ impl EdgeSelection {
     }
 }
 
+/// A picked vertex: the stable name it is, and the node whose body
+/// carried it when it was picked — the edge selection's twin, for the
+/// same reason it is a type of its own: a mate's point reads a vertex,
+/// and nothing that takes a face or an edge does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VertexSelection {
+    /// The picked vertex's stable name — what survives re-evaluation.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+}
+
+impl VertexSelection {
+    /// **The feature this vertex is**: [`FaceSelection::feature`]'s
+    /// argument, unchanged.
+    pub fn feature(&self) -> RecipeNodeId {
+        crate::tree::feature_of(&self.name)
+    }
+}
+
 /// What the cursor is over — the one transient pick, whichever kind of
 /// entity it landed on.
 ///
@@ -112,22 +264,38 @@ pub enum Hovered {
     /// [`crate::pickindex::EDGE_PICK_RADIUS_PX`] of it, which is what makes
     /// an edge reachable at all where its own face fills the pixel.
     Edge(EdgeSelection),
+    /// A vertex under the cursor — within
+    /// [`crate::pickindex::VERTEX_PICK_RADIUS_PX`] of an end of the edge
+    /// that won it, where the cursor's rule admits vertices
+    /// ([`crate::pickindex::PickKinds::WithVertices`]).
+    Vertex(VertexSelection),
+    /// A committed profile's drawn outline under the cursor — within
+    /// [`crate::pickindex::EDGE_PICK_RADIUS_PX`] of it, by the edge's
+    /// rule. A profile has no body, so it is named by its node alone,
+    /// and a click on it selects that node.
+    Profile(RecipeNodeId),
 }
 
 impl Hovered {
-    /// The hovered entity's stable name.
-    pub fn name(&self) -> &StableName {
+    /// The hovered entity's stable name; `None` for a profile, which
+    /// is a node and not an entity of a body.
+    pub fn name(&self) -> Option<&StableName> {
         match self {
-            Self::Face(face) => &face.name,
-            Self::Edge(edge) => &edge.name,
+            Self::Face(face) => Some(&face.name),
+            Self::Edge(edge) => Some(&edge.name),
+            Self::Vertex(vertex) => Some(&vertex.name),
+            Self::Profile(_) => None,
         }
     }
 
-    /// The node whose drawn body the cursor is over.
+    /// The node whose drawing the cursor is over: a body's node, or
+    /// the profile itself.
     pub fn node(&self) -> RecipeNodeId {
         match self {
             Self::Face(face) => face.node,
             Self::Edge(edge) => edge.node,
+            Self::Vertex(vertex) => vertex.node,
+            Self::Profile(node) => *node,
         }
     }
 
@@ -136,6 +304,8 @@ impl Hovered {
         match self {
             Self::Face(face) => face.feature(),
             Self::Edge(edge) => edge.feature(),
+            Self::Vertex(vertex) => vertex.feature(),
+            Self::Profile(node) => *node,
         }
     }
 
@@ -143,7 +313,7 @@ impl Hovered {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::Edge(_) => None,
+            Self::Edge(_) | Self::Vertex(_) | Self::Profile(_) => None,
         }
     }
 
@@ -151,7 +321,23 @@ impl Hovered {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::Face(_) => None,
+            Self::Face(_) | Self::Vertex(_) | Self::Profile(_) => None,
+        }
+    }
+
+    /// The hovered vertex, when the cursor is over one.
+    pub fn vertex(&self) -> Option<&VertexSelection> {
+        match self {
+            Self::Vertex(vertex) => Some(vertex),
+            Self::Face(_) | Self::Edge(_) | Self::Profile(_) => None,
+        }
+    }
+
+    /// The hovered profile, when the cursor is over one's outline.
+    pub fn profile(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Profile(node) => Some(*node),
+            Self::Face(_) | Self::Edge(_) | Self::Vertex(_) => None,
         }
     }
 
@@ -160,6 +346,8 @@ impl Hovered {
         match self {
             Self::Face(face) => Selection::Face(face.clone()),
             Self::Edge(edge) => Selection::Edge(edge.clone()),
+            Self::Vertex(vertex) => Selection::Vertex(vertex.clone()),
+            Self::Profile(node) => Selection::Node(*node),
         }
     }
 }
@@ -181,7 +369,8 @@ pub enum Selection {
     /// Nothing selected.
     #[default]
     None,
-    /// A recipe node, selected in the feature tree.
+    /// A recipe node, selected in the feature tree — or a profile,
+    /// picked in the viewport by its drawn outline.
     Node(RecipeNodeId),
     /// A document variable, selected in the property panel — where
     /// the expression-driven refusal's affordance navigates to. Keyed
@@ -192,6 +381,8 @@ pub enum Selection {
     /// An edge, picked in the viewport — what a blend is authored
     /// against.
     Edge(EdgeSelection),
+    /// A vertex, picked in the viewport — what a mate's point reads.
+    Vertex(VertexSelection),
 }
 
 impl Selection {
@@ -209,6 +400,7 @@ impl Selection {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.feature()),
             Self::Edge(edge) => Some(edge.feature()),
+            Self::Vertex(vertex) => Some(vertex.feature()),
             Self::None | Self::Variable(_) => None,
         }
     }
@@ -221,7 +413,7 @@ impl Selection {
     /// answers differ exactly where it matters to a tool. The feature
     /// that minted a face is upstream of every node that carried it:
     /// a face on a moved copy was minted by the original's extrude
-    /// (a transform mints no name), and a flat on a filleted body by
+    /// (a placement mints no name), and a flat on a filleted body by
     /// the feature the fillet consumed. A tool fed that feature would
     /// author against a body sitting somewhere the user did not click,
     /// or against geometry the picture no longer shows. So the tree's
@@ -236,6 +428,7 @@ impl Selection {
             Self::Node(id) => Some(*id),
             Self::Face(face) => Some(face.node),
             Self::Edge(edge) => Some(edge.node),
+            Self::Vertex(vertex) => Some(vertex.node),
             Self::None | Self::Variable(_) => None,
         }
     }
@@ -246,6 +439,7 @@ impl Selection {
         match self {
             Self::Face(face) => Some(face.body),
             Self::Edge(edge) => Some(edge.body),
+            Self::Vertex(vertex) => Some(vertex.body),
             Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
@@ -254,7 +448,9 @@ impl Selection {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::None | Self::Node(_) | Self::Variable(_) | Self::Edge(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Edge(_) | Self::Vertex(_) => {
+                None
+            }
         }
     }
 
@@ -262,7 +458,17 @@ impl Selection {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) => None,
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) | Self::Vertex(_) => {
+                None
+            }
+        }
+    }
+
+    /// The picked vertex, when the selection is one.
+    pub fn vertex(&self) -> Option<&VertexSelection> {
+        match self {
+            Self::Vertex(vertex) => Some(vertex),
+            Self::None | Self::Node(_) | Self::Variable(_) | Self::Face(_) | Self::Edge(_) => None,
         }
     }
 
@@ -278,6 +484,7 @@ impl Selection {
             Self::Node(id) => vec![*id],
             Self::Face(face) => vec![face.name.node, face.feature(), face.node],
             Self::Edge(edge) => vec![edge.name.node, edge.feature(), edge.node],
+            Self::Vertex(vertex) => vec![vertex.name.node, vertex.feature(), vertex.node],
             Self::None | Self::Variable(_) => Vec::new(),
         }
     }
@@ -289,6 +496,7 @@ impl Selection {
         match self {
             Self::Face(face) => Some(&face.name),
             Self::Edge(edge) => Some(&edge.name),
+            Self::Vertex(vertex) => Some(&vertex.name),
             Self::None | Self::Node(_) | Self::Variable(_) => None,
         }
     }
@@ -360,6 +568,15 @@ pub enum Standing {
         /// to answer against yet.
         resolution: Option<Box<Resolution>>,
     },
+    /// A vertex selection, and the resolution verdict its name got —
+    /// [`Standing::Edge`]'s argument, unchanged.
+    Vertex {
+        /// The selection.
+        vertex: VertexSelection,
+        /// What the shipped resolution machinery answered, read as
+        /// [`Standing::Face`]'s is.
+        resolution: Option<Box<Resolution>>,
+    },
 }
 
 /// **Whether a picked name's verdict still denotes its entity** — the
@@ -388,9 +605,9 @@ impl Standing {
         match self {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Variable { present, .. } => *present,
-            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
-                resolution.as_deref().is_some_and(resolves)
-            }
+            Self::Face { resolution, .. }
+            | Self::Edge { resolution, .. }
+            | Self::Vertex { resolution, .. } => resolution.as_deref().is_some_and(resolves),
         }
     }
 
@@ -438,12 +655,12 @@ impl Standing {
                     Tone::Actionable
                 }
             }
-            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
-                match resolution.as_deref() {
-                    None | Some(Resolution::Resolved(_)) => Tone::Advisory,
-                    Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => Tone::Actionable,
-                }
-            }
+            Self::Face { resolution, .. }
+            | Self::Edge { resolution, .. }
+            | Self::Vertex { resolution, .. } => match resolution.as_deref() {
+                None | Some(Resolution::Resolved(_)) => Tone::Advisory,
+                Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => Tone::Actionable,
+            },
         }
     }
 
@@ -454,10 +671,24 @@ impl Standing {
     /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
-            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => resolution
+            Self::Face { resolution, .. }
+            | Self::Edge { resolution, .. }
+            | Self::Vertex { resolution, .. } => resolution
                 .as_deref()
                 .filter(|resolution| !resolves(resolution)),
             Self::Empty | Self::Node { .. } | Self::Variable { .. } => None,
+        }
+    }
+}
+
+/// The selection holds the face or edge it picked.
+impl Holds for Selection {
+    fn held(&mut self) -> Vec<Held<'_>> {
+        match self {
+            Self::Face(face) => vec![Held::One(face)],
+            Self::Edge(edge) => vec![Held::One(edge)],
+            Self::Vertex(vertex) => vec![Held::One(vertex)],
+            Self::None | Self::Node(_) | Self::Variable(_) => Vec::new(),
         }
     }
 }

@@ -546,7 +546,7 @@ pub fn require_one_chart_branch<T: Decide>(
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Line { origin, dir } = e.carrier else {
+                let Some(geom::Line { origin, dir }) = e.carrier.as_line() else {
                     continue;
                 };
                 // GENERATORS only, by the parse's own generator margin
@@ -595,11 +595,10 @@ pub fn require_one_chart_branch<T: Decide>(
             ..
         } => {
             for (i, e) in outer.iter().enumerate() {
-                let Curve3::Circle {
-                    axis: n_c,
+                let Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { axis: n_c, .. },
                     radius: r_c,
-                    ..
-                } = e.carrier
+                }) = e.carrier
                 else {
                     continue;
                 };
@@ -1354,7 +1353,7 @@ fn cylinder_chart<T: Decide>(
         // closed form has no arm for, refuses as itself.
         let b = cylinder_boundary(origin, axis, radius, edges, band)?;
         for e in edges.iter() {
-            if let Curve3::Line { .. } = e.carrier {
+            if !e.carrier.is_curved() {
                 length = length + (e.p1() - e.p0()).norm();
             }
         }
@@ -1419,7 +1418,7 @@ fn cylinder_windings<T: Decide>(
         .iter()
         .flat_map(|l| l.iter())
         .filter_map(|e| match e.carrier {
-            Curve3::Circle { radius: r, .. } => Some(r),
+            Curve3::Circle(geom::Circle { radius: r, .. }) => Some(r),
             _ => None,
         })
         .reduce(T::min);
@@ -1443,7 +1442,10 @@ fn cylinder_windings<T: Decide>(
                     let (a, b) = e.traversal_ends();
                     let arms = turn_arms(axis, a - origin, b - origin);
                     let sweep = match e.carrier {
-                        Curve3::Circle { center, .. } => {
+                        Curve3::Circle(geom::Circle {
+                            frame: geom::Frame { center, .. },
+                            ..
+                        }) => {
                             let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
                                 what: "a cylinder loop with more circles than parsed rims",
                             })?;
@@ -1793,7 +1795,7 @@ fn cylinder_boundary<T: Decide>(
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
         match e.carrier {
-            Curve3::Line { dir, .. } => {
+            Curve3::Line(geom::Line { dir, .. }) => {
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
@@ -1822,12 +1824,12 @@ fn cylinder_boundary<T: Decide>(
                 levels.push((e.p0() - origin).dot(axis));
                 levels.push((e.p1() - origin).dot(axis));
             }
-            Curve3::Circle {
-                center,
-                axis: n_c,
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center, axis: n_c, ..
+                },
                 radius: r_c,
-                ..
-            } => {
+            }) => {
                 let s = classify(
                     "props_circle_axis_class",
                     Margin::levered(n_c.dot(axis), r_c),
@@ -1880,7 +1882,7 @@ fn cylinder_boundary<T: Decide>(
             // up (`topo::mass_properties` routes conic-trimmed
             // cylinder faces there BEFORE this closed form runs); a
             // direct key-free call keeps the typed refusal.
-            Curve3::Ellipse { .. } => {
+            Curve3::Ellipse(..) => {
                 return Err(PropsError::NotIsoRectangle {
                     what: "cylinder boundary carries an ellipse arc (curved cut) — route \
                            through topo::mass_properties, whose quadrature lane consumes \
@@ -2229,14 +2231,16 @@ fn require_on_cone<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     match e.carrier {
-        Curve3::Line { dir, .. } => require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band),
-        Curve3::Circle {
-            center,
-            axis: n_c,
+        Curve3::Line(geom::Line { dir, .. }) => {
+            require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)
+        }
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center, axis: n_c, ..
+            },
             radius: r_c,
-            ..
-        } => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
-        Curve3::Ellipse { .. } => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
+        }) => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
+        Curve3::Ellipse(..) => require_cone_ellipse(apex, axis, sin_a, cos_a, e, band),
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
@@ -2342,13 +2346,15 @@ fn require_cone_ellipse<T: Decide>(
     e: &LoopEdge<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    let Curve3::Ellipse {
-        center,
-        axis: n,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis: n,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = e.carrier
+    }) = e.carrier
     else {
         return Err(PropsError::Unimplemented);
     };
@@ -2545,10 +2551,10 @@ fn require_cone_conic_spans<T: Decide>(
 ) -> Result<(), PropsError> {
     for e in edges {
         match e.carrier {
-            Curve3::Circle { radius, .. } => {
+            Curve3::Circle(geom::Circle { radius, .. }) => {
                 require_rim_span(e, radius, band)?;
             }
-            ref ellipse @ Curve3::Ellipse { .. } => {
+            ref ellipse @ Curve3::Ellipse(..) => {
                 let Some(floor) = geom::carrier_speed::speed_floor(ellipse) else {
                     unreachable!("`speed_floor` answers an ellipse")
                 };
@@ -2578,11 +2584,11 @@ fn require_cone_conic_spans<T: Decide>(
 /// at most its major semi-axis.
 fn cone_edge_length<T: Decide>(e: &LoopEdge<T>) -> Result<T, PropsError> {
     match e.carrier {
-        Curve3::Line { .. } => Ok((e.p1() - e.p0()).norm()),
-        Curve3::Circle { radius, .. } => Ok(radius * (e.t1 - e.t0).abs()),
-        Curve3::Ellipse { semi_u, semi_v, .. } => {
-            Ok(geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * (e.t1 - e.t0).abs())
-        }
+        Curve3::Line(_) => Ok((e.p1() - e.p0()).norm()),
+        Curve3::Circle(_) | Curve3::Ellipse(_) => match e.carrier.conic() {
+            Some(k) => Ok(k.speed_hi() * (e.t1 - e.t0).abs()),
+            None => unreachable!("a circle or an ellipse is a conic"),
+        },
         Curve3::Nurbs(_) | Curve3::Spiric { .. } => Err(PropsError::Unimplemented),
     }
 }
@@ -2841,7 +2847,7 @@ fn cone_loop_winding<T: Decide>(
                 }
             }
             AtApex::AlongGenerator => {
-                let line = matches!(e.carrier, Curve3::Line { .. });
+                let line = !e.carrier.is_curved();
                 match (
                     off("props_cone_loop_off_apex", a.norm())?,
                     off("props_cone_loop_off_apex", b.norm())?,
@@ -2872,14 +2878,20 @@ fn cone_loop_winding<T: Decide>(
         let step = match e.carrier {
             // The stored turn about the rim's own centre, carried to the
             // axis at each end.
-            Curve3::Circle {
-                axis: n, center, ..
-            } => {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    axis: n, center, ..
+                },
+                ..
+            }) => {
                 own_turn = sense(n, rho)? * (e.t1 - e.t0);
                 own_turn + about_axis(axis, center, apex, e.p1())
                     - about_axis(axis, center, apex, e.p0())
             }
-            Curve3::Ellipse { axis: n, .. } => {
+            Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { axis: n, .. },
+                ..
+            }) => {
                 let third = (e.t1 - e.t0) / T::from_f64(3.0);
                 let m1 = radial(e.carrier.eval(e.t0 + third));
                 let m2 = radial(e.carrier.eval(e.t1 - third));
@@ -2915,7 +2927,10 @@ fn cone_loop_winding<T: Decide>(
         // their ends by construction; a rim's carried turn misses them by
         // what its own turn misses them about its centre.
         pieces.push([match e.carrier {
-            Curve3::Circle { center, .. } => {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                ..
+            }) => {
                 let (ca, cb) = e.traversal_ends();
                 let own = if e.forward { own_turn } else { -own_turn };
                 EdgeTurn::carried(step, own, turn_arms(axis, ca - center, cb - center), lever)
@@ -2978,18 +2993,18 @@ fn cone_boundary<T: Decide>(
     let mut generators = false;
     for e in edges {
         match e.carrier {
-            Curve3::Line { dir, .. } => {
+            Curve3::Line(geom::Line { dir, .. }) => {
                 generators = true;
                 require_cone_generator(apex, axis, sin_a, cos_a, dir, e, band)?;
                 levels.push((e.p0() - apex).dot(axis) / cos_a);
                 levels.push((e.p1() - apex).dot(axis) / cos_a);
             }
-            Curve3::Circle {
-                center,
-                axis: n_c,
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center, axis: n_c, ..
+                },
                 radius: r_c,
-                ..
-            } => {
+            }) => {
                 let s = require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band)?;
                 require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
                 let v = (center - apex).dot(axis) / cos_a;
@@ -3003,7 +3018,7 @@ fn cone_boundary<T: Decide>(
                 )?);
                 levels.push(v);
             }
-            Curve3::Ellipse { .. } => {
+            Curve3::Ellipse(..) => {
                 return Err(PropsError::NotIsoRectangle {
                     what: "cone boundary carries an ellipse arc (a tilted-section cut) — \
                            not a rim or a generator, so this iso parse has no reading of \
@@ -3558,12 +3573,15 @@ fn sphere_loop<T: Decide>(
     let mut curvature = T::zero();
     let mut arcs = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle {
-            center: c_c,
-            axis: n_c,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center: c_c,
+                    axis: n_c,
+                    ..
+                },
             radius: r_c,
-            ..
-        } = e.carrier
+        }) = e.carrier
         else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
@@ -4717,12 +4735,15 @@ fn sphere_boundary<T: Decide>(
         (h / radius, (w - axis * h).norm() / radius)
     };
     for e in edges {
-        let Curve3::Circle {
-            center: c_c,
-            axis: n_c,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center: c_c,
+                    axis: n_c,
+                    ..
+                },
             radius: r_c,
-            ..
-        } = e.carrier
+        }) = e.carrier
         else {
             return Err(match e.carrier {
                 // A spiric lies on no sphere: refused beside the
@@ -5253,11 +5274,10 @@ fn torus_chart_loop<T: Decide>(
     // carried to the core circle at each end, and its short azimuth turn.
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
-        let Curve3::Circle {
-            center: centre,
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center: centre, .. },
             radius: r_c,
-            ..
-        } = p.edge.carrier
+        }) = p.edge.carrier
         else {
             return Err(PropsError::NotIsoRectangle {
                 what: "a torus piece that is no circle",
@@ -5413,12 +5433,15 @@ fn torus_classify<'a, T: Decide>(
 ) -> Result<Vec<TorusEdge<'a, T>>, PropsError> {
     let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
-        let Curve3::Circle {
-            center: c_c,
-            axis: n_c,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center: c_c,
+                    axis: n_c,
+                    ..
+                },
             radius: r_c,
-            ..
-        } = e.carrier
+        }) = e.carrier
         else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) => PropsError::Unimplemented,
@@ -5949,12 +5972,12 @@ mod sphere_region_cover_rows {
     /// `z` (`up`: the cap above it lies to its left) or clockwise.
     fn latitude(r: f64, z: f64, up: bool) -> LoopEdge<f64> {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: Point3::new(0.0, 0.0, z),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: (r * r - z * z).sqrt(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                Point3::new(0.0, 0.0, z),
+                Vec3::new(0.0, 0.0, 1.0),
+                (r * r - z * z).sqrt(),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             0.0,
             f64::tau(),
             up,

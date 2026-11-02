@@ -53,8 +53,9 @@ use geom_core::{Band, Indeterminate, Real};
 
 use super::Operand;
 use crate::body::Body;
-use crate::entity::{FaceKey, HalfEdgeKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::geometry::SurfaceKey;
+use crate::live::proven;
 
 /// One surface pair's section, and the band its reader classified it at
 /// (the table's one band), which it is carried at.
@@ -291,9 +292,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// [`Self::carried_at_the_join`]) take.
     fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
         let cylinder = |(body, f): (&Body<T>, FaceKey)| {
-            body.get_face(f)
-                .and_then(|face| body.get_surface(face.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+            matches!(body.proven_face_surface(f), geom::Surface::Cylinder { .. })
         };
         !(cylinder(a) && cylinder(b))
     }
@@ -366,7 +365,12 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// on the first ask and held for the operation: a germ's site and
     /// direction do not move while the join matches, so every candidate
     /// pairing reads the one answer. Held by operand, half-edge and pair
-    /// ([`FootKey`]). A desync where a face has no surface.
+    /// ([`FootKey`]).
+    ///
+    /// # Panics
+    ///
+    /// Where `a`'s or `b`'s face, a germ's face the join reads, does not
+    /// resolve ([`Self::key`]).
     pub(crate) fn germ_foot(
         &self,
         (side, he): (Operand, HalfEdgeKey),
@@ -374,10 +378,11 @@ impl<T: geom_core::Decide> SectionTable<T> {
         b: (&Body<T>, FaceKey),
         read: impl FnOnce() -> Result<GermFoot<T>, FootRefusal>,
     ) -> Result<GermFoot<T>, FootRefusal> {
-        let Some(pair) = Self::key(a, b) else {
-            return Err(FootRefusal::Desync("a germ's face has no surface"));
+        let key = FootKey {
+            side,
+            he,
+            pair: Self::key(a, b),
         };
-        let key = FootKey { side, he, pair };
         if let Some(held) = self.feet.borrow().get(&key) {
             return held.clone();
         }
@@ -389,43 +394,47 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// **A plane×cone pair's one reading** (module docs): A's face
     /// `a`'s surface against B's `b`'s, as the glue door read it, its
     /// frame, its apex line pair or its refusal. `None` where the door
-    /// held no reading of the pair: a face whose surface does not
-    /// resolve, a pair whose boxes do not meet (no germ lies on it), or
-    /// a table no glue door built (a sweep-only door's, a row's).
+    /// held no reading of the pair: a pair whose boxes do not meet (no
+    /// germ lies on it), one whose reach does not read (the join reads it
+    /// face by face, and refuses there), or a table no glue door built (a
+    /// sweep-only door's, a row's). A stale face key panics, as at every
+    /// reader of the table.
     pub(super) fn plane_cone(
         &self,
         a: (&Body<T>, FaceKey),
         b: (&Body<T>, FaceKey),
     ) -> Option<&PlaneCone<T>> {
-        self.plane_cone.get(&Self::key(a, b)?)
+        self.plane_cone.get(&Self::key(a, b))
     }
 
     /// A table holding the one plane×cone reading `reading` for A's face
     /// `a` against B's `b`, for rows.
     #[cfg(test)]
-    #[allow(clippy::expect_used)]
     pub(super) fn holding_plane_cone(
         a: (&Body<T>, FaceKey),
         b: (&Body<T>, FaceKey),
         reading: PlaneCone<T>,
     ) -> Self {
         let mut table = Self::default();
-        let key = Self::key(a, b).expect("the faces resolve");
+        let key = Self::key(a, b);
         table.plane_cone.insert(key, reading);
         table
     }
 
     fn entry(&self, a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> Option<&Held<T>> {
-        self.pairs.get(&Self::key(a, b)?)
+        self.pairs.get(&Self::key(a, b))
     }
 
-    /// The key of A's face `fa` against B's `fb`.
-    fn key((a, fa): (&Body<T>, FaceKey), (b, fb): (&Body<T>, FaceKey)) -> Option<PairKey> {
-        let surface = |body: &Body<T>, f| body.get_face(f).map(|face| face.surface);
-        Some(PairKey {
-            a: surface(a, fa)?,
-            b: surface(b, fb)?,
-        })
+    /// The key of A's face `fa` against B's `fb`: their surfaces' keys.
+    /// Every reader of the table asks it of faces of its operands, which
+    /// the kernel enumerated or recorded, so a stale face key panics.
+    #[track_caller]
+    fn key((a, fa): (&Body<T>, FaceKey), (b, fb): (&Body<T>, FaceKey)) -> PairKey {
+        let surface = |body: &Body<T>, f| proven(&body.faces, f, EntityId::Face).surface;
+        PairKey {
+            a: surface(a, fa),
+            b: surface(b, fb),
+        }
     }
 }
 

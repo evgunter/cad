@@ -16,6 +16,17 @@
 //! [`open`] answers a history whose root is the loaded document: undo
 //! is session state and ends at an open.
 //!
+//! # The layout beside a file is not these doors'
+//!
+//! [`save`] and [`open`] write and read the document alone. The display
+//! frames a session saves beside it are the session's
+//! (`crate::session::DocSession`, through `crate::layout`), so a
+//! document written through [`save`] or the API over a file the viewer
+//! saved leaves that file's layout in place, and the next open through
+//! the session restores it: each frame whose space the document still
+//! shows with its witness standing in it, every other frame dropped and
+//! said.
+//!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
