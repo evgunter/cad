@@ -148,6 +148,7 @@ mod chart_point;
 mod convention;
 pub mod curves;
 mod datum;
+mod memo;
 mod net;
 mod param;
 mod periodic;
