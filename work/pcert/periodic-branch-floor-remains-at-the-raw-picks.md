@@ -133,7 +133,7 @@ Rows: `offset_axial::keep_turn_rows`.
   carries seam rows along both edges.
 - **shell's run shift:** concentric pairs by construction. On pairs not
   known to nest, the tie's placement is filed:
-  `work/shelf/shell-encloses-reads-a-tie-placed-run-on-pairs-not-known-to-nest.md`.
+  `work/shell/shell-encloses-reads-a-tie-placed-run-on-pairs-not-known-to-nest.md`.
 - **`profile::sugar::signed_swept`:** the sign is the branch; ±π reads
   behind, sound by the configuration argument at its doc. Added to the
   period-jump question as a "which branch" case.

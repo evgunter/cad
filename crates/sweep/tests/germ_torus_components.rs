@@ -138,7 +138,7 @@ fn marching<R>(run: impl FnOnce() -> R) -> (R, usize) {
 /// the join and the certificate alike); `other_eps` names the
 /// placements that stop elsewhere at another ε row, measured: at `1e-6`
 /// a march's tube straddles
-/// (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+/// (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 fn row(
     a: fn() -> Body<f64>,
     places: &[usize],

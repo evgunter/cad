@@ -14,11 +14,10 @@
 //! meant nothing to go stale under a bump — and on a pipped cube
 //! "every edge" includes the cap's MERIDIAN seam edges. Two half-cap
 //! faces share ONE sphere surface, so a meridian has no dihedral
-//! wedge, and the battery honestly refuses
-//! `BlendError::TangentialEdge` at a margin of exactly zero. That
-//! refusal is CORRECT — a co-surface seam cannot be blended at any
-//! radius — so the composed die was not unbuildable, it was
-//! UNSAYABLE.
+//! wedge, and the battery refused it at a margin of exactly zero.
+//! A co-surface seam cannot be blended at any radius — the fillet now
+//! leaves one as it is — so the composed die was not unbuildable, it
+//! was UNSAYABLE.
 //!
 //! M6-5 says it. The node grew a `selection` of stable names, the
 //! composition surgery grew per-entity birth records, and the naming
@@ -89,9 +88,9 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// **Why the meridians are excluded, and why this document exists.**
 /// The two half-cap faces of the cavity share ONE sphere surface, so a
 /// meridian between them has no dihedral wedge — nothing to roll a
-/// ball into. `fillet_edges` refuses it `TangentialEdge` at margin
-/// exactly zero, correctly, at any radius. That refusal is what kept
-/// this document out of the registry while `Node::Fillet` meant
+/// ball into; `fillet_edges` reads it smooth at margin exactly zero, at
+/// any radius, and now leaves it as it is. Its refusal then is what
+/// kept this document out of the registry while `Node::Fillet` meant
 /// "every edge" (`m6_composed_node.rs`, now flipped): the composed die
 /// was not INEXPRESSIBLE, it was unnameable. Fourteen names later it
 /// is neither.

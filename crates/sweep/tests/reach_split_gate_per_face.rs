@@ -330,7 +330,7 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             let ellipse = c.carrier().clone();
-            let geom::Curve3::Ellipse { .. } = ellipse else {
+            let geom::Curve3::Ellipse(..) = ellipse else {
                 return None;
             };
             let params = c.params();
@@ -367,13 +367,16 @@ impl Rim {
         n: u32,
         domain: (f64, f64),
     ) -> (geom::NurbsCurve3<f64>, geom_brep::EdgeCurveSpec<f64>) {
-        let geom::Curve3::Ellipse {
-            center,
-            axis,
+        let geom::Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } = &self.ellipse
+        }) = &self.ellipse
         else {
             unreachable!("the rim is a half-ellipse");
         };

@@ -519,7 +519,7 @@ fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
         };
         let mut at = first;
         while let Some(he) = body.get_half_edge(at) {
-            if let Some(geom::Curve3::Circle { radius, .. }) = body
+            if let Some(geom::Curve3::Circle(geom::Circle { radius, .. })) = body
                 .get_edge(he.edge)
                 .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(topo::CurveGeom::certified)

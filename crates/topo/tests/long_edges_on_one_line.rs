@@ -55,7 +55,7 @@ fn turned() -> Pose {
 fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
     // edges, outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
     // enclosure reaching zero, so only an upper bound, and the
@@ -99,7 +99,7 @@ fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
 fn a_cube_on_a_six_kilometre_bar_builds_its_union() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
     // edges, outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
     // enclosure reaching zero, so only an upper bound, and the
@@ -170,7 +170,7 @@ fn stood_down(tol: Tol) -> bool {
 fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
     // edges, outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
     // enclosure reaching zero, so only an upper bound, and the
@@ -217,7 +217,7 @@ fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() 
 fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
     // edges, outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
     // enclosure reaching zero, so only an upper bound, and the
@@ -273,7 +273,7 @@ fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
 fn bars_meeting_exactly_raise_no_precision_escalation_at_validation() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
     // edges, outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
     // enclosure reaching zero, so only an upper bound, and the

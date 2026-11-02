@@ -438,7 +438,24 @@ pub enum PointInSolidError {
     },
 }
 
+/// [`PointInSolidError::INSIDE_OUT_RECOURSE`], as a literal so a refusal
+/// spelled as one `&'static str` can end in it.
+macro_rules! inside_out_recourse {
+    () => {
+        "build it with its faces pointing outward, or revert it"
+    };
+}
+pub(crate) use inside_out_recourse;
+
 impl PointInSolidError {
+    /// **What a solid read inside-out is owed**, whichever reader found
+    /// its material holding the side at infinity: this door
+    /// ([`Self::InsideOut`]), the Boolean's per-solid read of an operand
+    /// ([`crate::ValidationError::SliverInsideOut`]), or an unverdicted
+    /// door's check 7 and check 10 ([`crate::Unfinished::InsideOut`]). The
+    /// lever is the solid's orientation, so every such refusal ends in it.
+    pub const INSIDE_OUT_RECOURSE: &'static str = inside_out_recourse!();
+
     /// Is this refusal **inconclusive about the one point asked**, so
     /// that another point can still decide: a reading about where the
     /// point stands ([`Self::in_band`]), a limit the door met near it
@@ -582,7 +599,8 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "the solid is inside-out: a test ray from the point met none of its \
                  boundary and left the point in its material, so its faces point into \
-                 it. Recourse: build it with its faces pointing outward, or revert it"
+                 it. Recourse: {}",
+                Self::INSIDE_OUT_RECOURSE
             ),
             Self::CorruptFace { .. } => write!(
                 f,
@@ -1376,12 +1394,15 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             continue;
         };
         let (t0, t1) = curve.params();
-        let geom::Curve3::Circle {
-            center: c_c,
-            axis: n_c,
+        let geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center: c_c,
+                    axis: n_c,
+                    u_ref: u_c,
+                },
             radius: r_c,
-            u_ref: u_c,
-        } = *curve.carrier()
+        }) = *curve.carrier()
         else {
             return Ok(None);
         };
@@ -2561,7 +2582,11 @@ impl<T: Decide> Centred<T> {
         let [a, b, _] = self.coeffs;
         let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
             + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
-        disc.select_le_zero((disc + e).min(T::zero()), (disc - e).max(T::zero()))
+        geom_core::Rounded {
+            value: disc,
+            error: e,
+        }
+        .toward_zero()
     }
 
     /// **Both roots in the line's own parameter, and a bound on either's
@@ -3536,12 +3561,15 @@ fn wall_crosses_by_turn<T: Decide>(
                 let (t0, t1) = curve.params();
                 (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
             }
-            geom::Curve3::Circle {
-                center,
-                axis: normal,
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis: normal,
+                        ..
+                    },
                 radius: r,
-                ..
-            } => {
+            }) => {
                 let w = center - origin;
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
                     + (w - axis * w.dot(axis)).norm()
@@ -3629,7 +3657,7 @@ fn loop_turn<T: Decide>(
             .ok_or_else(corrupt)?;
         match *curve.carrier() {
             geom::Curve3::Line(_) => turn = turn + angle(a, b),
-            geom::Curve3::Circle { .. } => {
+            geom::Curve3::Circle(..) => {
                 let on = |f: f64| {
                     along_half(body, e.half, f)
                         .map(|(x, _)| map(x))
@@ -3719,7 +3747,7 @@ pub(crate) fn edge_clearance<T: Decide>(
             at(e.ends[1])?,
             m,
         )),
-        geom::Curve3::Circle { radius, .. } => {
+        geom::Curve3::Circle(geom::Circle { radius, .. }) => {
             let (t0, t1) = curve.params();
             let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));
             let mut least: Option<T> = None;
