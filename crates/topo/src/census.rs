@@ -7882,6 +7882,8 @@ mod point;
 mod segment_fuzz;
 #[cfg(test)]
 mod self_touch;
+#[cfg(test)]
+mod self_touch_curved;
 
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
@@ -8444,25 +8446,7 @@ fn sweep_self_touch_points<T: Decide>(
         if !read.insert((s, least)) {
             continue;
         }
-        let verdict = match Link::touch_at_point(body, geo, &ties, s, &keys, at, band) {
-            Ok(link) => rest::one_material(&link, band),
-            // A curved face, a face with a curved edge held at its
-            // corner, a spline edge, or a hold inside a curved edge, in
-            // the link: genuinely undetected (the module doc's class
-            // list), not refused.
-            Err(TouchUnread::Unreadable) => {
-                let v = match Link::tangent_at_point(body, geo, &ties, s, &keys, at, band) {
-                    Ok(link) => rest::one_material(&link, band),
-                    Err(why) => {
-                        crate::link::stc_note(format!("BUILD {why:?}"));
-                        TouchVerdict::Unread(why)
-                    }
-                };
-                stc_measure(body, geo, &ties, s, &keys, at, &v);
-                v
-            }
-            Err(why) => TouchVerdict::Unread(why),
-        };
+        let verdict = self_touch_verdict(body, geo, &ties, s, &keys, at, band);
         match verdict {
             TouchVerdict::Rest(_) => {}
             TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
@@ -8545,6 +8529,42 @@ fn stc_measure<T: Decide>(
     if let Ok(mut fh) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
         use std::io::Write as _;
         let _ = fh.write_all(out.as_bytes());
+    }
+}
+
+/// **Solid `s`'s whole link at the touch point of `keys`, read for
+/// one material** ([`rest::one_material`]): the link of the faces'
+/// sectors where every face reads one ([`Link::touch_at_point`]), and
+/// where a curved face or edge takes part, the link of their tangent
+/// cones ([`Link::tangent_at_point`]), which the reading holds to the
+/// coincidences the faces keep.
+#[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
+fn self_touch_verdict<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    ties: &Ties,
+    s: crate::SolidKey,
+    keys: &BTreeSet<PointKey>,
+    at: Point3<T>,
+    band: Band,
+) -> TouchVerdict {
+    let link = match Link::touch_at_point(body, geo, ties, s, keys, at, band) {
+        Err(TouchUnread::Unreadable) => {
+            let v = match Link::tangent_at_point(body, geo, ties, s, keys, at, band) {
+                Ok(link) => rest::one_material(&link, band),
+                Err(why) => {
+                    crate::link::stc_note(format!("BUILD {why:?}"));
+                    TouchVerdict::Unread(why)
+                }
+            };
+            stc_measure(body, geo, ties, s, keys, at, &v);
+            return v;
+        }
+        built => built,
+    };
+    match link {
+        Ok(link) => rest::one_material(&link, band),
+        Err(why) => TouchVerdict::Unread(why),
     }
 }
 

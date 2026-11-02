@@ -3733,7 +3733,7 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
 /// point of itself (the planes at their feet on the world's axes, the
 /// cylinder at `z = 0` on its axis), as a construction that places
 /// its carriers' origins away from the body does.
-fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol) -> Body<f64> {
+pub(crate) fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol) -> Body<f64> {
     let k = if far { 0.0 } else { 1.0 };
     let mut p = crate::fixtures::raw_prism(2, tol);
     let xy = [(cx + r, cy), (cx - r, cy)];

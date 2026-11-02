@@ -3722,6 +3722,8 @@ mod round_rows;
 
 #[cfg(test)]
 mod cleared_rows;
+#[cfg(test)]
+mod tangent_rows;
 
 #[cfg(test)]
 mod tests {

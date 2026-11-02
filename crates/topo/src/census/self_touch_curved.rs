@@ -1,0 +1,233 @@
+//! **A solid touching itself at a point on a curved face is read over
+//! its faces' tangent cones** ([`super::self_touch_verdict`],
+//! [`Link::tangent_at_point`]): a parallelepiped's corner resting on a
+//! half-disc post of its own solid (`crate::tier3_tests::half_disc`, a
+//! cylinder wall, its chord's plane, and planar caps bounded by arcs),
+//! held at the post's corner, inside its bottom arc, or inside its wall,
+//! near the origin and a kilometre off it. The corner's edges point off
+//! the post (a rest), into it or across it (a crossing), along the
+//! wall's ruling (a line the wall keeps), or along an arc's or the
+//! wall's circle's tangent (a tangency only a second-order reading can
+//! part, refused).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use super::*;
+use crate::test_support_fixtures::mapped_cube;
+use geom_core::{Tol, Vec3};
+
+fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
+}
+
+/// The post's radius and height.
+const R: f64 = 0.8;
+const H: f64 = 1.0;
+/// The azimuth of the touch inside the arc or the wall, and its height
+/// up the wall.
+const THETA: f64 = 0.7;
+const UP: f64 = 0.4;
+
+/// Where on the post the corner rests.
+#[derive(Clone, Copy, Debug)]
+enum Seat {
+    /// On the post's corner at azimuth 0 on its bottom, tied to its
+    /// vertex there.
+    Corner,
+    /// Inside its bottom arc at [`THETA`], tied to the arc.
+    Arc,
+    /// Inside its wall at [`THETA`], [`UP`] above the bottom, tied to
+    /// the wall.
+    Wall,
+}
+
+/// The post with its axis corner at `c`, and a parallelepiped cornered
+/// on it at `seat`, spanned by `edges`, each given as its components
+/// along the wall's radial `n` at the seat's azimuth, the circle's
+/// direction `z × n` and `z`. The parallelepiped's shell is moved into
+/// the post's solid. Returns the body, the corner, and the ties that
+/// hold it at the seat.
+fn seat(c: Point3<f64>, at: Seat, edges: [[f64; 3]; 3]) -> (Body<f64>, VertexKey, Ties) {
+    let tol = Tol::witness();
+    let mut body = crate::tier3_tests::half_disc(R, H, (c.x, c.y, c.z), false, tol);
+    let theta = match at {
+        Seat::Corner => 0.0,
+        Seat::Arc | Seat::Wall => THETA,
+    };
+    let n = Vec3::new(theta.cos(), theta.sin(), 0.0);
+    let z = Vec3::unit_z();
+    let up = match at {
+        Seat::Wall => UP,
+        Seat::Corner | Seat::Arc => 0.0,
+    };
+    let p = c + n * R + z * up;
+    let [mut a, mut b, e] = edges.map(|[x, y, w]| n * x + z.cross(n) * y + z * w);
+    if a.cross(b).dot(e) < 0.0 {
+        std::mem::swap(&mut a, &mut b);
+    }
+    let part = mapped_cube::<f64>(move |u, v, w| p + a * u + b * v + e * w, tol);
+    let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+    let keep = census_entity_solid(&body, EntityId::Vertex(*before.first().unwrap())).unwrap();
+    let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+    for sh in body.solids.remove(gone).unwrap().shells {
+        body.shells[sh].solid = keep;
+        body.solids[keep].shells.push(sh);
+    }
+    body.solid_provenance.remove(gone);
+    let near = |body: &Body<f64>, v: VertexKey| (body.points[body.vertices[v].point] - p).norm() < 1e-9;
+    let corner = body
+        .vertices
+        .keys()
+        .find(|&v| !before.contains(&v) && near(&body, v))
+        .expect("the parallelepiped's corner on the post");
+    let ties = match at {
+        Seat::Corner => {
+            let post = before.iter().copied().find(|&v| near(&body, v)).unwrap();
+            Ties {
+                vv: vec![(corner, post), (post, corner)],
+                ..Ties::default()
+            }
+        }
+        Seat::Arc => {
+            let arc = body
+                .edges
+                .iter()
+                .find(|(_, edge)| {
+                    matches!(
+                        body.curves.get(edge.curve).and_then(crate::null::CurveGeom::certified)
+                            .map(|c| c.carrier().clone()),
+                        Some(geom::Curve3::Circle { center, .. }) if (center.z - c.z).abs() < 1e-12
+                    )
+                })
+                .map(|(k, _)| k)
+                .expect("the bottom arc");
+            Ties {
+                ve: vec![(corner, arc)],
+                ..Ties::default()
+            }
+        }
+        Seat::Wall => {
+            let wall = body
+                .faces()
+                .find(|(_, f)| {
+                    matches!(
+                        body.get_surface(f.surface),
+                        Some(geom::Surface::Cylinder { .. })
+                    )
+                })
+                .map(|(k, _)| k)
+                .expect("the wall");
+            Ties {
+                vf: vec![(corner, wall)],
+                ..Ties::default()
+            }
+        }
+    };
+    (body, corner, ties)
+}
+
+/// The self-touch reading of the corner as `ties` hold it: what the
+/// planar reading answered, and the solid's verdict.
+fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, TouchVerdict) {
+    let geo = snapshot(body);
+    let keys = touch_keys(&geo, ties, &[corner]).expect("the corner's keys");
+    let at = geo.vmap[&corner];
+    let s = census_entity_solid(body, EntityId::Vertex(corner)).unwrap();
+    let planar = match Link::touch_at_point(body, &geo, ties, s, &keys, at, band()) {
+        Ok(_) => panic!("a link with a curved face or edge read as planar"),
+        Err(why) => why,
+    };
+    (
+        planar,
+        self_touch_verdict(body, &geo, ties, s, &keys, at, band()),
+    )
+}
+
+/// **A corner on a curved post of its own solid reads the post's
+/// tangent cone**, at the post's corner, inside its arc and inside its
+/// wall: off the post it rests, into it or straddling its wall it
+/// crosses. An edge along the wall's ruling lies in the wall as the
+/// wall keeps it, so the corner reads as its other edges place it; an
+/// edge along the arc's tangent or the wall's circle leaves the post
+/// only to second order, which no reading here parts, and refuses. Red
+/// where the planar reading reads a curved face or edge, a curved
+/// face's normal or an edge's departure reads the other way, a crossing
+/// reads as a rest, or a tangency reads at all.
+#[test]
+fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
+    use TouchVerdict::{Crossing, Unread};
+    let off = [[0.3, 0.1, -0.05], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    let into = [[-0.3, 0.1, 0.15], [-0.3, -0.1, 0.1], [-0.2, 0.05, 0.3]];
+    let straddle = [[-0.2, 0.2, 0.1], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    let ruling = [[0.0, 0.0, 0.3], [0.3, -0.1, 0.1], [0.3, 0.15, -0.1]];
+    let ruling_into = [[0.0, 0.0, 0.3], [0.3, -0.1, 0.1], [-0.3, 0.15, 0.1]];
+    let circle = [[0.0, 0.3, 0.0], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    let corner_into = [[-0.3, 0.1, 0.15], [-0.1, 0.3, 0.1], [-0.2, 0.05, 0.3]];
+    let rest = |v: &TouchVerdict| v.is_rest();
+    let crossing = |v: &TouchVerdict| *v == Crossing;
+    let tangency = |v: &TouchVerdict| *v == Unread(TouchUnread::Unreadable);
+    type Reads = fn(&TouchVerdict) -> bool;
+    let rows: [(Seat, &str, [[f64; 3]; 3], Reads); 12] = [
+        (Seat::Corner, "off", off, rest),
+        (Seat::Corner, "into", corner_into, crossing),
+        (Seat::Corner, "straddling", straddle, crossing),
+        (Seat::Corner, "along the arc", circle, tangency),
+        (Seat::Arc, "off", off, rest),
+        (Seat::Arc, "into", into, crossing),
+        (Seat::Arc, "along the arc", circle, tangency),
+        (Seat::Wall, "off", off, rest),
+        (Seat::Wall, "straddling", straddle, crossing),
+        (Seat::Wall, "along the ruling", ruling, rest),
+        (Seat::Wall, "along the ruling, into", ruling_into, crossing),
+        (Seat::Wall, "along the circle", circle, tangency),
+    ];
+    let mut bad = Vec::new();
+    for far in [0.0, 1e3] {
+        let c = Point3::new(0.3 + far, 0.2 - 2.0 * far, 0.5 * far);
+        for (at, what, edges, reads) in rows {
+            let (body, corner, ties) = seat(c, at, edges);
+            let (planar, verdict) = read(&body, corner, &ties);
+            if planar != TouchUnread::Unreadable || !reads(&verdict) {
+                bad.push(format!("{at:?}, {what}, {far} off: planar {planar:?}, {verdict:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// **An edge leaves its vertex along its tangent there**
+/// ([`departure`]): each half-edge of an arc over `[0.3, 1.9]` of the
+/// unit circle, which leaves its two ends at different turns, leaves
+/// its start square to the radius there and toward its other end; each
+/// chord leaves along itself. Red where a half-edge reads the other
+/// end's tangent, or the walk the other way.
+#[test]
+fn an_edge_leaves_its_vertex_along_its_tangent_there() {
+    let center = Point3::new(0.3, -0.2, 0.1);
+    let circle = geom::Curve3::Circle {
+        center,
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (body, _) = crate::test_support_fixtures::arc_cap(
+        circle,
+        (0.3, 1.9),
+        Vec3::new(0.0, 0.0, 0.0),
+        Tol::witness(),
+    );
+    let at = |v: VertexKey| body.points[body.vertices[v].point];
+    let mut arcs = 0;
+    for (he, half) in &body.half_edges {
+        let (from, to) = (at(half.start), at(body.half_edge_end(he).unwrap()));
+        let (d, line) = departure(&body, he).unwrap();
+        let d = d.normalize();
+        if line {
+            assert!((d - (to - from).normalize()).norm() < 1e-12, "a chord: {d:?}");
+        } else {
+            arcs += 1;
+            assert!(d.dot(from - center).abs() < 1e-12, "square to the radius: {d:?}");
+            assert!(d.dot(to - from) > 0.1, "toward the other end: {d:?}");
+        }
+    }
+    assert_eq!(arcs, 2, "both halves of the arc");
+}
