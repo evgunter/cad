@@ -168,3 +168,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - **By inspection:** M3, the wrong refusal (`BundleStale`) for an already-placed body. N1, Transform on a patterned body rewrites the pattern's rule.
   - **Style:** two routes choose the door, and "the copies of this body" is spelled twice by hand.
   - **Class:** a retirement that removes the old door's checks (the body-kind seat, the half chooser) must re-home them on the new door. Fix pass dispatched to the same lane. (PLACING orchestrator)
+- 2026-11-02 — **Transform's retirement closes** (PR 6356). The fix pass fixed every review item. The probes P1/P4 are green as written. The orchestrator's read accepted the pass, including the reasoned N3 deviation: the story's second cutter stays its own body, because a Duplicate would leave a drawn stand-in.
+  - **Track state:**
+    - Ev's `[ev]` 6353 (takeover) is pending.
+    - Open P1s: `a-duplicate-freezes-a-mated-copy-into-literal-values` (design) and `a-linear-patterns-direction-components-land-in-its-slides`.
+    - The two takeover rows wait on 6353. (PLACING orchestrator)
