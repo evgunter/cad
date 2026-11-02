@@ -513,7 +513,7 @@ fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
         .clone();
     assert_eq!(face.node, common::copy_of(session.committed_doc(), extrude));
     assert_eq!(
-        session.hover().map(|h| h.name().clone()),
+        session.hover().and_then(|h| h.name().cloned()),
         Some(face.name.clone()),
         "the hover names the same face the click did"
     );

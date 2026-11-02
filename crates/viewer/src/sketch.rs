@@ -53,7 +53,7 @@ use pncad::document::{
     TraceCrossing, TracePassage, TraceRefusal, TraceSense, TraceStepFault, ValuePayload,
     WrittenLoopFault, resolve_written_loops,
 };
-use pncad::geom_core::{Arc2, Point2, Tol};
+use pncad::geom_core::{Arc2, Point2, Point3, Tol};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
@@ -1238,6 +1238,30 @@ pub struct PreviewLoop {
     pub vertices: Vec<usize>,
     /// How the authored chain ends.
     pub end: LoopEnd,
+}
+
+impl PreviewLoop {
+    /// **The loop as drawn on `plane`**: its points in world
+    /// coordinates, the first repeated last where the loop closes
+    /// ([`LoopEnd::closes`]) and has a leg to close — a loop of one
+    /// vertex is its point alone. The one home for where a loop is
+    /// drawn: the viewport's legs are this polyline's consecutive pairs
+    /// (its point, where it has one), and the pick index measures a
+    /// cursor against the same list.
+    pub fn drawn_on(&self, plane: &SketchPlane<f64>) -> Vec<Point3<f64>> {
+        let mut points: Vec<Point3<f64>> = self
+            .points
+            .iter()
+            .map(|&[x, y]| plane.to_world(Point2::new(x, y)))
+            .collect();
+        if self.end.closes()
+            && points.len() > 1
+            && let Some(&first) = points.first()
+        {
+            points.push(first);
+        }
+        points
+    }
 }
 
 /// **How a drawn loop ends.** Only the path form produces an end

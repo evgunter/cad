@@ -571,7 +571,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
         .expect("the click selected a ring face")
         .clone();
     assert_eq!(
-        session.hover().map(|h| h.name().clone()),
+        session.hover().and_then(|h| h.name().cloned()),
         Some(face.name.clone()),
         "hover and click answered the same cursor the same way"
     );

@@ -2343,13 +2343,14 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
             // picked by one too.
             ToolKind::Mate | ToolKind::Mirror => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
-            ToolKind::Revolve
-            | ToolKind::Boolean
+            // The one tool whose seat reads a profile.
+            ToolKind::Revolve => PickKinds::Any,
+            ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
-            | ToolKind::Duplicate => PickKinds::Any,
+            | ToolKind::Duplicate => PickKinds::FacesAndEdges,
         };
         assert_eq!(tools.pick_kinds(), want, "{kind:?}");
     }

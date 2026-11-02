@@ -49,3 +49,9 @@ Found by the `cleave/recl-flanker` review (PR #4177).
 ## Re-homed from FLUX to SCALAR (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. SCALAR collects the scalar doors and the readers over them: the certified-door family, the margin and recourse readers, the unit-direction doors, and the box driver's readings. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Note (2026-11-01, ONEREAD `oneread/recl-line-cone`)
+
+The `recl.rs` `flank_rep` site (`bool_flank_offset`) is deleted: an
+edge-edge site reads each flank bound's point against the other solid's
+line cone, normalizing nothing.

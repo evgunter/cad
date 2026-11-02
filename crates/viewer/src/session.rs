@@ -80,6 +80,7 @@ use crate::evalseam::{
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::{History, HistoryId};
+use crate::layout::{self, Layout, LayoutFault, LayoutReport};
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
 use crate::props::{self, Notation, SlotDriver, SlotValue};
@@ -2871,10 +2872,59 @@ impl DocSession {
                 self.history = history;
                 self.path = Some(path.to_path_buf());
                 self.clear_for_new_document();
+                let layout = self.restore_layout(path);
                 self.request_eval();
-                OpOutcome::default()
+                OpOutcome {
+                    layout,
+                    ..OpOutcome::default()
+                }
             }
             Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
+        }
+    }
+
+    /// **Put back the frames the opened document's saved layout holds**
+    /// ([`layout::read`], [`DisplayState::restore`]), after
+    /// [`DocSession::clear_for_new_document`] dropped the outgoing
+    /// document's. A layout written for another document restores
+    /// nothing; no layout restores nothing and says nothing.
+    fn restore_layout(&mut self, path: &Path) -> LayoutReport {
+        let document = self.history.doc().id();
+        match layout::read(path, self.tol) {
+            Ok(None) => LayoutReport::default(),
+            Ok(Some((saved, skipped))) if saved.document != document => LayoutReport {
+                skipped,
+                fault: Some(LayoutFault::OtherDocument {
+                    path: layout::path_of(path),
+                    layout: saved.document,
+                    document,
+                }),
+                ..LayoutReport::default()
+            },
+            Ok(Some((saved, skipped))) => LayoutReport {
+                dropped: self.display.restore(self.history.doc(), &saved.frames),
+                skipped,
+                fault: None,
+            },
+            Err(fault) => LayoutReport {
+                fault: Some(fault),
+                ..LayoutReport::default()
+            },
+        }
+    }
+
+    /// **Keep the committed frames beside the document just saved at
+    /// `path`** ([`layout::write`]), under the id it was saved with.
+    /// Answers what of that went wrong, which the save itself does not
+    /// refuse on: the document is written.
+    fn save_layout(&self, path: &Path) -> LayoutReport {
+        let saved = Layout {
+            document: self.history.doc().id(),
+            frames: self.display.saved_frames(self.history.doc()),
+        };
+        LayoutReport {
+            fault: layout::write(path, &saved).err(),
+            ..LayoutReport::default()
         }
     }
 
@@ -2884,7 +2934,10 @@ impl DocSession {
         match docio::save(path, self.history.doc(), self.tol) {
             Ok(_) => {
                 self.bind_file(path);
-                OpOutcome::default()
+                OpOutcome {
+                    layout: self.save_layout(path),
+                    ..OpOutcome::default()
+                }
             }
             Err(error) => OpOutcome::refused(error.into()),
         }
@@ -2904,7 +2957,10 @@ impl DocSession {
                 if !self.bind_file(path) {
                     self.request_eval();
                 }
-                OpOutcome::default()
+                OpOutcome {
+                    layout: self.save_layout(path),
+                    ..OpOutcome::default()
+                }
             }
             Err(error) => OpOutcome::refused(error.into()),
         }
@@ -2967,8 +3023,9 @@ impl DocSession {
     ///
     /// G3: hide and free-move are display state of a SESSION over a
     /// document, never of the document — a fresh open starts with
-    /// none, which is what makes "save, reopen, layer-3 state gone" a
-    /// property of the structure. It is `clear`ed rather than rebuilt
+    /// none, and an open then restores the frames the document's saved
+    /// layout holds ([`DocSession::restore_layout`]); hides and shows
+    /// are not kept. It is `clear`ed rather than rebuilt
     /// because its revision counter must not go backwards
     /// ([`Derived`]'s own docs carry that and the other two
     /// exclusions).
