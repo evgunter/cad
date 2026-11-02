@@ -2535,8 +2535,7 @@ fn plan_edge<'s, T: Decide>(
         // (`IsoRowError::Interior`) rather than reading another row.
         let extract = row.filter(|&(axis, at, _)| {
             self_shared || {
-                let held =
-                    body.face_surface_linked(other, proven(&body.faces, other, EntityId::Face));
+                let held = body.proven_face_surface(other);
                 crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
             }
         });

@@ -1715,6 +1715,7 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
     let loft = r.insert(Node::Loft {
         first: p0.into(),
         then: vec![editor_core::LoftSection {
+            id: None,
             profile: p1.into(),
             station: vec![editor_core::StationMove::Slide {
                 along: editor_core::Axis3::Z,
@@ -1722,6 +1723,7 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
             }],
         }],
         v_degree: Formula::count(1),
+        first_id: None,
     });
     let ev = eval(&r.doc);
     if let Some(e) = ev.node_error(loft) {
