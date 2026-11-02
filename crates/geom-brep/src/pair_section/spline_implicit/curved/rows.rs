@@ -609,3 +609,166 @@ fn a_torus_corner_in_the_band_is_no_clear_corner() {
         0.85 * b.escalate()
     );
 }
+
+/// The section of `a` and `b` through the march door, whole.
+fn section(a: &Surface<f64>, b: &Surface<f64>) -> Result<crate::PairSection<f64>, SectionError> {
+    match pair_section(a, b, None, Some(SsiLane::marched()), band())? {
+        SectionRead::Built(s) => Ok(s),
+        SectionRead::Elsewhere(route) => panic!("the value builds the pair: {route:?}"),
+    }
+}
+
+/// The dome `z = −(x − ½)² − (y − ½)²` over the unit square, its top
+/// `z = 0` at the centre.
+fn dome() -> Surface<f64> {
+    let g = [-0.25, 0.25, -0.25];
+    #[allow(clippy::cast_precision_loss)]
+    patch(2, 2, &|i, j| {
+        (pt(0.5 * i as f64, 0.5 * j as f64, g[i] + g[j]), 1.0)
+    })
+}
+
+/// **A dome touching a sphere at its top is one touch.** The unit sphere
+/// standing on the dome's top: the top is `∇φ`'s one zero there, its
+/// Hessian definite and its value zero, so the sweep decides a touch and
+/// the pass finds no end. The section is that touch, one point
+/// component witnessed at the top, a tangency decided Zero. Red against
+/// the Hessian's sign read the other way (a node pinches), and against a
+/// decided touch left to the general rung.
+#[test]
+fn a_dome_touching_a_sphere_is_one_touch() {
+    let got = section(&dome(), &sphere(pt(0.5, 0.5, 1.0), 1.0));
+    let Ok(s) = &got else {
+        panic!("the dome under the sphere reads {got:?}");
+    };
+    let Components::Counted(c) = s.components() else {
+        panic!("a counted touch: {:?}", s.components());
+    };
+    assert!(
+        matches!(c.as_slice(), [p] if p.shape == crate::ComponentShape::Point
+            && p.witness.is_some_and(|w| w.distance(pt(0.5, 0.5, 0.0)) <= 1e-6)),
+        "one touch at the top: {c:?}"
+    );
+    assert!(
+        s.tangency()
+            .is_some_and(|z| z.decision.name() == "spline_critical_value"),
+        "the touch is a tangency decided Zero: {:?}",
+        s.tangency()
+    );
+}
+
+/// **A top only in band of a sphere is not decided.** The same dome
+/// under the unit sphere raised half way between the band's zero and its
+/// escalation: the top is a critical point whose value is in band, so it
+/// is no touch, and the sweep declines there. Red against the value read
+/// past the band's zero rather than decided zero (it would read a
+/// touch).
+#[test]
+fn a_top_in_band_of_a_sphere_is_not_decided() {
+    let b = band();
+    let lift = 0.5 * (b.zero() + b.escalate());
+    let got = read(&dome(), &sphere(pt(0.5, 0.5, 1.0 + lift), 1.0));
+    assert!(
+        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
+        "a top {lift:e} under the sphere reads {got:?}"
+    );
+}
+
+/// **A saddle at the zero level of a sphere pinches its arcs.** The
+/// saddle `z = (x − ½)² − (y − ½)²` under the sphere of radius 100 resting
+/// on its centre: the centre is a node decided Zero, the section's arcs
+/// crossing there and running out to the sides, and the march that would
+/// list them does not start at a node, so the value refuses them as the
+/// pinch named by the decision. Red against a node's arcs read as the
+/// pass's reach (`Reaching`, which the guard would clear).
+#[test]
+fn a_saddle_under_a_sphere_pinches_at_its_node() {
+    let g = [0.25, -0.25, 0.25];
+    #[allow(clippy::cast_precision_loss)]
+    let saddle = patch(2, 2, &|i, j| {
+        (pt(0.5 * i as f64, 0.5 * j as f64, g[i] - g[j]), 1.0)
+    });
+    let got = read(&saddle, &sphere(pt(0.5, 0.5, 100.0), 100.0));
+    assert!(
+        matches!(
+            got,
+            Err(SectionError::Pinched {
+                predicate: "spline_critical_value"
+            })
+        ),
+        "the saddle under the sphere reads {got:?}"
+    );
+}
+
+/// **Klein's half-tube: a creased wall through a sphere is loop-free.**
+/// A half tube of radius `0.2` about the `z` axis, rising from `z = 0.5`
+/// to `1.5`, its half circle two rational arcs of 60° and 120° on the two
+/// halves of `u`, so a knot of multiplicity the degree sits at `u = ½`
+/// and the wall's `u` derivative jumps there (a crease by its knots, as
+/// klein's half-tube's arc joint is). Against the unit sphere `φ`
+/// depends on the height alone; the crease pass reads the crease line
+/// regular along itself, each half of the rectangle is swept, and the
+/// section is the arc from the `u = 0` side to the `u = 1` side. Red
+/// against the rectangle swept whole (it declines at the crease).
+#[test]
+fn klein_half_tube_through_a_sphere_is_loop_free() {
+    let arc = |a: f64, b: f64| {
+        let h = 0.5 * (b - a);
+        [
+            (0.2 * a.cos(), 0.2 * a.sin(), 1.0),
+            (
+                0.2 / h.cos() * (a + h).cos(),
+                0.2 / h.cos() * (a + h).sin(),
+                h.cos(),
+            ),
+        ]
+    };
+    let d = std::f64::consts::PI / 180.0;
+    let mut ring: Vec<(f64, f64, f64)> = arc(0.0, 60.0 * d).to_vec();
+    ring.extend(arc(60.0 * d, 180.0 * d));
+    ring.push((-0.2, 0.0, 1.0));
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let (control, weights): (Vec<_>, Vec<_>) = ring
+        .iter()
+        .flat_map(|&(x, y, w)| [(pt(x, y, 0.5), w), (pt(x, y, 1.5), w)])
+        .unzip();
+    let half_tube = wall(NurbsSurface::new(ku, span(1), control, weights).unwrap());
+    let got = read(&sphere(pt(0.0, 0.0, 0.0), 1.0), &half_tube);
+    let Ok(Components::Reaching(reached)) = &got else {
+        panic!("the half tube through the sphere reads {got:?}");
+    };
+    assert_eq!(
+        reached.rims()[1],
+        side(ChartAxis::U, ChartEnd::Low).or(side(ChartAxis::U, ChartEnd::High)),
+        "the half tube's ends"
+    );
+}
+
+/// **A loop round a ridge's top declines.** A tent creased along `x = ½`,
+/// its ridge rising to `z = 0.3` at the middle of its run, under the unit
+/// sphere sunk 0.02 below the ridge's top: the sphere cuts the tent in a
+/// loop about the ridge's top. On each flank `φ`'s gradient is off zero,
+/// so every cell there reads regular or excluded; the top is an extremum
+/// of `φ` along the crease line, which the crease pass reads excluded
+/// inside the sphere, not regular along the line, and joined to no side,
+/// so the sweep declines. Red against the crease pass skipped (the loop
+/// is proved away: no component).
+#[test]
+fn a_loop_round_a_ridges_top_declines() {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+    let ridge = [0.2, 0.4, 0.2];
+    let (control, weights): (Vec<_>, Vec<_>) = (0..3)
+        .flat_map(|i| (0..3).map(move |j| (i, j)))
+        .map(|(i, j)| {
+            #[allow(clippy::cast_precision_loss)]
+            let (x, y) = (0.5 * i as f64, 0.5 * j as f64);
+            (pt(x, y, if i == 1 { ridge[j] } else { 0.0 }), 1.0)
+        })
+        .unzip();
+    let tent = wall(NurbsSurface::new(ku, span(2), control, weights).unwrap());
+    let got = read(&tent, &sphere(pt(0.5, 0.5, 0.3 + 1.0 - 0.02), 1.0));
+    assert!(
+        matches!(got, Err(SectionError::RoutesToGeneralRung { .. })),
+        "the sphere cutting the ridge's top reads {got:?}"
+    );
+}

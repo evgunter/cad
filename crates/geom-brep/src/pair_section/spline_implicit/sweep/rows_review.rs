@@ -62,7 +62,7 @@ fn swept(p: &Surface<f64>, w: &Surface<f64>) -> Sweep {
 fn never_loop_free(what: &str, p: &Surface<f64>, w: &Surface<f64>) {
     let got = swept(p, w);
     assert!(
-        !matches!(got, Sweep::LoopFree),
+        !matches!(got, Sweep::LoopFree(_)),
         "{what}: a loop of the section is proved away: {got:?}"
     );
 }

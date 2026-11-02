@@ -708,22 +708,102 @@ pub(super) fn section(
             .fold(ChartReach::default(), ChartReach::or);
         (reach, std::sync::Arc::new(pass.clone()))
     };
-    if let sweep::Sweep::Declined(_) = sweep::sweep(
+    let decided = match sweep::sweep(
         reading.boxes(),
         pivot.phi(),
         reading.account_floor(),
         read_band,
         pose.domain().extent,
     ) {
-        let out = reading.all().map_err(super::whole_reading_refused)?;
-        return listed(pose, &pivot, out);
-    }
-    drop(reading);
-    let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
-        return Ok(pose.section(Components::Counted(Vec::new())));
+        sweep::Sweep::Declined(_) => {
+            let out = reading.all().map_err(super::whole_reading_refused)?;
+            return listed(pose, &pivot, out);
+        }
+        sweep::Sweep::LoopFree(decided) => decided,
     };
+    let witnesses = witnesses(reading.boxes(), &decided);
+    drop(reading);
     pose.pass = Some(pass);
-    Ok(pose.section(Components::Reaching(reached)))
+    loop_free(pose, reach, &decided, &witnesses)
+}
+
+/// Each decided critical point's witness, the wall's point at its box's
+/// enclosure's centre, and that enclosure's reach, its pad.
+pub(super) fn witnesses(
+    boxes: &crate::ssi::enclose::NurbsBoxes<'_, f64>,
+    decided: &[sweep::Critical],
+) -> Vec<Option<(Point3<f64>, f64)>> {
+    decided
+        .iter()
+        .map(|c| {
+            c.cell
+                .window()
+                .and_then(|w| boxes.rect_box(w).centre_and_reach())
+        })
+        .collect()
+}
+
+/// What a decided critical point's section refuses as
+/// ([`SectionError::Pinched`]) where the section has more than its
+/// touches: its decision's name.
+pub(super) const CRITICAL: &str = "spline_critical_value";
+
+/// Why a touch's component has no carrier.
+const TOUCH: &str = "a touch decided Zero at a critical point of the composite: the surfaces \
+                     meet at one point within the band, and no carrier is minted for it";
+
+/// **The section a loop-free sweep's verdict is** (module docs), the
+/// pass's ends `reach` and the critical points `decided` Zero:
+///
+/// - none decided: no component where the pass found no end, else
+///   [`Components::Reaching`] on the sides it found them on;
+/// - only touches and no end: each touch a point component, its witness
+///   the wall's point at its box and its pad that box's reach, each a
+///   tangency decided Zero, the reading the interior-loop guard's touch
+///   arm takes;
+/// - a node, or touches beside components with ends: those components
+///   meet a decided tangency, and the march that would list them does not
+///   start at one, so they are not counted
+///   ([`SectionError::Pinched`], named [`CRITICAL`]).
+///
+/// # Errors
+///
+/// [`SectionError::Pinched`] as above.
+pub(super) fn loop_free(
+    pose: SplineImplicitPose<f64>,
+    reach: ChartReach,
+    decided: &[sweep::Critical],
+    witnesses: &[Option<(Point3<f64>, f64)>],
+) -> Result<PairSection<f64>, SectionError> {
+    if decided.is_empty() {
+        let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
+            return Ok(pose.section(Components::Counted(Vec::new())));
+        };
+        return Ok(pose.section(Components::Reaching(reached)));
+    }
+    if reach.any() || decided.iter().any(|c| c.kind == sweep::Kind::Node) {
+        return Err(SectionError::Pinched {
+            predicate: CRITICAL,
+        });
+    }
+    let mut components = Vec::with_capacity(decided.len());
+    let mut verdicts = Vec::with_capacity(decided.len());
+    for (c, &witness) in decided.iter().zip(witnesses) {
+        components.push(SectionComponent {
+            shape: ComponentShape::Point,
+            winds: [false, false],
+            witness: witness.map(|(q, _)| q),
+            pad: witness.map_or(0.0, |(_, pad)| pad),
+            carrier: ClassCarrier::Unminted(TOUCH),
+        });
+        verdicts.push(super::ZeroVerdict {
+            decision: super::SectionDecision::Tangency(CRITICAL),
+            margin: c.margin,
+        });
+    }
+    let mut section = pose.section(Components::Counted(components));
+    section.decided = verdicts;
+    Ok(section)
 }
 
 /// **The section read whole** (module docs): C3's reading, every

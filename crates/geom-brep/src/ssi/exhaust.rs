@@ -607,6 +607,23 @@ impl SweepFloor<ParamSpan> {
     }
 }
 
+impl SweepFloor<UvRect> {
+    /// This floor over `root`, a rectangle inside the one it was minted
+    /// over: the same width and lane, its resolution held, since a
+    /// sub-rectangle reaches no further than its parent. `None` for a
+    /// rectangle outside the floor's root.
+    pub(crate) fn within(self, root: UvRect) -> Option<Self> {
+        let inside = |a: (f64, f64), b: (f64, f64)| b.0 <= a.0 && a.0 <= a.1 && a.1 <= b.1;
+        (inside(root.u, self.root.u) && inside(root.v, self.root.v))
+            .then_some(Self { root, ..self })
+    }
+
+    /// The rectangle the floor was minted over.
+    pub(crate) fn root(self) -> UvRect {
+        self.root
+    }
+}
+
 impl<C: SweepCell> SweepFloor<C> {
     /// The one door.
     ///
@@ -698,9 +715,11 @@ enum SweepDuty<'a, C> {
         /// zero inward.
         clear: &'a [C],
     },
-    /// Stop at every cell `regular` holds, and return the centre of the
-    /// first cell that is neither excluded nor regular at the floor: the
-    /// plane × spline pose's regularity sweep, which that cell declines.
+    /// Stop at every cell `regular` holds, and return the centres of the
+    /// cells that are neither excluded nor regular at the floor, up to
+    /// [`REGULAR_SURVIVORS`]: the spline × implicit pose's regularity
+    /// sweep, which decides each cluster of them as a critical point or
+    /// declines.
     Regular(&'a dyn Fn(C) -> bool),
 }
 
@@ -913,10 +932,15 @@ fn sweep<C: SweepCell>(
                     out.push(cell.seed());
                     continue;
                 }
-                // One cell the sweep cannot decide declines it.
+                // A cell the sweep cannot read is a critical point's to
+                // decide; past the cap, there are more than one point
+                // can hold, and the sweep stops.
                 SweepDuty::Regular(_) => {
                     out.push(cell.seed());
-                    return Ok((stats, out));
+                    if out.len() > REGULAR_SURVIVORS {
+                        return Ok((stats, out));
+                    }
+                    continue;
                 }
                 SweepDuty::Account { .. } => {
                     return Err(SsiError::ExhaustivenessInconclusive(
@@ -1020,7 +1044,7 @@ fn excludes_zero(i: Interval) -> bool {
 }
 
 /// A rectangle in a surface's parameter domain — the chart lane's cell.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct UvRect {
     /// `u` bounds, in chart units.
     pub u: (f64, f64),
@@ -1229,13 +1253,18 @@ pub(crate) fn account_chart_plane(
     Ok(tally.receipt(floor.lane, floor.width()))
 }
 
+/// The most floor cells the regularity sweep hands on to be decided as
+/// critical points (D9, a fixed rule): past it the sweep stops, and the
+/// pose declines.
+pub(crate) const REGULAR_SURVIVORS: usize = 256;
+
 /// **The regularity sweep**, chart lane, over the one shared [`sweep`]:
 /// a cell is excluded where `excluded` reads the partner's `φ` over it,
 /// `value`'s enclosure (the plane's height on the accounting's own
 /// enclosure, [`chart_plane_height`]), as past it, and stops where
-/// `regular` holds. The answer is the centre of the first cell neither
-/// holds at the floor, which declines the sweep, or none; and how many
-/// cells read regular.
+/// `regular` holds. The answer is the centres of the cells neither holds
+/// at the floor, more than [`REGULAR_SURVIVORS`] of them where the sweep
+/// stopped; and how many cells read regular.
 ///
 /// # Errors
 ///
@@ -1245,12 +1274,12 @@ pub(crate) fn sweep_chart_regular(
     floor: SweepFloor<UvRect>,
     excluded: impl Fn(UvRect, Interval) -> bool,
     regular: &dyn Fn(UvRect) -> bool,
-) -> Result<(Option<(f64, f64)>, u32), SsiError> {
-    let (tally, declined) = sweep(floor, SweepDuty::Regular(regular), |cell| {
+) -> Result<(Vec<(f64, f64)>, u32), SsiError> {
+    let (tally, survivors) = sweep(floor, SweepDuty::Regular(regular), |cell| {
         let phi = value(cell)?;
         Ok(excluded(cell, phi))
     })?;
-    Ok((declined.first().copied(), tally.regular))
+    Ok((survivors, tally.regular))
 }
 
 /// **The plane's height over a cell**: `φ(u,v) = n·(S(u,v) − p₀)`
