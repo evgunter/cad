@@ -315,13 +315,13 @@ cover: the carrier's cover met with every trim constraint the reading
 proves, one arm per kind, each constraint a stage of that one rule. A
 constraint the reading does not prove (one left in band, or one it
 cannot read) adds nothing to the meet and hands to no second method;
-a reading whose meet is still the whole space answers a typed
+a reading whose meet is still the whole space refuses with a typed
 `Uncovered` naming the entity and what was not known, which a meet
 takes as its identity and a hull as its absorber, inside a reading and
-between readers alike. Every bound on where the entity is (a box in
-any frame, a support along a direction, a distance range from a point
-or a line, a ball) is a method on the cover, matches on no kind, and
-encloses at every scalar. No bound is a method on `Uncovered`, so a
+in a reader that meets two entities' covers alike. Every bound on where
+the entity is (a box in any frame, a support along a direction, a
+distance range from a point or a line, a ball) is a method on the
+cover, matches on no kind, and encloses at every scalar. No bound is a method on `Uncovered`, so a
 reader reaches it only by stating its own fail-loud direction: a
 pruning reader takes the box that overlaps everything, a granting
 reader refuses with that reason as its recourse. A reader grants on a
