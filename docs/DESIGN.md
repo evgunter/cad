@@ -186,10 +186,11 @@ is a document, and the kernel has no assembly type ([assemblies]); a
 copy, a pattern and a moved body are all placements ([placement]); a
 pattern is an index, not an operation ([repetition]). Two ways of deciding one fact can decide it
 differently inside the band; two places stating one fact can drift
-apart. Two types never carry the same fields: where kinds share part
-of what they are, that part is named for what it means and is one
-type each kind holds, so a reader of the shared part reads that type
-and never assembles its own. A family of authored forms is not a second way when every form
+apart. Two types carrying the same fields are a sign of a cleaner
+arrangement to find: usually kinds share part of what they are, and
+that part, named for what it means, is one type each kind holds, so a
+reader of the shared part reads that type rather than assembling its
+own. A family of authored forms is not a second way when every form
 lowers through one reading ([recipe.forms]). The canonical places are
 the next section.
 
