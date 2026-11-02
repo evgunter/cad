@@ -248,6 +248,8 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
+| A verdict's f64 rounding | three owners: the run's floor (`Tolerance`'s admission rule), the carrier's long terms (`carrier_resolution`), the reading's amplification (re-posed, or `running::Rounded`) | [verdicts] |
+| The extent a verdict is consumed over, and the session-box check that reads it | `geom_brep::Reach`, built only from consumed geometry | [tolerance.epsilon], [tolerance.units] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
 | Topology construction | the Euler operators | [topology.operators] |
@@ -385,10 +387,20 @@ curve pairs.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
-  K's noise headroom presumes every margin's f64 error is a few ulp at
-  the model's extent: a formula whose error is amplified by a vanishing
-  quantity (a division by sin θ, |n|², a near-zero determinant) is a
-  defect, re-posed or certified, never covered by K. Interval replay
+  A verdict's f64 rounding has three owners, and no site chooses a
+  formula for any of them. **The run** owns the floor, the rounding of
+  a short, division-free chain over in-box terms (`FLOOR_ULPS · u ·`
+  the session box): `Tolerance` admits a run (ε, K) only when its
+  headroom (K − 1)·ε covers the floor, so the floor is never charged at
+  a site. **The carrier** owns its long terms (a centre minted far from
+  the arc it serves), stated once as its kind's term bound in `geom`
+  and charged through `carrier_resolution`. **The reading** owns its
+  own amplification of both: a formula whose error is amplified by a
+  vanishing quantity (a division by sin θ, |n|², a near-zero
+  determinant) is a defect, re-posed or certified (carried by
+  `geom_core::running::Rounded` into the margin door), never covered
+  by K. A charge belongs to whichever change removes it: re-minting the
+  carrier, or re-posing the formula. Interval replay
   does not rescue it: its enclosure lands in the band, which is
   terminal.
 - **Closeness is not identity.** `[verdicts.closeness]` Margined
@@ -479,11 +491,15 @@ angle only means anything through the displacement it induces at a
 lever arm (d = r·θ), so a fixed εₐ would privilege a hidden length
 scale. **An angle is metered in whatever way is required to make all
 geometry correct to within ε**: every angular predicate uses θ = ε/r
-with its lever arm named at the call site, the reach at which the
-angle displaces the geometry it governs — 1/κ_rel for tangency, the
+with its lever arm a `Lever`, the reach at which the
+angle displaces the geometry it governs, constructed only from its
+sources — 1/κ_rel for tangency, a read of the consumed extent (the
 distance of each face's own points from the other's carrier for
-parallelism, the session-box extent as the conservative universal arm
-only where no such geometry is in hand. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
+parallelism), the session-box extent as the conservative universal arm
+only where no such geometry is in hand. A consumed extent is one type,
+built only from the geometry a verdict consumes (an edge's span, a
+face's boundary, two boxes' overlap, a bounded carrier), never from a
+length a caller vouches for. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
 f64 headroom at km scale. Import does not motivate loosening ε ([import]).
 
 
@@ -664,10 +680,15 @@ take it down a path that decides the question itself.
 size range.** `[tolerance.units]`
 the session box is 1 km, no coordinate larger
 in magnitude; geometry outside the range is rejected at
-construction. The box fixes the smallest admissible ε, ε_min =
-1 km · 2⁻⁵² ≈ 2.2e-13 m, the length f64 resolves at the box's
-edge: a run's ε below ε_min is refused, and no refusal offers to
-tighten the tolerance below it. User-facing units are typed
+construction. One predicate decides it, a read of the body's consumed
+extent (its vertices, edges' spans and faces' boundaries, never a
+carrier's stored terms): the finished-body gate asks it, and a door
+that decides on its output's geometry before its end asks it first,
+so an out-of-box result is refused naming the operation, never
+another refusal or a panic. The box and K fix the smallest admissible
+ε, the least one whose headroom (K − 1)·ε covers the floor at the
+box's edge ([verdicts]): a run's ε below it is refused, and no
+refusal offers to tighten the tolerance below it. User-facing units are typed
 newtypes at the API boundary only ([units]).
 
 **Strictness is enforced at the boundary, not relaxed inside.**
