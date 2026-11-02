@@ -2,10 +2,12 @@
 id: tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face
 kind: issue
 title: Tier 3′ reads no side where a solid touches itself at a point a curved face of it passes
-status: open
+status: review
 priority: P1
 cost: H
 opened: 2026-10-21
+pr: 6350
+branch: restread/self-touch-curved-sector
 ---
 
 Found by `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`'s
