@@ -781,16 +781,10 @@ const PLATE_MAX_TERMS: usize = 28;
 /// over an argument with no rational-turn part are keyed by the
 /// sign-normalised argument, each `sin` read as `−sin(−ω)`. The 168
 /// forms downstream carry the new keys at their old sizes.
-///
-/// **ONEHOME's box-scalar switch** (PR 6371) moved `Plain/Decision` and
-/// `Early/Decision` by 12 forms each, with their digests, and no call
-/// count: the sweep doors' leaf at `Sym` is tier 2 and the Boolean
-/// finishes its operands. Unexplained: running tier 2 or not moves
-/// nothing (measured), so the 12 are not tier 2's.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1149 forms 20630 frozen 36 digest 41f712de2e74b3fa24e508cff644d66b\n\
+     Plain/Decision calls 1149 forms 20618 frozen 36 digest 5b68ab11cb6a6488e4a842bd68fd8b54\n\
      Plain/Assertion calls 824 forms 9331 frozen 193 digest 3b9e5da836f18dc5a35a3a4ece119754\n\
-     Early/Decision calls 342 forms 11661 frozen 0 digest 0cd9855b61169dd1282cb87c42c00f67\n\
+     Early/Decision calls 342 forms 11649 frozen 0 digest 38b61e2e3311ab58939c93cd540bd52b\n\
      Early/Assertion calls 824 forms 10745 frozen 0 digest bfcde6cb8486b98883080e5e22c9cf20\n\
      Door/Decision calls 557 forms 13569 frozen 0 digest 07819a3c990e37a0b06cfef06cbc955d";
 
