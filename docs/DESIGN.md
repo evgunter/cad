@@ -248,7 +248,7 @@ of them is a defect.
 | The tolerance | one ε per run (`geom_core::Tolerance`); angles derived from it at a named lever arm | [tolerance.epsilon] |
 | A topology-determining decision | a named predicate returning a trilean and a margin | [verdicts] |
 | A question about carriers | one reading per question | [one-way.readings] |
-| A verdict's f64 rounding | three owners: the run's floor (`Tolerance`'s admission rule), the carrier's long terms (`carrier_resolution`), the reading's amplification (re-posed, or `running::Rounded`) | [verdicts] |
+| f64 rounding | the run's admission rule on (ε, K); no site charges it | [verdicts] |
 | The extent a verdict is consumed over, and the session-box check that reads it | `geom_brep::Reach`, built only from consumed geometry | [tolerance.epsilon], [tolerance.units] |
 | What a decision may do with its answer | lane choice or structural act | [verdicts.consumers] |
 | A refusal's recourse | one per decision, written in the decision's levers | [tolerance.recourse] |
@@ -387,22 +387,19 @@ curve pairs.
   — not a correctness parameter: soundness rests on
   escalate-never-guess, [tolerance.residuals] certification and interval replay, for
   any K > 1. K = 10, per-run configuration like ε (`Tolerance.k`).
-  A verdict's f64 rounding has three owners, and no site chooses a
-  formula for any of them. **The run** owns the floor, the rounding of
-  a short, division-free chain over in-box terms (`FLOOR_ULPS · u ·`
-  the session box): `Tolerance` admits a run (ε, K) only when its
-  headroom (K − 1)·ε covers the floor, so the floor is never charged at
-  a site. **The carrier** owns its long terms (a centre minted far from
-  the arc it serves), stated once as its kind's term bound in `geom`
-  and charged through `carrier_resolution`. **The reading** owns its
-  own amplification of both: a formula whose error is amplified by a
-  vanishing quantity (a division by sin θ, |n|², a near-zero
-  determinant) is a defect, re-posed or certified (carried by
-  `geom_core::running::Rounded` into the margin door), never covered
-  by K. A charge belongs to whichever change removes it: re-minting the
-  carrier, or re-posing the formula. Interval replay
-  does not rescue it: its enclosure lands in the band, which is
-  terminal.
+  The f64 lane is posed well-conditioned, then computed as if exact:
+  a formula is well-conditioned where its verdict is decided, a
+  quantity it would divide by that can vanish is a pose decided first
+  (coaxial, parallel, tangent), and a carrier is stored in terms no
+  longer than the session box; nothing charges, pads or estimates
+  float rounding. The one statement about rounding is the run's:
+  `Tolerance` admits (ε, K) only where the headroom (K − 1)·ε covers a
+  short chain's rounding at the box's edge, a constant comparison. An
+  ill-conditioned formula or carrier is a defect, re-posed or
+  re-minted, never covered by K or charged; what f64 cannot decide
+  so is the Interval lane's, whose enclosure of an ill-posed formula
+  lands in the band, which is terminal: it makes the defect loud, it
+  does not certify around it.
 - **Closeness is not identity.** `[verdicts.closeness]` Margined
   comparison is not transitive, so no decision is inferred from two
   others. Cells are one only by topology (a Zero verdict glued them,
