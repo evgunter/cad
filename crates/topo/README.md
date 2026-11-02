@@ -1138,8 +1138,31 @@ of an edge lying in a face of its own solid (`edge_in_own_face`, by
 solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
 curved edge held at its corner, a planar face with a spline edge, or a
-point tied inside a curved edge, left unread. Every other use of a face's normal in the coincidence sweeps is
+point tied inside a curved edge read as its faces' tangent cones
+(`FaceSector::tangent`) where their first order decides, and left
+unread where it does not (`census::SelfTouch::SecondOrder`: a cone's
+apex, a cusp corner, sheets tangent to first order, a face whose
+tangent reading does not build, or sectors lying on each other). Every
+other use of a face's normal in the coincidence sweeps is
 sense-invariant.
+
+The tangent reading is the germ's (`rest::first_order`). Under the
+blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
+`t → 0`, to their tangent sectors, planes and bounds both. A reading
+decided to a strict sign holds under every small enough perturbation
+of the planes and rays; a reading decided Zero is taken only where the
+faces keep the coincidence themselves (a shared edge, two line edges on
+one line, a line on a cylinder's ruling, a line edge in a planar face's
+plane), and every other bound on another sector's plane, inside it or
+on its bound, refuses, as do two whole tangent planes on one plane.
+What is left is a cone in which each two sectors meet in a ray they
+share, cross along a line inside one or both, or meet only at `p` (a
+bound on the other's plane outside it among these: that sheet does not
+reach the direction; and coplanar sectors that are disjoint or meet at
+a shared edge at dihedral π, graphs over complementary domains of one
+plane), each of which survives the perturbation. So the cone's verdict
+is the faces' at every small enough scale: the germ's, which is what
+the link claim is about.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,

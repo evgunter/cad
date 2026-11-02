@@ -38,3 +38,11 @@ A fix folds each curved edge's extent in through the one door
 `an-edges-extent-has-four-dispatchers` names. Until that lands it is
 `splitting::containment::carrier_ball`, which the shell clearance gate
 reads (`shell::carrier_box`).
+
+## Evidence: the cylinder overlap's `hyp` (ONEHOME, 2026-11-02)
+
+`chart_region`'s cylinder overlap levers `cyl_tilt` and
+`cyl_axis_sense` at `hyp = √(reach² + r_max²)`, `reach` read from the
+boundary vertices' axial coordinates only, so a curved edge bulging
+past its vertices leaves `hyp` short. Both sites are pinned unsourced
+(`work/onehome/unsourced-levers-await-a-source.md`).

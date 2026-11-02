@@ -183,21 +183,7 @@ pub(super) fn overlap_ball<T: geom_core::Real>(
     a: &bvh::Aabb,
     b: &bvh::Aabb,
 ) -> geom_brep::ExtentBall<T> {
-    use geom_core::{Point3, Vec3};
-    let lo = Vec3::new(
-        a.min_x.max(b.min_x),
-        a.min_y.max(b.min_y),
-        a.min_z.max(b.min_z),
-    );
-    let hi = Vec3::new(
-        a.max_x.min(b.max_x),
-        a.max_y.min(b.max_y),
-        a.max_z.min(b.max_z),
-    );
-    geom_brep::ExtentBall::new(
-        Point3::origin() + ((lo + hi) * 0.5).map(T::from_computed),
-        T::from_computed((hi - lo).norm() * 0.5),
-    )
+    geom_brep::ExtentBall::of_overlap(a, b)
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against

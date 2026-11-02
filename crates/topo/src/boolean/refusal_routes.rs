@@ -190,8 +190,8 @@ pub enum BooleanDecision {
     WallRoots(WallRung),
     /// Whether the axes of a cylinder face of each solid are parallel,
     /// so the walls meet in rulings: the sine between the axes levered
-    /// at the walls' span (`cc_axes_parallel`, read where the join takes
-    /// the pair's section).
+    /// across the operation's region (`cc_axes_parallel`, the pair's
+    /// pose on its section value).
     CylinderAxes,
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
@@ -1607,7 +1607,7 @@ impl BooleanDecision {
             // on to other escalations and then to the skew and
             // meeting-axes frontiers, so the lever names the parallel
             // side alone and no smaller tolerance decides it passing.
-            // The margin is the axes' drift over the walls' span, which a
+            // The margin is the axes' drift across the operation's region, which a
             // turn moves.
             Self::CylinderAxes => {
                 Ending::Lever("turn one part so the two cylinders' axes are clearly parallel")
