@@ -639,11 +639,15 @@ pub struct ClearanceTool {
     picks: [Option<ClearancePick>; 2],
 }
 
-/// The two seats' roles, as bodies and as faces.
-const CLEARED: [(Seat, FaceRole); 2] = [
-    (Seat::ClearedFirst, FaceRole::ClearedFirst),
-    (Seat::ClearedSecond, FaceRole::ClearedSecond),
-];
+/// **Seat `i`'s role**, as a body and as a face: the first seat, then
+/// the second.
+fn cleared(i: usize) -> (Seat, FaceRole) {
+    if i == 0 {
+        (Seat::ClearedFirst, FaceRole::ClearedFirst)
+    } else {
+        (Seat::ClearedSecond, FaceRole::ClearedSecond)
+    }
+}
 
 impl ClearanceTool {
     /// A tool holding nothing.
@@ -696,7 +700,8 @@ impl ClearanceTool {
     /// last label it had.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
-        for (pick, (seat, _)) in self.picks.iter_mut().zip(CLEARED) {
+        for (i, pick) in self.picks.iter_mut().enumerate() {
+            let (seat, _) = cleared(i);
             if let Some(ClearancePick::Body(node)) = pick
                 && doc.node(node.id()).is_none()
                 && let Some(ClearancePick::Body(node)) = pick.take()
@@ -716,7 +721,8 @@ impl ClearanceTool {
         eval: &Evaluation<f64>,
     ) -> Vec<ClearanceEvent> {
         let mut events = Vec::new();
-        for (pick, (_, role)) in self.picks.iter_mut().zip(CLEARED) {
+        for (i, pick) in self.picks.iter_mut().enumerate() {
+            let (_, role) = cleared(i);
             let Some(ClearancePick::Face(held)) = pick else {
                 continue;
             };
@@ -767,8 +773,8 @@ impl ClearanceTool {
             None => None,
         };
         picks_line([
-            (CLEARED[0].1.name(), said(0)),
-            (CLEARED[1].1.name(), said(1)),
+            (cleared(0).1.name(), said(0)),
+            (cleared(1).1.name(), said(1)),
         ])
     }
 
@@ -785,7 +791,7 @@ impl ClearanceTool {
         let seat = |i: usize| match &self.picks[i] {
             Some(ClearancePick::Body(node)) => Ok(ClearedSeat::Body(Operand::Node(node.id()))),
             Some(ClearancePick::Face(held)) => Ok(ClearedSeat::Face(held.face().clone())),
-            None => Err(SeatError::Empty { seat: CLEARED[i].0 }),
+            None => Err(SeatError::Empty { seat: cleared(i).0 }),
         };
         Ok(SessionOp::AddClearance {
             a: seat(0)?,

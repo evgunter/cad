@@ -1301,7 +1301,7 @@ impl DocSession {
         use pncad::analysis::ClearanceOutcome;
         let run = self.derived.landed.as_ref()?;
         let (doc, eval) = self.name_run()?;
-        if !core::ptr::eq(doc, run.doc.as_ref()) || self.names_ahead_of_the_picture() {
+        if !core::ptr::eq(doc, run.doc.as_ref()) {
             return None;
         }
         let Clearances::Settled(answers) = &run.clearances else {
@@ -6288,6 +6288,8 @@ fn axis_operand(axis: RoleRead<Operand>) -> Operand {
 mod tests {
     #![allow(clippy::expect_used)]
 
+    use std::sync::Arc;
+
     use super::{DocSession, Refusal};
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::Tol;
@@ -6375,6 +6377,73 @@ mod tests {
                 "node {} is not in the document",
                 test_utils::refusal::tag(instance.0.digest())
             )
+        );
+    }
+
+    /// **No witness is named in a run its pair was not certified for**:
+    /// while a takeover's door run judges the shown document's names
+    /// (`Names::Seeded`), the picture and the certified pair are still
+    /// the landing's, so `witness` abstains — even where that run's
+    /// document reads the same.
+    ///
+    /// Red if `witness` takes the names run without asking whether it is
+    /// the landing's.
+    #[test]
+    fn a_witness_abstains_while_a_door_run_judges_names() {
+        use crate::test_support::{inserted, len, rectangle};
+        use pncad::document::ClearanceBounds;
+        let tol = Tol::witness();
+        let mut doc = Doc::empty_derived("witness-seeded", tol);
+        let mut blocks = Vec::new();
+        for x in [0.0, 0.03] {
+            let (with, profile) = inserted(&doc, rectangle([x, 0.0], 0.02, 0.02), tol);
+            let (with, block) = inserted(
+                &with,
+                Node::Extrude {
+                    profile: profile.into(),
+                    distance: len(0.01),
+                },
+                tol,
+            );
+            doc = with;
+            blocks.push(block);
+        }
+        let mut session = DocSession::inline(doc, tol);
+        for &node in &blocks {
+            let placed = session.perform(super::SessionOp::AddToProduct { node, body: None });
+            assert!(placed.refusal.is_none(), "{:?}", placed.refusal);
+        }
+        let added = session.perform(super::SessionOp::AddClearance {
+            a: super::ClearedSeat::Body(blocks[0].into()),
+            b: super::ClearedSeat::Body(blocks[1].into()),
+            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        });
+        let violated = added.made.expect("the requirement is a node");
+        session.pump();
+        assert!(
+            session.witness(violated).is_some(),
+            "the premise: a pair to draw"
+        );
+        // The window a takeover opens: a run of the shown document that
+        // is not the landing's judges its names until the landing.
+        session.request_eval();
+        let (doc, evaluation) = {
+            let run = session.derived.landed.as_ref().expect("landed");
+            (
+                Arc::new(run.doc.as_ref().clone()),
+                Arc::clone(&run.evaluation),
+            )
+        };
+        session.derived.seeded = Some(super::SeededRun {
+            generation: session.generation,
+            doc,
+            evaluation,
+        });
+        session.derived.names = super::Names::Seeded;
+        assert!(session.names_ahead_of_the_picture(), "the premise");
+        assert!(
+            session.witness(violated).is_none(),
+            "no pair is named in a run it was not certified for"
         );
     }
 }
