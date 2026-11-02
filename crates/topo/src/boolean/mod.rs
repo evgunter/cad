@@ -84,6 +84,8 @@ mod circle_torus;
 pub(crate) mod combine;
 #[cfg(test)]
 mod cone_frame_rows;
+#[cfg(test)]
+mod review_6310_probe;
 mod conic_quadric;
 pub mod contact_verify;
 // The conic rows' shared test oracles (test builds only).
