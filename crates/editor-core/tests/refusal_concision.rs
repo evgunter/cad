@@ -483,14 +483,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "NodeUnbuilt (nearly parallel)",
-            BooleanError::NodeUnbuilt {
-                a_face: face,
-                b_face: face,
-                why: topo::NodeWhy::NearlyParallel,
-            },
-        ),
-        (
             "NonFiniteSectorChord",
             BooleanError::NonFiniteSectorChord {
                 vertex: VertexKey::default(),

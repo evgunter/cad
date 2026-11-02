@@ -380,11 +380,6 @@ cases! {
     transverse_frame_reach_short_of_tangency: "Coincidence(Section)", -D,
         TRANSVERSE_FRAME_SITE, Withdrawn(Because::MarchRefuses(TUBE_STRADDLES)) =>
         transverse_frame(-D);
-    // Two parallel walls whose axes stand a band apart: their radical
-    // plane's normal has no decided length. The coincidence names no
-    // tolerance; the tolerance it withdrew decides the offset.
-    parallel_axes_offset_in_band: "Coincidence(Section)", D, RADICAL_PLANE_SITE,
-        Withdrawn(Because::Passes) => parallel_radical_plane_at(D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", D, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
     arc_root_just_outside_its_span: "Crossing(OnEdge)", -D, ROOT_SITE, Valued =>
@@ -488,11 +483,6 @@ const TRANSVERSE_FRAME_SITE: Door = Door::Site(
     "the cylinder and sphere pose's far reach is read at the section door on the two \
      surfaces, set directly: a ball whose wall reaches the cylinder's far side within the band \
      crosses it near-tangent, which the crossing layer meets first",
-);
-const RADICAL_PLANE_SITE: Door = Door::Site(
-    "a parallel cylinder pair's radical plane is read on the two surfaces, set directly: two \
-     walls whose axes stand a band apart coincide or nest, which the coincidence ladder and \
-     the crossing layer meet first",
 );
 const ROOT_SITE: Door =
     Door::Site("the conic root lane is asked of a carrier and a plane, set directly");
@@ -1197,20 +1187,6 @@ fn section_site(
         .foot(site, band())
         .map(|_| ())
         .map_err(super::super::join::site_refusal)
-}
-
-/// The radical plane of a radius-0.5 cylinder about `z` and a
-/// radius-0.3 one about the parallel axis `offset` along `x`.
-fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
-    let wall = |x: f64, radius: f64| geom::Surface::Cylinder {
-        origin: Point3::new(x, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::point(Point3::origin()));
-    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), &reach, band())
-        .map(|_| ())
 }
 
 /// The section door's reading of a germ site on a radius-0.5 cylinder
@@ -2591,8 +2567,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     (
         "join.rs",
-        "crossing_cylinder_reading",
-        "BooleanDecision::Radius",
+        "section_unbuilt",
+        "BooleanDecision::CylinderAxes",
         1,
     ),
     ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
@@ -2603,15 +2579,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("join.rs", "section_undecided", "Coincide::Section", 1),
-    (
-        "join.rs",
-        "cylinder_pair_axes",
-        "BooleanDecision::CylinderAxes",
-        1,
-    ),
     ("join.rs", "join_escalate", "Coincide::Join", 1),
     ("join.rs", "of_join", "BooleanDecision::EdgeOnFaces", 1),
-    ("join.rs", "parallel_radical_plane", "Coincide::Section", 1),
     (
         "join.rs",
         "ring_winding_order",
@@ -3031,7 +3000,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
-    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 2),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 1),
     ("node.rs", "wall_sense", "Coincide::Sectors", 1),
     (
         "node.rs",
