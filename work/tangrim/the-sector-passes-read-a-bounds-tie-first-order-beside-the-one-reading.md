@@ -247,3 +247,15 @@ Until the witness lands, a parting in the gap reads
 `On`, as main did. A decided parting reads `Leaves`, a zero-band one
 `Rides`. All six rows build again; the witness row names them as its
 witnesses and says the arm goes with it.
+
+Measured after the second ruling and the merge of ONEREAD's cone
+(default ε, `-p sweep -p topo`, slow set; main `c7656c82` against
+`b5f3c6dd`, 7266 tests): the six gap rows build, the two wedges build
+(re-pinned), and one row stays moved,
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
+(slow set): refused on both sides, but here `Escalated { ConicBend,
+"enters_material" }`, a rim arc tied with the spline wall it lies in
+(`ReadFault::Unbent`), where main read it `On` and reached the rim's
+`EdgeUndescribed`. Its pin is red and unchanged. The second ruling's
+fallback covers the gap only; whether `Unbent` falls back to `On` the
+same way until a spline face's bend is certified is a ruling owed.
