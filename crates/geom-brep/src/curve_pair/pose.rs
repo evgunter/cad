@@ -1071,10 +1071,23 @@ pub(super) fn one_curve<T: Decide>(
 /// rounding, and the larger is taken, so the gap does not depend on the
 /// order of the pair.
 ///
-/// A degenerate side (a zero semi-axis, or `a·b·a′·b′` underflowing)
-/// has no way up, and its gap is NaN: the reading escalates.
+/// **The gap carries the rounding its conics' stored semi-axes
+/// amplify**, so no reading of it is bare: carrier terms, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// read here on this chain's own derived count rather than
+/// [`crate::carrier_resolution`]'s fitted one. With `m` a conic's larger
+/// semi-axis magnitude, the computed
+/// semi-axis vectors are off by `√17·u·m` (`v̂ = n̂ × û` by `4u`), the
+/// computed `Q`'s columns are unit to within about `4.5u`, and its
+/// products and the norms round by `4u·m` and `5u·g`: within
+/// `12.1u·(m_e + m_f) + 5u·g` of a gap the bound holds for, inside
+/// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
+/// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
+/// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
-    (e.frame().center - f.frame().center).norm() + frame_gap(e, f).max(frame_gap(f, e))
+    let reach = |k: &dyn Conic<T>| k.speed_hi();
+    let gap = (e.frame().center - f.frame().center).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
