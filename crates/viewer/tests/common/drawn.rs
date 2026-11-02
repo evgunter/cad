@@ -152,7 +152,7 @@ pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
 }
 
 /// **A box of `size` split at half its height**, landed: the session,
-/// the box (its one world copy still standing whole at the identity)
+/// the box (unplaced, so the split is drawn in its place)
 /// and the split.
 pub fn split_box(size: [f64; 3], tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = super::inline_without_door(Doc::empty_derived("split-halves", tol), tol);
