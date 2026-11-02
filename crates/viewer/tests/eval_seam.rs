@@ -220,6 +220,51 @@ fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
     assert_eq!(session.outstanding(), Outstanding::Current);
 }
 
+/// **A run out of member budget never becomes the picture, and says so
+/// apart from a cancel**: a row of `u32::MAX` copies runs out at the row
+/// on landing, the session reports where, and re-evaluating the same
+/// document runs out there again. Red if the landing reads as a cancel,
+/// whose recourse (re-evaluate) cannot help.
+#[test]
+fn a_run_out_of_member_budget_lands_as_its_own_state() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let (doc, row) = common::row_of_copies(
+        &doc,
+        extrude,
+        i64::from(u32::MAX),
+        (pncad::document::TargetAxis::X, 0.05),
+        tol,
+    );
+    let out = viewer::session::OutOfBudget {
+        at: row,
+        held: 0,
+        budget: EvalOptions::default().member_budget,
+    };
+    let mut session = DocSession::inline(doc, tol);
+    assert_eq!(
+        session.pump(),
+        vec![Landing::Exhausted(out)],
+        "it lands out of budget"
+    );
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Exhausted(out),
+        "and the chrome reads it as its own state, not a cancel"
+    );
+    session.perform(SessionOp::Reevaluate);
+    assert_eq!(
+        session.outstanding(),
+        Outstanding::Evaluating,
+        "a new request clears it"
+    );
+    assert_eq!(
+        session.pump(),
+        vec![Landing::Exhausted(out)],
+        "and the same document runs out at the same row again"
+    );
+}
+
 /// An [`InlineEvaluator`] that never reports itself idle.
 ///
 /// `DocSession` holds a `Box<dyn EvalService>`, so a seam is free to

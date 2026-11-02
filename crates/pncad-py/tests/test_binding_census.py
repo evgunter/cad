@@ -1752,11 +1752,12 @@ FAMILIES: dict[str, str] = {
 #:   `ImportOptions` is `import_step`'s `eps_in=` — the reading end of
 #:   the ε `step_string` writes as `uncertainty=`.
 #:
-#:   `EvalOptions` is `evaluate`'s `resolver=`, the one field of it
-#:   that changes an ANSWER, bound at LIB-G18a — which is also when
-#:   its memo residue left the `gap` roster, and note the memo was
-#:   never a field of it (`prior` is `evaluate`'s own second argument,
-#:   bound as `prior=`). Its other five fields are stated rather than
+#:   `EvalOptions` is `evaluate`'s `resolver=`, bound at LIB-G18a —
+#:   which is also when its memo residue left the `gap` roster, and
+#:   note the memo was never a field of it (`prior` is `evaluate`'s
+#:   own second argument, bound as `prior=`) — and its
+#:   `member_budget=`, the run's member budget, whose running out is
+#:   `Evaluation.exhausted`. Its other fields are stated rather than
 #:   waved, each with its reason in the Rust roster: `epoch` is minted
 #:   per run and is not a caller's choice; `parallel` and
 #:   `boolean_sweep` are runtime switches the kernel documents as

@@ -5723,6 +5723,19 @@ class Evaluation:
         False with no `cancel=` passed is not a claim worth doubting:
         `evaluate` mints a fresh token nobody can reach, so a run
         without one cannot be canceled."""
+    @property
+    def exhausted(self) -> Optional[tuple[NodeId, int, int]]:
+        """Where this run ran out of its member budget, `None` where it
+        did not: `(at, held, budget)` — the family whose listing crossed
+        the budget, the listing steps the families before it were
+        charged, and the budget (`evaluate`'s `member_budget=`).
+
+        Such a run is a PARTIAL ANSWER as a canceled one is: the results
+        hold the prefix before `at`, and `at` and every node after it
+        raise `node_not_evaluated` from `value`. Unlike a cancel, the
+        same document at the same budget runs out at the same family
+        again; the recourse is a larger `member_budget=` or a smaller
+        count."""
     def step_string(
         self,
         node: NodeId,
@@ -5753,6 +5766,7 @@ def evaluate(
     resolver: Optional[Workspace] = None,
     prior: Optional[Evaluation] = None,
     cancel: Optional[CancelToken] = None,
+    member_budget: Optional[int] = None,
 ) -> Evaluation:
     """Evaluate a document. Total — never raises.
 
@@ -5805,6 +5819,14 @@ def evaluate(
     PARTIAL ANSWER and not a raise: it returns normally with
     `Evaluation.canceled` true, the full `order()`, and results for
     the completed prefix only.
+
+    `member_budget` is the run's MEMBER BUDGET: the listing steps every
+    family of the run may take together, one per index value bound
+    while a family's members are listed, charged in the schedule's
+    order before anything is built. `None` is the kernel's one
+    default. A run that runs out is a partial answer too:
+    `Evaluation.exhausted` names where, and the results hold the
+    prefix before it.
 
     THE GIL IS RELEASED for the kernel run, which is what makes the
     token reachable rather than decorative: the flag is set by another

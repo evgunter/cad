@@ -309,6 +309,10 @@ pub enum Unreplayed {
     /// carrier verdict is decided in (D10 `[placement.frame]`): the
     /// relative map overflowed, or the kernel refused the mapped body.
     Frame,
+    /// The replay ran out of member budget
+    /// ([`crate::EvalOutcome::Exhausted`]) at or before the node the
+    /// row was decided at.
+    Exhausted,
 }
 
 impl fmt::Display for Unreplayed {
@@ -330,6 +334,10 @@ impl fmt::Display for Unreplayed {
             Self::Frame => {
                 "the replay with every variable a symbol could not read one cell's body into \
                  the frame its carriers are decided in"
+            }
+            Self::Exhausted => {
+                "the replay with every variable a symbol ran out of member budget before the \
+                 row's node"
             }
         })
     }
@@ -578,6 +586,9 @@ pub enum Recourse {
     /// a rim may be coaxial with its wall for every value, and the door
     /// does not read it so) ([`traced`]).
     ReadTheAxis,
+    /// Raise the evaluation's member budget, or lower a count: the
+    /// replay ran out of it before the row ([`Unreplayed::Exhausted`]).
+    MemberBudget,
 }
 
 impl Recourse {
@@ -624,6 +635,10 @@ impl Recourse {
             Self::ReadTheAxis => {
                 "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
                  keeps the tangency the profile draws whatever the values"
+            }
+            Self::MemberBudget => {
+                "Recourse: raise the evaluation's member budget, or lower a count, so the replay \
+                 reaches the row"
             }
         }
     }
