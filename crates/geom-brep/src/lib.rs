@@ -75,7 +75,6 @@ pub mod fitted_lane;
 mod grid_offsets;
 pub mod half_angle;
 pub(crate) mod harmonic;
-pub mod identity;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -153,7 +152,6 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
-pub use identity::{IdentityWalk, identity_walk};
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
     SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
@@ -197,9 +195,9 @@ pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, PairPose, PairSection, PlaneSplinePose, PoseRefusal, Reached,
-    RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot,
-    SiteRefusal, SphereTorusPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
+    Gap, KnownPair, KnownRow, PairPose, PairSection, PoseRefusal, Reached, RegionPlacement, Ring,
+    Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
+    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
     TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
     ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,

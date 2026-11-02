@@ -3338,7 +3338,7 @@ impl DocSession {
                 None,
                 &opts,
             )?;
-            Ok((sketched.union, None))
+            Ok(Wrote::one(sketched.union))
         }))
     }
 
@@ -3560,7 +3560,7 @@ impl DocSession {
         Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
-            Ok((node, None))
+            Ok(Wrote::one(node))
         }))
     }
 
@@ -3568,6 +3568,9 @@ impl DocSession {
     /// its tool the plane through `origin` with normal `normal` in the
     /// target's own coordinates, read off the target's geometry
     /// ([`frame_off`] through its `xy`) at the numbers' nominal values.
+    /// Where something reads the target along a seen path, `above ⊔
+    /// below` takes it over there ([`Takeover`]), so each copy shows the
+    /// two halves where it showed the body.
     fn add_split(
         &self,
         target: Operand,
@@ -3577,10 +3580,26 @@ impl DocSession {
         let target = as_body(self.committed_doc(), target);
         self.require_read(&target, NodeKindWanted::Body)?;
         let tool = self.read_off(&target, origin, normal, "split plane", PoseRole::Xy)?;
-        Ok(creating(move |run| {
-            run.insert(Node::Split {
+        let takeover = self.takeover(&target)?;
+        let seen = !takeover.is_empty();
+        Ok(taking_over(takeover, move |run| {
+            let split = run.insert(Node::Split {
                 target: target.into(),
                 tool,
+            })?;
+            if !seen {
+                return Ok(Wrote::one(split));
+            }
+            let halves = pncad::select::SplitHalf::ALL
+                .map(|half| pncad::document::BodyRead::plain(Operand::output(split, half.port())));
+            let both = run.insert(Node::Assemble {
+                members: pncad::document::Bodies::Spelled(halves.to_vec()),
+            })?;
+            Ok(Wrote {
+                made: split,
+                replacement: both,
+                whole: None,
+                intact: run.doc().outputs(split),
             })
         }))
     }
@@ -3604,7 +3623,7 @@ impl DocSession {
             // stays where it stood
             // (`takeovers::the_mirrors_merged_top_keeps_the_old_tops_frame`).
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
-            Ok((part, None))
+            Ok(Wrote::one(part))
         }))
     }
 
@@ -3684,7 +3703,7 @@ impl DocSession {
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            Ok((placement, None))
+            Ok(Wrote::one(placement))
         }))
     }
 
@@ -3771,13 +3790,18 @@ impl DocSession {
                     } else {
                         None
                     };
-                    Ok((row, whole))
+                    Ok(Wrote {
+                        made: row,
+                        replacement: row,
+                        whole,
+                        intact: Vec::new(),
+                    })
                 }
                 PatternOutputChoice::Fused => {
                     let fused = run.insert(Node::Union {
                         members: pncad::document::Bodies::Family(row.into()),
                     })?;
-                    Ok((fused, None))
+                    Ok(Wrote::one(fused))
                 }
             }
         }))
@@ -3904,7 +3928,7 @@ impl DocSession {
         // restores both.
         Ok(taking_over(takeover, move |run| {
             let result = run.insert(node)?;
-            Ok((result, None))
+            Ok(Wrote::one(result))
         }))
     }
 
@@ -4673,21 +4697,46 @@ struct Made {
     seed: Option<crate::evalseam::Seed>,
 }
 
-/// **A creating door's run**: `action` makes the result and answers it,
-/// with the `⊔` a reader of one body reads where the result is several
-/// (`Takeover::repoint`'s `whole`), and `takeover` takes the body's
-/// readers over by it. The one spelling of a creation; one that takes
-/// nothing over is [`creating`].
+/// **What a creating door's action wrote** ([`taking_over`]): the node
+/// it answers, and what the taken body's readers read in its place.
+struct Wrote {
+    /// The node the action made, answered as the creation.
+    made: RecipeNodeId,
+    /// What replaces the taken body: what a copy of it copies, and what
+    /// every other reader reads where `whole` is `None`.
+    replacement: RecipeNodeId,
+    /// What a reader of one body reads where `replacement` is several (a
+    /// pattern's family): a `⊔` over them.
+    whole: Option<RecipeNodeId>,
+    /// The reads the action wrote that hold the taken body's entities
+    /// as themselves (a split's halves): where the kernel's takeover
+    /// looks for a successor beside the body (`Recording::take_over`).
+    intact: Vec<VarId>,
+}
+
+impl Wrote {
+    /// `node`, made and read in the taken body's place by every reader.
+    fn one(node: RecipeNodeId) -> Self {
+        Self {
+            made: node,
+            replacement: node,
+            whole: None,
+            intact: Vec::new(),
+        }
+    }
+}
+
+/// **A creating door's run**: `action` makes the result and answers what
+/// it wrote ([`Wrote`]), and `takeover` takes the body's readers over by
+/// it. The one spelling of a creation; one that takes nothing over is
+/// [`creating`].
 fn taking_over(
     takeover: Takeover,
-    action: impl FnOnce(
-        &mut Recording<'_, ProfileProgram>,
-    ) -> Result<(RecipeNodeId, Option<RecipeNodeId>), EditError>
-    + 'static,
+    action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<Wrote, EditError> + 'static,
 ) -> Creating {
     Box::new(move |run, held| {
-        let (result, whole) = action(run)?;
-        takeover.repoint(run, result, whole, held)
+        let wrote = action(run)?;
+        takeover.repoint(run, wrote, held)
     })
 }
 
@@ -4696,9 +4745,7 @@ fn taking_over(
 fn creating(
     action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<RecipeNodeId, EditError> + 'static,
 ) -> Creating {
-    taking_over(Takeover::nothing(), move |run| {
-        action(run).map(|node| (node, None))
-    })
+    taking_over(Takeover::nothing(), move |run| action(run).map(Wrote::one))
 }
 
 /// **The product slot written as `bodies`**: the one body, a `⊔` of
@@ -4967,26 +5014,32 @@ impl Takeover {
         Ok(())
     }
 
-    /// **Re-point every reader to `result`** (A10, Ev's residue 1), in
-    /// the action that authored `result`: a `⊔` reads it as its operand
-    /// and the product slot reads it, through the slot door; a copy of
-    /// the body copies it in its place through the kernel's takeover
-    /// (`Recording::take_over`), which rebinds what read the copy where
-    /// the result carries its names, and answers where they moved for
-    /// the picks `held` says are held outside the document. `whole` is
-    /// what a reader of one body reads where `result` is several (a
-    /// pattern's family): a `⊔` over them.
+    /// **Re-point every reader to what the action `wrote`** (A10, Ev's
+    /// residue 1), in the action that authored it: a `⊔` reads it as its
+    /// operand and the product slot reads it, through the slot door, the
+    /// `whole` where there is one; a copy of the body copies
+    /// `replacement` in its place through the kernel's takeover
+    /// (`Recording::take_over`), asked about the `intact` reads beside
+    /// the body,
+    /// which rebinds what read the copy where the result carries its
+    /// names, and answers where they moved for the picks `held` says are
+    /// held outside the document.
     ///
     /// The `⊔` and product re-points come first, so the takeover reads
     /// the document as the action leaves it.
     fn repoint(
         self,
         run: &mut Recording<'_, ProfileProgram>,
-        result: RecipeNodeId,
-        whole: Option<RecipeNodeId>,
+        wrote: Wrote,
         held: &dyn Fn(RecipeNodeId) -> bool,
     ) -> Result<Made, EditError> {
-        let one = whole.unwrap_or(result);
+        let Wrote {
+            made,
+            replacement,
+            whole,
+            intact,
+        } = wrote;
+        let one = whole.unwrap_or(replacement);
         for (node, seat) in self.operands {
             run.apply(DocEdit::SetParam {
                 node,
@@ -5002,7 +5055,8 @@ impl Takeover {
         }
         let mut taken = run.take_over(
             &self.copies,
-            &result.into(),
+            &replacement.into(),
+            &intact,
             &crate::evalseam::options(&self.reads.resolver),
             self.reads.prior.as_deref(),
             held,
@@ -5015,7 +5069,7 @@ impl Takeover {
         // starts from.
         let seed = taken.evaluation.take().map(crate::evalseam::Seed::of);
         Ok(Made {
-            node: result,
+            node: made,
             moved: taken.moved,
             seed,
         })
