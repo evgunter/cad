@@ -495,14 +495,16 @@ pub(crate) fn decide_negative<T: Decide>(
 
 /// **Whether a reading's own rounding leaves an in-band reading the
 /// input's**: the rounding, `K` times over, decided Zero under `name`, so
-/// it lies within the `ε/K` share of the band that K's noise headroom
-/// presumes (DESIGN.md Q1). A reading whose chain amplifies its rounding
-/// past a few ulp at the model's extent — a quotient by a small sine, a
-/// section carrier stored far from its arc — is typed as the input's,
-/// with its lever, only where this admits it; past it, no lever is
-/// offered. A reading whose rounding is a few ulp of coordinates (a
-/// line chord's residual, `merge_faces::edge_on_faces_reading`) is
-/// within that share by Q1's premise, and asks nothing here.
+/// it lies within an `ε/K` share of the band. This is an amplification
+/// share, kept until `work/onehome/site-rounding-charges-owed-a-re-posing.md`
+/// re-poses the readings that need it: a reading whose chain amplifies
+/// its rounding past the run's admission rule — a quotient by a small
+/// sine, a section carrier stored far from its arc — is typed as the
+/// input's, with its lever, only where this admits it; past it, no lever
+/// is offered. A reading whose rounding is a short chain on in-box
+/// coordinates (a line chord's residual,
+/// `merge_faces::edge_on_faces_reading`) is covered by the admission rule
+/// (`geom_core::tolerance::admissible`), and asks nothing here.
 ///
 /// # Errors
 ///

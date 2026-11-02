@@ -44,9 +44,14 @@
 //! indeterminate even when it is a single point.
 //!
 //! **f64 rounding is the run's, not the predicate's** (DESIGN
-//! `[simple.conditioned]`). Every margin is posed well-conditioned
-//! where its sign is decided, and at `f64` is then read as if exact:
-//! no predicate charges, pads or estimates its own rounding. The one
+//! `[simple.conditioned]`). The rule: every margin is posed
+//! well-conditioned where its sign is decided, and at `f64` is then read
+//! as if exact; a predicate does not charge, pad or estimate its own
+//! rounding. The sites outside geom-core that still do are each a listed
+//! exception, `scripts/gates/bare-rounding-sites.tsv`, which
+//! `scripts/gates/bare-rounding-allowlist.sh` counts and which only
+//! shrinks, every production row scheduled for its re-posing by a work
+//! row. The one
 //! statement about rounding is the run's admission rule
 //! ([`crate::tolerance::admissible`]): a run is admitted only where the
 //! headroom `(K − 1)·ε` covers the rounding of a short, division-free

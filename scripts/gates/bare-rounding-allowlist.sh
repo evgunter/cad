@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# bare-rounding-allowlist.sh — a bare `f64::EPSILON` or `UNIT_ROUNDOFF`
-# outside `geom-core` is a finding, and the list of today's sites only
-# shrinks. ONE home; ci.yml's `lint` job runs every gate in this
+# bare-rounding-allowlist.sh — a bare `f64::EPSILON` or `UNIT_ROUNDOFF`,
+# or a call on geom-core's rounding charge, outside `geom-core` is a
+# finding, and the list of today's sites only shrinks. ONE home; ci.yml's `lint` job runs every gate in this
 # directory.
 #
 # THE RULE (DESIGN `[simple.conditioned]`; `crates/geom-core/README.md`,
@@ -17,7 +17,11 @@
 # THE SCAN is every `.rs` file under `crates/*/` (but `crates/geom-core/`),
 # `demos/*/`, `tools/*/`, `benches/` and `interval-transcendentals/`,
 # comments and string literals stripped. A site is `f64::EPSILON` (any
-# path ending in it) or `UNIT_ROUNDOFF` as a word. Each file's sites are
+# path ending in it) or `UNIT_ROUNDOFF` as a word, or a use of the charge
+# geom-core offers: a `rounding_charge(` call or a `Rounded::…` path or
+# `Rounded { … }` literal (`geom_core::running`). A charge read through
+# geom-core is the same decision as a bare one, so it is counted under
+# the same ratchet. Each file's sites are
 # counted in two scopes: `test`, for a file under a `tests/`, `benches/`
 # or `examples/` directory, under `demos/`, `tools/` or `benches/`, a
 # file a `#[cfg(test)] mod` mounts (`lib.sh`'s `gate_test_only_mounts`),
@@ -25,7 +29,13 @@
 # otherwise.
 #
 # THE LIST is `bare-rounding-sites.tsv` beside this file, one row per
-# (file, scope): file, scope, count, reason. The reason is one word:
+# (file, scope): file, scope, count, reason. The reason is one word, the
+# row's own: a file whose sites are of two kinds carries the one that
+# schedules its production sites. Every `prod` row other than
+# `exact-arith` and `fixture` is scheduled by
+# `work/onehome/site-rounding-charges-owed-a-re-posing.md`, which lists
+# its file; `oracle` rows are a test's own reading of the unit roundoff,
+# not a charge, and are not expected to shrink.
 #
 #   oracle      a test's expectation, a fixture's pose or a probe's
 #               scale (`test` scope only);
@@ -55,8 +65,10 @@
 #
 # KNOWN GAPS. A token scan sees spellings, not values: a literal
 # `2.220446049250313e-16`, `2f64.powi(-52)`, `f64::EPSILON` re-exported
-# under another name, or a crate-local constant derived from one (its
-# definition is a site; its uses are not) are not counted.
+# under another name, a crate-local constant or function derived from
+# one (its definition is a site; its uses are not), or a `Rounded` value
+# carried through arithmetic without a fresh path (its operators charge;
+# only the paths that make one are counted) are not counted.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -78,7 +90,7 @@ gate() {
 import glob, os, re, sys
 
 list_path, mounts_path = sys.argv[1], sys.argv[2]
-SITE = re.compile(r"\bf64::EPSILON\b|\bUNIT_ROUNDOFF\b")
+SITE = re.compile(r"\bf64::EPSILON\b|\bUNIT_ROUNDOFF\b|\brounding_charge\s*\(|\bRounded\s*(?:::|\{)")
 REASONS = {"oracle", "re-pose", "pose", "far-centre", "exact-arith", "fixture"}
 
 
@@ -200,9 +212,9 @@ for k, line in enumerate(open(list_path, encoding="utf-8"), 1):
 for key in sorted(set(counts) | set(rows)):
     now, was = counts.get(key, 0), rows.get(key, 0)
     if now > was:
-        bad.append(f"UNLISTED {key[0]} ({key[1]}): {now} bare rounding sites, listed {was}")
+        bad.append(f"UNLISTED {key[0]} ({key[1]}): {now} rounding sites, listed {was}")
     elif now < was:
-        bad.append(f"STALE {key[0]} ({key[1]}): {now} bare rounding sites, listed {was}")
+        bad.append(f"STALE {key[0]} ({key[1]}): {now} rounding sites, listed {was}")
 for b in bad:
     print(b)
 print(f"TOTAL {sum(counts.values())} {sum(v for (p, s), v in counts.items() if s == 'prod')}")
@@ -215,7 +227,7 @@ PY
   rm -f "$mounts"
   if grep -q '^UNLISTED \|^REASON ' <<<"$report"; then
     grep '^UNLISTED \|^REASON ' <<<"$report"
-    gate_error "a bare f64::EPSILON or UNIT_ROUNDOFF outside geom-core: no site charges rounding ([simple.conditioned]). Re-pose the formula (a distance form, a pose decided first), or, for a test's oracle, list it in $LIST with its one-word reason"
+    gate_error "a bare f64::EPSILON / UNIT_ROUNDOFF or a rounding charge outside geom-core: no site charges rounding ([simple.conditioned]). Re-pose the formula (a distance form, a pose decided first), or, for a test's oracle, list it in $LIST with its one-word reason"
     exit 1
   fi
   if grep -q '^STALE ' <<<"$report"; then
@@ -225,7 +237,7 @@ PY
   fi
   local total prod
   read -r total prod < <(sed -n 's/^TOTAL //p' <<<"$report")
-  gate_ok "bare f64::EPSILON / UNIT_ROUNDOFF outside geom-core at their listed counts ($total sites, $prod in production code)"
+  gate_ok "bare f64::EPSILON / UNIT_ROUNDOFF and rounding charges outside geom-core at their listed counts ($total sites, $prod in production code)"
 }
 
 gate_plant_clean() {
@@ -263,6 +275,14 @@ plant_test_module_as_prod() {
 }
 
 # A comment, a string and geom-core itself are not sites.
+plant_new_charge() {
+  printf 'pub fn pad(x: f64) -> f64 { x + geom_core::rounding_charge(x) }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_new_running() {
+  printf 'pub fn pad(x: f64) -> f64 { geom_core::running::Rounded::exact(x).value }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
 plant_not_sites() {
   printf '// f64::EPSILON in a comment\npub const S: &str = "UNIT_ROUNDOFF";\n' >> "$1/crates/clean/src/lib.rs"
   mkdir -p "$1/crates/geom-core/src"
@@ -273,12 +293,14 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_case "UNLISTED" plant_new_site
   gate_selftest_case "UNLISTED" plant_new_roundoff
+  gate_selftest_case "UNLISTED" plant_new_charge
+  gate_selftest_case "UNLISTED" plant_new_running
   gate_selftest_case "STALE" plant_stale
   gate_selftest_case "REASON" plant_oracle_in_prod
   gate_selftest_case "UNLISTED crates/clean/src/lib.rs (test)" plant_test_module_as_prod
   gate_selftest_passes "a listed site" plant_listed
   gate_selftest_passes "a comment, a string and geom-core's own" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a listed site, and comments, strings and geom-core; fires on an unlisted site of either spelling, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a listed site, and comments, strings and geom-core; fires on an unlisted site of each spelling (bare, a rounding_charge call, a Rounded path), a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

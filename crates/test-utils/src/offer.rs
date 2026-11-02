@@ -50,7 +50,7 @@ const LONGEST_CHAIN: usize = 12;
 /// restated here because this crate depends on nothing; geom-core's
 /// `the_floor_is_a_short_chains_rounding_at_the_session_boxs_edge` pins
 /// the two equal.
-pub const FLOOR_EPS: f64 = 1e3 / 562_949_953_421_312.0 / 9.0;
+pub const FLOOR_EPS: f64 = 1e3 / (1_u64 << 49) as f64 / 9.0;
 
 /// The factor [`execute`] descends by past a refusal that offers no
 /// value, looking for the tolerance that passes.

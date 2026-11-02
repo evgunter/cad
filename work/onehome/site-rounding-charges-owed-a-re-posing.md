@@ -9,14 +9,17 @@ opened: 2026-11-02
 
 Filed by PR 6380 (`onehome/run-owns-rounding`), which builds the run's
 admission rule (`geom_core::tolerance::admissible`) and deletes the
-charges of the coordinates' floor (`ring_path::resolution` and
-`path_resolution`, `implicit::sample_rounding`'s `|C₀|` term, the two
-short-chain charges in `solid_contain`'s vertex gap and `curve_pair::pose`'s
-one-curve gap). Under `crates/geom-core/README.md`, "Float rounding", a
-charge that exists because its formula is ill-conditioned is re-posed, not
-deleted. These were not re-posed there; each stays, and each is a
-`re-pose` row of `scripts/gates/bare-rounding-sites.tsv` where it names
-the unit roundoff bare.
+charges of the coordinates' floor (`implicit::sample_rounding`'s `|C₀|`
+term, the short-chain charge in `solid_contain`'s vertex gap, the
+coordinates' share of `ring_path::resolution`, which now reads only a
+reading's own spread about its first point). Under
+`crates/geom-core/README.md`, "Float rounding", a charge that exists
+because its formula is ill-conditioned is re-posed, not deleted. These
+were not re-posed there; each stays, and each production file holding
+one is a `re-pose` or `pose` row of `scripts/gates/bare-rounding-sites.tsv`
+(which counts bare `f64::EPSILON` / `UNIT_ROUNDOFF`, `rounding_charge(`
+calls and `Rounded` paths). Every such row's file is named below; a
+re-posing that empties a file lowers or drops its row in the same change.
 
 ## Quotients by a vanishing quantity (a pose decided first)
 
@@ -65,6 +68,34 @@ the unit roundoff bare.
   of two cancelling tangents, which a charge holds off zero; owed a
   decision at the band, levered.
 
+## The gate's other production rows (each a charge or a pose read at rounding)
+
+- `editor-core::resolve::pick` (`t_span`, `early_out_margin`,
+  `crossing`, `quotient`, `triple_bound`): a ray–triangle crossing's
+  error bounds, Shewchuk-style; owed the crossing posed as an orientation
+  decided at the band.
+- `editor-core::mate::value::chain_turns` (`pose`): gimbal lock read as
+  `cos β > √u`; owed a decision at the band.
+- `mesh::trimmed` (`sphere_polygon_shape`, `at_pole`) (`pose`): a pole
+  read at a few ulps of `π/2`.
+- `mesh::cert::rounding_allowance`: the verdict's own rounding.
+- `geom_brep::edge_nurbs::kernel_limit_ending`: a message's "kernel
+  limit" arm, read at a width of a few ulps of the extent.
+- `geom_brep::extent::turn_lever`: the axial offset's rounding.
+- `geom_brep::intersect` (`plane_cone_section`'s gap and axis charges,
+  `pair_bound`'s seam).
+- `geom_brep::pair_section::spline_implicit::bracket`,
+  `pair_section::torus` (`decide`, `sphere_gap`),
+  `pair_section::torus_arms` (`square_pose`, `square_folds`).
+- `geom::curves` (`spiric_period_box`, `spiric_f_enclosed`): a spiric's
+  squared-form charges.
+- `profile::sugar::offset_circles`: the least lever, at `LEVER_ULPS`.
+- `topo::boolean::boxes::sphere_reach`, `topo::boolean::circle_roots`
+  (`conic_off_plane`, `harmonic_crossing`),
+  `topo::splitting::section_loops::conics_clear`.
+- `topo::injective::few_ulps`, `topo::separation::image`'s slop,
+  `topo::props::rounding_bound`, `topo::props::quad_lane::end_slack`.
+
 ## Not this row
 
 - `geom_brep::carrier_resolution` and `profile::seg::resolution_headroom`
@@ -73,6 +104,15 @@ the unit roundoff bare.
   `work/onehome/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`.
 - `topo::splitting::containment::conic_arc_ball`'s `|C₀|` pad: the same
   far-centre conic.
+- The gate's `far-centre` rows, which wait on the same row:
+  `topo::ring_path` (`resolution`'s spread about the reading's own point,
+  and `path_resolution`'s conic arcs through `carrier_resolution`),
+  `geom_brep::curve_pair::pose` (`one_curve_gap`'s charge on its conics'
+  stored semi-axes, and the window polynomials' `noise` above), and
+  `geom::curves::conic`'s `running_point` (a conic point evaluated from
+  its stored centre and semi-axes, `Rounded`).
+- `geom_brep::ssi::compensated` (`exact-arith`) and
+  `editor-core::test_support` (`fixture`): not charges.
 - `geom_core::one_line`'s charge (inside geom-core): its precision arm is
   reached only by spans of several kilometres at K = 10, past the box,
   and by a run whose K is near 1.
