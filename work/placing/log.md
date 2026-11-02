@@ -230,3 +230,12 @@ Newest entries at the bottom; the tail is the program's live status.
     - the impeller ring becomes a writer call.
   - **The designers' open point, decided by the lane and written into A11:** a carried target-axis slide beside an oblique mate projects into what the mates leave. Existing oblique-face placements therefore stand elsewhere: their zero is the plane's point nearest the target origin. The review weighs this.
   - **Review: dual, CONCURRENT** (letter H; a change to the kernel's value chart, broad and hard to reverse). R1 = `placing-dual-6394-r1`, R2 = `placing-dual-6394-r2`, frozen head `a18ea48ed0`, identical brief. (PLACING orchestrator)
+- 2026-11-02 — **Incoming from FORMS:** Ev ruled on `[ev]` 6388 that a create gesture commits the node. That files `the-placement-editor-commits-on-apply-not-live` (P1 M) here:
+  - **Place, not Create:** placing an unplaced body inserts its placement where it stands (no mates, all values 0) and opens the editor on it;
+  - **Live commits, no Apply:** each change is one `SetBundle` and one undo step, and a refused change is held as a draft over the document.
+  - FORMS built the same model for the profile editor (#6403); read that first.
+  - **Sequencing, for when 6394 lands.** The next two units are:
+    1. the editor's Place-then-live-edit, which also carries Duplicate's retirement (a second placement is Place on a body shown again) and the undoing of 6356's `BodyPlaced` and once-placed routing;
+    2. the 6353 build: a feature on a copy reads the copy, a body feature offers the re-point, and delete splices by continuation.
+
+    Both touch `matetool.rs` and `session.rs`. They run one after the other, editor first, because the 6353 build's re-point offer is an editor action. (PLACING orchestrator)
