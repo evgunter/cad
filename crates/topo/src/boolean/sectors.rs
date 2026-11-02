@@ -69,7 +69,7 @@
 //! identical / identical-reversed region cases); touch-only sharing of
 //! a single bound is NOT overlap. Where the shared bound is a conic, the
 //! two can overlap one order down, in a crescent from the vertex, which
-//! a union of two plane faces refuses ([`crescent_refusal`]).
+//! [`crescent_records`] records as a coplanar pair.
 
 use geom_brep::LeverBounds;
 #[cfg(test)]
@@ -2343,48 +2343,54 @@ fn sector_overlap<T: Decide>(
     Ok(straight || crossed)
 }
 
-/// **A crescent the union cannot build.** Two plane faces, one of each
-/// operand, lie on each other with opposed normals at a vertex pair,
-/// and their sectors there share one bound direction from opposite
-/// sides of it: at first order they only touch, so [`pair_search`]
-/// records them as `touching`, while one order down they overlap
-/// ([`crescent`]). The union glues the two faces over that crescent, a
-/// region of the plane narrowing to the vertex between two curves
-/// tangent there. Every germ the sector passes produce runs along a
-/// bound or a face–face intersection direction of a pair they record,
-/// and a region of zero angle at the vertex has neither, so the section
-/// cannot reach the crescent and the union would keep both faces whole.
-/// The intersection keeps neither face there and each difference one
-/// face whole, so they build, and the reading runs under union alone:
-/// its own decisions refuse no op that builds.
-pub(super) fn crescent_refusal<T: Decide>(
+/// **The coplanar pairs that overlap one order down**: the crescents
+/// among the pairs [`pair_search`] read `touching`. Two plane faces, one
+/// of each operand, lie on each other with opposed normals at a vertex
+/// pair, and their sectors there share one bound direction from
+/// opposite sides of it: at first order they only touch, while one
+/// order down they overlap in a region of the plane narrowing to the
+/// vertex between two curves tangent there ([`crescent`]). Each such
+/// pair is a coplanar record, every code `On`, as [`pair_search`]
+/// records a coplanar pair that overlaps at first order, so the sector
+/// passes reclassify it and the crossing pairs beside it keep their
+/// germs.
+///
+/// Faces aligned are not read: there the operands overlap beside the
+/// crescent, and a one-segment rim's section does not yet join with it
+/// read (`a-crescent-between-aligned-faces-is-read-as-a-touch`).
+pub(super) fn crescent_records<T: Decide>(
     bodies: [&Body<T>; 2],
     sectors: [&[BoolSector<T>]; 2],
     touching: &[(usize, usize)],
     contacts: &super::ReductionContacts,
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<Vec<PairRecord>, BooleanError> {
+    let mut records = Vec::new();
     for &(i, j) in touching {
         let (sa, sb) = (&sectors[0][i], &sectors[1][j]);
         if sa.bend.shape() != FaceShape::Plane || sb.bend.shape() != FaceShape::Plane {
             continue;
         }
-        let arm = sa.arm.min(sb.arm);
         let corner = |k: usize, sector| Corner {
             body: bodies[k],
             sectors: sectors[k],
             sector,
         };
+        let arm = sa.arm.min(sb.arm);
         if !direction_sense(sa.tangent().vec(), sb.tangent().vec(), arm, band)?
             && crescent(corner(0, sa), corner(1, sb), contacts, band)?
         {
-            return Err(BooleanError::TangentCrescentUnsupported {
-                a_face: sa.face,
-                b_face: sb.face,
+            let on = (SideCode::On, SideCode::On);
+            records.push(PairRecord {
+                a: i,
+                b: j,
+                sa: on,
+                sb: on,
+                intersect: true,
             });
         }
     }
-    Ok(())
+    Ok(records)
 }
 
 /// A bound's curvature vector at the base vertex and its reach, where
@@ -2420,14 +2426,12 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// The verdict is the second-order term's sign at the vertex, read off
 /// the two carriers' point curvatures, which is exact as a claim that
 /// the crescent exists: near enough the vertex that term dominates
-/// whatever the carriers do further out. The size it is decided at,
+/// whatever the carriers do further out, so a crescent read here is an
+/// overlap of the two faces, however thin. The size it is decided at,
 /// the term at the shorter bound's reach with its own ½, answers only
-/// whether the band resolves that sign there, which is why it is the
-/// leading term and not a bound: `crate::bound_side::read`'s sagitta drops the ½
-/// because it needs an upper bound on a departure, and a refusal gate
-/// that misjudges a crescent's width at its reach refuses a sliver the
-/// band would have read as a touch, never ships a body. A spiric
-/// section certifies no bend, and refuses as
+/// whether the band resolves that sign there; no witness point of
+/// either bound is read (`a-leaves-verdict-carries-no-witness-point`).
+/// A spiric section certifies no bend, and refuses as
 /// [`geom_brep::conic_bend_side`] does.
 fn crescent<T: Decide>(
     ca: Corner<'_, T>,
@@ -2684,7 +2688,8 @@ pub(super) struct PairSearch {
     /// Every intersecting (A-sector, B-sector) pair, in A-major order.
     pub records: Vec<PairRecord>,
     /// The coplanar pairs read as not overlapping, by index: sectors
-    /// that share at most a bound ([`crescent_refusal`] reads them).
+    /// that share at most a bound ([`crescent_records`] reads them one
+    /// order down).
     pub touching: Vec<(usize, usize)>,
 }
 

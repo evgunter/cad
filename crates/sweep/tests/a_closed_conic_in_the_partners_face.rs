@@ -37,9 +37,7 @@
 //! each run is read through `differential::outcome` (tiers 2 and 3′, the
 //! certificate, the legal operand, the closed-form volume) and meshed;
 //! a mesh along the short arcs' pinch holds four triangles at an edge.
-//! The ∩ of two solids meeting only in a face is empty. One row pins
-//! what is not built yet, refused typed: the union of a boss over a hole
-//! whose rim is tangent inside the boss's (a crescent). The puck runs
+//! The ∩ of two solids meeting only in a face is empty. The puck runs
 //! its unions alone: its ∩ and differences refuse
 //! `FallbackExtentUnsupported` on the ring's torus, tangent to the puck's
 //! top along its rim
@@ -470,8 +468,6 @@ enum Reads {
     /// decide
     /// (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
     Undecided,
-    /// `TangentCrescentUnsupported`.
-    Crescent,
     /// `Join(SectionLoopUndecided)`.
     LoopsUndecided,
     /// `Join(UnpairedLooseEnds { count })`.
@@ -486,7 +482,6 @@ type Cells = [Reads; 2];
 /// `want`.
 fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, reads: Reads) {
     let refused = |r: &Result<BooleanResult<f64>, BooleanError>| match r {
-        Err(BooleanError::TangentCrescentUnsupported { .. }) => Some(Reads::Crescent),
         Err(BooleanError::Join(j)) => match j.error() {
             SplitJoinError::SectionLoopUndecided { .. } => Some(Reads::LoopsUndecided),
             SplitJoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
@@ -547,21 +542,6 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
     }
 }
 
-/// The outward normal's `z` of `face` of `body` where it is a plane
-/// through `z = 0` facing straight up or down.
-fn floor_or_top(body: &Body<f64>, face: topo::FaceKey) -> Option<f64> {
-    let pose = topo::readback::face_pose(body, face).ok()?;
-    let z = if pose.sense {
-        pose.axis.z
-    } else {
-        -pose.axis.z
-    };
-    (topo::readback::face_carrier_kind(body, face).ok()? == geom::SurfaceKind::Plane
-        && pose.origin.z.abs() < 1e-12
-        && (z.abs() - 1.0).abs() < 1e-12)
-        .then_some(z)
-}
-
 /// A rim of radius `r` about `(cx, 0)`: a one-segment circle with its
 /// vertex at azimuth `az` (`one`), or two arcs with vertices there and
 /// opposite.
@@ -599,8 +579,8 @@ type Pose = (&'static str, f64, f64, f64, f64, Cells);
 
 /// The poses of [`a_boss_over_a_hole_by_pose`], the tangent ones first.
 fn poses() -> [Pose; 16] {
-    use Reads::{Crescent, Sound, Undecided, Unrecorded};
-    let crescent = [Crescent; 2];
+    use Reads::{Sound, Undecided, Unrecorded};
+    let crescent = [Sound(1), Sound(2)];
     let built = [Sound(1); 2];
     [
         (
@@ -746,22 +726,6 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
                     "A ∩ B" | "B ∩ A" => Reads::Empty,
                     _ => Reads::Sound(1),
                 };
-                if let (None, Err(BooleanError::TangentCrescentUnsupported { a_face, b_face })) =
-                    (turn, &r)
-                {
-                    let (a, b) = if op == "A ∪ B" {
-                        (&boss, &holed)
-                    } else {
-                        (&holed, &boss)
-                    };
-                    for (face, body) in [(*a_face, a), (*b_face, b)] {
-                        assert_eq!(
-                            floor_or_top(body, face),
-                            Some(if std::ptr::eq(body, &boss) { -1.0 } else { 1.0 }),
-                            "{what}: {op}: the boss's floor and the plate's top"
-                        );
-                    }
-                }
                 reads_as(&format!("{what}: {op}"), r, want, reads);
             }
         }
@@ -780,12 +744,11 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 /// a crescent that narrows to the tangent point. A vertex of either rim
 /// there puts a vertex pair at the point (the other rim is split
 /// there), and so does a touch with no vertex there, where the sweep
-/// splits both rims; the union refuses `TangentCrescentUnsupported`,
-/// naming the floor and the top
-/// (`work/cleave/a-union-across-a-tangent-crescent-refuses-unbuilt.md`).
-/// Built, the union would be one shell (through) or two (pocket, a
-/// cavity touching the outer shell at the point). The intersection is
-/// empty and the differences keep the operands.
+/// splits both rims. The two faces' sectors there touch at first order
+/// and overlap one order down (`boolean::sectors` `crescent_records`),
+/// and the union glues them over the crescent: one shell through, and
+/// pocketed two, the cavity touching the outer shell at the point. The
+/// intersection is empty and the differences keep the operands.
 ///
 /// The boss inside a hole tangent to its rim (`r = 0.4` about
 /// `(−0.1, 0)`) curves the other way: the floor and the top only touch,
@@ -1257,8 +1220,6 @@ enum Tip {
     /// `SOUND` in one shell at the closed form; ∩ empty and both
     /// differences `SOUND` alike.
     Built,
-    /// `TangentCrescentUnsupported`.
-    Crescent,
     /// The profile escalates on its short arcs.
     Unprofiled,
     /// `Escalated { decision: Crossing(OnEdge) }`.
@@ -1276,7 +1237,6 @@ enum Tip {
 fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
     use topo::BooleanDecision::{Coincidence, Crossing};
     Some(match r.as_ref().err()? {
-        BooleanError::TangentCrescentUnsupported { .. } => Tip::Crescent,
         BooleanError::Escalated {
             decision: Crossing(topo::CrossingDecision::OnEdge),
             ..
@@ -1361,8 +1321,8 @@ fn united_at_the_run(
 /// `2s` that the short arcs' length cannot resolve but the long arcs'
 /// can. The union is one shell (`boolean::sectors` `coincident_run`).
 /// Where only one side of the tip is cut, the other side is a true
-/// crescent at the tip and the union refuses
-/// `TangentCrescentUnsupported`; where only one rim is cut, the cut rim
+/// crescent at the tip, which the union glues over, one shell; where
+/// only one rim is cut, the cut rim
 /// meets the other rim in band, off that rim's wall, and the crossing
 /// layer escalates that meeting at the cut rim and the wall
 /// (`BoundaryMeeting`, [`Tip::Meeting`]).
@@ -1375,7 +1335,7 @@ fn united_at_the_run(
 /// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`.
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
+    use Tip::{Built, Meeting, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
@@ -1433,7 +1393,7 @@ fn short_arcs_at_a_crescents_tip() {
             "one side",
             [0.0, 1e-5, p, f64::NAN],
             [0.0, 3e-5, p, f64::NAN],
-            [[Crescent; 2], [Unprofiled; 2], [Unprofiled; 2]],
+            [[Built; 2], [Unprofiled; 2], [Unprofiled; 2]],
         ),
         (
             "the boss's only",
@@ -1662,9 +1622,8 @@ fn rim_about(c: (f64, f64), r: f64, az: &[f64]) -> ProfileLoop<f64> {
 /// cuts either side of the tip lie within the band at ε 1e-12 too, so
 /// the skip in `boolean::sectors` `crescent` is read there (that row's
 /// table builds nothing at 1e-12), with the tip turned to azimuth `φ`.
-/// Every union is one shell at the closed form, `SOUND`; with the skip
-/// off, the unturned ones refuse `TangentCrescentUnsupported`. At ε 1e-6
-/// the profile escalates on the short arcs.
+/// Every union is one shell at the closed form, `SOUND`. At ε 1e-6 the
+/// profile escalates on the short arcs.
 ///
 /// The rims swapped, the boss `r = 0.1` inside the hole `r = 0.3`,
 /// tangent there, the boss and the plate only touch, along the run, and
