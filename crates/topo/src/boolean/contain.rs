@@ -548,12 +548,10 @@ pub(crate) fn loop_circle<T: Decide>(
             .certified()
             .map(|c| c.carrier().clone());
         match carrier {
-            Some(geom::Curve3::Circle {
-                center,
-                axis,
+            Some(geom::Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame { center, axis, .. },
                 radius,
-                ..
-            }) => match circle {
+            })) => match circle {
                 None => {
                     circle = Some(LoopCircle {
                         center,
@@ -578,7 +576,7 @@ pub(crate) fn loop_circle<T: Decide>(
             // circle's arc.
             Some(
                 geom::Curve3::Line { .. }
-                | geom::Curve3::Ellipse { .. }
+                | geom::Curve3::Ellipse(..)
                 | geom::Curve3::Spiric { .. }
                 | geom::Curve3::Nurbs(_),
             )

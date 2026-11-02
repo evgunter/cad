@@ -5054,9 +5054,7 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
         geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
-        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-            false
-        }
+        geom::Curve3::Line { .. } | geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) => false,
     }
 }
 
@@ -5064,8 +5062,8 @@ fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 /// a spiric or a spline, where a line or a circle keeps it.
 fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
-        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => false,
-        geom::Curve3::Ellipse { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
+        geom::Curve3::Line { .. } | geom::Curve3::Circle(..) => false,
+        geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
     }
 }
 

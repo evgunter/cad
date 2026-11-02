@@ -86,12 +86,7 @@ fn door(
 
 fn circle(c: [f64; 3], n: [f64; 3], r: f64) -> geom::Curve3<f64> {
     let n = Vec3::from_array(n).normalize();
-    geom::Curve3::Circle {
-        center: Point3::from_array(c),
-        axis: n,
-        radius: r,
-        u_ref: n.orthonormal_basis().0,
-    }
+    geom::Curve3::circle(Point3::from_array(c), n, r, n.orthonormal_basis().0)
 }
 
 /// The door's certified roots on `[t0, t0 + 1]` match the oracle's sign
@@ -325,14 +320,18 @@ fn the_apex_rung_refuses_a_root_at_the_apex() {
     let b = band();
     // A circle through the apex at `θ = 0`: `C(0) = c + ρ·û` is the apex.
     let e = circle([0.5, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
-    let geom::Curve3::Circle { u_ref, .. } = e else {
+    let geom::Curve3::Circle(geom::Circle {
+        frame: geom::ConicFrame { u_ref, .. },
+        ..
+    }) = e
+    else {
         unreachable!("a circle")
     };
-    let conic = geom_brep::Conic::of(&e).unwrap();
+    let conic = e.conic().unwrap();
     // `θ` placing `C(θ)` about `shift` metres along the circle from `C(0)`.
     let toward = if u_ref.x < 0.0 { 0.0 } else { PI };
     let at = |shift: f64| toward + shift / 0.5;
-    let apex = conic.point(toward);
+    let apex = conic.point_at(toward);
     let certified = |thetas: &[f64]| CircleRoots::of(thetas).unwrap();
     for (label, shift) in [
         ("at the apex", 0.0),
@@ -387,16 +386,20 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
     let rho = 1.0;
     let crossing = |d: f64| {
         let on = Point3::new(d * alpha.sin(), 0.0, d * alpha.cos());
-        geom::Curve3::Circle {
-            center: on + Vec3::new(0.0, 0.0, rho),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: rho,
-            u_ref: Vec3::new(0.0, 0.0, -1.0),
-        }
+        geom::Curve3::circle(
+            on + Vec3::new(0.0, 0.0, rho),
+            Vec3::new(0.0, 1.0, 0.0),
+            rho,
+            Vec3::new(0.0, 0.0, -1.0),
+        )
     };
     for d in [1e-6, 1e-5] {
         let e = crossing(d);
-        let geom::Curve3::Circle { center, .. } = e else {
+        let geom::Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { center, .. },
+            ..
+        }) = e
+        else {
             unreachable!("a circle")
         };
         let farthest = (center - Point3::origin()).norm() + rho;
@@ -474,21 +477,14 @@ fn certified_answers_hold_against_the_quadric_form() {
             let w = unit(&mut rng);
             let uref = (w - n * w.dot(n)).normalize();
             let e = if i % 3 == 0 {
-                geom::Curve3::Circle {
-                    center: on - uref * big,
-                    axis: n,
-                    radius: big,
-                    u_ref: uref,
-                }
+                geom::Curve3::circle(on - uref * big, n, big, uref)
             } else {
                 let major = if i % 4 == 1 { -big } else { big };
-                geom::Curve3::Ellipse {
-                    center: on - uref * major,
-                    axis: n,
-                    semi_u: major,
-                    semi_v: small,
-                    u_ref: uref,
-                }
+                geom::Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(on - uref * major, n, uref),
+                    major,
+                    small,
+                ))
             };
             let t0 = rng.range(0.0, TAU);
             let t1 = t0 + rng.range(0.1, TAU);
@@ -582,21 +578,16 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 let p = tip + (axis * a.cos() + radial * a.sin()) * l;
                 let normal = radial * a.cos() - axis * a.sin();
                 let along = axis.cross(radial).normalize();
-                geom::Curve3::Circle {
-                    center: p + normal * (r + k),
-                    axis: along.cross(normal).normalize(),
-                    radius: r,
-                    u_ref: normal * -1.0,
-                }
+                geom::Curve3::circle(
+                    p + normal * (r + k),
+                    along.cross(normal).normalize(),
+                    r,
+                    normal * -1.0,
+                )
             } else {
                 // Through the apex, in a plane holding the axis.
                 let side = axis.cross(radial).normalize();
-                geom::Curve3::Circle {
-                    center: tip + radial * r + axis * k,
-                    axis: side,
-                    radius: r,
-                    u_ref: radial * -1.0,
-                }
+                geom::Curve3::circle(tip + radial * r + axis * k, side, r, radial * -1.0)
             };
             let t0 = rng.range(0.0, TAU);
             let t1 = t0 + rng.range(0.1, TAU);

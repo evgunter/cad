@@ -139,7 +139,7 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::BooleanDecision;
 use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
-    first_harmonic_roots_in_band, near_span,
+    first_harmonic_roots_in_band,
 };
 use super::region::{
     self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
@@ -411,12 +411,15 @@ impl<T: Decide> TorusFaceRegion<T> {
         leg: &Leg<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        let geom::Curve3::Circle {
-            center,
-            axis,
+        let geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = edge.carrier
+        }) = edge.carrier
         else {
             return Ok(Roots::Miss);
         };
@@ -479,7 +482,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     /// ([`PiecedArc::contact`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
-            geom::Curve3::Circle { .. } => circle_edge_hit(
+            geom::Curve3::Circle(..) => circle_edge_hit(
                 &edge.carrier,
                 edge.turn.as_ref(),
                 BOUNDARY,
@@ -597,12 +600,15 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
         let mut out = Vec::new();
         match (&edge.carrier, leg.course.kind) {
             (
-                &geom::Curve3::Circle {
-                    center,
-                    axis,
+                &geom::Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::ConicFrame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     radius,
-                    u_ref,
-                },
+                }),
                 LegKind::Meridian { radial },
             ) if matches!(
                 self.circle_family(axis, radius, band),
@@ -626,7 +632,13 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     out.push((center + w, theta, sideless));
                 }
             }
-            (&geom::Curve3::Circle { center, radius, .. }, LegKind::Meridian { radial }) => {
+            (
+                &geom::Curve3::Circle(geom::Circle {
+                    frame: geom::ConicFrame { center, .. },
+                    radius,
+                }),
+                LegKind::Meridian { radial },
+            ) => {
                 let thetas = match self.circle_roots(edge, leg, band) {
                     // The edge in the leg's plane: on the leg's own
                     // meridian, or on the opposite one, which the leg
@@ -659,12 +671,15 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 }
             }
             (
-                &geom::Curve3::Circle {
-                    center,
-                    axis,
+                &geom::Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::ConicFrame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     radius,
-                    u_ref,
-                },
+                }),
                 LegKind::Parallel,
             ) => {
                 let roots = match self.plane_roots(leg, axis, center, band) {
@@ -799,7 +814,7 @@ fn arc_span<T: Decide>(
     lever: T,
     band: Band,
 ) -> (T, Result<Option<bool>, Fault>) {
-    let theta = near_span(y.atan2(x), (t0, t1));
+    let theta = geom::on_span_branch(y.atan2(x), (t0, t1));
     (theta, span(SPAN, theta, (t0, t1), lever, band))
 }
 
@@ -821,12 +836,12 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle {
-                center: Point3::new(0.0, 0.0, MINOR * v.sin()),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: R + MINOR * v.cos(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
+            carrier: geom::Curve3::circle(
+                Point3::new(0.0, 0.0, MINOR * v.sin()),
+                Vec3::new(0.0, 0.0, 1.0),
+                R + MINOR * v.cos(),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             t0: 0.0,
             t1: TAU,
             turn: crate::boolean::region::fixture_turn(0.0, TAU),
@@ -898,12 +913,12 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle {
-                center: Point3::origin() + turned(phi, c0),
-                axis: turned(phi, n0),
-                radius: R,
-                u_ref: turned(phi, e0),
-            },
+            carrier: geom::Curve3::circle(
+                Point3::origin() + turned(phi, c0),
+                turned(phi, n0),
+                R,
+                turned(phi, e0),
+            ),
             t0: 0.0,
             t1: TAU,
             turn: crate::boolean::region::fixture_turn(0.0, TAU),
@@ -1038,12 +1053,12 @@ mod tests {
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
                 r#loop: LoopKey::default(),
                 cycle: 0,
-                carrier: geom::Curve3::Circle {
-                    center: Point3::origin() + rot(phi, c0),
-                    axis: rot(phi, n0),
-                    radius: big,
-                    u_ref: rot(phi, e0),
-                },
+                carrier: geom::Curve3::circle(
+                    Point3::origin() + rot(phi, c0),
+                    rot(phi, n0),
+                    big,
+                    rot(phi, e0),
+                ),
                 t0: 0.0,
                 t1: TAU,
                 turn: crate::boolean::region::fixture_turn(0.0, TAU),
@@ -1142,12 +1157,14 @@ mod tests {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
             cycle: 0,
-            carrier: geom::Curve3::Circle {
-                center,
-                axis,
+            carrier: geom::Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-                u_ref,
-            },
+            }),
             t0,
             t1,
             turn: crate::boolean::region::fixture_turn(t0, t1),

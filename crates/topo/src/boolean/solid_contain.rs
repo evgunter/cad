@@ -1392,12 +1392,15 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             continue;
         };
         let (t0, t1) = curve.params();
-        let geom::Curve3::Circle {
-            center: c_c,
-            axis: n_c,
+        let geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center: c_c,
+                    axis: n_c,
+                    u_ref: u_c,
+                },
             radius: r_c,
-            u_ref: u_c,
-        } = *curve.carrier()
+        }) = *curve.carrier()
         else {
             return Ok(None);
         };
@@ -3552,12 +3555,15 @@ fn wall_crosses_by_turn<T: Decide>(
                 let (t0, t1) = curve.params();
                 (dir / dir.norm()).cross(axis).norm() * ((t1 - t0) * dir.norm()).abs()
             }
-            geom::Curve3::Circle {
-                center,
-                axis: normal,
+            geom::Curve3::Circle(geom::Circle {
+                frame:
+                    geom::ConicFrame {
+                        center,
+                        axis: normal,
+                        ..
+                    },
                 radius: r,
-                ..
-            } => {
+            }) => {
                 let w = center - origin;
                 r.abs() * (normal / normal.norm()).cross(axis).norm()
                     + (w - axis * w.dot(axis)).norm()
@@ -3645,7 +3651,7 @@ fn loop_turn<T: Decide>(
             .ok_or_else(corrupt)?;
         match *curve.carrier() {
             geom::Curve3::Line { .. } => turn = turn + angle(a, b),
-            geom::Curve3::Circle { .. } => {
+            geom::Curve3::Circle(..) => {
                 let on = |f: f64| {
                     along_half(body, e.half, f)
                         .map(|(x, _)| map(x))
@@ -3786,7 +3792,7 @@ pub(crate) fn edge_clearance<T: Decide>(body: &Body<T>, e: &FaceEdge, m: Point3<
             at(e.ends[1])?,
             m,
         )),
-        geom::Curve3::Circle { radius, .. } => {
+        geom::Curve3::Circle(geom::Circle { radius, .. }) => {
             let (t0, t1) = curve.params();
             let n = T::from_f64(f64::from(CLEARANCE_SAMPLES));
             let mut least: Option<T> = None;

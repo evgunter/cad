@@ -311,12 +311,7 @@ fn top_piece(flip: bool, rim_axis: Vec3<f64>) -> Body<f64> {
         u_ref: Vec3::unit_x(),
     };
     let kc = body.add_surface(cap);
-    let rim = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 2.0),
-        axis: rim_axis,
-        radius: 1.0,
-        u_ref: Vec3::unit_y(),
-    };
+    let rim = Curve3::circle(Point3::new(0.0, 0.0, 2.0), rim_axis, 1.0, Vec3::unit_y());
     body.mef(
         MefSite::Chords {
             he1: seam.he_minus,
@@ -344,7 +339,7 @@ fn top_piece(flip: bool, rim_axis: Vec3<f64>) -> Body<f64> {
     let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
     for f in faces {
         let kinds: Vec<_> = arcs(&body, f).into_iter().map(|(c, _)| c).collect();
-        let (key, sense) = if kinds.iter().all(|c| matches!(c, Curve3::Circle { .. })) {
+        let (key, sense) = if kinds.iter().all(|c| matches!(c, Curve3::Circle(..))) {
             (kc, true)
         } else if kinds.iter().any(|c| matches!(c, Curve3::Line { .. })) {
             (ka, true)

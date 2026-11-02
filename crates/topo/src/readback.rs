@@ -564,18 +564,13 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             u_ref: None,
             sense: true,
         }),
-        ellipse @ Curve3::Ellipse { center, axis, .. } => Ok(Pose {
+        ellipse @ Curve3::Ellipse(geom::Ellipse { frame: geom::ConicFrame { center, axis, .. }, .. }) => Ok(Pose {
             origin: *center,
             axis: *axis,
             u_ref: ellipse.major_frame().map(|f| f.major_dir),
             sense: true,
         }),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        }
+        Curve3::Circle(geom::Circle { frame: geom::ConicFrame { center, axis, u_ref }, .. })
         // The spiric's six fields ARE a canonical frame: the torus
         // centre, its axis and the cutting plane's normal — the frame
         // the model holds, answered as the pose.

@@ -277,19 +277,25 @@ pub(in crate::boolean) fn truth(
     surface: &geom::Surface<f64>,
 ) -> Truth {
     let (center, axis, (a, b), u_ref) = match *carrier {
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => (center, axis, (radius, radius), u_ref),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
+        }) => (center, axis, (radius, radius), u_ref),
+        geom::Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => (center, axis, (semi_u, semi_v), u_ref),
+        }) => (center, axis, (semi_u, semi_v), u_ref),
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {

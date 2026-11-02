@@ -48,7 +48,7 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// refuse by name.
 fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
-        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
+        Curve3::Line { .. } | Curve3::Circle(..) | Curve3::Ellipse(..) => Ok(()),
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
@@ -310,30 +310,29 @@ pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> O
             origin: shift(origin),
             dir,
         },
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: shift(center),
-            axis,
-            radius,
-            u_ref,
-        },
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => Curve3::circle(shift(center), axis, radius, u_ref),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => Curve3::Ellipse {
-            center: shift(center),
-            axis,
+        }) => Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(shift(center), axis, u_ref),
             semi_u,
             semi_v,
-            u_ref,
-        },
+        )),
         Curve3::Spiric {
             center,
             axis,
@@ -675,10 +674,8 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
         Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
-        Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse { semi_u, semi_v, .. } => {
-            (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
-        }
+        Curve3::Circle(geom::Circle { radius, .. }) => (radius * Interval::point(span)).mag(),
+        Curve3::Ellipse(k) => (k.semi_axes_by_size().0 * Interval::point(span)).mag(),
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
             .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
@@ -1421,7 +1418,7 @@ fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
         // An ARC cap rim on a rational wall (M8-3): the metric
         // length is exactly `r·Δθ` — the carrier's own parameter
         // IS the angle, so no bound is needed.
-        Curve3::Circle { radius, .. } => {
+        Curve3::Circle(geom::Circle { radius, .. }) => {
             (Interval::from_certified(*radius) * Interval::from_certified(t1 - t0)).mag()
         }
         _ => {

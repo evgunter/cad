@@ -71,12 +71,12 @@ fn graze(
     (rho, depth, b): (f64, f64, f64),
 ) -> geom::Curve3<f64> {
     let toward = (normal * b.cos() + normal.cross(tangent) * b.sin()).normalize();
-    geom::Curve3::Circle {
-        center: on + normal * depth - toward * rho,
-        axis: toward.cross(tangent).normalize(),
-        radius: rho,
-        u_ref: toward,
-    }
+    geom::Curve3::circle(
+        on + normal * depth - toward * rho,
+        toward.cross(tangent).normalize(),
+        rho,
+        toward,
+    )
 }
 
 /// [`graze`] against the wall of radius `r` at `(r, 0, 0)`, tangent in
@@ -115,7 +115,7 @@ fn farthest(c: &geom::Curve3<f64>, r: f64) -> f64 {
 /// The door's ladder noise meter's reading for `c` against the wall of
 /// radius `r` (metres), from the frame the door builds.
 fn noise_reading(c: &geom::Curve3<f64>, r: f64) -> f64 {
-    let conic = geom_brep::Conic::of(c).unwrap();
+    let conic = c.conic().unwrap();
     quadric_ladder(&conic, &wall(r), (-1.0, 1.0))
         .unwrap()
         .frame
@@ -351,12 +351,12 @@ fn the_sweeps_gap_witnesses_are_judged_in_the_residual() {
     let mut wrong = Vec::new();
     let mut past = 0;
     for (i, (center, axis, radius, u_ref, r)) in GAP_WITNESSES.into_iter().enumerate() {
-        let c = geom::Curve3::Circle {
-            center: Point3::new(center[0], center[1], center[2]),
-            axis: Vec3::new(axis[0], axis[1], axis[2]),
+        let c = geom::Curve3::circle(
+            Point3::new(center[0], center[1], center[2]),
+            Vec3::new(axis[0], axis[1], axis[2]),
             radius,
-            u_ref: Vec3::new(u_ref[0], u_ref[1], u_ref[2]),
-        };
+            Vec3::new(u_ref[0], u_ref[1], u_ref[2]),
+        );
         let truth = exact::truth(&c, &wall(r));
         assert!(
             truth.depth < 10.0 * eps,

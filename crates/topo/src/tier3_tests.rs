@@ -939,18 +939,13 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     let c = Point3::new(0.5, 0.0, 0.0);
     let zero = Vec3::new(0.0, 0.0, 0.0);
     let x = Vec3::unit_x();
-    let circle = |axis: Vec3<f64>| Curve3::Circle {
-        center: c,
-        axis,
-        radius: 0.5,
-        u_ref: -x,
-    };
-    let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| Curve3::Ellipse {
-        center: c,
-        axis,
-        semi_u: major,
-        semi_v: 0.3,
-        u_ref,
+    let circle = |axis: Vec3<f64>| Curve3::circle(c, axis, 0.5, -x);
+    let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(c, axis, u_ref),
+            major,
+            0.3,
+        ))
     };
     let axis = Vec3::unit_z();
     for (name, honest) in [
@@ -1047,11 +1042,15 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let z = Vec3::unit_z();
     let x = Vec3::unit_x();
     let zero = Vec3::new(0.0, 0.0, 0.0);
-    let circle = |center, axis, radius, u_ref| Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref,
+    let circle = |center, axis, radius, u_ref| {
+        Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame {
+                center,
+                axis,
+                u_ref,
+            },
+            radius,
+        })
     };
     let spiric = |minor_radius: f64, offset: f64| Curve3::Spiric {
         center: o,
@@ -1112,13 +1111,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         (
             "ellipse, zero minor",
-            Curve3::Ellipse {
-                center: o,
-                axis: z,
-                semi_u: 1.0,
-                semi_v: 0.0,
-                u_ref: x,
-            },
+            Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(o, z, x), 1.0, 0.0)),
             Some(V::Unrepresentable(D::SemiV, Value, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
@@ -1250,18 +1243,14 @@ fn the_frame_lever_is_the_kinds_radius() {
         radius: r,
         u_ref: Vec3::new(long(d), 0.0, 0.0),
     };
-    let circle = |r: f64, d: f64| Curve3::Circle {
-        center: o,
-        axis: Vec3::new(0.0, 0.0, long(d)),
-        radius: r,
-        u_ref: Vec3::unit_x(),
-    };
-    let ellipse = |major: f64, minor: f64, d: f64| Curve3::Ellipse {
-        center: o,
-        axis: Vec3::new(0.0, 0.0, long(d)),
-        semi_u: major,
-        semi_v: minor,
-        u_ref: Vec3::unit_x(),
+    let circle =
+        |r: f64, d: f64| Curve3::circle(o, Vec3::new(0.0, 0.0, long(d)), r, Vec3::unit_x());
+    let ellipse = |major: f64, minor: f64, d: f64| {
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(o, Vec3::new(0.0, 0.0, long(d)), Vec3::unit_x()),
+            major,
+            minor,
+        ))
     };
     let surface_verdict = |s: &Surface<f64>| {
         let lifted: Surface<Interval> = s.map_scalar(<Interval as geom_core::Real>::from_f64);
@@ -1364,13 +1353,11 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
         ("minor > major", 0.5, 0.7, -x, 0.7),
         ("negative major, u_ref flipped", -0.5, 0.3, x, 0.5),
     ] {
-        let carrier = Curve3::Ellipse {
-            center: Point3::new(0.5, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            semi_u: major,
-            semi_v: minor,
-            u_ref,
-        };
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(Point3::new(0.5, 0.0, 0.0), Vec3::unit_z(), u_ref),
+            major,
+            minor,
+        ));
         let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
             .unwrap_or_else(|e| panic!("{name}: the mint certifies it: {e:?}"));
         let curve = body
@@ -1419,12 +1406,7 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
     let tol = Tol::witness();
     let (mut body, split) = coplanar_pillow(tol);
     let past = 10.0 * tol.k() * tol.eps();
-    let circle = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     let t1 = core::f64::consts::TAU + past;
     let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
     let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
@@ -1507,12 +1489,7 @@ fn pillow_with_an_arc_past_a_turn_in(
             (body.surfaces.insert(plane), false)
         }
     };
-    let circle = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     let t1 = core::f64::consts::TAU + past;
     let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1)
         .unwrap()
@@ -2133,12 +2110,14 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
                 -Vec3::unit_z()
             };
             (
-                geom::Curve3::Circle {
-                    center,
-                    axis,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::ConicFrame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                     radius,
-                    u_ref,
-                },
+                }),
                 0.0,
                 std::f64::consts::PI,
             )
@@ -3786,12 +3765,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
         let p0 = at(body.get_half_edge(he).unwrap().start);
         let center = Point3::new(cx, cy, p0.z);
         let u_ref = (p0 - center) / r;
-        geom::Curve3::Circle {
-            center,
-            axis: u_ref.cross(Vec3::unit_y()),
-            radius: r,
-            u_ref,
-        }
+        geom::Curve3::circle(center, u_ref.cross(Vec3::unit_y()), r, u_ref)
     };
     let segment = |body: &Body<f64>, edge| {
         let he = body.get_edge(edge).unwrap().he_plus;

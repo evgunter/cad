@@ -95,20 +95,13 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
     let center = on + normal * depth - toward * major;
     let axis = toward.cross(tangent).normalize();
     let carrier = if family == 0 {
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius: major,
-            u_ref: toward,
-        }
+        geom::Curve3::circle(center, axis, major, toward)
     } else {
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            semi_u: major,
-            semi_v: minor,
-            u_ref: toward,
-        }
+        geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(center, axis, toward),
+            major,
+            minor,
+        ))
     };
     let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
     Pose {
@@ -141,30 +134,29 @@ fn lift_v(v: Vec3<f64>) -> Vec3<Interval> {
 fn lifted(pose: &Pose) -> (geom::Curve3<Interval>, geom::Surface<Interval>) {
     let at = Interval::from_f64;
     let carrier = match pose.carrier {
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => geom::Curve3::Circle {
-            center: lift_p(center),
-            axis: lift_v(axis),
-            radius: at(radius),
-            u_ref: lift_v(u_ref),
-        },
-        geom::Curve3::Ellipse {
-            center,
-            axis,
+        }) => geom::Curve3::circle(lift_p(center), lift_v(axis), at(radius), lift_v(u_ref)),
+        geom::Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => geom::Curve3::Ellipse {
-            center: lift_p(center),
-            axis: lift_v(axis),
-            semi_u: at(semi_u),
-            semi_v: at(semi_v),
-            u_ref: lift_v(u_ref),
-        },
+        }) => geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(lift_p(center), lift_v(axis), lift_v(u_ref)),
+            at(semi_u),
+            at(semi_v),
+        )),
         _ => panic!("the sweep draws circles and ellipses"),
     };
     let surface = match pose.surface {

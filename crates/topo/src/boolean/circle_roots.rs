@@ -497,26 +497,16 @@ fn harmonic_roots<T: Decide>(
     // pick would decide nothing a reader uses.
     let (a, b) = (phi - half_chord, phi + half_chord);
     Ok(Roots::all(match window {
-        Some(span) => [near_span(a, span), near_span(b, span)],
+        Some(span) => [geom::on_span_branch(a, span), geom::on_span_branch(b, span)],
         None => {
             let turn = (T::zero(), T::tau());
             let at_start = ((h.lo + h.hi) / two + h.cos_part).abs() - T::from_f64(band.zero());
             [
-                at_start.select_le_zero(a, near_span(a, turn)),
-                at_start.select_le_zero(b, near_span(b, turn)),
+                at_start.select_le_zero(a, geom::on_span_branch(a, turn)),
+                at_start.select_le_zero(b, geom::on_span_branch(b, turn)),
             ]
         }
     }))
-}
-
-/// **An angle on the branch of a span's middle**: `raw` moved by whole
-/// turns to within `π` of the middle of `(t0, t1)`, so it compares with the
-/// span's ends without wrapping. The one unwinding of a carrier's angle
-/// onto the span it is read against: this door's roots, and an angle a
-/// region reads off a point of an edge.
-pub(super) fn near_span<T: Decide>(raw: T, (t0, t1): (T, T)) -> T {
-    let mid = (t0 + t1) / T::from_f64(2.0);
-    mid + (raw - mid).reduce_periodic_centred(T::tau())
 }
 
 /// A root door's answer for a row: its roots, or its refusal, a limit

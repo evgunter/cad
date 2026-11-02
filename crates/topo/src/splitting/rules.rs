@@ -1030,12 +1030,7 @@ mod tests {
     #[test]
     fn a_faces_reach_reads_an_arc_over_its_span_only_on_a_ruled_face() {
         use geom_core::Vec3;
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let carrier = geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
         let t1 = 0.01 * core::f64::consts::TAU;
         let chord = (carrier.eval(t1) - carrier.eval(0.0)).norm();
         for (surface, want) in [

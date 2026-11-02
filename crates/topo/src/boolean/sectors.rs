@@ -573,8 +573,8 @@ pub(super) fn orbit_corners<T: Decide>(
                     far: p_end,
                 },
             ),
-            geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. }
+            geom::Curve3::Circle(..)
+            | geom::Curve3::Ellipse(..)
             | geom::Curve3::Spiric { .. }
             | geom::Curve3::Nurbs(_) => {
                 let ConicDeparture { dir, extent, bend } =
@@ -1679,7 +1679,7 @@ fn one_segment<T: Decide>(
     }
     for (side, e) in [(a, ea), (b, eb)] {
         match germ_curve(side.body, e.edge)?.carrier() {
-            geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
+            geom::Curve3::Line { .. } | geom::Curve3::Circle(..) => {}
             _ => {
                 return Err(BooleanError::GermEdgeCarrierUnsupported {
                     operand: side.operand,
@@ -2510,7 +2510,7 @@ fn far_edge<T: Decide>(
     }
     match germ_curve(body, half.edge)?.carrier() {
         geom::Curve3::Line { .. } => {}
-        geom::Curve3::Circle { .. } => {
+        geom::Curve3::Circle(..) => {
             let chord = body.resolve_vertex_point(far, Proven)
                 - body.resolve_vertex_point(half.start, Proven);
             if !within_half_turn(dir, chord, band)? {
@@ -3379,12 +3379,12 @@ mod tests {
     /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
     fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
         let span = core::f64::consts::FRAC_PI_2;
-        let carrier = geom::Curve3::Circle {
-            center: geom_core::Point3::origin() + bend,
-            axis: Vec3::new(1.0, 0.0, 0.0).cross(bend),
-            radius: 1.0,
-            u_ref: -bend,
-        };
+        let carrier = geom::Curve3::circle(
+            geom_core::Point3::origin() + bend,
+            Vec3::new(1.0, 0.0, 0.0).cross(bend),
+            1.0,
+            -bend,
+        );
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
@@ -3561,20 +3561,13 @@ mod tests {
                             let big_n = Vec3::new(-beta.sin() * cg, sg, beta.cos() * cg);
                             let u = -big_n;
                             let carrier = if along_n == along_t {
-                                geom::Curve3::Circle {
-                                    center: base + big_n * along_n,
-                                    axis: u.cross(t),
-                                    radius: along_n,
-                                    u_ref: u,
-                                }
+                                geom::Curve3::circle(base + big_n * along_n, u.cross(t), along_n, u)
                             } else {
-                                geom::Curve3::Ellipse {
-                                    center: base + big_n * along_n,
-                                    axis: u.cross(t),
-                                    semi_u: along_n,
-                                    semi_v: along_t,
-                                    u_ref: u,
-                                }
+                                geom::Curve3::Ellipse(geom::Ellipse::new(
+                                    geom::ConicFrame::new(base + big_n * along_n, u.cross(t), u),
+                                    along_n,
+                                    along_t,
+                                ))
                             };
                             (carrier, big_n)
                         };
@@ -3711,12 +3704,7 @@ mod tests {
         let span = (0.2 * b.zero() / r).sqrt();
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
-        let carrier = geom::Curve3::Circle {
-            center: geom_core::Point3::origin() + z * r,
-            axis: x.cross(z),
-            radius: r,
-            u_ref: -z,
-        };
+        let carrier = geom::Curve3::circle(geom_core::Point3::origin() + z * r, x.cross(z), r, -z);
         let chord = carrier.eval(span).distance(geom_core::Point3::origin());
         let far = (carrier.eval(span) - geom_core::Point3::origin()).z;
         assert!(

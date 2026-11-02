@@ -73,8 +73,8 @@ pub(super) fn carrier_gate<T: Decide>(
         match body.edge_curve_linked(edge_key, edge) {
             CurveGeom::Certified(curve) => match curve.carrier() {
                 geom::Curve3::Line { .. }
-                | geom::Curve3::Circle { .. }
-                | geom::Curve3::Ellipse { .. } => {}
+                | geom::Curve3::Circle(..)
+                | geom::Curve3::Ellipse(..) => {}
                 // No crossing-root arm reads a spiric or a spline.
                 geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     if !edge_clears(body, edge_key, plane, band, &frame) {
@@ -530,7 +530,7 @@ pub(crate) fn plane_crossing_lane<T: Decide>(
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> PlaneCrossingLane<T> {
-    match (geom_brep::Conic::of(carrier), carrier) {
+    match (carrier.conic(), carrier) {
         (Some(conic), _) => PlaneCrossingLane::Conic(conic_plane_meet(
             conic,
             t0,
@@ -546,7 +546,7 @@ pub(crate) fn plane_crossing_lane<T: Decide>(
 
 /// The conic arm of [`plane_crossing_lane`].
 fn conic_plane_meet<T: Decide>(
-    conic: geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     t0: T,
     t1: T,
     plane_origin: geom_core::Point3<T>,
@@ -557,7 +557,7 @@ fn conic_plane_meet<T: Decide>(
         Ok(candidates) => candidates,
         Err(meet) => return meet,
     };
-    let (s_u, s_v) = (conic.semi_u, conic.semi_v);
+    let (s_u, s_v) = conic.semi_axes();
     span_roots(candidates, t0, t1, s_u, s_v, band)
 }
 
@@ -566,18 +566,17 @@ fn conic_plane_meet<T: Decide>(
 /// crossing), before any span is read. `Err` carries the answer that
 /// needs no span — parallel, a miss, or the fault a rung escalated.
 pub(crate) fn conic_plane_candidates<T: Decide>(
-    conic: geom_brep::Conic<T>,
+    conic: &dyn geom::Conic<T>,
     plane_origin: geom_core::Point3<T>,
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<[Option<T>; 2], ConicPlaneMeet<T>> {
-    let geom_brep::Conic {
+    let geom::ConicFrame {
         center,
         axis,
         u_ref,
-        semi_u: s_u,
-        semi_v: s_v,
-    } = conic;
+    } = *conic.frame();
+    let (s_u, s_v) = conic.semi_axes();
     let v_ref = axis.cross(u_ref);
     let d0 = (center - plane_origin).dot(plane_normal);
     let a = u_ref.dot(plane_normal) * s_u;
@@ -719,7 +718,7 @@ fn span_roots<T: Decide>(
         }
         Ok((true, t))
     };
-    // The midpoint anchor is sound at every scalar by `ring_path::branch`'s
+    // The midpoint anchor is sound at every scalar by `geom::on_span_branch`'s
     // window re-centring argument: `verdict_at` decides a root at either
     // end of a closed edge's full-period span alike (not interior), and
     // reads it only against the span's ends, never as an identity. The
@@ -930,13 +929,11 @@ mod tests {
     /// certified interior, a split 5e-10 m from a vertex.
     #[test]
     fn a_crossing_at_an_end_is_metered_at_the_smaller_semi_axis() {
-        let e = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            semi_u: 0.01,
-            semi_v: 10.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            0.01,
+            10.0,
+        ));
         let t0 = core::f64::consts::FRAC_PI_2;
         let delta = 5e-8;
         let x = 0.01 * (t0 + delta).cos();
@@ -985,12 +982,7 @@ mod tests {
     /// Unit circle in the xy-plane about the origin (meter = 1, so
     /// parameter margins ARE meters).
     fn circle() -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x())
     }
 
     fn plane_y(c: f64) -> SplitPlane<f64> {
@@ -1045,12 +1037,12 @@ mod tests {
     fn an_interval_graze_root_is_as_tight_as_its_phase() {
         use geom_core::{Bounds, Interval, Real};
         let ex = Interval::from_f64;
-        let c = Curve3::Circle {
-            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            radius: ex(1.0),
-            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-        };
+        let c = Curve3::circle(
+            Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            ex(1.0),
+            Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        );
         for y in [1.0, 1.0 - 5e-10] {
             let plane = crate::test_support::split_plane(
                 Point3::new(ex(0.0), ex(y), ex(0.0)),
@@ -1137,13 +1129,11 @@ mod tests {
             ),
             (circle(), "conic"),
             (
-                Curve3::Ellipse {
-                    center: Point3::origin(),
-                    axis: Vec3::unit_z(),
-                    semi_u: 2.0,
-                    semi_v: 1.0,
-                    u_ref: Vec3::unit_x(),
-                },
+                Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                    2.0,
+                    1.0,
+                )),
                 "conic",
             ),
             (
@@ -1201,12 +1191,12 @@ mod tests {
         use geom_core::{Bounds, Interval, Real};
 
         let ex = Interval::from_f64;
-        let c = Curve3::Circle {
-            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
-            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
-            radius: ex(1.0),
-            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
-        };
+        let c = Curve3::circle(
+            Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            ex(1.0),
+            Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        );
         let plane = crate::test_support::split_plane(
             Point3::new(ex(0.0), ex(0.0), ex(0.0)),
             Vec3::new(ex(0.0), ex(1.0), ex(0.0)),
@@ -1268,15 +1258,17 @@ mod tests {
             let band = Band::new(e, 2.0 * e).unwrap();
             for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
                 let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");
-                let conic = geom_brep::Conic {
-                    center: Point3::new(0.0, 0.0, off * e),
-                    axis: Vec3::unit_x(),
-                    u_ref: Vec3::unit_z(),
-                    semi_u: 2.0 * e,
-                    semi_v: 2.0 * e,
-                };
+                let conic = geom::Ellipse::new(
+                    geom::ConicFrame::new(
+                        Point3::new(0.0, 0.0, off * e),
+                        Vec3::unit_x(),
+                        Vec3::unit_z(),
+                    ),
+                    2.0 * e,
+                    2.0 * e,
+                );
                 let normal = Vec3::new(0.0, 0.0, nz);
-                let got = conic_plane_candidates(conic, Point3::origin(), normal, band);
+                let got = conic_plane_candidates(&conic, Point3::origin(), normal, band);
                 let Err(ConicPlaneMeet::Roots(Err(fault @ ConicRootFault::BellyGraze(diag)))) = got
                 else {
                     panic!("{label}: {got:?}");

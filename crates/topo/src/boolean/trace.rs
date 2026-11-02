@@ -278,12 +278,14 @@ pub fn circle_crossings<T: Decide>(
             });
         }
         _ => {
-            let circle = Curve3::Circle {
-                center,
-                axis,
+            let circle = Curve3::Circle(geom::Circle {
+                frame: geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
                 radius,
-                u_ref,
-            };
+            });
             let found = match surface {
                 Surface::Torus { .. } => {
                     super::circle_torus::circle_torus_roots(&circle, T::zero(), tau, surface, band)

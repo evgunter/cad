@@ -49,12 +49,12 @@ fn rim_plane() -> Surface<f64> {
 
 /// The rim circle, wound `+z`.
 fn rim_circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: rim_r(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, 1.0),
+        rim_r(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// The same circle wound the other way, with `axis` spelled as the
@@ -62,24 +62,24 @@ fn rim_circle() -> Curve3<f64> {
 /// is the spelling the door's match admits. Its parameter `t` is at
 /// world azimuth `-t`.
 fn rim_circle_negated_value() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: -Vec3::new(0.0, 0.0, 1.0),
-        radius: rim_r(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        -Vec3::new(0.0, 0.0, 1.0),
+        rim_r(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// The same circle wound the other way, with `axis` MINTED FRESH as
 /// `(0, 0, -1)` — positive zeros — the residue the door's own comment
 /// names.
 fn rim_circle_negated_fresh() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, RIM_Z),
-        axis: Vec3::new(0.0, 0.0, -1.0),
-        radius: rim_r(),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, RIM_Z),
+        Vec3::new(0.0, 0.0, -1.0),
+        rim_r(),
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// The world point at azimuth `theta` on the rim.
@@ -282,7 +282,10 @@ fn stored_axis(body: &Body<f64>, k: EdgeKey) -> [u64; 3] {
         .certified()
         .unwrap();
     match *g.carrier() {
-        Curve3::Circle { axis, .. } => [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()],
+        Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame { axis, .. },
+            ..
+        }) => [axis.x.to_bits(), axis.y.to_bits(), axis.z.to_bits()],
         ref other => panic!("a rim arc is a circle, got {other:?}"),
     }
 }

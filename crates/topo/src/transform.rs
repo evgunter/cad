@@ -480,34 +480,42 @@ fn map_carrier<T: Real>(
             origin: map.transform_point(origin),
             dir: map_vec(map, dir),
         },
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: map.transform_point(center),
-            axis: hand.axial(map, axis),
+        }) => Curve3::circle(
+            map.transform_point(center),
+            hand.axial(map, axis),
             radius,
-            u_ref: map_vec(map, u_ref),
-        },
+            map_vec(map, u_ref),
+        ),
         // A rigid map preserves the semi-axis lengths and the frame's
         // orthonormality — the axis ordering invariant transfers
         // unchanged, so no re-decision is needed (the constructor
         // decided at mint; this is evaluation-lane data motion).
-        Curve3::Ellipse {
-            center,
-            axis,
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => Curve3::Ellipse {
-            center: map.transform_point(center),
-            axis: hand.axial(map, axis),
+        }) => Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(
+                map.transform_point(center),
+                hand.axial(map, axis),
+                map_vec(map, u_ref),
+            ),
             semi_u,
             semi_v,
-            u_ref: map_vec(map, u_ref),
-        },
+        )),
         // The same argument: a rigid map preserves both radii, the
         // stand-off and the frame's orthonormality, so the two-oval
         // regime and the carried side transfer unchanged — no

@@ -76,24 +76,17 @@ fn carrier(rng: &mut Rng, kind: usize) -> (geom::Curve3<f64>, (f64, f64)) {
     let (axis, u_ref) = pair(rng);
     match kind {
         0 => (
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius: radius(rng),
-                u_ref,
-            },
+            geom::Curve3::circle(center, axis, radius(rng), u_ref),
             window(rng),
         ),
         1 => {
             let (a, b) = (radius(rng), radius(rng));
             (
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
-                    semi_u: a.max(b),
-                    semi_v: a.min(b),
-                    u_ref,
-                },
+                geom::Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(center, axis, u_ref),
+                    a.max(b),
+                    a.min(b),
+                )),
                 window(rng),
             )
         }

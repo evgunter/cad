@@ -287,12 +287,7 @@ mod crossing_rows {
         let normal = (Vec3::new(-a.sin(), a.cos(), 0.0) + Vec3::unit_z() * 0.4).normalize();
         let p = Point3::origin() + radial;
         let out = radial * 0.6 + normal.cross(radial) * 0.8;
-        let tilted = Curve3::Circle {
-            center: p + out * 0.3,
-            axis: normal,
-            radius: 0.3,
-            u_ref: -out,
-        };
+        let tilted = Curve3::circle(p + out * 0.3, normal, 0.3, -out);
         match boundary_crossing(
             &body,
             (Operand::B, EdgeKey::default(), true),
@@ -334,13 +329,15 @@ mod crossing_rows {
             tol,
         );
         let k = 1.64f64.sqrt();
-        let section = Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.5),
-            axis: Vec3::new(-0.8, 0.0, 1.0) * (1.0 / k),
-            semi_u: k,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.8) * (1.0 / k),
-        };
+        let section = Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(
+                Point3::new(0.0, 0.0, 0.5),
+                Vec3::new(-0.8, 0.0, 1.0) * (1.0 / k),
+                Vec3::new(1.0, 0.0, 0.8) * (1.0 / k),
+            ),
+            k,
+            1.0,
+        ));
         let crossing = |span| match boundary_crossing(
             &body,
             (Operand::B, EdgeKey::default(), true),
@@ -413,13 +410,15 @@ mod crossing_rows {
         );
         let m = 400.0f64;
         let k = m.hypot(1.0);
-        let section = Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.5 - m * theta.cos()),
-            axis: Vec3::new(-m, 0.0, 1.0) * (1.0 / k),
-            semi_u: k,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, m) * (1.0 / k),
-        };
+        let section = Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(
+                Point3::new(0.0, 0.0, 0.5 - m * theta.cos()),
+                Vec3::new(-m, 0.0, 1.0) * (1.0 / k),
+                Vec3::new(1.0, 0.0, m) * (1.0 / k),
+            ),
+            k,
+            1.0,
+        ));
         let attempt = |gap: f64| {
             boundary_crossing(
                 &body,
@@ -488,13 +487,15 @@ mod crossing_rows {
         let (m, a) = (0.5f64, 0.8f64);
         let c = 1.0 + m * (1.0 - 0.05f64.cos()) - m;
         let k = m.hypot(1.0);
-        let section = Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, c),
-            axis: Vec3::new(-m * a.cos(), -m * a.sin(), 1.0) * (1.0 / k),
-            semi_u: k,
-            semi_v: 1.0,
-            u_ref: Vec3::new(a.cos(), a.sin(), m) * (1.0 / k),
-        };
+        let section = Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(
+                Point3::new(0.0, 0.0, c),
+                Vec3::new(-m * a.cos(), -m * a.sin(), 1.0) * (1.0 / k),
+                Vec3::new(a.cos(), a.sin(), m) * (1.0 / k),
+            ),
+            k,
+            1.0,
+        ));
         let tc = ((1.0 - c) / m).acos();
         assert!(
             (section.eval(tc).z - 1.0).abs() < 1e-12,
@@ -619,12 +620,7 @@ mod crossing_rows {
         let radial = Vec3::new(a.cos(), a.sin(), 0.0);
         let normal = (Vec3::new(-a.sin(), a.cos(), 0.0) + Vec3::unit_z() * 0.4).normalize();
         let out = radial * 0.6 + normal.cross(radial) * 0.8;
-        let tilted = Curve3::Circle {
-            center: Point3::origin() + radial + out * 0.3,
-            axis: normal,
-            radius: 0.3,
-            u_ref: -out,
-        };
+        let tilted = Curve3::circle(Point3::origin() + radial + out * 0.3, normal, 0.3, -out);
         assert!(
             matches!(
                 boundary_crossing(

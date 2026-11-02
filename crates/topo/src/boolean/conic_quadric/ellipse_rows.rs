@@ -294,17 +294,19 @@ fn a_graze_is_read_by_its_depth() {
 #[test]
 fn the_subdivision_reads_its_pieces_at_the_top_speed() {
     let band = Band::new(1e-6, 1e-5).expect("a band");
-    let e = geom::Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(
-            -0.02690652087259189,
-            -0.6904757134714763,
-            0.7228549842399846,
+    let e = geom::Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(
+                -0.02690652087259189,
+                -0.6904757134714763,
+                0.7228549842399846,
+            ),
+            Vec3::new(-0.8791819779574158, 0.360475481131658, 0.3116030762649587),
         ),
-        semi_u: 0.0011565902894188694,
-        semi_v: 0.00017995811133866398,
-        u_ref: Vec3::new(-0.8791819779574158, 0.360475481131658, 0.3116030762649587),
-    };
+        0.0011565902894188694,
+        0.00017995811133866398,
+    ));
     let center = Point3::new(
         -0.0007969769311573957,
         9.88085673337834e-6,
@@ -462,13 +464,15 @@ mod fuzz_rows {
                 // are the ones it was pinned on.
                 let major = if i % 3 == 1 { -major } else { major };
                 let minor = if i % 5 >= 3 { -minor } else { minor };
-                let e = geom::Curve3::Ellipse {
-                    center: Point3::new(0.0, 0.0, 0.0),
-                    axis: n,
-                    semi_u: major,
-                    semi_v: minor,
-                    u_ref: (u - n * u.dot(n)).normalize(),
-                };
+                let e = geom::Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        n,
+                        (u - n * u.dot(n)).normalize(),
+                    ),
+                    major,
+                    minor,
+                ));
                 // A surface through a random point of the carrier, so the
                 // pose crosses or grazes it more often than not.
                 let through = e.eval(rng.range(0.0, TAU));
@@ -584,13 +588,11 @@ mod graze_rows {
             -1.556_292_842_004_988_2,
         );
         for out in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -700.0, 400.0)] {
-            let e = geom::Curve3::Ellipse {
-                center: center + out,
-                axis,
-                semi_u: -3.413_716_003_510_488,
-                semi_v: -0.175_755_441_781_259_68,
-                u_ref,
-            };
+            let e = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::ConicFrame::new(center + out, axis, u_ref),
+                -3.413_716_003_510_488,
+                -0.175_755_441_781_259_68,
+            ));
             let s = geom::Surface::Sphere {
                 center: hub + out,
                 radius: 1.664_235_542_121_884e-5,
@@ -670,20 +672,13 @@ mod graze_rows {
                     rng.range(-far, far),
                 );
                 let e = if circle {
-                    geom::Curve3::Circle {
-                        center,
-                        axis: n,
-                        radius: major,
-                        u_ref,
-                    }
+                    geom::Curve3::circle(center, n, major, u_ref)
                 } else {
-                    geom::Curve3::Ellipse {
-                        center,
-                        axis: n,
-                        semi_u: major,
-                        semi_v: minor,
-                        u_ref,
-                    }
+                    geom::Curve3::Ellipse(geom::Ellipse::new(
+                        geom::ConicFrame::new(center, n, u_ref),
+                        major,
+                        minor,
+                    ))
                 };
                 // A vertex: the ends of the stored axes.
                 let k = rng.below(4);

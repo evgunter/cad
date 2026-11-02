@@ -558,12 +558,7 @@ mod tests {
             t.dot(bend).abs() < 1e-15,
             "the bend is square to the tangent"
         );
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin() + bend,
-            axis: t.cross(bend),
-            radius: 1.0,
-            u_ref: -bend,
-        };
+        let carrier = geom::Curve3::circle(Point3::origin() + bend, t.cross(bend), 1.0, -bend);
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);

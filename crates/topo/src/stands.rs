@@ -417,19 +417,25 @@ fn line_meetings<T: Decide>(
         geom::Curve3::Line { origin, dir } => {
             vec![(origin - m).cross(dir).dot(normal) / w.cross(dir).dot(normal)]
         }
-        geom::Curve3::Circle {
-            center,
-            axis,
+        geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => conic(center, axis, u_ref, radius, radius),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
+        }) => conic(center, axis, u_ref, radius, radius),
+        geom::Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => conic(center, axis, u_ref, semi_u, semi_v),
+        }) => conic(center, axis, u_ref, semi_u, semi_v),
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => Vec::new(),
     }
 }
@@ -634,12 +640,12 @@ mod rung_three_rows {
         // walk refuses to read (a null self-loop is certified so); at
         // rest it is described in the top face's chart.
         let chart = body.get_face(prism.top_face).unwrap().surface;
-        let circle = geom::Curve3::Circle {
+        let circle = geom::Curve3::circle(
             center,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.2,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::TAU)
             .unwrap()
             .at_rest_in_chart(chart, false);
