@@ -258,8 +258,9 @@ pub enum SkinError {
     /// `f64` resolves against their whole travel. A structure question
     /// about the parameters, decided exactly (C6), and NOT a verdict
     /// that the sections coincide — whether two sections are apart is
-    /// a banded question this module has no band for, and the loft
-    /// asks it before skinning (`LoftError::DegenerateStacking`).
+    /// a banded question this module has no band for, and the loft's
+    /// stacking door asks it before skinning
+    /// (`LoftError::DegenerateStacking`, `LoftError::SectionsTouch`).
     NoParameterStep {
         /// The second section of the stepless pair.
         section: usize,
@@ -772,7 +773,11 @@ pub fn make_compatible<T: SpanLocate>(
 /// COMPATIBLE sections: chord lengths accumulated down each control
 /// row, then **averaged across the rows** — one parameterization for
 /// the whole surface, which is what keeps the u-columns' solves
-/// consistent.
+/// consistent. A row that does not move abstains, read by an exact
+/// compare: a row that moves only by rounding counts as moving, and its
+/// shares are that rounding's ratios. This door decides nothing under a
+/// band; the loft body decides its corners pinned under one first, and
+/// refuses a pinned one before its skin.
 ///
 /// # Errors
 ///
@@ -830,11 +835,12 @@ fn chord_length_parameters<T: SpanLocate>(
         // Summed from `+0`: every chord is a length, `+0` or above, so
         // this is `f64`'s `Sum` (which starts at `-0`) bit for bit.
         let total = chords.iter().fold(T::zero(), |acc, c| acc + *c);
-        // A row that never moves (a corner pinned across every
-        // section) carries no parameterization information — it is not
-        // an error, it simply abstains from the average. A row that
-        // moves for some values its bracket stands for and not others
-        // would abstain for some members only, so it refuses.
+        // A row that never moves carries no parameterization
+        // information and abstains from the average. Read here, that is
+        // an exact compare, unbanded: a row that moves only by rounding
+        // counts as moving. A row that moves for some values its bracket
+        // stands for and not others would abstain for some members only,
+        // so it refuses.
         if !total.structure_positive() {
             if total.point_value().is_none() && !total.is_poison() {
                 return Err(SkinError::RowMotionUndecided { row: index });
@@ -1354,7 +1360,7 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
 /// everything else as authored. Whether two sections' senses agree
 /// depends on how their normals face along the stack, which this door
 /// does not check: the loft body door decides every section's normal
-/// against its slabs (`crate::loft`'s stacking fold). Beyond the sense, each loop starts
+/// against its slabs (`crate::loft`'s stacking door). Beyond the sense, each loop starts
 /// at its authored vertex 0 and holes keep their authored order. So segment `j` is
 /// counted from the author's start in every section, and which edges
 /// line up — the loft's twist — is the author's choice, carried by
@@ -1387,7 +1393,7 @@ pub fn loft_geometry<L: SectionLoop>(
 /// the degree, each section's profile door, and the loop and segment
 /// counts every section must share. What it returns is the canonical
 /// form [`skin_validated`] skins, so a caller can decide something
-/// about the validated sections (the loft's stacking fold) before any
+/// about the validated sections (the loft's stacking door) before any
 /// wall is built, and each section's structure record, which a lane
 /// scalar's sections are validated along ([`validate_guided`]).
 #[allow(clippy::type_complexity)]
@@ -1468,7 +1474,7 @@ pub(crate) fn check_shapes<T: Real>(validated: &[ValidatedProfile<T>]) -> Result
 /// The compatible section curves of every strip, `[loop][segment]`,
 /// each strip one curve per section.
 #[allow(clippy::type_complexity)]
-fn compatible_strips<T: SpanLocate>(
+pub(crate) fn compatible_strips<T: SpanLocate>(
     validated: &[ValidatedProfile<T>],
     places: &[SketchPlane<T>],
 ) -> Result<Vec<Vec<Vec<NurbsCurve3<T>>>>, SkinError> {
@@ -1576,10 +1582,14 @@ pub(crate) fn skin_validated<T: SpanLocate>(
 /// `v_degree` is not used to place the sections; it is validated with
 /// everything else [`loft_geometry`] checks before skinning, so this
 /// door refuses every section, count and degree fault
-/// [`loft_geometry`] would. It does NOT run the loft's stacking fold:
-/// it answers for a reversed stack or a sliver slab that
-/// [`loft_body`](crate::loft_body) refuses, and two sections the body
-/// refuses as not apart reach it as [`SkinError::NoParameterStep`].
+/// [`loft_geometry`] would. It does NOT run the loft's stacking door:
+/// it answers for a reversed stack, a sliver slab, a hinged section or
+/// sections that cross, all of which [`loft_body`](crate::loft_body)
+/// refuses; two sections that coincide reach it as
+/// [`SkinError::NoParameterStep`]. Every control row is read as
+/// [`skin_parameters`] reads one, unbanded; the body's door refuses
+/// every loft with a corner it decides pinned before the skin, so the
+/// two answers are one wherever the body builds.
 ///
 /// # Errors
 ///

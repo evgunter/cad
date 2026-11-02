@@ -287,8 +287,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
-        | "bool_flank_offset"
-        | "bool_wedge_reflex"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
@@ -623,6 +621,29 @@ pub struct UnreadPartner {
     /// Its partner, the other operand's vertex, in that operand's clone
     /// keys.
     pub partner: VertexKey,
+    /// The edge the cone read in band, and why.
+    pub in_band: EdgeInBand,
+}
+
+/// **An edge of a vertex the other solid's cone gathered at its point
+/// read nothing of** (`vtxfac::cone_classes`), and why: the face of the
+/// other solid whose sector's reading refused it, and the K row of the
+/// gate that refused ([`crate::link`]'s `Unread`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgeInBand {
+    /// The edge, by its half-edge leaving the vertex, a key of its
+    /// operand's working copy.
+    pub edge: HalfEdgeKey,
+    /// The other solid's face, a key of its working copy, whose sector's
+    /// reading refused: the edge's own reading of it, or the parity arc's
+    /// crossing of it. `None` where the arc's half turn refused, or no
+    /// reference was there to read by.
+    pub face: Option<FaceKey>,
+    /// The K row of the gate that refused: in band, or a decided zero
+    /// where a side was needed. `None` where no gate's margin refused (a
+    /// tie's slack moved a decided reading, an arc's crossing was left
+    /// unplaced, or no reference read).
+    pub predicate: Option<&'static str>,
 }
 
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
@@ -2499,6 +2520,33 @@ impl EdgeCarrierSite {
     }
 }
 
+/// **What stopped a reading of one operand's face against the other's
+/// faces about a shared line** ([`BooleanError::LineMaterialUnread`]).
+///
+/// **The façade does not carry this rung, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// Both cases end in one recourse, parting the faces along the edge by
+/// more than the input tolerance, so nothing a person does differs by
+/// case, and the refusal's sentence names it. A Rust caller can already
+/// name and match it, since `pncad` re-exports `topo` whole.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that lifts a face off the line when it reads
+/// [`LineUnread::Along`], say. Then carry it and delete this paragraph
+/// and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineUnread {
+    /// The face's bound runs along the line itself, or lies on two faces
+    /// of the other operand at once (that operand touching itself along
+    /// the line).
+    Along,
+    /// The other operand's faces about the line lie too close to each
+    /// other or to the face for its side of them to be placed: a sliver
+    /// or a thin wedge, within the input tolerance.
+    Unplaced,
+}
+
 /// One sector read of a vertex, named in
 /// [`BooleanError::VertexReadTwice`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -3427,6 +3475,18 @@ pub enum BooleanError {
         /// B's vertex there: a key of B's working copy.
         b_vertex: VertexKey,
     },
+    /// Two vertices of the two operands share a line their edges run
+    /// along, and where one operand's face leaves that line is not read
+    /// against the other's faces holding it (`recl::resolve_edge_edge`,
+    /// through the other's line cone): `why` says what stopped it.
+    LineMaterialUnread {
+        /// A's vertex on the line: a key of A's working copy.
+        a_vertex: VertexKey,
+        /// B's vertex there: a key of B's working copy.
+        b_vertex: VertexKey,
+        /// What stopped the reading.
+        why: LineUnread,
+    },
     /// Cones of one operand that touch along a ray lying in the other's
     /// face: the pierces of that face at one point read germs along one
     /// direction in a way the ring cannot order (`vtxfac::germ_order`):
@@ -3480,13 +3540,10 @@ pub enum BooleanError {
         /// Its first pierce, then its next read: a second pierce, or a
         /// pair; in pairs alone, its first two partners.
         reads: [SectorRead; 2],
-        /// The vertex's edge, by its half-edge leaving the vertex (a key
-        /// of the operand's working copy), that the gathered cone read in
-        /// band, where that is what refuses; `None` where the two reads
-        /// themselves are. The cone's reading names no one face it was in
-        /// band of, so a touch's `reads[1]` is its first partner, not
-        /// necessarily the one the edge reads against.
-        in_band: Option<HalfEdgeKey>,
+        /// The vertex's edge the gathered cone read in band, and why,
+        /// where that is what refuses; `None` where the two reads
+        /// themselves are.
+        in_band: Option<EdgeInBand>,
     },
     /// A vertex of `operand` touches `face` of the other solid and pairs
     /// with `partner`, a vertex of it whose link runs along that face,
@@ -4305,6 +4362,8 @@ pub enum BooleanErrorKind {
     TangentCrescentUnsupported,
     /// [`BooleanError::CrossingsAlongAContactLine`].
     CrossingsAlongAContactLine,
+    /// [`BooleanError::LineMaterialUnread`].
+    LineMaterialUnread,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::PartnerAlongFace`].
@@ -4563,6 +4622,7 @@ impl BooleanError {
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
             Self::TangentCrescentUnsupported { .. } => BooleanErrorKind::TangentCrescentUnsupported,
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
+            Self::LineMaterialUnread { .. } => BooleanErrorKind::LineMaterialUnread,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
@@ -5230,6 +5290,23 @@ impl core::fmt::Display for BooleanError {
                  Boolean cannot yet join. Recourse: apply the operation to the pieces \
                  before they are joined to each other, or move one solid so its edges \
                  leave the line"
+            ),
+            Self::LineMaterialUnread { why, .. } => write!(
+                f,
+                "the solids share an edge along one line, and {}, so which side of the \
+                 other solid that edge's faces leave on is unread. Recourse: move the parts \
+                 so the faces along that edge part from it and from each other by more \
+                 than ε_input (K·ε)",
+                match why {
+                    LineUnread::Along => {
+                        "a face's edge runs along that line, or onto two faces of the other \
+                         solid at once"
+                    }
+                    LineUnread::Unplaced => {
+                        "the other solid's faces about it lie within ε_input of each other or \
+                         of a face of the first"
+                    }
+                }
             ),
             Self::VertexReadTwice {
                 operand,
@@ -6403,7 +6480,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own,
             &edges,
             &touch.pairs,
-            Some((touch.datum.normal, &touch.classes)),
+            Some((touch.face, touch.datum.normal, &touch.classes)),
             band,
         )?
         .map_err(|edge| BooleanError::VertexReadTwice {
@@ -6423,11 +6500,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             vtxfac::cone_classes(own_point(operand, vertex), own, &edges, pairs, None, band)?;
         let classes = match (classes, pairs.as_slice()) {
             (Ok(classes), _) => classes,
-            (Err(_), [one]) => {
+            (Err(in_band), [one]) => {
                 unread_partners.push(UnreadPartner {
                     operand,
                     vertex,
                     partner: one.vertex,
+                    in_band,
                 });
                 Vec::new()
             }
@@ -9180,6 +9258,11 @@ mod tests {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
             },
+            BooleanError::LineMaterialUnread {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+                why: LineUnread::Unplaced,
+            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -9423,6 +9506,7 @@ mod tests {
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
                 BooleanErrorKind::TangentCrescentUnsupported => "TangentCrescentUnsupported",
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
+                BooleanErrorKind::LineMaterialUnread => "LineMaterialUnread",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
