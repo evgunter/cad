@@ -158,8 +158,8 @@ impl<T: Real> Iv<T> {
     fn square(self) -> Self {
         let a = self.abs();
         Self {
-            lo: a.lo * a.lo,
-            hi: a.hi * a.hi,
+            lo: a.lo.powi(2),
+            hi: a.hi.powi(2),
         }
     }
 
@@ -267,8 +267,8 @@ impl<T: Real> Cell<T> {
     /// hair of it, so a turning point on a cut is held by both cells).
     pub(crate) fn new(lo: f64, hi: f64) -> Self {
         use core::f64::consts::{FRAC_PI_2, PI, TAU};
-        let (sa, ca) = T::from_f64(lo).sin_cos();
-        let (sb, cb) = T::from_f64(hi).sin_cos();
+        let (sa, ca) = T::from_computed(lo).sin_cos();
+        let (sb, cb) = T::from_computed(hi).sin_cos();
         let (mut cos, mut sin) = (Iv::of(ca, cb), Iv::of(sa, sb));
         let holds = |e: f64| lo - e <= 1e-12 && hi - e >= -1e-12;
         if holds(0.0) || holds(TAU) {
@@ -378,8 +378,8 @@ impl<T: Real> RuledCylinders<T> {
         let x = self.x(cell);
         let reach = self.rho + self.gap.abs();
         x.square()
-            .from(self.r * self.r)
-            .widen(rounding_charge(self.r * self.r + reach * reach))
+            .from(self.r.powi(2))
+            .widen(rounding_charge(self.r.powi(2) + reach.powi(2)))
             .sqrt()
     }
 
@@ -1092,7 +1092,7 @@ pub(crate) fn coverage(
             origin: o,
             axis: a,
             radius: rho,
-            ..
+            u_ref,
         },
         &geom::Surface::Cylinder {
             origin: q,
@@ -1104,10 +1104,12 @@ pub(crate) fn coverage(
     else {
         return Err([0.0, core::f64::consts::TAU]);
     };
-    let lift = Interval::from_f64;
+    let lift = Interval::from_computed;
     let p3 = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
     let v3 = |v: Vec3<f64>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
-    let (u, v) = a.orthonormal_basis();
+    // The ruled wall's own frame, squared from its seam reference.
+    let frame = geom::square_frame(a, u_ref);
+    let (u, v) = (frame.u_ref, frame.axis.cross(frame.u_ref));
     let (o, q, a, b, u, v) = (p3(o), p3(q), v3(a), v3(b), v3(u), v3(v));
     let (rho, r) = (lift(rho), lift(r));
     let ab = a.cross(b);
@@ -1133,7 +1135,7 @@ pub(crate) fn coverage(
             gap(bx.y, centre.y),
             gap(bx.z, centre.z),
         );
-        (gx * gx + gy * gy + gz * gz).sqrt() * (1.0 - 1e-12) > radius * (1.0 + 1e-12)
+        (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt() * (1.0 - 1e-12) > radius * (1.0 + 1e-12)
     };
     let mut hint = 0usize;
     let mut read = Coverage { cells: 0, depth: 0 };
@@ -1151,7 +1153,7 @@ pub(crate) fn coverage(
             .plus(V3::along(v, cell.sin.scale(rho)));
         let wb = cross(p.less(q));
         let qb = wb.dot(along(ab));
-        let qc = wb.dot(wb).shift(Interval::zero() - r * r);
+        let qc = wb.dot(wb).shift(Interval::zero() - r.powi(2));
         let disc = qb.square().plus(qc.scale(Interval::zero() - big_a));
         let covered = hull(disc).is_certified() && hull(disc).hi() < 0.0
             || [Interval::one(), Interval::zero() - Interval::one()]
