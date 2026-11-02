@@ -83,3 +83,13 @@ Newest entries at the bottom; the tail is the program's live status.
     The second pass is a later dispatch; it is logged here so it is not lost.
 
   (PLACING orchestrator)
+- 2026-11-02 — **The second INTENT sweep** covered the first sweep's six blind spots.
+  - **Clean:** editor-core `refactor.rs` (a cut from a non-world space refuses, and no refactor writes a number its caller did not write) and the pncad-py door sources.
+  - **Filed:**
+    - `the-snap-respells-the-charts-value-read-back` (P3, rides with the editor);
+    - DOCTAIL's `a-sweep-states-no-relation-between-its-profiles-planes` (P3, design);
+    - the split seed as a rider on HELD's numeric-gestures row;
+    - two test-prose shapes added to `work/issues/intent-retired-machinery-is-still-described-as-live`.
+  - **Remaining blind spot:** stacked moves were checked by a static scan only. The doc-API pass needs a build, which waits until the disk allows it.
+
+  Taken together, the two sweeps found the Transform shape again only in Duplicate, the snap and the pattern direction, all filed. Nothing else in the kernel or Python doors. (PLACING orchestrator)
