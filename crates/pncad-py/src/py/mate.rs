@@ -250,7 +250,7 @@ impl Coord {
     /// The slide along the chart's `axis`: `"x"`, `"y"` or `"z"`.
     #[staticmethod]
     fn slide(axis: &str) -> PyResult<Self> {
-        Ok(Self(d::Coord::Slide(target_axis(axis)?)))
+        Ok(Self(d::Coord::slide(target_axis(axis)?)))
     }
 
     /// The spin about the target's own direction, with no `axis`; or about the
@@ -282,7 +282,7 @@ impl Coord {
     fn __repr__(&self) -> String {
         let word = axis_word;
         match self.0 {
-            d::Coord::Slide(axis) => format!("Coord.slide({:?})", word(axis)),
+            d::Coord::Slide(Some(axis)) => format!("Coord.slide({:?})", word(axis)),
             d::Coord::Spin(Some(axis)) => format!("Coord.spin({:?})", word(axis)),
             d::Coord::Spin(None) => "Coord.spin()".to_string(),
         }

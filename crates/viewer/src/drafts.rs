@@ -1987,8 +1987,8 @@ mod tests {
     fn the_placement_editors_value_edits_live_with_its_draft() {
         use crate::matetool::PlaceDoor;
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
-        let x = Coord::Slide(TargetAxis::X);
-        let y = Coord::Slide(TargetAxis::Y);
+        let x = Coord::slide(TargetAxis::X);
+        let y = Coord::slide(TargetAxis::Y);
         let door = PlaceDoor::Edit {
             placement: RecipeNodeId::new(0, 7),
             base: Vec::new(),

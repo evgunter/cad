@@ -318,7 +318,7 @@ fn build_doc(tol: Tol) -> Recipe {
                 Formula::mul(pncad::pattern::scalar_of(&k), step).expect("an angle"),
             ),
             (
-                pncad::document::Coord::Slide(pncad::document::TargetAxis::Z),
+                pncad::document::Coord::slide(pncad::document::TargetAxis::Z),
                 len(BLADE_Z0),
             ),
         ],

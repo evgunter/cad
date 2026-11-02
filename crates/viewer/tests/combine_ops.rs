@@ -317,7 +317,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
     let [a_placement, _] = crate::common::drawn_copies(session.committed_doc())[..] else {
         panic!("two copies");
     };
-    let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
+    let slide_x = pncad::document::Coord::slide(pncad::document::TargetAxis::X);
     let moved = session.perform(SessionOp::SetSlot {
         node: a_placement,
         slot: SlotId::ValueSlide {
@@ -732,15 +732,15 @@ fn the_transform_door_places_a_body_with_values() {
             Dimension::Angle,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::X),
             Dimension::Length,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Y),
             Dimension::Length,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Z),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Z),
             Dimension::Length,
         ),
     ] {
@@ -764,7 +764,7 @@ fn the_transform_door_places_a_body_with_values() {
     assert!(matches!(
         viewer::matetool::typed_value(
             session.committed_doc(),
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             "turn/4"
         ),
         Err(viewer::matetool::TypedValueError::Dimension {
@@ -3020,7 +3020,7 @@ fn a_duplicates_copy_moves_on_its_own() {
         &mut session,
         copy,
         &[(
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Y),
             len(A[1] * 3.0),
         )],
     );
@@ -3272,7 +3272,7 @@ fn step_of(session: &DocSession, copy: RecipeNodeId) -> [f64; 3] {
         constraints
             .iter()
             .filter_map(|c| c.value())
-            .find(|value| value.coord == Coord::Slide(axis))
+            .find(|value| value.coord == Coord::slide(axis))
             .map(|value| doc.written(&Expr::var(value.by, Dimension::Length)))
             .filter(|written| !written.is_zero())
             .map_or(0.0, |written| {
@@ -3311,7 +3311,7 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
         &mut session,
         copy,
         &[(
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Y),
             len(lift),
         )],
     );

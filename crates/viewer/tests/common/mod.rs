@@ -997,7 +997,7 @@ pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord, Formula)> {
     pncad::document::TargetAxis::ALL
         .into_iter()
         .zip(translation(by))
-        .map(|(axis, by)| (pncad::document::Coord::Slide(axis), by))
+        .map(|(axis, by)| (pncad::document::Coord::slide(axis), by))
         .collect()
 }
 

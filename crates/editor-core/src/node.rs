@@ -3066,13 +3066,15 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
-            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
-                .iter()
-                .filter_map(|c| {
-                    let coord = &c.value()?.coord;
-                    Some((coord.seat(c.id), coord.read()?.role))
-                })
-                .collect(),
+            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+                constraints
+                    .iter()
+                    .filter_map(|c| {
+                        let coord = &c.value()?.coord;
+                        Some((coord.seat(c.id), coord.read()?.role))
+                    })
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }
@@ -3090,16 +3092,14 @@ impl<P, S: Slot> Node<P, S> {
             (
                 Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
                 O::Along { constraint } | O::About { constraint },
-            ) => {
-                constraints
-                    .iter_mut()
-                    .find(|c| c.id == constraint)
-                    .and_then(|c| match &mut c.kind {
-                        crate::mate::ConstraintKind::Value(v) => v.coord.read_mut(),
-                        crate::mate::ConstraintKind::Mate(_) => None,
-                    })
-                    .map(|read| &mut read.role)
-            }
+            ) => constraints
+                .iter_mut()
+                .find(|c| c.id == constraint)
+                .and_then(|c| match &mut c.kind {
+                    crate::mate::ConstraintKind::Value(v) => v.coord.read_mut(),
+                    crate::mate::ConstraintKind::Mate(_) => None,
+                })
+                .map(|read| &mut read.role),
             _ => None,
         }
     }
@@ -3665,8 +3665,6 @@ fn map_constraints<S: Slot, S2: Slot, E>(
 ) -> Result<Vec<crate::mate::Constraint<S2>>, E> {
     constraints
         .iter()
-        .map(|c| {
-            c.try_map(&mut *read, f)
-        })
+        .map(|c| c.try_map(&mut *read, f))
         .collect()
 }

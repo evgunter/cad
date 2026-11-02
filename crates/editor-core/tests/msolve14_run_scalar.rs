@@ -251,8 +251,8 @@ fn seat(
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), x),
-            (Coord::Slide(TargetAxis::Y), y),
+            (Coord::slide(TargetAxis::X), x),
+            (Coord::slide(TargetAxis::Y), y),
             (Coord::SPIN, spin),
         ],
     )
@@ -368,15 +368,15 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
             named(turn(), Dimension::Angle),
         ),
         (
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),
         ),
         (
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             plus(metres(5.0, sin()), metres(s3, cos())),
         ),
         (
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
             plus(named(lift(), Dimension::Length), len(-c3)),
         ),
     ];
@@ -424,7 +424,7 @@ fn bolted(label: &str) -> Bolted {
     let (doc, k) = fixture::index(doc, "k", 3);
     let slide = Formula::mul(fixture::scalar_of(k), named(spacing(), Dimension::Length))
         .expect("a count times a length");
-    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::Slide(TargetAxis::X), slide)]);
+    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::slide(TargetAxis::X), slide)]);
     Bolted {
         doc,
         opts: p.opts(),
@@ -589,7 +589,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
-            (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
+            (Coord::slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
             (Coord::SPIN, ang(0.3)),
         ],
     );
@@ -1526,8 +1526,8 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
             )),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), len(x)),
-            (Coord::Slide(TargetAxis::Y), len(y)),
+            (Coord::slide(TargetAxis::X), len(x)),
+            (Coord::slide(TargetAxis::Y), len(y)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );

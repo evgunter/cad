@@ -2177,7 +2177,7 @@ impl MateTool {
         let written: Vec<Mate<Formula>> = mates.iter().map(|m| m.mate.clone()).collect();
         let loaded_slides = || {
             SlideAxes::of(base.iter().filter_map(|c| match c.value()?.coord {
-                Coord::Slide(axis) => Some(axis),
+                Coord::Slide(Some(axis)) => Some(axis),
                 Coord::Spin(_) => None,
             }))
         };

@@ -84,7 +84,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
         value: pncad::document::FreeVar::continuous(Dimension::Length, asm::POST_B_AT[0]),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (slide_x, _) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: bench.post_b,
         slot: SlotId::ValueSlide {
@@ -94,7 +94,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    let (_, px) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (_, px) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let before = session.committed_doc().clone();
     let states = session.history().len();
 
@@ -103,12 +103,12 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
     let row = proposal
         .values
         .iter()
-        .find(|row| row.coord == Coord::Slide(TargetAxis::X))
+        .find(|row| row.coord == Coord::slide(TargetAxis::X))
         .expect("a rest along z leaves the slide along x");
     assert_eq!(row.from, ValueFrom::Loaded(slide_x), "loaded, not measured");
     common::commit_mate(&mut session, proposal.op());
 
-    let (id, by) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (id, by) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     assert_eq!(id, slide_x, "Apply keeps the loaded value's id");
     assert_eq!(by, px, "the value still reads px");
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -131,7 +131,7 @@ fn a_stale_draft_reloads_and_its_apply_is_refused() {
     let mut session = asm::open_bench(&bench, tol);
     let mut tool = seated(&session, &bench);
     let old = common::proposed(&session, &tool, rest()).expect("the rest proposes");
-    let (slide_y, _) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::Y));
+    let (slide_y, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::Y));
     let outcome = session.perform(SessionOp::SetSlot {
         node: bench.post_b,
         slot: SlotId::ValueSlide {
@@ -669,7 +669,7 @@ fn a_value_row_in_properties_names_its_axis() {
             .unwrap_or_else(|| panic!("a row for the value on {coord:?}"));
         assert_eq!(row.label, coord.value_label(), "the row on {coord:?}");
     }
-    let (slide_x, _) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let x = rows
         .iter()
         .find(|row| {

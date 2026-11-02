@@ -1133,7 +1133,7 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let turn = 10.0_f64.to_radians();
     for (coord, value) in [
-        (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+        (Coord::slide(TargetAxis::Y), (Dimension::Length, 0.02)),
         (Coord::Spin(Some(TargetAxis::Z)), (Dimension::Angle, turn)),
     ] {
         let constraint = match session.committed_doc().node(bench.post_b) {
@@ -1282,7 +1282,7 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
         let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
         let mut ok = true;
         for (coord, value) in [
-            (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+            (Coord::slide(TargetAxis::Y), (Dimension::Length, 0.02)),
             (
                 Coord::Spin(Some(TargetAxis::Z)),
                 (Dimension::Angle, zt.to_radians()),

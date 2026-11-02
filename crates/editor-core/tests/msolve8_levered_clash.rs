@@ -96,7 +96,7 @@ impl Rig {
     }
 
     /// Writes `on ≡ to` and `values` naming it as the copy's bundle.
-    fn place(&mut self, on: Operand, to: Operand, values: Vec<(Coord, Formula)>) {
+    fn place(&mut self, on: Operand, to: Operand, values: Vec<(Coord<editor_core::Operand>, Formula)>) {
         self.doc = fixture::with_values(self.doc.clone(), self.copy, fixture::mate(on, to), values);
     }
 }
@@ -145,11 +145,11 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
             vec![
                 (
-                    Coord::Slide(TargetAxis::X),
+                    Coord::slide(TargetAxis::X),
                     Formula::zero(Dimension::Length),
                 ),
                 (
-                    Coord::Slide(TargetAxis::Y),
+                    Coord::slide(TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
                 (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -217,7 +217,7 @@ fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
         r.lateral(r.b, 0),
         r.lateral(r.t, 0),
         vec![
-            (Coord::Slide(TargetAxis::Z), len(1.0)),
+            (Coord::slide(TargetAxis::Z), len(1.0)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );

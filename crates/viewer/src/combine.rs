@@ -1701,7 +1701,7 @@ pub fn duplicate_moves(
         .filter(|&(_, d)| d != 0.0)
         .map(|(axis, d)| {
             Ok((
-                Coord::Slide(axis),
+                Coord::slide(axis),
                 Formula::literal(d * step, Dimension::Length)?,
             ))
         })

@@ -7466,8 +7466,8 @@ mod bundle_key {
             key(&[mate(TO)]),
             with(value(Coord::SPIN)),
             with(value(Coord::Spin(Some(TargetAxis::X)))),
-            with(value(Coord::Slide(TargetAxis::X))),
-            with(value(Coord::Slide(TargetAxis::Y))),
+            with(value(Coord::slide(TargetAxis::X))),
+            with(value(Coord::slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {

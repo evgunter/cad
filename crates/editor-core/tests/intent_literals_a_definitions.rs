@@ -1118,11 +1118,11 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
         },
         vec![
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::named(name, Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),

@@ -656,8 +656,8 @@ fn a_mates_fixed_freedoms_leave_the_draft_before_apply() {
     assert_eq!(
         coords,
         [
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
             Coord::SPIN
         ],
         "a rest along z leaves two slides and its spin"

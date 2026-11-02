@@ -56,11 +56,11 @@ fn stacked(
         fixture::rest(fixture::head(b), fixture::head(a)),
         &[
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::zero(Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -169,7 +169,7 @@ fn placed_pair(
     ProfileDoc,
     PartStore,
     [RecipeNodeId; 2],
-    Vec<(editor_core::Coord, Formula)>,
+    Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
 ) {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());

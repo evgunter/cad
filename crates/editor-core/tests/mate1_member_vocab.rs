@@ -396,7 +396,7 @@ fn mates_never_solve_a_familys_values() {
     assert!(
         written
             .iter()
-            .any(|(coord, by)| *coord == Coord::Slide(TargetAxis::X) && by.bit_eq(&slide(3.0))),
+            .any(|(coord, by)| *coord == Coord::slide(TargetAxis::X) && by.bit_eq(&slide(3.0))),
         "the value expression is untouched: {written:?}"
     );
 
@@ -406,7 +406,7 @@ fn mates_never_solve_a_familys_values() {
         doc.clone(),
         editor_core::DocEdit::SetParam {
             node: pattern,
-            slot: fixture::value_slot(&doc, pattern, Coord::Slide(TargetAxis::X)),
+            slot: fixture::value_slot(&doc, pattern, Coord::slide(TargetAxis::X)),
             value: slide(1.5).into(),
             fresh: Vec::new(),
         },

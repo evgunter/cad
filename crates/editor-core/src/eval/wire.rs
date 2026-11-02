@@ -872,8 +872,8 @@ where
                 crate::mate::SolveScalar::upper(o.dot(o).sqrt())
             })
             .fold(0.0_f64, f64::max);
-        let arm = crate::mate::coset::Arm::of(reach.map_err(unleverable)?, datum)
-            .map_err(unleverable)?;
+        let arm =
+            crate::mate::coset::Arm::of(reach.map_err(unleverable)?, datum).map_err(unleverable)?;
         Some((arm, b))
     } else {
         None

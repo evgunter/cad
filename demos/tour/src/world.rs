@@ -172,7 +172,7 @@ pub fn slides(by: [f64; 3]) -> Vec<(Coord, Formula)> {
         .filter(|&(_, by)| by != 0.0)
         .map(|(axis, by)| {
             let by = Formula::literal(by, Dimension::Length).expect("a finite length");
-            (Coord::Slide(axis), by)
+            (Coord::slide(axis), by)
         })
         .collect()
 }
@@ -244,7 +244,7 @@ pub fn on_axis(
         orient,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.
-    let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(slide.0), slide.1)]);
+    let placed = Answer::of(doc, vec![mate], vec![(Coord::slide(slide.0), slide.1)]);
     written(doc, Operand::output(revolve, 0), space, placed, tol)
 }
 

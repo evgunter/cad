@@ -504,11 +504,11 @@ fn r1_pattern_free_solves_are_bit_identical() {
                 values: vec![
                     (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
                     (
-                        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        editor_core::Coord::slide(editor_core::TargetAxis::X),
                         len(0.25),
                     ),
                     (
-                        editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                        editor_core::Coord::slide(editor_core::TargetAxis::Y),
                         len(0.0),
                     ),
                 ],

@@ -2299,7 +2299,7 @@ fn placed_against(
         TargetAxis::ALL
             .into_iter()
             .zip(by)
-            .map(|(axis, by)| (Coord::Slide(axis), len(by)))
+            .map(|(axis, by)| (Coord::slide(axis), len(by)))
             .collect(),
     );
     let space = doc
@@ -3766,7 +3766,7 @@ fn asm2a_pin(
         TargetAxis::ALL
             .into_iter()
             .zip(at.translation)
-            .map(|(axis, by)| (Coord::Slide(axis), len(by)))
+            .map(|(axis, by)| (Coord::slide(axis), len(by)))
             .collect(),
     );
     applied(&doc, placed.write(instance)).doc
@@ -4091,8 +4091,8 @@ fn asm_r2a_mated_assembly(
     };
     let length = |m: f64| Formula::literal(m, pncad::document::Dimension::Length).expect("finite");
     let values = vec![
-        (Coord::Slide(TargetAxis::X), length(30.0)),
-        (Coord::Slide(TargetAxis::Y), length(0.0)),
+        (Coord::slide(TargetAxis::X), length(30.0)),
+        (Coord::slide(TargetAxis::Y), length(0.0)),
         (
             Coord::SPIN,
             Formula::zero(pncad::document::Dimension::Angle),
@@ -7315,9 +7315,9 @@ fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() 
     );
     let mut moved = pncad::document::stand();
     moved.values = vec![
-        (Coord::Slide(TargetAxis::X), len(3.25)),
-        (Coord::Slide(TargetAxis::Y), len(-1.5)),
-        (Coord::Slide(TargetAxis::Z), len(0.75)),
+        (Coord::slide(TargetAxis::X), len(3.25)),
+        (Coord::slide(TargetAxis::Y), len(-1.5)),
+        (Coord::slide(TargetAxis::Z), len(0.75)),
         (
             Coord::Spin(Some(TargetAxis::X)),
             Formula::literal(0.0, Dimension::Angle).unwrap(),
@@ -7418,9 +7418,9 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
     // the distance scales with it.
     let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
     far.values = vec![
-        (Coord::Slide(TargetAxis::X), len(d + 0.3)),
-        (Coord::Slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
-        (Coord::Slide(TargetAxis::Z), len(0.2 * d + 0.1)),
+        (Coord::slide(TargetAxis::X), len(d + 0.3)),
+        (Coord::slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
+        (Coord::slide(TargetAxis::Z), len(0.2 * d + 0.1)),
         (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
         (
             Coord::Spin(Some(TargetAxis::Y)),

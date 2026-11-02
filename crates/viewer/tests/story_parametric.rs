@@ -102,7 +102,7 @@ fn drive_lift(session: &mut DocSession, placement: RecipeNodeId, lift: f64, text
     let slid = constraints
         .iter()
         .filter_map(|c| c.value())
-        .find_map(|value| (value.coord == Coord::Slide(TargetAxis::Z)).then_some(value.by))
+        .find_map(|value| (value.coord == Coord::slide(TargetAxis::Z)).then_some(value.by))
         .unwrap_or_else(|| panic!("{placement} slides along its space's z"));
     assert_eq!(
         props::variable_value(doc, slid),

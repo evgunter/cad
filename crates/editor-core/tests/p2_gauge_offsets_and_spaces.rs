@@ -318,7 +318,7 @@ fn pin_lifted(
     let (c, s) = (angle.cos(), angle.sin());
     let [x, y, z] = then.translation;
     let origin = [c * x - s * y, s * x + c * y, z];
-    let mut spins: Vec<(Coord, Formula)> = editor_core::test_support::moves_at(then)
+    let mut spins: Vec<(Coord<editor_core::Operand>, Formula)> = editor_core::test_support::moves_at(then)
         .into_iter()
         .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
         .collect();
@@ -341,7 +341,7 @@ fn pin_lifted(
         } else {
             at
         };
-        (Coord::Slide(axis), by)
+        (Coord::slide(axis), by)
     });
     let placed = editor_core::Placed::unmated(spins.into_iter().chain(slides).collect());
     fixture::written(doc, placement, placed)

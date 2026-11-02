@@ -428,17 +428,15 @@ impl<S: crate::Slot> Constraint<S> {
         Ok(Constraint {
             id,
             kind: match &self.kind {
-                ConstraintKind::Mate(mate) => ConstraintKind::Mate(
-                    mate.try_map(|side, r| {
-                        read(
-                            crate::OperandSlot::Side {
-                                constraint: id,
-                                side,
-                            },
-                            r,
-                        )
-                    })?,
-                ),
+                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(|side, r| {
+                    read(
+                        crate::OperandSlot::Side {
+                            constraint: id,
+                            side,
+                        },
+                        r,
+                    )
+                })?),
                 ConstraintKind::Value(value) => ConstraintKind::Value(Value {
                     coord: value.coord.try_map(|r| read(value.coord.seat(id), r))?,
                     by: slot(&value.by)?,
@@ -710,6 +708,12 @@ impl<R> Coord<R> {
     #[must_use]
     pub fn value_label(&self) -> String {
         format!("{} value", self.name())
+    }
+}
+
+impl From<Coord> for Coord<crate::Operand> {
+    fn from(stored: Coord) -> Self {
+        Self::authored(stored)
     }
 }
 

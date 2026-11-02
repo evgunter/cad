@@ -849,9 +849,10 @@ pub fn read_back<R>(
                     Some([at.translation.x, at.translation.y, at.translation.z][axis.index()])
                 }
                 Coord::Spin(Some(axis)) => chain.map(|turns| turns[axis.index()]),
-                Coord::Slide(_) | Coord::SlideAlong(_) | Coord::Spin(None) | Coord::SpinAbout(_) => {
-                    None
-                }
+                Coord::Slide(_)
+                | Coord::SlideAlong(_)
+                | Coord::Spin(None)
+                | Coord::SpinAbout(_) => None,
             })
             .collect();
     };
@@ -1076,7 +1077,9 @@ pub(crate) fn unmated_motion<T: SolveScalar>(
             Coord::Slide(Some(TargetAxis::X)) => shift.x = v.by,
             Coord::Slide(Some(TargetAxis::Y)) => shift.y = v.by,
             Coord::Slide(Some(TargetAxis::Z)) => shift.z = v.by,
-            Coord::Slide(None) => unreachable!("the bundle rule admits no mated slide with no mate"),
+            Coord::Slide(None) => {
+                unreachable!("the bundle rule admits no mated slide with no mate")
+            }
             Coord::SlideAlong(_) | Coord::Spin(_) | Coord::SpinAbout(_) => {}
         }
         if v.coord.is_slide() {
@@ -1307,7 +1310,10 @@ pub(crate) fn settle<T: SolveScalar>(
         })
         .collect::<Result<Vec<_>, _>>()?;
     if carried.is_none() && !chart.independent(&heads) {
-        let why = if slides.iter().any(|v| matches!(v.coord, Coord::SlideAlong(_))) {
+        let why = if slides
+            .iter()
+            .any(|v| matches!(v.coord, Coord::SlideAlong(_)))
+        {
             NoChartWhy::ReadSlidesDoNotSpan
         } else {
             NoChartWhy::SlidesDoNotSpan {

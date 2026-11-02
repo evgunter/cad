@@ -85,14 +85,10 @@ impl Placed {
         let left = residual(families.iter().copied());
         let written: Vec<Coord<Operand>> = moves.iter().map(|(c, _)| c.clone()).collect();
         let mut values = moves;
-        values.extend(
-            unnamed(left, &written, None)
-                .into_iter()
-                .map(|coord| {
-                    let zero = Formula::zero(coord.dimension());
-                    (coord, zero)
-                }),
-        );
+        values.extend(unnamed(left, &written, None).into_iter().map(|coord| {
+            let zero = Formula::zero(coord.dimension());
+            (coord, zero)
+        }));
         Self { mates, values }
     }
 
@@ -211,7 +207,9 @@ fn leaves<R>(left: SubgroupFamily, coord: &Coord<R>) -> bool {
     let form = match coord {
         Coord::Slide(axis) => Coord::Slide(*axis),
         Coord::Spin(axis) => Coord::Spin(*axis),
-        Coord::SlideAlong(_) => Coord::SlideAlong(crate::pose::RoleRead::plain(crate::VarId::WORLD)),
+        Coord::SlideAlong(_) => {
+            Coord::SlideAlong(crate::pose::RoleRead::plain(crate::VarId::WORLD))
+        }
         Coord::SpinAbout(_) => Coord::SpinAbout(crate::pose::RoleRead::plain(crate::VarId::WORLD)),
     };
     super::solve::leaves(left, form)

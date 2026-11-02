@@ -93,8 +93,8 @@ fn dist(a: &Frame, b: &Frame) -> f64 {
 /// Returns the floor's top normal and a point on it in the world (the
 /// floor's own frame is read off a bare copy at the same moves).
 fn on_floor(
-    moves: Vec<(Coord, Formula)>,
-    values: Vec<(Coord, Formula)>,
+    moves: Vec<(Coord<editor_core::Operand>, Formula)>,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
     orient: Orientation,
     direction: bool,
 ) -> Out {
@@ -134,7 +134,7 @@ fn on_floor(
     .0
 }
 
-fn rx(t: f64) -> Vec<(Coord, Formula)> {
+fn rx(t: f64) -> Vec<(Coord<editor_core::Operand>, Formula)> {
     vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))]
 }
 
@@ -152,7 +152,7 @@ fn up_x(t: f64) -> [f64; 3] {
 /// *Breaks if* the door admits a bundle short of pinning its copy.
 #[test]
 fn a_rest_written_with_one_slide_refuses_at_the_door() {
-    let x = |v| (Coord::Slide(TargetAxis::X), len(v));
+    let x = |v| (Coord::slide(TargetAxis::X), len(v));
     let sp = (Coord::SPIN, Formula::zero(Dimension::Angle));
     for t in [0.0, 0.5] {
         for direction in [false, true] {
@@ -172,7 +172,7 @@ fn a_rest_written_with_one_slide_refuses_at_the_door() {
 
 /// The boss hung under a plate tilted by a chain (as in the PR's row),
 /// generalised: any chain, any orientation.
-fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, Formula)>) -> Out {
+fn hung(chain: Vec<(Coord<editor_core::Operand>, Formula)>, orient: Orientation, values: Vec<(Coord<editor_core::Operand>, Formula)>) -> Out {
     let doc = ProfileDoc::empty(DocumentId::derive("value-chart-sweep-hung"), Tol::witness());
     let (doc, plate) = block(doc, 20.0, 10.0, 2.0);
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
@@ -196,13 +196,13 @@ fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, F
     .0
 }
 
-fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
+fn std_values_for(o: Orientation) -> Vec<(Coord<editor_core::Operand>, Formula)> {
     let j = o.z().index();
-    let mut v: Vec<(Coord, Formula)> = TargetAxis::ALL
+    let mut v: Vec<(Coord<editor_core::Operand>, Formula)> = TargetAxis::ALL
         .into_iter()
         .filter(|a| a.index() != j)
         .zip([10.0, 0.0])
-        .map(|(a, by)| (Coord::Slide(a), len(by)))
+        .map(|(a, by)| (Coord::slide(a), len(by)))
         .collect();
     v.push((Coord::SPIN, Formula::zero(Dimension::Angle)));
     v
@@ -256,7 +256,7 @@ fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
     let mut report = Vec::new();
     for &o in orients {
         for &axis in axes {
-            let chain = |t: f64| -> Vec<(Coord, Formula)> {
+            let chain = |t: f64| -> Vec<(Coord<editor_core::Operand>, Formula)> {
                 match axis {
                     "x" => vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))],
                     "y" => vec![(Coord::Spin(Some(TargetAxis::Y)), fixture::ang(t))],
@@ -386,7 +386,7 @@ fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
 /// times the step.
 fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
     let mut bad = Vec::new();
-    let run = |t: f64, values: Vec<(Coord, Formula)>, o: Orientation| -> Out {
+    let run = |t: f64, values: Vec<(Coord<editor_core::Operand>, Formula)>, o: Orientation| -> Out {
         let doc = ProfileDoc::empty(
             DocumentId::derive("value-chart-sweep-wedge"),
             Tol::witness(),
@@ -410,9 +410,9 @@ fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
         )
         .0
     };
-    let x = |v| (Coord::Slide(TargetAxis::X), len(v));
-    let y = |v| (Coord::Slide(TargetAxis::Y), len(v));
-    let z = |v| (Coord::Slide(TargetAxis::Z), len(v));
+    let x = |v| (Coord::slide(TargetAxis::X), len(v));
+    let y = |v| (Coord::slide(TargetAxis::Y), len(v));
+    let z = |v| (Coord::slide(TargetAxis::Z), len(v));
     let sp = (Coord::SPIN, fixture::ang(0.3));
     let h = 3.0 / f64::from(steps);
     for &o in orients {

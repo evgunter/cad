@@ -1400,8 +1400,8 @@ mod tests {
         ];
         // A slide each kind's chart leaves, where it leaves one.
         let slide = |f: F| match f {
-            F::Planar | F::Parallel => Some(Coord::Slide(TargetAxis::X)),
-            F::Cylindrical => Some(Coord::Slide(TargetAxis::Z)),
+            F::Planar | F::Parallel => Some(Coord::slide(TargetAxis::X)),
+            F::Cylindrical => Some(Coord::slide(TargetAxis::Z)),
             _ => None,
         };
         for a in kinds {
@@ -1434,7 +1434,7 @@ mod tests {
         assert_eq!(
             verdict(&[
                 (id(1), Equations::Mate(F::Planar)),
-                value(1, Coord::Slide(TargetAxis::X))
+                value(1, Coord::slide(TargetAxis::X))
             ]),
             Ok(false)
         );
@@ -1442,7 +1442,7 @@ mod tests {
         assert_eq!(
             verdict(&[
                 (id(1), Equations::Mate(F::Cylindrical)),
-                value(1, Coord::Slide(TargetAxis::Z)),
+                value(1, Coord::slide(TargetAxis::Z)),
                 value(1, Coord::SPIN),
             ]),
             Ok(true)
@@ -1460,7 +1460,7 @@ mod tests {
         // ball leaves it to set, so it refuses as having no chart.
         let slid = [
             ball_and_direction.to_vec(),
-            vec![value(2, Coord::Slide(TargetAxis::Z))],
+            vec![value(2, Coord::slide(TargetAxis::Z))],
         ]
         .concat();
         match *overconstrained(RecipeNodeId::WORLD, &slid).expect_err("the slide refuses") {
@@ -1488,7 +1488,7 @@ mod tests {
     /// and a slide on one of two planes is not what the planes repeat.
     #[test]
     fn mates_that_repeat_an_equation_are_named_whatever_values_they_carry() {
-        let x = Coord::Slide(TargetAxis::X);
+        let x = Coord::slide(TargetAxis::X);
         let directions = [
             (id(1), Equations::Mate(F::Parallel)),
             value(1, x),
@@ -1508,7 +1508,7 @@ mod tests {
             let coord = if on == F::Planar {
                 x
             } else {
-                Coord::Slide(TargetAxis::Z)
+                Coord::slide(TargetAxis::Z)
             };
             let bundle = [
                 (id(1), Equations::Mate(on)),
@@ -1527,7 +1527,7 @@ mod tests {
     /// nothing else: the mate fixes nothing they repeat.
     #[test]
     fn a_freedom_set_twice_names_its_two_values() {
-        let x = Coord::Slide(TargetAxis::X);
+        let x = Coord::slide(TargetAxis::X);
         let bundle = [
             (id(1), Equations::Mate(F::Planar)),
             (id(7), Equations::Value(x)),
@@ -1550,9 +1550,9 @@ mod tests {
     fn a_bundle_with_no_mate_writes_every_freedom_once() {
         use TargetAxis::{X, Y, Z};
         let slides = [
-            unmated(0, Coord::Slide(X)),
-            unmated(1, Coord::Slide(Y)),
-            unmated(2, Coord::Slide(Z)),
+            unmated(0, Coord::slide(X)),
+            unmated(1, Coord::slide(Y)),
+            unmated(2, Coord::slide(Z)),
         ];
         let chain = |axes: &[TargetAxis]| -> Vec<(ConstraintId, Equations)> {
             let mut bundle = slides.to_vec();
@@ -1584,7 +1584,7 @@ mod tests {
             Err((vec![id(203), id(204), id(205), id(206)], 0)),
             "a fourth spin names the chain"
         );
-        let twice = [chain(&[X, Y, Z]), vec![unmated(9, Coord::Slide(Y))]].concat();
+        let twice = [chain(&[X, Y, Z]), vec![unmated(9, Coord::slide(Y))]].concat();
         assert_eq!(
             verdict(&twice),
             Err((vec![id(201), id(209)], 0)),
@@ -1628,7 +1628,7 @@ mod tests {
             Err((vec![id(204), id(205)], 1)),
             "a second spin about x right after the first names both"
         );
-        let slid = [chain(&[Z, X, Y]), vec![unmated(9, Coord::Slide(X))]].concat();
+        let slid = [chain(&[Z, X, Y]), vec![unmated(9, Coord::slide(X))]].concat();
         assert_eq!(
             verdict(&slid),
             Err((vec![id(1), id(209)], 0)),

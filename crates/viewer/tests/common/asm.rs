@@ -342,11 +342,11 @@ pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
 pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
         (
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             len(shelf_at[0] + b_x - POST_SECTION / 2.0),
         ),
         (
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             len(shelf_at[1] + SHELF_DEPTH / 2.0 - POST_SECTION / 2.0),
         ),
         (Coord::SPIN, Formula::zero(Dimension::Angle)),

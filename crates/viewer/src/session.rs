@@ -5846,7 +5846,7 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
         .map(|(axis, by)| {
             let by = Formula::literal(by, Dimension::Length)
                 .unwrap_or_else(|_| unreachable!("a finite length is a literal"));
-            (Coord::Slide(axis), by)
+            (Coord::slide(axis), by)
         });
     spins.chain(slides).collect()
 }
@@ -6052,7 +6052,7 @@ fn frame_off(
             pncad::document::Coord::Spin(None) => {
                 unreachable!("a frame's moves are a chain about its own axes")
             }
-            pncad::document::Coord::Slide(axis) => FrameMove::Slide(axis, by),
+            pncad::document::Coord::Slide(Some(axis)) => FrameMove::Slide(axis, by),
         })
         .collect::<Vec<_>>();
     Ok(pncad::document::moved_frame(base, &moves))

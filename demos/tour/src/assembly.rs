@@ -322,8 +322,8 @@ fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<Profi
 /// and `y` and the spin about its normal.
 fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
     [
-        (Coord::Slide(TargetAxis::X), x),
-        (Coord::Slide(TargetAxis::Y), y),
+        (Coord::slide(TargetAxis::X), x),
+        (Coord::slide(TargetAxis::Y), y),
         (Coord::SPIN, spin),
     ]
 }
@@ -763,9 +763,9 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
     let [x, y] = swung([spot[0], spot[1]], scope);
     Placed::unmated(vec![
         (Coord::Spin(Some(TargetAxis::Z)), pe("swing", scope)),
-        (Coord::Slide(TargetAxis::X), x),
-        (Coord::Slide(TargetAxis::Y), y),
-        (Coord::Slide(TargetAxis::Z), length(spot[2])),
+        (Coord::slide(TargetAxis::X), x),
+        (Coord::slide(TargetAxis::Y), y),
+        (Coord::slide(TargetAxis::Z), length(spot[2])),
     ])
 }
 

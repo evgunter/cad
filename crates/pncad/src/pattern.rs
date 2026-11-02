@@ -70,7 +70,7 @@ pub fn linear_pattern(
 ) -> Result<AuthoredNode, editor_core::DimensionError> {
     let moves = steps
         .iter()
-        .map(|(axis, pitch)| Ok((Coord::Slide(*axis), times(index, pitch.clone())?)))
+        .map(|(axis, pitch)| Ok((Coord::slide(*axis), times(index, pitch.clone())?)))
         .collect::<Result<Vec<_>, editor_core::DimensionError>>()?;
     Ok(Node::place(source, target, Placed::unmated(moves).bundle()))
 }
@@ -89,8 +89,8 @@ pub fn grid(
     target: Operand,
 ) -> Result<AuthoredNode, editor_core::DimensionError> {
     let moves = vec![
-        (Coord::Slide(along_outer.0), times(outer, along_outer.1)?),
-        (Coord::Slide(along_inner.0), times(inner, along_inner.1)?),
+        (Coord::slide(along_outer.0), times(outer, along_outer.1)?),
+        (Coord::slide(along_inner.0), times(inner, along_inner.1)?),
     ];
     Ok(Node::place(source, target, Placed::unmated(moves).bundle()))
 }
@@ -133,7 +133,7 @@ pub fn circular_pattern(
         }],
         vec![
             (Coord::SPIN, times(index, step)?),
-            (Coord::Slide(along), Formula::zero(Dimension::Length)),
+            (Coord::slide(along), Formula::zero(Dimension::Length)),
         ],
     );
     Ok(Node::place(source, target, placed.bundle()))
@@ -225,7 +225,7 @@ pub fn recognise(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<Recognised
             .enumerate()
             .find_map(|(at, &index)| Some((at, step_of(doc, &written, index)?)))?;
         match value.coord {
-            Coord::Slide(axis) if mates == 0 => steps[at].push((axis, step)),
+            Coord::Slide(Some(axis)) if mates == 0 => steps[at].push((axis, step)),
             Coord::Spin(None) if mates == 1 && spin.is_none() => spin = Some(step),
             _ => return None,
         }

@@ -75,7 +75,7 @@ fn placed(
     doc: ProfileDoc,
     body: RecipeNodeId,
     mate: Mate<Formula>,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = fixture::body_read(&doc, body.into());
     let (doc, placement) = insert(doc, crate::fixture::stood(BodyRead::plain(read)));
@@ -119,7 +119,7 @@ fn assert_near(got: &[[f64; 3]], want: &[[f64; 3]]) {
 fn floor(
     doc: ProfileDoc,
     box_: RecipeNodeId,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, at) = insert(
         doc,
@@ -188,13 +188,14 @@ fn every_copy_stands_by_the_identity_bundle() {
             stood.mates.is_empty(),
             "{body}: the identity bundle has no mate"
         );
-        let coords: Vec<Coord> = stood.values.iter().map(|(coord, _)| *coord).collect();
+        let coords: Vec<Coord<editor_core::Operand>> =
+            stood.values.iter().map(|(coord, _)| coord.clone()).collect();
         assert_eq!(
             coords,
             [
-                Coord::Slide(X),
-                Coord::Slide(Y),
-                Coord::Slide(Z),
+                Coord::slide(X),
+                Coord::slide(Y),
+                Coord::slide(Z),
                 Coord::Spin(Some(X)),
                 Coord::Spin(Some(Y)),
                 Coord::Spin(Some(Z)),
@@ -224,7 +225,7 @@ fn every_copy_stands_by_the_identity_bundle() {
 /// mate** ([`editor_core::DocEdit::SetConstraints`]).
 fn unmated_whole(
     placement: RecipeNodeId,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
 ) -> editor_core::DocEdit<editor_core::ProfileProgram> {
     editor_core::Placed {
         mates: Vec::new(),
@@ -234,7 +235,7 @@ fn unmated_whole(
 }
 
 /// The unit box's copy placed by `values` and no mate, in the world.
-fn unmated(values: Vec<(Coord, Formula)>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn unmated(values: Vec<(Coord<editor_core::Operand>, Formula)>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("d", Tol::witness());
     let (doc, b) = unit_box(doc);
     let (doc, placement) = insert(
@@ -265,9 +266,9 @@ fn a_bundle_with_no_mate_places_by_its_chain_in_written_order() {
     let quarter = || Formula::turn_over(4).expect("a quarter turn");
     let slides = || {
         vec![
-            (Coord::Slide(X), len(1.0)),
-            (Coord::Slide(Y), len(2.0)),
-            (Coord::Slide(Z), len(3.0)),
+            (Coord::slide(X), len(1.0)),
+            (Coord::slide(Y), len(2.0)),
+            (Coord::slide(Z), len(3.0)),
         ]
     };
     let turned = |first: editor_core::TargetAxis, then: editor_core::TargetAxis| {
@@ -297,7 +298,7 @@ fn a_bundle_with_no_mate_places_by_its_chain_in_written_order() {
     );
     let typed = [X, Y, Z]
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .map(|axis| (Coord::slide(axis), len(0.0)))
         .chain(
             [X, Y, Z]
                 .into_iter()
@@ -343,7 +344,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
             .into_iter()
             .map(|axis| {
                 (
-                    Coord::Slide(axis),
+                    Coord::slide(axis),
                     Formula::zero(editor_core::Dimension::Length),
                 )
             })
@@ -366,7 +367,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
         crate::fixture::stood(BodyRead::plain(Operand::from(b))),
     );
     let tol = Tol::witness();
-    let one = unmated_whole(p, vec![(Coord::Slide(X), len(1.0))]);
+    let one = unmated_whole(p, vec![(Coord::slide(X), len(1.0))]);
     assert!(
         matches!(
             fault(doc.apply(&one, tol)),
@@ -435,7 +436,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
         .collect();
     assert_eq!(
         coords,
-        [Coord::Slide(X), Coord::Slide(Y), Coord::SPIN],
+        [Coord::slide(X), Coord::slide(Y), Coord::SPIN],
         "the values a plane mate leaves"
     );
 }
@@ -808,7 +809,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
 
     let mut unmated = [X, Y, Z]
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), zero(editor_core::Dimension::Length)))
+        .map(|axis| (Coord::slide(axis), zero(editor_core::Dimension::Length)))
         .collect::<Vec<_>>();
     unmated.push((Coord::Spin(Some(X)), quarter()));
     unmated.push((Coord::Spin(Some(Y)), zero(editor_core::Dimension::Angle)));
@@ -833,8 +834,8 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         b,
         mate(flat),
         vec![
-            (Coord::Slide(X), zero(editor_core::Dimension::Length)),
-            (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
+            (Coord::slide(X), zero(editor_core::Dimension::Length)),
+            (Coord::slide(Y), zero(editor_core::Dimension::Length)),
             (Coord::SPIN, quarter()),
         ],
     );
@@ -844,8 +845,8 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
         b,
         mate(upended),
         vec![
-            (Coord::Slide(X), zero(editor_core::Dimension::Length)),
-            (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
+            (Coord::slide(X), zero(editor_core::Dimension::Length)),
+            (Coord::slide(Y), zero(editor_core::Dimension::Length)),
             (Coord::SPIN, zero(editor_core::Dimension::Angle)),
         ],
     );
@@ -863,7 +864,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     let (lined, post) = floor(
         doc.clone(),
         b,
-        vec![(Coord::Slide(X), len(1.0)), (Coord::Slide(Y), len(2.0))],
+        vec![(Coord::slide(X), len(1.0)), (Coord::slide(Y), len(2.0))],
     );
     let line = fixture::axis(Operand::select(
         Operand::output(post, 0),
@@ -881,7 +882,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
             orient: editor_core::Orientation::IDENTITY,
         },
         vec![
-            (Coord::Slide(Z), zero(editor_core::Dimension::Length)),
+            (Coord::slide(Z), zero(editor_core::Dimension::Length)),
             (Coord::SPIN, quarter()),
         ],
     );
@@ -1025,9 +1026,10 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
             .into_iter()
             .find(|c| c.value().is_some_and(|v| v.coord == coord))
             .expect("the value");
-        match coord {
-            Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
-            Coord::SPIN | Coord::Spin(_) => SlotId::ValueSpin { constraint: c.id },
+        if coord.is_slide() {
+            SlotId::ValueSlide { constraint: c.id }
+        } else {
+            SlotId::ValueSpin { constraint: c.id }
         }
     };
     let mate_id = |doc: &ProfileDoc, p| {
@@ -1039,8 +1041,8 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     };
     let slides = || {
         vec![
-            (Coord::Slide(X), zero(editor_core::Dimension::Length)),
-            (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
+            (Coord::slide(X), zero(editor_core::Dimension::Length)),
+            (Coord::slide(Y), zero(editor_core::Dimension::Length)),
         ]
     };
     let mate = |on: Operand, to: Operand| Mate {
@@ -1052,9 +1054,9 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     let mut cases: Vec<(&str, ProfileDoc, ProfileDoc, RecipeNodeId)> = Vec::new();
 
     // A mateless spin, `turn/4` about the world's `x`.
-    let mut values: Vec<(Coord, Formula)> = [X, Y, Z]
+    let mut values: Vec<(Coord<editor_core::Operand>, Formula)> = [X, Y, Z]
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), zero(editor_core::Dimension::Length)))
+        .map(|axis| (Coord::slide(axis), zero(editor_core::Dimension::Length)))
         .collect();
     values.push((Coord::Spin(Some(X)), quarter()));
     values.push((Coord::Spin(Some(Y)), zero(editor_core::Dimension::Angle)));
@@ -1159,7 +1161,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     primed_agrees_with_fresh::<geom_core::Interval>("the identity bundle", &before, &after, p);
     // A slide retyped to a typed `0 mm`: a length has no turn form, so
     // only the constant-zero form tells the two apart.
-    let slot = value_slot(&before, p, Coord::Slide(Y));
+    let slot = value_slot(&before, p, Coord::slide(Y));
     let after = retyped(&before, p, slot, SlotValue::Formula(len(0.0)));
     let (_, mapped) =
         primed_agrees_with_fresh::<f64>("the identity bundle's slide", &before, &after, p);
