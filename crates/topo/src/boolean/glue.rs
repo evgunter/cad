@@ -290,7 +290,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let surface = |body: &Body<T>, f| {
         let face = body
             .get_face(f)
-            .expect("the section door enumerated this face from its body");
+            .unwrap_or_else(|| unreachable!("the section door enumerated this face from its body"));
         (face.surface, body.face_surface_linked(f, face).clone())
     };
     let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());

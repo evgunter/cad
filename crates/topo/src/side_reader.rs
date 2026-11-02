@@ -866,7 +866,7 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     for (face, _) in body.faces() {
         for fe in body
             .face_edges(face)
-            .expect("the frames read the faces they enumerate")
+            .unwrap_or_else(|| unreachable!("the frames read the faces they enumerate"))
         {
             let Some(edge) = body.edges.get(fe.edge) else {
                 continue;

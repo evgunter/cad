@@ -297,7 +297,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // an osculating pair is a sliver at this ε).
                     let surface = body
                         .face_surface(face)
-                        .expect("a sector's face is a face of its body");
+                        .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"));
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -548,7 +548,7 @@ fn edge_wedge<T: Decide>(
     };
     let sector_surface = |f| {
         body.face_surface(f)
-            .expect("a sector's face is a face of its body")
+            .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"))
     };
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
@@ -723,7 +723,7 @@ pub(crate) fn face_reach_from<T: Decide>(
 ) -> Result<T, UnboundedFace> {
     let over_span = matches!(
         body.face_surface(face)
-            .expect("the split reads a face of its body"),
+            .unwrap_or_else(|| unreachable!("the split reads a face of its body")),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
     boundary_reach(
@@ -837,7 +837,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
         )?;
     let own @ geom::Surface::Cone { .. } = body
         .face_surface(face)
-        .expect("the split reads a face of its body")
+        .unwrap_or_else(|| unreachable!("the split reads a face of its body"))
     else {
         return Ok((lo, hi));
     };

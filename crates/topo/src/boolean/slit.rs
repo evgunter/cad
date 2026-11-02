@@ -431,7 +431,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         let plane = |f: FaceKey| {
             matches!(
                 body.face_surface(f)
-                    .expect("the parting reads faces walls_inside read"),
+                    .unwrap_or_else(|| unreachable!("the parting reads faces walls_inside read")),
                 geom::Surface::Plane { .. }
             )
         };
@@ -618,7 +618,7 @@ impl Sliver {
 pub(super) fn sliver_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<[HalfEdgeKey; 2]> {
     let rings = &body
         .get_face(face)
-        .expect("every caller reads a face of the body")
+        .unwrap_or_else(|| unreachable!("every caller reads a face of the body"))
         .rings;
     if !rings.is_empty() {
         return None;
@@ -1056,7 +1056,7 @@ fn holding<T: Decide>(
         Ok(None) => {
             let spline = body
                 .face_surface(f)
-                .expect("carrier_on_surface read this face")
+                .unwrap_or_else(|| unreachable!("carrier_on_surface read this face"))
                 .spline_chart()
                 .is_some();
             if !spline || !names.ends {
@@ -1248,7 +1248,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
 ) -> Result<Option<bool>, BooleanError> {
     let surface = body
         .face_surface(f)
-        .expect("every caller reads a face of its body");
+        .unwrap_or_else(|| unreachable!("every caller reads a face of its body"));
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -1787,7 +1787,7 @@ fn spline_floor<T: Decide>(
     use crate::face_normal::{NormalAtError, SplineNormalError};
     let chart = body
         .face_surface(f)
-        .expect("the rider reads a face of its body");
+        .unwrap_or_else(|| unreachable!("the rider reads a face of its body"));
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
@@ -2595,7 +2595,7 @@ fn edge_set<T: Decide>(body: &Body<T>, face: FaceKey) -> BTreeSet<EdgeKey> {
 /// one of the body it parts, so a stale key is a desync.
 fn edges_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<crate::live::FaceEdge> {
     body.face_edges(face)
-        .expect("the slit reads faces of the body it parts")
+        .unwrap_or_else(|| unreachable!("the slit reads faces of the body it parts"))
 }
 
 /// Whether a record puts `v` inside an edge.

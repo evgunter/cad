@@ -254,8 +254,9 @@ impl<T: geom_core::Decide> SectionTable<T> {
         // desync, as it is to `join::face_surface`.
         let cylinder = |(body, f): (&Body<T>, FaceKey)| {
             matches!(
-                body.face_surface(f)
-                    .expect("the join reads the table for faces of its operands"),
+                body.face_surface(f).unwrap_or_else(|| unreachable!(
+                    "the join reads the table for faces of its operands"
+                )),
                 geom::Surface::Cylinder { .. }
             )
         };

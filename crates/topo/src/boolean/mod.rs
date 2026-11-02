@@ -1790,9 +1790,9 @@ impl<T: Decide> GluedPairs<T> {
                 continue;
             }
             // The door verified every face a certificate names.
-            let surface = body(target)
-                .face_surface(target.1)
-                .expect("a one-sided certificate names a face the glue door verified");
+            let surface = body(target).face_surface(target.1).unwrap_or_else(|| {
+                unreachable!("a one-sided certificate names a face the glue door verified")
+            });
             *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
@@ -2052,7 +2052,7 @@ fn tangent_struts<T: Real>(
         {
             let kind = |f| {
                 body.face_surface(f)
-                    .expect("edge_sides_of resolved this face")
+                    .unwrap_or_else(|| unreachable!("edge_sides_of resolved this face"))
                     .kind()
             };
             let (k1, k2) = (kind(f1), kind(f2));

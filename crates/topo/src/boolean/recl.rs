@@ -74,7 +74,7 @@ fn carrier_of<T: Decide>(
     super::carrier_pair::face_carrier(body, s.face).ok_or_else(|| {
         let kind = body
             .face_surface(s.face)
-            .expect("a sector's face is a face of its body")
+            .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"))
             .kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
@@ -131,7 +131,7 @@ pub(super) fn require_same<T: Decide>(
     if let Some((operand, face, body)) = refusal {
         let kind = body
             .face_surface(face)
-            .expect("carrier_of read this face")
+            .unwrap_or_else(|| unreachable!("carrier_of read this face"))
             .kind();
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand,
@@ -1712,7 +1712,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             .iter()
             .all(|&(body, face)| {
                 body.face_surface(face)
-                    .expect("a sector's face is a face of its body")
+                    .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"))
                     .kind()
                     == geom::SurfaceKind::Plane
             });

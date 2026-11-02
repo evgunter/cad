@@ -2513,7 +2513,7 @@ fn unglued_flat_sector<T: Decide>(
     let curved = |body: &Body<T>, operand, face| {
         let kind = body
             .face_surface(face)
-            .expect("a sector's face is a face of its body")
+            .unwrap_or_else(|| unreachable!("a sector's face is a face of its body"))
             .kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,

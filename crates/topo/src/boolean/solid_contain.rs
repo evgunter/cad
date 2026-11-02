@@ -3756,7 +3756,7 @@ fn every_bound_read<T: geom_core::Real>(
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
     body.face_edges(face)
-        .expect("the ray reads faces of its body")
+        .unwrap_or_else(|| unreachable!("the ray reads faces of its body"))
         .iter()
         .all(|e| e.across == face || read.contains(&e.edge))
 }
@@ -3769,7 +3769,7 @@ fn every_edge_read<T: geom_core::Real>(
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
     body.face_edges(face)
-        .expect("the ray reads faces of its body")
+        .unwrap_or_else(|| unreachable!("the ray reads faces of its body"))
         .iter()
         .all(|e| read.contains(&e.edge))
 }
