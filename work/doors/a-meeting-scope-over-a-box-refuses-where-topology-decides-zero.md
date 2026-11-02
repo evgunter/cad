@@ -2,10 +2,11 @@
 id: a-meeting-scope-over-a-box-refuses-where-topology-decides-zero
 kind: issue
 title: A clearance between scopes that meet refuses box_dependent over a box where topology decides 0
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P2
 cost: E
+branch: doors/meeting-scope-zero
 ---
 
 

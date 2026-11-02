@@ -218,3 +218,9 @@ AUTHOR's narrative is recoverable from
 - The re-verifier would not post its report on its own (its standing brief covered one comment); I posted it verbatim. Briefs for cloud reviewers now name every comment they may post.
 - Residue: R1 (a regression of the fix pass: meeting scopes over a box refuse where topology decides 0) is DOORS' P2 E — this sitting's to do if time allows; R2, R3 to CLEARTAIL with a seam note.
 - The viewer half `the-gui-has-no-clearance-consumer` is un-parked and dispatched (`doors/clearance-consumer`).
+
+## 2026-11-02 10:35 — 6292 merged; last P1 and one easy tail row dispatched
+
+- PR 6292 merged (`0479a02dab`) after its main-merge re-earned CI (gate ok).
+- `the-gui-has-no-clearance-consumer` (P1 M) dispatched locally on `doors/clearance-consumer`. Tier: style + correctness (a verdict drawn wrong is a wrong picture). The brief binds the witness faces to `name_run` (6264's gate) and seats to the document's words (no raw ids).
+- `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` (P2 E, a regression of 6292's fix pass) dispatched to a cloud session — tail work this sitting is best placed for. Tier: orchestrator's read (E).
