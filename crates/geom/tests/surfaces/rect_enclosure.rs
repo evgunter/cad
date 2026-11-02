@@ -942,3 +942,201 @@ fn rect_jet_refuses_a_weight_not_certified_positive() {
         net.rect_jet((0.5, 1.0), (0.5, 1.0))
     );
 }
+
+/// Every bound of a point's coordinates, as bits.
+fn net_bits(points: &[Point3<Interval>]) -> Vec<[u64; 6]> {
+    points
+        .iter()
+        .map(|p| [p.x, p.y, p.z].map(|c| [c.lo().to_bits(), c.hi().to_bits()]))
+        .map(|[x, y, z]| [x[0], x[1], y[0], y[1], z[0], z[1]])
+        .collect()
+}
+
+#[allow(clippy::type_complexity)]
+fn jet_bits(jet: (Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)) -> Vec<u64> {
+    [jet.0, jet.1, jet.2]
+        .iter()
+        .flat_map(|e| [e.x, e.y, e.z])
+        .flat_map(|c| [c.lo().to_bits(), c.hi().to_bits()])
+        .collect()
+}
+
+/// **A memoised chart answers each rectangle as the plain chart does,
+/// bit for bit.** A split tree of the rational quarter-circle wall, four
+/// levels deep, each cell halved on `u` then `v`, read parent first, so
+/// a cell is asked after the rectangle that holds it and beside its
+/// sibling: the memo's `rect_net` and `rect_jet`, and its point jets at
+/// the cell's corners and centre, are the plain chart's, on the first
+/// read and on the second, which the memo serves. A memo
+/// keyed by less than the whole rectangle serves a parent's or a
+/// sibling's answer here.
+#[test]
+fn a_memoised_chart_restricts_each_cell_as_the_plain_chart_does() {
+    let plain = quarter_circle_wall(0.0, 0.0);
+    let memo = plain.with_rect_memo();
+    let mut level = vec![((0.0, 1.0), (0.0, 1.0))];
+    for depth in 0..4 {
+        for &(u, v) in &level {
+            let want_net = plain.rect_net(u, v).map(|n| net_bits(&n));
+            let want_jet = plain.rect_jet(u, v).map(jet_bits);
+            assert!(
+                want_net.is_some() && want_jet.is_some(),
+                "depth {depth}: the cell {u:?} × {v:?} is inside the domain"
+            );
+            for pass in ["first", "second"] {
+                assert_eq!(
+                    memo.rect_net(u, v).map(|n| net_bits(&n)),
+                    want_net,
+                    "depth {depth}, {pass} read: the memo's net of {u:?} × {v:?}"
+                );
+                assert_eq!(
+                    memo.rect_jet(u, v).map(jet_bits),
+                    want_jet,
+                    "depth {depth}, {pass} read: the memo's jet of {u:?} × {v:?}"
+                );
+                for (a, b) in [
+                    (u.0, v.0),
+                    (u.1, v.1),
+                    (0.5 * (u.0 + u.1), 0.5 * (v.0 + v.1)),
+                ] {
+                    let at = |x: f64| Interval::from_bounds(x, x);
+                    let bits = |j: geom::SurfaceJet<Interval>| {
+                        jet_bits((j.du, j.dv, j.duv))
+                            .into_iter()
+                            .chain(jet_bits((
+                                Vec3::new(j.point.x, j.point.y, j.point.z),
+                                j.duu,
+                                j.dvv,
+                            )))
+                            .collect::<Vec<_>>()
+                    };
+                    assert_eq!(
+                        bits(memo.point_ders(a, b)),
+                        bits(plain.ders(at(a), at(b))),
+                        "depth {depth}, {pass} read: the memo's point jet at ({a}, {b})"
+                    );
+                }
+            }
+        }
+        level = level
+            .iter()
+            .flat_map(|&(u, v)| {
+                let m = |(a, b): (f64, f64)| 0.5 * (a + b);
+                let (mu, mv) = (m(u), m(v));
+                [
+                    ((u.0, mu), (v.0, mv)),
+                    ((u.0, mu), (mv, v.1)),
+                    ((mu, u.1), (v.0, mv)),
+                    ((mu, u.1), (mv, v.1)),
+                ]
+            })
+            .collect();
+    }
+}
+
+/// A rational biquadratic-by-linear wall with an interior `u` knot at
+/// `0.3`, a value no dyadic split reaches.
+fn knotted_wall() -> NurbsSurface<Interval> {
+    let control = [
+        (0.0, 0.0, 0.0),
+        (0.2, 0.5, 0.1),
+        (0.6, 0.7, -0.2),
+        (1.0, 0.1, 0.3),
+    ]
+    .iter()
+    .flat_map(|&(x, y, z)| [Point3::new(x, y, z), Point3::new(x + 0.1, y, z + 1.0)])
+    .collect();
+    NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.3, 1.0, 1.0, 1.0], 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![1.0, 1.0, 0.7, 0.7, 1.3, 1.3, 1.0, 1.0],
+    )
+    .unwrap()
+    .map_scalar(Interval::from_f64)
+}
+
+/// **The memo tells apart readings a few ulps apart.** On a wall with an
+/// interior knot at `0.3`, rectangles whose ends are `0.1`, `⅓`, the
+/// knot and `⅔`, and the same ends moved one or two ulps, read in turn
+/// through one memo, each read the plain chart's; so do point jets and
+/// evaluations at points one ulp apart. The plain readings of
+/// neighbouring keys differ, so a memo that rounds its keys serves one
+/// neighbour's reading for the other here, which a dyadic split tree,
+/// whose bounds carry no low bits, cannot show.
+#[test]
+fn a_memoised_chart_keeps_readings_an_ulp_apart_apart() {
+    let plain = knotted_wall();
+    let memo = plain.with_rect_memo();
+    let third = 1.0 / 3.0;
+    let rects = [
+        ((0.1, 0.3), (third, 2.0 * third)),
+        ((0.1, ulps(0.3, 1)), (third, 2.0 * third)),
+        ((ulps(0.1, 1), 0.3), (third, 2.0 * third)),
+        ((0.1, ulps(0.3, -2)), (third, 2.0 * third)),
+        ((0.1, 0.3), (ulps(third, 1), 2.0 * third)),
+        ((0.1, 0.3), (third, ulps(2.0 * third, -1))),
+    ];
+    let want: Vec<_> = rects
+        .iter()
+        .map(|&(u, v)| {
+            (
+                plain.rect_net(u, v).map(|n| net_bits(&n)),
+                plain.rect_jet(u, v).map(jet_bits),
+            )
+        })
+        .collect();
+    for k in 1..rects.len() {
+        assert_ne!(
+            want[k].0, want[0].0,
+            "the fixture: the net of {:?} differs from the first rectangle's",
+            rects[k]
+        );
+    }
+    for (k, &(u, v)) in rects.iter().enumerate() {
+        assert_eq!(
+            memo.rect_net(u, v).map(|n| net_bits(&n)),
+            want[k].0,
+            "the memo's net of {u:?} × {v:?}"
+        );
+        assert_eq!(
+            memo.rect_jet(u, v).map(jet_bits),
+            want[k].1,
+            "the memo's jet of {u:?} × {v:?}"
+        );
+    }
+    let at = |x: f64| Interval::from_bounds(x, x);
+    let point_bits =
+        |p: Point3<Interval>| jet_bits((Vec3::new(p.x, p.y, p.z), Vec3::zero(), Vec3::zero()));
+    let points = [
+        (0.1, third),
+        (ulps(0.1, 1), third),
+        (0.1, ulps(third, 1)),
+        (ulps(0.3, -1), third),
+    ];
+    for &(u, v) in &points {
+        let (j, p) = (plain.ders(at(u), at(v)), plain.eval(at(u), at(v)));
+        assert_eq!(
+            jet_bits((
+                memo.point_ders(u, v).du,
+                memo.point_ders(u, v).dv,
+                memo.point_ders(u, v).duv
+            )),
+            jet_bits((j.du, j.dv, j.duv)),
+            "the memo's point jet at ({u}, {v})"
+        );
+        assert_eq!(
+            point_bits(memo.point_eval(u, v)),
+            point_bits(p),
+            "the memo's point at ({u}, {v})"
+        );
+    }
+    let evals: Vec<_> = points
+        .iter()
+        .map(|&(u, v)| point_bits(plain.eval(at(u), at(v))))
+        .collect();
+    assert!(
+        evals[1..].iter().all(|e| *e != evals[0]),
+        "the fixture: the points one ulp from the first evaluate apart from it"
+    );
+}

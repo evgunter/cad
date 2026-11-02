@@ -2,7 +2,7 @@
 id: carve
 kind: program
 title: CARVE — what a loft or sweep builds from its sections, and the bodies it builds that it should refuse
-status: active
+status: blocked
 opened: 2026-09-17
 group: kernel/sweep/loft
 prefix: carve/

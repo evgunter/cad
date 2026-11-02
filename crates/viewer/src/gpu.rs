@@ -2711,7 +2711,11 @@ mod tests {
         let index = PickIndex::build(
             &doc,
             &eval,
-            PictureKey::of(Generation::FIRST, plate_delta()),
+            PictureKey::of(
+                Generation::FIRST,
+                plate_delta(),
+                crate::world::Shown::none(),
+            ),
             tol,
         )
         .expect("the cube indexes");

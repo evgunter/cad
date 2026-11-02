@@ -736,7 +736,9 @@ pub struct SectionComponent<T: Real> {
     /// Whether the arm proves it winds about each surface's carrier (it
     /// is essential there), in the order the section was asked of:
     /// `false` claims nothing, since an arm that does not read
-    /// essentiality lists none.
+    /// essentiality lists none. An arc that ends at nodes claims it of
+    /// its node-joined set, the arcs that share its nodes, which is the
+    /// connected component.
     pub winds: [bool; 2],
     /// One point of it, where the arm names one: in closed form, or a
     /// spline section's wall point with a point of the component
@@ -1070,6 +1072,23 @@ pub fn serves(kind: SurfaceKind) -> bool {
         Cylinder | Sphere | Torus => true,
         Plane | Cone | Nurbs | Approx => false,
     }
+}
+
+/// **Whether a pair of kinds `a` and `b` is traced in ℝ³** (C3): each
+/// side enters the section through its implicit residual where it has
+/// one in metres (a plane, a cylinder, a sphere, a torus), else through
+/// its chart, so the pair is traced in ℝ³ where both sides have one. Only
+/// such a pair is read over the operation's region; a chart side's knot
+/// rectangle bounds the pair, and the region never cuts it.
+#[must_use]
+pub fn traced_in_r3(a: SurfaceKind, b: SurfaceKind) -> bool {
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    // The cone's residual is not in metres yet (C2 limb 2).
+    let residual = |kind| match kind {
+        Plane | Cylinder | Sphere | Torus => true,
+        Cone | Nurbs | Approx => false,
+    };
+    residual(a) && residual(b)
 }
 
 /// The C7 note a tangent component carries.

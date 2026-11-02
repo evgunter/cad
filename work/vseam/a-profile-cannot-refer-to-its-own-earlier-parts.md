@@ -5,8 +5,8 @@ title: A profile cannot refer to its own earlier parts, so a bore's centre is wr
 status: open
 opened: 2026-11-02
 priority: P1
-cost: H
-design: true
+cost: X
+points: 30
 refs: [the-rectangle-and-circle-templates-reopen-as-paths]
 ---
 
@@ -55,3 +55,35 @@ directions too). How a reference is spelled and stored. Whether it is a
 variable, an address, or an output. What it may reach, both within the
 profile and from outside it. How it interacts with step ids, names
 (N1), the slot walk and range probing. And what it refuses.
+
+## 2026-11-02 — in front of Ev (`[ev]` PR, fork-log row 236)
+
+The designer pair converged on the core: a by-address read
+`Of { step, role }` of an earlier step's emitted geometry, holding no
+slot and lowered at evaluation. A third designer was dispatched after
+three crossovers on two sub-questions: direction reads now or later,
+and the spelling of a centre at the entry. The diff states the answer
+in `docs/PATHS-DESIGN.md` §1b, `[variables.poses]` and VQ5.
+
+## 2026-11-02 — ruled (Ev, `[ev]` PR 6289): B, 2-D pose variables in the profile's coordinates
+
+The design is `docs/PATHS-DESIGN.md` §1b and `[variables.poses]` as
+merged. A profile's points and directions are `Point2`/`Direction2`
+variables in the profile's own coordinates. Written points are
+anonymous `Point2`s (name one to share it). Derived values are
+definitions reading an earlier piece by N1 locator (`Centre`, `Vertex`,
+`Heading`), in program order. `AlongTrace` folds in as a `Direction2`
+read off a traced face. A value lifts to a 3-D pose only where the
+profile is drawn on a frame. Ev's reason for B: "the center of the arc
+on the face at the end of the extrude" is a 3-D read off the body with
+its own z, a different value from the profile's 2-D centre.
+
+**Priced X, 30 points.** It crosses `crates/editor-core` (variables,
+kinds, definitions, VR3's step-granular order rule, the slot walk,
+persist), `crates/profile`, `pncad-py` and the viewer (the editor's pick
+mode; it needs
+`the-profile-editor-holds-kernel-steps-not-the-authored-program`
+first). Cut it into units on the owning programs before dispatch. The
+two mechanics the designers left unchecked are pinned in the build:
+that no later step moves a piece's start once drawn, and that a read
+ray is stored verbatim.

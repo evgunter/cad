@@ -1127,6 +1127,13 @@ BOUND_AS = {
     # nodes.
     "sketch_on_face": "Doc.sketch_on_face",
     "SketchOutcome": "Doc.sketch_on_face",
+    # A takeover, one recorded action answering the names it moved.
+    "take_over": "Doc.take_over",
+    "TakeOverOutcome": "Doc.take_over",
+    "TakenOver": "Doc.take_over",
+    "Moved": "Doc.take_over",
+    "Answered": "Doc.take_over",
+    "Taken": "Doc.take_over",
     # A loft's later section: `Node.loft`'s `then` entries, a profile
     # and its `StationMove`s.
     "LoftSection": "Node.loft",
@@ -3672,6 +3679,7 @@ MEMBERS_BOUND_AS = {
     "EditError::RebindNoReferences": "EditError.variant",
     "EditError::WitnessOnNonSketch": "EditError.variant",
     "EditError::DuplicateWitnessEntry": "EditError.variant",
+    "EditError::TakeOverRepeatsCopy": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
     "EditError::EvaluationOfAnotherDocument": "EditError.variant",

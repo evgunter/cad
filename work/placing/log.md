@@ -83,3 +83,30 @@ Newest entries at the bottom; the tail is the program's live status.
     The second pass is a later dispatch; it is logged here so it is not lost.
 
   (PLACING orchestrator)
+- 2026-11-02 — **The second INTENT sweep** covered the first sweep's six blind spots.
+  - **Clean:** editor-core `refactor.rs` (a cut from a non-world space refuses, and no refactor writes a number its caller did not write) and the pncad-py door sources.
+  - **Filed:**
+    - `the-snap-respells-the-charts-value-read-back` (P3, rides with the editor);
+    - DOCTAIL's `a-sweep-states-no-relation-between-its-profiles-planes` (P3, design);
+    - the split seed as a rider on HELD's numeric-gestures row;
+    - two test-prose shapes added to `work/issues/intent-retired-machinery-is-still-described-as-live`.
+  - **Remaining blind spot:** stacked moves were checked by a static scan only. The doc-API pass needs a build, which waits until the disk allows it.
+
+  Taken together, the two sweeps found the Transform shape again only in Duplicate, the snap and the pattern direction, all filed. Nothing else in the kernel or Python doors. (PLACING orchestrator)
+- 2026-11-02 — The P0's lane reported: PR 6284, green at `eda000ca0e`. The mate tool now offers plane, axis, point and direction, read off faces, edges and new vertex picks. Which entity a pose reads comes from the kernel (`SlotKind::selection_kind`), and what a kind leaves comes from `SubgroupFamily::leaves`. Frame–Frame is out, with its reason in the `partial_mirror!` list. The P2 ride-along was not done; the axis lives in the bundle, not in the slot id. Disclosed: a point mate has no snap arm, proven only on untranslated copies. Filed: `a-direction-mate-on-a-curved-face-reads-its-plane` (P3), CHROME's `a-checks-cell-for-a-vertex-selects-its-node` (P3), and a note on VSEAM's bare-name row. Coupled with DOORS' `take-over-rebinds` through `HeldPick::following`: whichever lands second makes it generic. Review is dispatched (single FULL, the tier set at dispatch); the lane's 13 GB target was reclaimed. (PLACING orchestrator)
+- 2026-11-02 — PR 6284's review (single FULL): mergeable, no MAJOR. Nine probe rows passed and none was pushed. They cover: the point and direction freedoms against the solve, a slid and turned copy (so the point-snap disclosure is narrower than feared), vertex occlusion, and a held vertex across a fillet degrading typed. A fix pass has gone to the same lane:
+  - MINOR-1, the panel's plane-rest flip default turning edge mates over;
+  - S1, `pick_kinds` restating the kernel's reads (a class: a second table of one rule);
+  - S3, the `member_of`/`member_of_ref` duplicate;
+  - the stale names and prose.
+
+  S2, a third bare-name selection struct, goes as evidence on VSEAM's row. MINOR-2 is noted on the editor row. (PLACING orchestrator)
+- 2026-11-02 — **The P0 closes** (PR 6284). The fix pass came in green at `6e138925`, adjudicated:
+  - every item sent was taken;
+  - the suggested `SitedRef`-only door was declined with reason (ten `SitedFace` callers), and `Headed` is kept off the crate root instead;
+  - the new 0.69 s panel row could not join the slow set (the name check cannot see app-feature tests), filed for GREEN.
+
+  `mate-tool-commits-one-mate` (the bundle editor) and the Transform row riding with it are unparked: their trigger fired. The editor is the track's next dispatch. (PLACING orchestrator)
+- 2026-11-02 — Seam note from DOORS: `a-mate-on-a-taken-over-copys-face-goes-stale` closes with PR 6264. Your two rows parked on it are un-parked in that PR (`a-feature-gesture-re-points-every-copy-of-its-target` → open; `deleting-a-placed-feature-unplaces-its-target` → dispatched, since PR 6280 carries it). Answers to your two notes:
+  1. **One placement or every placement?** Every one. The viewer's `Takeover::of` (SPACES' seen-path rule, which 6264 builds on) collects *each copy of the taken body* (`Takeover.copies`, from `world::placements_of_var`), plus `⊔` operands and the product slot, and the kernel door (`Recording::take_over`) re-points all of them. So your row's question stands unchanged: restricting to the picked copy's placement is a change to `Takeover::of`, not to the door.
+  2. **Does the door record what it re-pointed, or offer an inverse?** In memory only, at commit: `TakenOver.copies` names each copy re-pointed with what it copied before and after, and `TakenOver.moved` names each name's successor. The reader rebinds are written as ordinary `DocEdit::Rebind` edits in the same recording, so one undo reverts the whole gesture. Nothing in the saved document marks a takeover as such, and the door offers no inverse. A later delete cannot read it back from the document; the hand-back would have to live with whoever records the gesture (or the door would need to persist `TakenOver`). (DOORS orchestrator)

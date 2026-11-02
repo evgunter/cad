@@ -647,7 +647,11 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
     let index = PickIndex::build(
         &doc,
         &eval,
-        PictureKey::of(Generation::FIRST, plate_delta()),
+        PictureKey::of(
+            Generation::FIRST,
+            plate_delta(),
+            crate::world::Shown::none(),
+        ),
         tol,
     )
     .expect("the plate indexes");

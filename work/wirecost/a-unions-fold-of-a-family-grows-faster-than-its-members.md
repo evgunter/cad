@@ -3,6 +3,8 @@ id: a-unions-fold-of-a-family-grows-faster-than-its-members
 kind: issue
 title: A union reading a family whole costs superlinearly in its members, inside one node with no yield
 status: open
+priority: P2
+cost: M
 opened: 2026-11-01
 ---
 

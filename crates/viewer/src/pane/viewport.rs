@@ -56,28 +56,21 @@ fn push_segment(
 /// walked the chain under and nobody authored, so the wrap is dropped
 /// and what is drawn is the authored legs exactly. A loop of one
 /// vertex has no leg and is held as its point ([`marks::LegLane::point`]),
-/// so a fit still frames it.
+/// so a fit still frames it. The polyline is
+/// [`sketch::PreviewLoop::drawn_on`]'s, which the pick index measures
+/// against too.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
-    let points = &polyline.points;
-    let segments = if polyline.end.closes() {
-        points.len()
-    } else {
-        points.len().saturating_sub(1)
-    };
-    for index in 0..segments {
-        push_segment(
-            lane,
-            plane,
-            points[index],
-            points[(index + 1) % points.len()],
-        );
-    }
-    if let (0, Some(&[x, y])) = (segments, points.first()) {
-        lane.point(plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    match polyline.drawn_on(plane).as_slice() {
+        [point] => lane.point(*point),
+        points => {
+            for leg in points.windows(2) {
+                lane.leg(leg[0], leg[1]);
+            }
+        }
     }
 }
 
@@ -605,17 +598,26 @@ mod composed {
         };
         // One tool is open at a time, so the mate tool's two held faces
         // and the mirror tool's plane share these two slots.
-        let [a, b] = match (tools.mate(), tools.mirror()) {
-            (Some(tool), _) => tool
-                .state()
-                .picks()
-                .map(|pick| pick.map(crate::tree::HeldPick::face)),
+        // The mate tool's edge and vertex picks are drawn as geometry.
+        let mate = tools.mate().map(|tool| tool.state().picks());
+        let [a, b] = match (mate, tools.mirror()) {
+            (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(tool)) => [tool.plane(), None],
             (None, None) => [None, None],
         };
+        let entities = mate.map_or([None, None], |picks| {
+            picks.map(|pick| match pick.map(crate::tree::HeldPick::pick) {
+                Some(crate::matetool::MatePick::Edge(edge)) => Some(marks::HeldEntity::Edge(edge)),
+                Some(crate::matetool::MatePick::Vertex(vertex)) => {
+                    Some(marks::HeldEntity::Vertex(vertex))
+                }
+                Some(crate::matetool::MatePick::Face(_)) | None => None,
+            })
+        });
         let held = marks::Held {
             faces: [drafts.marked_face(create_drawn), a, b],
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
+            entities,
         };
         let (highlight, edges) =
             marks::compose(index, display, session.selection(), session.hover(), &held);
@@ -1164,7 +1166,7 @@ impl ViewerBehavior<'_> {
         // vocabulary, and the narrowing travels through `hovered_for`,
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
-        let kinds = self.tools.pick_kinds();
+        let kinds = self.tools.pick_kinds_choosing(self.drafts.mate_kind());
         // **The index the PICTURE was drawn from**, which is the index
         // in hand on every frame but the ones `drawn_index` exists for.
         // Every read of an index below this line asks this one:
@@ -1172,7 +1174,7 @@ impl ViewerBehavior<'_> {
         // pass's answer read back through an id map, and — since Ev's
         // 2026-09-15 ruling — the pick itself, which would otherwise
         // answer about geometry the screen is not showing.
-        let on_screen = drawn_index(self.index, self.scene_key);
+        let on_screen = drawn_index(self.index, self.scene_key.clone());
         // Read before the loop spends `actions`: whether a pick action
         // below asks the ray at this frame's cursor, and so words its
         // refusal itself ([`cursor_news`] reads it).
@@ -1199,7 +1201,7 @@ impl ViewerBehavior<'_> {
                             && let Some(kind) = self.tools.open_kind()
                         {
                             self.notices.push(frame::tool_notice(
-                                &crate::tools::ToolNotice::Missed(kind),
+                                &crate::tools::ToolNotice::Missed { tool: kind, kinds },
                                 Some((doc, eval)),
                             ));
                         }
@@ -1236,10 +1238,14 @@ impl ViewerBehavior<'_> {
             self.profile_was_drawn.create,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
+        // Held names are mapped onto the drawn picture; while they are
+        // judged by a newer run (`DocSession::name_run`), one that
+        // followed a takeover is not drawn yet, and is not refused.
         self.viewport_reads.held_edges_refused = composed
             .edges()
             .held_refused
             .clone()
+            .filter(|_| !self.session.names_ahead_of_the_picture())
             .map(|refused| frame::Spelled::in_landed(refused, landed));
         let marks = composed.with_lanes(framed.profiles, framed.preview);
 
@@ -1842,12 +1848,18 @@ mod tests {
         let generation = session
             .landed_generation()
             .expect("a landed evaluation has a generation");
-        PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
-            .expect("the plate indexes")
+        PickIndex::build(
+            doc,
+            eval,
+            PictureKey::of(generation, delta, crate::world::Shown::none()),
+            session.tol(),
+        )
+        .expect("the plate indexes")
     }
 
-    /// **The picture's alphabet is `(generation, δ)`, and the guard
-    /// holds both halves.**
+    /// **The picture's alphabet is its whole key — generation, δ and
+    /// the shows — and the guard holds the δ part a generation-only
+    /// check would drop.**
     ///
     /// The half a generation-only check would drop is δ: a δ typed
     /// while the document stands rebuilds the index at the SAME
@@ -2626,7 +2638,7 @@ mod tests {
         let landed = plate_index(&session, a_delta(0.05));
         let picture = drawn.key();
         assert!(
-            drawn_index(Some(&landed), Some(picture)).is_none(),
+            drawn_index(Some(&landed), Some(picture.clone())).is_none(),
             "the index in hand describes a rebuild the picture is not"
         );
 
@@ -3745,7 +3757,7 @@ mod tests {
             .profile_edit(&doc, profile)
             .expect("the square is held");
         assert!(
-            drafts.door_loops().edit.is_some(),
+            drafts.door_loops(&doc, tol).edit.is_some(),
             "the edit door holds the square"
         );
         let placement = sketch::profile_plane();
@@ -3759,11 +3771,14 @@ mod tests {
         // the committed lane, the preview lane.
         let mut frame_with = |loops: Vec<Step<f64>>| {
             let edit = drafts.profile_edit.as_mut().expect("held");
-            edit.edit_row(0, RowEdit::Clear);
+            let notation = crate::props::Notation::CANONICAL;
+            edit.edit_row(0, RowEdit::Clear, notation)
+                .expect("a clear makes no row");
             for (at, step) in loops.into_iter().enumerate() {
-                edit.edit_row(0, RowEdit::Insert { at, step });
+                edit.edit_row(0, RowEdit::Insert { at, step }, notation)
+                    .expect("finite");
             }
-            let held = drafts.door_loops().edit.expect("held");
+            let held = drafts.door_loops(&doc, tol).edit.expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {
                 create: None,

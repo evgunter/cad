@@ -2,12 +2,13 @@
 id: view-pane-cannot-hide-a-shown-space
 kind: issue
 title: the View pane cannot hide an unplaced body or the world
-status: open
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
 refs: [6209]
 parent: the-view-pane-toggles-spaces-and-bodies
+closed: 2026-11-02
 ---
 
 
@@ -27,3 +28,7 @@ world, and every space a body lands in unplaced
 (`work/spaces/a-new-body-lands-placed-in-the-world.md`).
 
 Hiding stays display state, never persisted (G3).
+
+## Closed
+
+By `the-view-pane-toggles-spaces-and-bodies` (PR 6270).

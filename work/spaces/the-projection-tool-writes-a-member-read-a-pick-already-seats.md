@@ -4,6 +4,8 @@ kind: issue
 title: The projection tool still writes a member read, where the README says projecting a pattern member writes nothing
 status: open
 opened: 2026-11-01
+priority: P2
+cost: M
 ---
 
 

@@ -65,11 +65,11 @@ use slotmap::SecondaryMap;
 
 use super::neighborhood::{EntryRay, sector_face};
 use super::{
-    ApexSectionReading, NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading,
-    SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError,
+    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
+    SplitPlane, SplitReduceError,
 };
 use crate::body::Body;
-use crate::chord_join::{SectionCase, SplitJoinError, WallSection};
+use crate::chord_join::ApexRulingFault;
 use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, proven};
@@ -333,8 +333,8 @@ fn section_chords<T: Decide>(
 /// the plane's side along its rulings turns, so the sub-sector's bounds
 /// lie on opposite sides and exactly one section ruling lies inside it;
 /// which one is read as its turn from each bound into the sweep
-/// (`split_germ_apex`, [`ConeApex::turn`](crate::sector_face::ConeApex::turn) levered at the sub-sector's
-/// arm).
+/// ([`crate::chord_join::apex_section_ruling`], the one trace the
+/// Boolean's pierce germ reads too).
 ///
 /// # Errors
 ///
@@ -371,47 +371,21 @@ fn apex_germ<T: Decide>(
         face,
         reading,
     };
-    let lines =
-        match crate::chord_join::wall_section(body, band, plane.origin, plane.normal, face, vertex)
-        {
-            Ok(Some(WallSection {
-                case: SectionCase::Straight([l1, l2]),
-                ..
-            })) => vec![l1, l2],
-            Ok(Some(WallSection {
-                case: SectionCase::Tangent(l),
-                ..
-            })) => vec![l],
-            Err(SplitJoinError::Escalated { diag, .. }) => return Err(escalated(diag)),
-            Err(section) => {
-                return Err(disagrees(ApexSectionReading::Refused(Box::new(section))));
-            }
-            Ok(Some(WallSection {
-                case: SectionCase::Conic(_),
-                ..
-            })) => return Err(disagrees(ApexSectionReading::ClosedOffApex)),
-            Ok(_) => unreachable!(
-                "{face:?} carries a cone, whose section table reads a conic, a line pair or a \
-                 tangent line"
-            ),
-        };
     let arm = u.dir.norm().min(w.dir.norm());
-    let mut inside = None;
-    for line in lines {
-        let geom::Curve3::Line { dir, .. } = line else {
-            unreachable!("{face:?}: a cone's section ruling through its apex is a line")
-        };
-        let z = apex.onto_nappe_of(dir, u.dir);
-        let into = apex.turn(w.dir, z).min(apex.turn(z, u.dir));
-        match decide("split_germ_apex", Margin::levered(into, arm), band).map_err(escalated)? {
-            Sign::Positive if inside.is_none() => inside = Some(z),
-            Sign::Positive => return Err(disagrees(ApexSectionReading::BothRulingsInside)),
-            Sign::Zero | Sign::Negative => {}
-        }
-    }
-    inside
-        .map(Some)
-        .ok_or_else(|| disagrees(ApexSectionReading::NoRulingInside))
+    crate::chord_join::apex_section_ruling(
+        body,
+        band,
+        (plane.origin, plane.normal),
+        (face, vertex),
+        &apex,
+        (w.dir, u.dir),
+        arm,
+    )
+    .map(Some)
+    .map_err(|fault| match fault {
+        ApexRulingFault::Escalated(diag) => escalated(diag),
+        ApexRulingFault::Disagrees(reading) => disagrees(reading),
+    })
 }
 
 /// One ON vertex's classified neighborhood: its entries, and each

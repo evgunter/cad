@@ -513,7 +513,7 @@ fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
         .clone();
     assert_eq!(face.node, common::copy_of(session.committed_doc(), extrude));
     assert_eq!(
-        session.hover().map(|h| h.name().clone()),
+        session.hover().and_then(|h| h.name().cloned()),
         Some(face.name.clone()),
         "the hover names the same face the click did"
     );
@@ -810,22 +810,22 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     session.pump();
     let index = plate_index(&session);
     assert!(
-        index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        ),
+        index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        ))),
         "freshly built, it describes the run on screen"
     );
 
     session.perform(common::recount_op(&session, pattern, 3));
     session.pump();
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        ))),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
@@ -833,18 +833,18 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     let coarser = common::plate_delta().scaled(2.0).expect("a positive delta");
     let rebuilt = plate_index(&session);
     assert!(
-        rebuilt.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, common::plate_delta()))
-        )
+        rebuilt.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            common::plate_delta(),
+            viewer::world::Shown::none()
+        )))
     );
     assert!(
-        !rebuilt.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, coarser))
-        )
+        !rebuilt.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            coarser,
+            viewer::world::Shown::none()
+        )))
     );
 }
 

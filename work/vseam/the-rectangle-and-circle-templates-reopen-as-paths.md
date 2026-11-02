@@ -5,7 +5,6 @@ title: A rectangle profile stores its corners, not the width and height written,
 status: open
 opened: 2026-09-19
 priority: P1
-design: true
 cost: M
 ---
 
@@ -69,3 +68,21 @@ Ev's answers on PR 6143:
 - How part of a profile refers to earlier parts of the same profile
   (written values and derived ones, such as an arc's centre) is its own
   question: `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`.
+
+## 2026-11-02 — parked on multi-loop authoring
+
+Ruled on PR 6143. The build is: a `rectangle` step through the
+`profile` crate, editor-core, pncad-py and the viewer, and the bore
+preset dropped. Dropping the preset removes the GUI's only way to make
+a second loop until `the-gui-cannot-author-a-profile-of-several-loops`
+lands, so the row waits on it.
+
+## 2026-11-02 — unparked: its trigger landed
+
+`the-gui-cannot-author-a-profile-of-several-loops` closed: both profile
+doors now add and remove loops, so a bore is a second circle loop
+(`Add circle loop` in the add-profile form) and the "with bore"
+checkbox is redundant. Dropping it no longer costs the GUI its only
+way to make a hole. `a-template-rectangle-has-no-centre`, closed into
+this row, asked for the rectangle's centre, which the stored
+`rectangle(centre, width, height)` form carries.

@@ -1,5 +1,8 @@
 //! **The mate tool's snap** ([`super::SessionOp::AddMate`]): the values
 //! a freshly mated copy is written at so that it moves only by the snap.
+//! A mate fixing no one direction — a point — has no snap
+//! (`seat_of` answers `None`): the copy stands by the values the
+//! bundle door kept, and is not snapped onto the mate.
 //!
 //! A mate fixes a direction `d` and, for a plane or an axis, a plane or
 //! a line the copy's mated pose lies on. The snap is the least motion
