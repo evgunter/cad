@@ -162,7 +162,16 @@ pub fn clearances_at_nominal(
                     ValuePayload::Assertion(AssertionVerdict::Clearance(report)) => {
                         ClearanceOutcome::of(report.verdict(), crate::document::Speaker::of(doc))
                     }
-                    _ => unreachable!("a clearance assertion's value is its report"),
+                    // A seat over a pattern's members lifts the
+                    // requirement over the family: one per member.
+                    ValuePayload::Family => ClearanceOutcome::over_members(doc, assertion),
+                    other => ClearanceOutcome::Unanswered {
+                        sentence: format!(
+                            "{} evaluated to {}, not to a clearance verdict",
+                            doc.spoken(assertion),
+                            other.kind_name()
+                        ),
+                    },
                 },
                 Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
                     ClearanceOutcome::Unanswered {
@@ -210,6 +219,13 @@ pub enum ClearanceOutcome {
         /// The refusal said, with its recourse.
         sentence: String,
     },
+    /// **A requirement over a pattern's members**: a seat reads a
+    /// family, so the assertion is one requirement per member, which the
+    /// certifying lane does not decide yet. Said with its recourse.
+    OverMembers {
+        /// Why, said from the document, with the recourse.
+        sentence: String,
+    },
     /// The assertion did not evaluate: a seat that does not resolve, or
     /// a node under it that failed.
     Unanswered {
@@ -219,6 +235,22 @@ pub enum ClearanceOutcome {
 }
 
 impl ClearanceOutcome {
+    /// **The answer for `assertion` when a seat reads a pattern's
+    /// members** ([`Self::OverMembers`]), said from `doc`.
+    pub fn over_members(
+        doc: &crate::document::ProfileDoc,
+        assertion: crate::document::RecipeNodeId,
+    ) -> Self {
+        Self::OverMembers {
+            sentence: format!(
+                "{} reads the members of a pattern, so it is one requirement per member, and a \
+                 clearance over a pattern's members is not certified yet. Recourse: seat one \
+                 member — project it with the projection tool and pick the projection",
+                doc.spoken(assertion)
+            ),
+        }
+    }
+
     /// `verdict` in plain numbers, a refusal said by `by` — the
     /// document's speaker, so a seat reads as the document names it.
     pub fn of(verdict: &ClearanceVerdict, by: crate::document::Speaker<'_>) -> Self {

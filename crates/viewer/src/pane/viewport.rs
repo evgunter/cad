@@ -4348,28 +4348,10 @@ mod tests {
     /// the picture is drawn from.
     fn violated_clearance(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId, PickIndex) {
         use crate::session::ClearedSeat;
-        use crate::test_support::{inserted, len, rectangle};
-        use pncad::document::{ClearanceBounds, Node};
-        let mut doc = Doc::empty_derived("witness-marks", tol);
-        let mut blocks = Vec::new();
-        for x in [0.0, 0.03] {
-            let (with, profile) = inserted(&doc, rectangle([x, 0.0], 0.02, 0.02), tol);
-            let (with, block) = inserted(
-                &with,
-                Node::Extrude {
-                    profile: profile.into(),
-                    distance: len(0.01),
-                },
-                tol,
-            );
-            doc = with;
-            blocks.push(block);
-        }
+        use crate::test_support::len;
+        use pncad::document::ClearanceBounds;
+        let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        for &node in &blocks {
-            let placed = session.perform(SessionOp::AddToProduct { node, body: None });
-            assert!(placed.refusal.is_none(), "{:?}", placed.refusal);
-        }
         let added = session.perform(SessionOp::AddClearance {
             a: ClearedSeat::Body(blocks[0].into()),
             b: ClearedSeat::Body(blocks[1].into()),
@@ -4422,7 +4404,7 @@ mod tests {
     /// `DocSession::witness` answers off a landing that no longer answers
     /// the shown document.
     #[test]
-    fn a_clearance_witness_is_marked_while_its_row_is_selected_or_hovered() {
+    fn a_clearance_witness_is_marked_only_while_its_row_is_selected_or_hovered_over_its_landing() {
         let tol = Tol::witness();
         let (mut session, violated, index) = violated_clearance(tol);
         let quiet = marks_with(&session, &index, None);

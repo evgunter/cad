@@ -714,8 +714,9 @@ history's length and `checks` is its two counts (`ChecksReport` is a
 the thing these walks exist to keep readable); `scratch`, `body`,
 `gesture` and `resolver` are their presence, rendered as the elisions
 `Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
-`Some(<DirResolver>)`; and `index` is the generation it describes
-inside one, `Some(<PickIndex for Generation(4)>)`. Summarising is what
+`Some(<DirResolver>)`; `index` is the generation it describes
+inside one, `Some(<PickIndex for Generation(4)>)`; and `stage` and
+`seeded` are the key and the generation they are for. Summarising is what
 a `#[derive(Debug)]` cannot do at all, which is the reason these are
 written out rather than derived; the recipe and result DAGs are what
 makes that reason bite.
@@ -732,11 +733,12 @@ answered at the field, which is the only place a two-valued marker
 could not have said it. **The sweep behind that list**, and it is a
 reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
-`PickCache` in `pickcache` — read every `.field(…)` call, **22 of
+`PickCache` in `pickcache` — read every `.field(…)` call, **30 of
 them**, and take the ones whose value argument is not the destructured
-binding itself. **Nine calls, seven fields**: `checks` and `index` each spend two arms, and the absent
-arm renders `None`, which is the whole field. `viewer`'s
-`tests/debug_dumps.rs` holds the seven to their spellings, and is the
+binding itself. **Eleven calls, nine fields**: `checks` and `index`
+each spend two arms, and the absent arm renders `None`, which is the
+whole field. `viewer`'s `tests/debug_dumps.rs` holds seven of them to
+their spellings — all but `stage` and `seeded` — and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in

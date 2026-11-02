@@ -680,8 +680,8 @@ impl core::fmt::Debug for Derived {
 /// **These move together or not at all.** Each is a statement about
 /// ONE (document, evaluation) pair, taken from that pair's single
 /// gather in [`DocSession::land`] or, for an answer the landing owes,
-/// settled into it later under its generation
-/// ([`DocSession::settle`], [`DocSession::certified`]); one field of this value read beside
+/// settled into it later under its generation ([`DocSession::settle`]);
+/// one field of this value read beside
 /// another run's would describe a run that never happened. As one
 /// value, `land` writes exactly what [`Derived::none`] clears, and a
 /// new thing taken at landing cannot be computed at one door and
@@ -740,6 +740,9 @@ enum Clearances {
     None,
     /// The certify seam is answering this landing.
     Certifying,
+    /// The next request stopped the certify job before it answered: the
+    /// landing stands, and nothing is certifying it.
+    Stopped,
     /// The certifying scalar's answer, one per clearance assertion, in
     /// document order.
     Settled(Vec<pncad::analysis::ClearanceAnswer>),
@@ -812,6 +815,16 @@ impl core::fmt::Debug for LandedRun {
         };
         out.finish_non_exhaustive()
     }
+}
+
+/// **An answer a landing owes**, run at rest on its own seam and settled
+/// into the landing under its generation ([`DocSession::settle`]).
+#[derive(Debug)]
+pub enum Owed {
+    /// The coincidence door's findings.
+    Door(DoorDone),
+    /// The certifying scalar's clearance answers.
+    Certify(CertifyDone),
 }
 
 /// **A clearance witness, as the picture can draw it**
@@ -1292,28 +1305,25 @@ impl DocSession {
     /// the pair was decided in ([`Witnessed`]).
     ///
     /// `None` unless the certifying scalar's answer for the landing on
-    /// screen is `Within` or `Violated`, and unless that landing's run
-    /// is the one names are judged by ([`Self::name_run`]): a verdict
-    /// of an older document is never drawn over a newer one, and while
-    /// no run answers the shown document the question abstains.
+    /// screen has a pair ([`tree::witness_pair`]), and unless names are
+    /// judged by the run the picture is drawn from — the gate every held
+    /// mark asks ([`Self::name_run`], [`Self::names_ahead_of_the_picture`]):
+    /// a verdict of an older document is never drawn over a newer one,
+    /// and while no run answers the shown document the question
+    /// abstains.
     pub fn witness(&self, assertion: RecipeNodeId) -> Option<Witnessed<'_>> {
         use editor_core::names::{EntityKey, EntityRef};
-        use pncad::analysis::ClearanceOutcome;
-        let run = self.derived.landed.as_ref()?;
-        let (doc, eval) = self.name_run()?;
-        if !core::ptr::eq(doc, run.doc.as_ref()) {
+        if self.names_ahead_of_the_picture() {
             return None;
         }
+        // Not ahead of the picture, so the run names are judged by is
+        // the landed one.
+        let (doc, eval) = self.name_run()?;
+        let run = self.derived.landed.as_ref()?;
         let Clearances::Settled(answers) = &run.clearances else {
             return None;
         };
-        let pair = match &answers.iter().find(|a| a.assertion == assertion)?.answer {
-            ClearanceOutcome::Within(pair) | ClearanceOutcome::Violated(pair) => pair,
-            ClearanceOutcome::Holds
-            | ClearanceOutcome::Exceeded
-            | ClearanceOutcome::Refused { .. }
-            | ClearanceOutcome::Unanswered { .. } => return None,
-        };
+        let pair = tree::witness_pair(&answers.iter().find(|a| a.assertion == assertion)?.answer)?;
         let Some(Node::Assertion(pncad::document::Claim::Clearance { a, b, .. })) =
             doc.node(assertion)
         else {
@@ -1692,6 +1702,7 @@ impl DocSession {
                     match &run.clearances {
                         Clearances::None => {}
                         Clearances::Certifying => cleared.answer = tree::Certified::Certifying,
+                        Clearances::Stopped => cleared.answer = tree::Certified::Stopped,
                         Clearances::Settled(answers) => {
                             if let Some(answer) = answers.iter().find(|a| a.assertion == row.id) {
                                 cleared.answer = tree::Certified::Answered(answer.answer.clone());
@@ -1760,10 +1771,10 @@ impl DocSession {
         }
         self.judge_selection();
         while let Some(done) = self.door.poll() {
-            self.settle(done);
+            self.settle(Owed::Door(done));
         }
         while let Some(done) = self.certifier.poll() {
-            self.certified(done);
+            self.settle(Owed::Certify(done));
         }
         while let Some(done) = self.stager.poll() {
             if let Some(Stage {
@@ -1781,39 +1792,38 @@ impl DocSession {
         landings
     }
 
-    /// **Settles a door job into the landed report it was split from**
-    /// — only that one: an answer for a landing since replaced, or one
-    /// the next request canceled, is dropped, and a report whose door
-    /// was canceled goes on reading it pending until a landing answers
-    /// again. A second answer for a report already settled is dropped
-    /// too.
-    pub fn settle(&mut self, done: DoorDone) {
-        let Some(run) = self.derived.landed.as_mut() else {
+    /// **Settles an answer the landing owed into it** — the coincidence
+    /// door's into the checks report it was split from, the certified
+    /// clearances into the landing's rows — and only into that landing:
+    /// an answer for a landing since replaced, or one the next request
+    /// canceled, is dropped, and a second answer for one already settled
+    /// is dropped too.
+    pub fn settle(&mut self, owed: Owed) {
+        let generation = match &owed {
+            Owed::Door(done) => done.generation,
+            Owed::Certify(done) => done.generation,
+        };
+        let Some(run) = self
+            .derived
+            .landed
+            .as_mut()
+            .filter(|run| run.generation == generation)
+        else {
             return;
         };
-        if run.generation != done.generation {
-            return;
-        }
-        if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
-            && report.pending.contains(&CheckId::UnprovenCoincidence)
-        {
-            report.settle(findings);
-        }
-    }
-
-    /// **Settles a certify job into the landing it was asked for** —
-    /// only that one: an answer for a landing since replaced, or one the
-    /// next request canceled, is dropped, and the landing's rows go on
-    /// reading certifying until a landing answers again.
-    pub fn certified(&mut self, done: CertifyDone) {
-        let Some(run) = self.derived.landed.as_mut() else {
-            return;
-        };
-        if run.generation != done.generation {
-            return;
-        }
-        if let (Clearances::Certifying, Ok(answers)) = (&run.clearances, done.answers) {
-            run.clearances = Clearances::Settled(answers);
+        match owed {
+            Owed::Door(done) => {
+                if let (Some(report), Ok(findings)) = (run.checks.as_mut(), done.findings)
+                    && report.pending.contains(&CheckId::UnprovenCoincidence)
+                {
+                    report.settle(findings);
+                }
+            }
+            Owed::Certify(done) => {
+                if let (Clearances::Certifying, Ok(answers)) = (&run.clearances, done.answers) {
+                    run.clearances = Clearances::Settled(answers);
+                }
+            }
         }
     }
 
@@ -1948,7 +1958,7 @@ impl DocSession {
         // third state, so the landing owes the certifying scalar's
         // answer, and its rows read certifying until it settles
         // ([`DocSession::certified`]).
-        let clearances = if holds_a_clearance(doc, &done.evaluation) {
+        let clearances = if holds_a_clearance(&done.evaluation) {
             self.certifier.submit(CertifyRequest {
                 generation: done.generation,
                 doc: Arc::clone(&self.requested_doc),
@@ -4986,9 +4996,15 @@ impl DocSession {
         };
         self.requested_resolver = self.run_resolver();
         // The landing this request will replace no longer wants its door,
-        // nor its certified clearances.
+        // nor its certified clearances: its rows say certifying stopped,
+        // which stays true if this request is cancelled in turn.
         self.door.cancel();
         self.certifier.cancel();
+        if let Some(run) = self.derived.landed.as_mut()
+            && matches!(run.clearances, Clearances::Certifying)
+        {
+            run.clearances = Clearances::Stopped;
+        }
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
@@ -6141,38 +6157,42 @@ fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     )
 }
 
-/// Whether a document is assembly-shaped — one of the two conditions
-/// [`AtRestBadge`] names for taking an at-rest badge: a document that
-/// instantiates no part has no cross-instance rest for the badge to
-/// answer about.
 /// **The one world copy that draws `read`**, where exactly one world
-/// placement copies it: the body as it stands in the world. `None` for a
-/// read no world placement copies, and for one several copy, which
-/// names no one of them.
+/// placement copies it ([`crate::world::world_copies_of_read`]): the
+/// body as it stands in the world. `None` for a read no world placement
+/// copies, and for one several copy, which names no one of them — the
+/// clearance tool refuses such a pick itself, in its own words
+/// (`crate::combine::ClearanceEvent::SeveralCopies`).
 fn drawn_copy(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<Operand> {
-    let copies: Vec<VarId> = crate::world::placements_of_read(doc, read)
-        .into_iter()
-        .filter_map(|placement| crate::world::world_copy(doc, placement))
-        .collect();
-    match copies.as_slice() {
+    match crate::world::world_copies_of_read(doc, read).as_slice() {
         [copy] => Some(Operand::Var(*copy)),
         _ => None,
     }
 }
 
-/// **Whether a landed run holds a clearance requirement**: a clearance
-/// assertion `evaluation` answered — at `f64`, with the third state the
-/// certifying scalar decides. One whose seats did not resolve failed
-/// here, and the certifying scalar would fail it the same way.
-fn holds_a_clearance(doc: &Doc<ProfileProgram>, evaluation: &Evaluation<f64>) -> bool {
-    doc.ids().iter().any(|&id| {
-        matches!(
-            doc.node(id),
-            Some(Node::Assertion(pncad::document::Claim::Clearance { .. }))
-        ) && evaluation.usable(id).is_ok()
+/// **Whether a landed run holds a clearance requirement the certifying
+/// scalar answers**: a clearance verdict `evaluation` holds — at `f64`,
+/// the third state the certifying scalar decides. One whose seats did
+/// not resolve failed here, and the certifying scalar would fail it the
+/// same way; one lifted over a pattern's members holds a family, which
+/// its row refuses in its own words (`tree`'s `cleared`).
+fn holds_a_clearance(evaluation: &Evaluation<f64>) -> bool {
+    evaluation.order.iter().any(|&id| {
+        evaluation.usable(id).is_ok_and(|value| {
+            matches!(
+                value.payload,
+                pncad::document::ValuePayload::Assertion(
+                    pncad::document::AssertionVerdict::Clearance(_)
+                )
+            )
+        })
     })
 }
 
+/// Whether a document is assembly-shaped — one of the two conditions
+/// [`AtRestBadge`] names for taking an at-rest badge: a document that
+/// instantiates no part has no cross-instance rest for the badge to
+/// answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.ids()
         .iter()
@@ -6390,29 +6410,11 @@ mod tests {
     /// the landing's.
     #[test]
     fn a_witness_abstains_while_a_door_run_judges_names() {
-        use crate::test_support::{inserted, len, rectangle};
+        use crate::test_support::len;
         use pncad::document::ClearanceBounds;
         let tol = Tol::witness();
-        let mut doc = Doc::empty_derived("witness-seeded", tol);
-        let mut blocks = Vec::new();
-        for x in [0.0, 0.03] {
-            let (with, profile) = inserted(&doc, rectangle([x, 0.0], 0.02, 0.02), tol);
-            let (with, block) = inserted(
-                &with,
-                Node::Extrude {
-                    profile: profile.into(),
-                    distance: len(0.01),
-                },
-                tol,
-            );
-            doc = with;
-            blocks.push(block);
-        }
+        let (doc, blocks, _) = crate::test_support::two_blocks_apart(tol);
         let mut session = DocSession::inline(doc, tol);
-        for &node in &blocks {
-            let placed = session.perform(super::SessionOp::AddToProduct { node, body: None });
-            assert!(placed.refusal.is_none(), "{:?}", placed.refusal);
-        }
         let added = session.perform(super::SessionOp::AddClearance {
             a: super::ClearedSeat::Body(blocks[0].into()),
             b: super::ClearedSeat::Body(blocks[1].into()),

@@ -730,8 +730,10 @@ impl ViewerBehavior<'_> {
         clearance_bound_rows(ui, self.drafts, self.notation);
         self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
             let lo = notation.length_literal(drafts.clearance_lo)?;
-            let hi = notation.length_literal(drafts.clearance_hi)?;
-            Ok(tool.op(drafts.clearance_bound.bounds(lo, hi))?)
+            let bounds = drafts
+                .clearance_bound
+                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
+            Ok(tool.op(bounds)?)
         });
     }
 

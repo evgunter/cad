@@ -858,7 +858,9 @@ impl Tools {
                 },
                 Some(OpenTool::Clearance(tool)) => match selection.face() {
                     Some(face) => tool.seat_face(doc, face.clone()),
-                    None => on_node_pick(selection, |node| tool.seat_body(doc, node)),
+                    None => on_node_pick(selection, |node| {
+                        notices.extend(tool.seat_body(doc, node).map(ToolNotice::Clearance));
+                    }),
                 },
             }
         }

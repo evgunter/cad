@@ -594,18 +594,26 @@ vocabulary! {
 impl ClearanceBoundChoice {
     /// **The bounds this choice writes**, from the form's two lengths:
     /// `lo` is the one bound of a one-sided or exact requirement, and a
-    /// band's lower end; `hi` is a band's upper end, read by nothing
-    /// else. A reversed band and a negative bound are written as typed:
+    /// band's lower end; `hi` is a band's upper end, asked for by a band
+    /// alone. A reversed band and a negative bound are written as typed:
     /// the evaluation refuses them (`EmptyBand`, `NotADistance`), on
     /// the requirement's own row.
-    pub fn bounds<S>(self, lo: S, hi: S) -> pncad::document::ClearanceBounds<S> {
+    ///
+    /// # Errors
+    ///
+    /// `hi`'s, for a band.
+    pub fn bounds<S, E>(
+        self,
+        lo: S,
+        hi: impl FnOnce() -> Result<S, E>,
+    ) -> Result<pncad::document::ClearanceBounds<S>, E> {
         use pncad::document::ClearanceBounds as B;
-        match self {
+        Ok(match self {
             Self::AtLeast => B::AtLeast(lo),
             Self::AtMost => B::AtMost(lo),
             Self::Equal => B::Equal(lo),
-            Self::Between => B::Within { lo, hi },
-        }
+            Self::Between => B::Within { lo, hi: hi()? },
+        })
     }
 }
 
@@ -618,6 +626,14 @@ impl ClearanceBoundChoice {
 /// never re-read on the body a copy places, which every other seated
 /// tool does ([`Seats::pick`]); the commit door reads a tree pick of a
 /// construction on its world copy (`DocSession`'s `AddClearance` arm).
+///
+/// That redirect is why the seat is not a [`Seats`]: for a construction
+/// the world copies ONCE, a `Seats`-held body would land on the same
+/// copy, but a construction copied several times names no one copy —
+/// which part the author means is not in the pick — so the tool refuses
+/// such a pick itself ([`ClearanceEvent::SeveralCopies`]) and asks for
+/// the copy in the picture, where `Seats` would seat the construction
+/// and leave the insert door to refuse two seats in different spaces.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ClearancePick {
     /// A body: the node picked, as the document last spoke it.
@@ -662,10 +678,25 @@ impl ClearanceTool {
         usize::from(self.picks[0].is_some())
     }
 
-    /// **Feed one node pick**: its body, in the next seat.
-    pub fn seat_body(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+    /// **Feed one node pick**: its body, in the next seat — or, for a
+    /// body the world draws more than once, the refusal that names no
+    /// one copy ([`ClearanceEvent::SeveralCopies`]), the seat untouched.
+    #[must_use = "a declined pick is only reported if its notice is shown"]
+    pub fn seat_body(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+    ) -> Option<ClearanceEvent> {
+        let copies = crate::world::world_copies_of_read(doc, &Operand::Node(node)).len();
+        if copies > 1 {
+            return Some(ClearanceEvent::SeveralCopies {
+                node: doc.spoken(node),
+                copies,
+            });
+        }
         let i = self.next();
         self.picks[i] = Some(ClearancePick::Body(doc.spoken(node)));
+        None
     }
 
     /// **Feed one face pick**: the face, in the next seat.
@@ -815,6 +846,14 @@ pub enum ClearanceEvent {
         /// The resolution machinery's own verdict.
         resolution: Box<pncad::select::Resolution>,
     },
+    /// A tree pick of a body the world draws more than once: the pick
+    /// names no one copy, so the tool took nothing.
+    SeveralCopies {
+        /// The body picked.
+        node: SpokenNode,
+        /// How many world copies draw it.
+        copies: usize,
+    },
 }
 
 /// A node `by` does not hold is said as the tool kept it.
@@ -823,6 +862,15 @@ impl Say for ClearanceEvent {
         match self {
             Self::FaceLost { role, face, .. } => {
                 crate::matetool::pick_lost(f, role.name(), face, by)
+            }
+            Self::SeveralCopies { node, copies } => {
+                let held: HeldNodes = [node.clone()].into_iter().collect();
+                write!(
+                    f,
+                    "{} stands in the world {copies} times, so it names no one part — pick a \
+                     face of the copy you mean in the picture",
+                    by.or_held(&held).node(node.id())
+                )
             }
         }
     }
@@ -834,6 +882,10 @@ impl core::fmt::Display for ClearanceEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::FaceLost { face, .. } => self.say(f, Speaker::held(face.said())),
+            Self::SeveralCopies { node, .. } => {
+                let held: HeldNodes = [node.clone()].into_iter().collect();
+                self.say(f, Speaker::held(&held))
+            }
         }
     }
 }

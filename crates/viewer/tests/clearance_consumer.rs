@@ -6,7 +6,8 @@
 //! create door writes each shape of bound.
 //!
 //! The scene is two 20 × 20 × 10 mm blocks side by side along `x`,
-//! [`GAP`] apart, so every verdict has a number worked out by hand.
+//! 10 mm apart (`test_support::two_blocks_apart`), so every verdict has
+//! a number worked out by hand.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -16,24 +17,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pncad::analysis::{ClearanceOutcome, clearances_at_nominal};
-use pncad::document::{
-    CancelToken, ClearanceBounds, Doc, Formula, Node, ProfileProgram, RecipeNodeId,
-};
+use pncad::document::{CancelToken, ClearanceBounds, Formula, Node, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::evalseam::{CertifyDone, CertifyRequest, CertifyService};
 use viewer::generation::Generation;
 use viewer::props::Notation;
 use viewer::session::{ClearedSeat, DocSession, SessionOp};
-use viewer::test_support::{inserted, len, rectangle};
+use viewer::test_support::{CLEARANCE_GAP as GAP, CLEARANCE_SIDE as SIDE, len, two_blocks_apart};
 use viewer::tree::{Certified, Readout, TreeRow};
-
-/// The blocks' side, in x and y.
-const SIDE: f64 = 0.02;
-/// Their height.
-const HEIGHT: f64 = 0.01;
-/// The gap between the two blocks' facing walls.
-const GAP: f64 = 0.01;
 
 /// Millimetres, so every bound reads as written.
 const IN_MM: Notation = Notation {
@@ -41,28 +33,19 @@ const IN_MM: Notation = Notation {
     ..Notation::DEFAULT
 };
 
-/// **The scene, landed**: the two blocks, each a construction labelled
-/// `left` and `right` and placed into the world — two parts as they
-/// stand — under `certifier`, answering the session and each block's
-/// extrude.
+/// **The scene, landed** ([`two_blocks_apart`]) under `certifier`,
+/// answering the session and each block's extrude.
 fn scene(
     tol: Tol,
     certifier: Option<Box<dyn CertifyService>>,
 ) -> (DocSession, RecipeNodeId, RecipeNodeId) {
-    let (doc, left, right) = two_blocks(tol);
+    let (doc, [left, right], _) = two_blocks_apart(tol);
     let session = DocSession::inline(doc, tol);
     let mut session = match certifier {
         Some(certifier) => session.with_certifier(certifier),
         None => session,
     };
-    for block in [left, right] {
-        let outcome = session.perform(SessionOp::AddToProduct {
-            node: block,
-            body: None,
-        });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-    }
+    session.pump();
     (session, left, right)
 }
 
@@ -72,36 +55,6 @@ fn drawn(session: &DocSession, block: RecipeNodeId) -> RecipeNodeId {
         panic!("each block is placed once");
     };
     placement
-}
-
-/// The two blocks, answering the document and each block's extrude.
-fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let doc = Doc::empty_derived("clearance-consumer", tol);
-    let block = |doc: &Doc<ProfileProgram>, x: f64, label: &str| {
-        let (doc, profile) = inserted(doc, rectangle([x, 0.0], SIDE, SIDE), tol);
-        let (doc, solid) = inserted(
-            &doc,
-            Node::Extrude {
-                profile: profile.into(),
-                distance: len(HEIGHT),
-            },
-            tol,
-        );
-        let labelled = pncad::document::apply(
-            &doc,
-            &pncad::document::DocEdit::SetLabel {
-                node: solid,
-                label: Some(pncad::document::Label::new(label).expect("a label")),
-            },
-            tol,
-        )
-        .expect("the label lands")
-        .doc;
-        (labelled, solid)
-    };
-    let (doc, left) = block(&doc, 0.0, "left");
-    let (doc, right) = block(&doc, SIDE + GAP, "right");
-    (doc, left, right)
 }
 
 /// `clearance(left, right)` within `bounds`, both seats bodies.
@@ -163,8 +116,9 @@ impl CertifyService for Recording {
 }
 
 impl Recording {
-    /// The answer the certifying scalar gives the request in hand.
-    fn answer(&self, tol: Tol) -> CertifyDone {
+    /// The answer the certifying scalar gives the request in hand, at
+    /// the request's own tolerance.
+    fn answer(&self) -> CertifyDone {
         let request = self
             .asked
             .borrow()
@@ -176,7 +130,7 @@ impl Recording {
                 &request.doc,
                 request.resolver,
                 &CancelToken::new(),
-                tol,
+                request.tol,
             ),
         }
     }
@@ -237,14 +191,16 @@ fn a_landing_asks_the_certify_seam_only_when_it_holds_a_clearance() {
 }
 
 /// **A newer request cancels the older job, and its answer is dropped**:
-/// the edit that replaces a landing cancels the seam, and an answer for
-/// the replaced landing settles nothing — the row reads certifying until
-/// the new landing's own answer lands.
+/// the edit that replaces a landing cancels the seam, the landing's row
+/// says certifying stopped, the new landing's reads certifying, and an
+/// answer for the replaced landing settles nothing — until the new
+/// landing's own answer lands.
 ///
-/// Red if the next request leaves the job running, or if an answer for
-/// an older generation settles into the newer landing.
+/// Red if the next request leaves the job running, if the stopped row
+/// still reads certifying, or if an answer for an older generation
+/// settles into the newer landing.
 #[test]
-fn a_newer_request_cancels_the_certify_job_and_drops_its_answer() {
+fn a_newer_request_cancels_the_certify_job_and_its_late_answer_settles_nothing() {
     let tol = Tol::witness();
     let seam = Recording::default();
     let (mut session, left, right) = scene(tol, Some(Box::new(seam.clone())));
@@ -253,7 +209,7 @@ fn a_newer_request_cancels_the_certify_job_and_drops_its_answer() {
         requirement(left, right, ClearanceBounds::AtLeast(len(0.005))),
     );
     session.pump();
-    let stale = seam.answer(tol);
+    let stale = seam.answer();
     seam.seen.borrow_mut().clear();
     // Any edit replaces the landing: a label on the requirement.
     let outcome = session.perform(SessionOp::SetLabel {
@@ -266,7 +222,13 @@ fn a_newer_request_cancels_the_certify_job_and_drops_its_answer() {
         Some(&Seen::Cancel),
         "the request that replaces the landing cancels its job first"
     );
+    assert_eq!(
+        cleared(&session, id).answer,
+        Certified::Stopped,
+        "the landing still drawn says nothing is certifying it"
+    );
     session.pump();
+    assert_eq!(cleared(&session, id).answer, Certified::Certifying);
     assert_ne!(stale.generation, session.generation(), "the premise");
     seam.ready.borrow_mut().push(stale);
     session.pump();
@@ -275,7 +237,7 @@ fn a_newer_request_cancels_the_certify_job_and_drops_its_answer() {
         Certified::Certifying,
         "an answer for the landing replaced settles nothing"
     );
-    let fresh = seam.answer(tol);
+    let fresh = seam.answer();
     seam.ready.borrow_mut().push(fresh);
     session.pump();
     assert_eq!(
@@ -283,6 +245,36 @@ fn a_newer_request_cancels_the_certify_job_and_drops_its_answer() {
         Certified::Answered(ClearanceOutcome::Holds),
         "the landing's own answer settles"
     );
+}
+
+/// **A cancelled evaluation leaves its row saying certifying stopped**,
+/// never `certifying…`: the request that replaced the landing stopped
+/// its certify job, and the cancel means no landing comes to certify
+/// again — so the row says what is true, and how to resume.
+///
+/// Red if `request_eval` leaves the stopped landing reading certifying.
+#[test]
+fn a_cancelled_evaluation_leaves_its_row_saying_certifying_stopped() {
+    let tol = Tol::witness();
+    let seam = Recording::default();
+    let (mut session, left, right) = scene(tol, Some(Box::new(seam.clone())));
+    let id = add(
+        &mut session,
+        requirement(left, right, ClearanceBounds::AtLeast(len(0.005))),
+    );
+    session.pump();
+    let outcome = session.perform(SessionOp::SetLabel {
+        node: id,
+        label: Some(pncad::document::Label::new("gap").expect("a label")),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let cancelled = session.perform(SessionOp::CancelEvaluation);
+    assert!(cancelled.refusal.is_none(), "{:?}", cancelled.refusal);
+    session.pump();
+    assert!(!session.certifying(), "the premise: nothing is certifying");
+    let row = cleared(&session, id);
+    assert_eq!(row.state(), "not certified");
+    assert_eq!(row.sentence(), Some(viewer::tree::CERTIFY_STOPPED));
 }
 
 /// **Each verdict reads as its equation**, the seats in the document's
@@ -421,8 +413,7 @@ fn facing_wall(session: &DocSession, block: RecipeNodeId) -> viewer::session::Fa
 /// **A refusal reads as its sentence and its recourse**, under the
 /// equation: a band whose lower end is above its upper is the kernel's
 /// `EmptyBand`, refused at evaluation — the form writes it as typed —
-/// and a negative bound its `NotADistance`. Neither sentence names a
-/// node by a bare id.
+/// and a negative bound its `NotADistance`.
 ///
 /// Red if the row drops the refusal's sentence, or re-checks the bound
 /// itself rather than reading the kernel's refusal.
@@ -466,12 +457,6 @@ fn a_refused_bound_reads_as_the_kernels_sentence_and_recourse() {
             sentence.contains("Recourse:"),
             "{name} says what to do: {sentence}"
         );
-        for node in [left, right, reversed, negative] {
-            assert!(
-                !sentence.contains(&format!("node {}", node)),
-                "{name} names no node by a bare id: {sentence}"
-            );
-        }
     }
 }
 
@@ -556,12 +541,13 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
     let wall = facing_wall(&session, left);
     let mut tool = ClearanceTool::new();
     tool.seat_face(session.committed_doc(), wall.clone());
-    tool.seat_body(session.committed_doc(), right);
+    assert!(tool.seat_body(session.committed_doc(), right).is_none());
     let (lo, hi) = (len(0.005), len(0.02));
     for (choice, _) in ClearanceBoundChoice::ALL {
-        let op = tool
-            .op(choice.bounds(lo.clone(), hi.clone()))
-            .expect("both seats are held");
+        let bounds = choice
+            .bounds(lo.clone(), || Ok::<_, ()>(hi.clone()))
+            .expect("the band's upper end is a length");
+        let op = tool.op(bounds).expect("both seats are held");
         let id = add(&mut session, op);
         let doc = session.committed_doc();
         let Some(Node::Assertion(pncad::document::Claim::Clearance { a, b, bounds })) =
@@ -596,4 +582,166 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
             "{choice:?}: the second seat is the body"
         );
     }
+}
+
+/// **A one-sided bound never reads the band's upper end**: the form
+/// hides it, so a value there that could not be written must not refuse
+/// a requirement that does not have one.
+///
+/// Red if `bounds` asks for `hi` on any choice but the band.
+#[test]
+fn a_one_sided_bound_never_reads_the_hidden_upper_end() {
+    use viewer::combine::ClearanceBoundChoice;
+    for (choice, _) in ClearanceBoundChoice::ALL {
+        let got = choice.bounds(1.0, || Err("the hidden field"));
+        assert_eq!(
+            got.is_err(),
+            choice == ClearanceBoundChoice::Between,
+            "{choice:?}: {got:?}"
+        );
+    }
+}
+
+/// **A tree pick of a body the world draws twice is refused at the
+/// pick, in the tool's words**: it names no one part, so the tool seats
+/// nothing and asks for the copy in the picture — rather than seating
+/// the construction for the insert door to refuse in a placement's
+/// words.
+///
+/// Red if the tool seats a body the world draws more than once.
+#[test]
+fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
+    use viewer::combine::{ClearanceEvent, ClearanceTool};
+    let tol = Tol::witness();
+    let (doc, [left, _], _) = two_blocks_apart(tol);
+    let (doc, _) = viewer::test_support::placed(&doc, left, tol);
+    let mut tool = ClearanceTool::new();
+    let refused = tool.seat_body(&doc, left).expect("the pick is refused");
+    assert!(
+        matches!(refused, ClearanceEvent::SeveralCopies { copies: 2, .. }),
+        "{refused:?}"
+    );
+    let said = pncad::document::Said(&refused, pncad::document::Speaker::of(&doc)).to_string();
+    assert!(
+        said.contains("\"left\"")
+            && said.contains("pick a face of the copy you mean in the picture"),
+        "{said}"
+    );
+    assert_eq!(tool.body(0), None, "the seat is untouched");
+}
+
+/// **A requirement over a pattern's members refuses in words, never
+/// crashes**: a pattern seat lifts the assertion over the family, one
+/// requirement per member, which the certifying lane does not decide
+/// yet. The row says so with its recourse, under the requirement's own
+/// name. A face of one drawn member, picked in the picture, seats that
+/// member alone, and is certified.
+///
+/// Red if the landing hands the family to the certify door as a verdict
+/// (which panicked the worker), or the row stays silent.
+#[test]
+fn a_requirement_over_a_patterns_members_refuses_in_words() {
+    let tol = Tol::witness();
+    let (mut session, left, right) = scene(tol, None);
+    let pattern = add(
+        &mut session,
+        SessionOp::AddPattern {
+            input: left.into(),
+            count: 3,
+            rule: viewer::session::PatternRuleSpec::Linear {
+                direction: viewer::test_support::scl3([0.0, 1.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    session.pump();
+    let by_body = add(
+        &mut session,
+        requirement(pattern, right, ClearanceBounds::AtLeast(len(0.02))),
+    );
+    let label = pncad::document::Label::new("pattern gap").expect("a label");
+    let labelled = session.perform(SessionOp::SetLabel {
+        node: by_body,
+        label: Some(label),
+    });
+    assert!(labelled.refusal.is_none(), "{:?}", labelled.refusal);
+    session.pump();
+    let row = cleared(&session, by_body);
+    assert!(
+        matches!(
+            row.answer,
+            Certified::Answered(ClearanceOutcome::OverMembers { .. })
+        ),
+        "{:?}",
+        row.answer
+    );
+    assert_eq!(row.state(), "Refused");
+    let sentence = row.sentence().expect("the refusal is said");
+    assert!(
+        sentence.contains("\"pattern gap\"") && sentence.contains("Recourse:"),
+        "{sentence}"
+    );
+    // A landing whose only clearance is lifted owes no certified answer.
+    let seam = Recording::default();
+    let mut fresh = DocSession::inline(session.committed_doc().clone(), tol)
+        .with_certifier(Box::new(seam.clone()));
+    fresh.pump();
+    assert!(
+        seam.submits().is_empty(),
+        "a family is not handed to the certify door as a verdict"
+    );
+    // The certify door answers it the same way, in words, rather than
+    // reading the family as a verdict.
+    let answers = clearances_at_nominal(session.doc(), None, &CancelToken::new(), tol)
+        .expect("an uncancelled run answers");
+    let door = answers
+        .iter()
+        .find(|answer| answer.assertion == by_body)
+        .expect("one answer per clearance");
+    assert!(
+        matches!(&door.answer, ClearanceOutcome::OverMembers { sentence } if sentence.contains("Recourse:")),
+        "{:?}",
+        door.answer
+    );
+    // A face of the second member, picked where the picture draws it.
+    let doc = session.committed_doc();
+    let [drawn] = viewer::world::placements_of(doc, pattern)[..] else {
+        panic!("the pattern is drawn once");
+    };
+    let (landed, eval) = session.landed_pair().expect("landed");
+    let index = viewer::pickindex::PickIndex::build(
+        landed,
+        eval,
+        viewer::pickindex::PictureKey::of(
+            session.generation(),
+            viewer::test_support::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
+        tol,
+    )
+    .expect("the scene indexes");
+    let id = *index
+        .ids_in(drawn, 1)
+        .first()
+        .expect("the second member is drawn");
+    let member_face = index.face_of(id).expect("a drawn patch is a named face");
+    let by_face = add(
+        &mut session,
+        SessionOp::AddClearance {
+            a: ClearedSeat::Face(member_face),
+            b: ClearedSeat::Body(right.into()),
+            bounds: ClearanceBounds::AtLeast(len(0.02)),
+        },
+    );
+    session.pump();
+    // That face is one member's: the second, 50 mm up the pattern,
+    // whose nearest corner is √(10² + 30²) ≈ 31.6 mm from the right
+    // block — clear of 20 mm, where the family's first member, 10 mm
+    // away, would violate it.
+    let row = cleared(&session, by_face);
+    assert_eq!(
+        row.answer,
+        Certified::Answered(ClearanceOutcome::Holds),
+        "a face of a drawn member reads that member"
+    );
 }

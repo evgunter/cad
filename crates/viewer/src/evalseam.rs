@@ -5,11 +5,10 @@
 //! checks report gets the coincidence door's answer at rest
 //! ([`DoorService`]), and where its clearance requirements get the
 //! certifying scalar's ([`CertifyService`]) — and, beside the landing,
-//! where an operation
-//! staged and not committed is evaluated for its verdict
-//! ([`StagedService`]). **The one place in this crate that OWNS a
-//! thread**: `app` spawns every worker because
-//! it decides which implementation this build runs, and every join
+//! where an operation staged and not committed is evaluated for its
+//! verdict ([`StagedService`]). **The one place in this crate that OWNS
+//! a thread**: `app` spawns every worker because it decides which
+//! implementation this build runs, and every join
 //! handle, channel and hand-off between them is here. The options a
 //! session's evaluation runs under are spelled here too ([`options`]),
 //! for the seam's runs and for the ones a session takes beside the
@@ -1770,8 +1769,8 @@ mod threaded {
     /// [`Coalescing`] over [`Tokened`] jobs and the token of the newest,
     /// which a submit cancels before it replaces it. Every such seam is
     /// one of these over its own request and answer
-    /// ([`ThreadProver`], [`ThreadStager`]), so its submit, cancel and
-    /// shutdown are written once.
+    /// ([`ThreadProver`], [`ThreadStager`], [`ThreadCertifier`]), so its
+    /// submit, cancel and shutdown are written once.
     #[derive(Debug)]
     struct Cancelling<R: core::fmt::Debug + Send + 'static, D: Send + 'static> {
         inner: Coalescing<Tokened<R, D>>,

@@ -2202,6 +2202,10 @@ pub fn tool_notice(
         ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
+        // A declined pick: the same pick says it again.
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::SeveralCopies { .. }) => {
+            Retold::Again
+        }
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..

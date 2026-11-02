@@ -479,8 +479,10 @@ pub struct Cleared {
     pub answer: Certified,
 }
 
-// `ClearanceOutcome` derives `PartialEq` alone, for its points' sake;
-// over bitwise-compared numbers that is an equivalence.
+// `ClearanceOutcome` derives `PartialEq` alone, over a witness pair's
+// raw `f64`s. Value equality is an equivalence over finite numbers, and
+// a pair's numbers are finite: they are points the `f64` verifier placed
+// on two faces and the distance between them (`clearance::closest_pair`).
 impl Eq for Cleared {}
 
 /// **One bound of a clearance, said**: its length, spelled when the
@@ -505,12 +507,16 @@ impl Bound {
 }
 
 /// **What a clearance row's run said**: the certifying scalar's answer,
-/// or that it is still owed.
+/// that it is still owed, or that nothing is certifying it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Certified {
     /// The landing owes the certifying scalar's answer, which runs at
     /// rest (`crate::session::DocSession::certifying`).
     Certifying,
+    /// The next request stopped the certify job before it answered, and
+    /// nothing certifies this landing: it is certified again when a
+    /// landing answers, which a cancelled request never does.
+    Stopped,
     /// The answer, in plain numbers. At `f64` it is the third state,
     /// naming the lane that certifies.
     Answered(pncad::analysis::ClearanceOutcome),
@@ -519,23 +525,37 @@ pub enum Certified {
 /// The word the row's state reads as while the answer is owed.
 pub const CERTIFYING: &str = "certifying…";
 
+/// What a row whose certify job was stopped says under it.
+pub const CERTIFY_STOPPED: &str = "certifying stopped: a newer evaluation was asked for before it \
+     answered, and the requirement is certified when that evaluation lands. Recourse: Re-evaluate \
+     if the evaluation was cancelled";
+
+/// **The pair a clearance answer drew on**, where it has one: the pair
+/// that proves an upper bound (`Within`) or violates a lower one
+/// (`Violated`). The one reading the row and the witness mark share
+/// (`crate::session::DocSession::witness`).
+pub fn witness_pair(
+    answer: &pncad::analysis::ClearanceOutcome,
+) -> Option<&pncad::analysis::PairOfPoints> {
+    use pncad::analysis::ClearanceOutcome as O;
+    match answer {
+        O::Within(pair) | O::Violated(pair) => Some(pair),
+        O::Holds
+        | O::Exceeded
+        | O::Refused { .. }
+        | O::OverMembers { .. }
+        | O::Unanswered { .. } => None,
+    }
+}
+
 impl Cleared {
     /// **The claim as an equation**, its bounds spelled in `notation`:
     /// `clearance(a, b) ≥ 2 mm`, `≤`, `=`, or the band
-    /// `1 mm ≤ clearance(a, b) ≤ 3 mm`.
+    /// `1 mm ≤ clearance(a, b) ≤ 3 mm` — the kernel's own spelling
+    /// ([`pncad::document::ClearanceBounds::equation`]).
     pub fn equation(&self, notation: Notation) -> String {
-        use pncad::document::ClearanceBounds as B;
-        let clearance = format!("clearance({}, {})", self.a, self.b);
-        match &self.bounds {
-            B::AtLeast(c) => format!("{clearance} ≥ {}", c.spelled(notation)),
-            B::AtMost(c) => format!("{clearance} ≤ {}", c.spelled(notation)),
-            B::Equal(c) => format!("{clearance} = {}", c.spelled(notation)),
-            B::Within { lo, hi } => format!(
-                "{} ≤ {clearance} ≤ {}",
-                lo.spelled(notation),
-                hi.spelled(notation)
-            ),
-        }
+        self.bounds
+            .equation(&self.a, &self.b, |bound| bound.spelled(notation))
     }
 
     /// **The answer's state**, in the verdict's own word.
@@ -543,12 +563,13 @@ impl Cleared {
         use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
             Certified::Certifying => CERTIFYING,
+            Certified::Stopped => "not certified",
             Certified::Answered(answer) => match answer {
                 O::Holds => "Holds",
                 O::Within(_) => "Within",
                 O::Violated(_) => "Violated",
                 O::Exceeded => "Exceeded",
-                O::Refused { .. } => "Refused",
+                O::Refused { .. } | O::OverMembers { .. } => "Refused",
                 O::Unanswered { .. } => "Unevaluated",
             },
         }
@@ -579,32 +600,36 @@ impl Cleared {
                 Some("every pair is farther apart than the upper bound".to_owned())
             }
             Certified::Certifying
-            | Certified::Answered(O::Holds | O::Refused { .. } | O::Unanswered { .. }) => None,
+            | Certified::Stopped
+            | Certified::Answered(
+                O::Holds | O::Refused { .. } | O::OverMembers { .. } | O::Unanswered { .. },
+            ) => None,
         }
     }
 
-    /// **The sentence drawn under the row**: the refusal said with its
-    /// recourse, or why the assertion did not evaluate.
+    /// **The sentence drawn under the row**: a refusal said with its
+    /// recourse, why the assertion did not evaluate, or that nothing is
+    /// certifying it.
     pub fn sentence(&self) -> Option<&str> {
         use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
-            Certified::Answered(O::Refused { sentence, .. } | O::Unanswered { sentence }) => {
-                Some(sentence)
-            }
+            Certified::Answered(
+                O::Refused { sentence, .. }
+                | O::OverMembers { sentence }
+                | O::Unanswered { sentence },
+            ) => Some(sentence),
+            Certified::Stopped => Some(CERTIFY_STOPPED),
             Certified::Certifying
             | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
         }
     }
 
-    /// **The witness pair the answer drew on**, where it has one.
+    /// **The witness pair the answer drew on**, where it has one
+    /// ([`witness_pair`]).
     pub fn pair(&self) -> Option<&pncad::analysis::PairOfPoints> {
-        use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
-            Certified::Answered(O::Within(pair) | O::Violated(pair)) => Some(pair),
-            Certified::Certifying
-            | Certified::Answered(
-                O::Holds | O::Exceeded | O::Refused { .. } | O::Unanswered { .. },
-            ) => None,
+            Certified::Answered(answer) => witness_pair(answer),
+            Certified::Certifying | Certified::Stopped => None,
         }
     }
 
@@ -616,19 +641,24 @@ impl Cleared {
         match &self.answer {
             Certified::Answered(O::Violated(_) | O::Exceeded) => Tone::Actionable,
             Certified::Certifying
+            | Certified::Stopped
             | Certified::Answered(
-                O::Holds | O::Within(_) | O::Refused { .. } | O::Unanswered { .. },
+                O::Holds
+                | O::Within(_)
+                | O::Refused { .. }
+                | O::OverMembers { .. }
+                | O::Unanswered { .. },
             ) => Tone::Advisory,
         }
     }
 }
 
-/// **A clearance claim's row**, its answer the run's own verdict.
+/// **A clearance claim's row**, its answer the run's own: `answer`.
 fn cleared(
     doc: &Doc<ProfileProgram>,
     [a, b]: [pncad::document::VarId; 2],
     bounds: &pncad::document::ClearanceBounds<pncad::document::VarId>,
-    verdict: &AssertionVerdict<f64>,
+    answer: pncad::analysis::ClearanceOutcome,
 ) -> Cleared {
     let by = Speaker::of(doc);
     let bound = |var: pncad::document::VarId| match crate::props::variable_value(doc, var) {
@@ -637,9 +667,6 @@ fn cleared(
             dimension: pncad::document::Dimension::Length,
         }),
         Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var)),
-    };
-    let AssertionVerdict::Clearance(report) = verdict else {
-        unreachable!("a clearance assertion's verdict is its report")
     };
     // A face seat is its face, said; a body seat its read — a world
     // copy's as the body it places ([`crate::world::copy_source`]), the
@@ -661,7 +688,7 @@ fn cleared(
             Ok(bounds) => bounds,
             Err(never) => match never {},
         },
-        answer: Certified::Answered(pncad::analysis::ClearanceOutcome::of(report.verdict(), by)),
+        answer: Certified::Answered(answer),
     }
 }
 
@@ -1105,19 +1132,37 @@ fn readout_of(
             canonical: *value,
             dimension: *dim,
         })),
-        ValuePayload::Assertion(verdict) => Some(match node {
-            Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }) => {
-                Readout::Clearance(cleared(doc, [*a, *b], bounds, verdict))
-            }
+        ValuePayload::Assertion(verdict) => Some(match (node, verdict) {
+            (
+                Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }),
+                AssertionVerdict::Clearance(report),
+            ) => Readout::Clearance(cleared(
+                doc,
+                [*a, *b],
+                bounds,
+                pncad::analysis::ClearanceOutcome::of(report.verdict(), Speaker::of(doc)),
+            )),
             _ => Readout::Asserted(asserted(doc, node, verdict)),
         }),
+        // A clearance whose seat reads a pattern's members, lifted over
+        // the family: the row says so in the certifying door's words.
+        ValuePayload::Family => match node {
+            Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }) => {
+                Some(Readout::Clearance(cleared(
+                    doc,
+                    [*a, *b],
+                    bounds,
+                    pncad::analysis::ClearanceOutcome::over_members(doc, id),
+                )))
+            }
+            _ => None,
+        },
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Instances(_)
-        | ValuePayload::Family => None,
+        | ValuePayload::Instances(_) => None,
     }
 }
 
