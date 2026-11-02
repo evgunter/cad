@@ -3773,7 +3773,7 @@ mod tests {
     fn a_resolved_fused_fillet_draws_its_carriers_and_its_fillet_circle() {
         let (previews, constructions) = door(&vesica(0.5));
         assert!(
-            matches!(&previews.create, Some(Ok(_))),
+            matches!(&previews.edit, Some(Ok(_))),
             "a fixture whose fillet resolves: {previews:?}"
         );
         let drawn = construction_legs(&constructions);
@@ -3808,7 +3808,7 @@ mod tests {
     fn a_refused_fused_fillet_still_draws_its_carriers() {
         let (previews, constructions) = door(&vesica(5.0));
         assert!(
-            matches!(&previews.create, Some(Err(_))),
+            matches!(&previews.edit, Some(Err(_))),
             "a fixture whose fillet refuses with nothing before it: {previews:?}"
         );
         let drawn = construction_legs(&constructions);
@@ -4006,7 +4006,7 @@ mod tests {
                 .collect();
             assert_eq!(mark.len(), 3, "one heading mark at the anchor: {mark:?}");
             let lift: f64 = mark.iter().flatten().map(|p| f64::from(p[1])).sum();
-            (previews.create.is_some_and(|p| p.is_ok()), lift)
+            (previews.edit.is_some_and(|p| p.is_ok()), lift)
         };
         let (resolves, up) = heading(ArcSweep::Ccw);
         let (refused, down) = heading(ArcSweep::Cw);

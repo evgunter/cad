@@ -3042,8 +3042,9 @@ mod tests {
     /// what to do, and the draft waits.** The first leg is an arc to a
     /// point whose x reads `w`; re-moded to a radius arc, which has no
     /// target, the door says the argument is driven and how through,
-    /// and forms nothing. The way it names lands: discarded, the
-    /// expression written over by a number, the same re-mode lands.
+    /// and forms nothing. The way it names works: discarded, the
+    /// expression written over by a number, the same re-mode no longer
+    /// waits on it.
     #[test]
     fn an_arc_re_moded_off_its_driven_argument_says_what_to_do() {
         use crate::session::SessionOp;
@@ -3117,8 +3118,11 @@ mod tests {
             "a number written over the expression un-drives it"
         );
         remode(&mut drafts, &session);
-        let (_, formed) = door_says(&session, &mut drafts, profile);
-        assert!(formed, "the re-mode now lands");
+        let (painted, _) = door_says(&session, &mut drafts, profile);
+        assert!(
+            !painted.contains("is driven by an expression"),
+            "the re-mode no longer waits on the driven argument: {painted}"
+        );
     }
 
     /// **A driving variable deleted under held edits holds the draft,

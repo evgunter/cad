@@ -9049,14 +9049,18 @@ mod properties_pane_tests {
             driven.quiet();
         }
 
+        /// The held draft offered to the document, as a field's commit
+        /// offers it: what the pane says after that it did not before.
         fn apply(driven: &mut Driven) -> Vec<String> {
             let before = driven.app.session.history().len();
             let pre: Vec<String> = driven.quiet().into_iter().map(|(r, _)| r).collect();
-            if !pre.iter().any(|r| r == "Apply") {
-                eprintln!("NO APPLY; runs: {:?}", &pre[pre.len().saturating_sub(60)..]);
-                return Vec::new();
-            }
-            driven.click("Apply");
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .unsettled = true;
             driven.settle();
             let painted = driven.quiet();
             eprintln!(
@@ -9096,8 +9100,8 @@ mod properties_pane_tests {
                 );
         }
 
-        /// Apply's own formation (`edit_door_ui`), performed, for a pane
-        /// too tall for the harness window.
+        /// The op a settled draft forms (`edit_door_ui`), performed
+        /// directly.
         fn apply_direct(driven: &mut Driven) -> Option<String> {
             let edit = driven.app.drafts.profile_edit.as_ref().expect("held");
             let op = SessionOp::EditProfile {
@@ -9464,16 +9468,14 @@ mod properties_pane_tests {
             eprintln!("control said {said:?}");
         }
 
-        /// E2E: open, edit, Apply, drag the variable, release, undo.
+        /// E2E: open, edit, land the edit, drag the variable, release, undo.
         #[test]
-        fn e2e_apply_then_drag_then_release_then_undo() {
+        fn e2e_land_then_drag_then_release_then_undo() {
             let mut driven = driven_plate();
             assert_eq!(held_point(&driven, 2).x, 0.07);
             touch_far_y(&mut driven, 0.05);
             let states = driven.app.session.history().len();
-            driven.click("Apply");
-            driven.settle();
-            driven.quiet();
+            let _said = apply(&mut driven);
             eprintln!(
                 "history {} -> {}",
                 states,
@@ -9636,7 +9638,7 @@ mod properties_pane_tests {
         }
 
         #[test]
-        fn a_rename_then_apply_keeps_the_new_name() {
+        fn a_rename_then_a_landed_edit_keeps_the_new_name() {
             let mut driven = driven_plate();
             let var = w(&driven);
             perform(
@@ -9648,8 +9650,7 @@ mod properties_pane_tests {
             );
             driven.quiet();
             touch_far_y(&mut driven, 0.05);
-            driven.click("Apply");
-            driven.settle();
+            let _said = apply(&mut driven);
             let row = driven.row(profile(), outline(2, StepArg::TargetX));
             eprintln!("source after rename+apply: {:?}", row.source);
             assert_eq!(row.source.as_deref(), Some("width"));
@@ -9900,71 +9901,23 @@ mod properties_pane_tests {
                 .and_then(|held| held.source)
         }
 
-        /// Apply, and the history states it took.
-        fn apply(driven: &mut Driven) -> usize {
-            let before = driven.app.session.history().len();
-            driven.click("Apply");
-            driven.settle();
-            driven.app.session.history().len() - before
-        }
-
-        /// **A formula typed over held edits goes into the draft, and
-        /// commits with them as one step.** The far corner is moved in
-        /// the draft; `w/7` typed into the anchor's x reaches neither
-        /// the document nor a refusal: the draft holds it, and previews
-        /// it as `w` reads (a variable set moves the held anchor). The
-        /// commit is one history state carrying both, and one undo
-        /// takes both back.
+        /// **A formula typed over a held edit lands with it as one
+        /// step.** The far corner is moved in the draft; `w/7` typed
+        /// into the anchor's x and committed with Enter offers the
+        /// whole draft, which lands as one history state carrying
+        /// both, and one undo takes both back.
         #[test]
-        fn a_formula_typed_over_held_edits_commits_with_them_in_one_step() {
+        fn a_formula_typed_over_a_held_edit_lands_with_it_in_one_step() {
             let mut driven = with_w();
             let before = driven.app.session.committed_doc().clone();
             let states = driven.app.session.history().len();
             hold_far_y(&mut driven, 0.05);
             type_into_x(&mut driven, 0, "w/7");
-            assert!(
-                driven.app.session.committed_doc().bit_eq(&before),
-                "the formula reached the document before the commit"
-            );
             assert_eq!(
                 driven.app.session.history().len(),
-                states,
-                "nor did anything land and come back"
+                states + 1,
+                "one history state"
             );
-            assert!(
-                held_source(&driven, 0, StepArg::PointX).is_some_and(|src| src.contains('w')),
-                "the draft holds the formula: {:?}",
-                held_source(&driven, 0, StepArg::PointX)
-            );
-            let Step::At(anchor) = held_step(&driven, 0) else {
-                panic!("the outline opens with its anchor")
-            };
-            assert_eq!(anchor.x, 0.01, "the held anchor previews at w/7");
-            let Step::LineTo(Target::Point(far)) = held_step(&driven, 3) else {
-                panic!("a point leg")
-            };
-            assert_eq!(far.y, 0.05, "the other held edit stands");
-            let var = driven
-                .app
-                .session
-                .committed_doc()
-                .var_named("w")
-                .expect("w");
-            let out = driven.app.session.perform(SessionOp::SetVariable {
-                var,
-                value: crate::props::SlotValue::Continuous(0.14),
-            });
-            assert!(out.refusal.is_none(), "{:?}", out.refusal);
-            driven.quiet();
-            let Step::At(anchor) = held_step(&driven, 0) else {
-                panic!("the anchor")
-            };
-            assert_eq!(
-                anchor.x, 0.02,
-                "the preview reads w as the document now holds it"
-            );
-            let set = driven.app.session.committed_doc().clone();
-            assert_eq!(apply(&mut driven), 1, "one history state");
             let row = driven.row(profile(), outline(0, StepArg::PointX));
             assert!(row.driver.is_driven(), "the anchor's x is driven: {row:?}");
             assert_eq!(
@@ -9972,7 +9925,7 @@ mod properties_pane_tests {
                     .ok()
                     .and_then(|value| value.one())
                     .map(|v| v.as_f64()),
-                Some(0.02),
+                Some(0.01),
                 "by w/7"
             );
             let far = driven.row(profile(), outline(3, StepArg::TargetY));
@@ -9987,19 +9940,18 @@ mod properties_pane_tests {
             let out = driven.app.session.perform(SessionOp::Undo);
             assert!(out.refusal.is_none(), "{:?}", out.refusal);
             assert!(
-                driven.app.session.committed_doc().bit_eq(&set),
+                driven.app.session.committed_doc().bit_eq(&before),
                 "one undo takes both back"
             );
         }
 
-        /// **A formula typed into a step the draft made commits too.**
-        /// A leg inserted in the draft has no committed slot; `w/2`
-        /// typed into its x is held, previewed and committed with the
-        /// new step in one history state.
+        /// **A formula typed into a step the draft made lands with
+        /// it.** A leg inserted in the draft has no committed slot;
+        /// `w/2` typed into its x and committed lands the new step
+        /// carrying the formula in one history state.
         #[test]
-        fn a_formula_typed_into_a_draft_only_step_commits_with_it() {
+        fn a_formula_typed_into_a_draft_only_step_lands_with_it() {
             let mut driven = with_w();
-            let before = driven.app.session.committed_doc().clone();
             let at = pncad::geom_core::Point2::new(0.03, -0.01);
             edit(&mut driven)
                 .edit_row(
@@ -10014,20 +9966,11 @@ mod properties_pane_tests {
             driven.quiet();
             let states = driven.app.session.history().len();
             type_into_x(&mut driven, 1, "w/2");
-            assert!(
-                driven.app.session.committed_doc().bit_eq(&before),
-                "nothing reached the document"
-            );
             assert_eq!(
                 driven.app.session.history().len(),
-                states,
-                "nor its history"
+                states + 1,
+                "one history state"
             );
-            let Step::LineTo(Target::Point(new)) = held_step(&driven, 1) else {
-                panic!("the inserted leg")
-            };
-            assert_eq!(new.x, 0.035, "the new leg previews at w/2");
-            assert_eq!(apply(&mut driven), 1, "one history state");
             let row = driven.row(profile(), outline(1, StepArg::TargetX));
             assert!(
                 row.source.as_deref().is_some_and(|src| src.contains('w')),
@@ -10134,18 +10077,18 @@ mod properties_pane_tests {
             assert_eq!(driven.app.session.history().len(), states);
         }
 
-        /// **A number typed over a formula the draft holds is refused as
-        /// the slot row refuses it**, and moves nothing: `w/7` is held
-        /// over the anchor's committed literal, and `0.5` typed over it
-        /// is said as the driven affordance, leaving the draft as it was.
-        /// Every frame the field hands its text over on still draws the
-        /// rest of the door (its Apply).
+        /// **A number typed over a formula is refused as the slot row
+        /// refuses it**, and moves nothing: `w/7` lands over the
+        /// anchor's literal, and `0.5` typed over it is said as the
+        /// driven affordance, leaving the draft and the document as they
+        /// were. Every frame the field hands its text over on still
+        /// draws the rest of the door (its discard control).
         #[test]
-        fn a_number_typed_over_a_draft_formula_is_refused_and_moves_nothing() {
+        fn a_number_typed_over_a_formula_is_refused_and_moves_nothing() {
             let mut driven = with_w();
+            type_into_x(&mut driven, 0, "w/7");
             let before = driven.app.session.committed_doc().clone();
             let states = driven.app.session.history().len();
-            type_into_x(&mut driven, 0, "w/7");
             let held = edit(&mut driven).programs().expect("lowers");
             let frames = type_into_x(&mut driven, 0, "0.5");
             assert_eq!(
@@ -10165,8 +10108,8 @@ mod properties_pane_tests {
             );
             for (at, frame) in frames.iter().enumerate() {
                 assert!(
-                    frame.iter().any(|run| run == "Apply"),
-                    "frame {at} after Enter still draws the door's Apply: {frame:?}"
+                    frame.iter().any(|run| run == crate::pane::profile::DISCARD),
+                    "frame {at} after Enter still draws the door's discard: {frame:?}"
                 );
             }
             assert!(driven.app.session.committed_doc().bit_eq(&before));
@@ -10569,6 +10512,11 @@ mod properties_pane_tests {
                 )],
             },
         ]);
+        // The creation selected the profile; this row picks it itself.
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Select(Selection::None)]);
+        driven.settle();
         let on_line = window_pos_of(&driven, [0.030, 0.010, 0.0]);
         let outside = window_pos_of(&driven, [0.030, 0.005, 0.0]);
         let inside = window_pos_of(&driven, [0.030, 0.020, 0.0]);

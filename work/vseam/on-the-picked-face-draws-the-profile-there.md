@@ -38,3 +38,37 @@ and `work/lib/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
   then. This deletion crosses into doctail's ground, and the VSEAM
   orchestrator authorises it as deletions only.
 - Close the parent row with this unit.
+
+## 2026-11-02 — the add-profile form is gone; New profile is where this lands
+
+Evidence from FORMS' profile unit (branch `forms/profile-unit`, which
+closes `work/forms/the-profile-create-form-is-a-second-profile-editor`).
+The add-profile form, its "on the picked face" checkbox and
+`Drafts::sketch_on_face`, `sketch_face`, `sketch_depth` and
+`sketch_spin` are deleted. The creation section's one profile door is
+now a **New profile** button (`ViewerBehavior::new_profile_ui`,
+`crates/viewer/src/pane/create.rs`), which inserts a profile with no
+loops and selects it, so the profile editor opens on it
+(`crates/viewer/README.md`, "A create gesture commits the node":
+"New profile inserts a profile with no loops, on a picked face's frame
+when a face is picked").
+
+No door on main inserts a profile on a face's frame yet: the
+editor-core half
+(`work/doctail/a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face`)
+is open, and `SessionOp::SketchOnFace` extrudes and fuses, which the
+ruling retires. So the button inserts on the profile's own plane
+whatever is picked, and the GUI has no sketch-on-face gesture until
+this unit lands. What this unit's build becomes:
+
+- **"On the picked face"** is no checkbox now. With a face picked, New
+  profile inserts the empty profile on that face's frame through the
+  editor-core door, and the editor fills it in. Its picks are the
+  face and the click's point (the x cell); spin is the frame's slot.
+- `SessionOp::SketchOnFace` and `session.rs`'s `sketch_on_face` are
+  still on main, with no GUI caller; their retirement is unchanged.
+  The viewer's held-face rows that used the checkbox now take the
+  traced-profile form's plane latch, and perform `SketchOnFace`
+  directly where they need a takeover (`app.rs`, `holding_the_top_cap`
+  and `sketch_on`); they move to whatever takeover remains once it
+  retires.
