@@ -17,7 +17,7 @@ ATTRIBUTES, never as prose to be parsed.
 Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
 the arrival builders, `Start`, `circle`,
-`circle_split`) plus the straight-segment shortcut `Node.polygon`;
+`circle_split`, `rectangle`) plus the straight-segment shortcut `Node.polygon`;
 one loop or a list of them, drawn on the profile's own xy. Arcs — sharp legs
 and the fillet family alike — are authored by SPEC MODE (`Bulge`,
 `Via`, `Center`, `Radius`, `Sweep`, `ArcLen`).
@@ -1361,7 +1361,7 @@ class ClosedLoop:
     @property
     def step(self) -> AuthoredStep:
         """The handle of the loop's last step — the closing verb's, or
-        the one step of a `circle` or `circle_split`."""
+        the one step of a `circle`, `circle_split` or `rectangle`."""
 
 _T = TypeVar("_T")
 
@@ -1731,6 +1731,15 @@ def circle_split(
     n: int,
     phase: Angle,
 ) -> ClosedLoop: ...
+def rectangle(
+    centre: tuple[Length, Length],
+    width: Length,
+    height: Length,
+) -> ClosedLoop:
+    """The axis-aligned rectangle as written: one step keeping its
+    centre, width and height, lowered to four legs counterclockwise
+    from the lower-left corner. Its sides are `Role.piece(0)` to
+    `Role.piece(3)`: bottom, right, top, left."""
 
 # --- a profile drawn on a frame, tracing faces --------------------------
 # A chain written in the document's own vocabulary: the document replays
@@ -1819,7 +1828,8 @@ class Role:
     RunOut: Final[Role]
     @staticmethod
     def piece(k: int) -> Role:
-        """Piece `k` of a carrier form (`circle`, `circle_split`)."""
+        """Piece `k` of a complete-loop form (`circle`, `circle_split`,
+        `rectangle`)."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 

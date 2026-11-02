@@ -149,3 +149,15 @@ and bodies unchanged. No orchestrator yet.
   - **(F4)** C3 states the 1×2 trace in the present tense with no code yet. That stays untrue until stage 3 or 4. Accepted as drift with a schedule.
   - **(F5)** Fixed: the torus row's stop.
   - **Load:** the slate is now well over budget (the NURBS arm is about 4 H, the cylinder unit's remaining 2 stages, the cone, the conic pairs). A split along the semantic seam (the NURBS arm vs the unbounded analytic pairs) is owed at the next natural seam.
+- 2026-11-02 — **NURBS stage 1 (PR 6304) reviewed and fixed.** Dual concurrent review in cloud sessions on `6f1be80`; both reviewers APPROVE-WITH-FIXES.
+  - **The one MAJOR is bilateral, at divergent severity:** no row pinned a curved partner's metres conversion (fixtures all had R ≈ 1).
+  - **Fix pass `32cb604` added:**
+    - rows at R = 100, a torus inner-equator wall, a refined quarter-cylinder, a radius-100 ruling graze, and the leaf at ×1e-3 and ×1e-2 (every mutant now red, including the sweep-on-raw-`f` one via a half-dome side touch);
+    - corners decided clear on a floor;
+    - `residual::Form` as a three-variant type;
+    - partner-neutral predicate names;
+    - one door and hull rule;
+    - topo routing rows.
+  - **Filed:** `a-curved-partners-coincidence-ceiling-is-read-per-net` (P3 E) and `the-canonical-implicit-forms-are-spelled-three-times` (P3 M).
+  - A wall tangent along a whole side refuses by the cell budget on the plane path too, so it is not new and not filed.
+  - **Class to watch:** fixtures at unit scale cannot see a units error. A conversion's rows need a scale far from 1.

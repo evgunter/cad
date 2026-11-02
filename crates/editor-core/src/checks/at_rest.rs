@@ -1493,8 +1493,11 @@ pub(crate) fn finding_group<T: Decide>(
 pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<SolidKey, u32> {
     copies
         .iter()
-        .zip(0u32..)
-        .flat_map(|(c, i)| c.keys.solids().iter().map(move |&s| (s, i)))
+        .enumerate()
+        .flat_map(|(i, c)| {
+            let group = crate::names::to_u32(i, crate::product::GRAFTED_WITHIN_U32);
+            c.keys.solids().iter().map(move |&s| (s, group))
+        })
         .collect()
 }
 

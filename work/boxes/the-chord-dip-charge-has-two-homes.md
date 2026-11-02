@@ -2,10 +2,13 @@
 id: the-chord-dip-charge-has-two-homes
 kind: issue
 title: The chord-dip charge f2*step^2/8 has two homes and nine spellings: the one in topo/boolean/boxes.rs cannot be depended on from geom-brep
-status: open
+status: closed
 opened: 2026-09-14
 priority: P1
-cost: D
+cost: C
+rides_with: split-gate-sphere-zone-folds-into-face-box-rule
+closed: 2026-11-02
+pr: 6336
 ---
 
 
@@ -47,3 +50,16 @@ adjudicated `Recorded, not fixed here`.
 CURVED — `geom-brep/implicit.rs` is this program's file and the
 `geom-brep` half landed here; the `boxes.rs` half needs S-BOOL's
 announced handover or its exit.
+
+## Closed (PR 6336, 2026-11-02)
+
+`topo::boolean::boxes::subdivision_charge` is gone with the sampled
+torus window it served, which the closed form `torus_rect_extent`
+replaces; `geom_brep::implicit::chord_dip_charge` is the one home.
+The sweep for bare `f2·h²/8` spellings: `pcurve_cache.rs`
+`harmonic_span_box` repointed at the home; `props/quad/trimmed.rs`'s
+`0.125·|ℓ′|·h²·width` is a different bound (an integral against the
+oscillation of g) whose ⅛ is coincidence; `mesh` `cert.rs`
+`torus_chord_bound` is a 2-D Hessian form with a mixed term; the
+`mesh` `sizing.rs` hits are test oracles of the step inverses. No
+other production spelling of the quantity remains. (BOXES orchestrator)

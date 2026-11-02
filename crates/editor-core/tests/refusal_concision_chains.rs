@@ -903,7 +903,7 @@ mod kernel {
             NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
             FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
             SeamRetrimsArcFirstSide, NonpositiveLeg, NonpositiveFilletRadius,
-            NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
+            NonpositiveCircleRadius, NonpositiveRectangleSide, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
             ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
@@ -4142,6 +4142,13 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "NonpositiveCircleRadius",
             P::NonpositiveCircleRadius { radius: -0.1 },
+        ),
+        (
+            "NonpositiveRectangleSide",
+            P::NonpositiveRectangleSide {
+                side: "width",
+                length: -0.1,
+            },
         ),
         ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
         (

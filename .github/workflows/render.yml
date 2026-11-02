@@ -287,12 +287,12 @@ jobs:
   # rather than a theoretical one.
   #
   # WHY THIS FILE AND NO OTHER, and it is NOT that nobody else names a ref.
-  # Of the 33 `actions/checkout` steps under `.github/workflows/`, 29 name
-  # one, and each names an OBJECT: nightly.yml's FOURTEEN — thirteen
+  # Of the 35 `actions/checkout` steps under `.github/workflows/`, 30 name
+  # one, and each names an OBJECT: nightly.yml's FIFTEEN — fourteen
   # `${{ inputs.ref || github.sha }}` and one bare `${{ github.sha }}` —
   # ci.yml's ten (the sha its `filter` job resolves), interval.yml's two
   # (that sha, passed in as `inputs.ref`) and this file's three
-  # `needs.checkout-target`. The other 4 name none, and `actions/checkout`
+  # `needs.checkout-target`. The other 5 name none, and `actions/checkout`
   # with no `ref:` already fetches `github.sha`. So every step in the
   # repository either takes that default or reaches for an OBJECT; the two
   # lanes were the only pair anywhere that reached for the transient REF,
@@ -302,7 +302,7 @@ jobs:
   # of the defect is fixable in one line — `ref: ${{ inputs.ref ||
   # github.sha }}` — and the sweep above is what makes that alternative live
   # rather than hypothetical: it is nightly.yml's house idiom, spelled
-  # thirteen times there. Taking it would leave `.github/workflows/` with ONE
+  # fourteen times there. Taking it would leave `.github/workflows/` with ONE
   # spelling of "which object does this run check out". This job leaves it
   # with two, and render's is the odd one. That is the real price, and it is
   # named here rather than left for a reader to notice.

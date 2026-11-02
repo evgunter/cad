@@ -649,7 +649,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 .into_iter()
                 .filter_map(|(half, side)| match side {
                     SplitSide::Body(body) => {
-                        let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+                        let at = half.output_body() as usize;
                         let records = Arc::clone(&value.carry.member(at).contacts);
                         Some((half.output_body(), body.clone(), records, norows()))
                     }
@@ -1286,6 +1286,13 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// read into the gather's computing frame.
 type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, Arc<Body<T>>);
 
+/// Why a grafted source's position among a product's inputs fits a `u32`
+/// ([`crate::names::to_u32`]): each grafts at least one solid into the
+/// product's body, whose arena numbers its solids within `u32`.
+pub(crate) const GRAFTED_WITHIN_U32: &str = "a product's grafted source: each grafts at least \
+                                             one solid into the product's body, whose arena \
+                                             numbers its solids within u32";
+
 /// [`gather`] over its sources: grafted, gated, carried and
 /// censused, each source its own group.
 fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
@@ -1394,11 +1401,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // Each source's records cite the source by its position among
         // the product's inputs, which names the read it entered through:
         // the copy's records are its body's, in their order.
-        let input = crate::names::to_u32(
-            cited_inputs.len(),
-            "a product's input: each grafts at least one solid into the product's body, whose \
-             arena numbers its solids within u32",
-        );
+        let input = crate::names::to_u32(cited_inputs.len(), GRAFTED_WITHIN_U32);
         cited_inputs.push(match doc.node(*node) {
             Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
                 crate::coincide::CitedInput::Part(*doc_ref)
@@ -1483,9 +1486,9 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // this door discards what it found there.
     let decided: std::collections::BTreeSet<u32> = grafted
         .iter()
-        .zip(0u32..)
-        .filter(|((source, ..), _)| source.censused)
-        .map(|(_, group)| group)
+        .enumerate()
+        .filter(|(_, (source, ..))| source.censused)
+        .map(|(group, _)| crate::names::to_u32(group, GRAFTED_WITHIN_U32))
         .collect();
     if !decided.is_empty() {
         census.retain(|finding| {

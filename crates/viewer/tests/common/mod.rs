@@ -485,7 +485,11 @@ pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> Recipe
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
+            loops: vec![shape(&ProfileShape::Rectangle {
+                centre: [0.0, 0.0],
+                width,
+                height,
+            })],
         },
     )
 }

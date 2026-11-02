@@ -1538,7 +1538,14 @@ box of the `f32` corners that crossed the display seam, widened back.
 A preview that failed to replay draws nothing and frames nothing; a
 loop of one vertex frames its point. The previews' step marks are not
 in it, nor is anything else sized by the view: a fit that framed them
-would depend on the camera it is choosing. So a frame builds the
+would depend on the camera it is choosing. Nor is a preview's
+construction — the two sides each fused fillet step's fit was handed,
+whole, each with a heading mark at its anchor, and the fillet circle
+the fit found (`sketch::drawn`, out of the preview's own replay),
+drawn in their own lane under the kept pieces, and drawn when the
+step's fit refuses too: a carrier is a whole circle, and one large
+enough to fillet against would frame the profile as a speck. So a
+frame builds the
 geometry lanes, derives the extent, fits, folds the pointer's events,
 and only then sizes the marks against the camera that settled — one
 pure function, `pane::viewport::frame_camera`, whose order a row
@@ -2186,7 +2193,10 @@ identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
 was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A duplicate of a copy
+slot), member 0 standing where that body stood. A split takes the seen
+body over the same way, by `above ⊔ below`, its two halves standing
+where that body stood; where nothing reads the body along such a
+path, the split's halves are drawn in its place. A duplicate of a copy
 is one more copy in that copy's space, by values on every freedom at
 the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own
