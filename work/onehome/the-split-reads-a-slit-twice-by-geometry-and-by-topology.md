@@ -2,10 +2,11 @@
 id: the-split-reads-a-slit-twice-by-geometry-and-by-topology
 kind: issue
 title: The split reads a slit two ways: spur_tips by geometry, section_kind by topology
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: M
+branch: onehome/small-bundle
 ---
 
 

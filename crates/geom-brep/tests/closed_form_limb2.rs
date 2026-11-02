@@ -177,10 +177,7 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let ruling = Curve3::Line {
-        origin: Point3::new(1.0, 0.0, -1.0),
-        dir: Vec3::unit_z(),
-    };
+    let ruling = Curve3::line(Point3::new(1.0, 0.0, -1.0), Vec3::unit_z());
     let cone = Surface::Cone {
         apex: Point3::origin(),
         axis: Vec3::unit_z(),
@@ -211,10 +208,7 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     // A ruling of the cone from its apex, where the cone's metre lever
     // vanishes: the parts near the apex read `√|f|` instead.
     let (sin, cos) = (PI / 6.0).sin_cos();
-    let apex_ruling = Curve3::Line {
-        origin: Point3::origin(),
-        dir: Vec3::new(sin, 0.0, cos),
-    };
+    let apex_ruling = Curve3::line(Point3::origin(), Vec3::new(sin, 0.0, cos));
     let rows = [
         ("ruling", cylinder.clone(), side.clone(), ruling, (0.0, 2.0)),
         (
@@ -374,10 +368,7 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
             normal: Vec3::unit_y(),
             u_ref: Vec3::unit_x(),
         };
-        let ruling = Curve3::Line {
-            origin: moved(Point3::new(0.5, 0.0, 0.0), d),
-            dir: Vec3::unit_z(),
-        };
+        let ruling = Curve3::line(moved(Point3::new(0.5, 0.0, 0.0), d), Vec3::unit_z());
         let (s, c) = (PI / 5.0).sin_cos();
         let tilted = Surface::Plane {
             origin: moved(Point3::origin(), d),
@@ -444,10 +435,7 @@ fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
         normal: n,
         u_ref: unit(n.cross(Vec3::unit_z())),
     };
-    let line = Curve3::Line {
-        origin: at,
-        dir: unit(n1.cross(n2)),
-    };
+    let line = Curve3::line(at, unit(n1.cross(n2)));
     let got = certify(&plane(n1), &plane(n2), &line, (0.0, 12_000.0), fine_band());
     assert!(
         matches!(
@@ -484,10 +472,7 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
         normal: unit(axis.cross(across)),
         u_ref: axis,
     };
-    let line = Curve3::Line {
-        origin: at + across,
-        dir: axis,
-    };
+    let line = Curve3::line(at + across, axis);
     let got = certify(&cylinder, &plane, &line, (0.0, 12_000.0), fine_band());
     let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
         panic!("the kernel's limit: {got:?}");

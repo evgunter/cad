@@ -1590,6 +1590,9 @@ impl ViewerBehavior<'_> {
         let said = match staged {
             None | Some(Staged::Checking) => None,
             Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
+            Some(Staged::Exhausted { doc, out }) => {
+                Some(format!("the staged run {}", out.said(doc)))
+            }
             Some(Staged::Evaluated {
                 node, evaluation, ..
             }) => match tree::split_reading(evaluation, node) {
