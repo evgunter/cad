@@ -157,3 +157,14 @@ and bodies unchanged. No orchestrator yet.
   - **Rows:** 11 new. Six mutants go red and two survive: the coincidence floor/ceiling, and dropping the `‖∇f‖` division.
   - **The teapot probe:** all 16 spout × belly pairs are loop-free, reaching the wall's `u = 0` and `u = 1` sides, in 40–57 ms each.
   - **The dual concurrent review runs in two cloud sessions** (R1 `session_01VyvYnJ3PnFhuUMm5FFxH5V`, R2 `session_01VyvYnMWiB71GTdL4RTvsTU`), with identical briefs on the same frozen head. Disk held only one more local build beside the cylinder lane's 15 GB target. Dispatching with bypassed permissions was refused; they run in the inherited mode. Their reports are read from their transcripts.
+- 2026-11-02 — **The cylinder ruling-sweep stage is open: PR 6309**, frozen at `ba45e0f`, CI green. The dual concurrent review runs in cloud sessions (R1 `session_01VyvYnJBD5H3jHa1e598L5q`, R2 `session_01VyvYnK4qdBYkvQqcZXYVQB`).
+  - **Results:**
+    - every crossing pose counts, and the provisional split is gone;
+    - the march is seeded from the sweep's witnesses and ends at the region's ball (`BallExit`);
+    - one-to-one `ended_by` in `matched`;
+    - the row-5 `coverage` debug_assert is calibrated;
+    - five of stage 2's eight slow rows are back in the fast set;
+    - thin-rods now counts its two cut arcs, but limb 3 still refuses them (filed on SSIMARCH, P2 H);
+    - cylinder × sphere on the ruling sweep is filed as the next ruled pair (P1 M).
+  - **To fix with the review's pass:** C3 says "seeded from the counted cut ends and witnesses", but an open arc is seeded at its witness, since a seed on the sphere can refine off the domain. The cut ends only close the match. That is a re-wording forced by the approved change, and it lands with this PR.
+- 2026-11-02 — **NURBS stage 1 (PR 6304): R1 is in** (APPROVE-WITH-FIXES, no MAJOR). It kills both of the PR's surviving mutants with rows that are not yet written: a refined quarter-cylinder for the coincidence floor, and a 1e-3-scaled leaf for the `‖∇f‖` divisions. R2 is still running.
