@@ -1814,6 +1814,80 @@ mod tests {
         );
     }
 
+    /// **Review probe (PR 6340): a document written before the rectangle
+    /// form, holding a corner-polygon rectangle, opens and edits as the
+    /// path it is.** No migration and no guess: the door holds its five
+    /// chain steps, draws `line_to`, and an edit of one corner lands as
+    /// one `SetProgram` that keeps the loop a chain.
+    #[test]
+    fn review_6340_an_old_corner_polygon_rectangle_edits_as_a_path() {
+        use pncad::document::{DocEdit, LoopProgram};
+        let tol = Tol::witness();
+        let doc = Doc::empty_derived("old-rectangle", tol);
+        let (doc, profile) = inserted(
+            &doc,
+            test_support::rectangle([-0.01, -0.005], 0.02, 0.01),
+            tol,
+        );
+        let session = crate::session::DocSession::inline(doc, tol);
+        let mut session = session;
+        let mut drafts = Drafts::default();
+        let painted = crate::pane::headless::painted(|ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("the editor holds the profile");
+            let _ = super::edit_door_ui(
+                ui,
+                &session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
+                None,
+            );
+        });
+        assert!(
+            painted.iter().any(|t| t.contains("line_to")),
+            "the door draws the corner legs: {painted:?}"
+        );
+        assert!(
+            !painted.iter().any(|t| t == "width"),
+            "no rectangle fields are guessed: {painted:?}"
+        );
+        let doc = session.committed_doc().clone();
+        let edit = drafts.profile_edit(&doc, profile).expect("held");
+        assert_eq!(
+            edit.loops().iter().map(Vec::len).collect::<Vec<_>>(),
+            [5],
+            "at plus four line_to"
+        );
+        let step = edit.step_at(&doc, (0, 2));
+        let Step::LineTo(Target::Point(_)) = step else {
+            panic!("a corner leg: {step:?}")
+        };
+        edit.set_step(
+            &doc,
+            (0, 2),
+            Step::LineTo(Target::Point(Point2::new(0.012, 0.005))),
+        );
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "{:?}",
+            out.committed
+        );
+        let Some(Node::Profile(program)) = session.committed_doc().node(profile) else {
+            panic!("a profile")
+        };
+        assert!(
+            matches!(&program.loops[..], [LoopProgram::Chain(steps)] if steps.len() == 5),
+            "still a five-step chain: {:?}",
+            program.loops
+        );
+    }
+
     /// **A step removed in the panel strands the names on it, and the
     /// author is told before and after.** The door's `×` on the right
     /// wall's row drops that step; Apply then counts the name it will
