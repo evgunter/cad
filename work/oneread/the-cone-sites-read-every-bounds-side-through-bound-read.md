@@ -2,11 +2,10 @@
 id: the-cone-sites-read-every-bounds-side-through-bound-read
 kind: unit
 title: recl's edge-edge line cone and vtxfac::cone_classes give every sheet's and partner's side from bound_read on the cone's Reading
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [the-cone-takes-a-bounds-side-from-the-one-bound-side-reading]
 parent: the-line-cone-reads-a-flanks-side-beside-the-one-bound-side-reading
 ---
 

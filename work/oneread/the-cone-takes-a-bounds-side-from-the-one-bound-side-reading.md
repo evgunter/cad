@@ -2,13 +2,14 @@
 id: the-cone-takes-a-bounds-side-from-the-one-bound-side-reading
 kind: unit
 title: bound_side reads both orders on the caller's Reading (band + tie slack), and the Cone admits a given side for any sector unless its own metric decided against it
-status: review
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 branch: oneread/cone-given-side
 pr: 6378
 parent: the-line-cone-reads-a-flanks-side-beside-the-one-bound-side-reading
+closed: 2026-11-02
 ---
 
 
