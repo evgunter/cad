@@ -1049,6 +1049,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         &cone,
         partner,
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -1056,6 +1057,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         partner,
         &cone,
         reach,
+        None,
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -1284,6 +1286,7 @@ fn dump_for_the_mpmath_oracle() {
                 &k.surface(),
                 &pose.partner.surface,
                 reach_of(&k),
+                None,
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             );

@@ -103,7 +103,7 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
+pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing, VertexSelection};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -1077,6 +1077,10 @@ impl DocSession {
             Selection::Edge(edge) => Standing::Edge {
                 edge: edge.clone(),
                 resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
+            },
+            Selection::Vertex(vertex) => Standing::Vertex {
+                vertex: vertex.clone(),
+                resolution: self.entity_resolution(vertex.node, vertex.body, &vertex.name),
             },
         }
     }
@@ -3084,7 +3088,7 @@ impl DocSession {
                 ))));
             }
         };
-        let faces = traced.iter().map(|face| face_read(doc, face)).collect();
+        let faces = traced.iter().map(|face| pick_read(doc, face)).collect();
         match pncad::trace::drawn_profile(frame, faces, chains) {
             Ok(node) => Ok(creating(move |run| run.insert(node))),
             Err(error) => Err(Refusal::Edit(Box::new(error))),
@@ -3114,7 +3118,7 @@ impl DocSession {
             doc,
             ev,
             frame,
-            face_read(doc, face),
+            pick_read(doc, face),
             (pncad::geom_core::Point2::origin(), half),
             SKETCH_TRACE_RAYS,
             self.tol,
@@ -4812,13 +4816,17 @@ impl core::fmt::Display for SketchTraceFault {
 
 impl core::error::Error for SketchTraceFault {}
 
-/// **The body a face pick is read on, and the face's name there**
+/// **The body a pick is read on, and the entity's name there**
 /// (`crate::world::body_of`; a copy carries its body's names, so the
 /// name is the pick's): the node's output by its port where it holds
 /// several, its body output otherwise.
-fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
-    let (at, port) = crate::world::body_of(doc, face.node, face.body);
-    let name = face.name.clone();
+fn picked_body(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> (Operand, StableName) {
+    let on = pick.on();
+    let (at, port) = crate::world::body_of(doc, on.node(), on.body());
+    let name = pick.name().clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
@@ -4826,10 +4834,14 @@ fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, Sta
     (body, name)
 }
 
-/// **The face `face` selects, as an operand**: its name on the body the
-/// pick is read on ([`picked_body`]).
-pub(crate) fn face_read(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> Operand {
-    let (body, name) = picked_body(doc, face);
+/// **The entity a pick selects, as an operand** — a face, or for the
+/// mate tool an edge or a vertex: its name on the body the pick is read
+/// on ([`picked_body`]).
+pub(crate) fn pick_read(
+    doc: &Doc<ProfileProgram>,
+    pick: &impl crate::tree::PickedEntity,
+) -> Operand {
+    let (body, name) = picked_body(doc, pick);
     Operand::select(body, vec![name])
 }
 
@@ -4849,8 +4861,8 @@ fn drawn_frame(
     pncad::trace::traced_frame(
         doc,
         ev,
-        &face_read(doc, plane),
-        &face_read(doc, traced),
+        &pick_read(doc, plane),
+        &pick_read(doc, traced),
         tol,
     )
 }
