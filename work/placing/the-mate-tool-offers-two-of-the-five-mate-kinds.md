@@ -2,11 +2,12 @@
 id: the-mate-tool-offers-two-of-the-five-mate-kinds
 kind: issue
 title: the mate tool offers two of the kernel's five mate kinds and picks faces only
-status: dispatched
+status: review
 opened: 2026-10-31
 priority: P0
 cost: H
 branch: placing/mate-kinds
+pr: 6284
 ---
 
 
