@@ -2,11 +2,10 @@
 id: a-merged-face-is-named-for-exactly-the-member-faces-it-holds
 kind: unit
 title: A boolean result face's parent is exactly the member faces whose area it holds (per-face exact), for union, intersect and subtract
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [a-union-whose-fold-glues-a-run-no-judgement-opened]
 design: true
 ---
 

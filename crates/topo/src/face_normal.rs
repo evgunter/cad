@@ -153,7 +153,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 
 /// Why [`face_outward_normal_at`] could not answer.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum NormalAtError {
+pub enum NormalAtError {
     /// A margin landed in the band: the torus's own convention, or the
     /// one certifying `p` on the chart.
     Escalated {
@@ -222,7 +222,7 @@ pub(crate) enum SplineNormalError {
 
 /// Which decision [`face_outward_normal_at`] escalated on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NormalDecision {
+pub enum NormalDecision {
     /// A half of the torus's ring convention.
     Torus(TorusConvention),
     /// Whether the point lies on the face's surface, so the surface's
