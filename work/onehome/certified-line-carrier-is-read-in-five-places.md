@@ -2,10 +2,11 @@
 id: certified-line-carrier-is-read-in-five-places
 kind: issue
 title: "is this edge a certified Line" is spelled separately in five splitting/join files; one helper
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: E
+branch: onehome/geom-readings
 ---
 
 

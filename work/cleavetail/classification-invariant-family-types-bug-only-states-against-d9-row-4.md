@@ -207,6 +207,9 @@ Panicking on the variant as a whole would let input reach the panic.
 
 The prose-ending arms (`JoinDesync`, `TornComponent`, `SeamOrientation`,
 `ZipCorrespondence`) are in the census's second pass, unclassified.
+Until they are classified, `topo::test_support::offer_key` reads the
+last three as typed refusals, since only `JoinDesync` is on its kind list
+(ONEHOME's closed `boolean-defect-displays-end-three-ways`, 2026-11-02).
 
 ## Slate triage (2026-10-26, CLEAVE)
 

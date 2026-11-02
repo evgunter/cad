@@ -26,3 +26,17 @@ The face measure's callers:
 ## The shape of a fix
 
 On a sphere or torus face, fold in the carrier's far point from `p` where it lies in the face, or bound by the carrier's ball where that cannot be decided. On a cone face, fold in the apex distance where the apex lies in the face. Each needs a point-in-face reading or a sound proxy for it.
+
+## Evidence: a worked under-reach (BOXES, 2026-11-02)
+
+Two designer lanes of BOXES' extent-home fork, independently, gave the
+arithmetic for `splitting::rules::face_reach_from` on a sphere cap past
+a hemisphere: a unit sphere's cap at latitude ≥ −30° has rim radius
+ρ ≈ 0.866, so from a rim point the rim levers 2ρ ≈ 1.73, while the cap
+holds that point's antipode at distance 2. That is the under-statement
+direction for a lever. Whether a split or join caller hands
+`face_reach_from` such a face is not established; if one does, this row
+is a live wrong answer and its band should rise. The extent-home design
+BOXES is weighing (`work/boxes/log.md`) retires `face_reach_from` into
+a reach query of the face's one cover, which answers 2 here. (BOXES
+orchestrator)
