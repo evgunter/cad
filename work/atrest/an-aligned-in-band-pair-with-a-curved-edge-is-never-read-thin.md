@@ -8,7 +8,6 @@ priority: P3
 cost: M
 ---
 
-
 Found by the sweep for `!polygon` gives-ups on
 `restread/pierce-span-curved-edge`
 (`the-pierce-span-clearance-gives-up-on-a-face-with-a-curved-edge`).

@@ -23,8 +23,9 @@ crossing only if no boundary of the face meets `S`, which `span_clear`
 reads. `span_clear` answers `Some(false)` outright where the face is not
 a polygon (`if !f.polygon { return Some(false); }`), so on a planar face
 with any curved edge, however far that edge stands from `S`, the
-crossing falls through to the straddle reading and pushes
-`CensusEscalated` (`pm_census_ef_pierce_straddle`) on a valid body.
+crossing falls through and pushes `CensusEscalated` on a valid body:
+the half-span's reading (`pm_census_ef_pierce_span_straddle`), which
+straddles the band for any span longer than `2ε`.
 
 Its argument (the pierce-height reach `g·(1 + σ)`, then
 `interiors_meet` and `on_edge_interior_reading` against each boundary
