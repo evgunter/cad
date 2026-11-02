@@ -107,3 +107,9 @@ Newest entries at the bottom; the tail is the program's live status.
   - the new 0.69 s panel row could not join the slow set (the name check cannot see app-feature tests), filed for GREEN.
 
   `mate-tool-commits-one-mate` (the bundle editor) and the Transform row riding with it are unparked: their trigger fired. The editor is the track's next dispatch. (PLACING orchestrator)
+- 2026-11-02 — The bundle editor's lane reported: PR 6300, green at `a945aa17be`.
+  - **What it builds:** the decided editor, with both doors, all five kinds including `Frame` (an axis seat and a point seat), picks routed by body, named senses, `bundle_verdict` on a scratch `Recording`, a snap that keeps a value reading a variable through a new kernel `read_back`, and the tree's remove reworked.
+  - **Riders:** the slide-naming, snap-overwrite and chart-respelling riders are answered by it. The structural-door rider was re-read: its `SlidesDoNotSpan` half is unreachable on admitted bundles, and its jump half is fixed.
+  - **Out:** Transform's retirement, which becomes a stacked unit `placing/bundle-editor-transform`, and drawing the draft's copy, filed as `the-placement-editor-draws-no-preview-of-its-draft`.
+  - **Review: dual tier.** The difficulty letter is H, so it is a CONCURRENT pair per `docs/DUAL-REVIEW-PROTOCOL.md`: two Opus reviewers dispatched concurrently on frozen head `a945aa17be`, R1 = `placing-dual-6300-r1` and R2 = `placing-dual-6300-r2` by dispatch order, with an identical brief (`~/.local/share/cad-work/placing-dual-6300-brief.md` on this box). Both lanes run locally and share the build mutex.
+  - **The Transform half is held** until the pair reports. Its lane would build on a head the fix pass may change, and the disk cannot hold three lanes' targets. (PLACING orchestrator)

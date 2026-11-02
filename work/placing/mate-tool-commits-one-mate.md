@@ -2,11 +2,13 @@
 id: mate-tool-commits-one-mate
 kind: issue
 title: the mate tool commits one mate and its values, not a placement's whole bundle
-status: open
+status: review
 opened: 2026-10-31
 priority: P1
 cost: H
 refs: [the-viewers-mate-remove-takes-the-structural-door, removing-a-value-constraint-is-a-second-spelling-of-setting-it]
+pr: 6300
+branch: placing/bundle-editor
 ---
 
 
