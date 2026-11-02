@@ -511,14 +511,12 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         shape(&got)
     );
     let torus = donut();
-    for extent in [FrameExtent::Radii] {
-        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent.clone(), b);
-        assert!(
-            matches!(got, Err(FrameError::Desync(_))),
-            "plane×torus under {extent:?}: got {}",
-            shape(&got)
-        );
-    }
+    let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
+    assert!(
+        matches!(got, Err(FrameError::Desync(_))),
+        "plane×torus under its radii: got {}",
+        shape(&got)
+    );
 }
 
 /// A planar face on the plane through the origin with unit normal `n`:

@@ -3000,7 +3000,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("vtxfac.rs", "germ_order", "Coincide::Sectors", 1),
-    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 2),
+    ("vtxfac.rs", "mint_node", "Coincide::Sectors", 1),
     ("node.rs", "wall_sense", "Coincide::Sectors", 1),
     (
         "node.rs",
