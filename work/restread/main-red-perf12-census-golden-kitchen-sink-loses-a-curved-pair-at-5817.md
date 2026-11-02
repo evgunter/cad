@@ -2,8 +2,9 @@
 id: main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817
 kind: issue
 title: Main red: perf12 census golden fails at three ε since #5817 — kitchen_sink reports 28 findings where the golden has 29
-status: open
+status: closed
 opened: 2026-10-27
+closed: 2026-11-02
 priority: P1
 cost: E
 ---
@@ -22,3 +23,29 @@ Found by ATREST's #5810 delta review (`review/atrest-s5c-delta`) and bisected by
 ## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
 
 Pinned at main's reading, NOT re-blessed as right: the three goldens `perf12_census_{1e-6,1e-9,1e-12}.txt` were re-cut on main `2e1c1bff` (`PERF12_BLESS_CENSUS=1`). Each moves by exactly this row's line: `kitchen_sink` goes 29 → 28 findings, and the `CensusUndecidable { a: Face(FaceKey(47v1)), b: Face(FaceKey(21v1)), … MayOverlap }` is gone. Nothing else moves. Whether that verdict's loss is right is still this row's question. If it is wrong, the fix restores the line, and the golden then reds until the fix re-blesses it. The golden is the whole census, so nothing runs past a stop.
+
+## Closed
+
+The loss is right. Faces 47 and 21 are `√5 − 2 ≈ 0.2361` apart, four orders of magnitude past the largest pad.
+
+- **Face 47** (solid 8, the revolve): `Cylinder { origin: (-2, 0, 1), axis: +z, radius: 2 }`, bounded by the vertices `(0, 0, 0)`, `(0, 0, 1)`, `(-2, 2, 1)` and `(-2, 2, 0)`. It is the quarter of the outer wall from angle 0 to π/2 about the vertical line through `(-2, 0, 0)`, with `z` in `[0, 1]`.
+- **Face 21** (solid 4, the split union's lower half): `Plane { y = 1 }`, the rectangle `x` in `[0, 1.5]`, `z` in `[0, 0.625]`.
+
+**Measured independently of the census.** The `z` spans overlap, so the distance is the plan distance from the arc to the segment `y = 1`, `x` in `[0, 1.5]`. The segment's nearest point is the corner `(0, 1)`, and its distance to the circle is `√((0+2)² + 1²) − 2 = √5 − 2 = 0.2360679775`. The circle's nearest point there, at angle `atan(1/2) ≈ 26.6°`, lies on the arc. Dense sampling gives the same answer: 200 001 arc points measured against the segment in closed form give `0.2360679776`, and a 3-D brute-force grid of both faces gives `0.23607`. No sample came closer than `0.236`.
+
+**The certificate today.** I instrumented the census locally (not committed) and ran it at all three ε on main `c7759b036c`:
+
+- Arm 1 reaches the pair, and no world axis separates the reach boxes: `x` touches at 0 and `y` overlaps.
+- The clear that fires is `backstop_apart`, along a direction that `depth_gap::toward` proposes: `(2, 1)/√5`, the offset from face 47's axis to face 21's nearest boundary point. #5817 added that direction.
+- The pair's anchor axis and face 21's normal both fail to separate it.
+- `depth_gap::apart_in_depth` does not clear it. Neither does `in_plane::apart_in_plane` (#5918), which applies only to planar × planar pairs.
+
+Along `(2, 1)/√5`, face 47's reach ends at `0.2111456180` and face 21's begins at `0.4472135955`. The raw gap is `0.2360679775`, matching the closed form to the last digit. The decided margin is the gap less 2·`sweep_pad`:
+
+| ε | 2·pad | margin | sign |
+|---|---|---|---|
+| 1e-6 | 2.4e-5 | 0.2360439775 | Positive |
+| 1e-9 | 2.4e-8 | 0.2360679535 | Positive |
+| 1e-12 | 2.4e-11 | 0.2360679775 | Positive |
+
+The goldens pass unchanged at all three ε with 28 findings, so GREEN's re-cut is right and nothing needs re-blessing. The goldens' provenance (`CENSUS_GOLDENS` in `perf12_census_goldens.rs`) now names the pair and the gap.

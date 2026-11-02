@@ -160,6 +160,15 @@ impl core::fmt::Display for Operand {
     }
 }
 
+/// **A position as a reader counts it**, from one: widened before the
+/// `+ 1`, so the last position a `usize` holds is said, not wrapped.
+pub(crate) fn ordinal(position: usize) -> u128 {
+    let Ok(wide) = u128::try_from(position) else {
+        unreachable!("a usize of at most 64 bits fits a u128")
+    };
+    wide + 1
+}
+
 /// **An operand field's address** (spec Q7: named by field, never by
 /// position): the operand half of a node's slot vocabulary, addressed
 /// as [`crate::SlotId::Operand`].
@@ -170,7 +179,7 @@ pub enum OperandSlot {
     /// The profile an extrude, revolve or sweep reads.
     Profile,
     /// Section `i` of a loft.
-    Section(u32),
+    Section(usize),
     /// A sweep's path profile.
     Path,
     /// The axis a circular rule turns about.
@@ -188,7 +197,7 @@ pub enum OperandSlot {
     Face,
     /// Traced face `i` of a profile drawn on a frame
     /// ([`crate::program::DrawnOn::faces`]).
-    Traced(u32),
+    Traced(usize),
     /// One side of a placement's constraint: the face it is read off.
     Side {
         /// The constraint.
@@ -201,6 +210,9 @@ pub enum OperandSlot {
     /// Reference `i` of a measure, in argument order, under its
     /// primitive (which decides what the reference admits).
     Measured(crate::MeasureVerb, u8),
+    /// Seat `i` of a clearance assertion ([`crate::Claim::Clearance`]):
+    /// a body, or one face.
+    Cleared(u8),
     /// A split's plane.
     Tool,
     /// The body a subtract cuts.
@@ -208,7 +220,7 @@ pub enum OperandSlot {
     /// The body a subtract cuts away.
     Cut,
     /// Member `i` of a union's or an intersect's spelled list.
-    Member(u32),
+    Member(usize),
     /// The family a union or an intersect reads whole.
     Members,
     /// What an assertion's value reads: a slot variable or an operand.
@@ -234,7 +246,7 @@ impl OperandSlot {
             Self::Open => Some(format!("open face {reference}")),
             Self::Face => Some("face".to_owned()),
             Self::Traced(i) => Some(format!("traced face {i}")),
-            Self::Measured(_, i) => Some(format!("reference {i}")),
+            Self::Measured(_, i) | Self::Cleared(i) => Some(format!("reference {i}")),
             Self::Side { constraint, side } => Some(format!("{constraint} side {}", side.name())),
             _ => None,
         }
@@ -245,7 +257,7 @@ impl OperandSlot {
     pub fn label(self) -> String {
         match self {
             Self::Profile => "profile".to_owned(),
-            Self::Section(i) => format!("section {}", u64::from(i) + 1),
+            Self::Section(i) => format!("section {}", ordinal(i)),
             Self::Path => "path".to_owned(),
             Self::Axis => "axis".to_owned(),
             Self::Frame => "frame".to_owned(),
@@ -253,16 +265,16 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
-            Self::Traced(i) => format!("traced face {}", u64::from(i) + 1),
+            Self::Traced(i) => format!("traced face {}", ordinal(i)),
             Self::Side { constraint, side } => {
                 format!("constraint {constraint} side {}", side.name())
             }
             Self::Source => "source".to_owned(),
-            Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
+            Self::Measured(_, i) | Self::Cleared(i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
             Self::Cut => "tool".to_owned(),
-            Self::Member(i) => format!("member {}", u64::from(i) + 1),
+            Self::Member(i) => format!("member {}", ordinal(i)),
             Self::Members => "members".to_owned(),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
@@ -292,6 +304,7 @@ impl OperandSlot {
             // two sides agree (`MateFault::KindsDiffer`).
             Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
+            Self::Cleared(_) => SlotKind::Cleared,
             // A placement copies a body, or a family read whole.
             Self::Input | Self::Source => SlotKind::Placeable,
         }
@@ -312,8 +325,8 @@ impl core::fmt::Display for OperandSlot {
 /// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
 /// one body or a list of them), and [`SlotKind::Measured`] the kinds
-/// its primitive admits ([`crate::MeasureVerb::admits`]: one entity, or
-/// for `min_clearance` a whole body).
+/// its primitive admits ([`crate::MeasureVerb::admits`]: one entity),
+/// and [`SlotKind::Cleared`] a body or a face.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
@@ -323,6 +336,8 @@ pub enum SlotKind {
     /// What a reference of this primitive admits
     /// ([`crate::MeasureVerb::admits`]).
     Measured(crate::MeasureVerb),
+    /// A clearance seat's: a `Body` (all of its faces) or a `Face`.
+    Cleared,
     /// What a pose definition's read admits beyond one kind
     /// ([`crate::pose::PoseAdmits::kinds`]).
     Pose(crate::pose::PoseAdmits),
@@ -337,6 +352,7 @@ impl SlotKind {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
             Self::Measured(verb) => verb.admits(kind),
+            Self::Cleared => matches!(kind, VarKind::Body | VarKind::Face),
             Self::Pose(admits) => admits.kinds().contains(&kind),
         }
     }
@@ -357,7 +373,7 @@ impl SlotKind {
             // The singleton of the names' entity kind, whether or not
             // the primitive admits it: the door mints it and the read's
             // kind check refuses it as any seat's would.
-            Self::Measured(_) => match entity {
+            Self::Measured(_) | Self::Cleared => match entity {
                 E::Face => Some(VarKind::Face),
                 E::Edge => Some(VarKind::Edge),
                 E::Vertex => Some(VarKind::Vertex),
@@ -383,6 +399,7 @@ impl core::fmt::Display for SlotKind {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
             Self::Measured(verb) => f.write_str(&verb.admitted()),
+            Self::Cleared => f.write_str("a body or a face"),
             Self::Pose(admits) => {
                 let said: Vec<String> = admits
                     .kinds()
@@ -434,12 +451,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter()
                 .enumerate()
-                .map(|(i, read)| {
-                    (
-                        OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
-                        read,
-                    )
-                })
+                .map(|(i, read)| (OperandSlot::Member(i), read))
                 .collect(),
         }
     }
@@ -451,12 +463,7 @@ impl<R> Bodies<R> {
             Self::Spelled(reads) => reads
                 .iter_mut()
                 .enumerate()
-                .map(|(i, read)| {
-                    (
-                        OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
-                        read,
-                    )
-                })
+                .map(|(i, read)| (OperandSlot::Member(i), read))
                 .collect(),
         }
     }
@@ -486,12 +493,7 @@ impl<R> Bodies<R> {
                 reads
                     .iter()
                     .enumerate()
-                    .map(|(i, read)| {
-                        f(
-                            OperandSlot::Member(u32::try_from(i).unwrap_or(u32::MAX)),
-                            read,
-                        )
-                    })
+                    .map(|(i, read)| f(OperandSlot::Member(i), read))
                     .collect::<Result<_, _>>()?,
             ),
         })
@@ -566,21 +568,13 @@ impl<S: crate::expr::Slot> BodyRead<S> {
     }
 
     /// The indices, each with its position, shared.
-    pub fn rows(&self) -> Vec<(u8, &S)> {
-        self.at
-            .iter()
-            .enumerate()
-            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
-            .collect()
+    pub fn rows(&self) -> Vec<(usize, &S)> {
+        self.at.iter().enumerate().collect()
     }
 
     /// The indices, each with its position, exclusive.
-    pub fn rows_mut(&mut self) -> Vec<(u8, &mut S)> {
-        self.at
-            .iter_mut()
-            .enumerate()
-            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
-            .collect()
+    pub fn rows_mut(&mut self) -> Vec<(usize, &mut S)> {
+        self.at.iter_mut().enumerate().collect()
     }
 
     /// This read in another slot form: the read by `read` (handed its

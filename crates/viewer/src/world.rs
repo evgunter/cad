@@ -211,6 +211,7 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Traced(_)
         | OperandSlot::Side { .. }
         | OperandSlot::Measured(..)
+        | OperandSlot::Cleared(_)
         | OperandSlot::Tool
         | OperandSlot::Input
         | OperandSlot::Of
@@ -501,7 +502,7 @@ fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
     let placements = doc.placements();
     let read: BTreeSet<VarId> = placements
         .iter()
-        .filter_map(|&placement| copied_var(doc, placement))
+        .filter_map(|&placement| doc.copied_read(placement))
         .filter_map(|var| doc.space_of(var))
         .collect();
     placements
@@ -516,16 +517,6 @@ fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
                         .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))))
         })
         .collect()
-}
-
-/// **The body a copy copies**: a `Place`'s source's read; `None` for
-/// any other node, an instance included — it copies its part's product,
-/// no body of this document.
-pub fn copied_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    match doc.node(node)? {
-        Node::Place { source, .. } => Some(source.read),
-        _ => None,
-    }
 }
 
 /// **What a copy's body copies**: the variable the placement reads, the
@@ -596,6 +587,33 @@ pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNod
     copies_where(doc, |copied| copied == var)
 }
 
+/// **Every placement reading `var` whole**, in document order, whatever
+/// space it stands in: the copies the placement editor's doors answer
+/// to. It is wider than [`placements_of_var`], the gesture vocabulary's
+/// copies, which leaves out a copy into a space whose bodies a placement
+/// copies out (a body moved in its own space, a pattern's family): for
+/// the editor that copy is still what places the body, so the body moves
+/// by its Edit door and is never placed a second time by a Create.
+pub fn placements_reading(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+    doc.placements()
+        .into_iter()
+        .filter(|&placement| {
+            matches!(doc.node(placement), Some(Node::Place { source, .. }) if source.read == var)
+        })
+        .collect()
+}
+
+/// **Whether `placement` repeats its source**: it reaches an index its
+/// source does not, so it is a pattern's family and its values are the
+/// pattern's rule.
+pub fn repeats(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+    let Some(Node::Place { source, .. }) = doc.node(placement) else {
+        return false;
+    };
+    let own = doc.node_reach(placement);
+    !own.is_none() && own != doc.var_reach(source.read)
+}
+
 /// **The copies of any output of `node`**, in document order.
 pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
     let outputs = doc.outputs(node);
@@ -612,7 +630,7 @@ fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Ve
             doc.node_space(placement)
                 .is_some_and(|s| spaces.contains(&s))
         })
-        .filter(|&placement| copied_var(doc, placement).is_some_and(&copies))
+        .filter(|&placement| doc.copied_read(placement).is_some_and(&copies))
         .collect()
 }
 

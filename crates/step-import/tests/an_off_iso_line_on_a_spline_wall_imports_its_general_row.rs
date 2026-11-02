@@ -196,7 +196,7 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
             .get_curve_geom(body.body().get_edge(h.edge).unwrap().curve)
             .and_then(topo::CurveGeom::certified)
             .unwrap();
-        let line = matches!(curve.carrier(), geom::Curve3::Line { .. });
+        let line = matches!(curve.carrier(), geom::Curve3::Line(_));
         if line {
             assert!(
                 matches!(

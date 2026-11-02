@@ -338,3 +338,29 @@ fn set_expression_path_off_tree_rejected() {
         }
     );
 }
+
+/// **The last position a `usize` holds is said, not wrapped**: a
+/// structural edit aimed at member `usize::MAX` is refused, and the
+/// refusal names member `usize::MAX + 1`. Broken by a label that adds
+/// one in the position's own width, which overflows there (a panic in
+/// a debug build, "member 0" in release).
+#[test]
+fn a_refusal_at_the_last_position_says_it() {
+    let (doc, _profile, extrude) = profile_and_extrude();
+    let slot = SlotId::Operand(editor_core::OperandSlot::Member(usize::MAX));
+    let err = doc
+        .apply(
+            &TEdit::SetStructuralParam {
+                node: extrude,
+                slot,
+                expr: editor_core::Formula::count(1),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .unwrap_err();
+    assert_eq!(err, EditError::NotStructuralSlot { slot });
+    let last = u128::try_from(usize::MAX).unwrap() + 1;
+    let said = err.to_string();
+    assert!(said.contains(&format!("member {last}")), "{said}");
+}

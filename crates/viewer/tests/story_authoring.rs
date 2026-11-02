@@ -36,12 +36,11 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape, translation};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -80,7 +79,7 @@ const CUT_W: f64 = 0.040;
 const CUT_T: f64 = 0.006;
 const CUT_Z: f64 = 0.031;
 const CUT_H: f64 = 0.008;
-/// The second cutter is the FIRST one quarter-turned and lifted a
+/// The second cutter is the first one's twin, quarter-turned and lifted a
 /// little, so its floor is not coplanar with the first slot's.
 const CUT2_LIFT: f64 = 0.0004;
 /// The taller drum the user edits in after the undo walk.
@@ -96,17 +95,18 @@ const MERLON_SINK: f64 = 0.001;
 const MERLON_OFF: f64 = 0.009;
 
 /// History states from `NewDocument` to the carved rook: the root
-/// plus twenty-one committed actions. Four of those are LIFTS: every
-/// profile is drawn on its own plane, so each body the rook stacks
-/// above the plinth is moved up its axis before it is combined.
-const CARVED_STATES: usize = 22;
+/// plus twenty-three committed actions. Five of those are the Transform
+/// tool's: four LIFTS, since every profile is drawn on its own plane, so
+/// each body the rook stacks above the plinth is moved up its axis
+/// before it is combined, and the second cutter's turn and lift.
+const CARVED_STATES: usize = 24;
 /// The placing edits among the carving actions (D10), each riding in
 /// the action that caused it: five booleans each re-targeting its moved
 /// second operand into the plinth's space, its values as written (5).
 /// Every body lands unplaced, so no action writes or re-points a world
 /// placement.
 const PLACING_EDITS: usize = 5;
-/// Edits on the session's FINAL path: the twenty-two carving actions'
+/// Edits on the session's FINAL path: the twenty-three carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
@@ -155,18 +155,10 @@ fn circle(session: &mut DocSession, radius: f64) -> RecipeNodeId {
     )
 }
 
-/// `body` moved by `translation` — the transform gesture, which places
-/// the body against its own geometry.
+/// `body` moved by `translation` — the Transform tool on a body nothing
+/// places: the placement editor's Create door, its slides typed.
 fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -> RecipeNodeId {
-    session_insert(
-        session,
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: len3(translation),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    )
+    common::moved_to(session, body, translation)
 }
 
 /// The whole sitting, top to bottom. One test because it is one
@@ -288,8 +280,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
 
     // ── The crown: two crossing slots, the second the first cutter
-    //    quarter-turned about the axis (one cutter body, moved by
-    //    both transforms — the DAG's sharing) ─────────────────────────
+    //    quarter-turned about the axis: a second cutter body, turned
+    //    and lifted by the Transform tool. The first cutter's body cannot
+    //    be shared: the Transform tool on it opens the first copy's Edit
+    //    door, the Create door refuses a placed body, and a duplicate of
+    //    the cutter (its one copy is consumed by the cut, so nothing
+    //    draws it) lands as two copies, a stand-in by the identity and
+    //    the stepped one, leaving the stand-in in the picture ──────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
     let cut1 = session_insert(
@@ -306,15 +303,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         near(v_cut1, v_u3 - slab_area() * (DRUM_Z + DRUM_H - CUT_Z)),
         "the first slot removes a chord slab of the drum: {v_cut1}"
     );
-    let cutter2 = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: cutter.into(),
-            translation: translation([0.0, 0.0, CUT_Z + CUT2_LIFT]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(FRAC_PI_2),
-        },
-    );
+    let (_, second) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
+    let mut values = common::slides([0.0, 0.0, CUT_Z + CUT2_LIFT]);
+    values.push((
+        pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Z)),
+        ang(FRAC_PI_2),
+    ));
+    let op = common::transformed(&mut session, second, &values);
+    let cutter2 = session_insert(&mut session, op);
     let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {

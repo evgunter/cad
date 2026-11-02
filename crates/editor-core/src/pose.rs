@@ -91,6 +91,16 @@ impl<T: Real> AxisLine<T> {
         self.foot
     }
 
+    /// The line's point nearest `p` ([`geom::Line::foot`]).
+    #[must_use]
+    pub fn foot_of(&self, p: Point3<T>) -> Point3<T> {
+        geom::Line {
+            origin: self.foot,
+            dir: self.dir.get(),
+        }
+        .foot(p)
+    }
+
     /// The line's direction.
     #[must_use]
     pub fn dir(&self) -> UnitVec3<T> {
@@ -772,6 +782,21 @@ pub enum PoseFault {
     },
 }
 
+impl PoseFault {
+    /// The edit that writes this pose as a door stores it, where the
+    /// fault names one of its own; `None` where the read's kinds are
+    /// the way through.
+    pub(crate) fn own_recourse(&self) -> Option<&'static str> {
+        match self {
+            Self::DoubleFlip => Some(
+                "read the unflipped pose instead, through the role the inner flip reads it \
+                 through if it reads one",
+            ),
+            _ => None,
+        }
+    }
+}
+
 impl core::fmt::Display for PoseFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -785,10 +810,7 @@ impl core::fmt::Display for PoseFault {
                 read.label(),
                 crate::sentence::article(&found.to_string())
             ),
-            Self::DoubleFlip => f.write_str(
-                "it flips a flip, which is the unflipped pose: read that pose instead, through \
-                 the role the inner flip reads it through if it reads one",
-            ),
+            Self::DoubleFlip => f.write_str("it flips a flip, which is the unflipped pose"),
             Self::Unminted { var } => {
                 write!(
                     f,
@@ -1032,7 +1054,9 @@ pub fn role_kind(
     let admitted = match admits {
         crate::SlotKind::Is(is) => is == kind,
         crate::SlotKind::Pose(set) => set.kinds().contains(&kind),
-        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) => false,
+        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) | crate::SlotKind::Cleared => {
+            false
+        }
     };
     (found == role.of() && admitted).then_some(kind)
 }

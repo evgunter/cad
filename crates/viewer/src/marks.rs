@@ -369,6 +369,14 @@ pub struct EdgeOverlay {
     /// requirement), so a wireframe can never be mistaken for a
     /// selection of something that exists.
     pub preview: Vec<[f32; 3]>,
+    /// **What a preview's fused fillet steps construct**: each step's
+    /// whole carriers and its fillet circle, in the theme's
+    /// construction colour, under the preview's kept pieces.
+    ///
+    /// A lane of its own because it is not the profile: most of it is
+    /// what the step trims away, and a step whose fit refuses draws
+    /// this and no piece at all.
+    pub construction: Vec<[f32; 3]>,
     /// **Profiles the document holds**: the loops of every profile
     /// node the landed evaluation validated, drawn where they lie.
     ///
@@ -398,6 +406,8 @@ vocabulary! {
     ///
     /// - A committed profile is first: it is the backdrop the rest is
     ///   placed against.
+    /// - A construction is over the committed profiles and under the
+    ///   preview: it is what the preview's kept pieces were cut from.
     /// - A preview is over the committed profiles: it is what the person
     ///   is composing now, possibly on top of one.
     /// - The marks are last, in [`Held`]'s precedence: a mark is the
@@ -407,6 +417,8 @@ vocabulary! {
     pub enum EdgeLane {
         /// [`EdgeOverlay::profiles`].
         Profile,
+        /// [`EdgeOverlay::construction`].
+        Construction,
         /// [`EdgeOverlay::preview`].
         Preview,
         /// [`EdgeOverlay::held`].
@@ -442,6 +454,7 @@ impl EdgeOverlay {
     pub fn lane(&self, lane: EdgeLane) -> &[[f32; 3]] {
         match lane {
             EdgeLane::Profile => &self.profiles,
+            EdgeLane::Construction => &self.construction,
             EdgeLane::Preview => &self.preview,
             EdgeLane::Held => &self.held,
             EdgeLane::Hovered => &self.hovered,
@@ -457,7 +470,7 @@ impl EdgeOverlay {
             EdgeLane::Held => self.held_probed,
             EdgeLane::Hovered => self.hovered_probed,
             EdgeLane::Selected => self.selected_probed,
-            EdgeLane::Profile | EdgeLane::Preview => false,
+            EdgeLane::Profile | EdgeLane::Construction | EdgeLane::Preview => false,
         }
     }
 }
@@ -491,7 +504,8 @@ impl EdgeOverlay {
 /// sees both of its lanes.
 ///
 /// A committed profile is marked in the same lanes, by its whole drawn
-/// outline ([`PickIndex::profile_outline`]): hovered where the cursor
+/// outline ([`PickIndex::drawn_outline`]), its edit preview's while one
+/// draws it in place: hovered where the cursor
 /// is over it, selected where its node is the selection, from the tree
 /// or the viewport alike. A profile is never free-moved, so its marks
 /// are never probed.
@@ -530,7 +544,7 @@ pub fn edge_overlay(
                 .map(|vertex| vertex_segments(index, display, vertex))
                 .unwrap_or_default(),
         );
-        for polyline in profile.map_or(&[][..], |node| index.profile_outline(node)) {
+        for polyline in profile.map_or(&[][..], |node| index.drawn_outline(node, display)) {
             // The seam's undrawn count is dropped here as the edge
             // mark's is (`edge_segments`): the profile lane carries the
             // same legs, and its count is the VNEWS badge row's.
@@ -559,6 +573,7 @@ pub fn edge_overlay(
         held_refused: None,
         held_probed: false,
         preview: Vec::new(),
+        construction: Vec::new(),
         profiles: Vec::new(),
     }
 }
@@ -1097,5 +1112,56 @@ mod tests {
         let (_, elsewhere) = compose(&index, &display, &Selection::None, None, &held(7));
         assert!(elsewhere.held.is_empty());
         assert_eq!(elsewhere.held_refused, None, "the ordinary arm stays quiet");
+    }
+
+    /// **A profile the edit door previews in place is marked by the
+    /// preview's outline.** The plate's profile is selected, once under
+    /// the view that previews nothing and once under one whose
+    /// [`DisplayView::previewed_profile`] draws it 0.1 m along x. Red if
+    /// the selected mark stays on the committed outline the profile lane
+    /// leaves out.
+    #[test]
+    fn a_profile_previewed_in_place_is_marked_by_its_preview() {
+        use crate::display::PreviewedProfile;
+
+        let (_, index, _) = plate_indexed(Tol::witness());
+        let (doc, _) = crate::scene::plate_with_hole(Tol::witness()).expect("the plate authors");
+        let profile = *doc
+            .ids()
+            .iter()
+            .find(|node| !index.profile_outline(**node).is_empty())
+            .expect("the plate draws a profile");
+        let selected = Selection::Node(profile);
+        let committed = super::edge_overlay(&index, &DisplayView::none(), &selected, None).selected;
+        let outline: Vec<Vec<Point3<f64>>> = index
+            .profile_outline(profile)
+            .iter()
+            .map(|lp| {
+                lp.iter()
+                    .map(|p| Point3::new(p.x + 0.1, p.y, p.z))
+                    .collect()
+            })
+            .collect();
+        let want: Vec<[f32; 3]> = outline
+            .iter()
+            .flat_map(|lp| LegLane::of_polyline(lp).into_segments())
+            .collect();
+        let previewing = DisplayView::none().previewing(Some(PreviewedProfile {
+            node: profile,
+            outline,
+        }));
+        let marked = super::edge_overlay(&index, &previewing, &selected, None).selected;
+        assert!(
+            !committed.is_empty(),
+            "the control: the committed outline is marked"
+        );
+        assert_ne!(
+            marked, committed,
+            "the committed outline is not marked while previewed"
+        );
+        assert_eq!(
+            marked, want,
+            "the preview's outline is marked as the selection"
+        );
     }
 }

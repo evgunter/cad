@@ -35,3 +35,15 @@ today, so the door that builds it passes them, as
 `first=`/`second=`, as `EngineRefusal::payload` does. That moves
 every goldened violated report's `verdict` line, so it re-pins them.
 
+## Update (2026-11-02, DOORS' `a-clearance-assertion-is-decided-by-the-sweep`)
+
+User-facing now: a clearance assertion's verdict carries this report
+(`AssertionVerdict::Clearance`), and the viewer's clearance row will
+draw its pair (`work/doors/the-gui-has-no-clearance-consumer.md`).
+`serialize` labels the pair's faces by side
+(`faces=first:…/second:…`, through `Witness::serialize`, for `within`
+and `violated` alike) and `render` says "face … of the first scope and
+face … of the second". What is still open: `render` names each face by
+its key and its side, not by the body or seat it is of; the pncad door
+(`pncad::analysis::clearances_at_nominal`) hands the assertion id beside
+the pair, from which a consumer reads the seats.

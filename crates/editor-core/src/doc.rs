@@ -1137,6 +1137,53 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **Whether `name`, read where an instance is, is a part's**: read
+    /// where `parted` says an instance is, and spelled at a node this
+    /// document never minted. A copy carries its part's names verbatim,
+    /// in the part's ids, and an operation over the copy carries them
+    /// inside its own names; such a level is the part's to answer for
+    /// (`work/intent/a-part-name-in-the-host-is-spelled-in-the-parts-ids.md`).
+    ///
+    /// **The one predicate** every door that lets a part's name through
+    /// asks, of each level of a name it walks
+    /// ([`StableName::spelled_outside`](crate::names::StableName)).
+    /// "Where an instance is" is the site's to say: a body that reaches
+    /// one ([`Self::reaches_instance`]) for a name read in a body (a
+    /// selection, an appearance key, a `Rebind` of a body), and a
+    /// document that holds one ([`Self::holds_instance`]) for a payload
+    /// name, which is read in no body.
+    ///
+    /// It asks the mint log, not liveness: a node this document minted
+    /// and since deleted is still this document's, and stays held to its
+    /// rules (a dead reference is the evaluation's to refuse, a
+    /// never-minted one a part's).
+    pub fn part_spelled(&self, parted: bool, name: &StableName) -> bool {
+        parted && !self.has_minted(name.node)
+    }
+
+    /// **Whether this document holds an instance**: where a payload name
+    /// may be a part's ([`Self::part_spelled`]).
+    pub fn holds_instance(&self) -> bool {
+        self.nodes
+            .values()
+            .any(|n| matches!(n, Node::InstantiatePart { .. }))
+    }
+
+    /// **The read the placement `node` copies**: its source's read, or
+    /// `None` where `node` is no `Place` (only a placement copies, and
+    /// only it carries a source slot; an instance copies its part's
+    /// product, no body of this document). The one spelling of "what
+    /// does this copy copy" — the takeover door, the viewer's world
+    /// reads and its stranded-pick walk ask it. A member read of a
+    /// family (`source.is_member()`) answers the family's read: which
+    /// member is the read's index's to say, not this.
+    pub fn copied_read(&self, node: RecipeNodeId) -> Option<VarId> {
+        match self.node(node)? {
+            Node::Place { source, .. } => Some(source.read),
+            _ => None,
+        }
+    }
+
     /// **The space `node`'s body is in** ([`Self::space_of`] of its
     /// body), `None` for a node that builds no body.
     pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId>
@@ -1620,7 +1667,7 @@ impl<P> Doc<P> {
     where
         P: crate::ProfilePayload,
     {
-        if observed.is_empty() || matches!(node, Node::Assertion { .. }) {
+        if observed.is_empty() || matches!(node, Node::Assertion(_)) {
             return None;
         }
         node.rows()
@@ -3295,18 +3342,19 @@ mod tests {
 pub(crate) enum Reader {
     /// A construction seat.
     Constructs,
-    /// A measure's reference seat, or a selection's own body read: a
+    /// A measure's reference seat, a clearance's seat, or a
+    /// selection's own body read: a
     /// selection names faces and builds nothing, so what reads it
     /// decides.
     Observes,
 }
 
 impl Reader {
-    /// How a seat of `kind` reads: a measure's observes, every other
-    /// constructs.
+    /// How a seat of `kind` reads: a measure's and a clearance's
+    /// observe, every other constructs.
     pub(crate) fn of(kind: crate::SlotKind) -> Self {
         match kind {
-            crate::SlotKind::Measured(_) => Self::Observes,
+            crate::SlotKind::Measured(_) | crate::SlotKind::Cleared => Self::Observes,
             _ => Self::Constructs,
         }
     }

@@ -26,8 +26,11 @@
 //! between.
 //!
 //! **Where it lies** is the kernel's one reading of it,
-//! [`geom_brep::chart_singularity::locate`], which tier 3 refuses the
-//! same faces by; this pass keeps its dispositions and the band it reads
+//! [`geom_brep::chart_singularity::locate`], whose boundary placement
+//! tier 3 shares (tier 3 reads the side through the face's point-in-face
+//! door, which this pass is filed to follow:
+//! `work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`);
+//! this pass keeps its dispositions and the band it reads
 //! at, the coarser of the file's and the run's, so a point the kernel
 //! reads as one with a vertex is not cut a sub-tolerance edge away from
 //! it, and one the file cannot place is not placed finer.
@@ -373,7 +376,7 @@ fn scan(solid: &SolidSpec, fi: usize, read: &Read) -> Result<Option<Action>, Ste
                 // This pass cuts lines and circles alone.
                 if !matches!(
                     loops[r#loop][edge].carrier,
-                    Curve3::Line { .. } | Curve3::Circle { .. }
+                    Curve3::Line(_) | Curve3::Circle { .. }
                 ) {
                     return Err(foreign_carrier(face.id));
                 }
@@ -639,7 +642,7 @@ enum Hit {
 fn speed(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
         Curve3::Circle { radius, .. } => radius,
-        Curve3::Line { dir, .. } => dir.norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
         _ => 1.0,
     }
 }
@@ -803,7 +806,7 @@ fn crossings(
             )
         }
         (
-            &Curve3::Line { origin: o, dir: g },
+            &Curve3::Line(geom::Line { origin: o, dir: g }),
             &Curve3::Circle {
                 center: ce,
                 axis: ne,
@@ -824,11 +827,11 @@ fn crossings(
             })
         }
         (
-            &Curve3::Line { origin: o, dir: g },
-            &Curve3::Line {
+            &Curve3::Line(geom::Line { origin: o, dir: g }),
+            &Curve3::Line(geom::Line {
                 origin: oe,
                 dir: ge,
-            },
+            }),
         ) => {
             // The closest approach of two lines; generators of one cone
             // meet only at its apex, which the caller's lead skips.
@@ -854,10 +857,10 @@ fn crossings(
                 radius: r,
                 ..
             },
-            &Curve3::Line {
+            &Curve3::Line(geom::Line {
                 origin: oe,
                 dir: ge,
-            },
+            }),
         ) => {
             let den = n.dot(ge);
             if den.abs() <= 1e-12 * ge.norm() {
@@ -924,7 +927,7 @@ fn require_read_carriers(solid: &SolidSpec, fi: usize) -> Result<(), StepImportE
         for u in &lp.uses {
             if !matches!(
                 solid.edges[&u.edge].carrier,
-                Curve3::Line { .. } | Curve3::Circle { .. }
+                Curve3::Line(_) | Curve3::Circle { .. }
             ) {
                 return Err(foreign_carrier(face.id));
             }

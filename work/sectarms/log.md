@@ -215,3 +215,16 @@ and bodies unchanged. No orchestrator yet.
   - limb 3 generalises the plane's chart tube over `Phi`, one home.
 
   Tier: H, dual review.
+- 2026-11-02 — **Cylinder ruling-sweep stage (branch `sectarms/cylinder-ruling-sweep`).** Built the build items of `a-near-parallel-pairs-accounting-grows-with-the-operation-region`, which closes. One ruling-sweep module (`pair_section::ruling`, the `Ruled` shape shared with the cone), a one-to-one cut-end and witness match in the carry, the march ending at the region's ball and seeded from the count, and a row-5 coverage `debug_assert` read from the operands' general quadratic. Filed: cylinder × sphere as the next ruled pair (`cylinder-sphere-reads-its-pose-on-the-ruling-sweep`, P1 M), and the thin-rod row's limb-3 refusal on SSIMARCH.
+- 2026-11-02 — **NURBS stage 1 (PR 6304) reviewed and fixed.** Dual concurrent review in cloud sessions on `6f1be80`; both reviewers APPROVE-WITH-FIXES.
+  - **The one MAJOR is bilateral, at divergent severity:** no row pinned a curved partner's metres conversion (fixtures all had R ≈ 1).
+  - **Fix pass `32cb604` added:**
+    - rows at R = 100, a torus inner-equator wall, a refined quarter-cylinder, a radius-100 ruling graze, and the leaf at ×1e-3 and ×1e-2 (every mutant now red, including the sweep-on-raw-`f` one via a half-dome side touch);
+    - corners decided clear on a floor;
+    - `residual::Form` as a three-variant type;
+    - partner-neutral predicate names;
+    - one door and hull rule;
+    - topo routing rows.
+  - **Filed:** `a-curved-partners-coincidence-ceiling-is-read-per-net` (P3 E) and `the-canonical-implicit-forms-are-spelled-three-times` (P3 M).
+  - A wall tangent along a whole side refuses by the cell budget on the plane path too, so it is not new and not filed.
+  - **Class to watch:** fixtures at unit scale cannot see a units error. A conversion's rows need a scale far from 1.

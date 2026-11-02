@@ -265,6 +265,8 @@ mod resolve_upstream_scope;
 mod revalue_corpus;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
+#[path = "takeover_door.rs"]
+mod takeover_door;
 
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
@@ -331,6 +333,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "maintenance_net.rs"]
 mod maintenance_net;
+#[path = "member_budget.rs"]
+mod member_budget;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
@@ -380,10 +384,10 @@ mod m10_5_r1_probes_interval;
 mod m10_5_r2_probes_interval;
 #[path = "m10_6_ci_rows_interval.rs"]
 mod m10_6_ci_rows_interval;
+#[path = "m10_6_clearance_assertion_interval.rs"]
+mod m10_6_clearance_assertion_interval;
 #[path = "m10_6_mc_draws.rs"]
 mod m10_6_mc_draws;
-#[path = "m10_6_min_clearance_interval.rs"]
-mod m10_6_min_clearance_interval;
 #[path = "m10_6_r1_probes_interval.rs"]
 mod m10_6_r1_probes_interval;
 #[path = "m10_6_reports_interval.rs"]
