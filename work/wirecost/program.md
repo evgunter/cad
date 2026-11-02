@@ -2,7 +2,7 @@
 id: wirecost
 kind: program
 title: WIRECOST — what a family costs to evaluate and hold: the cheaper per-member payload, the union fold over a family, and the stop condition the kernel's own evaluations take from their caller
-status: ready
+status: active
 opened: 2026-11-02
 group: api/eval
 prefix: wirecost/

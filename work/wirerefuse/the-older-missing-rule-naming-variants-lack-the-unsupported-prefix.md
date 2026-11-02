@@ -2,7 +2,7 @@
 id: the-older-missing-rule-naming-variants-lack-the-unsupported-prefix
 kind: issue
 title: The older missing-rule NamingError variants do not carry the Unsupported prefix D9's row-2 naming rule asks for
-status: open
+status: dispatched
 opened: 2026-10-21
 priority: P3
 cost: M

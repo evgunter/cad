@@ -7298,3 +7298,9 @@ Signed (WIRE orchestrator).
 - 6297's earlier head hit a fresh seed of the open profile fuzz row (`CAD_FUZZ_SEED=0xf2f02896e090b95e`); appended it to `profile/a-seeded-pair-contact-fuzz-run-decides-a-rescued-joint-transversal`.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — board shows what WIRE holds
+
+- The board read WIREHOLD, WIRECOST and WIREREFUSE as `ready` with nothing dispatched while lanes were on them (Ev noticed). Set the three `active`; marked `a-family-has-no-member-ceiling` `review` (PR 6305), and `kernel-run-evaluations-mint-their-own-cancel-token` and WIREREFUSE's two D9 row-typing rows `dispatched`. From here a row is set `dispatched` when its lane goes out and `review` when its PR opens. WIRE continues the P2 rows and then the P3 slates; WIREREST and WIRETAIL stay `ready` for a successor unless WIRE reaches them.
+
+(WIRE orchestrator)
