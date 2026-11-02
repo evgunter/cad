@@ -163,7 +163,7 @@ fn reassembly_oracle_generic_cube() {
 
     // Finish through promotion + distribution (the pre-carve state):
     // mirror split_finish's promotion inline via the public pieces.
-    let section = completed[0];
+    let section = &completed[0];
     let face_data = body.get_face(section.face).unwrap();
     let ring = if face_data.outer == section.above_loop {
         section.below_loop
