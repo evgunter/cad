@@ -705,7 +705,13 @@ impl MateTool {
             }
             _ => (picked_on.clone(), picked_on.into()),
         };
-        let target = pose_of(choice.kind, picked_to.clone().into());
+        // `to` is read where it was picked: on a copy, the copy itself;
+        // on a drawn operation, the output picked ([`crate::session::face_read`]).
+        let to_read = match doc.node(to.node) {
+            Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked_to.clone().into(),
+            _ => crate::session::face_read(doc, to),
+        };
+        let target = pose_of(choice.kind, to_read);
         let target = if choice.flip {
             pncad::document::Operand::Pose(Box::new(pose::PoseDef::Flip {
                 pose: pose::RoleRead::plain(target),
