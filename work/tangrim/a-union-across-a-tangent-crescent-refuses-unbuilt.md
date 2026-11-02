@@ -2,11 +2,10 @@
 id: a-union-across-a-tangent-crescent-refuses-unbuilt
 kind: issue
 title: A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle
-status: parked
+status: open
 opened: 2026-10-25
 priority: P1
 cost: H
-blocked_on: [the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading]
 ---
 
 
@@ -148,3 +147,7 @@ The designers' weighing of step 2 is decided: one bound-side reading for every p
 
 - Step 1 is not a union-of-opposed-planes special case: the crescent is `sector_overlap` read one order down by the same primitive, in every op; `crescent` stops being a refusal detector.
 - Steps 3–4 (two one-site loops at the join, the pinch) were measured with the ties read `On` and `crescent_refusal` bypassed; re-measure them once the reading lands, before designing them. Unmeasured too: whether ∩ and both differences stay `SOUND` once the crescent reads as an overlap in every op.
+
+## Unparked (2026-11-02)
+
+Its blocker, the one bound-side reading, landed (PRs 6217, 6253). Steps 3–4 were measured with ties read `On`; re-measure them first on the new reading: with `crescent_refusal` bypassed, does each crescent bound now read `Leaves` (or `Unresolved`, in which case the witness row stands in front of this one), and what does the join refuse next?

@@ -2170,7 +2170,6 @@ impl DocSession {
             | SessionOp::AddBoolean { .. }
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
-            | SessionOp::AddTransform { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2249,12 +2248,6 @@ impl DocSession {
                 normal,
             } => self.add_split(target, &origin, &normal),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
-            SessionOp::AddTransform {
-                input,
-                translation,
-                rotation_axis,
-                rotation_angle,
-            } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
             SessionOp::Place {
                 body,
                 target,
@@ -3658,37 +3651,6 @@ impl DocSession {
         Ok(RoleRead::through(frame, role))
     }
 
-    /// Insert one rigid move of an existing body
-    /// ([`SessionOp::AddTransform`]): a placement of `input` into the
-    /// space it is in, by values on that space's axes ([`gesture_moves`])
-    /// — rotated by `rotation_angle` about `rotation_axis` through
-    /// `input`'s own origin, then translated — and the body's world
-    /// placements re-pointed to it (A10, Ev's residue 1), in one action.
-    fn add_transform(
-        &self,
-        input: Operand,
-        translation: &[Formula; 3],
-        rotation_axis: &[Formula; 3],
-        rotation_angle: &Formula,
-    ) -> Result<Creating, Refusal> {
-        let input = as_body(self.committed_doc(), input);
-        self.require_placeable(&input)?;
-        let doc = self.committed_doc();
-        let at = gesture_frame(doc, translation, rotation_axis, rotation_angle, self.tol)?;
-        let moves = gesture_moves(doc, translation, rotation_axis, rotation_angle, &at)?;
-        let takeover = self.takeover_by_a_copy(&input);
-        // Into the space the body is in, on that space's axes.
-        let target = self.home_space(&input)?;
-        Ok(taking_over(takeover, move |run| {
-            let placement = run.insert(Node::place(
-                pncad::document::BodyRead::plain(input.clone()),
-                Operand::Var(target),
-                pncad::document::Placed::unmated(moves).bundle(),
-            ))?;
-            Ok(Wrote::one(placement))
-        }))
-    }
-
     /// Insert one pattern of an existing body, fused or not
     /// ([`SessionOp::AddPattern`], [`SessionOp::AddFusedPattern`]): the
     /// index `k = index(count)` and one placement of the body in its own
@@ -3931,17 +3893,15 @@ impl DocSession {
     /// holds no pieces makes (a feature, a mirror's or a sketch's union,
     /// a pattern).
     fn takeover(&self, read: &Operand) -> Result<Takeover, Refusal> {
-        let takeover = self.takeover_by_a_copy(read);
+        let takeover = self.unchecked_takeover(read);
         takeover.stranded_pick(self.committed_doc())?;
         Ok(takeover)
     }
 
-    /// **The takeover of the body `read` names, by a copy of it** (the
-    /// transform's: a placement of the body it takes over, whose pieces
-    /// its copy carries, so no pick is stranded), reading the result's
-    /// table under the session's runs: their resolver, and
-    /// the landed run as the memo.
-    fn takeover_by_a_copy(&self, read: &Operand) -> Takeover {
+    /// **The takeover of the body `read` names**, not yet asked whether
+    /// it strands a pick, reading the result's table under the
+    /// session's runs: their resolver, and the landed run as the memo.
+    fn unchecked_takeover(&self, read: &Operand) -> Takeover {
         let resolver = self.run_resolver();
         Takeover {
             reads: TakeoverReads {
@@ -3970,7 +3930,7 @@ impl DocSession {
         }
         let mut read = distinct
             .into_iter()
-            .map(|operand| self.takeover_by_a_copy(operand))
+            .map(|operand| self.unchecked_takeover(operand))
             .filter(|takeover| !takeover.is_empty());
         let Some(first) = read.next() else {
             return Ok(Takeover::of_var(doc, None));
@@ -4620,17 +4580,25 @@ impl DocSession {
         constraints: Vec<pncad::document::Constraint<Formula>>,
     ) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
-        self.require_placeable(&body)?;
         let doc = self.committed_doc();
-        // The Create door is a body not yet placed: one placed since the
-        // draft opened is stale, never placed a second time.
-        if let Some(var) = crate::world::read_var(doc, &body)
-            && let Some(copy) = doc.placements().into_iter().find(|&at| {
-                matches!(doc.node(at), Some(Node::Place { source, .. }) if source.read == var)
-            })
+        // The Create door places a body: a copy moves by its own Edit door.
+        if let Some((node, _)) = crate::world::read_output(doc, &body)
+            && moves_copies(doc, node)
         {
-            return Err(Refusal::BundleStale {
-                node: doc.spoken(copy),
+            return Err(Refusal::CreateOnACopy {
+                copy: doc.spoken(node),
+            });
+        }
+        self.require_placeable(&body)?;
+        // A body a placement copies moves by that copy's Edit door, and is
+        // never placed a second time.
+        if let Some(var) = crate::world::read_var(doc, &body)
+            && let Some(&copy) = crate::world::placements_reading(doc, var).first()
+        {
+            let body = crate::world::read_output(doc, &body).map_or(copy, |(node, _)| node);
+            return Err(Refusal::BodyPlaced {
+                body: doc.spoken(body),
+                copy: doc.spoken(copy),
             });
         }
         let mut takeover = Takeover::of(doc, &body);
@@ -5123,7 +5091,7 @@ struct Takeover {
     /// Whether the product slot reads `taken` itself.
     product: bool,
     /// What the kernel's takeover reads the result's table under
-    /// ([`DocSession::takeover_by_a_copy`]).
+    /// ([`DocSession::unchecked_takeover`]).
     reads: TakeoverReads,
     /// Copies of other bodies the action deletes once it has taken
     /// these over: a combine's other operands, whose material is in the
@@ -5196,8 +5164,7 @@ impl Takeover {
     /// result, a mirror's or a sketch's union, a combine and a pattern
     /// hold no pieces, and a pick is never re-pointed, so re-pointing
     /// that reader would leave the pick naming a piece its copy no
-    /// longer holds. The transform's takeover places the body it took,
-    /// whose pieces its copy carries, and asks nothing here.
+    /// longer holds.
     fn stranded_pick(&self, doc: &Doc<ProfileProgram>) -> Result<(), Refusal> {
         let picks: Vec<(VarId, &pncad::document::Pick)> = doc
             .vars()
@@ -5223,7 +5190,7 @@ impl Takeover {
             }
         }
         // What a pick's placement copies — down the whole chain of
-        // copies, a copy of a copy (a transform's) included — and the
+        // copies, a copy of a copy included — and the
         // path to its piece.
         let reads = |held: &pncad::document::Pick| -> Vec<VarId> {
             let mut copied = Vec::new();
@@ -5351,7 +5318,7 @@ fn body_outputs(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
 /// halves still refuse at the kind gate. A node's copy was read this way
 /// when a pick reached it through its placement; drawn unplaced, it is
 /// picked on itself.
-fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
+pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
     match read {
         Operand::Node(node)
             if doc.node(node).is_some()
@@ -5371,7 +5338,8 @@ fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
 ///
 /// A construction is placed into the first's space and read through
 /// that placement. A copy placed into its own body's space by values
-/// alone (the transform gesture's) is re-targeted into the first's
+/// alone (the placement editor's Create with no mate, the Transform
+/// tool's on a body nothing placed) is re-targeted into the first's
 /// space with its values as written, so it stands on the first's axes
 /// as it stood on its body's and every variable keeps driving it. An
 /// operand in no space, or a copy whose bundle holds a mate (which
@@ -5554,29 +5522,6 @@ fn nominal(
         .map_err(|error| refused(GestureFrameFault::Unevaluated { field, error }))
 }
 
-/// **The frame the transform gesture's numbers make**: rotated by
-/// `angle` about `axis` through the origin, then translated, at their
-/// nominal values ([`Frame::rotate_then_translate`]).
-fn gesture_frame(
-    doc: &Doc<ProfileProgram>,
-    translation: &[Formula; 3],
-    axis: &[Formula; 3],
-    angle: &Formula,
-    tol: Tol,
-) -> Result<Frame, Refusal> {
-    let translation = nominals(doc, "translation", translation, Dimension::Length)?;
-    let axis = nominals(doc, "rotation axis", axis, Dimension::Scalar)?;
-    let angle = nominal(doc, "rotation angle", angle, Dimension::Angle)?;
-    let band = pncad::geom_core::Band::linear(tol)
-        .unwrap_or_else(|_| unreachable!("the session's tolerance is a band"));
-    Frame::rotate_then_translate(axis, angle, translation, band).map_err(|refusal| {
-        Refusal::Frame(Box::new(GestureFrameFault::Direction {
-            field: "rotation axis",
-            refusal,
-        }))
-    })
-}
-
 /// **The frame at `origin` whose `z` is `direction`**, its `x` the
 /// first world axis off the direction made orthogonal to it — the
 /// frame a plane or an axis given by a point and a direction is read
@@ -5612,47 +5557,6 @@ fn frame_along(
         columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [n.x, n.y, n.z]],
         translation: origin,
     })
-}
-
-/// **The transform gesture's values** on the axes of the space its body
-/// is in: the slides its translation writes, as written, and the spin
-/// its rotation writes — about the space's own axis, by the angle as
-/// written, where the rotation axis is one of the three, else the chain
-/// of turns about `x`, `y` and `z` that `at` (the frame the gesture's
-/// numbers make, [`gesture_frame`]) turns by ([`moves_of`]).
-fn gesture_moves(
-    doc: &Doc<ProfileProgram>,
-    translation: &[Formula; 3],
-    axis: &[Formula; 3],
-    angle: &Formula,
-    at: &Frame,
-) -> Result<Vec<(pncad::document::Coord, Formula)>, Refusal> {
-    use pncad::document::{Coord, TargetAxis};
-    let about = nominals(doc, "rotation axis", axis, Dimension::Scalar)?;
-    let lone = TargetAxis::ALL
-        .into_iter()
-        .zip(about)
-        .filter(|&(_, c)| c != 0.0);
-    let spins = match lone.collect::<Vec<_>>().as_slice() {
-        [(axis, sense)] => {
-            let by = if *sense > 0.0 {
-                angle.clone()
-            } else {
-                Formula::neg(angle.clone())
-                    .unwrap_or_else(|_| unreachable!("an angle negates to an angle"))
-            };
-            vec![(Coord::Spin(Some(*axis)), by)]
-        }
-        _ => moves_of(&Frame {
-            columns: at.columns,
-            translation: [0.0; 3],
-        }),
-    };
-    let slides = TargetAxis::ALL
-        .into_iter()
-        .zip(translation.iter().cloned())
-        .map(|(axis, by)| (Coord::Slide(axis), by));
-    Ok(spins.into_iter().chain(slides).collect())
 }
 
 /// **The values standing a copy at `at`** on its target space's axes:

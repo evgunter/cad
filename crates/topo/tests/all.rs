@@ -432,6 +432,8 @@ mod replace_face_band_probes;
 mod a_corner_flat_at_its_short_bounds;
 #[path = "a_meridian_witness_contradicts_only_off_its_locus.rs"]
 mod a_meridian_witness_contradicts_only_off_its_locus;
+#[path = "a_reflex_corner_pierced_through_a_plate.rs"]
+mod a_reflex_corner_pierced_through_a_plate;
 #[path = "a_ring_crossed_along_its_line_places_its_germs_apart.rs"]
 mod a_ring_crossed_along_its_line_places_its_germs_apart;
 #[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
