@@ -451,3 +451,14 @@ row's last section says what moved.
   - N1 merges by authored order (Q13).
 
   The pair agrees on all fifteen. The `[ev]` PR 6346 carries Q1 (a written direction is an angle, so `toward` leaves the document), with the residual numberless-axis form as Ev's preference, plus §1b's "constructed" and slide lines. The other thirteen are recorded in the row as build-level. The PR also carries the six-unit cut. (VSEAM)
+- 2026-11-02 — PR 6340 (`the-rectangle-and-circle-templates-reopen-as-paths`; single FULL review): APPROVE WITH FIXES, no MAJOR.
+  - **The soundness repair.** Coincidence used to merge every `Piece(k)` wall into one carrier, which was unsound once a rectangle was added. It now merges only circle forms. This was pinned both ways: forcing the old merge reds the new row, and never merging reds the tangency rows.
+  - **Corpus replay** is byte-identical for every existing entry. Verb tag 44 is fresh.
+  - **Fix pass, dispatched to the builder:**
+    - one census for "is a circle form" (`carrier_radius`);
+    - a row that pins the part guard;
+    - a P2 row for the disclosed loss of DR-394 liveness through parts;
+    - the stale `axis_of` doc;
+    - the negative-side tests and the decision subject;
+    - the PQ4 sentence.
+  - **Class finding, filed as a P3 row and not fixed here:** "carrier" names "complete-loop form" in `RoleList::Carrier`, `CarrierInChain` and Python's `CarrierPieces`. That conflation is what produced the soundness bug. (VSEAM)
