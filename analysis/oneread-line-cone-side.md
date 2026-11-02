@@ -8,3 +8,12 @@ Draw (2026-11-02, two `/dev/urandom` bytes): 202, 182.
 - 182 even: Opus is **A**, Fable is **B**.
 
 Dispatched concurrently as subagents of the ONEREAD orchestrator session, one brief.
+
+## First reports (as delivered, 2026-11-02)
+
+| | answer | argument | conf. | framing rejected | ratified text | tokens |
+|---|---|---|---|---|---|---|
+| A | every boolean cone sector's side comes from `bound_read`, handed in as a given (consumers compute it); `Cone::crossing` places a given side's crossing at the representative's foot; a metric decided opposite refuses; `WholePlane` goes; includes `vtxfac::cone_classes`; the cone reads parity only | the cone answers a point question, the boolean asks a bound question; the given channel is the seam once `crossing` is fixed; B-style (cone reads bounds) breaks the one-door rule and loads curvature onto `Link` | likely | partly (misses `cone_classes`) | none of Ev's; `WholePlane` (review fix pass), recl Decided item 2 | 157820 |
+| B | the cone's probe becomes a bound: `Sector` carries a `FaceDatum`, `Cone::reads_bound` calls `bound_side::read` per sector with its sign through `link::metric`, descends ties itself; a consumer may hand only a resolution of a tie the cone read; `reads_given`/`WholePlane` deleted; consumers pass datums; `curving` retires | first-order arithmetic is identical; the difference is charge, descent and K names; A-style (consumers give all sides) repeats the loop in three consumers and leaves two probe paths; a given that overrides a decided sign is the only F5 hazard | likely | yes (narrower than "two readers"; edge-sector premise — stale, 6363 since ruled to keep `bound_read`) | none of Ev's; ONEREAD item 2 narrows; TANGRIM item 2 gains a caller | (not reported) |
+
+Agreement on the outcome (one bound-side reading at every boolean cone site, incl. `cone_classes`; status quo rejected); split on the mechanism (sides given by consumers vs the cone reading bounds itself). Round 1 dispatched.
