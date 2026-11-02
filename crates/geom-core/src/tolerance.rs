@@ -748,7 +748,9 @@ impl Tolerance {
     ///
     /// - [`ToleranceError::InvalidValue`] if `eps` is not finite and
     ///   strictly positive, or [`ToleranceError::BelowFloor`] if it is
-    ///   not [`admissible`] at the run's K (checked before touching the
+    ///   not [`admissible`] at the K in force ([`k_admitted`]: the
+    ///   committed run's K where one is committed, so a reload into it is
+    ///   asked what the snapshot check asked; checked before touching the
     ///   global).
     /// - [`ToleranceError::AlreadyInitialized`] if the run's
     ///   tolerance was already committed. The CALLER decides whether
@@ -756,8 +758,16 @@ impl Tolerance {
     ///   is a benign reload, a mismatch is the one-process-one-ε
     ///   refusal (the persistence layer's `ToleranceConflict`).
     pub fn init_document_eps(eps: f64) -> Result<(), ToleranceError> {
-        let (k, k_err) = resolve_var(&env_lookup, ENV_K, DEFAULT_K, refuse_env_k);
-        let (k, k_err) = admit_env_k(&env_lookup, eps, k, k_err);
+        // The K in force (`k_admitted`): a committed run's own K, so a
+        // reload into a run committed at another K asks the rule at the K
+        // the ε runs at, as the snapshot check did.
+        let (k, k_err) = match GLOBAL.get() {
+            Some(g) => (g.tolerance.k, None),
+            None => {
+                let (k, k_err) = resolve_var(&env_lookup, ENV_K, DEFAULT_K, refuse_env_k);
+                admit_env_k(&env_lookup, eps, k, k_err)
+            }
+        };
         let tolerance = Tolerance { eps, k };
         tolerance.validate()?;
         let mut installed = false;

@@ -694,7 +694,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::EmptyWitnessBulk => none,
-        EditError::InvalidTolerance { value } => EditPayload {
+        EditError::InvalidTolerance { value, .. } => EditPayload {
             value: Some(*value),
             ..none
         },

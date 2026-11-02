@@ -755,12 +755,12 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 fn an_inadmissible_epsilon_is_refused_at_both_doors() {
     let (doc, _) = with_value();
     match apply(&doc, &DocEdit::SetTolerance { eps: 0.0 }, Tol::witness()) {
-        Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
+        Err(EditError::InvalidTolerance { value, .. }) => assert_eq!(value, 0.0),
         other => panic!("a zero ε must refuse typed, got {other:?}"),
     }
     let below = geom_core::tolerance::EPS_MIN.next_down();
     match apply(&doc, &DocEdit::SetTolerance { eps: below }, Tol::witness()) {
-        Err(EditError::InvalidTolerance { value }) => assert_eq!(value, below),
+        Err(EditError::InvalidTolerance { value, .. }) => assert_eq!(value, below),
         other => panic!("an ε below the floor must refuse typed, got {other:?}"),
     }
 
@@ -775,7 +775,7 @@ fn an_inadmissible_epsilon_is_refused_at_both_doors() {
         *eps = serde_json::json!(0.0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value, .. })) => {
             assert_eq!(value, 0.0);
         }
         other => panic!("a zero ε must refuse typed at load, got {other:?}"),
@@ -784,7 +784,7 @@ fn an_inadmissible_epsilon_is_refused_at_both_doors() {
         wire["snapshot"]["epsilon"] = serde_json::json!(below);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value, .. })) => {
             assert_eq!(value, below);
         }
         other => panic!("an ε below the floor must refuse typed at load, got {other:?}"),

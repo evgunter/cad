@@ -468,6 +468,8 @@ pub enum PersistError {
     ToleranceInvalid {
         /// The recorded value.
         value: f64,
+        /// The K it was asked at, captured when refused.
+        k: f64,
     },
 }
 
@@ -565,11 +567,11 @@ impl Staged for PersistError {
                 "document ε {document:e} conflicts with the process ε {process:e} \
                  (one process, one ε)"
             ),
-            Self::ToleranceInvalid { value } => {
+            Self::ToleranceInvalid { value, k } => {
                 write!(
                     f,
                     "recorded ε {value:e} is not admissible: {}",
-                    geom_core::tolerance::EpsFloor::for_eps(*value)
+                    geom_core::tolerance::EpsFloor { k: *k }
                 )
             }
         }
@@ -714,7 +716,10 @@ fn reconcile_epsilon(eps: f64) -> Result<(), PersistError> {
         // Unreachable past the snapshot check, which asks the same rule at
         // the same K (`geom_core::tolerance::eps_admissible`) and refuses an
         // inadmissible ε as `SnapshotError::EpsilonInvalid` first.
-        Err(_) => Err(PersistError::ToleranceInvalid { value: eps }),
+        Err(_) => Err(PersistError::ToleranceInvalid {
+            value: eps,
+            k: geom_core::tolerance::k_admitted(eps),
+        }),
     }
 }
 
