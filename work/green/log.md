@@ -327,3 +327,17 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   fence or an indented block, reads `#` as a comment only in yml, toml
   and sh, and scans `git ls-files`. Sibling gap filed:
   `read-reach-blanks-doctests`.
+- #6343 merged (sweep main reds, P0): 7 of 18 rows already green; 11
+  moved at PR 6013 (FOREIGN's crease rule, Ev's PR 5913 ruling) past the
+  spline join to SPIRICARM's volume gaps, pinned per owner. STYLE review,
+  one fix pass (test names now say where they stop).
+- #6355 merged (editor-core main reds, P1 and the coincidence-door row):
+  four interval counts re-blessed as PR 6105's new
+  `pcurve_cylinder_chart_axial` decision, proved by dropping only that
+  `decide` call; the m10_3 drive pinned on a new PCERT row (P2); the
+  coincidence door pinned on a new SECT row (P0, bisected to PR 6047).
+  STYLE review, one fix pass.
+- #6361 (integration-test binaries at opt 0 in the PR test job, kernel
+  build 882 → 539 s paired): FULL review, fix pass in flight.
+- `read-reach-blanks-doctests` banded P3 E (a guard that cannot see a
+  read edge: tooling that prevents a silent bug).
