@@ -19,13 +19,15 @@ use test_utils::fuzz;
 const TAU: f64 = core::f64::consts::TAU;
 
 fn ellipse(a: f64, b: f64) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: a,
-        semi_v: b,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        a,
+        b,
+    ))
 }
 
 fn speed(a: f64, b: f64, t: f64) -> f64 {
@@ -52,7 +54,7 @@ fn arc(a: f64, b: f64, mid: f64, width: f64) -> f64 {
 fn old_sup<T: geom_core::Real>(a: T, b: T, t0: T, gap: T) -> T {
     let (sm, cm) = (t0 - gap * T::from_f64(0.5)).sin_cos();
     ((a * sm).powi(2) + (b * cm).powi(2)).sqrt()
-        + a.abs().max(b.abs()) * gap.abs() * T::from_f64(0.5)
+        + a.max(b) * gap.abs() * T::from_f64(0.5)
 }
 
 /// Claim 2, bits: the old sup moved by no more than the reach's rounding
@@ -70,15 +72,15 @@ fn r2_turn_defect_speed_hi_is_the_old_sup_widened_by_its_rounding_and_an_upper_b
     };
     let mut worst: f64 = 0.0;
     for _ in 0..200_000 {
-        let a = (rnd() * 8.0 - 4.0).exp() * if rnd() < 0.2 { -1.0 } else { 1.0 };
-        let b = (rnd() * 8.0 - 4.0).exp() * if rnd() < 0.1 { -1.0 } else { 1.0 };
+        let a = (rnd() * 8.0 - 4.0).exp();
+        let b = (rnd() * 8.0 - 4.0).exp();
         let t0 = rnd() * 40.0 - 20.0;
         let extent =
             Extent::hull([0.0, TAU - (rnd() * 2.0 - 1.0) * (rnd() * 30.0 - 25.0).exp()]).unwrap();
         let gap = TAU - extent.get();
         let got = turn_defect_speed_hi(&ellipse(a, b), t0, extent).get();
         let m = t0 - 0.5 * gap;
-        let ceiling = a.abs().max(b.abs());
+        let ceiling = a.max(b);
         let old = old_sup(a, b, t0, gap);
         let allowance = ceiling * (1.0 + m.abs()) / (1u64 << 46) as f64;
         let case = format!("a {a} b {b} t0 {t0} gap {gap}");
@@ -115,10 +117,9 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
             (100.0, 1.0),
             (1e4, 1.0),
             (1.0, 20.0),
-            (-20.0, 1.0),
             (0.05, 0.001),
         ] {
-            let inf = a.abs().min(b.abs());
+            let inf = a.min(b);
             for centre in [
                 0.0,
                 0.3,
@@ -133,7 +134,7 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                 for (rate_name, rate) in [
                     ("inf", inf),
                     ("local", local),
-                    ("max", a.abs().max(b.abs())),
+                    ("max", a.max(b)),
                 ] {
                     for k in [
                         0.0, 0.3, 0.5, 0.9, 0.99, 1.0, 1.01, 1.1, 2.0, 3.0, 9.0, 9.9, 10.0, 10.1,
@@ -383,8 +384,8 @@ fn turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval() {
     let mut rng = fuzz::start("r2_turn_probes::turn_defect_speeds");
     for _ in 0..fuzz::scaled(3000) {
         let sign = |rng: &mut fuzz::Rng, p: f64| if rng.unit() < p { -1.0 } else { 1.0 };
-        let a = rng.range(-5.0, 5.0).exp() * sign(&mut rng, 0.2);
-        let b = rng.range(-5.0, 5.0).exp() * sign(&mut rng, 0.1);
+        let a = rng.range(-5.0, 5.0).exp();
+        let b = rng.range(-5.0, 5.0).exp();
         let t0 = if rng.unit() < 0.3 {
             rng.range(-20.0, 20.0)
         } else {
@@ -405,7 +406,7 @@ fn turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval() {
         let hi_iv = turn_defect_speed_hi(&carrier_iv, t0_iv, extent_iv)
             .get()
             .hi();
-        let (floor, ceiling) = (a.abs().min(b.abs()), a.abs().max(b.abs()));
+        let (floor, ceiling) = (a.min(b), a.max(b));
         let case = format!("a {a} b {b} t0 {t0} gap {gap:e} ({})", fuzz::replay());
         assert!(
             lo >= floor && lo_iv >= floor * (1.0 - 1e-15),

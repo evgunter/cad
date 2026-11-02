@@ -348,41 +348,44 @@ mod interval_probes {
     /// The two-step composition equals the retired hand re-spelling.
     #[test]
     fn n1r1_composition_is_the_hand_respelling() {
-        let c = Curve3::Circle {
-            center: Point3::new(1.0, -2.0, 0.5),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 2.25,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let c = Curve3::circle(
+            Point3::new(1.0, -2.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            2.25,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let composed = c.map_scalar(Interval::from_f64).map_scalar(Dual::constant);
         let lifted = c.map_scalar(Interval::from_f64);
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } = lifted
+        }) = lifted
         else {
             panic!("fixture is a circle")
         };
-        let hand: Curve3<Dual<Interval>> = Curve3::Circle {
-            center: Point3::new(
+        let hand: Curve3<Dual<Interval>> = Curve3::circle(
+            Point3::new(
                 Dual::constant(center.x),
                 Dual::constant(center.y),
                 Dual::constant(center.z),
             ),
-            axis: Vec3::new(
+            Vec3::new(
                 Dual::constant(axis.x),
                 Dual::constant(axis.y),
                 Dual::constant(axis.z),
             ),
-            radius: Dual::constant(radius),
-            u_ref: Vec3::new(
+            Dual::constant(radius),
+            Vec3::new(
                 Dual::constant(u_ref.x),
                 Dual::constant(u_ref.y),
                 Dual::constant(u_ref.z),
             ),
-        };
+        );
         let (a, b) = (
             composed.eval(Dual::variable(Interval::from_f64(0.7))),
             hand.eval(Dual::variable(Interval::from_f64(0.7))),

@@ -309,12 +309,12 @@ fn latitude_conventions() {
 /// poison, no panic; the "circle" becomes non-circular but total.
 #[test]
 fn non_unit_axis_is_garbage_out_not_poison() {
-    let c = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 2.0), // NOT unit
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let c = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 2.0),
+        1.0,
+        Vec3::unit_x(),
+    );
     // v_ref = axis × u_ref has norm 2 ⇒ ellipse with semi-axes 1 and 2.
     let p = c.eval(FRAC_PI_2);
     assert!((p.y - 2.0).abs() <= 1e-15, "sheared locus is well-defined");
@@ -382,12 +382,14 @@ fn bulge_arc_carrier_composes() {
         let center = to3d(center2);
         let axis = if bulge >= 0.0 { ez } else { ez * -1.0 };
         let u_ref = (to3d(p0) - center) * (1.0 / radius);
-        let carrier = Curve3::Circle {
-            center,
-            axis,
+        let carrier = Curve3::Circle(geom::Circle {
+            frame: geom::ConicFrame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
 
         // Start vertex parameter: 0 by construction (u_ref at start).
         let t0 = 0.0;
@@ -449,12 +451,12 @@ const FRAC_PI_8_TAN: f64 = 0.41421356237309503; // tan(π/8), the quarter-arc bu
 fn tier3_style_cache_certification() {
     // Intersection of cylinder (axis z, r = 2, origin (1,1,0)) with
     // plane z = 3: the circle center (1,1,3), radius 2, axis z.
-    let good = Curve3::Circle {
-        center: Point3::new(1.0, 1.0, 3.0),
-        axis: Vec3::unit_z(),
-        radius: 2.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let good = Curve3::circle(
+        Point3::new(1.0, 1.0, 3.0),
+        Vec3::unit_z(),
+        2.0,
+        Vec3::unit_x(),
+    );
     let cyl_residual = |p: Point3<f64>| {
         let dx = p.x - 1.0;
         let dy = p.y - 1.0;
@@ -473,12 +475,12 @@ fn tier3_style_cache_certification() {
     assert!(max_res <= 1e-14, "good cache certifies: {max_res:e}");
 
     // A wrong cache (center nudged 1e-6) must FAIL the ε = 1e-9 gate.
-    let bad = Curve3::Circle {
-        center: Point3::new(1.0 + 1e-6, 1.0, 3.0),
-        axis: Vec3::unit_z(),
-        radius: 2.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let bad = Curve3::circle(
+        Point3::new(1.0 + 1e-6, 1.0, 3.0),
+        Vec3::unit_z(),
+        2.0,
+        Vec3::unit_x(),
+    );
     let max_bad = samples
         .iter()
         .map(|&t| {
@@ -766,12 +768,7 @@ fn revolve_composition_dry_run() {
     let radial = d.reject_from(axis_dir);
     let radius = radial.norm();
     let u_ref = radial * (1.0 / radius);
-    let carrier = Curve3::Circle {
-        center,
-        axis: axis_dir,
-        radius,
-        u_ref,
-    };
+    let carrier = Curve3::circle(center, axis_dir, radius, u_ref);
     // Rotating the profile point by θ about the axis lands ON the
     // carrier at parameter θ, for many θ.
     for theta in [0.0, 0.3, FRAC_PI_2, 2.0, PI, 4.5, -1.2] {

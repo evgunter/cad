@@ -1,7 +1,7 @@
 //! **A carrier's speed**, the metres one step of its parameter covers.
 //! [`speed_range`] bounds it over every parameter on every kind: a line's
-//! `|dir|`, a conic's semi-axes (read as magnitudes in either stored
-//! order, [`crate::Curve3::semi_axes_by_size`]), a spiric's and a
+//! `|dir|`, a conic's semi-axes ([`crate::Conic::speed_lo`],
+//! [`crate::Conic::speed_hi`]), a spiric's and a
 //! spline's bounds. [`turn_defect_rate`] bounds it over one stretch, a
 //! window's turn defect, no looser than [`speed_range`] and tight as the
 //! defect shrinks. [`speed_at`] and [`speed_hi`] answer the line and the
@@ -18,7 +18,7 @@ use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
 pub fn speed_at<T: SpanLocate>(carrier: &crate::Curve3<T>, t: T) -> Option<T> {
     match Kind::of(carrier) {
         kind @ Kind::Line(_) => kind.closed_hi(),
-        Kind::Conic(c) => Some(c.speed_held(t)),
+        Kind::Conic(c) => Some(c.speed_at(t)),
         Kind::Spiric { .. } | Kind::Nurbs(_) => None,
     }
 }
@@ -51,10 +51,8 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
 /// have no period.
 pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
     match *carrier {
-        crate::Curve3::Circle { radius, .. } => Some(InfSpeed::new(radius)),
-        crate::Curve3::Ellipse { semi_u, semi_v, .. } => {
-            Some(InfSpeed::new(semi_u.abs().min(semi_v)))
-        }
+        crate::Curve3::Circle(c) => Some(InfSpeed::new(c.radius)),
+        crate::Curve3::Ellipse(e) => Some(InfSpeed::new(e.semi_u.abs().min(e.semi_v))),
         crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(minor_radius)),
         crate::Curve3::Line { .. } | crate::Curve3::Nurbs(_) => None,
     }
@@ -110,7 +108,7 @@ pub fn turn_defect_speed_hi<T: SpanLocate>(
 ) -> SupSpeed<T> {
     let (m, reach) = turn_defect(t0, extent);
     match Kind::of(carrier) {
-        Kind::Conic(c) => SupSpeed::new((c.speed_held(m) + c.speed_hi() * reach).min(c.speed_hi())),
+        Kind::Conic(c) => SupSpeed::new((c.speed_at(m) + c.speed_hi() * reach).min(c.speed_hi())),
         Kind::Spiric {
             major,
             minor,
@@ -134,7 +132,7 @@ pub fn turn_defect_speed_lo<T: SpanLocate>(
 ) -> InfSpeed<T> {
     let (m, reach) = turn_defect(t0, extent);
     match Kind::of(carrier) {
-        Kind::Conic(c) => InfSpeed::new((c.speed_held(m) - c.speed_hi() * reach).max(c.speed_lo())),
+        Kind::Conic(c) => InfSpeed::new((c.speed_at(m) - c.speed_hi() * reach).max(c.speed_lo())),
         kind => kind.range().0,
     }
 }
@@ -181,72 +179,10 @@ pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }
 
-/// **A conic's rates from its semi-axes**, as stored, in either order and
-/// sign: the one home of a conic's speed and curvature bounds
-/// (`geom_brep`'s `Conic` reads them here).
-#[derive(Clone, Copy, Debug)]
-pub struct SemiAxes<T> {
-    semi_u: T,
-    semi_v: T,
-}
-
-impl<T: Real> SemiAxes<T> {
-    /// The semi-axes along `u_ref` and `axis × u_ref`.
-    pub fn new(semi_u: T, semi_v: T) -> Self {
-        Self { semi_u, semi_v }
-    }
-
-    /// The least speed `|C′|`: the smaller semi-axis magnitude.
-    pub fn speed_lo(self) -> T {
-        crate::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).1
-    }
-
-    /// The greatest speed `|C′|`, and a bound on `|C″|`: the larger
-    /// semi-axis magnitude.
-    pub fn speed_hi(self) -> T {
-        crate::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).0
-    }
-
-    /// A bound on the curvature, `speed_hi / speed_lo²`: the tightest
-    /// bend, at the ends of the larger semi-axis.
-    pub fn curvature_hi(self) -> T {
-        self.speed_hi() / self.speed_lo().powi(2)
-    }
-
-    /// The speed `|C′(θ)|` at `theta`.
-    pub fn speed_at(self, theta: T) -> T {
-        let (sin, cos) = theta.sin_cos();
-        ((self.semi_u * sin).powi(2) + (self.semi_v * cos).powi(2)).sqrt()
-    }
-
-    /// A bound on the speed `|C′(θ)|` over the span `(t0, t1)`: `sin θ`
-    /// and `cos θ` move by at most the half-width `h` from their values
-    /// at the span's middle, so `|sin θ| ≤ min(1, |sin m| + h)` and
-    /// likewise `cos`; held to [`Self::speed_hi`].
-    pub fn speed_over(self, (t0, t1): (T, T)) -> T {
-        let h = (t1 - t0).abs() * T::from_f64(0.5);
-        let (sin, cos) = crate::mid_param(t0, t1).sin_cos();
-        let s = (sin.abs() + h).min(T::one());
-        let c = (cos.abs() + h).min(T::one());
-        ((self.semi_u * s).powi(2) + (self.semi_v * c).powi(2))
-            .sqrt()
-            .min(self.speed_hi())
-    }
-
-    /// [`Self::speed_at`] held to the semi-axes, so a circle's is its
-    /// radius exactly at every scalar: the reading [`speed_at`] and the
-    /// turn defect's bounds share.
-    fn speed_held(self, theta: T) -> T {
-        self.speed_at(theta)
-            .max(self.speed_lo())
-            .min(self.speed_hi())
-    }
-}
-
 /// A carrier read by what bounds its rates: a conic by its semi-axes.
 enum Kind<'a, T: Real> {
     Line(Vec3<T>),
-    Conic(SemiAxes<T>),
+    Conic(&'a dyn crate::Conic<T>),
     Spiric { major: T, minor: T, offset: T },
     Nurbs(&'a crate::NurbsCurve3<T>),
 }
@@ -255,10 +191,8 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
     fn of(carrier: &'a crate::Curve3<T>) -> Self {
         match carrier {
             crate::Curve3::Line { dir, .. } => Self::Line(*dir),
-            crate::Curve3::Circle { radius, .. } => Self::Conic(SemiAxes::new(*radius, *radius)),
-            crate::Curve3::Ellipse { semi_u, semi_v, .. } => {
-                Self::Conic(SemiAxes::new(*semi_u, *semi_v))
-            }
+            crate::Curve3::Circle(c) => Self::Conic(c),
+            crate::Curve3::Ellipse(e) => Self::Conic(e),
             crate::Curve3::Spiric {
                 major_radius,
                 minor_radius,

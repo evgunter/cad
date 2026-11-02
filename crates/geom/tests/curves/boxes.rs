@@ -70,12 +70,7 @@ proptest! {
         dt in 0.0..7.0f64,
     ) {
         let (axis, u_ref) = unit_frame(seed);
-        let carrier = Curve3::Circle {
-            center: Point3::new(cx, cy, cz),
-            axis,
-            radius: r,
-            u_ref,
-        };
+        let carrier = Curve3::circle(Point3::new(cx, cy, cz), axis, r, u_ref);
         let t1 = t0 + dt;
         let (e0, e1) = (carrier.eval(t0), carrier.eval(t1));
         let b = circle_arc_aabb(&carrier, t0, t1, e0, e1).unwrap();
@@ -101,13 +96,7 @@ proptest! {
     ) {
         let (axis, u_ref) = unit_frame(seed);
         let major = minor * stretch;
-        let carrier = Curve3::Ellipse {
-            center: Point3::new(cx, cy, cz),
-            axis,
-            semi_u: major,
-            semi_v: minor,
-            u_ref,
-        };
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(Point3::new(cx, cy, cz), axis, u_ref), major, minor));
         let t1 = t0 + dt;
         let (e0, e1) = (carrier.eval(t0), carrier.eval(t1));
         let b = ellipse_arc_aabb(&carrier, t0, t1, e0, e1).unwrap();
@@ -124,13 +113,15 @@ fn ellipse_arc_box_is_span_tight_and_full_period_reaches_extrema() {
     // Axis-aligned ellipse a = 2, b = 0.5 at the origin. The
     // DISCRIMINATING SPAN [0.1, 0.4] contains no axis extremum: the box
     // is the endpoint hull, far from the full ellipse's ±2 extent.
-    let carrier = Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: 2.0,
-        semi_v: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        2.0,
+        0.5,
+    ));
     let (t0, t1) = (0.1, 0.4);
     let b = ellipse_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
     assert!(b.max_x < 2.0 - 1e-3, "max_x pruned: {}", b.max_x);
@@ -148,12 +139,12 @@ fn ellipse_arc_box_is_span_tight_and_full_period_reaches_extrema() {
 
 #[test]
 fn non_ellipse_carrier_is_refused_by_the_ellipse_lane() {
-    let circle = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let p = Point3::new(1.0, 0.0, 0.0);
     assert!(ellipse_arc_aabb(&circle, 0.0, 1.0, p, p).is_none());
 }
@@ -168,24 +159,28 @@ fn wide_bracket_ellipse_box_contains_every_realization() {
     let iv = <Interval as Real>::from_f64;
     for w in [1e-6, 1e-4, 1e-2, 1e-1] {
         for (t0, t1) in [(0.0, 0.9), (0.0, 1.5), (1.2, 4.0), (-2.0, 0.5), (0.0, 7.0)] {
-            let carrier_iv: Curve3<Interval> = Curve3::Ellipse {
-                center: Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                semi_u: iv(2.0),
-                semi_v: iv(0.75),
-                u_ref: Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
-            };
+            let carrier_iv: Curve3<Interval> = Curve3::Ellipse(geom::Ellipse::new(
+                geom::ConicFrame::new(
+                    Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
+                ),
+                iv(2.0),
+                iv(0.75),
+            ));
             let (e0, e1) = (carrier_iv.eval(iv(t0)), carrier_iv.eval(iv(t1)));
             let b = ellipse_arc_aabb(&carrier_iv, iv(t0), iv(t1), e0, e1).unwrap();
             for i in 0..=8u32 {
                 let d = -w + 2.0 * w * f64::from(i) / 8.0;
-                let real: Curve3<f64> = Curve3::Ellipse {
-                    center: Point3::new(1.0, -2.0, 0.5),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    semi_u: 2.0,
-                    semi_v: 0.75,
-                    u_ref: Vec3::new(d, 1.0, 0.0),
-                };
+                let real: Curve3<f64> = Curve3::Ellipse(geom::Ellipse::new(
+                    geom::ConicFrame::new(
+                        Point3::new(1.0, -2.0, 0.5),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::new(d, 1.0, 0.0),
+                    ),
+                    2.0,
+                    0.75,
+                ));
                 for j in 0..=64u32 {
                     let t = t0 + (t1 - t0) * f64::from(j) / 64.0;
                     let p = real.eval(t);
@@ -204,12 +199,12 @@ fn quarter_arc_box_is_span_tight() {
     // Unit circle at origin, standard frame; arc θ ∈ [0.1, 0.4]:
     // no axis extremum lies in the span, so the box is the endpoint
     // hull (plus outward slop) — nowhere near the full circle.
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let (t0, t1) = (0.1, 0.4);
     let b = circle_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
     assert!(b.max_x < 1.0 - 1e-3, "max_x pruned: {}", b.max_x);
@@ -220,12 +215,12 @@ fn quarter_arc_box_is_span_tight() {
 
 #[test]
 fn full_period_box_is_the_circle_box() {
-    let carrier = Curve3::Circle {
-        center: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 2.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(1.0, 2.0, 3.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        2.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let (t0, t1) = (0.0, core::f64::consts::TAU);
     let b = circle_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
     assert!(b.min_x <= -1.0 && b.max_x >= 3.0);
@@ -300,23 +295,23 @@ fn wide_bracket_arc_box_contains_every_realization() {
         // exactly the case a midpoint-angle test under-covers.
         for (t0, t1) in [(0.0, 0.9), (0.0, 1.5), (1.2, 4.0), (-2.0, 0.5), (0.0, 7.0)] {
             // Bracketed carrier: u_ref.x = [−w, w], the rest exact.
-            let carrier_iv: Curve3<Interval> = Curve3::Circle {
-                center: Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
-                axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                radius: iv(2.0),
-                u_ref: Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
-            };
+            let carrier_iv: Curve3<Interval> = Curve3::circle(
+                Point3::new(iv(1.0), iv(-2.0), iv(0.5)),
+                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                iv(2.0),
+                Vec3::new(Interval::from_bounds(-w, w), iv(1.0), iv(0.0)),
+            );
             let (e0, e1) = (carrier_iv.eval(iv(t0)), carrier_iv.eval(iv(t1)));
             let b = circle_arc_aabb(&carrier_iv, iv(t0), iv(t1), e0, e1).unwrap();
             // Dense f64 realizations across the bracket.
             for i in 0..=8u32 {
                 let d = -w + 2.0 * w * f64::from(i) / 8.0;
-                let real: Curve3<f64> = Curve3::Circle {
-                    center: Point3::new(1.0, -2.0, 0.5),
-                    axis: Vec3::new(0.0, 0.0, 1.0),
-                    radius: 2.0,
-                    u_ref: Vec3::new(d, 1.0, 0.0),
-                };
+                let real: Curve3<f64> = Curve3::circle(
+                    Point3::new(1.0, -2.0, 0.5),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    2.0,
+                    Vec3::new(d, 1.0, 0.0),
+                );
                 for j in 0..=64u32 {
                     let t = t0 + (t1 - t0) * f64::from(j) / 64.0;
                     let p = real.eval(t);

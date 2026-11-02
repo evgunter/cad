@@ -185,22 +185,11 @@ fn check_contains(
 }
 
 fn circle(c: Point3<f64>, axis: Vec3<f64>, r: f64, u: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Circle {
-        center: c,
-        axis,
-        radius: r,
-        u_ref: u,
-    }
+    Curve3::circle(c, axis, r, u)
 }
 
 fn ellipse(c: Point3<f64>, axis: Vec3<f64>, a: f64, b: f64, u: Vec3<f64>) -> Curve3<f64> {
-    Curve3::Ellipse {
-        center: c,
-        axis,
-        semi_u: a,
-        semi_v: b,
-        u_ref: u,
-    }
+    Curve3::Ellipse(geom::Ellipse::new(geom::ConicFrame::new(c, axis, u), a, b))
 }
 
 #[test]
@@ -301,12 +290,15 @@ mod interval_support {
                         for kt in 0..3 {
                             let (t0f, t1f) = (pick(t0, kt), pick(t1, 2 - kt));
                             let real: Curve3<f64> = match iv_carrier {
-                                Curve3::Circle {
-                                    center,
-                                    axis,
+                                Curve3::Circle(geom::Circle {
+                                    frame:
+                                        geom::ConicFrame {
+                                            center,
+                                            axis,
+                                            u_ref,
+                                        },
                                     radius,
-                                    u_ref,
-                                } => circle(
+                                }) => circle(
                                     Point3::new(
                                         pick(center.x, kc),
                                         pick(center.y, kc),
@@ -320,13 +312,16 @@ mod interval_support {
                                         pick(u_ref.z, ku),
                                     ),
                                 ),
-                                Curve3::Ellipse {
-                                    center,
-                                    axis,
+                                Curve3::Ellipse(geom::Ellipse {
+                                    frame:
+                                        geom::ConicFrame {
+                                            center,
+                                            axis,
+                                            u_ref,
+                                        },
                                     semi_u,
                                     semi_v,
-                                    u_ref,
-                                } => ellipse(
+                                }) => ellipse(
                                     Point3::new(
                                         pick(center.x, kc),
                                         pick(center.y, kc),
@@ -371,12 +366,12 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
         ] {
             cases.push((
                 format!("u_ref.x straddles by {w}, {s}"),
-                Curve3::Circle {
-                    center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    radius: ib(0.9, 1.1),
-                    u_ref: Vec3::new(ib(-w, w), iv(1.0), iv(0.0)),
-                },
+                Curve3::circle(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    ib(0.9, 1.1),
+                    Vec3::new(ib(-w, w), iv(1.0), iv(0.0)),
+                ),
                 ib(t0, t0 + 1e-3),
                 ib(t1 - 1e-3, t1),
                 1.1,
@@ -410,12 +405,12 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
         ] {
             cases.push((
                 format!("{s}, {ss}"),
-                Curve3::Circle {
-                    center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    radius: ib(1.0, 1.0),
-                    u_ref: Vec3::new(ib(ux.0, ux.1), ib(uy.0, uy.1), iv(0.0)),
-                },
+                Curve3::circle(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    ib(1.0, 1.0),
+                    Vec3::new(ib(ux.0, ux.1), ib(uy.0, uy.1), iv(0.0)),
+                ),
                 ib(t0, t0),
                 ib(t1, t1),
                 1.0,
@@ -426,25 +421,27 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
     // ellipse with a wide axis bracket.
     cases.push((
         "theta brackets straddle pi/2".into(),
-        Curve3::Circle {
-            center: Point3::new(ib(-1e-3, 1e-3), iv(2.0), iv(-1.0)),
-            axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-            radius: ib(0.001, 0.0011),
-            u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-        },
+        Curve3::circle(
+            Point3::new(ib(-1e-3, 1e-3), iv(2.0), iv(-1.0)),
+            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            ib(0.001, 0.0011),
+            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+        ),
         ib(1.4, 1.6),
         ib(1.65, 1.8),
         2.0,
     ));
     cases.push((
         "tilted ellipse, wide axis".into(),
-        Curve3::Ellipse {
-            center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            axis: Vec3::new(ib(0.5, 0.6), iv(0.0), ib(0.8, 0.87)),
-            semi_u: ib(50.0, 60.0),
-            semi_v: ib(0.01, 0.02),
-            u_ref: Vec3::new(ib(0.8, 0.87), iv(0.0), ib(-0.6, -0.5)),
-        },
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::ConicFrame::new(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(ib(0.5, 0.6), iv(0.0), ib(0.8, 0.87)),
+                Vec3::new(ib(0.8, 0.87), iv(0.0), ib(-0.6, -0.5)),
+            ),
+            ib(50.0, 60.0),
+            ib(0.01, 0.02),
+        )),
         ib(0.9, 1.0),
         ib(4.0, 4.1),
         60.0,
@@ -462,12 +459,12 @@ fn n3r1_interval_brackets_are_dominated_by_the_box() {
 fn n3r1_dual64_box_is_the_value_box() {
     let d = Dual64::variable;
     let k = Dual64::constant;
-    let cd: Curve3<Dual64> = Curve3::Circle {
-        center: Point3::new(k(1.0), d(2.0), k(3.0)),
-        axis: Vec3::new(k(0.0), k(0.0), k(1.0)),
-        radius: d(0.75),
-        u_ref: Vec3::new(k(-1.0), k(0.0), k(0.0)),
-    };
+    let cd: Curve3<Dual64> = Curve3::circle(
+        Point3::new(k(1.0), d(2.0), k(3.0)),
+        Vec3::new(k(0.0), k(0.0), k(1.0)),
+        d(0.75),
+        Vec3::new(k(-1.0), k(0.0), k(0.0)),
+    );
     let cf = circle(
         Point3::new(1.0, 2.0, 3.0),
         Vec3::unit_z(),
@@ -511,12 +508,12 @@ fn n3r1_extremal_angle_exactly_pi_is_a_point_interval() {
 fn n3r1_extremal_angle_exactly_pi_is_a_point_interval_at_interval() {
     // At Interval with a point-width bracket, the same.
     let iv = <Interval as Real>::from_f64;
-    let ci: Curve3<Interval> = Curve3::Circle {
-        center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-        axis: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-        radius: iv(1.0),
-        u_ref: Vec3::new(iv(-1.0), iv(0.0), iv(0.0)),
-    };
+    let ci: Curve3<Interval> = Curve3::circle(
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(1.0),
+        Vec3::new(iv(-1.0), iv(0.0), iv(0.0)),
+    );
     let b = conic_arc_aabb(&ci, iv(0.5), iv(2.5), ci.eval(iv(0.5)), ci.eval(iv(2.5))).unwrap();
     assert!(
         b.max_x < 0.81 && b.max_x > 0.80,

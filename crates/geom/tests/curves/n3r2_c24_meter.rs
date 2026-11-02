@@ -22,19 +22,25 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
     let pair = t0.elapsed().as_secs_f64() / f64::from(n) * 1e9;
     // The fused jet: one sin_cos, the frame built once.
     let (center, u, v, su, sv) = match carrier {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => (*center, *u_ref, axis.cross(*u_ref), *radius, *radius),
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => (*center, *u_ref, axis.cross(*u_ref), *radius, *radius),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::ConicFrame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => (*center, *u_ref, axis.cross(*u_ref), *semi_u, *semi_v),
+        }) => (*center, *u_ref, axis.cross(*u_ref), *semi_u, *semi_v),
         _ => panic!("conic only"),
     };
     let _ = center;
@@ -58,19 +64,12 @@ fn n3r2_c24_meter() {
     let axis = Vec3::new(0.3, 0.4, 0.866_025_403_784).normalize();
     let helper = Vec3::new(0.0, 0.0, 1.0);
     let u_ref = axis.cross(helper).normalize();
-    let circle = Curve3::Circle {
-        center: Point3::new(0.1, 0.2, 0.3),
-        axis,
-        radius: 1.3,
-        u_ref,
-    };
-    let ellipse = Curve3::Ellipse {
-        center: Point3::new(0.1, 0.2, 0.3),
-        axis,
-        semi_u: 2.1,
-        semi_v: 0.7,
-        u_ref,
-    };
+    let circle = Curve3::circle(Point3::new(0.1, 0.2, 0.3), axis, 1.3, u_ref);
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::ConicFrame::new(Point3::new(0.1, 0.2, 0.3), axis, u_ref),
+        2.1,
+        0.7,
+    ));
     for (name, c) in [("circle", &circle), ("ellipse", &ellipse)] {
         let _ = bench(c, 1 << 20); // warm
         let (pair, jet) = bench(c, 20_480_000);

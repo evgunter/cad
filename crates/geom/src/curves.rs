@@ -45,6 +45,7 @@
 pub(crate) mod banded;
 pub mod boxes;
 pub mod compose;
+pub mod conic;
 pub mod fit;
 pub mod nurbs;
 mod on_carrier;
@@ -54,6 +55,7 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
+pub use conic::{Circle, Conic, ConicFrame, Ellipse, MajorFrame, on_span_branch};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -95,84 +97,18 @@ pub enum Curve3<T: Real> {
         dir: Vec3<T>,
     },
 
-    /// The full circle
-    /// `P(θ) = center + (u_ref·cos θ + v_ref·sin θ)·radius`, where
-    /// `v_ref = axis × u_ref` (computed, never stored — the frame is
-    /// right-handed by construction).
-    ///
-    /// - `axis` is the unit circle normal, `u_ref` the unit reference
-    ///   direction with `u_ref ⊥ axis` (both conventional, unchecked);
-    ///   `u_ref` carries the seam — `θ = 0` lives at
-    ///   `center + u_ref·radius` (D2: seam placement is conventional
-    ///   data).
-    /// - θ in radians, domain ℝ, period 2π; increasing θ winds
-    ///   **counterclockwise viewed from the tip of `axis`** (right-hand
-    ///   rule about `axis`).
-    /// - `radius > 0` in meters (conventional; a zero/negative radius is
-    ///   degenerate data, rejected upstream by construction/validation,
-    ///   evaluated as-is here).
-    Circle {
-        /// The circle's center.
-        center: Point3<T>,
-        /// The unit normal of the circle's plane (right-hand winding
-        /// rule; conventional, unchecked).
-        axis: Vec3<T>,
-        /// The radius in meters (positive by convention).
-        radius: T,
-        /// The unit reference direction ⊥ `axis` where θ = 0 lives —
-        /// the seam, carried as conventional data per D2.
-        u_ref: Vec3<T>,
-    },
+    /// The full circle: a [`ConicFrame`] and a radius. The conic
+    /// conventions (parameter, winding, seam, positive sizes) are the
+    /// [`conic`] module's.
+    Circle(Circle<T>),
 
-    /// The full ellipse
-    /// `P(θ) = center + u_ref·(semi_u·cos θ) + v_ref·(semi_v·sin θ)`,
-    /// where `v_ref = axis × u_ref` (computed, never stored — the frame
-    /// is right-handed by construction). C1 rung 2 (M5 PR 5): the exact
-    /// conic carrier of the common curved-boolean cuts (tilted
-    /// plane×cylinder, equal-radius cylinder×cylinder).
-    ///
-    /// - `axis` is the unit ellipse-plane normal, `u_ref` a unit
-    ///   **principal** direction with `u_ref ⊥ axis` (both conventional,
-    ///   unchecked), along either semi-axis; `u_ref` carries the seam —
-    ///   `θ = 0` lives at `center + u_ref·semi_u`, a principal vertex. A
-    ///   caller seams the curve at the principal vertex nearest the part
-    ///   of it in use, so the parameter there is near 0 and resolves to
-    ///   the scale of that part.
-    /// - θ in radians, domain ℝ, period 2π; increasing θ winds
-    ///   counterclockwise viewed from the tip of `axis` (right-hand
-    ///   rule), exactly the circle convention. θ is **not** arc length
-    ///   and not the polar angle of the point — it is the conic's
-    ///   eccentric anomaly; `|dP/dθ|` varies between the two semi-axes.
-    /// - Both semi-axes positive (meters), in either order, and
-    ///   possibly equal or near-equal: whether a configuration is a
-    ///   `Circle` or an `Ellipse` is decided by its pose (a section
-    ///   table's tilt reading), not by the semi-axes, and
-    ///   [`Curve3::ellipse`] refuses only a minor semi-axis not
-    ///   positive. Like every
-    ///   conventional invariant this is *data* here: evaluators consume
-    ///   the fields as given, and a struct-literal that bypasses the
-    ///   constructor owns the consequences (well-defined garbage, not
-    ///   poison). At rest, tier 3 certifies both positive
-    ///   ([`Curve3::representability_margins`]). Which semi-axis is the
-    ///   larger is a reading of the two fields
-    ///   ([`Curve3::semi_axes_by_size`], [`Curve3::major_frame`]), never
-    ///   of their names; on a near-circular ellipse that reading is
-    ///   rounding, so a reader that needs the major direction takes it
-    ///   from the surface's axis ([`Curve3::section_frame`]).
-    Ellipse {
-        /// The ellipse's center.
-        center: Point3<T>,
-        /// The unit normal of the ellipse's plane (right-hand winding
-        /// rule; conventional, unchecked).
-        axis: Vec3<T>,
-        /// The semi-axis along `u_ref`, in meters.
-        semi_u: T,
-        /// The semi-axis along `axis × u_ref`, in meters.
-        semi_v: T,
-        /// The unit principal direction ⊥ `axis` where θ = 0 lives —
-        /// the seam, carried as conventional data per D2.
-        u_ref: Vec3<T>,
-    },
+    /// The full ellipse: a [`ConicFrame`] whose `u_ref` is a principal
+    /// direction, and the semi-axes along `u_ref` and `axis × u_ref` in
+    /// stored order. C1 rung 2 (M5 PR 5): the exact conic carrier of the
+    /// common curved-boolean cuts (tilted plane×cylinder, equal-radius
+    /// cylinder×cylinder). The conic conventions, and which semi-axis is
+    /// the larger, are the [`conic`] module's.
+    Ellipse(Ellipse<T>),
 
     /// The **spiric of Perseus** — the section of a ring torus by a
     /// plane parallel to its axis — restricted to ONE of its two ovals:
@@ -270,160 +206,37 @@ pub enum CurveKind {
     Nurbs,
 }
 
-/// An ellipse's principal frame with a chosen principal direction first
-/// ([`Curve3::major_frame`], [`Curve3::section_frame`]): the reading of
-/// which stored semi-axis is the major one, for a reader whose formula
-/// needs the major vertex (a focus on the major axis, a lever at the
-/// farthest reach along it).
-#[derive(Clone, Copy, Debug)]
-pub struct MajorFrame<T: Real> {
-    /// The semi-axis along `major_dir`, signed as stored.
-    pub major: T,
-    /// The semi-axis along `axis × major_dir`, signed as stored.
-    pub minor: T,
-    /// The principal direction read as the major one: `u_ref`, or
-    /// `axis × u_ref`.
-    pub major_dir: Vec3<T>,
-    /// The carrier parameter at `center + major_dir·major`: `0`, or
-    /// `π/2` where `major_dir` is `axis × u_ref`.
-    pub phase: T,
-}
-
 impl<T: Real> Curve3<T> {
-    /// **An ellipse's semi-axes by size**: the larger and the smaller
-    /// magnitude of `semi_u` and `semi_v`, in that order. The one reading
-    /// of "the major semi-axis" off a stored pair, whose order is free.
-    #[must_use]
-    pub fn semi_axes_by_size(semi_u: T, semi_v: T) -> (T, T) {
-        let (u, v) = (semi_u.abs(), semi_v.abs());
-        (u.max(v), u.min(v))
-    }
-
-    /// An [`Curve3::Ellipse`]'s principal frame with the larger
-    /// semi-axis in magnitude first, whichever its seam is at; `None`
-    /// for every other kind. A tie keeps the seam's own axis.
-    ///
-    /// Two semi-axes within rounding of each other carry no reading of
-    /// which is the major one; a reader that knows the geometry the
-    /// ellipse came from reads it there ([`Self::section_frame`]).
+    /// An [`Curve3::Ellipse`]'s [`Conic::major_frame`]; `None` for every
+    /// other kind.
     #[must_use]
     pub fn major_frame(&self) -> Option<MajorFrame<T>> {
-        let &Self::Ellipse { semi_u, semi_v, .. } = self else {
-            return None;
-        };
-        self.frame_turned_where(semi_v.abs() - semi_u.abs())
+        self.as_ellipse().map(Conic::major_frame)
     }
 
-    /// **An [`Curve3::Ellipse`] read as a plane section of a surface of
-    /// revolution about `axis`** (a cylinder's or a cone's): its
-    /// principal frame with the direction of the larger component along
-    /// `axis` first; `None` for every other kind. Such a section's minor
-    /// axis is perpendicular to the axis of revolution, so in truth its
-    /// major direction is the one `axis` has a component along, and the
-    /// reading holds at a near-circle, where the semi-axes round past
-    /// each other and [`Self::major_frame`] has nothing to read. A tie
-    /// (a plane across the axis, whose section is a circle) keeps the
-    /// seam's own axis.
+    /// An [`Curve3::Ellipse`]'s [`Ellipse::section_frame`] about `axis`;
+    /// `None` for every other kind.
     #[must_use]
     pub fn section_frame(&self, axis: Vec3<T>) -> Option<MajorFrame<T>> {
-        let &Self::Ellipse {
-            axis: normal,
-            u_ref,
-            ..
-        } = self
-        else {
-            return None;
-        };
-        let v_ref = normal.cross(u_ref);
-        self.frame_turned_where(v_ref.dot(axis).abs() - u_ref.dot(axis).abs())
+        self.as_ellipse().map(|e| e.section_frame(axis))
     }
 
-    /// The ellipse's frame as stored where `turn ≤ 0`, else
-    /// [quarter-turned](Self::quarter_turned_where), at its phase.
-    fn frame_turned_where(&self, turn: T) -> Option<MajorFrame<T>> {
-        let Self::Ellipse {
-            semi_u,
-            semi_v,
-            u_ref,
-            ..
-        } = self.quarter_turned_where(turn)?
-        else {
-            return None;
-        };
-        Some(MajorFrame {
-            major: semi_u,
-            minor: semi_v,
-            major_dir: u_ref,
-            phase: turn.select_le_zero(T::zero(), T::pi() * T::from_f64(0.5)),
-        })
-    }
-
-    /// **The same ellipse seamed a quarter turn on where `turn > 0`**,
-    /// as stored where `turn ≤ 0`, read without a branch; `None` for
-    /// every other kind. `θ = s + π/2` reads
-    /// `center + v·(semi_v·cos s) − u_ref·(semi_u·sin s)` with
-    /// `v = axis × u_ref`: the seam turns to `v`, renormalized so the
-    /// turn adds no length to the frame, and the semi-axes swap.
-    #[must_use]
-    pub fn quarter_turned_where(&self, turn: T) -> Option<Self> {
-        let &Self::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } = self
-        else {
-            return None;
-        };
-        Some(Self::Ellipse {
-            center,
-            axis,
-            semi_u: turn.select_le_zero(semi_u, semi_v),
-            semi_v: turn.select_le_zero(semi_v, semi_u),
-            u_ref: Vec3::select(turn, u_ref, axis.cross(u_ref).normalize()),
-        })
-    }
-
-    /// **The same ellipse seamed at the principal vertex nearest the
-    /// eccentric anomaly `theta`**; `None` for every other kind. See
-    /// [`Self::seamed_toward`].
+    /// An [`Curve3::Ellipse`] [seamed near](Ellipse::seamed_near) `theta`;
+    /// `None` for every other kind.
     #[must_use]
     pub fn seamed_near(&self, theta: T) -> Option<Self> {
-        let (sin, cos) = theta.sin_cos();
-        self.seamed_toward(cos, sin)
+        self.as_ellipse()
+            .map(|e| Self::Ellipse(e.seamed_near(theta)))
     }
 
-    /// **The same ellipse seamed at the principal vertex nearest the
-    /// direction `(cos, sin)`** in its eccentric anomaly; `None` for
-    /// every other kind. Of the vertices at `0`, `π/2`, `π` and `3π/2`,
-    /// the one on the axis whose component dominates, a tie keeping the
-    /// seam's own axis; on that axis, the vertex the component's sign
-    /// points to, a zero pointing forward. Near the new seam the
-    /// parameter is near zero, so it resolves to the scale of the arc
-    /// there rather than to `ulp(π/2)` times the semi-axis across it.
+    /// The ellipse, for an [`Curve3::Ellipse`]; `None` for every other
+    /// kind.
     #[must_use]
-    pub fn seamed_toward(&self, cos: T, sin: T) -> Option<Self> {
-        let turn = sin.abs() - cos.abs();
-        // The direction's cosine in the turned frame, `θ − π/2`, is `sin`.
-        let back = T::zero() - turn.select_le_zero(cos, sin);
-        let Self::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } = self.quarter_turned_where(turn)?
-        else {
-            return None;
-        };
-        Some(Self::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref: Vec3::select(back, u_ref, -u_ref),
-        })
+    pub fn as_ellipse(&self) -> Option<&Ellipse<T>> {
+        match self {
+            Self::Ellipse(e) => Some(e),
+            _ => None,
+        }
     }
 }
 
@@ -693,10 +506,9 @@ impl<T: Real> Curve3<T> {
     pub fn is_curved(&self) -> bool {
         match self {
             Curve3::Line { .. } => false,
-            Curve3::Circle { .. }
-            | Curve3::Ellipse { .. }
-            | Curve3::Spiric { .. }
-            | Curve3::Nurbs(_) => true,
+            Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
+                true
+            }
         }
     }
 
@@ -721,24 +533,30 @@ impl<T: Real> Curve3<T> {
             Curve3::Line { origin, dir } => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            Curve3::Circle {
-                center,
-                axis,
+            Curve3::Circle(Circle {
+                frame:
+                    ConicFrame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => AnalyticData::new([
+            }) => AnalyticData::new([
                 (D::Center, Point(center)),
                 (D::Axis, Direction(axis)),
                 (D::Radius, Scalar(radius)),
                 (D::URef, Direction(u_ref)),
             ]),
-            Curve3::Ellipse {
-                center,
-                axis,
+            Curve3::Ellipse(Ellipse {
+                frame:
+                    ConicFrame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 semi_u,
                 semi_v,
-                u_ref,
-            } => AnalyticData::new([
+            }) => AnalyticData::new([
                 (D::Center, Point(center)),
                 (D::Axis, Direction(axis)),
                 (D::SemiU, Scalar(semi_u)),
@@ -804,30 +622,15 @@ impl<T: Real> Curve3<T> {
             frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
         };
         match self {
-            Curve3::Circle {
-                center: _,
-                axis,
-                radius,
-                u_ref,
-            } => core::iter::once(lower(CurveDatum::Radius, *radius))
-                .chain(frame(*axis, *u_ref, *radius))
+            Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius))
+                .chain(frame(c.frame.axis, c.frame.u_ref, c.radius))
                 .collect(),
-            Curve3::Ellipse {
-                center: _,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => [
-                lower(CurveDatum::SemiU, *semi_u),
-                lower(CurveDatum::SemiV, *semi_v),
+            Curve3::Ellipse(e) => [
+                lower(CurveDatum::SemiU, e.semi_u),
+                lower(CurveDatum::SemiV, e.semi_v),
             ]
             .into_iter()
-            .chain(frame(
-                *axis,
-                *u_ref,
-                Self::semi_axes_by_size(*semi_u, *semi_v).0,
-            ))
+            .chain(frame(e.frame.axis, e.frame.u_ref, e.speed_hi()))
             .collect(),
             Curve3::Spiric {
                 center: _,
@@ -888,19 +691,14 @@ impl<T: Decide> Curve3<T> {
         if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
             return Err(EllipseInvalid::SemiAxisNotFinite);
         }
-        let minor = semi_u.min(semi_v);
+        let e = Ellipse::new(ConicFrame::new(center, axis, u_ref), semi_u, semi_v);
+        let minor = e.semi_axes_by_size().1;
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        Ok(Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        })
+        Ok(Curve3::Ellipse(e))
     }
 
     /// The one deciding door into [`Curve3::Spiric`]: refuses a
@@ -997,30 +795,14 @@ impl<T: Real> Curve3<T> {
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line { origin, dir } => Curve3::Line { origin, dir: -dir },
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Curve3::Circle {
-                center,
-                axis: -axis,
-                radius,
-                u_ref,
-            },
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Curve3::Ellipse {
-                center,
-                axis: -axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            },
+            Curve3::Circle(c) => Curve3::Circle(Circle {
+                frame: c.frame.reversed(),
+                ..c
+            }),
+            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
+                frame: e.frame.reversed(),
+                ..e
+            }),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1054,30 +836,14 @@ impl<T: Real> Curve3<T> {
                 origin: origin + by,
                 dir,
             },
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Curve3::Circle {
-                center: center + by,
-                axis,
-                radius,
-                u_ref,
-            },
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Curve3::Ellipse {
-                center: center + by,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            },
+            Curve3::Circle(c) => Curve3::Circle(Circle {
+                frame: c.frame.translated(by),
+                ..c
+            }),
+            Curve3::Ellipse(e) => Curve3::Ellipse(Ellipse {
+                frame: e.frame.translated(by),
+                ..e
+            }),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1099,26 +865,19 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Real> Curve3<T> {
-    /// **A circle carrier's point at parameter `t`**, as
-    /// [`Curve3::eval`] builds it — `(s, c) = t.sin_cos()`,
-    /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
-    /// `center + radial·radius`, exactly as parenthesized (D9).
-    ///
-    /// It is a door rather than a copy: the point expression lives in
-    /// [`Self::circle_point`] alone, this is that expression on a frame
-    /// built here, `eval`'s `Circle` arm CALLS this, and `ders1`'s
-    /// `Circle` arm calls `circle_point` on the one frame it shares
-    /// with its tangent half — so a caller that builds a point here
-    /// builds the very node either door would. That is what
+    /// **A circle carrier's point at parameter `t`**, from its fields:
+    /// [`Conic::point_at`] on the circle they make, the very expression
+    /// [`Curve3::eval`] and [`Curve3::ders1`] reach, so a caller that
+    /// builds a point here builds the node either would. That is what
     /// `sweep::swept::register_placed_carrier_end` rests on — node ids are
-    /// content hashes, so "the constructor states the identity about
-    /// the node the certifier will ask about" is a fact of this
-    /// delegation and not a transcription anyone has to keep in step.
+    /// content hashes, so "the constructor states the identity about the
+    /// node the certifier will ask about" is a fact of this delegation and
+    /// not a transcription anyone has to keep in step.
     ///
-    /// Its own bound is [`Real`] alone, and that is the point:
-    /// `eval` carries [`SpanLocate`] for its `Nurbs` arm's sealed span
-    /// selection, and evaluation-code discipline forbids a generic
-    /// caller from carrying a second bound beside `Real` to reach it.
+    /// Its own bound is [`Real`] alone: `eval` carries [`SpanLocate`] for
+    /// its `Nurbs` arm's sealed span selection, and evaluation-code
+    /// discipline forbids a generic caller from carrying a second bound
+    /// beside `Real` to reach it.
     pub fn circle_at(
         center: Point3<T>,
         axis: Vec3<T>,
@@ -1126,17 +885,7 @@ impl<T: Real> Curve3<T> {
         u_ref: Vec3<T>,
         t: T,
     ) -> Point3<T> {
-        Self::circle_point(center, &azimuth::frame(axis, u_ref, t), radius)
-    }
-
-    /// The circle's point from an azimuthal frame already built:
-    /// `center + radial·radius`, exactly as parenthesized (D9). The one
-    /// spelling of that expression — [`Self::circle_at`] builds the
-    /// frame and calls this; `ders1`'s `Circle` arm calls this on the
-    /// frame its tangent half reads too, which is how the jet pays one
-    /// frame and still produces `eval`'s bits.
-    fn circle_point(center: Point3<T>, frame: &azimuth::AzimuthFrame<T>, radius: T) -> Point3<T> {
-        center + frame.radial.0 * radius
+        Circle::new(ConicFrame::new(center, axis, u_ref), radius).point_at(t)
     }
 }
 
@@ -1367,22 +1116,8 @@ impl<T: SpanLocate> Curve3<T> {
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
             Curve3::Line { origin, dir } => *origin + *dir * t,
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Self::circle_at(*center, *axis, *radius, *u_ref, t),
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => {
-                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
-                *center + (*u_ref * (*semi_u * c) + v_ref * (*semi_v * s))
-            }
+            Curve3::Circle(c) => c.point_at(t),
+            Curve3::Ellipse(e) => e.point_at(t),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1429,25 +1164,8 @@ impl<T: SpanLocate> Curve3<T> {
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { dir, .. } => *dir,
-            Curve3::Circle {
-                axis,
-                radius,
-                u_ref,
-                ..
-            } => {
-                let tangential = azimuth::frame(*axis, *u_ref, t).tangential.0;
-                tangential * *radius
-            }
-            Curve3::Ellipse {
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-                ..
-            } => {
-                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
-                *u_ref * (-(*semi_u * s)) + v_ref * (*semi_v * c)
-            }
+            Curve3::Circle(c) => c.derivative_at(t),
+            Curve3::Ellipse(e) => e.derivative_at(t),
             Curve3::Spiric {
                 axis,
                 u_ref,
@@ -1497,35 +1215,8 @@ impl<T: SpanLocate> Curve3<T> {
     pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
         match self {
             Curve3::Line { origin, dir } => (*origin + *dir * t, *dir),
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => {
-                // One frame for both halves: that is the whole saving
-                // on this arm, and no bit row can see it (two frames
-                // give the same bits), so the `ders1_meter` row's
-                // analytic table is its only guard.
-                let f = azimuth::frame(*axis, *u_ref, t);
-                (
-                    Self::circle_point(*center, &f, *radius),
-                    f.tangential.0 * *radius,
-                )
-            }
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => {
-                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
-                (
-                    *center + (*u_ref * (*semi_u * c) + v_ref * (*semi_v * s)),
-                    *u_ref * (-(*semi_u * s)) + v_ref * (*semi_v * c),
-                )
-            }
+            Curve3::Circle(c) => c.jet_at(t),
+            Curve3::Ellipse(e) => e.jet_at(t),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1562,25 +1253,8 @@ impl<T: SpanLocate> Curve3<T> {
     pub fn deriv2(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { .. } => Vec3::zero(),
-            Curve3::Circle {
-                axis,
-                radius,
-                u_ref,
-                ..
-            } => {
-                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
-                (*u_ref * (-c) + v_ref * (-s)) * *radius
-            }
-            Curve3::Ellipse {
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-                ..
-            } => {
-                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
-                *u_ref * (-(*semi_u * c)) + v_ref * (-(*semi_v * s))
-            }
+            Curve3::Circle(c) => c.second_derivative_at(t),
+            Curve3::Ellipse(e) => e.second_derivative_at(t),
             Curve3::Spiric {
                 axis,
                 u_ref,
@@ -1746,12 +1420,8 @@ impl<T: SpanLocate> Curve3<T> {
     pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
         match self {
             Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
-            Curve3::Circle { center, .. } => {
-                let w = p - *center;
-                let (p_near, tau_near) = self.ders1(near);
-                let r_near = p_near - *center;
-                Some(near + w.dot(tau_near).atan2(w.dot(r_near)))
-            }
+            Curve3::Circle(c) => Some(c.param_near(p, near)),
+            Curve3::Ellipse(e) => Some(e.param_near(p, near)),
             Curve3::Spiric {
                 center,
                 axis,
@@ -1766,19 +1436,6 @@ impl<T: SpanLocate> Curve3<T> {
                 let along = w_rho * c + w_h * s;
                 let across = w_rho * (-s) + w_h * c;
                 Some(near + across.atan2(along))
-            }
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => {
-                let w = p - *center;
-                let x = w.dot(*u_ref) * *semi_v;
-                let y = w.dot(axis.cross(*u_ref)) * *semi_u;
-                let (s, c) = near.sin_cos();
-                Some(near + (y * c - x * s).atan2(x * c + y * s))
             }
             Curve3::Nurbs(_) => None,
         }
@@ -1807,19 +1464,12 @@ mod tests {
         let c = Point3::new(0.5, -1.0, 2.0);
         let curves = [
             Curve3::Line { origin: c, dir: u },
-            Curve3::Circle {
-                center: c,
-                axis: n,
-                radius: 0.7,
-                u_ref: u,
-            },
-            Curve3::Ellipse {
-                center: c,
-                axis: n,
-                semi_u: 0.9,
-                semi_v: 0.4,
-                u_ref: u,
-            },
+            Curve3::circle(c, n, 0.7, u),
+            Curve3::Ellipse(crate::Ellipse::new(
+                crate::ConicFrame::new(c, n, u),
+                0.9,
+                0.4,
+            )),
             Curve3::Spiric {
                 center: c,
                 axis: n,
@@ -1846,12 +1496,12 @@ mod tests {
     /// avoided on purpose — the frame is exactly representable so the
     /// closed-form checks stay exact where possible.
     fn xy_circle(r: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(1.0, 2.0, 3.0),
-            axis: Vec3::unit_z(),
-            radius: r,
-            u_ref: Vec3::unit_x(),
-        }
+        Curve3::circle(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::unit_z(),
+            r,
+            Vec3::unit_x(),
+        )
     }
 
     /// A general (non-axis-aligned but exactly orthonormal) frame:
@@ -1861,12 +1511,12 @@ mod tests {
     /// ratios with power-of-two-free denominators — 2/3, 1/3 round, but
     /// dot products still cancel to ~1 ulp).
     fn tilted_circle() -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(-0.5, 4.0, 1.25),
-            axis: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
-            radius: 2.5,
-            u_ref: Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
-        }
+        Curve3::circle(
+            Point3::new(-0.5, 4.0, 1.25),
+            Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+            2.5,
+            Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
+        )
     }
 
     fn assert_point_close(p: Point3<f64>, q: Point3<f64>, tol: f64) {
@@ -1923,7 +1573,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle { center, axis, radius, .. } => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::ConicFrame { center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1939,7 +1589,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle { center, axis, radius, .. } => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::ConicFrame { center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2079,32 +1729,24 @@ mod tests {
     /// **The major frame is read off the stored semi-axes**, whichever
     /// the seam is at: seamed at a major vertex it is the stored frame at
     /// phase 0; seamed at a minor vertex it is `axis × u_ref` at phase
-    /// `π/2`, and the carrier there is the major vertex. Signs ride along.
+    /// `π/2`, and the carrier there is the major vertex.
     #[test]
     fn the_major_frame_is_read_from_the_semi_axes() {
-        let at = |semi_u: f64, semi_v: f64| Curve3::Ellipse {
-            center: Point3::new(1.0, 2.0, 3.0),
-            axis: Vec3::unit_z(),
-            semi_u,
-            semi_v,
-            u_ref: Vec3::unit_x(),
+        let at = |semi_u: f64, semi_v: f64| {
+            Curve3::Ellipse(crate::Ellipse::new(
+                crate::ConicFrame::new(Point3::new(1.0, 2.0, 3.0), Vec3::unit_z(), Vec3::unit_x()),
+                semi_u,
+                semi_v,
+            ))
         };
         for (semi_u, semi_v, major, dir, phase) in [
             (3.0, 1.0, 3.0, Vec3::unit_x(), 0.0),
             (1.0, 3.0, 3.0, Vec3::unit_y(), core::f64::consts::FRAC_PI_2),
-            (-3.0, 1.0, -3.0, Vec3::unit_x(), 0.0),
-            (
-                1.0,
-                -3.0,
-                -3.0,
-                Vec3::unit_y(),
-                core::f64::consts::FRAC_PI_2,
-            ),
         ] {
             let e = at(semi_u, semi_v);
             let f = e.major_frame().unwrap();
             assert_eq!(
-                (f.major, f.minor.abs(), f.phase),
+                (f.major, f.minor, f.phase),
                 (major, 1.0, phase),
                 "({semi_u}, {semi_v})"
             );
@@ -2138,12 +1780,12 @@ mod tests {
     /// to a seam unit to within one.
     #[test]
     fn a_reseam_goes_to_the_vertex_its_direction_names() {
-        let at = |axis: Vec3<f64>, u_ref: Vec3<f64>| Curve3::Ellipse {
-            center: Point3::new(1.0, 2.0, 3.0),
-            axis,
-            semi_u: 5.0,
-            semi_v: 2.0,
-            u_ref,
+        let at = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
+            Curve3::Ellipse(crate::Ellipse::new(
+                crate::ConicFrame::new(Point3::new(1.0, 2.0, 3.0), axis, u_ref),
+                5.0,
+                2.0,
+            ))
         };
         let e = at(Vec3::unit_z(), Vec3::unit_x());
         let (x, y) = (Vec3::unit_x(), Vec3::unit_y());
@@ -2161,15 +1803,11 @@ mod tests {
             (-0.0, 0.0, x, 5.0),
             (0.0, -0.0, x, 5.0),
         ] {
-            let Some(Curve3::Ellipse {
+            let Ellipse {
+                frame: ConicFrame { u_ref, .. },
                 semi_u: u,
                 semi_v: v,
-                u_ref,
-                ..
-            }) = e.seamed_toward(cos, sin)
-            else {
-                panic!("an ellipse stays one");
-            };
+            } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
                 (0.0, semi_u, 7.0),
@@ -2181,21 +1819,19 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0 + 2.0 * ulp),
             Vec3::new(1.0 + 2.0 * ulp, 0.0, 0.0),
         );
-        let Some(Curve3::Ellipse { u_ref, .. }) = long.quarter_turned_where(1.0) else {
-            panic!("an ellipse stays one");
-        };
+        let u_ref = long
+            .as_ellipse()
+            .unwrap()
+            .quarter_turned_where(1.0)
+            .frame
+            .u_ref;
         assert!(
             (u_ref.norm() - 1.0).abs() <= ulp,
             "the turned seam is unit: {:e}",
             u_ref.norm() - 1.0
         );
-        let circle = Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: x,
-        };
-        assert!(circle.seamed_near(1.0).is_none() && circle.quarter_turned_where(1.0).is_none());
+        let circle = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, x);
+        assert!(circle.seamed_near(1.0).is_none() && circle.as_ellipse().is_none());
     }
 
     /// **A section's major direction is read off the axis of
@@ -2211,20 +1847,16 @@ mod tests {
         let along = Vec3::new(tilt.cos(), 0.0, tilt.sin());
         let (semi_x, semi_y) = (0.999_999_999_999_999_8, 0.999_999_999_999_999_9);
         let axis = Vec3::unit_z();
-        let at_x = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: normal,
-            semi_u: semi_x,
-            semi_v: semi_y,
-            u_ref: along,
-        };
-        let at_y = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: normal,
-            semi_u: semi_y,
-            semi_v: semi_x,
-            u_ref: -Vec3::unit_y(),
-        };
+        let at_x = Curve3::Ellipse(crate::Ellipse::new(
+            crate::ConicFrame::new(Point3::origin(), normal, along),
+            semi_x,
+            semi_y,
+        ));
+        let at_y = Curve3::Ellipse(crate::Ellipse::new(
+            crate::ConicFrame::new(Point3::origin(), normal, -Vec3::unit_y()),
+            semi_y,
+            semi_x,
+        ));
         let by_size = at_x.major_frame().unwrap();
         assert!((by_size.major_dir - Vec3::unit_y()).norm() < 1e-15);
         for (e, phase) in [(&at_x, 0.0), (&at_y, core::f64::consts::FRAC_PI_2)] {
@@ -2238,13 +1870,11 @@ mod tests {
             let vertex = Point3::origin() + f.major_dir * f.major;
             assert!(e.eval(f.phase).distance(vertex) < 1e-15, "{e:?}");
         }
-        let across = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis,
-            semi_u: 1.0,
-            semi_v: 2.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let across = Curve3::Ellipse(crate::Ellipse::new(
+            crate::ConicFrame::new(Point3::origin(), axis, Vec3::unit_x()),
+            1.0,
+            2.0,
+        ));
         let f = across.section_frame(axis).unwrap();
         assert_eq!((f.phase, (f.major_dir - Vec3::unit_x()).norm()), (0.0, 0.0));
     }
@@ -2278,7 +1908,7 @@ mod tests {
         ] {
             let c = mk(u, v).unwrap_or_else(|e| panic!("semi-axes ({u}, {v}) refused: {e}"));
             assert!(
-                matches!(c, Curve3::Ellipse { semi_u, semi_v, .. } if semi_u == u && semi_v == v),
+                matches!(c, Curve3::Ellipse(crate::Ellipse { semi_u, semi_v, .. }) if semi_u == u && semi_v == v),
                 "({u}, {v}): {c:?}"
             );
         }
@@ -2309,7 +1939,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse { center, axis, semi_u, semi_v, u_ref } = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::ConicFrame { center, axis, u_ref }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let v_ref = axis.cross(u_ref);
@@ -2327,7 +1957,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse { center, axis, semi_u, semi_v, .. } = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::ConicFrame { center, axis, .. }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let p = e.eval(theta);
@@ -2792,13 +2422,16 @@ mod tests {
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
             let ei = e.map_scalar(geom_core::Interval::from_f64);
-            let Curve3::Ellipse {
-                center,
-                axis,
+            let Curve3::Ellipse(crate::Ellipse {
+                frame:
+                    crate::ConicFrame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 semi_u,
                 semi_v,
-                u_ref,
-            } = ei
+            }) = ei
             else {
                 panic!("fixture is an ellipse");
             };
@@ -3171,12 +2804,10 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle {
-                    center,
-                    axis,
+                Curve3::Circle(crate::Circle {
+                    frame: crate::ConicFrame { center, axis, .. },
                     radius,
-                    ..
-                } => (center, axis, radius),
+                }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             for theta in [0.0, 0.7, 2.9, -14.6, 300.0] {
