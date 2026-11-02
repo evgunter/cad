@@ -91,14 +91,15 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// a method on `ViewerBehavior`, which borrows the whole application,
 /// and all it does with the answer is push the ops it names.
 ///
-/// `hidden` is whether the display hides this row's node. Only an
-/// instance row draws the hide toggle: a hidden instance stays IN this
-/// tree (that is the point — the tree is the document, the viewport is
-/// the display), and the checkbox is the display op's chrome.
+/// `hidden` is whether the display hides this row's body. Only an
+/// instance row draws the hide toggle here (the View pane holds one
+/// for every body and space): a hidden body stays IN this tree (that is
+/// the point — the tree is the document, the viewport is the display),
+/// and the checkbox is the display op's chrome.
 ///
-/// `hide_refusal` is what `SessionOp::SetInstanceHidden` would refuse
+/// `hide_refusal` is what `SessionOp::SetBodyHidden` would refuse
 /// this row's node with
-/// ([`crate::session::DocSession::instance_hidden_refusal`]). The kind
+/// ([`crate::session::DocSession::body_hidden_refusal`]). The kind
 /// decides whether the toggle is drawn; the op's admission decides
 /// whether it is live, and a refused one carries the op's sentence on
 /// its hover.
@@ -363,8 +364,8 @@ impl ViewerBehavior<'_> {
     /// One feature-tree row ([`feature_row_ui`]), and the ops its
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
-        let hidden = self.display.hidden.contains(&row.id);
-        let refusal = self.session.instance_hidden_refusal(row.id);
+        let hidden = self.display.hidden_bodies.contains(&row.id);
+        let refusal = self.session.body_hidden_refusal(row.id);
         let clicks = feature_row_ui(
             ui,
             row,
@@ -378,8 +379,8 @@ impl ViewerBehavior<'_> {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
         if let Some(hidden) = clicks.hide {
-            self.ops.push(SessionOp::SetInstanceHidden {
-                instance: row.id,
+            self.ops.push(SessionOp::SetBodyHidden {
+                node: row.id,
                 hidden,
             });
         }

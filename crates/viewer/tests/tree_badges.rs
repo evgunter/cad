@@ -694,7 +694,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "NodePick::build_all",
-            "held as an `UndrawnCopy`; `frame::index_badge` says only a copy `tree::cause_row` \
+            "held as an `UndrawnBody`; `frame::index_badge` says only a copy `tree::cause_row` \
              names no row for, whose standing the tree draws unchanged",
         ),
         (

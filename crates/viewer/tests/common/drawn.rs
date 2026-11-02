@@ -27,14 +27,15 @@ pub fn translated(at: [f64; 3]) -> Frame {
 
 /// **`body`'s one world copy pinned at `pose`**: a landed session over
 /// `session`'s document with that copy's bundle replaced, and the copy.
+/// A body nothing copies is placed into the world by hand first
+/// ([`super::world_copy`]).
 pub fn moved_copy(
     session: &DocSession,
     body: RecipeNodeId,
     pose: &Frame,
     tol: Tol,
 ) -> (DocSession, RecipeNodeId) {
-    let doc = session.committed_doc().clone();
-    let copy = super::copy_of(&doc, body);
+    let (doc, copy) = super::world_copy(session.committed_doc(), body, tol);
     let mut session = super::inline_without_door(pinned(doc, copy, pose), tol);
     session.pump();
     (session, copy)
