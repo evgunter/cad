@@ -6517,6 +6517,21 @@ mod properties_pane_tests {
         assert!(matches!(driven.app.session.selection(), Selection::Node(n) if matches!(driven.app.session.doc().node(*n), Some(Node::Extrude { .. }))));
     }
 
+    /// A circle split at its top and bottom: its vertices span no x at
+    /// all, so only the arcs' bound keeps the default axis off it.
+    #[test]
+    fn r6401_an_arc_bulging_past_its_vertices_bounds_the_extent() {
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle_split(0.02, 0.0, 0.005, 2, core::f64::consts::FRAC_PI_2).expect("circle")],
+        }]);
+        let profile = r6401_profile(&driven);
+        let (made, got) = r6401_revolve(&mut driven, profile, true);
+        eprintln!("x = {:?}", driven.row(made, SlotId::Origin(Axis3::X)).value);
+        let v = got.expect("the split circle revolves");
+        let want = r6401_ring(0.005, 0.015);
+        assert!((v - want).abs() < 1e-3 * want, "{v} vs {want}");
+    }
+
     /// A face pick on the startup extrude's cap offers no sweep.
     #[test]
     fn r6401_a_face_pick_offers_no_sweep() {
