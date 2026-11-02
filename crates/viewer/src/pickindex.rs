@@ -2150,6 +2150,31 @@ impl PickIndex {
             .map_err(PickError::HitTest)
     }
 
+    /// Reviewer probe only.
+    #[cfg(test)]
+    pub(crate) fn front_at_for_review(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+    ) -> Result<(usize, Option<(usize, f64)>), PickError> {
+        let front = self.seed(eval, camera, viewport, cursor, display)?;
+        let profile = self
+            .profile_near(eval, camera, viewport, cursor, display)?
+            .map(|p| {
+                (
+                    self.outlines
+                        .iter()
+                        .position(|o| o.node == p.node)
+                        .unwrap_or(99),
+                    p.distance_px,
+                )
+            });
+        Ok((front.len(), profile))
+    }
+
     /// [`PickIndex::edge_at_for`] with nothing hidden or free-moved.
     ///
     /// # Errors
