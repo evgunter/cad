@@ -10512,6 +10512,25 @@ pub fn line_segments_meet<T: Decide>(
     escalation(met, errors)
 }
 
+/// A census answer, or the escalation it pushed.
+///
+/// # Panics
+///
+/// Where the question answered `None` and pushed no escalation: its
+/// contract is `None` exactly where a decision escalated, so a `None`
+/// with nothing pushed is a broken invariant, never a "no".
+fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
+    for e in errors {
+        if let ValidationError::CensusEscalated { cause } = e {
+            return Err(cause);
+        }
+    }
+    match answer {
+        Some(answer) => Ok(answer),
+        None => unreachable!("a census question answers `None` only where it pushed an escalation"),
+    }
+}
+
 /// The point of `a`'s line nearest `b`'s, for two segments whose lines
 /// are not parallel: where they cross, once they are decided to meet
 /// ([`ee_cross_point`]).
