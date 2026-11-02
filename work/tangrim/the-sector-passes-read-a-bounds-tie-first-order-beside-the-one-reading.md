@@ -2,10 +2,12 @@
 id: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
 kind: issue
 title: The sector passes key on the one bound-side reading's first-order tie and never descend it; curved faces, the vertex-pair charge and the Tangent witness are unbuilt
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: H
+closed: 2026-11-02
+pr: 6253
 ---
 
 
@@ -259,3 +261,7 @@ Measured after the second ruling and the merge of ONEREAD's cone
 `EdgeUndescribed`. Its pin is red and unchanged. The second ruling's
 fallback covers the gap only; whether `Unbent` falls back to `On` the
 same way until a spline face's bend is certified is a ruling owed.
+
+## Closed
+
+2026-11-02, PR 6253 (dual review, both APPROVE-WITH-FIXES, no MAJOR). Every sector pass now descends a first-order tie through `topo::bound_side`, one order down against the face's own normal section (`geom_brep::implicit_hessian` / `graph_acceleration`), at the shorter of the bound's reach and the face's radius, on the first order's own ladder: decided → `Leaves`, zero band → `Rides`, the gap or an uncertified bend → `Unresolved` (read as the pre-stage-2 `On` until the witness lands), poison refuses. One flank-key rule (`recl::flank_keys`) for the edge-sector and bisector-graze gateways; PR 6219's `curving` and `TangentRead` folded in. Outcome: two wedges sharing a tangent-plane face build; nothing moves built → refused at any ε. Remaining: `a-leaves-verdict-carries-no-witness-point` (P1; the six gap rows and the sheath are its witnesses), `second-order-side-readings-the-stage-1-sweep-left-beside-the-reading` (incl. `tangent_relative_side`), `the-split-reads-a-bisectors-side-of-its-plane-beside-the-one-reading`, `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces` (backed out, measured), `conic-ties-outside-the-vertex-on-face-pass-still-read-first-order` (reopened).

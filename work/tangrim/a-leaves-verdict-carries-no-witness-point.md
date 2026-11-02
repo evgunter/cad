@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-01
 priority: P1
 cost: M
-parent: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
 ---
 
 
