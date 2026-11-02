@@ -160,6 +160,15 @@ impl core::fmt::Display for Operand {
     }
 }
 
+/// **A position as a reader counts it**, from one: widened before the
+/// `+ 1`, so the last position a `usize` holds is said, not wrapped.
+pub(crate) fn ordinal(position: usize) -> u128 {
+    let Ok(wide) = u128::try_from(position) else {
+        unreachable!("a usize of at most 64 bits fits a u128")
+    };
+    wide + 1
+}
+
 /// **An operand field's address** (spec Q7: named by field, never by
 /// position): the operand half of a node's slot vocabulary, addressed
 /// as [`crate::SlotId::Operand`].
@@ -245,7 +254,7 @@ impl OperandSlot {
     pub fn label(self) -> String {
         match self {
             Self::Profile => "profile".to_owned(),
-            Self::Section(i) => format!("section {}", i + 1),
+            Self::Section(i) => format!("section {}", ordinal(i)),
             Self::Path => "path".to_owned(),
             Self::Axis => "axis".to_owned(),
             Self::Frame => "frame".to_owned(),
@@ -253,7 +262,7 @@ impl OperandSlot {
             Self::Selection => "selection".to_owned(),
             Self::Open => "open faces".to_owned(),
             Self::Face => "face".to_owned(),
-            Self::Traced(i) => format!("traced face {}", i + 1),
+            Self::Traced(i) => format!("traced face {}", ordinal(i)),
             Self::Side { constraint, side } => {
                 format!("constraint {constraint} side {}", side.name())
             }
@@ -262,7 +271,7 @@ impl OperandSlot {
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
             Self::Cut => "tool".to_owned(),
-            Self::Member(i) => format!("member {}", i + 1),
+            Self::Member(i) => format!("member {}", ordinal(i)),
             Self::Members => "members".to_owned(),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
@@ -551,21 +560,13 @@ impl<S: crate::expr::Slot> BodyRead<S> {
     }
 
     /// The indices, each with its position, shared.
-    pub fn rows(&self) -> Vec<(u8, &S)> {
-        self.at
-            .iter()
-            .enumerate()
-            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
-            .collect()
+    pub fn rows(&self) -> Vec<(usize, &S)> {
+        self.at.iter().enumerate().collect()
     }
 
     /// The indices, each with its position, exclusive.
-    pub fn rows_mut(&mut self) -> Vec<(u8, &mut S)> {
-        self.at
-            .iter_mut()
-            .enumerate()
-            .map(|(k, e)| (u8::try_from(k).unwrap_or(u8::MAX), e))
-            .collect()
+    pub fn rows_mut(&mut self) -> Vec<(usize, &mut S)> {
+        self.at.iter_mut().enumerate().collect()
     }
 
     /// This read in another slot form: the read by `read` (handed its
@@ -784,36 +785,5 @@ impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
 impl From<crate::SitedRef> for Operand {
     fn from(r: crate::SitedRef) -> Self {
         Self::select(r.at, vec![r.name])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::expect_used)]
-
-    use super::OperandSlot;
-
-    /// **A position past `u32` names its own seat**: a loft's section,
-    /// a list's member and a traced face are addressed by `usize`, so
-    /// two positions never share one label.
-    #[cfg(target_pointer_width = "64")]
-    #[test]
-    fn a_position_past_u32_names_its_own_seat() {
-        let last = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
-        let past = last + 1;
-        for seat in [
-            OperandSlot::Section,
-            OperandSlot::Member,
-            OperandSlot::Traced,
-        ] {
-            assert_ne!(
-                seat(last).label(),
-                seat(past).label(),
-                "{:?} and {:?} read apart",
-                seat(last),
-                seat(past)
-            );
-        }
-        assert_eq!(OperandSlot::Member(past).label(), "member 4294967297");
     }
 }

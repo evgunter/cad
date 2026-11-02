@@ -1325,11 +1325,9 @@ pub(crate) fn frame_axes<T: Decide>(
 /// not fit: past `u32::MAX` a loop's coordinate would name another
 /// loop's.
 fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
-    u32::try_from(n).map(|n| 0..n).map_err(|_| {
-        NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "a profile holds more loops than a u32 loop index addresses",
-        })
-    })
+    names::narrow(n, names::Numbered::Loop)
+        .map(|n| 0..n)
+        .map_err(NodeErrorKind::Naming)
 }
 
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
@@ -2692,7 +2690,8 @@ fn instance_of<T: Decide>(
     slot: SlotId,
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let index = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    let count = names::output_body(instances.len()).map_err(NodeErrorKind::Naming)?;
+    let count = names::narrow(instances.len(), names::Numbered::OutputBody)
+        .map_err(NodeErrorKind::Naming)?;
     let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
         NodeErrorKind::MemberOutOfRange {
             input: of,
@@ -2717,10 +2716,7 @@ fn member_of<T: Decide>(
 ) -> Result<(super::Framed<T>, u32), NodeErrorKind> {
     let at = (0..rank)
         .map(|k| {
-            let slot = SlotId::Index {
-                seat,
-                k: u8::try_from(k).unwrap_or(u8::MAX),
-            };
+            let slot = SlotId::Index { seat, k };
             slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
         })
         .collect::<Result<Vec<i64>, _>>()?;
@@ -2740,7 +2736,7 @@ fn member_of<T: Decide>(
     let body = instances.get(index).cloned().ok_or_else(out)?;
     Ok((
         body,
-        names::output_body(index).map_err(NodeErrorKind::Naming)?,
+        names::narrow(index, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?,
     ))
 }
 
@@ -3471,7 +3467,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .iter()
             .enumerate()
             .map(|(i, body)| {
-                let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+                let index =
+                    names::narrow(i, names::Numbered::OutputBody).map_err(NodeErrorKind::Naming)?;
                 let table = read_table(value)
                     .project(index)
                     .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
@@ -3778,7 +3775,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut coincidences = Vec::new();
     let mut published: Vec<Vec<usize>> = Vec::with_capacity(judged.len());
     for (j, rows) in judgements.iter().zip(&judged) {
-        let place = |m: usize| names::input_position(m).map_err(NodeErrorKind::Naming);
+        let place = |m: usize| {
+            names::narrow(m, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
+        };
         let pair = [place(j.a.min(j.b))?, place(j.a.max(j.b))?];
         published.push(
             rows.iter()
@@ -3816,7 +3815,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let member_table = Arc::clone(&views[joined]);
         let out = &stepped.body;
         let (kind, naming) = (out.kind, &out.naming);
-        let member = names::input_position(joined).map_err(NodeErrorKind::Naming)?;
+        let member =
+            names::narrow(joined, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
         if !pairwise {
             // The pair's rows and links are its one step's, in the two
             // members' own tables and the order its records cite them,
@@ -3899,16 +3899,17 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             );
         }
         let held = Arc::clone(&acc_records);
+        let rows = (base..base + decided)
+            .map(|row| names::narrow(row, names::Numbered::Row))
+            .collect::<Result<Vec<u32>, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         let contacts = out
             .contacts
             .clone()
             .recited(|b| match b {
                 topo::Backing::Decided(k) if pairwise => {
-                    if (k as usize) < decided {
-                        vec![topo::Backing::Decided(names::to_u32(
-                            base + k as usize,
-                            ROWS_OF_ONE_BODY,
-                        ))]
+                    if let Some(&row) = rows.get(k as usize) {
+                        vec![topo::Backing::Decided(row)]
                     } else {
                         unreachable!(
                             "union {id:?}'s fold step {step} cites its row {k}, though it \
@@ -3976,7 +3977,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         topo::NaryEnd::Empty => return empty(),
         topo::NaryEnd::Refused(topo::NaryRefusal::Step { member, error }) => {
             return Err(NodeErrorKind::UnionFoldStep {
-                member: names::input_position(member).map_err(NodeErrorKind::Naming)?,
+                member: names::narrow(member, names::Numbered::InputPosition)
+                    .map_err(NodeErrorKind::Naming)?,
                 read: members[member].read,
                 refusal: Box::new(NodeErrorKind::Boolean(*error)),
             });
@@ -4010,7 +4012,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // rows, then every fold step's, a fold row a judged row restates
     // being that row; the records are recited onto the rows they cite.
     let contacts = if pairwise {
-        let at: Vec<Vec<usize>> = fold_rows
+        let at: Vec<Vec<u32>> = fold_rows
             .into_iter()
             .map(|row| match row {
                 FoldRow::Restates(judged) => judged,
@@ -4028,20 +4030,20 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         }),
                 ],
             })
-            .collect();
+            .map(|rows| {
+                rows.into_iter()
+                    .map(|row| names::narrow(row, names::Numbered::Row))
+                    .collect::<Result<Vec<u32>, _>>()
+            })
+            .collect::<Result<_, _>>()
+            .map_err(NodeErrorKind::Naming)?;
         Arc::new(
             (*contacts)
                 .clone()
                 .recited(|b| match b {
                     topo::Backing::Decided(k) => at
                         .get(k as usize)
-                        .map(|rows| {
-                            rows.iter()
-                                .map(|&i| {
-                                    topo::Backing::Decided(names::to_u32(i, ROWS_OF_ONE_BODY))
-                                })
-                                .collect()
-                        })
+                        .map(|rows| rows.iter().map(|&i| topo::Backing::Decided(i)).collect())
                         .unwrap_or_else(|| {
                             unreachable!(
                                 "union {id:?}'s records cite fold row {k}, though the fold \
@@ -4119,7 +4121,7 @@ fn member_ranks(reads: &[crate::VarId]) -> Result<Vec<u32>, NodeErrorKind> {
             let at = distinct
                 .binary_search(r)
                 .unwrap_or_else(|_| unreachable!("every read is among the distinct reads"));
-            names::input_position(at).map_err(NodeErrorKind::Naming)
+            names::narrow(at, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
         })
         .collect()
 }
@@ -4147,13 +4149,8 @@ fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
 /// Two of a union's pairwise verdicts glue one accumulation face to one
 /// member face under two relations
 /// ([`topo::NaryRefusal::VerdictsDisagree`]).
-/// Why a coincidence row's index fits the `u32` a [`topo::Backing`]
-/// cites it by ([`names::to_u32`]): the rows are one body's, and a
-/// body's rows number fewer than `u32`, as `topo` mints them.
-pub(super) const ROWS_OF_ONE_BODY: &str = "a coincidence row of one body's table: a body's rows number fewer than u32, as topo mints \
-     them";
-
-const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
+const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face \
+                                       to one member face under two relations";
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
@@ -4275,7 +4272,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         // A member's own records ride the piece it is, re-keyed through
         // its graft (each member's of a family), citing the member by its
         // read.
-        let input = names::input_position(citing.len()).map_err(NodeErrorKind::Naming)?;
+        let input = names::narrow(citing.len(), names::Numbered::InputPosition)
+            .map_err(NodeErrorKind::Naming)?;
         for (i, keys) in bridges.iter().enumerate() {
             crate::product::carry_contacts(
                 &fused,
@@ -4540,7 +4538,7 @@ mod loop_coordinates_tests {
         assert!(
             matches!(
                 loop_coordinates(past),
-                Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
+                Err(NodeErrorKind::Naming(NamingError::PastWidth { .. }))
             ),
             "one loop past u32::MAX is refused"
         );

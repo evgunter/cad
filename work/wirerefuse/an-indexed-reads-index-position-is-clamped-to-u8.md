@@ -60,3 +60,10 @@ The `u8` positions take row 0 or a door bound on a family's rank. Each
 widening becomes the infallible form or an `unreachable!` that states
 why it cannot fail. The two zips state their bound, as
 `product.rs` `gather_sources` does for its input position (`names::to_u32`).
+
+## The u8 half fixed (2026-11-02, `wirerefuse/list-positions` review pass)
+
+`SlotId::Index { k }` is `usize` (row 0), so `BodyRead::rows` and the
+member read no longer clamp. Its label widens before the `+ 1`
+(`operand::ordinal`). What stays open here: the dead widening clamps
+and the two kernel-bounded zips.

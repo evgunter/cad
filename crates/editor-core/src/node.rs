@@ -473,7 +473,7 @@ pub enum SlotId {
         /// The body seat whose read it indexes.
         seat: crate::OperandSlot,
         /// Which of the family's indices, from 0.
-        k: u8,
+        k: usize,
     },
     /// One expression inside a profile PROGRAM (LIB-SWITCH §4c): loop
     /// index, step index, argument role. The LOOP coordinate is a VQ3
@@ -676,15 +676,25 @@ impl SlotId {
             Self::Stations => "stations".to_owned(),
             Self::Operand(operand) => operand.label(),
             Self::Index { seat, k: 0 } => format!("{} index", seat.label()),
-            Self::Index { seat, k } => format!("{} index {}", seat.label(), u32::from(k) + 1),
+            Self::Index { seat, k } => {
+                format!("{} index {}", seat.label(), crate::operand::ordinal(k))
+            }
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
             Self::StationSlide { section, step } => {
-                format!("section {} station slide {}", section + 1, step + 1)
+                format!(
+                    "section {} station slide {}",
+                    crate::operand::ordinal(section),
+                    crate::operand::ordinal(step)
+                )
             }
             Self::StationSpin { section, step } => {
-                format!("section {} station spin {}", section + 1, step + 1)
+                format!(
+                    "section {} station spin {}",
+                    crate::operand::ordinal(section),
+                    crate::operand::ordinal(step)
+                )
             }
             Self::ValueSlide { .. } => String::from("slide value"),
             Self::ValueSpin { .. } => String::from("spin value"),

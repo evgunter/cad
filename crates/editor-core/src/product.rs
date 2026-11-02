@@ -615,7 +615,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Vec::new()),
         // Cannot refuse: an instance list is minted by the pattern op,
-        // which refuses any index `names::output_body` does not fit, or
+        // which refuses any index `names::narrow` does not fit, or
         // by `Placeable::map`, which rebuilds an existing list one body
         // for one.
         ValuePayload::Instances(bodies) => Some(
@@ -623,9 +623,12 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 .iter()
                 .enumerate()
                 .map(|(i, body)| {
-                    let ix = crate::names::output_body(i).unwrap_or_else(|e| {
-                        unreachable!("instance {i} outlived its minting op's index refusal: {e}")
-                    });
+                    let ix = crate::names::narrow(i, crate::names::Numbered::OutputBody)
+                        .unwrap_or_else(|e| {
+                            unreachable!(
+                                "instance {i} outlived its minting op's index refusal: {e}"
+                            )
+                        });
                     let member = value.carry.member(i);
                     (
                         ix,
@@ -1163,7 +1166,7 @@ fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 .and_then(|census| census.records(doc, tol))
                 .unwrap_or_else(|| Arc::clone(&carry.contacts));
             let ix = if piece.family {
-                crate::names::output_body(i).unwrap_or_else(|e| {
+                crate::names::narrow(i, crate::names::Numbered::OutputBody).unwrap_or_else(|e| {
                     unreachable!("piece {i} outlived its minting op's index refusal: {e}")
                 })
             } else {

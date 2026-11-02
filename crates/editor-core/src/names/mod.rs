@@ -55,11 +55,11 @@ pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_ED
 #[cfg(debug_assertions)]
 pub(crate) use emit::assert_own_bodies;
 pub use emit::{
-    CrossingSensesShape, DisagreeShape, JoinShape, NamingError, RimShare, SeamSidesShape,
+    CrossingSensesShape, DisagreeShape, JoinShape, NamingError, Numbered, RimShare, SeamSidesShape,
     SeamVertexShape, UnionNameShape, WayShape,
 };
 pub(crate) use emit::{GRAFT_TOTAL, name_assemble, name_copy};
-pub(crate) use emit::{check_total, empty, input_position, name_family, output_body, to_u32};
+pub(crate) use emit::{check_total, empty, name_family, narrow, to_u32};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;

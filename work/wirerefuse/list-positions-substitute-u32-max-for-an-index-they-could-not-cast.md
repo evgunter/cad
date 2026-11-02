@@ -115,3 +115,16 @@ two kernel-bounded zips are filed as
 `u8` count clamps and then takes `.min(6)`, so it agrees with the
 unclamped count, and its `(3u32..)` zips are test code.
 `role.rs`'s `as u32` compares enum discriminants.
+
+Review fix pass (2026-11-02):
+- **The label overflow is fixed.** `OperandSlot::label` (and
+  `SlotId::Index`, `StationSlide`, `StationSpin`) widen through
+  `operand::ordinal` before the `+ 1`. Before, a deserialized
+  `Member(usize::MAX)` panicked when its refusal was formatted.
+  Witness: `m4_pr1_paths::a_refusal_at_the_last_position_says_it`.
+- **One helper for every count the document sets.** Input positions,
+  coincidence rows (the union fold's and `distribute`'s, computed
+  before the recitation), output bodies and loops go through
+  `names::narrow` → `NamingError::PastWidth` (row 1, with a recourse).
+  `ROWS_OF_ONE_BODY` is gone.
+- `SlotId::Index { k }` is `usize`.
