@@ -466,11 +466,11 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     assert!(!session.standing().live(), "its birth was undone");
     assert!(session.standing().unresolved().is_some());
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, delta()))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            delta(),
+            viewer::world::Shown::none()
+        ))),
         "and the index that answered the pick is stale, to be discarded"
     );
 
@@ -602,11 +602,11 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     assert!(session.standing().unresolved().is_some());
     assert!(session.slot_rows().is_empty());
     assert!(
-        !index.current_for(
-            session
-                .landed_generation()
-                .map(|g| PictureKey::of(g, ring_delta))
-        ),
+        !index.current_for(session.landed_generation().map(|g| PictureKey::of(
+            g,
+            ring_delta,
+            viewer::world::Shown::none()
+        ))),
         "the pick index is stale after the re-evaluation and is discarded whole"
     );
 

@@ -11,7 +11,7 @@ refs: [the-shells-retired-seams-slits-and-apexes-map-to-every-outer-rim-face]
 
 ## What
 
-`Blended::lineage` (`crates/sweep/src/blend/build.rs`) states a fate
+`BlendNaming::lineage` (`crates/sweep/src/blend/naming.rs`) states a fate
 for the cells `BlendNaming` names: the band's edges and corners
 removed, a carved source edge divided into its remnants, a support face
 divided into itself and its trimlines and feet. At a cut-off the blend
@@ -27,6 +27,11 @@ a wrong answer.
 ## Fix
 
 Have `BlendNaming` name each face the blend trims (the cut-off's cap and
-end faces), and state each in `Blended::lineage` as divided into itself
+end faces), and state each in `BlendNaming::lineage` as divided into itself
 and the trimline, its remainder removed. Row: a rest on the cut-off part
 of a cap face is consumed, and the result passes at rest.
+
+Reachable in the document since PR 6277: `wire_blend` carries the
+operand's records through `BlendNaming::carry_contacts`, so a document
+fillet or chamfer whose cut-off trims a recorded cap or end face now
+meets this refusal as `NodeErrorKind::ContactCarry`.
