@@ -2058,21 +2058,26 @@ the tool lists it twice and the session door commits it like any other
 document; the door's only per-operand check is the node kind
 (`Refusal::WrongNodeKind`), at every operand.
 
-### The picture draws bodies
+### What the picture shows
 
-A new body lands unplaced, in a space of its own (Ev, 2026-10-31), and
-the picture draws bodies, not placements. **A body is drawn unless an
-operation reads it as a body**: as an operator's operand (`∪ − ∩ ⊔`),
-as a one-input operation's input (a fillet, a split, a mirror), or as a
-placement's source, wherever the copy lands. A read of one member of a
-family takes over that member alone. A mate reads a pose, a selection
-or a measure observes, an assertion states: none of them hides a body.
-So an extrude is drawn at once; a fillet of it is drawn in its place;
-a pattern of it draws the family, member 0 standing where the body
-stood; and once the body is placed into the world its own picture goes,
-while a body beside it that nothing reads stays drawn. The product
-stays the slot the document writes: only the picture is derived, and
-nothing it derives re-enters the model.
+**Every body is shown by default except intermediate ones, and the
+View pane can show or hide any body.** A body is intermediate when
+another body is built from it:
+- an operand of `∪ − ∩ ⊔`;
+- the input of a fillet, split or mirror;
+- the source of a placement, whose copy is shown in its place.
+
+A read of one member of a family makes that member alone intermediate.
+Mates, selections, measurements and assertions build no body, so they
+make nothing intermediate. So an extrude is shown as soon as it exists
+(it lands unplaced, in a space of its own: Ev, 2026-10-31), a fillet of
+it is shown in its place, a pattern of it shows the family with member
+0 standing where the body stood, and once the body is placed into the
+world its copy is shown and the body is not. A body beside it that
+nothing builds from stays shown. The default is derived from the recipe
+alone. Show and hide in the View pane are display state on top of it,
+and never enter the model. The product stays the slot the document
+writes.
 
 Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
