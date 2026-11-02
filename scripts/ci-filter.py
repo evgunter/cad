@@ -1532,14 +1532,49 @@ def _all_tier(root: str, files: list[str] | None = None) -> dict[str, str]:
 # Rust tree, python outside a reader, another script, any other workflow line,
 # data — is a reader it cannot account for, and raises `Bail`. So does a script
 # nothing visibly reads at all, and one this filter itself imports. Prose is
-# not a reader: a `//` or `#` line comment, a `///` line outside a code fence,
-# and a page `_is_docs` keeps in the docs tier.
+# not a reader, and only these are prose: a `//` line comment; a `///`/`//!`
+# line outside a code fence and not indented; a `.md` line outside a fence and
+# not indented (a `#` there is a heading, never a hidden doctest line, which
+# sits inside a fence); a `#` line in yaml, toml or shell; a python comment;
+# a page `_is_docs` keeps in the docs tier. The files read are those git
+# tracks.
 #
 # BLIND SPOT: a reader that never writes the stem (a glob over `scripts/`, a
 # name assembled from parts) is not seen; none runs in a PR job today.
 _PYTHON_FLAG_RE = re.compile(r'^\s*flag python "([^"]*)"\s*$', re.M)
 _SEEDED_ONLY_RE = re.compile(r"seeded [A-Za-z0-9_-]+(?: \|\| seeded [A-Za-z0-9_-]+)*")
-_SCRIPT_SCAN_PRUNE = frozenset({".git", "target", "__pycache__", "node_modules"})
+# Where a `#` line is a comment and nothing compiles it. A `.md` line is code
+# inside a fence or indented (a rustdoc hidden `# ` line, an indented block),
+# and prose otherwise; `.rs` and `.py` are read by their own rules above.
+_HASH_COMMENT_SUFFIXES = (".yml", ".yaml", ".toml", ".sh", ".bash")
+
+
+def _md_indented(line: str) -> bool:
+    """A CommonMark indented-code line, read wide: no blank-line check."""
+    return line.startswith(("    ", "\t"))
+
+
+def _tracked_files(root: str) -> list[str]:
+    """The repo-relative files git tracks under `root`, which is what a hosted
+    checkout holds; a tree that is not a git checkout's top (the selftest's
+    fixtures) is walked instead."""
+    try:
+        top = _run(["git", "rev-parse", "--show-toplevel"], root).strip()
+    except (subprocess.CalledProcessError, OSError):
+        top = None
+    if top is None or os.path.realpath(top) != os.path.realpath(root):
+        if os.path.exists(os.path.join(root, ".git")):
+            raise Bail(f"{root} has a .git and git cannot list its files")
+        out = []
+        for base, dirs, names in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in (".git", "target", "__pycache__")]
+            out += [os.path.relpath(os.path.join(base, n), root).replace(os.sep, "/") for n in names]
+        return out
+    try:
+        listing = _run(["git", "ls-files", "-z"], root)
+    except subprocess.CalledProcessError as exc:
+        raise Bail(f"git ls-files failed in {root}: {exc}") from exc
+    return [f for f in listing.split("\0") if f]
 
 
 def _script_reader_members(
@@ -1558,20 +1593,17 @@ def _script_reader_members(
         return any(n in text for n in needles)
 
     hits: dict[str, str] = {}
-    for base, dirs, names in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in _SCRIPT_SCAN_PRUNE]
-        for fname in names:
-            path = os.path.join(base, fname)
-            rel = os.path.relpath(path, root).replace(os.sep, "/")
-            if rel == script or _is_docs(rel, consumed) or fname.endswith(".pyc"):
-                continue
-            try:
-                with open(path, "rb") as fh:
-                    data = fh.read()
-            except OSError as exc:
-                raise Bail(f"cannot read {rel}: {exc}") from exc
-            if any(n.encode() in data for n in needles):
-                hits[rel] = data.decode("utf-8", errors="replace")
+    for rel in _tracked_files(root):
+        # A tracked symlink to a directory: what it points at is tracked too.
+        if rel == script or _is_docs(rel, consumed) or os.path.isdir(os.path.join(root, rel)):
+            continue
+        try:
+            with open(os.path.join(root, rel), "rb") as fh:
+                data = fh.read()
+        except OSError as exc:
+            raise Bail(f"cannot read {rel}: {exc}") from exc
+        if any(n.encode() in data for n in needles):
+            hits[rel] = data.decode("utf-8", errors="replace")
 
     def unaccounted(rel: str, why: str) -> Bail:
         return Bail(f"{rel} {why} {script}, and that read is not one the filter can scope")
@@ -1630,10 +1662,10 @@ def _script_reader_members(
             fenced = False
             for ln in text.splitlines():
                 if _ATTRIBUTE_LINE_RE.match(ln) and not ln.lstrip().startswith("#"):
-                    body = ln.lstrip()[3:].strip()
-                    if body.startswith(("```", "~~~")):
+                    body = ln.lstrip()[3:]
+                    if body.strip().startswith(("```", "~~~")):
                         fenced = not fenced
-                    elif fenced and mentions(body):
+                    elif (fenced or _md_indented(body)) and mentions(body):
                         raise unaccounted(rel, "names in a doctest")
                     continue
                 fenced = False
@@ -1644,6 +1676,15 @@ def _script_reader_members(
             if mentions(py_live(rel, text)[1]):
                 raise unaccounted(rel, "names")
             continue
+        if rel.endswith(".md"):
+            fenced = False
+            for ln in text.splitlines():
+                if ln.strip().startswith(("```", "~~~")):
+                    fenced = not fenced
+                elif (fenced or _md_indented(ln)) and mentions(ln):
+                    raise unaccounted(rel, "names in a code block")
+            continue
+        hash_comments = rel.endswith(_HASH_COMMENT_SUFFIXES)
         job = None
         for ln in text.splitlines():
             if rel.startswith(".github/"):
@@ -1651,7 +1692,7 @@ def _script_reader_members(
                     job = None
                 elif m := job_re.match(ln):
                     job = m.group(1)
-            if not mentions(ln) or ln.lstrip().startswith("#"):
+            if not mentions(ln) or (hash_comments and ln.lstrip().startswith("#")):
                 continue
             if rel == GATE_WORKFLOW and job == "lint":
                 visible = True
@@ -3497,6 +3538,19 @@ _FIXTURE_SCRIPT_READERS = {
     "crates/geom/src/rung_block.rs": (
         "/**\n * ```\n * let s = include_str!(\"../../../scripts/rung-block.py\");\n * ```\n */\npub fn h() {}\n"
     ),
+    # rustdoc compiles an indented block exactly as a fenced one.
+    "crates/geom/src/rung_indent.rs": (
+        "/// Example:\n///\n///     let s = include_str!(\"../../../scripts/rung-indent.py\");\npub fn i() {}\n"
+    ),
+    # A consumed page (`guide.rs` compiles it): a hidden `# ` doctest line in
+    # a fence, an indented block, and a heading and a sentence that are prose.
+    "docs/GUIDE.md": (
+        "\n# pinned-sweep.py, a heading\n\npinned-sweep.py, a sentence.\n\n"
+        "```rust\n# let s = include_str!(\"../scripts/rung-hidden.py\");\n```\n\n"
+        "    let s = include_str!(\"../scripts/rung-mdindent.py\");\n"
+    ),
+    # Data, where `#` is not a comment.
+    "crates/geom/tests/rung.txt": "# rung-data.py\n",
     "crates/ghost/tests/test_rung.py": 'SWEEP = ROOT / "scripts" / "rung-ghost.py"\n',
     "crates/verbs/tests/test_rung.py": 'SWEEP = ROOT / "scripts" / "rung-pyjob.py"\n',
     ".github/workflows/ci.yml": (
@@ -3504,15 +3558,16 @@ _FIXTURE_SCRIPT_READERS = {
         "  lint:\n    steps:\n"
         "      - run: python3 scripts/pinned-sweep.py --check\n"
         "      - run: python3 scripts/slow_set.py --selftest\n"
-        "      - run: for s in rung-code rung-doctest rung-block rung-ghost rung-pyjob rung-wf; do python3 scripts/$s.py; done\n"
+        "      - run: for s in rung-code rung-doctest rung-indent rung-block rung-hidden rung-mdindent rung-data rung-ghost rung-pyjob rung-wf; do python3 scripts/$s.py; done\n"
         "  test:\n    steps:\n      # pinned-sweep.py, in a comment\n      - run: python3 scripts/rung-wf.py\n"
     ),
 }
 
 
 def _plant_script_readers(t: str) -> None:
-    for name in ("pinned-sweep", "rung-code", "rung-doctest", "rung-block", "rung-ghost",
-                 "rung-pyjob", "rung-wf", "rung-orphan"):
+    for name in ("pinned-sweep", "rung-code", "rung-doctest", "rung-indent", "rung-block",
+                 "rung-hidden", "rung-mdindent", "rung-data", "rung-ghost", "rung-pyjob",
+                 "rung-wf", "rung-orphan"):
         open(os.path.join(t, "scripts", f"{name}.py"), "w").close()
     for rel, text in _FIXTURE_SCRIPT_READERS.items():
         os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
@@ -3722,6 +3777,12 @@ def selftest() -> None:
             # one reader its guard in `_script_reader_members` sees.
             ("a script a member's Rust code names", ["scripts/rung-code.py", "crates/topo/src/lib.rs"], "all"),
             ("a script a /// doctest names", ["scripts/rung-doctest.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script an indented /// doctest names", ["scripts/rung-indent.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a hidden # line in a consumed page's fence names",
+             ["scripts/rung-hidden.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a consumed page's indented block names",
+             ["scripts/rung-mdindent.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a #-led data line names", ["scripts/rung-data.py", "crates/topo/src/lib.rs"], "all"),
             ("a script a /** */ doctest names", ["scripts/rung-block.py", "crates/topo/src/lib.rs"], "all"),
             ("a script a non-member's python opens", ["scripts/rung-ghost.py", "crates/topo/src/lib.rs"], "all"),
             ("a script python opens from a member the python job does not run",
