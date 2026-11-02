@@ -1558,8 +1558,9 @@ handed a non-positive radius, where refusing is right.
 ### A pick id is one index's word
 
 `PickIndex` holds an `IdMap` keyed by a `PictureKey` — the landed
-generation and the δ its copies were tessellated at, one value because
-it is one question — and every id in the drawn mesh's per-corner `ids`
+generation, the δ its copies were tessellated at, and the bodies the
+author's toggles show (`world::Shown`), one value because it is one
+question — and every id in the drawn mesh's per-corner `ids`
 was minted by the id map of the index that built it. So an id is only a name in the alphabet of the
 index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
@@ -1575,7 +1576,7 @@ exists and every corner carries `IdMap::NOTHING`.
 
 **An index covers the bodies it drew, and a refused one draws
 nothing.** `PickIndex::build` walks every drawn body
-(`world::drawn_bodies`); a node whose build refuses (no value, no
+(`world::Picture::showing`, over the key's shows); a node whose build refuses (no value, no
 body, a tessellation or indexing refusal) is held in
 `PickIndex::undrawn` with its reason and gets no part, no ids and no
 window, so the id map stays one-to-one over the drawn bodies and a
@@ -2070,12 +2071,15 @@ Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
 **shown spaces** are the world and every space that holds a drawn body
 (IDENTITY DI5). That is the default picture; the author's show and
-hide is display state over it. The View pane lists the shown spaces,
-the world first, and every body of the document under its space, each
-with its toggle, so a body the default leaves out (an operand a boolean
-took over, a fillet's input) can be shown, and any drawn one hidden
-(Ev, PR 6209: "all bodies should be viewable by toggle in the view
-pane").
+hide is display state over it. The View pane lists the world first,
+then every other space that holds a body of the document — the shown
+spaces among them — each with its toggle and every body in it with
+its own, so a body the default leaves out (an operand a boolean took
+over, a fillet's input) can be shown, and any drawn one hidden (Ev, PR
+6209: "all bodies should be viewable by toggle in the view pane"). A
+body's toggle is decided against what it reads now: off where the
+picture draws the body is a hide, on where it leaves it out is a show,
+and either turned back holds nothing.
 A drawn body the product slot does not reach is tinted as outside the
 product. Every shown space stands at the identity, so a body is drawn
 where it was written; where a space is drawn otherwise is held in one
