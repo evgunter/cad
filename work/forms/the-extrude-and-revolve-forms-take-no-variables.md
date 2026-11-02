@@ -2,11 +2,12 @@
 id: the-extrude-and-revolve-forms-take-no-variables
 kind: issue
 title: viewer: the extrude and revolve forms take only numbers: a distance or angle cannot be written over a variable
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [creating-a-thing-and-editing-it-are-two-implementations, the-add-profile-form-takes-numbers-and-no-formula]
+branch: forms/extrude-revolve
 ---
 Reported by Ev (chat, 2026-11-01): "extrude and revolve don't appear
 to accept variables." Filed P1 at Ev's request.
