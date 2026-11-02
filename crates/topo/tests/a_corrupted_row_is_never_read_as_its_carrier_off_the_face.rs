@@ -13,6 +13,8 @@
 //! past its edge's end, off the cylinder, and the finding is
 //! `CarrierOffChart`: the shape this row guards against.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use crate::fixture;
 use topo::construction::Construct;
 

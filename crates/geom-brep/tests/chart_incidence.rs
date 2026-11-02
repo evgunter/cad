@@ -1380,12 +1380,12 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     // off: the row pins the measured `k` at each ε row CI runs, and that
     // one transition at any other.
     let boundary = |shape: usize| match (shape, e) {
-        (0, x) if x == 1e-9 => Some(21),
-        (0, x) if x == 1e-12 => Some(11),
-        (0, x) if x == 1e-6 => Some(31),
-        (1, x) if x == 1e-9 => Some(24),
-        (1, x) if x == 1e-12 => Some(14),
-        (1, x) if x == 1e-6 => Some(31),
+        (0, 1e-9) => Some(21),
+        (0, 1e-12) => Some(11),
+        (0, 1e-6) => Some(31),
+        (1, 1e-9) => Some(24),
+        (1, 1e-12) => Some(14),
+        (1, 1e-6) => Some(31),
         _ => None,
     };
     for shape in [0, 1] {
@@ -1616,9 +1616,9 @@ fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
         ]
     };
     let k0 = match e {
-        x if x == 1e-9 => Some(24),
-        x if x == 1e-12 => Some(14),
-        x if x == 1e-6 => Some(31),
+        1e-9 => Some(24),
+        1e-12 => Some(14),
+        1e-6 => Some(31),
         _ => None,
     };
     let mut first_in_band = [None; 2];
