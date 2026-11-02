@@ -154,6 +154,21 @@ pub enum SectionGermReading {
 /// ([`SplitReduceError::ApexSection`]) and the Boolean's pierce
 /// ([`crate::BooleanError::ApexSection`]) one vocabulary and one
 /// rating, a typed disagreement.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// A Rust caller can already name and match it — `pncad` re-exports
+/// `topo` whole — and each refusal's sentence names the disagreement and
+/// states its own recourse: move the face so it passes clear of the
+/// cone's tip, or through it clearly across the cone. Every arm is the
+/// section table and the walk disagreeing, a kernel limit no caller
+/// steers by arm.
+///
+/// **The falsifier is a caller that acts on the arm by itself**: a
+/// driver that nudges a part one way on `ClosedOffApex` and another on
+/// `NoRulingInside`. Then carry it and delete this paragraph and the
+/// disposition row with it.
 #[derive(Debug)]
 pub enum ApexSectionReading {
     /// The table reads the plane's section of the cone as a closed
