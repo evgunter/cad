@@ -430,12 +430,12 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     );
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, -0.5),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, -0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),
@@ -480,12 +480,12 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     );
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.5),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::new(0.0, 0.0, 1.0),
+        0.5,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(k1, k2),

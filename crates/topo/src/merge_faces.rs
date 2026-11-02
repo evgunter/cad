@@ -4972,12 +4972,7 @@ mod winding_arm_tests {
             .unwrap();
         let arc = |axis: Vec3<f64>| EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(surface),
-            carrier: geom::Curve3::Circle {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis,
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: geom::Curve3::circle(Point3::new(0.0, 0.0, 0.0), axis, 1.0, Vec3::unit_x()),
             param_start: 0.0,
             param_end: core::f64::consts::PI,
         };
@@ -5031,12 +5026,12 @@ mod winding_arm_tests {
                 t.ab,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::chart(t.surface),
-                    carrier: geom::Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: -Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
+                    carrier: geom::Curve3::circle(
+                        Point3::new(0.0, 0.0, 0.0),
+                        -Vec3::unit_z(),
+                        1.0,
+                        Vec3::unit_x(),
+                    ),
                     param_start: -core::f64::consts::FRAC_PI_2,
                     param_end: 0.0,
                 },
@@ -5177,12 +5172,12 @@ mod winding_arm_tests {
                 t.ab,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::chart(t.surface),
-                    carrier: geom::Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: -Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
+                    carrier: geom::Curve3::circle(
+                        Point3::new(0.0, 0.0, 0.0),
+                        -Vec3::unit_z(),
+                        1.0,
+                        Vec3::unit_x(),
+                    ),
                     param_start: -core::f64::consts::FRAC_PI_2,
                     param_end: 0.0,
                 },
@@ -5249,13 +5244,15 @@ mod winding_arm_tests {
                 t.ab,
                 EdgeCurveSpec {
                     description: EdgeDescriptionSpec::chart(t.surface),
-                    carrier: geom::Curve3::Ellipse {
-                        center: Point3::new(0.0, 0.0, 0.0),
-                        axis: -Vec3::unit_z(),
-                        semi_u: MAJOR,
-                        semi_v: MINOR,
-                        u_ref: Vec3::unit_x(),
-                    },
+                    carrier: geom::Curve3::Ellipse(geom::Ellipse::new(
+                        geom::Frame::new(
+                            Point3::new(0.0, 0.0, 0.0),
+                            -Vec3::unit_z(),
+                            Vec3::unit_x(),
+                        ),
+                        MAJOR,
+                        MINOR,
+                    )),
                     param_start: -core::f64::consts::FRAC_PI_2,
                     param_end: 0.0,
                 },
@@ -6075,10 +6072,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body
-                .get_surface(body.get_face(top).expect("live").surface)
-                .expect("live")
-                .clone();
+            let flat = body.face_surface(top).expect("live").clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.

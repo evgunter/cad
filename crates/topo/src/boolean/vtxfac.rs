@@ -156,7 +156,7 @@ pub(super) fn pierced_and_paired(
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PierceDatum<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
-    pub shape: super::sectors::FaceShape,
+    pub bend: super::sectors::FaceBend<T>,
     pub lever: PierceLever<T>,
 }
 
@@ -171,7 +171,7 @@ impl<T: Decide> PierceDatum<T> {
         band: Band,
     ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.length());
-        super::sectors::pierce_side(dir, reach, self.normal, self.shape, lever, band)
+        super::sectors::pierce_side(dir, reach, self.normal, self.bend, lever, band)
             .map(|read| read.code)
     }
 
@@ -191,7 +191,7 @@ impl<T: Decide> PierceDatum<T> {
     /// second order: on a curved face, a bound in the tangent plane
     /// leaves it by the two carriers' relative curvature.
     pub(super) fn curved_along(self, on: bool) -> Option<AlongFace> {
-        (on && self.shape == super::sectors::FaceShape::Curved).then_some(AlongFace::Curved)
+        (on && self.bend.shape() == super::sectors::FaceShape::Curved).then_some(AlongFace::Curved)
     }
 }
 
@@ -403,37 +403,6 @@ struct Entry {
     lumped: bool,
 }
 
-/// A tangent sector's carriers, which read its bounds' sides at second
-/// order ([`super::sectors::tangent_relative_side`]): a bound along the
-/// tangency locus `On`, any other the side its carrier curves to.
-#[derive(Clone)]
-struct TangentRead<T: geom_core::Real> {
-    sector: geom::Surface<T>,
-    pierced: geom::Surface<T>,
-    read: DeclarationRead,
-}
-
-impl<T: Decide> TangentRead<T> {
-    fn side(
-        &self,
-        n_pierced: OutwardNormal<T>,
-        p: geom_core::Point3<T>,
-        (d, reached): (geom_core::Vec3<T>, T),
-        band: Band,
-    ) -> Result<SideCode, BooleanError> {
-        super::sectors::tangent_relative_side(
-            &self.sector,
-            &self.pierced,
-            n_pierced,
-            p,
-            d,
-            reached,
-            self.read,
-            band,
-        )
-    }
-}
-
 /// Classifies `contact.vertex` (in the piercing body) against
 /// `contact.face` (in the pierced body) and performs the piercing
 /// side's insertion (module docs), returning its half of the ring for
@@ -523,7 +492,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             }
             Err(refusal) => return Err(refused(refusal)),
         };
-    let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
+    let pierced_bend = super::sectors::FaceBend::at(pierced_surface, p);
     // A corner at a cone's apex is subdivided where the pierced face's
     // tangent plane turns its side along the cone's rulings.
     let sectors = build_sectors(
@@ -541,7 +510,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // resting on the apex reaches it, and would otherwise refuse later,
     // unnamed, at the extent fallback
     // (`a_cylinder_resting_on_a_cone_apex_refuses_its_curved_wall`).
-    if pierced_shape != super::sectors::FaceShape::Plane
+    if pierced_bend.shape() != super::sectors::FaceShape::Plane
         && sectors.iter().any(|s| s.apex().is_some())
     {
         return Err(unbuilt());
@@ -634,7 +603,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.end,
                 s.end_reach,
                 plane,
-                super::sectors::FaceShape::Plane,
+                super::sectors::FaceBend::Plane,
                 super::sectors::NO_CURVATURE(),
                 band,
             ),
@@ -642,7 +611,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.end,
                 s.end_reach,
                 n_pierced,
-                pierced_shape,
+                pierced_bend,
                 pierced_lever.within(s.end_reach.length()),
                 band,
             ),
@@ -723,9 +692,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // so a bound it shares with a one-carrier sector, which lies in the
     // face, takes that sector's lump, and the tangent sector holds any
     // transition between the two along the bound; its germ reads its
-    // bounds at second order ([`TangentRead`]).
+    // bounds' own sides, one order down where they tie.
     let mut tangent_lumps = Vec::new();
-    let mut tangent_reads: Vec<Option<TangentRead<T>>> = vec![None; n];
+    let mut tangent = vec![false; n];
     for (k, s) in sectors.iter().enumerate() {
         if !flat(k) {
             continue;
@@ -735,8 +704,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // recorded, and neither reads the sector's tilt again.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if class == Some(GlueClass::Tangent) {
-            let s_sector = super::sectors::tangent_carrier(piercing_body, s.face)?;
-            let s_pierced = super::sectors::tangent_carrier(pierced_body, contact.face)?;
+            let s_sector = piercing_body.proven_face_surface(s.face).clone();
+            let s_pierced = pierced_body.proven_face_surface(contact.face).clone();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::TangentSide,
@@ -759,11 +728,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 band,
             )?;
             tangent_lumps.push((k, lump));
-            tangent_reads[k] = Some(TangentRead {
-                sector: s_sector,
-                pierced: s_pierced,
-                read,
-            });
+            tangent[k] = true;
             continue;
         }
         let rel = match declared.glued_relation(piercing, s.face, pierced_op, contact.face) {
@@ -825,28 +790,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         entries[k].lumped = true;
         entries[(k + 1) % n].lumped = true;
     }
-    // A bound two tangent sectors share is neither lump's: it reads its
-    // own side at second order through both, as their germs read it, so
-    // a ruling between walls curving to opposite sides stays `On` and
-    // folds the same way at each of its ends.
+    // A bound two tangent sectors share is neither lump's: it keeps its
+    // own side, one order down, so a ruling between walls curving to
+    // opposite sides keeps the side it reads, `On` where it rides both.
     for e in (0..n).filter(|&e| n > 1 && !by_carrier[e]) {
-        let before = (e + n - 1) % n;
-        let (Some(ends), Some(starts)) = (&tangent_reads[e], &tangent_reads[before]) else {
-            continue;
-        };
-        let [_, end] = sectors[e].reached_bounds();
-        let [start, _] = sectors[before].reached_bounds();
-        let side = ends.side(n_pierced, p, end, band)?;
-        // The bound is a curve on both carriers, both tangent to the
-        // pierced face at `p`, so by Meusnier both graph accelerations
-        // along it are its curvature dotted with `n_ref`: a legal pose
-        // reads it the same through either.
-        if side != starts.side(n_pierced, p, start, band)? {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "two tangent sectors read their shared bound on different sides",
-            });
+        if tangent[e] && tangent[(e + n - 1) % n] {
+            entries[e].class = read[e];
         }
-        entries[e].class = side;
     }
     if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
         return Err(refusal);
@@ -872,7 +822,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         classes,
         datum: PierceDatum {
             normal: n_pierced,
-            shape: pierced_shape,
+            bend: pierced_bend,
             lever: pierced_lever,
         },
         flush,
@@ -901,16 +851,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the orbit the germ loci are read from.
     let germ_of = |t: usize, out: OutBound| -> Result<Germ<T>, BooleanError> {
         let s = &sectors[t];
-        let codes = match &tangent_reads[t] {
-            Some(tangent) => {
-                let [start, end] = s.reached_bounds();
-                (
-                    tangent.side(n_pierced, p, start, band)?,
-                    tangent.side(n_pierced, p, end, band)?,
-                )
-            }
-            None => (read[(t + 1) % n], read[t]),
-        };
+        let codes = (read[(t + 1) % n], read[t]);
         let own = super::sectors::germ_locus(
             super::sectors::GermSide {
                 body: piercing_body,
@@ -934,14 +875,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 // A tangent sector's germ runs along its bound on the
                 // tangency locus, where its plane and the pierced face's
                 // tangent plane are one.
-                match (&tangent_reads[t], codes, s.apex()) {
-                    (Some(_), (SideCode::On, _), _) => Leaned::upright(s.start.normalize()),
-                    (Some(_), (_, SideCode::On), _) => Leaned::upright(s.end.normalize()),
+                match (tangent[t], codes, s.apex()) {
+                    (true, (SideCode::On, _), _) => Leaned::upright(s.start.normalize()),
+                    (true, (_, SideCode::On), _) => Leaned::upright(s.end.normalize()),
                     // At a cone's apex a bound the plane holds is a section
                     // ruling, and the germ the fold put there.
-                    (None, (SideCode::On, _), Some(_)) => Leaned::upright(s.start.normalize()),
-                    (None, (_, SideCode::On), Some(_)) => Leaned::upright(s.end.normalize()),
-                    (None, _, Some(apex)) => Leaned::upright(pierce_apex_germ(
+                    (false, (SideCode::On, _), Some(_)) => Leaned::upright(s.start.normalize()),
+                    (false, (_, SideCode::On), Some(_)) => Leaned::upright(s.end.normalize()),
+                    (false, _, Some(apex)) => Leaned::upright(pierce_apex_germ(
                         (piercing_body, piercing),
                         (vertex, s, apex),
                         (p, n_pierced),
@@ -973,8 +914,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // face.
     let bend_of = |t: usize, d: Vec3<T>| {
         let face = sectors[t].face;
-        let surface = piercing_body
-            .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+        let surface = piercing_body.proven_face_surface(face);
         // At a cone's apex the germ is a ruling, which the pierced plane
         // holds: the section runs straight along it.
         let bend = match sectors[t].apex() {
@@ -1833,13 +1773,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     for earlier in reads.iter().filter(|r| r.face == read.face) {
                         match super::one_vertex_at(earlier.point, read.point, band) {
                             Ok(Some(_)) => {
-                                let kind = |body: &Body<T>, face| {
-                                    body.face_surface_linked(
-                                        face,
-                                        proven(&body.faces, face, EntityId::Face),
-                                    )
-                                    .kind()
-                                };
+                                let kind =
+                                    |body: &Body<T>, face| body.proven_face_surface(face).kind();
                                 return Err(BooleanError::HeldPierceUnbuilt {
                                     operand: read.piercing,
                                     face: read.face,
@@ -1923,10 +1858,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             what: "a pierce ring's pierce has no run",
         })?;
     let faces: Vec<_> = piercing_body.faces().map(|(k, _)| k).collect();
-    let kind_of = |body: &Body<T>, face| {
-        body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
-            .kind()
-    };
+    let kind_of = |body: &Body<T>, face| body.proven_face_surface(face).kind();
     let unbuilt = |face, kind, placed| BooleanError::HeldPierceUnbuilt {
         operand: piercing,
         face,
@@ -1956,8 +1888,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // Off the carrier, the face holds nothing: decided first,
                 // as the plane arm decides its plane first. A spline face
                 // has no residual, and its trim is asked.
-                let surface = piercing_body
-                    .face_surface_linked(face, proven(&piercing_body.faces, face, EntityId::Face));
+                let surface = piercing_body.proven_face_surface(face);
                 let side = (!matches!(
                     surface.kind(),
                     geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx
@@ -2056,16 +1987,9 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             (None, geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
                 return Err(unbuilt(face, geom::SurfaceKind::Plane, true));
             }
-            (None, _) => Some(
-                PierceLever::of(
-                    pierced_body.face_surface_linked(
-                        pierced,
-                        proven(&pierced_body.faces, pierced, EntityId::Face),
-                    ),
-                    p,
-                )
-                .within(arm),
-            ),
+            (None, _) => {
+                Some(PierceLever::of(pierced_body.proven_face_surface(pierced), p).within(arm))
+            }
             (Some(_), _) => return Err(unbuilt(face, kind_of(piercing_body, face), true)),
         };
         let int = held_normal.cross(plan.normal);
@@ -2233,7 +2157,7 @@ fn one_carrier<T: Decide>(
             Ok(CarrierRelation::SameOriented | CarrierRelation::SameOpposite)
         );
     }
-    let surface = |f| body.face_surface_linked(f, proven(&body.faces, f, EntityId::Face));
+    let surface = |f| body.proven_face_surface(f);
     match surface(a).paired_with(surface(b)) {
         geom::SurfacePairing::Analytic(data) => data.pairs().all(|(_, x, y)| {
             x.scalars().zip(y.scalars()).all(|(p, q)| {
@@ -2511,10 +2435,7 @@ fn unglued_flat_sector<T: Decide>(
         };
     }
     let curved = |body: &Body<T>, operand, face| {
-        let kind = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+        let kind = body.proven_face_surface(face).kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -2618,7 +2539,10 @@ fn unglued_flat_sector<T: Decide>(
 /// reads at least `a·cos δ` (δ, the deviation from π, has `sin δ·a`
 /// inside the band). So a Zero there is the ambiguity band's (K ≤ 2),
 /// and the reflex case would read the wrong side: it refuses
-/// ([`super::sectors::bisector_zero_refusal`]) rather than resolve.
+/// ([`super::sectors::bisector_zero_refusal`]) rather than resolve. A
+/// neighbour tied at first order reads its side one order down, which
+/// the argument does not bound: the bisector's Zero is then its
+/// sector's tangency, and it folds.
 fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanError> {
     let n = entries.len();
     for k in 0..n {
@@ -2634,7 +2558,13 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         }
         let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
         let (prev, next) = (before.class, after.class);
-        if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
+        if !entries[k].is_edge
+            && !before.lumped
+            && !after.lumped
+            && !before.tied
+            && !after.tied
+            && prev == next
+        {
             let Some(on) = entries[k].on else {
                 unreachable!(
                     "a bisector classed On with no Zero of its own: a bisector reads On only at \
@@ -3089,7 +3019,7 @@ mod tests {
     /// the log under `enters_material`, the predicate that decided it.
     #[test]
     fn a_bisector_on_between_one_sided_bounds_refuses() {
-        use super::super::sectors::{FaceShape, NO_CURVATURE, Reach, pierce_side_reported};
+        use super::super::sectors::{NO_CURVATURE, Reach, pierce_side_reported};
         use geom_brep::OutwardNormal;
         use geom_core::{ErrorTextReading, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3099,9 +3029,9 @@ mod tests {
             let dir = Vec3::new((1.0 - rise * rise).sqrt(), 0.0, rise);
             let (side, on) = pierce_side_reported(
                 dir,
-                Reach::Bisector(1.0),
+                Reach::straight_bisector(1.0),
                 up,
-                FaceShape::Plane,
+                crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),
                 band,
             )
@@ -3172,24 +3102,20 @@ mod tests {
     /// **A touching partner's side reads its conic bound by its bend.**
     /// The partner's corner lies in `y = 0` over the face `z = 0`: a line
     /// edge up `+z`, and a unit arc leaving along `+x`, tangent to the
-    /// face, bending up. To first order the arc ties and the partner's
-    /// side is unread (`Along`, which refuses); read by its bend it is
-    /// `Out`, as the line is, and the partner lies outside.
+    /// face, bending up. To first order the arc ties; read by its bend it
+    /// is `Out`, as the line is, and the partner lies outside, on a ball
+    /// as on a plane. On a hollow of its own radius the arc rides the
+    /// face, and the partner's side is unread (`Along`, which refuses).
     #[test]
     fn a_touching_partner_reads_its_tangent_arc_by_its_bend() {
-        use super::super::sectors::{BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach};
+        use super::super::sectors::{BoolSector, FaceBend, NO_CURVATURE, PierceLever, Reach};
         use geom_brep::ConicBend;
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let arc = geom::Curve3::Circle {
-            center: o + z,
-            axis: x.cross(z),
-            radius: 1.0,
-            u_ref: -z,
-        };
+        let arc = geom::Curve3::circle(o + z, x.cross(z), 1.0, -z);
         let span = core::f64::consts::FRAC_PI_2;
         let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, 2f64.sqrt());
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
@@ -3208,22 +3134,29 @@ mod tests {
                 true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         }];
-        let datum = |shape| PierceDatum {
+        let datum = |bend| PierceDatum {
             normal: OutwardNormal::from_chart(z, true),
-            shape,
+            bend,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
-        let side = |shape| partner_side(&partner, datum(shape), false, band).unwrap();
+        let side = |bend| partner_side(&partner, datum(bend), false, band).unwrap();
+        let out = PartnerRead::Side { along: false };
         assert_eq!(
-            side(FaceShape::Plane),
-            PartnerRead::Side { along: false },
+            side(FaceBend::Plane),
+            out,
             "against a plane the arc reads its bend"
         );
         assert_eq!(
-            side(FaceShape::Curved),
+            side(FaceBend::ball(z, 1.0)),
+            out,
+            "against a ball the arc reads its bend past the ball's"
+        );
+        assert_eq!(
+            side(FaceBend::ball(-z, 1.0)),
             PartnerRead::Along(AlongFace::Curved),
-            "to first order the arc ties"
+            "the arc rides a hollow of its own radius"
         );
     }
 
@@ -3260,6 +3193,7 @@ mod tests {
                 true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let err = pierce_germ_dir(
             &s,
@@ -3324,6 +3258,7 @@ mod tests {
                         OutwardNormal::from_chart(start.cross(end).normalize(), true),
                     ),
                     arm: 1.0,
+                    bend: crate::bound_side::FaceBend::Plane,
                 }
             })
             .collect()
@@ -3349,7 +3284,7 @@ mod tests {
             he: HalfEdgeKey::from(key(n)),
             start: Vec3::new(0.0, 0.0, 1.0),
             end: d.normalize(),
-            start_reach: Reach::Bisector(1.0),
+            start_reach: Reach::straight_bisector(1.0),
             end_reach: Reach::Chord {
                 base: o,
                 far: o + d,
@@ -3360,6 +3295,7 @@ mod tests {
                 true,
             )),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let partner = |n: u64, axis: f64| Partner {
             vertex: VertexKey::from(key(n)),
@@ -3440,7 +3376,7 @@ mod tests {
     /// whose side the face's bend leaves undecided, escalates.
     #[test]
     fn a_partners_side_of_a_face_is_read_off_its_bounds() {
-        use super::super::sectors::{BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach};
+        use super::super::sectors::{BoolSector, NO_CURVATURE, PierceLever, Reach};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3467,13 +3403,14 @@ mod tests {
                         face: crate::entity::FaceKey::default(),
                         at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                         arm: 1.0,
+                        bend: crate::bound_side::FaceBend::Plane,
                     }
                 })
                 .collect()
         };
         let plane = PierceDatum {
             normal,
-            shape: FaceShape::Plane,
+            bend: crate::bound_side::FaceBend::Plane,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
         // Every rotation of the sector order reads alike.
@@ -3495,8 +3432,13 @@ mod tests {
         let standing = [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [-1.0, -1.0, 1.0]];
         let lying = [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         let across = [[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]];
+        // A cylinder holding the ray along `x` that lies on it.
         let curved = PierceDatum {
-            shape: FaceShape::Curved,
+            bend: crate::bound_side::FaceBend::cylinder(
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                1.0,
+            ),
             ..plane
         };
         for (what, rays, datum, flush, want) in [
@@ -3596,7 +3538,7 @@ mod tests {
         );
         let bent = PierceDatum {
             normal,
-            shape: FaceShape::Curved,
+            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
             lever: PierceLever::Everywhere(1.0),
         };
         assert!(
@@ -3645,6 +3587,7 @@ mod tests {
                     z, true,
                 )),
                 arm: 1.0,
+                bend: crate::bound_side::FaceBend::Plane,
             };
             // `(ψ, the tilt's cosine, a graze)`.
             let lines = [

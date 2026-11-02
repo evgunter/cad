@@ -430,6 +430,7 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     true,
                 )),
                 arm: s.arm,
+                bend: crate::bound_side::FaceBend::Plane,
             }
         })
         .collect()
@@ -661,7 +662,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: Reach::Bisector(1.0),
+        start_reach: Reach::straight_bisector(1.0),
         end_reach: Reach::Chord {
             base: o,
             far: o + d,
@@ -672,6 +673,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     }
 }
 
@@ -1473,7 +1475,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
             extent: v.norm(),
             bend: flat_bend(),
         },
-        None => Reach::Bisector(v.norm()),
+        None => Reach::straight_bisector(v.norm()),
     };
     (v.normalize(), reach)
 }
@@ -1485,7 +1487,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
 fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
     let x = match reach {
         Reach::Chord { far, .. } => far,
-        Reach::Conic { extent: l, .. } | Reach::Bisector(l) | Reach::Extent(l) => {
+        Reach::Conic { extent: l, .. } | Reach::Bisector { arm: l, .. } | Reach::Extent(l) => {
             Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
         }
     };
@@ -1520,6 +1522,7 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                     normal, true,
                 )),
                 arm: s.arm,
+                bend: crate::bound_side::FaceBend::Plane,
             });
             face.push(Sector {
                 start_far: fixed(start, start_reach),
@@ -2283,8 +2286,8 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = Reach::Bisector(len);
-        secs[k + 1].end_reach = Reach::Bisector(len);
+        secs[k].start_reach = Reach::straight_bisector(len);
+        secs[k + 1].end_reach = Reach::straight_bisector(len);
     }
     Some(LineMaterial {
         secs,

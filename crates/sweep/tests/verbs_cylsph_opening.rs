@@ -408,7 +408,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .get_edge(*e)
             .and_then(|e| torus.get_curve_geom(e.curve))
             .and_then(topo::CurveGeom::certified)
-            .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle { .. }));
+            .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
         let wall = matches!(
             a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
             Some(topo::Surface::Cylinder { .. })

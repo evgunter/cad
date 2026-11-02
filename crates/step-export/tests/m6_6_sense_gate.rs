@@ -394,7 +394,7 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
                     .and_then(|hd| body.get_edge(hd.edge))
                     .and_then(|e| body.get_curve_geom(e.curve))
                     .and_then(topo::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse(..)))
             })
     };
     let planes = faces_where(&body, |s| matches!(s, Surface::Plane { .. }));

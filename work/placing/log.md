@@ -155,3 +155,70 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Also sent:** the rewritten R2 rows are to be tightened (m1, m2), stale value edits cleared, and drops of variables told apart from constants a mate takes.
   - Second fix pass dispatched. (PLACING orchestrator)
 - 2026-11-02 — **The bundle editor closes** (PR 6300) after two fix passes and a re-check. Its dual row, `docs/dual-review-log/rows/PR-6300.md`, is coded blind and records a tally of 2. The coder's alternative of 3 is recorded on the row. The riders close with it. The Transform row is now a unit of its own, to be dispatched next on main. (PLACING orchestrator)
+- 2026-11-02 — **The takeover fork is reconciled** (fork row 241; three designers, two rounds). All three agree:
+  - a feature on a copy reads the copy and writes no placement;
+  - delete is a splice by continuation, with nothing recorded, ruling DOCTAIL's deferred `no-docedit-splices-a-deleted-node` survivor question;
+  - DM6 is narrowed.
+
+  The case of a feature on a body picked as itself crossed twice (round 1: two for "write nothing", one for "re-point every copy"; round 2: the reverse). It goes to Ev as a split, since its question is what a body pick means. `[ev]` PR opened; the diff states it in DM6 and the viewer README. (PLACING orchestrator)
+- 2026-11-02 — PR 6300 merged (`17ab994e`). **Transform's retirement is dispatched** on `placing/bundle-editor-transform`, from main. It removes `AddTransform`, the axis-and-angle form and the `self_placed` branch; re-spells the stacked-placement rows; and leaves Duplicate's path alone (its own design row). Tier: single FULL review, because the change is mostly mechanical but touches many rows' meaning and a public op. The track's remaining P1s are `a-duplicate-freezes-a-mated-copy-into-literal-values` (design) and `a-linear-patterns-direction-components-land-in-its-slides`, plus the parked `a-feature-gesture-re-points-every-copy-of-its-target` and `deleting-a-placed-feature-unplaces-its-target`; DOORS' takeover has landed, so those two are re-read next. (PLACING orchestrator)
+- 2026-11-02 — DOORS' takeover door landed (PR 6264). DOORS un-parked our two rows on it and answered: the door re-points EVERY copy, records what it re-pointed only in memory, and offers no inverse. The delete row read `dispatched` because DOORS had set it so, but PR 6280 is a draft and not in flight, so the row is now `open`, `design: true`.
+  - **Taken together**, the two rows (`a-feature-gesture-re-points-every-copy-of-its-target`, now `design: true` too, and `deleting-a-placed-feature-unplaces-its-target`) are ONE question: what a feature gesture's re-pointing is, as a fact, so that it reaches the picked copy and a delete can undo it.
+  - **Sent to designers** as one fork: three designers by draw (bytes 22/65, on `analysis/design-fork/a-takeover-as-a-recorded-fact`); brief at `~/.local/share/cad-work/placing-fork-takeover-brief.md` on this box. (PLACING orchestrator)
+- 2026-11-02 — Transform's retirement reported: PR 6356, green at `ca2ada7815`.
+  - **What it builds:** `MateTool::moving` opens the editor's Create door on an unplaced body and the Edit door on a copy; a body with two or more copies says so, typed, instead of guessing. `AddTransform` and the axis-and-angle form are gone, and every row that used them is re-spelled to keep its subject.
+  - **Deviation, accepted pending review:** `in_one_space`'s `self_placed` branch stays, because the Create door's own `Place` into the body's space is what it detects.
+  - **Review:** single FULL, dispatched. (PLACING orchestrator)
+- 2026-11-02 — PR 6356's review (single FULL): APPROVE-WITH-FIXES, no MAJOR. The probe rows are on `placing/bundle-editor-transform-review`.
+  - **Demonstrated:** M1, the Transform pick has no kind gate, so a profile or a whole split opens a Create door. M2, the Create door admits a copy as its body, so the retired stacked shape can still be written through `SessionOp::Place`.
+  - **By inspection:** M3, the wrong refusal (`BundleStale`) for an already-placed body. N1, Transform on a patterned body rewrites the pattern's rule.
+  - **Style:** two routes choose the door, and "the copies of this body" is spelled twice by hand.
+  - **Class:** a retirement that removes the old door's checks (the body-kind seat, the half chooser) must re-home them on the new door. Fix pass dispatched to the same lane. (PLACING orchestrator)
+- 2026-11-02 — **Transform's retirement closes** (PR 6356). The fix pass fixed every review item. The probes P1/P4 are green as written. The orchestrator's read accepted the pass, including the reasoned N3 deviation: the story's second cutter stays its own body, because a Duplicate would leave a drawn stand-in.
+  - **Track state:**
+    - Ev's `[ev]` 6353 (takeover) is pending.
+    - Open P1s: `a-duplicate-freezes-a-mated-copy-into-literal-values` (design) and `a-linear-patterns-direction-components-land-in-its-slides`.
+    - The two takeover rows wait on 6353. (PLACING orchestrator)
+- 2026-11-02 — **The pattern-direction fork is reconciled** (fork row 242; three designers, two rounds) and all three agree.
+  - **Values name their direction or axis:** `Slide(None)` along the mated direction, a target axis, or a read Direction/Axis; a spin may turn about a read Axis.
+  - **The copy stands at the sum of its slides,** and a row's source is the first copy.
+  - **Only `[placement.values]` changes**, so the fork goes to Ev as an `[ev]` PR whose diff is that change. It also closes MSOLVE's ring twin.
+  - Duplicate's design waits on `[ev]` 6353. (PLACING orchestrator)
+- 2026-11-02 — PR 6356 merged (`c02d4ba9`): Transform's retirement is on main.
+  - **The pattern-direction lane stopped at its brief's STOP.** The defect is real: `(1,1,0)` steps `s·√2`. But no spelling of "slide k·pitch along a chosen direction" fits the ratified design:
+    - a placement value slides on target axes;
+    - a slid pose built from an index is ruled out by `[repetition]`.
+  - The row is now `design: true`. With MSOLVE's circular twin (`a-ring-about-a-tilted-axis-slides-each-member-along-it`), it goes to three designers as one fork (draw 67/225 on `analysis/design-fork/a-pattern-slides-along-a-direction`).
+  - **PR 6364** (a disabled-red reproducer plus an axis-aligned gate row) is being brought up to main by its lane. It merges as tests-only, on the orchestrator's read, once green.
+  - **The lane's filed ring row** (`a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved`) was found before 6356 landed; it is being re-run on main. (PLACING orchestrator)
+- 2026-11-02 — PR 6364 merged: the disabled-red oblique-row reproducer and the axis-aligned gate.
+  - **Parked on Ev:**
+    - `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved` on `[ev]` 6369;
+    - the two takeover rows and `a-duplicate-freezes-a-mated-copy-into-literal-values` on `[ev]` 6353.
+  - **Process miss, logged as a class.** Ev's direction on Duplicate (PR 6313, "Duplicate retires into a second placement; a placed body shown and picked opens the Create door") reached main while 6356 was in review. This orchestrator adjudicated 6356's fix pass without running `work.py incoming`, which `memories/orchestration-model.md` requires at every check-in. So two behaviours that contradict the direction were approved and merged:
+    - `door_on` routing a once-placed body to its copy's Edit door;
+    - `BodyPlaced` refusing Create on a placed body.
+
+    They are recorded on the Duplicate row, which owes their undoing. Rule in practice: run `incoming` before adjudicating any fix pass, not only at check-ins.
+  - **Tail:** the three easy rows are bundled into one lane, `placing/easy-tail`. (PLACING orchestrator)
+- 2026-11-02 — PR 6372 closes the three easy tail rows (value rows name their axis through `Coord::value_label`; a direction picked on a curved face reads its axis; an unnamed drawn vertex is counted with its refusal kept). The lane filed `a-refusal-naming-a-value-slot-drops-its-axis` (P3 E). Orchestrator's read.
+  - **Track handed back: `ready`.** The sitting's P0 and P1 rows are done or parked on Ev:
+    - **On `[ev]` 6353** (what a feature on a body picked as itself does): `a-feature-gesture-re-points-every-copy-of-its-target`, `deleting-a-placed-feature-unplaces-its-target` and `a-duplicate-freezes-a-mated-copy-into-literal-values`. The Duplicate row also owes undoing 6356's `BodyPlaced` and its once-placed routing, under Ev's direction from PR 6313; see that row.
+    - **On `[ev]` 6369** (values name their direction; slides sum): `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved`. MSOLVE's ring twin closes with it.
+  - **For a successor:**
+    - When Ev answers, record the answer, the second fork-row commit (mapping from `analysis/design-fork/a-takeover-as-a-recorded-fact` and `.../a-pattern-slides-along-a-direction`) and the row updates on each `[ev]` PR. Then merge it and dispatch the build.
+    - The 6353 build closes three rows, and the 6369 build closes two, plus MSOLVE's.
+    - PR 6280 (draft) is superseded by 6353's design; close it when that build lands, and keep its review's probe rows.
+  - **Process findings this sitting:**
+    - The disk filled three times with three or more concurrent lane targets. Cap each lane at 10 GB and reclaim targets at every report.
+    - A viewer-side re-spelling of a kernel rule recurred within one PR (6300). The bundle editor fixed it with kernel doors.
+    - `incoming` was not run before adjudicating a fix pass (above).
+
+  (PLACING orchestrator)
+- 2026-11-02 — Ev approved `[ev]` 6369 ("seems good!"), so the `[placement.values]` change is ratified. Fork row 244 is filled in: all three designers match. `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved` are unparked. The track is re-claimed to dispatch the build. (PLACING orchestrator)
+- 2026-11-02 — Correction: the pattern-direction fork is **row 244**, not 242 as entries above say. Main already used 241–243 for other programs’ forks, so it was renumbered when main was merged in. A bad merge commit (`554ab85`) had committed conflict markers in the fork log and the row; the next commit resolves them. (PLACING orchestrator)
+- 2026-11-02 — Ev answered `[ev]` 6353, over four comments; fork row 245, renumbered from 241, which collided with another program's row on main.
+  - **On the split:** the copies are not re-pointed automatically. A feature on a body picked as itself makes a new body and offers to re-point the shared variable. This is designer C's lean, with the explicit replace step offered by the gesture itself.
+  - **Viewport picks:** a feature picked in the viewport refers only to the placed copy, with an easy way to the original body.
+  - **The agreed parts stand.** DM6 is narrowed, and the README is restated to the answer.
+  - The two takeover rows and Duplicate are unparked and dispatchable. The build is sequenced after `placing/values-direction`, because both rewrite the pattern gesture's takeover. (PLACING orchestrator)

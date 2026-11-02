@@ -1257,7 +1257,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .filter(|(_, e)| {
                 matches!(
                     drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Circle { center, .. }) if (mid(center.z) - 2.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })) if (mid(center.z) - 2.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1332,7 +1332,7 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
             .unwrap()
             .certified()
             .map(|g| g.carrier().clone()),
-        Some(geom::Curve3::Ellipse { .. })
+        Some(geom::Curve3::Ellipse(..))
     )
 }
 

@@ -117,7 +117,7 @@
 
 use core::ops::ControlFlow;
 
-use crate::enters::LeverEscalation;
+use crate::enters::{LeverEscalation, OutwardNormal};
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
@@ -1141,6 +1141,22 @@ impl<T: Real> MustCarryDescription<T> {
             Self::Conventional => rest.spec(),
         }
     }
+
+    /// The description restated over `curve`, an edge at rest whose
+    /// description the rule demands anew: the intrinsic tangency, or the
+    /// conventional one restated where the edge rests, its declaration
+    /// carried ([`crate::EdgeCurve::restated_at`]).
+    #[must_use]
+    pub fn restated(
+        self,
+        curve: &crate::EdgeCurve<T>,
+        rest: RestLocus,
+    ) -> crate::EdgeDescriptionSpec<T> {
+        match self {
+            Self::Intrinsic(description) => description,
+            Self::Conventional => curve.restated_at(rest).description,
+        }
+    }
 }
 
 /// **Where a conventional edge between two faces rests** (D2): in the
@@ -1593,6 +1609,119 @@ pub fn classify_material_pairing<T: Decide>(
     pairing.map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
 }
 
+/// **An edge's material wedge, signed**: what [`classify_edge_wedge`]
+/// decides of the dihedral between an edge's two faces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeWedge {
+    /// Material wedge below π.
+    Convex,
+    /// Material wedge above π.
+    Concave,
+    /// The sign decided zero with the outward normals aligned: wedge
+    /// π, the two faces continuing one another ([`MaterialWedge::Seam`]).
+    Smooth,
+    /// The sign decided zero with the outward normals opposed: wedge 0
+    /// or 2π, a cusp or a knife slit ([`MaterialWedge::Cusp`],
+    /// [`MaterialWedge::Slit`]; which end is the jet's question, not
+    /// this door's).
+    Knife,
+}
+
+/// Which read of [`classify_edge_wedge`] escalated.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EdgeWedgeEscalation {
+    /// The signed dihedral landed in band or was poisoned.
+    Sign(Indeterminate),
+    /// The sign decided zero and the material pairing
+    /// ([`classify_material_pairing`]) refused.
+    Side(Indeterminate),
+}
+
+/// **A lever arm decided definitely positive**: the only form
+/// [`classify_edge_wedge`] takes its arm in, so the door's "past a
+/// definitely positive arm" is a fact of the type and not of the caller.
+/// Minted by [`PositiveArm::gate`], under the caller's own predicate name
+/// (the blend's `fillet3_chain_arm`), so the gate keeps its population in
+/// the K report.
+#[derive(Clone, Copy, Debug)]
+pub struct PositiveArm<T: Real>(T);
+
+impl<T: Real> PositiveArm<T> {
+    /// `arm` decided positive as `name`.
+    ///
+    /// # Errors
+    ///
+    /// [`Indeterminate`] under `name`: the arm in band, poisoned, or
+    /// decided zero or negative.
+    pub fn gate(name: &'static str, arm: T, band: Band) -> Result<Self, Indeterminate>
+    where
+        T: Decide,
+    {
+        decide_positive(name, Margin::of(arm), band).map(|()| Self(arm))
+    }
+
+    /// The arm.
+    #[must_use]
+    pub fn get(self) -> T {
+        self.0
+    }
+}
+
+/// **The one door that classifies an edge's dihedral with its material
+/// side**: [`EdgeWedge`] from the two faces' outward normals at one
+/// on-edge point.
+///
+/// The sign is `((n₊ × n₋)·τ̂)·arm` in meters, decided as `name`: `n₊`,
+/// `n₋` the two faces' outward normals there (an [`OutwardNormal`] is
+/// folded by its face's `Face::sense` bit by construction), `τ̂` the
+/// edge's direction as the plus face's loop walks it, `arm` the folded
+/// lever arm ([`folded_lever_arm`]) gated positive ([`PositiveArm`]).
+/// Swapping the faces also reverses the walk, so the sign is the edge's
+/// and not the order's: positive is convex, negative concave. The caller
+/// computes the normals once and reads them for whatever else it asks of
+/// the point; the door and its pairing read the same two.
+///
+/// Both normals are perpendicular to the edge, so their cross product
+/// lies along `τ̂`, and a sign decided zero says the normals are
+/// parallel to within the band: which way is the material pairing
+/// ([`classify_material_pairing`]'s decision, on these normals at the
+/// same arm), aligned ([`EdgeWedge::Smooth`]) or opposed
+/// ([`EdgeWedge::Knife`]). Returns the signed margin it decided beside
+/// the class.
+///
+/// # Errors
+///
+/// [`EdgeWedgeEscalation::Sign`] in band or on poison;
+/// [`EdgeWedgeEscalation::Side`] where the pairing refuses, which past
+/// a definitely positive arm a decided-zero sign leaves only in band.
+pub fn classify_edge_wedge<T: Decide>(
+    name: &'static str,
+    n_plus: OutwardNormal<T>,
+    n_minus: OutwardNormal<T>,
+    tau: geom_core::Vec3<T>,
+    arm: PositiveArm<T>,
+    band: Band,
+) -> Result<(EdgeWedge, Margin<T>), EdgeWedgeEscalation> {
+    let (n_plus, n_minus, arm) = (n_plus.vec(), n_minus.vec(), arm.get());
+    let margin = Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm);
+    let wedge = match decide(name, margin, band).map_err(EdgeWedgeEscalation::Sign)? {
+        Sign::Positive => EdgeWedge::Convex,
+        Sign::Negative => EdgeWedge::Concave,
+        Sign::Zero => {
+            let (pairing, cos_theta, sin_theta) =
+                pairing_of_normals("material_wedge_side", n_plus, n_minus, arm, band);
+            match pairing
+                .map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
+                .map_err(EdgeWedgeEscalation::Side)?
+            {
+                MaterialPairing::Aligned => EdgeWedge::Smooth,
+                MaterialPairing::Opposed => EdgeWedge::Knife,
+            }
+        }
+    };
+    Ok((wedge, margin))
+}
+
 /// The pairing's construction and margin, decided as `name`, for a
 /// caller asking it about a pair of planes it reached by no dihedral (an
 /// on-plane face against a candidate plane), which keeps its own
@@ -1629,8 +1758,23 @@ fn pairing_reading<T: Decide>(
     arm: T,
     band: Band,
 ) -> (Result<MaterialPairing, Indeterminate>, T, T) {
-    let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
-    let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
+    pairing_of_normals(
+        name,
+        implicit_outward_normal(s_plus, sense_plus, p).vec(),
+        implicit_outward_normal(s_minus, sense_minus, p).vec(),
+        arm,
+        band,
+    )
+}
+
+/// [`pairing_reading`] on two outward normals already read.
+fn pairing_of_normals<T: Decide>(
+    name: &'static str,
+    n_plus: geom_core::Vec3<T>,
+    n_minus: geom_core::Vec3<T>,
+    arm: T,
+    band: Band,
+) -> (Result<MaterialPairing, Indeterminate>, T, T) {
     let cos_theta = n_plus.dot(n_minus);
     let pairing = match decide_nonzero(name, Margin::levered(cos_theta, arm), band) {
         Ok(NonzeroSign::Positive) => Ok(MaterialPairing::Aligned),
@@ -2280,12 +2424,14 @@ mod tests {
             axis,
             u_ref,
         };
-        let equator = geom::Curve3::Circle {
-            center,
-            axis,
+        let equator = geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         let turn = (2.0 * (band().zero() * band().escalate()).sqrt() * radius).sqrt() / radius;
         let bend = ask(&sleeve, &ball, &equator, (0.15, 0.15 + turn));
         assert!(

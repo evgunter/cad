@@ -488,8 +488,8 @@ fn a_create_draft_over_a_body_placed_since_is_refused() {
     let states = session.history().len();
     let again = session.perform(proposal.op());
     assert!(
-        matches!(again.refusal, Some(Refusal::BundleStale { .. })),
-        "a second Create of the body is stale: {:?}",
+        matches!(&again.refusal, Some(Refusal::BodyPlaced { body: placed, .. }) if placed.id() == body),
+        "a second Create of the body names its copy: {:?}",
         again.refusal
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
@@ -640,5 +640,45 @@ fn a_turn_at_the_chains_pole_is_said_dropped() {
         "pa is said dropped: {:?}",
         struck.dropped
     );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **A placement's value rows in Properties name their freedom**: each
+/// row is called by the coordinate its value sets, as the editor's own
+/// rows and the tree's constraint rows are, so post_b's slides along
+/// `x`, `y` and `z` read apart.
+#[test]
+fn a_value_row_in_properties_names_its_axis() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-labels", tol);
+    let session = asm::open_bench(&bench, tol);
+    let rows = viewer::props::slot_rows(session.committed_doc(), bench.post_b);
+    let values: Vec<_> = authored(&session, bench.post_b)
+        .iter()
+        .filter_map(|c| c.value().map(|v| (c.id, v.coord)))
+        .collect();
+    assert!(values.len() >= 2, "post_b holds several values: {values:?}");
+    for (id, coord) in &values {
+        let row = rows
+            .iter()
+            .find(|row| {
+                matches!(row.slot,
+                    SlotId::ValueSlide { constraint } | SlotId::ValueSpin { constraint }
+                        if constraint == *id)
+            })
+            .unwrap_or_else(|| panic!("a row for the value on {coord:?}"));
+        assert_eq!(row.label, coord.value_label(), "the row on {coord:?}");
+    }
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let x = rows
+        .iter()
+        .find(|row| {
+            row.slot
+                == SlotId::ValueSlide {
+                    constraint: slide_x,
+                }
+        })
+        .expect("the slide along x has a row");
+    assert_eq!(x.label, "slide along x value", "the slide along x's row");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }

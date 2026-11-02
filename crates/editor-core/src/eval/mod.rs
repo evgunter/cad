@@ -1501,6 +1501,10 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The kernel's own refusal.
         error: sweep::blend::BlendError,
+        /// The name, in the operand's table, of the edge the refusal is
+        /// about ([`sweep::blend::BlendError::edge`]); `None` where it
+        /// names no edge, or one the table does not name.
+        edge: Option<Box<StableName>>,
     },
     /// The boolean op refused.
     Boolean(BooleanError),
@@ -2124,7 +2128,16 @@ impl crate::spoken::Say for NodeErrorKind {
                     )
                 )
             }
-            Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
+            Self::Blend {
+                verb,
+                error,
+                edge: Some(edge),
+            } => write!(f, "the {verb} op refused at {edge}: {error}"),
+            Self::Blend {
+                verb,
+                error,
+                edge: None,
+            } => write!(f, "the {verb} op refused: {error}"),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
@@ -5774,11 +5787,28 @@ where
         }
         // A station's moves are slots, fed below; what each one moves
         // along or about is not, so it is written here.
+        // The sections' minted ids: what the loft's names spell (N1),
+        // so two lofts alike but for which sections are which are two
+        // keys.
         Node::Loft {
             first: _,
+            first_id,
             then,
             v_degree: _,
         } => {
+            // Each section's id, `None` (an unminted section, which no
+            // document holds) keyed apart from every id.
+            let mut section_id = |id: &Option<crate::SectionId>| match id {
+                Some(id) => {
+                    h.write_tag(1);
+                    h.write_id(id.0);
+                }
+                None => h.write_tag(0),
+            };
+            section_id(first_id);
+            for section in then {
+                section_id(&section.id);
+            }
             h.write_u64(then.len() as u64);
             for section in then {
                 h.write_u64(section.station.len() as u64);
@@ -6577,8 +6607,6 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CapVertex => 6,
         S::LoftWall => 45,
         S::LoftSeam => 46,
-        S::LoftSlabWall => 53,
-        S::LoftSlabSeam => 54,
         S::LoftSectionEdge => 55,
         S::LoftSectionVertex => 56,
         S::Band => 7,
@@ -6740,36 +6768,24 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         }
         RoleSeg::LoftWall(es) => {
             h.write_u64(es.len() as u64);
-            for e in es {
+            for (s, e) in es {
+                h.write_id(s.0);
                 pe(h, *e);
             }
         }
         RoleSeg::LoftSeam(vs) => {
             h.write_u64(vs.len() as u64);
-            for v in vs {
-                pv(h, *v);
-            }
-        }
-        RoleSeg::LoftSlabWall(s, es) => {
-            h.write_u64(u64::from(*s));
-            h.write_u64(es.len() as u64);
-            for e in es {
-                pe(h, *e);
-            }
-        }
-        RoleSeg::LoftSlabSeam(s, vs) => {
-            h.write_u64(u64::from(*s));
-            h.write_u64(vs.len() as u64);
-            for v in vs {
+            for (s, v) in vs {
+                h.write_id(s.0);
                 pv(h, *v);
             }
         }
         RoleSeg::LoftSectionEdge(s, e) => {
-            h.write_u64(u64::from(*s));
+            h.write_id(s.0);
             pe(h, *e);
         }
         RoleSeg::LoftSectionVertex(s, v) => {
-            h.write_u64(u64::from(*s));
+            h.write_id(s.0);
             pv(h, *v);
         }
         RoleSeg::Band(r) => {

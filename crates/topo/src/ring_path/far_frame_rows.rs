@@ -344,20 +344,16 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
             span,
         };
         // The unit circle in the plane `x = 0` about `at(0)`.
-        let conic = |own| Conic {
-            centre: at(0.0, 0.0, 0.0),
-            axis: x,
-            u_ref: y,
-            a: 1.0,
-            b: 1.0,
-            span: (-1.0, 1.0),
-            own,
+        let conic = |own| {
+            ConicArc::of_frame(
+                geom::Frame::new(at(0.0, 0.0, 0.0), x, y),
+                (1.0, 1.0),
+                (-1.0, 1.0),
+                own,
+            )
         };
         let crest = LoopArc::Crest {
-            centre: at(0.0, 0.0, 0.0),
-            axis: z,
-            u_ref: x,
-            radius: 1.0,
+            circle: geom::Circle::new(geom::Frame::new(at(0.0, 0.0, 0.0), z, x), 1.0),
             span: (0.0, 1.0),
             core: (at(0.0, 0.0, 0.0), z, 1.0),
             own: ArcLoop {
@@ -549,7 +545,7 @@ fn circle_kind(read: Result<Option<LoopArc<f64>>, Indeterminate>) -> String {
         Err(_) => "escalated".into(),
         Ok(None) => "none".into(),
         Ok(Some(LoopArc::Crest { own, .. })) => format!("crest {}", own.positive),
-        Ok(Some(LoopArc::Conic(Conic { own: Some(own), .. }))) => match own.split {
+        Ok(Some(LoopArc::Conic(ConicArc { own: Some(own), .. }))) => match own.split {
             LoopSplit::Side { .. } => "meridian".into(),
             LoopSplit::Radius { .. } => format!("parallel {}", own.positive),
             LoopSplit::Bisector { .. } => "bisector".into(),
@@ -589,16 +585,18 @@ fn minted_kind(
         Ok(S::Empty) => ("empty", vec![]),
         Err(_) => ("refused", vec![]),
     };
-    let geom::Curve3::Circle {
-        center: k,
+    let geom::Curve3::Circle(geom::Circle {
+        frame: geom::Frame { center: k, .. },
         radius: rho,
-        ..
-    } = edge.carrier
+    }) = edge.carrier
     else {
         unreachable!("a meridian or a parallel")
     };
     let off = |c: &geom::Curve3<f64>| match c {
-        geom::Curve3::Circle { center, radius, .. } => (*center - k).norm() + (radius - rho).abs(),
+        geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            radius,
+        }) => (*center - k).norm() + (radius - rho).abs(),
         _ => f64::INFINITY,
     };
     let kind = circles

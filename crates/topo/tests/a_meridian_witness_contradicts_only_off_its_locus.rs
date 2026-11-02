@@ -37,12 +37,12 @@ fn meridian(lift: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         axis: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let circle = Curve3::Circle {
-        center: Point3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 0.2 + lift,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        Point3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        0.2 + lift,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     (torus, sphere, circle)
 }
 
@@ -140,12 +140,12 @@ fn finest_spans() -> f64 {
 fn a_sag_on_one_sample_does_not_mask_a_later_contradiction() {
     let (torus, sphere, _) = meridian(0.0);
     let alpha: f64 = 0.3;
-    let turned = Curve3::Circle {
-        center: Point3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, alpha.cos(), alpha.sin()),
-        radius: 0.2,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let turned = Curve3::circle(
+        Point3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, alpha.cos(), alpha.sin()),
+        0.2,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     for start in [0.0, 1.0] {
         let out = tangent_locus_relation(
             &torus,

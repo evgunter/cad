@@ -43,6 +43,7 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::sector_face::SectorFaceError;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{
     EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
@@ -61,10 +62,6 @@ pub(crate) const VERTEX_SECTION_RESOLUTION: &str = "vertex_section_resolution";
 /// K name: that reading moved toward zero by its own rounding, where the
 /// rounding is past `ε/K` (metres): only a definite side stands.
 pub(crate) const VERTEX_SECTION_CLEAR: &str = "vertex_section_clear";
-
-/// What [`VERTEX_SECTION_SIDE`] decides, in the words a report states.
-pub(crate) const VERTEX_SECTION_SUBJECT: &str =
-    "whether a vertex on a plane lies on the section the plane cuts in a face at it";
 
 /// The plane a vertex is read against, as the section table and the
 /// walk read it: a point on it, its unit normal, and the reference side
@@ -86,15 +83,22 @@ pub(crate) struct Offset<T: geom_core::Real> {
     pub normal: Vec3<T>,
 }
 
-/// Why a vertex has no verdict on a plane.
+/// Why a vertex has no verdict on a plane, by the decision that
+/// refused it.
 #[derive(Debug)]
 pub(crate) enum VertexRefusal {
-    /// Its offset, or its admitted distance from a section it would end,
-    /// lies in the band: the input's.
-    Undecided(Indeterminate),
+    /// Its offset from the plane, or a far vertex's, lies in the band,
+    /// under the door's own name: the input's.
+    Offset(Indeterminate),
+    /// Its admitted distance from a section it would end lies in the
+    /// band ([`VERTEX_SECTION_SIDE`]): the input's.
+    Section(Indeterminate),
     /// The walk refused the vertex's neighbourhood: a sector reading in
     /// the band, or a degenerate one.
     Walk(SplitReduceError),
+    /// The walk could not resolve a sector of the vertex: a cone face's
+    /// apex undecided.
+    Sector(SectorFaceError),
     /// The door could not read its plane into the section table; the
     /// clause says why.
     Plane(&'static str),
@@ -126,7 +130,7 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
     band: Band,
 ) -> Result<Decided, VertexRefusal> {
     let on_plane = decide_reported(name, Margin::of(offset.value.value), band)
-        .map_err(VertexRefusal::Undecided)?;
+        .map_err(VertexRefusal::Offset)?;
     if on_plane.sign != Sign::Zero {
         return Ok(on_plane);
     }
@@ -146,7 +150,9 @@ pub(crate) fn decide_vertex_on_plane<T: Decide>(
 /// rounding admits it: Zero is ON, a definite reading puts the vertex
 /// on the side its offset's sign names, and an in-band one escalates
 /// with the door's lever. Where its rounding is past `ε/K`, a definite
-/// side the rounding cannot move stands, and otherwise `on_plane` does.
+/// side the rounding cannot move stands, and otherwise `on_plane` does;
+/// a sine within its own rounding of zero leaves the rounding unbounded,
+/// so `on_plane` stands.
 ///
 /// # Errors
 ///
@@ -186,6 +192,12 @@ pub(crate) fn read_sections<T: Decide>(
     else {
         return Ok(on_plane);
     };
+    // A sine within its own rounding of zero bounds no reading: the
+    // plane is tangent to the face at the vertex as far as the rounding
+    // tells, and a reading past any bound is past `ε/K`.
+    let Some(sine) = sine.divisor() else {
+        return Ok(on_plane);
+    };
     let reading = Rounded {
         value: offset.value.value,
         error: offset.value.error + skew(offset.normal, plane, at),
@@ -193,13 +205,15 @@ pub(crate) fn read_sections<T: Decide>(
     .quotient(sine);
     if crate::validate::resolved(VERTEX_SECTION_RESOLUTION, reading.error, band).is_ok() {
         return decide_reported(VERTEX_SECTION_SIDE, Margin::of(reading.value), band)
-            .map_err(VertexRefusal::Undecided);
+            .map_err(VertexRefusal::Section);
     }
-    // Moved toward zero by its rounding, and no further: past the band
-    // there, it is past it wherever the rounding put it.
-    let (m, e, zero) = (reading.value, reading.error, T::zero());
-    let inward = m.select_le_zero((m + e).min(zero), (m - e).max(zero));
-    match decide_reported(VERTEX_SECTION_CLEAR, Margin::of(inward), band) {
+    // Moved toward zero by its rounding: past the band there, it is past
+    // it wherever the rounding put it.
+    match decide_reported(
+        VERTEX_SECTION_CLEAR,
+        Margin::of(reading.toward_zero()),
+        band,
+    ) {
         Ok(off) if off.sign != Sign::Zero => Ok(off),
         _ => Ok(on_plane),
     }
@@ -287,8 +301,8 @@ fn entered_faces<T: Decide>(
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
                 let resolved = match crate::sector_face::resolve(body, vertex, he, band) {
                     Ok(resolved) => resolved,
-                    Err(crate::sector_face::SectorFaceError::ApexUndecided { diag, .. }) => {
-                        return Err(VertexRefusal::Undecided(diag));
+                    Err(e @ SectorFaceError::ApexUndecided { .. }) => {
+                        return Err(VertexRefusal::Sector(e));
                     }
                     Err(e) => {
                         unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")

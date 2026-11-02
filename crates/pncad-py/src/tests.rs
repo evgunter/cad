@@ -2156,6 +2156,7 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::Blend {
             verb: BlendKind::Chamfer,
             error: BlendError::NonpositiveSize { size: -1.0 },
+            edge: None,
         }),
         ("chamfer", Some("nonpositive_size"))
     );
@@ -3101,6 +3102,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainG1,
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
+        BlendDecision::MaterialSide,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -4356,6 +4358,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face_clearance",
             "face_clearance_uncertified",
             "inside_out_operand",
+            "knife_edge",
             "nonpositive_size",
             "op",
             "radius_headroom",
@@ -4365,7 +4368,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
-            "tangential_edge",
             "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
@@ -4704,6 +4706,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "section_ids_refused",
             "selection_name_kind",
             "selection_shape",
             "set_loft_sections_on_non_loft",
@@ -4754,6 +4757,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_fault_tag",
             "product_read_fault_tag",
             "program_refusal_tag",
+            "section_id_fault_tag",
             "selection_fault_tag",
             "step_id_fault_tag",
         ],
@@ -4905,6 +4909,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_seam",
             "inline_edit",
             "instance_body_name_referenced",
+            "name_on_dropped_section",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
@@ -5103,6 +5108,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unnamed",
             "unsettled_vertex",
             "unsupported_turned_cell",
+            "unsupported_unjudged_glue",
         ],
         delegates: &[
             "band_error_tag",
@@ -5631,6 +5637,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "section_id_fault_tag",
+        values: &["not_this_lofts", "preminted", "repeated"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "seed_error_tag",
         values: &[
             "count_param",
@@ -5800,6 +5811,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_read",
             "read_cycle",
             "reader_of_unminted_var",
+            "section_ids",
             "selection_body",
             "selection_shape",
             "shared_var_needs_name",
@@ -5825,6 +5837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
+            "name_on_dropped_section",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
@@ -6334,6 +6347,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Two vocabularies: a pose constructed where two others meet, and a
     // coincidence row whose cells share one point.
     ("meet", 2),
+    // A split's and an inline's refusal of a name on a dropped section:
+    // one fact (`editor_core::refactor::Unmapped::Section`), one word.
+    ("name_on_dropped_section", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
@@ -6371,6 +6387,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
+    // One fact: ids handed to the insert door, which mints them, a
+    // profile's step ids and a loft's section ids alike.
+    ("preminted", 2),
     // One fact: the edit that moved the product's body out of the
     // world (`maintenance_tag`) and the gather that refuses it after
     // (`product_error_tag`).
@@ -6384,8 +6403,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // alphabet forwards.
     ("profile", 2),
     // One fact: a list that names one entry twice, a selection's face
-    // set (`selection_fault_tag`) as a profile's kept step ids.
-    ("repeated", 2),
+    // set (`selection_fault_tag`) as a profile's kept step ids and a
+    // loft's kept section ids.
+    ("repeated", 3),
     ("revolve", 2),
     ("ring_on_curved_face", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.

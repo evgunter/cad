@@ -2,11 +2,13 @@
 id: restating-a-chart-image-across-an-authority-has-several-spellings
 kind: issue
 title: restating an edge as a chart image while carrying its declared authority across is spelled at three sites
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: E
 branch: onehome/small-bundle
+closed: 2026-11-02
+pr: 6365
 ---
 
 
@@ -55,3 +57,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: three hand-built restatements of one carry: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (ONEHOME, 2026-11-02, PR 6365)
+
+`EdgeAuthority::declared()` (geom-brep `description.rs`) is the one reading of an authority as an optional declaration, routed through certify ×5, combine ×2, edge_join, transform, offset_restate and replace_face. `describe_section_boundary` restates through `MustCarryDescription::restated`, and `restated_in_chart` builds from `EdgeDescriptionSpec::chart`.

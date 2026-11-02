@@ -2,10 +2,11 @@
 id: sphere-window-borrows-the-material-sign-for-a-chart-walk-question
 kind: issue
 title: boxes::sphere_window borrows boundary_material_sign == Encoded(sense) to mean 'the face lies in its boundary's rectangle', a chart-walk question the material sign does not answer
-status: open
+status: parked
 opened: 2026-10-10
 priority: P4
 cost: E
+blocked_on: [cover-topo-faces]
 ---
 
 

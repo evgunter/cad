@@ -4205,9 +4205,9 @@ impl<T: Decide> Track<T> {
         closed: bool,
     ) -> Result<Self, NamingError> {
         let period = match carrier {
-            geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. }
-            | geom::Curve3::Spiric { .. } => Some(T::from_f64(std::f64::consts::TAU)),
+            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
+                Some(T::from_f64(std::f64::consts::TAU))
+            }
             _ => None,
         };
         let len = match (closed, period) {
@@ -6948,6 +6948,7 @@ mod wavy_loft {
         let then = (1u32..)
             .zip(sections)
             .map(|(k, profile)| crate::node::LoftSection {
+                id: None,
                 profile: profile.into(),
                 station: vec![crate::node::StationMove::Slide {
                     along: crate::node::Axis3::Z,
@@ -6961,6 +6962,7 @@ mod wavy_loft {
                 first: first.into(),
                 then,
                 v_degree: Formula::count(2),
+                first_id: None,
             },
         )
     }
@@ -7363,12 +7365,12 @@ mod track_cover {
     use crate::names::discriminate::ON_MEMBER_EDGE;
 
     fn circle() -> geom::Curve3<f64> {
-        geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
+        geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        )
     }
 
     /// A body whose one edge is `circle()` from `t0` to `t1`: closed
@@ -8161,12 +8163,12 @@ mod rim_holding_rows {
     const DEG: f64 = std::f64::consts::PI / 180.0;
 
     fn circle() -> geom::Curve3<f64> {
-        geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
+        geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        )
     }
 
     fn at(deg: f64) -> Point3<f64> {
@@ -8403,12 +8405,12 @@ mod rim_holding_rows {
     /// The circle of `radius` about `center` in the plane z = 0, about
     /// `axis` (±z), its parameter zero toward +x.
     fn circle_of(center: [f64; 2], radius: f64, axis: Vec3<f64>) -> geom::Curve3<f64> {
-        geom::Curve3::Circle {
-            center: Point3::new(center[0], center[1], 0.0),
+        geom::Curve3::circle(
+            Point3::new(center[0], center[1], 0.0),
             axis,
             radius,
-            u_ref: Vec3::unit_x(),
-        }
+            Vec3::unit_x(),
+        )
     }
 
     /// **Two arcs lie on one line when they lie on one circle, and run

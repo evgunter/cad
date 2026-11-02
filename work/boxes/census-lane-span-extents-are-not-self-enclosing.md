@@ -2,10 +2,11 @@
 id: census-lane-span-extents-are-not-self-enclosing
 kind: issue
 title: The census lane's Span extents do not enclose their locus at f64 by themselves; their soundness rests on what each reader compares them against, which nothing guards
-status: open
+status: parked
 opened: 2026-10-18
 priority: P3
 cost: M
+blocked_on: [cover-topo-faces]
 ---
 
 Found by the review of PR 5308 (`restread/one-edge-box-map`, MINOR 2).

@@ -80,12 +80,12 @@ fn the_width_does_not_depend_on_the_stored_direction_of_the_second_meridian() {
             // The u = theta meridian, carrier reversed: axis negated,
             // u_ref kept, so its parameter is MINUS the latitude and
             // the south-to-north traversal is stored backwards.
-            let flipped = Curve3::Circle {
-                center: Point3::origin(),
-                axis: Vec3::new(-theta.sin(), theta.cos(), 0.0),
-                radius: RS,
-                u_ref: Vec3::new(theta.cos(), theta.sin(), 0.0),
-            };
+            let flipped = Curve3::circle(
+                Point3::origin(),
+                Vec3::new(-theta.sin(), theta.cos(), 0.0),
+                RS,
+                Vec3::new(theta.cos(), theta.sin(), 0.0),
+            );
             let recut = vec![
                 plain[0].clone(),
                 topo::edge(flipped, FRAC_PI_2, -FRAC_PI_2, 1, 0),
@@ -165,12 +165,7 @@ fn great_on(
     let e2 = axis.cross(u_ref);
     let h = u_ref * u.cos() + e2 * u.sin();
     topo::edge(
-        Curve3::Circle {
-            center,
-            axis: h.cross(axis),
-            radius,
-            u_ref: h,
-        },
+        Curve3::circle(center, h.cross(axis), radius, h),
         t0,
         t1,
         a,

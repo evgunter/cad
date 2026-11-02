@@ -51,24 +51,22 @@ fn case(
     let u2 = w(Vec3::new(0.0, beta.cos(), beta.sin()));
     let pi = core::f64::consts::PI;
     let arcs = vec![
-        LoopArc::Conic(Conic {
-            centre,
-            axis: x,
-            u_ref: u1,
-            a,
-            b: a,
-            span: (sv - pi, sv),
-            own: None,
-        }),
-        LoopArc::Conic(Conic {
-            centre: centre + jitter.0 * jitter.1,
-            axis: (x + jitter.0.cross(x) * (jitter.1 / r)).normalize(),
-            u_ref: u2,
-            a,
-            b: a,
-            span: (sv - beta, sv - beta + pi),
-            own: None,
-        }),
+        LoopArc::Conic(ConicArc::of_frame(
+            geom::Frame::new(centre, x, u1),
+            (a, a),
+            (sv - pi, sv),
+            None,
+        )),
+        LoopArc::Conic(ConicArc::of_frame(
+            geom::Frame::new(
+                centre + jitter.0 * jitter.1,
+                (x + jitter.0.cross(x) * (jitter.1 / r)).normalize(),
+                u2,
+            ),
+            (a, a),
+            (sv - beta, sv - beta + pi),
+            None,
+        )),
     ];
     (path, arcs)
 }
@@ -381,36 +379,36 @@ fn split_ellipse(
     (dir, jitter): (Vec3<f64>, f64),
     size: f64,
 ) -> [LoopArc<f64>; 2] {
-    let geom::Curve3::Ellipse {
-        center,
-        axis,
+    let geom::Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = *c
+    }) = *c
     else {
         panic!("a tilted section is an ellipse")
     };
     let pi = core::f64::consts::PI;
     [
-        LoopArc::Conic(Conic {
-            centre: center,
-            axis,
-            u_ref,
-            a: semi_u,
-            b: semi_v,
-            span: (v - pi, v),
-            own: None,
-        }),
-        LoopArc::Conic(Conic {
-            centre: center + dir * jitter,
-            axis: (axis + dir.cross(axis) * (jitter / size)).normalize(),
-            u_ref,
-            a: semi_u,
-            b: semi_v,
-            span: (v, v + pi),
-            own: None,
-        }),
+        LoopArc::Conic(ConicArc::of_frame(
+            geom::Frame::new(center, axis, u_ref),
+            (semi_u, semi_v),
+            (v - pi, v),
+            None,
+        )),
+        LoopArc::Conic(ConicArc::of_frame(
+            geom::Frame::new(
+                center + dir * jitter,
+                (axis + dir.cross(axis) * (jitter / size)).normalize(),
+                u_ref,
+            ),
+            (semi_u, semi_v),
+            (v, v + pi),
+            None,
+        )),
     ]
 }
 
@@ -431,7 +429,7 @@ fn segment_section(
         cell.unresolvable += 1;
         return;
     };
-    let geom::Curve3::Ellipse { semi_u, .. } = c else {
+    let geom::Curve3::Ellipse(geom::Ellipse { semi_u, .. }) = c else {
         unreachable!()
     };
     if !resolvable(

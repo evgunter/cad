@@ -40,12 +40,7 @@ fn villarceau_loop() -> (Surface<f64>, Vec<LoopEdge<f64>>) {
         (1.0 - (minor / major) * (minor / major)).sqrt(),
     );
     let n = v3(0.0, -s, c);
-    let circle = |cx: f64| Curve3::Circle {
-        center: p3(cx, 0.0, 0.0),
-        axis: n,
-        radius: major,
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
+    let circle = |cx: f64| Curve3::circle(p3(cx, 0.0, 0.0), n, major, v3(1.0, 0.0, 0.0));
     let third = core::f64::consts::PI / 3.0;
     let surface = Surface::Torus {
         center: p3(0.0, 0.0, 0.0),
@@ -131,12 +126,7 @@ fn a_zero_extent_cylinder_face_passes_the_shape_door_and_not_the_flux_lane() {
     };
     let rim = |v: f64, u0: f64, u1: f64, a: u32, b: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: 1.0,
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(p3(0.0, 0.0, v), v3(0.0, 0.0, 1.0), 1.0, v3(1.0, 0.0, 0.0)),
             u0,
             u1,
             a,

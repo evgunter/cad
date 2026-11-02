@@ -928,12 +928,12 @@ impl<'a> Resolver<'a> {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
                 let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
-                Ok(Curve3::Circle {
+                Ok(Curve3::circle(
                     center,
                     axis,
-                    radius: self.as_length(id, radius, expected)?,
+                    self.as_length(id, radius, expected)?,
                     u_ref,
-                })
+                ))
             }
             "ELLIPSE" => {
                 let expected = "ELLIPSE(name, #placement, semi_axis_1, semi_axis_2)";
@@ -941,13 +941,11 @@ impl<'a> Resolver<'a> {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
                 let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
-                Ok(Curve3::Ellipse {
-                    center,
-                    axis,
-                    semi_u: self.as_length(id, major, expected)?,
-                    semi_v: self.as_length(id, minor, expected)?,
-                    u_ref,
-                })
+                Ok(Curve3::Ellipse(geom::Ellipse::new(
+                    geom::Frame::new(center, axis, u_ref),
+                    self.as_length(id, major, expected)?,
+                    self.as_length(id, minor, expected)?,
+                )))
             }
             "QUASI_UNIFORM_CURVE" => {
                 let expected = "QUASI_UNIFORM_CURVE(name, degree, (points), form, \

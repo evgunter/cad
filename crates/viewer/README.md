@@ -463,7 +463,7 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — the transform's placement, a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec`, `PartSelectSpec`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
@@ -605,13 +605,20 @@ writes its cleared value, at one site, by hand. That is the whole
 mechanism — one site to update instead of three, and a compiler error
 instead of a silent omission.
 
-`LandedRun` is the same rule one level down. Its seven fields — the
+`LandedRun` is the same rule one level down. Its eight fields — the
 evaluation, the resolver it ran through, the document it answers, its
-generation, the gather's outcome, the advisory report and the part
-files the resolver could name — are statements about one (document,
-evaluation) pair, taken in that pair's single `land`. As one value
-they cannot come from different runs, which is the property
-`landed_pair` needs: it returns two of the seven, and the two it
+generation, the gather's outcome, the advisory report, the part files
+the resolver could name and the certified clearance answers — are
+statements about one (document, evaluation) pair. A landing may owe
+answers that settle later: the coincidence door's, which the advisory
+report reads pending, and the certifying scalar's for a clearance
+requirement, which reads certifying. Each runs at rest on its own seam,
+keyed by the landing's generation and cancelled by the next request,
+and settles into this same value (`DocSession::settle`,
+`DocSession::certified`); an answer for a landing since replaced is
+dropped. Everything else is taken in the pair's single `land`. As one
+value they cannot come from different runs, which is the property
+`landed_pair` needs: it returns two of the eight, and the two it
 returns are the pair a single run answered. The gather's outcome is
 one `Result`, the refusal or what the gather left (the at-rest badge
 and the body); `LandedRun`'s doc says what that shape does and does not
@@ -707,8 +714,9 @@ history's length and `checks` is its two counts (`ChecksReport` is a
 the thing these walks exist to keep readable); `scratch`, `body`,
 `gesture` and `resolver` are their presence, rendered as the elisions
 `Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
-`Some(<DirResolver>)`; and `index` is the generation it describes
-inside one, `Some(<PickIndex for Generation(4)>)`. Summarising is what
+`Some(<DirResolver>)`; `index` is the generation it describes
+inside one, `Some(<PickIndex for Generation(4)>)`; and `stage` and
+`seeded` are the key and the generation they are for. Summarising is what
 a `#[derive(Debug)]` cannot do at all, which is the reason these are
 written out rather than derived; the recipe and result DAGs are what
 makes that reason bite.
@@ -725,11 +733,12 @@ answered at the field, which is the only place a two-valued marker
 could not have said it. **The sweep behind that list**, and it is a
 reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
-`PickCache` in `pickcache` — read every `.field(…)` call, **21 of
+`PickCache` in `pickcache` — read every `.field(…)` call, **30 of
 them**, and take the ones whose value argument is not the destructured
-binding itself. **Nine calls, seven fields**: `checks` and `index` each spend two arms, and the absent
-arm renders `None`, which is the whole field. `viewer`'s
-`tests/debug_dumps.rs` holds the seven to their spellings, and is the
+binding itself. **Eleven calls, nine fields**: `checks` and `index`
+each spend two arms, and the absent arm renders `None`, which is the
+whole field. `viewer`'s `tests/debug_dumps.rs` holds seven of them to
+their spellings — all but `stage` and `seeded` — and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in
@@ -2225,8 +2234,12 @@ inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A pattern, fused or not, lands
 where the pick was seen and takes the seen body over along the path it
-was seen through (a placement's source, a `⊔` operand, the product
-slot), member 0 standing where that body stood. A split takes the seen
+was seen through: picked on a copy, it reads that copy in the copy's
+space and takes over the `⊔` operands and the product slot that read
+it, writing no placement's source, and the result says it belongs to
+that placed copy, with a way to the original body; picked as the body
+itself, it makes a new body and offers, as one explicit step, to
+re-point the variable the body's placements share onto it, member 0 standing where that body stood. A split takes the seen
 body over the same way, by `above ⊔ below`, its two halves standing
 where that body stood; where nothing reads the body along such a
 path, the split's halves are drawn in its place. A duplicate of a copy
@@ -2235,11 +2248,21 @@ the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own
 space, a stand-in by the identity and the stepped one. Projecting a
 pattern member writes nothing: a pick on a drawn member seats
-`family[k]`. The transform gesture places an unplaced body into its own
-space by values on that space's axes: the three slides as the person
-wrote them, and the spin about the axis the rotation names where it is
-one of the space's, else the chain of turns its frame makes; on a copy
-it edits the copy's placement. A combine re-places an operand from
+`family[k]`. The Transform tool is the placement editor opened on its
+pick with no mate row (`MateTool::moving`), through one of its two
+doors. On a body nothing places it is the Create door, into the body's
+own space, its six value rows where the body stands; its Apply places
+the body and takes over what read it along the path it was seen
+through (a `⊔` operand, the product), never a copy's source. On a copy,
+and on a body one copy places, which is seen through that copy, it is
+that copy's Edit door, the bundle's values as written; its Apply writes
+the bundle in place. The editor's own first pick takes the same route
+(`matetool::door_on`, A11's member walk included). What is no body opens
+no door, said: a profile, a pattern's family (its values are the rule;
+the pattern is edited instead), a body several copies place, and a split
+picked whole, which asks for its half. The Create door refuses a copy
+(`Refusal::CreateOnACopy`) and a body a placement already copies
+(`Refusal::BodyPlaced`, naming the copy whose Edit door moves it). A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
 

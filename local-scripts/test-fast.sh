@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Fast local test runs: whole-graph opt-1 with debug-assertions and
-# overflow-checks still ON (fail-loud postconditions keep their teeth).
+# Fast local test runs: libraries at opt-1 and integration-test binaries at
+# opt-0, as ci.yml's test job builds them (scripts/rustc-test-crates-opt0.sh),
+# with debug-assertions and overflow-checks still ON (fail-loud
+# postconditions keep their teeth).
 #
 # opt-2 -> opt-1 ON 2026-08-25, following ci.yml's two archive jobs. This
 # script's contract is "reproduce the hosted configuration locally", so it
@@ -43,7 +45,8 @@
 #
 # GENERICS-BUILD-COST.md is the third thing here and IS a dated write-up
 # with no register behind it. What this script SETS is matched by hand to
-# ci.yml's opt level — nothing checks the two agree — so a drifted timing
+# ci.yml's test job — its opt level, and the same RUSTC_WORKSPACE_WRAPPER —
+# and nothing checks the two agree, so a drifted timing
 # costs a reader accuracy, and a drifted opt level costs the script its
 # whole contract; the second is the one to check when you touch either.
 #
@@ -59,4 +62,6 @@ if [ -z "${BUILD_SLOT_HELD:-}" ]; then
 fi
 export CARGO_PROFILE_DEV_OPT_LEVEL=1
 export CARGO_PROFILE_TEST_OPT_LEVEL=1
+RUSTC_WORKSPACE_WRAPPER="$(cd "$(dirname "$0")/.." && pwd)/scripts/rustc-test-crates-opt0.sh"
+export RUSTC_WORKSPACE_WRAPPER
 exec cargo test "$@"
