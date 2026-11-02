@@ -276,7 +276,8 @@ fn the_pair_door_holds_a_sunk_tiles_top_through_its_substitution() {
 }
 
 /// **The pair door reads an uncut row's kept face as holding the dropped
-/// face, as it reads a substitution's**, and keys the region the dropped
+/// face, as it reads a substitution's** (rows restated by hand: no
+/// fixture of the corpus makes an uncut row), and keys the region the dropped
 /// face lost outside its kept faces to that face: the sunk tile's union
 /// with its substitution rows restated as the uncut row a containment
 /// fallback records where it cannot divide the tile's top.
@@ -306,7 +307,13 @@ fn the_pair_door_reads_an_uncut_row_as_a_substitution() {
         })
         .collect();
     n.uncut.dedup();
-    let holdings = super::Holdings::of_records(&out.naming, &out.body, [&p, &tile], band());
+    let holdings = super::Holdings::of_records(
+        super::BooleanOp::Union,
+        &out.naming,
+        &out.body,
+        ([&p, &tile], [None, None]),
+        band(),
+    );
     let top = tops_at(&out.body, 1.0)[0];
     assert_eq!(
         holdings.of(top),
@@ -396,6 +403,83 @@ fn a_face_parted_after_a_substitution_holds_the_tile_only_where_it_lies() {
                 "mirror {mirror}: the piece over x {lo}..{hi} holds the tile's top: {over_tile}"
             );
         }
+    }
+}
+
+/// **A subtract's finished face holds the tool's face it lies under**,
+/// read against that face turned as the result holds it: a block less a
+/// T whose leg parts the block's face y = 1 in two and whose cap's
+/// underside lies on it, each piece holding the block's face and the
+/// cap's underside over it.
+#[test]
+fn a_subtracts_pieces_hold_the_tools_face_they_lie_under() {
+    let t = tol();
+    let block = finished(
+        "block",
+        brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 2.0), t),
+        t,
+    );
+    let tee = [
+        (0.9, 0.5),
+        (1.1, 0.5),
+        (1.1, 1.0),
+        (1.5, 1.0),
+        (1.5, 1.5),
+        (0.5, 1.5),
+        (0.5, 1.0),
+        (0.9, 1.0),
+    ];
+    let tee = finished("tee", prism_z::<f64>(&tee, 0.0, 2.0, t).body, t);
+    let Ok(BooleanResult::Body(out)) = super::subtract(&block, &tee, t) else {
+        panic!("the subtract builds");
+    };
+    let block_top = (0, facing_at(&block, 1, 1.0)[0]);
+    let x_span = |body: &Body<f64>, f: FaceKey| {
+        body.vertex_points()
+            .filter(|&(v, _)| body.faces_of_vertex(v).unwrap().contains(&f))
+            .fold((f64::MAX, f64::MIN), |(a, b), (_, p)| {
+                (a.min(p.x), b.max(p.x))
+            })
+    };
+    // The cap's underside: the tee's faces on y = 1 facing −y.
+    let under: Vec<FaceKey> = tee
+        .faces()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            crate::face_normal::face_outward_normal(&tee, k).is_some_and(|n| n.vec().y < -0.5)
+                && x_span(&tee, k).1 <= 1.5 + 1e-9
+                && tee
+                    .vertex_points()
+                    .filter(|&(v, _)| tee.faces_of_vertex(v).unwrap().contains(&k))
+                    .all(|(_, p)| (p.y - 1.0).abs() < 1e-9)
+        })
+        .collect();
+    assert_eq!(
+        under.len(),
+        2,
+        "the cap's underside is two faces, either side of the leg"
+    );
+    let pieces = facing_at(&out.body, 1, 1.0);
+    assert_eq!(pieces.len(), 2, "the leg parts the block's face in two");
+    for f in pieces {
+        let (lo, hi) = x_span(&out.body, f);
+        let mut want = BTreeSet::from([block_top]);
+        for &u in &under {
+            let (ulo, uhi) = x_span(&tee, u);
+            if ulo < hi && lo < uhi {
+                want.insert((1, u));
+            }
+        }
+        assert_eq!(
+            want.len(),
+            2,
+            "the piece over x {lo}..{hi} lies under one cap face"
+        );
+        assert_eq!(
+            out.holdings.of(f),
+            Some(&Held::Faces(want)),
+            "the piece over x {lo}..{hi} holds the block's face and the cap's underside over it"
+        );
     }
 }
 

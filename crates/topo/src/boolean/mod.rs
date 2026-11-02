@@ -1177,15 +1177,16 @@ pub(crate) struct Glue<T: Real> {
     /// The pairs the glue door read in band and left unglued, each with
     /// the reading it could not decide ([`InBandPair`]).
     pub(crate) in_band: Vec<InBandPair>,
-    /// Where the caller asks for it (a fold step of [`nary`]), the A
-    /// clone as the operation's cuts left it, before any discard: the
-    /// operation puts it here, so the caller can read a discarded
+    /// Where the caller asks for them, each operand's clone as the
+    /// operation's cuts left it, before any discard, A's then B's: the
+    /// operation puts them here, so the caller can read a discarded
     /// fragment's region. Clones of the glue share the one slot.
-    pub(crate) clone_a: Option<CloneSlot<T>>,
+    pub(crate) clones: Option<CloneSlot<T>>,
 }
 
-/// Where an operation puts its A clone for its caller ([`Glue::clone_a`]).
-pub(crate) type CloneSlot<T> = std::sync::Arc<std::sync::Mutex<Option<Body<T>>>>;
+/// Where an operation puts its operand clones for its caller
+/// ([`Glue::clones`]).
+pub(crate) type CloneSlot<T> = std::sync::Arc<std::sync::Mutex<[Option<Body<T>>; 2]>>;
 
 /// **A pair the glue door read in band** over both faces and left
 /// unglued: its faces and what the carrier ladder could not decide
@@ -1228,7 +1229,7 @@ impl<T: Real> Glue<T> {
             records_b: OperandRecords::default(),
             verdicts: Verdicts::Decided,
             in_band: Vec::new(),
-            clone_a: None,
+            clones: None,
         }
     }
 
@@ -1249,18 +1250,18 @@ impl<T: Real> Glue<T> {
             records_b: records_b.clone(),
             verdicts,
             in_band: Vec::new(),
-            clone_a: None,
+            clones: None,
         }
     }
 
-    /// Puts the A clone `a` where the caller asked for it, if it did
-    /// ([`Self::clone_a`]).
-    pub(crate) fn keep_clone_a(&self, a: impl FnOnce() -> Body<T>) {
-        if let Some(slot) = &self.clone_a {
+    /// Puts `operand`'s clone where the caller asked for it, if it did
+    /// ([`Self::clones`]).
+    pub(crate) fn keep_clone(&self, operand: Operand, clone: impl FnOnce() -> Body<T>) {
+        if let Some(slot) = &self.clones {
             let mut held = slot
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            *held = Some(a());
+            held[usize::from(operand == Operand::B)] = Some(clone());
         }
     }
 }

@@ -37,8 +37,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use geom_core::{Band, Decide};
 
 use super::nary::{FaceDescent, MemberFace};
-use super::overlap::{OverlapRefusal, overlap};
-use super::{BooleanNaming, Operand};
+use super::overlap::{OverlapRefusal, overlap_as};
+use super::{BooleanNaming, BooleanOp, Operand};
 use crate::body::Body;
 use crate::entity::FaceKey;
 
@@ -232,11 +232,15 @@ impl Holdings {
     /// boolean keeps every kept face, and every finished face is a piece
     /// of one.
     pub(crate) fn of_records<T: Decide>(
+        op: BooleanOp,
         naming: &BooleanNaming,
         body: &Body<T>,
-        operands: [&Body<T>; 2],
+        (operands, clones): ([&Body<T>; 2], [Option<&Body<T>>; 2]),
         band: Band,
     ) -> Self {
+        // A subtract's result holds B's faces turned: a finished face is
+        // read against a face of B the other way round.
+        let turned = |place: usize| place == 1 && op == BooleanOp::Subtract;
         let descent = FaceDescent::of(naming);
         let place = |operand: Operand| usize::from(operand == Operand::B);
         let root = |operand: Operand, f: FaceKey| (place(operand), descent.clone_face(operand, f));
@@ -310,7 +314,7 @@ impl Holdings {
                 }
                 let mut held = Held::Faces(BTreeSet::new());
                 for m in maybe.difference(&set.clone()) {
-                    match overlap((body, f), (operands[m.0], m.1), band) {
+                    match overlap_as((body, f), ((operands[m.0], m.1), turned(m.0)), band) {
                         Ok(true) => {
                             set.insert(*m);
                         }
@@ -330,21 +334,45 @@ impl Holdings {
                 (f, held)
             })
             .collect();
-        // A lost region's operand face, or where a re-chart turned it,
-        // the refusal that names the turned face.
-        let lost_region = |r: MemberFace| match input(r)[..] {
-            [one] => Held::Faces(BTreeSet::from([one])),
-            _ => Held::Refused(HeldRefusal::Recharted { face: r }),
+        // What the region `face` of `operand`'s clone lost held: its
+        // operand face, or where a re-chart turned that face, those of
+        // the input shell's faces its region meets, read in the clone the
+        // operation kept (its own sense, as the operand's).
+        let lost_region = |operand: Operand, face: FaceKey| {
+            let r = root(operand, face);
+            let several = match input(r)[..] {
+                [one] => return Held::Faces(BTreeSet::from([one])),
+                ref several => several.to_vec(),
+            };
+            let Some(clone) = clones[r.0].filter(|c| c.get_face(face).is_some()) else {
+                return Held::Refused(HeldRefusal::Recharted { face: r });
+            };
+            let mut set = BTreeSet::new();
+            for m in several {
+                match overlap_as((clone, face), ((operands[m.0], m.1), false), band) {
+                    Ok(true) => {
+                        set.insert(m);
+                    }
+                    Ok(false) => {}
+                    Err(refusal) => {
+                        return Held::Refused(HeldRefusal::Overlap {
+                            member_face: m,
+                            refusal,
+                        });
+                    }
+                }
+            }
+            Held::Faces(set)
         };
         let lost = naming
             .discards
             .iter()
-            .map(|d| lost_region(root(d.operand, d.face)))
+            .map(|d| lost_region(d.operand, d.face))
             .collect();
         let uncut = naming
             .uncut
             .iter()
-            .map(|u| lost_region(root(u.operand, u.face)))
+            .map(|u| lost_region(u.operand, u.face))
             .collect();
         Self { faces, lost, uncut }
     }

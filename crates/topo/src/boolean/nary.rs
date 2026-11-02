@@ -658,13 +658,13 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             records_a,
             records_b: members[member].inputs.records.clone(),
         };
-        let clone_a = super::CloneSlot::default();
+        let clones = super::CloneSlot::default();
         let stepped = boolean_op_given(
             op.op(),
             acc,
             members[member].body,
             &inputs,
-            (given.as_deref(), Some(clone_a.clone())),
+            (given.as_deref(), Some(clones.clone())),
             sweep,
             tol,
         )
@@ -684,9 +684,9 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             None => Vec::new(),
         };
         lineage = lineage.step(member, &body.naming, &body.body);
-        let clone_a = clone_a
+        let clone_a = clones
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(std::sync::PoisonError::into_inner)[0]
             .take();
         let band = Band::linear(tol).unwrap_or_else(|e| {
             unreachable!(
@@ -718,8 +718,10 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 ///
 /// # Panics
 ///
-/// Where an operand face the step's holdings name is not a face of its
-/// operand, a discard of A's names a face `clone_a` does not hold, or a
+/// Where an accumulation face the step's holdings name has no holdings
+/// (the pair door checks each is a face of the accumulation where its
+/// result leaves the door), a discard of A's names a face `clone_a` does
+/// not hold, or a
 /// finished face holds no member face: the step's holdings are read from
 /// its final records, the pair door keeps its A clone wherever it
 /// discards A's faces, and every finished face is a piece of a member's.
@@ -738,12 +740,6 @@ fn lift<T: Decide>(
         let mut maybe = BTreeSet::new();
         for &(place, f) in operand_faces {
             if place == 1 {
-                if members[member].body.get_face(f).is_none() {
-                    unreachable!(
-                        "the fold step joining member {member} names its face {f:?}, which the \
-                         member does not hold, though its holdings are read from its final rows"
-                    );
-                }
                 exact.insert((member, f));
                 continue;
             }

@@ -69,6 +69,8 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     /// The A clone as the cuts left it, before the carve: the faces
     /// [`Self::discards`] names on A's side are its faces.
     pub clone_a: Body<T>,
+    /// The B clone as the cuts left it, before the carve.
+    pub clone_b: Body<T>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -421,6 +423,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         discards,
         carved_lineage,
         clone_a: red.a,
+        clone_b: red.b,
     })
 }
 

@@ -166,6 +166,22 @@ pub fn overlap<T: Decide>(
     b: (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
+    overlap_as(a, (b, false), band)
+}
+
+/// [`overlap`], `b` read in the sense it has in `a`'s frame: as its own
+/// body states it, or with `reversed` the other way, as a subtract's
+/// result holds the tool's faces. Its region is the same either way; its
+/// side of its own boundary, and its normal, turn.
+///
+/// # Errors
+///
+/// As [`overlap`].
+pub(crate) fn overlap_as<T: Decide>(
+    a: (&Body<T>, FaceKey),
+    (b, reversed): ((&Body<T>, FaceKey), bool),
+    band: Band,
+) -> Result<bool, OverlapRefusal> {
     for (body, face) in [a, b] {
         let f = body
             .get_face(face)
@@ -177,9 +193,9 @@ pub fn overlap<T: Decide>(
             return Err(OverlapRefusal::SplineCarrier { face });
         }
     }
-    one_sense(a, b, band)?;
+    one_sense(a, (b, reversed), band)?;
     let mut refused = None;
-    for (x, y) in [(a, b), (b, a)] {
+    for (x, y) in [((a, false), (b, reversed)), ((b, reversed), (a, false))] {
         if edge_witness(x, y, band, &mut refused)? {
             return Ok(true);
         }
@@ -191,7 +207,7 @@ pub fn overlap<T: Decide>(
 /// normals there, which must face one way.
 fn one_sense<T: Decide>(
     a: (&Body<T>, FaceKey),
-    b: (&Body<T>, FaceKey),
+    (b, reversed): ((&Body<T>, FaceKey), bool),
     band: Band,
 ) -> Result<(), OverlapRefusal> {
     let Some(&he) = loops(a)?.iter().flatten().next() else {
@@ -202,7 +218,7 @@ fn one_sense<T: Decide>(
     let (carrier, (t0, t1)) = edge_span(a.0, he)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
     let na = normal_at(a, p, band)?;
-    let nb = normal_at(b, p, band)?;
+    let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
         Margin::levered(na.dot(nb), T::one()),
@@ -215,6 +231,17 @@ fn one_sense<T: Decide>(
         }),
         Err(diag) => Err(OverlapRefusal::Senses(diag)),
     }
+}
+
+/// `n`, turned where `reversed`.
+fn turned<T: Decide>(n: Vec3<T>, reversed: bool) -> Vec3<T> {
+    if reversed { -n } else { n }
+}
+
+/// A face's corner as read `reversed`: the same sweep about the turned
+/// normal is the other way round about this one.
+fn as_read<T: Decide>((out, back): Corner<T>, reversed: bool) -> Corner<T> {
+    if reversed { (back, out) } else { (out, back) }
 }
 
 /// Face `face`'s outward normal at `p`, a point of its carrier.
@@ -445,9 +472,9 @@ fn corners_meet<T: Decide>(
 /// `y`: strictly inside it, or along its boundary with the two faces on
 /// one side.
 fn piece_witness<T: Decide>(
-    x: (&Body<T>, FaceKey),
+    (x, x_rev): ((&Body<T>, FaceKey), bool),
     he: HalfEdgeKey,
-    y: (&Body<T>, FaceKey),
+    (y, y_rev): ((&Body<T>, FaceKey), bool),
     q: Point3<T>,
     band: Band,
 ) -> Result<bool, OverlapRefusal> {
@@ -459,10 +486,10 @@ fn piece_witness<T: Decide>(
     if ys.is_empty() {
         return Ok(false);
     }
-    let n = normal_at(x, q, band)?;
-    let mine = half_plane(x.0, he, q)?;
+    let n = turned(normal_at(x, q, band)?, x_rev);
+    let mine = as_read(half_plane(x.0, he, q)?, x_rev);
     for cy in ys {
-        if corners_meet(mine, cy, n, band)? {
+        if corners_meet(mine, as_read(cy, y_rev), n, band)? {
             return Ok(true);
         }
     }
@@ -474,8 +501,8 @@ fn piece_witness<T: Decide>(
 /// first such refusal kept in `refused`; a boundary of `x` or `y` that
 /// cannot be read refuses at once.
 fn edge_witness<T: Decide>(
-    x: (&Body<T>, FaceKey),
-    y: (&Body<T>, FaceKey),
+    (x, x_rev): ((&Body<T>, FaceKey), bool),
+    (y, y_rev): ((&Body<T>, FaceKey), bool),
     band: Band,
     refused: &mut Option<OverlapRefusal>,
 ) -> Result<bool, OverlapRefusal> {
@@ -520,7 +547,7 @@ fn edge_witness<T: Decide>(
             cuts.push(t1);
             for w in cuts.windows(2) {
                 let q = carrier.eval(geom::mid_param(w[0], w[1]));
-                match piece_witness(x, he, y, q, band) {
+                match piece_witness((x, x_rev), he, (y, y_rev), q, band) {
                     Ok(true) => return Ok(true),
                     Ok(false) => {}
                     Err(r) => keep(r),

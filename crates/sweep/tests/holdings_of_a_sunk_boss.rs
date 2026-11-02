@@ -188,3 +188,59 @@ fn overlap_reads_wall_pieces_of_one_cylinder_by_their_spans() {
         "two pairs touch along a seam alone, four overlap"
     );
 }
+
+/// **Every op of a slab and two balls a re-chart turns reads every
+/// holding**: the balls' sphere faces are turned about their centres
+/// before the op runs (`topo::BooleanNaming::recharted`), so each
+/// finished face and each lost region of a turned face is read against
+/// the input shell's faces its region meets, a subtract's turned faces
+/// in the sense the result holds them.
+#[test]
+fn every_op_over_re_charted_balls_reads_every_holding() {
+    let t = tol();
+    let ball = |x: f64, y: f64| {
+        finished(
+            "the pip ball",
+            sweep::test_support::ball_poled_y(0.5, geom_core::Vec3::new(x, y, 1.2), t),
+            t,
+        )
+    };
+    let pair = topo::union(&ball(2.0, 1.2), &ball(2.0, 2.8), t)
+        .expect("disjoint balls assemble")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    let slab = finished("the slab", crate::common::operands::slab::<f64>(), t);
+    let mut turned = 0;
+    for op in [
+        topo::BooleanOp::Subtract,
+        topo::BooleanOp::Union,
+        topo::BooleanOp::Intersect,
+    ] {
+        let Ok(topo::BooleanResult::Body(out)) = topo::boolean_op_with(
+            op,
+            &slab,
+            &pair,
+            &topo::BooleanInputs::default(),
+            topo::SweepStrategy::Realized,
+            t,
+        ) else {
+            panic!("{op:?}: the op builds");
+        };
+        turned += usize::from(!out.naming.recharted[1].is_empty());
+        let rows = out
+            .holdings
+            .faces()
+            .map(|(_, h)| h)
+            .chain(out.holdings.lost_rows())
+            .chain(out.holdings.uncut_rows());
+        for held in rows {
+            assert!(
+                held.faces().is_some_and(|f| !f.is_empty()),
+                "{op:?}: a holding reads: {held:?}"
+            );
+        }
+    }
+    assert_eq!(turned, 3, "every op turns the balls' shells");
+}

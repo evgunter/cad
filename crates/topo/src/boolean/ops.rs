@@ -759,21 +759,23 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
 /// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
 /// the operation's only coincidences, and it decides none of its own.
-/// Where `clone_a` is `Some`, the operation puts its A clone there as its
-/// cuts left it ([`Glue::clone_a`]).
+/// The operation puts its operand clones as its cuts left them in
+/// `clones`, or in a slot of its own ([`Glue::clones`]), and reads its
+/// discarded fragments' regions there.
 pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
     inputs: &BooleanInputs,
-    (given, clone_a): (Option<&[super::GluedPair<T>]>, Option<super::CloneSlot<T>>),
+    (given, clones): (Option<&[super::GluedPair<T>]>, Option<super::CloneSlot<T>>),
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
+    let clones = clones.unwrap_or_default();
     let glue = Glue {
-        clone_a,
+        clones: Some(clones.clone()),
         ..Glue::of(inputs, given)
     };
     let mut result = boolean_door(op, a, b, &glue, strategy, tol);
@@ -782,7 +784,16 @@ pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // holdings are read here and nowhere else.
     if let Ok(BooleanResult::Body(out)) = &mut result {
         let band = Band::linear(tol)?;
-        out.holdings = Holdings::of_records(&out.naming, &out.body, [a, b], band);
+        let held = clones
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        out.holdings = Holdings::of_records(
+            op,
+            &out.naming,
+            &out.body,
+            ([a, b], [held[0].as_ref(), held[1].as_ref()]),
+            band,
+        );
         holdings_name_input_faces(&out.holdings, [a, b]);
     }
     #[cfg(feature = "door-tier3-meter")]
@@ -1238,7 +1249,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge_joins,
         killed_lineage,
     };
-    decls.keep_clone_a(|| fin.clone_a);
+    decls.keep_clone(Operand::A, || fin.clone_a);
+    decls.keep_clone(Operand::B, || fin.clone_b);
     Ok(BooleanResult::Body(BooleanBody {
         holdings: Holdings::unread(),
         body,
@@ -7895,8 +7907,10 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 discards,
                 ..BooleanNaming::default()
             };
-            if naming.discards.iter().any(|d| d.operand == Operand::A) {
-                decls.keep_clone_a(|| red.a.clone());
+            for (operand, clone) in [(Operand::A, &red.a), (Operand::B, &red.b)] {
+                if naming.discards.iter().any(|d| d.operand == operand) {
+                    decls.keep_clone(operand, || clone.clone());
+                }
             }
             Ok(BooleanResult::Body(BooleanBody {
                 holdings: Holdings::unread(),
@@ -8238,8 +8252,10 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             ..BooleanNaming::default()
         },
     };
-    if naming.discards.iter().any(|d| d.operand == Operand::A) {
-        decls.keep_clone_a(|| red.a.clone());
+    for (operand, clone) in [(Operand::A, &red.a), (Operand::B, &red.b)] {
+        if naming.discards.iter().any(|d| d.operand == operand) {
+            decls.keep_clone(operand, || clone.clone());
+        }
     }
     Ok(BooleanResult::Body(BooleanBody {
         holdings: Holdings::unread(),
