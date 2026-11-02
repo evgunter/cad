@@ -677,9 +677,13 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // four per attempt and the ladder recovers them and two more, the
     // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
     // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
+    // A cylinder rim's axial `cos t` and `sin t` terms are decided at
+    // `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
+    // `cylinder_rim_axial`, PR 6105), a decision the tier proves `Zero`:
+    // the annulus [654, 555] -> [666, 555] both ways.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [1149, 824], [1149, 824], 0),
-        ("r1_annulus", [654, 555], [654, 555], 0),
+        ("r1_annulus", [666, 555], [666, 555], 0),
         ("r1_segment_boss", [651, 531], [651, 531], 0),
         ("r2_filleted_bracket", [1537, 1155], [1543, 1149], 6),
         ("r2_link", [962, 805], [962, 805], 0),

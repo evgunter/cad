@@ -232,3 +232,8 @@ closed-row routing and #6093's re-bless).
   opt 0 is corrected: it does at 0, 1, `s` and `z`.
 - Not done, for a later row: a member-manifest edit that only adds a
   target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.
+
+## 2026-11-02 — editor-core interval and coincidence-door reds (lane `green/main-red-editor-core`)
+
+- Six interval rows bisect to PR 6105, CLEAR's `cylinder_rim_axial` decision. The four that are that decision's own symbolic count are re-blessed. m10_3's two drives refuse every leaf; they are pinned and filed on PCERT.
+- The coincidence door bisects to PR 6047 (SECT's rehome by path). It is pinned and filed on SECT at P0.

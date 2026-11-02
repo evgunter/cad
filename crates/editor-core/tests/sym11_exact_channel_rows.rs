@@ -60,11 +60,17 @@ use crate::m10_9_pins_interval::measured_studies;
 /// (`profile::seg`'s `line_line`, PR 5952). The plate 832 -> 824 (its
 /// rectangle's four corners, on each one's axis) and the bracket's by
 /// ten.
+///
+/// A cylinder rim's axial `cos t` and `sin t` terms are decided at
+/// `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
+/// `cylinder_rim_axial`, PR 6105), a decision the tier proves `Zero`:
+/// the annulus 654 -> 666 and the bracket 1542 -> 1556 symbolic, the
+/// other columns unmoved.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [1149, 824, 229]),
-    ("r1_annulus", [654, 555, 212]),
+    ("r1_annulus", [666, 555, 212]),
     ("r2_link", [962, 805, 2241]),
-    ("r2_filleted_bracket", [1542, 1159, 914]),
+    ("r2_filleted_bracket", [1556, 1159, 914]),
     ("r2_rounded_pad", [1616, 1262, 2476]),
 ];
 

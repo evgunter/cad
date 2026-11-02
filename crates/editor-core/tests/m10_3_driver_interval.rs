@@ -757,8 +757,21 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 /// was 0.022 until the circle stored its authored carrier), so an
 /// ε-scaled box does not split and a row about bisection has to be
 /// wider than that.
+///
+/// Pinned red at every ε row: since the cylinder rim's axial decision
+/// every leaf refuses (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
+    test_utils::pinned_red::row(
+        eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the two-parameter drive",
+        &["the box should certify SOMETHING: Receipt { certified: 0, refused: 4, splits: 3 }"],
+        the_two_parameter_drive_rows,
+    );
+}
+
+fn the_two_parameter_drive_rows() {
     let doc = two_param_plate(uniform(0.1), uniform(0.1));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
@@ -1147,8 +1160,21 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// above): a leaf that covers a band's WHOLE support prices as 1 by
 /// the band's own rule (`box_mass`), so the refusal this row is about
 /// needs a leaf that covers part of it, i.e. a drive that split.
+///
+/// Pinned red at every ε row, on the drive the row above pins
+/// (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
+    test_utils::pinned_red::row(
+        eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the banded two-parameter drive",
+        &["a band must not stop certification"],
+        a_band_parameter_rows,
+    );
+}
+
+fn a_band_parameter_rows() {
     let w = 0.1;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
