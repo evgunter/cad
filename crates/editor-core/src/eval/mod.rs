@@ -2104,8 +2104,7 @@ impl crate::spoken::Say for NodeErrorKind {
             } => write!(
                 f,
                 "{}'s seam declaration crosses at {} on the remainder and claims {} in \
-                 the part, which this version of the part does not name, so the crossing does \
-                 not re-verify. {}",
+                 the part, which this version of the part does not name. {}",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
                 // The part's own nodes and steps are another document's

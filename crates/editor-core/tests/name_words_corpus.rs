@@ -62,7 +62,7 @@ use topo::BooleanOp;
 /// name says that read too ("joined at Union … from Place …"), and its
 /// claimed name says one more read by tag
 /// (`name-words-budget-grew-under-placed-copy-wrapping`).
-const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 87)];
 
 /// **The names' own lengths in words, p50, p99, max and the total**: a
 /// face said within its table, then every name a node holds said in

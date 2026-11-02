@@ -350,7 +350,11 @@ impl crate::spoken::Say for SelectRefusal {
             Self::NotAPlane { face } => {
                 f.write_str("select: the query measures from ")?;
                 named(f, face)?;
-                f.write_str(", which is not planar — point a distance query at a planar face")
+                write!(
+                    f,
+                    ", which is not planar. {}",
+                    crate::sentence::Recourse("point a distance query at a planar face")
+                )
             }
             Self::FaceUnresolved { face } => {
                 f.write_str("select: the query measures from ")?;

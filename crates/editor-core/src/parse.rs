@@ -237,8 +237,10 @@ impl core::fmt::Display for ParseError {
             ),
             Self::RatioPartNotInteger { pos, text } => write!(
                 f,
-                "parse: byte {pos}: {text:?} is a ratio, whose parts are integers — write the \
-                 decimal it means, or space the slash to divide"
+                "parse: byte {pos}: {text:?} is a ratio, whose parts are integers. {}",
+                crate::sentence::Recourse(
+                    "write the decimal it means, or space the slash to divide"
+                )
             ),
             Self::IntegerOverflow { pos, text } => write!(
                 f,
