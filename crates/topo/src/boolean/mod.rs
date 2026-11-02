@@ -2117,14 +2117,17 @@ pub struct HalfGerm<T: Real> {
 /// read by a frame, a section of two loops — a plane cutting a torus in
 /// two circles or two ovals, two equal cylinders with intersecting axes
 /// in two bisector-plane ellipses — tells its loops apart by a margin at
-/// a point of the section (`ring_path::LoopSplit`). Either is decided
+/// a point of the section (`ring_path::LoopSplit`); a section of two
+/// lines through a point — a plane through a cone's apex — tells its
+/// lines apart by the line a germ's site lies on, or at the point the
+/// line it runs along. Each is decided
 /// once, at the germ's site where the germ is minted, and every reader
 /// of the germ takes its loop from here: the join's matching and frames,
 /// and each side's chord. Both operands' germs of one slot carry the
 /// same branch, read at the A site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Branch {
-    /// The section is one loop, loops sharing one frame, or straight;
+    /// The section is one loop, loops sharing one frame, or one line;
     /// or the germ runs along an edge, whose own curve it rides.
     Only,
     /// The loop on the split's positive side.
@@ -2133,6 +2136,10 @@ pub enum Branch {
     Negative,
     /// The component of the pair's carried section with this index.
     Component(usize),
+    /// The line with this index of a straight section of two lines
+    /// through one point: a plane through a cone's apex, in the order
+    /// the pair's one reading returns them (`join::apex_line`).
+    Line(usize),
 }
 
 /// One minted boolean null edge with its F9 side attribute (below ≙ IN
@@ -2531,6 +2538,10 @@ pub enum LineUnread {
     /// other or to the face for its side of them to be placed: a sliver
     /// or a thin wedge, within the input tolerance.
     Unplaced,
+    /// A face's edge reads on one side of a face of the other operand
+    /// along its own extent and on the other at its point there: the two
+    /// stand within the input tolerance of each other near the line.
+    Contradicted,
 }
 
 /// One sector read of a vertex, named in
@@ -2721,8 +2732,7 @@ impl SlitFaceGap {
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
 /// placement driver that slides a part along its axis when it reads
-/// `OnBoundary`, which moves the seam or rim off the node, and turns it
-/// when it reads `NearlyParallel`, which no slide mends. Then carry it
+/// `OnBoundary`, which moves the seam or rim off the node. Then carry it
 /// and delete this paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeWhy {
@@ -2734,9 +2744,6 @@ pub enum NodeWhy {
     /// A crossing of an edge of one operand with the other's wall lies
     /// at the node: its germ reads neither ellipse.
     GermOnNode,
-    /// The node's arcs cannot be told apart by their turn toward an
-    /// axis: the axes are this nearly parallel at the walls' radius.
-    NearlyParallel,
 }
 
 thread_local! {
@@ -3482,18 +3489,6 @@ pub enum BooleanError {
         operand: Operand,
         /// The pierced face, a key of the other operand's working copy.
         face: FaceKey,
-    },
-    /// Under union, a plane face of each operand lies on the other's
-    /// with opposed normals at a pair of their vertices, and the two
-    /// faces' outlines leave the vertex tangent, one curving inside the
-    /// other: the faces overlap in a crescent that narrows to the vertex,
-    /// which the section cannot reach (`sectors::crescent_refusal` says
-    /// why).
-    TangentCrescentUnsupported {
-        /// A's face, a key of A's working copy.
-        a_face: FaceKey,
-        /// B's face, a key of B's working copy.
-        b_face: FaceKey,
     },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
@@ -4344,8 +4339,6 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
-    /// [`BooleanError::TangentCrescentUnsupported`].
-    TangentCrescentUnsupported,
     /// [`BooleanError::CrossingsAlongAContactLine`].
     CrossingsAlongAContactLine,
     /// [`BooleanError::LineMaterialUnread`].
@@ -4606,7 +4599,6 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
-            Self::TangentCrescentUnsupported { .. } => BooleanErrorKind::TangentCrescentUnsupported,
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::LineMaterialUnread { .. } => BooleanErrorKind::LineMaterialUnread,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
@@ -5140,10 +5132,6 @@ impl core::fmt::Display for BooleanError {
                         "move or turn the parts so that no edge of either part meets a wall \
                          at a crossing point",
                     ),
-                    NodeWhy::NearlyParallel => (
-                        "where they cross when the axes are this nearly parallel",
-                        "turn the parts so that their axes cross at a wider angle",
-                    ),
                 };
                 write!(
                     f,
@@ -5261,14 +5249,6 @@ impl core::fmt::Display for BooleanError {
                  way through this in the kernel yet",
                 operand_word(*operand)
             ),
-            Self::TangentCrescentUnsupported { .. } => write!(
-                f,
-                "a flat face of each part lies on the other's, and their outlines touch at a \
-                 point where one curves inside the other, so the faces share a sliver that \
-                 narrows to that point, which a union cannot yet join (subtract and \
-                 intersect can). Recourse: move one part so the two outlines cross or stay \
-                 clear of each other there"
-            ),
             Self::CrossingsAlongAContactLine { .. } => write!(
                 f,
                 "the solids meet along a line where pieces of one or both touch, and \
@@ -5291,6 +5271,10 @@ impl core::fmt::Display for BooleanError {
                     LineUnread::Unplaced => {
                         "the other solid's faces about it lie within ε_input of each other or \
                          of a face of the first"
+                    }
+                    LineUnread::Contradicted => {
+                        "a face's edge reads on one side of a face of the other solid along \
+                         itself and on the other at its end"
                     }
                 }
             ),
@@ -6299,7 +6283,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     // The nodes of the equal cylinder pairs' sections, each a ring in
     // both walls (`node::mint_nodes`).
     let walls = glue::overlapping_pairs(a_operand, b_operand, node::is_wall, band)?;
-    for ring in node::mint_nodes((&mut a, &mut b), (a_operand, b_operand), &walls, band, tol)? {
+    for ring in node::mint_nodes(
+        &declared.sections,
+        (&mut a, &mut b),
+        (a_operand, b_operand),
+        &walls,
+        band,
+        tol,
+    )? {
         null_edges.extend(ring.edges)?;
         null_pairs.extend(ring.pairs);
         pierce_rings.push(ring.ring);
@@ -6395,19 +6386,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let sectors::PairSearch {
-            mut records,
-            touching,
-        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
-        if op == BooleanOp::Union {
-            sectors::crescent_refusal(
-                [&a, &b],
-                [&a_sectors, &b_sectors],
-                &touching,
-                &contacts,
-                band,
-            )?;
-        }
+        let mut records =
+            sectors::pair_search([&a, &b], [&a_sectors, &b_sectors], &contacts, band)?;
         // A partner along the touched face, its side unread, refuses
         // where a sector pair lies on one plane, before `recl_sectors`
         // reads one.
@@ -7607,12 +7587,7 @@ fn verify_tangency<T: Decide>(
                 let (rim, identity) = rim_wedge::shared_rim(a, fa, b, fb, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                let circle = geom::Curve3::Circle {
-                    center: rim.center,
-                    axis: rim.axis,
-                    radius: rim.radius,
-                    u_ref: rim.u_ref,
-                };
+                let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
                 (
                     circle,
                     T::zero(),
@@ -7699,12 +7674,7 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let circle = geom::Curve3::Circle {
-        center: rim.center,
-        axis: rim.axis,
-        radius: rim.radius,
-        u_ref: rim.u_ref,
-    };
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -7822,19 +7792,20 @@ fn conic_reach<T: Decide>(
             let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
             let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
                 geom::Curve3::Line(_) => continue,
-                geom::Curve3::Circle {
-                    center,
-                    axis,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } => (center, radius * axis.cross(dir).norm()),
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
+                }) => (center, radius * axis.cross(dir).norm()),
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     semi_u,
                     semi_v,
-                    u_ref,
-                } => (
+                }) => (
                     center,
                     ((semi_u * u_ref.dot(dir)).powi(2)
                         + (semi_v * axis.cross(u_ref).dot(dir)).powi(2))
@@ -8124,12 +8095,10 @@ fn boundary_cuts<T: Decide>(
                         Err(_) => unsure = true,
                     }
                 }
-                geom::Curve3::Circle {
-                    center,
-                    axis,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } => {
+                }) => {
                     let in_plane = conic(center, axis, &mut meetings);
                     unsure |= in_plane.is_none();
                     if in_plane == Some(true) {
@@ -8142,13 +8111,16 @@ fn boundary_cuts<T: Decide>(
                         );
                     }
                 }
-                geom::Curve3::Ellipse {
-                    center,
-                    axis,
+                geom::Curve3::Ellipse(geom::Ellipse {
+                    frame:
+                        geom::Frame {
+                            center,
+                            axis,
+                            u_ref,
+                        },
                     semi_u,
                     semi_v,
-                    u_ref,
-                } => {
+                }) => {
                     let in_plane = conic(center, axis, &mut meetings);
                     unsure |= in_plane.is_none();
                     if in_plane == Some(true) {
@@ -9231,10 +9203,6 @@ mod tests {
                 operand: Operand::A,
                 face,
             },
-            BooleanError::TangentCrescentUnsupported {
-                a_face: face,
-                b_face: face,
-            },
             BooleanError::CrossingsAlongAContactLine {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
@@ -9485,7 +9453,6 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
-                BooleanErrorKind::TangentCrescentUnsupported => "TangentCrescentUnsupported",
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::LineMaterialUnread => "LineMaterialUnread",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",

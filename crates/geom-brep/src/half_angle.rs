@@ -800,7 +800,7 @@ fn subdivision<T: Decide>(
     // are moved along their pieces, so the last piece runs past the
     // half-turn. Of the two adjacent scalars a bracket closes on, a steep
     // residual can read ON at one only, and their midpoint rounds onto
-    // either. Sound at every scalar by `ring_path::branch`'s window
+    // either. Sound at every scalar by `geom::on_span_branch`'s window
     // re-centring argument. `rows.side` reads the residual, which is
     // periodic. The readers read an end of a whole-turn span alike: the
     // wall crossing's `at_end`, and the ruling's fixed `(−π, π)` window,

@@ -226,12 +226,7 @@ fn general_circle(sphere: &Surface<f64>, s: &mut fuzz::Rng) -> (Curve3<f64>, f64
     let u_ref = n.cross(unit(s)).normalize();
     let t0 = s.range(-TAU, TAU);
     (
-        Curve3::Circle {
-            center: center + n * d,
-            axis: n,
-            radius: (radius * radius - d * d).sqrt(),
-            u_ref,
-        },
+        Curve3::circle(center + n * d, n, (radius * radius - d * d).sqrt(), u_ref),
         t0,
         t0 + s.range(0.3, 4.0),
     )
@@ -921,12 +916,12 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     };
     let tilt = 0.4_f64;
     let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: n,
-        radius: 1.0,
-        u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
-    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        n,
+        1.0,
+        Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+    );
     let image = project(&circle, Some((0.2, 1.4)), &sphere, b).expect("clear of the poles");
     let mut turned = image.clone();
     turned.azimuth[0] += 2;
@@ -953,12 +948,12 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     // The piece holding the pole refuses its sector, definitely or, where
     // the refinement leaves its margin within the band (a coarse ε), by
     // escalating that same decision.
-    let polar = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.3, 0.9, 0.0).normalize(),
-        radius: 1.0,
-        u_ref: Vec3::unit_z(),
-    };
+    let polar = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.3, 0.9, 0.0).normalize(),
+        1.0,
+        Vec3::unit_z(),
+    );
     let err = project(&polar, Some((-0.5, 0.5)), &sphere, b).expect_err("through the pole");
     assert!(
         matches!(
@@ -1104,12 +1099,12 @@ fn unit_sphere() -> Surface<f64> {
 /// plane at `d` from the centre along `n` (`tilt` from the axis).
 fn tilted_on(r: f64, tilt: f64, d: f64) -> Curve3<f64> {
     let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
-    Curve3::Circle {
-        center: Point3::origin() + n * d,
-        axis: n,
-        radius: (r * r - d * d).sqrt(),
-        u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
-    }
+    Curve3::circle(
+        Point3::origin() + n * d,
+        n,
+        (r * r - d * d).sqrt(),
+        Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+    )
 }
 
 /// The envelope of `c` over `[t0, t1]` on `surf`, derived and certified

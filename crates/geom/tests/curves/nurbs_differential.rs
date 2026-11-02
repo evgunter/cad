@@ -66,12 +66,7 @@ fn nurbs_circle() -> NurbsCurve3<f64> {
 }
 
 fn analytic_circle() -> Curve3<f64> {
-    Curve3::Circle {
-        center: center(),
-        axis: axis(),
-        radius: RADIUS,
-        u_ref: u_ref(),
-    }
+    Curve3::circle(center(), axis(), RADIUS, u_ref())
 }
 
 /// Independent Bernstein oracle: hom point and derivatives (w.r.t. the

@@ -141,8 +141,9 @@ pub use edge_nurbs::{
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
     ParallelSense, ReferenceNormal, TiedGermsError, WallBend, WallBendError, bends_into_material,
-    departure_side_reported, enters_material, enters_material_order2, enters_material_reported,
-    normal_alignment, parting, parting_side, rise, tied_germ_turn,
+    departure_arm, departure_side_reported, enters_material, enters_material_order2,
+    enters_material_reported, normal_alignment, parting, parting_arm, parting_side, rise,
+    tied_germ_turn,
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
@@ -154,13 +155,13 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, Conic, ConicHarmonics, ConicTorusHarmonics,
-    SurfaceSide, circle_arc_residual_range, circle_residual_curvature_bound,
-    circle_residual_extremes, circle_sphere_harmonic, cone_elevation, conic_arc_residual_range,
-    conic_cone_harmonics, conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual,
-    conic_residual_extremes, conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit,
-    conic_torus_jet, conic_torus_residual, curvature_lever_arm, graph_acceleration,
-    implicit_gradient, implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
+    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, ConicHarmonics, ConicTorusHarmonics, SurfaceSide,
+    circle_arc_residual_range, circle_residual_curvature_bound, circle_residual_extremes,
+    circle_sphere_harmonic, cone_elevation, conic_arc_residual_range, conic_cone_harmonics,
+    conic_cone_residual, conic_cylinder_harmonics, conic_quadric_residual, conic_residual_extremes,
+    conic_sphere_harmonics, conic_torus_harmonics, conic_torus_implicit, conic_torus_jet,
+    conic_torus_residual, curvature_lever_arm, graph_acceleration, implicit_gradient,
+    implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
     implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
     implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
@@ -196,13 +197,13 @@ pub use pair_section::{
     AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
     ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
     CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
-    Gap, KnownPair, KnownRow, PairPose, PairSection, PoseRefusal, Reached, RegionPlacement, Ring,
-    Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    Gap, KnownPair, KnownRow, NodeSet, PairPose, PairSection, PoseRefusal, Reached,
+    RegionPlacement, Ring, Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot,
+    SiteRefusal, SphereTorusPose, SplineImplicitPose, SplinePairPose, SquareWall, SsiLane,
+    StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum,
+    TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn,
+    Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt, pair_section,
+    spline_pair_section, square_part, tori_coincide,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

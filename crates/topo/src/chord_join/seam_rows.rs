@@ -9,13 +9,11 @@ use super::*;
 const A: f64 = 1e4;
 
 fn conic() -> SectionConic<f64> {
-    section_conic(geom::Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        semi_u: A,
-        semi_v: 1.0,
-        u_ref: Vec3::unit_x(),
-    })
+    section_conic(geom::Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        A,
+        1.0,
+    )))
     .unwrap()
 }
 
@@ -41,24 +39,14 @@ fn the_seam_goes_to_the_nearest_principal_vertex() {
         (pi, -Vec3::unit_x(), A),
     ] {
         let s = conic().seamed_near(theta);
+        let (s_seam, (s_sa, _)) = (s.conic().frame().u_ref, s.conic().semi_axes());
         assert!(
-            (s.seam - seam).norm() == 0.0 && s.sa == sa,
-            "θ = {theta}: {:?} {}",
-            s.seam,
-            s.sa
+            (s_seam - seam).norm() == 0.0 && s_sa == sa,
+            "θ = {theta}: {s_seam:?} {s_sa}"
         );
-        let geom::Curve3::Ellipse {
-            semi_u,
-            semi_v,
-            u_ref,
-            ..
-        } = s.carrier
-        else {
-            panic!("an ellipse stays one")
-        };
         assert!(
-            semi_u == s.sa && semi_v == s.sb && (u_ref - s.seam).norm() == 0.0,
-            "θ = {theta}: the carrier is the frame"
+            matches!(s.carrier, geom::Curve3::Ellipse(_)),
+            "θ = {theta}: an ellipse stays one"
         );
         for t in [0.0, 1.0, 2.5, -2.0] {
             let p = s.carrier.eval(t);
@@ -69,16 +57,16 @@ fn the_seam_goes_to_the_nearest_principal_vertex() {
             );
         }
     }
-    let circle = section_conic(geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    })
+    let circle = section_conic(geom::Curve3::circle(
+        Point3::origin(),
+        Vec3::unit_z(),
+        1.0,
+        Vec3::unit_x(),
+    ))
     .unwrap()
     .seamed_near(core::f64::consts::FRAC_PI_2);
     assert_eq!(
-        (circle.seam - Vec3::unit_x()).norm(),
+        (circle.conic().frame().u_ref - Vec3::unit_x()).norm(),
         0.0,
         "a circle keeps its seam"
     );

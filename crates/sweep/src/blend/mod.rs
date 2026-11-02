@@ -1072,7 +1072,7 @@ pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlar
 /// material facing each other — a cusp or slit — and for a convexity
 /// sign in band. A cusp's or slit's blend is defined (its rolling ball
 /// rests where the supports' offsets meet, away from the edge) but not
-/// built: `work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`. So the sentence asks for the edge to be left out
+/// built: `work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`. So the sentence asks for the edge to be left out
 /// of the request. Both verbs meter the dihedral, so it speaks of the
 /// blend, not the ball.
 pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle, or leave a cusp or \
@@ -1519,7 +1519,7 @@ pub enum BlendError {
     /// supports' `r`-offsets meet and touching them away from the edge,
     /// where they open to `2r` (the concave fill between two tangent
     /// cylinders, centre at `R + r` from both axes); that construction
-    /// is not built (`work/bandrule/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`). (Zero with
+    /// is not built (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`). (Zero with
     /// the normals aligned is the smooth seam, which the verb leaves
     /// as it is.) Distinct from [`BlendError::ConvexitySignFlip`]: a
     /// `Zero` edge does not disagree with the chain's convexity — none

@@ -386,7 +386,7 @@ fn walls_touching_outside_are_one_point() {
 /// band, and the sweep escalates on `ruling_cut` instead).
 /// The march then refuses typed: limb 3 cannot prove one arc in the tube
 /// of either 2 m, nearly parallel arc (`ssi_tube_one_arc` undecided;
-/// `work/ssimarch/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
+/// `work/ssiarith/limb-three-reads-no-margin-on-a-long-near-parallel-cylinder-arc.md`).
 #[test]
 fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     let r = 1e-3;
@@ -784,6 +784,28 @@ fn a_region_through_a_branch_point_escalates() {
             carried.components().len(),
             got.len(),
             "{what}: one branch per arc"
+        );
+    }
+}
+
+/// **A branch point on one of the sweep's first cuts is counted**:
+/// perpendicular walls `r = 0.5` about `z` and `ρ = 0.2` about `x`, the
+/// gap `e = 0.5 − 0.2·cos(π/4)` placing a branch point of the thinner
+/// wall's sweep at `φ = π/4` or `3π/4` (as the frame falls), both cuts of
+/// the turn's first 32. There `Δ` reads zero, so a cell ending there
+/// could not decide its end; the sweep cuts off the zero and counts the
+/// one loop the region holds, in both orders.
+#[test]
+fn a_branch_point_on_a_first_cut_is_counted() {
+    let a = drum();
+    let e = 0.5 - 0.2 * core::f64::consts::FRAC_PI_4.cos();
+    let b = wall(Point3::new(0.0, e, 0.0), Vec3::unit_x(), 0.2);
+    for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+        let section = built(x, y, region());
+        let got = listed(&section);
+        assert!(
+            got.len() == 1 && got[0].shape == ComponentShape::Loop,
+            "{label}: one loop, {got:?}"
         );
     }
 }

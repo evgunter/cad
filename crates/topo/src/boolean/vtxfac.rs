@@ -170,9 +170,20 @@ impl<T: Decide> PierceDatum<T> {
         reach: super::sectors::Reach<T>,
         band: Band,
     ) -> Result<SideCode, BooleanError> {
+        self.side_on(dir, reach, crate::link::metric::Reading::plain(band))
+    }
+
+    /// [`Self::side`] on the reading `rd`: a cone's over its tie, where
+    /// the side is handed to that cone ([`crate::link::Cone::reading`]).
+    pub(super) fn side_on(
+        self,
+        dir: Vec3<T>,
+        reach: super::sectors::Reach<T>,
+        rd: crate::link::metric::Reading<T>,
+    ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.length());
-        super::sectors::pierce_side(dir, reach, self.normal, self.bend, lever, band)
-            .map(|read| read.code)
+        super::sectors::pierce_side_reported(dir, reach, self.normal, self.bend, lever, rd)
+            .map(|(read, _)| read.code)
     }
 
     /// Whether the face holds a line along `dir`, read off its bound
@@ -321,7 +332,7 @@ pub(crate) fn cone_classes<T: Decide>(
         .collect();
     let cone = crate::link::Cone::gathered(p, corners, touched.map(|(_, normal, _)| normal.vec()))
         .map_err(|_| invariant("a vertex's partners and touched face hold no face at its point"))?;
-    let disc = cone.whole_planes().first().copied();
+    let disc = cone.inside(0);
     let mut rows = Vec::with_capacity(bounds.len());
     for (he, q) in bounds {
         let given: Vec<_> = disc
@@ -467,7 +478,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             // pierce at (`chart`); one it placed at none refuses C5's
             // typed refusal, naming the kind. That `p` has no second foot
             // on another in-trim sheet within the band is the placement's
-            // claim (`work/spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot`).
+            // claim (`work/splice/the-spline-placement-read-certifies-no-second-in-trim-foot`).
             Ok(None) => {
                 use crate::face_normal::SplineNormalError;
                 let uv = chart.ok_or_else(unbuilt)?;
@@ -566,10 +577,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             .iter()
             .map(|s| {
                 let Some(planes) = super::node::bisectors(
+                    &declared.sections,
                     (&*piercing_body, piercing, s.face),
                     (pierced_body, contact.face),
-                    band,
-                ) else {
+                )?
+                else {
                     return Ok(None);
                 };
                 let faces = match piercing {
@@ -605,7 +617,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 plane,
                 super::sectors::FaceBend::Plane,
                 super::sectors::NO_CURVATURE(),
-                band,
+                crate::link::metric::Reading::plain(band),
             ),
             None => pierce_side_reported(
                 s.end,
@@ -613,7 +625,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 n_pierced,
                 pierced_bend,
                 pierced_lever.within(s.end_reach.length()),
-                band,
+                crate::link::metric::Reading::plain(band),
             ),
         };
         let (read, on) = match side {
@@ -871,11 +883,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         };
         let (dir, branch) = match (on_wall[t], branch) {
             (Some(plane), Some(branch)) => (pierce_germ_dir(s, plane.vec(), out, band)?, branch),
-            _ => (
+            _ => {
                 // A tangent sector's germ runs along its bound on the
                 // tangency locus, where its plane and the pierced face's
                 // tangent plane are one.
-                match (tangent[t], codes, s.apex()) {
+                let dir = match (tangent[t], codes, s.apex()) {
                     (true, (SideCode::On, _), _) => Leaned::upright(s.start.normalize()),
                     (true, (_, SideCode::On), _) => Leaned::upright(s.end.normalize()),
                     // At a cone's apex a bound the plane holds is a section
@@ -889,16 +901,20 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                         band,
                     )?),
                     _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
-                },
-                germ_branch(
+                };
+                let branch = germ_branch(
                     &declared.sections,
                     (&*piercing_body, pierced_body),
                     piercing,
                     cells,
-                    p,
+                    (p, dir.dir),
                     band,
-                )?,
-            ),
+                )?;
+                if !tangent[t] && s.apex().is_some() {
+                    apex_germ_on_a_line(cells.1, branch)?;
+                }
+                (dir, branch)
+            }
         };
         Ok((cells, dir, branch))
     };
@@ -1430,9 +1446,9 @@ fn ring_struts<T: Decide>(
 /// vertex there, so each wall takes a ring vertex at the node
 /// ([`ring_vertex_in`]) and the section's four arcs leave it.
 ///
-/// The arcs' tangents are `tangents` (`e₁`'s, then `e₂`'s, either way
-/// along each), `axes` the walls' axes, A's first, and `radial` the
-/// node less the axes' meeting point. Round the node each wall's four
+/// The arcs' tangents are `tangents`, the pose's bisector normals
+/// (`e₁`'s along `â₁ + â₂`, then `e₂`'s along `â₁ − â₂`, with `â₁` A's
+/// wall's axis), and `radial` the node less the axes' meeting point. Round the node each wall's four
 /// sectors between the arcs alternate sides of the other cylinder (the
 /// section table's `nodes`): on A's wall the sectors about `±â₁` lie
 /// outside B's cylinder and those about `±â₂` inside; on B's wall the
@@ -1456,9 +1472,7 @@ fn ring_struts<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::NodeUnbuilt`] for arcs whose turn toward the axis
-/// reads Zero at the walls' radius; either
-/// face's normal refusing at the node; [`germ_order`]'s and
+/// Either face's normal refusing at the node; [`germ_order`]'s and
 /// [`mint_ring`]'s refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
@@ -1466,7 +1480,6 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     faces: (crate::entity::FaceKey, crate::entity::FaceKey),
     (node, radial): (geom_core::Point3<T>, Vec3<T>),
     tangents: [Vec3<T>; 2],
-    axes: [Vec3<T>; 2],
     arm: T,
     band: Band,
     tol: Tol,
@@ -1502,37 +1515,20 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         sense(Operand::A, a, faces.0)?,
         sense(Operand::B, b, faces.1)?,
     );
-    let run_axis = if a_rod { axes[0] } else { axes[1] };
     // The walls' outward normals at the node are both `±radial`, so
     // they agree where the senses do and are opposed where they differ.
     let normals_agree = a_rod == b_rod;
     // Each tangent turned toward that axis, so a run's two germs bound
     // the sector about it and their opposites the one about its
-    // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
-    // between the axes: the pair's parallel gate decided `θ` apart at
-    // the walls' span, and a turn too small to read at their radius is a
-    // node this pass cannot build.
-    let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
-        match decide(
-            "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(run_axis), arm),
-            band,
-        ) {
-            Ok(Sign::Positive) => Ok(t),
-            Ok(Sign::Negative) => Ok(-t),
-            Ok(Sign::Zero) => Err(BooleanError::NodeUnbuilt {
-                a_face: faces.0,
-                b_face: faces.1,
-                why: super::NodeWhy::NearlyParallel,
-            }),
-            Err(diag) => Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
-                diag,
-            )),
-        }
-    };
-    let (g1, g2) = (toward(tangents[0])?, toward(tangents[1])?);
+    // opposite. The tangents are the pose's bisector normals, `e₁`'s
+    // along `â₁ + â₂` and `e₂`'s along `â₁ − â₂` (the pose's own
+    // `bisector_planes`), whose sides of each axis are fixed by their
+    // construction once the pose decided the axes crossing: `â₁ + â₂`
+    // leans toward both axes, `â₁ − â₂` toward `â₁` and away from `â₂`,
+    // each by `cos(θ/2)` or `sin(θ/2)`. No margin is read here: a turn
+    // too small to tell is the pose's parallelism, decided before any
+    // node exists.
+    let (g1, g2) = (tangents[0], if a_rod { tangents[1] } else { -tangents[1] });
     let germ = |d: Vec3<T>, branch| -> Germ<T> { (cells, Leaned::upright(d), branch) };
     let (on_e1, on_e2) = (super::Branch::Positive, super::Branch::Negative);
     // A run's start is the germ its sector is entered by, turning
@@ -2064,7 +2060,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 (piercing_body, pierced_body),
                 piercing,
                 cells,
-                p,
+                (p, Leaned::of_line(int).dir),
                 band,
             )?,
             on,
@@ -2726,6 +2722,30 @@ fn pierce_apex_germ<T: Decide>(
     })
 }
 
+/// **A pierce germ at a cone's apex rides a line of its pair's one
+/// reading.** Its direction is a section ruling read off the sector's
+/// own plane and reach ([`pierce_apex_germ`],
+/// `chord_join::apex_section_ruling`), a reading of the pair beside the
+/// glue door's one ([`super::join::germ_branch`]). A germ inside a face
+/// of each operand whose branch names no line is a ruling the pair's
+/// reading reads as no line pair: the two readings disagree, refused as
+/// a desync rather than matched on either. A germ along an edge rides
+/// the edge's curve, and names no line.
+pub(super) fn apex_germ_on_a_line(
+    loci: (super::Locus, super::Locus),
+    branch: super::Branch,
+) -> Result<(), BooleanError> {
+    match (loci, branch) {
+        ((super::Locus::InFace(_), super::Locus::InFace(_)), super::Branch::Only) => {
+            Err(BooleanError::JoinDesync {
+                what: "a pierce germ at a cone's apex runs along a section ruling where its \
+                       pair's one reading reads no line pair",
+            })
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Which bound of a pierce transition sector the Out run holds: the
 /// other reads In.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2748,7 +2768,8 @@ type Germ<T> = (
 );
 
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
-/// pierce point `p` with the piercing and pierced bodies in that order.
+/// pierce point `p` along the germ's direction `dir`, with the piercing
+/// and pierced bodies in that order.
 fn germ_branch<T: Decide>(
     sections: &super::section_table::SectionTable<T>,
     (piercing_body, pierced_body): (&Body<T>, &Body<T>),
@@ -2757,14 +2778,14 @@ fn germ_branch<T: Decide>(
         (crate::entity::FaceKey, crate::entity::FaceKey),
         (super::Locus, super::Locus),
     ),
-    p: geom_core::Point3<T>,
+    (p, dir): (geom_core::Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<super::Branch, BooleanError> {
     let (a, b) = match piercing {
         Operand::A => (piercing_body, pierced_body),
         Operand::B => (pierced_body, piercing_body),
     };
-    super::join::germ_branch(sections, (a, faces.0), (b, faces.1), loci, p, band)
+    super::join::germ_branch(sections, (a, faces.0), (b, faces.1), loci, (p, dir), band)
 }
 
 /// A germ as the join reads it: its unit direction alone. Its lean
@@ -3033,7 +3054,7 @@ mod tests {
                 up,
                 crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),
-                band,
+                crate::link::metric::Reading::plain(band),
             )
             .unwrap();
             assert_eq!(side.code, On, "f {f}: the bisector reads On");
@@ -3115,12 +3136,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let o = Point3::new(0.0, 0.0, 0.0);
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let arc = geom::Curve3::Circle {
-            center: o + z,
-            axis: x.cross(z),
-            radius: 1.0,
-            u_ref: -z,
-        };
+        let arc = geom::Curve3::circle(o + z, x.cross(z), 1.0, -z);
         let span = core::f64::consts::FRAC_PI_2;
         let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, 2f64.sqrt());
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);

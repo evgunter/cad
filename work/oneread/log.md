@@ -34,3 +34,74 @@
 - 2026-11-02 — PR 6363 (edge-sector, option 1) handed back green at `55f2d021`: 6253's keys kept, Table II folded to one-flank-inside, the four table types deleted, the line cone dropped at this site; decision diff 0 moves over 124k calls at three ε and the 354 slow contact-line/edge-in-face tests. **Tier changed from dual to single FULL review**: what remains is a cell-for-cell re-spelling of a table whose equivalence the diff measures, no longer the reader change the dual was set for. (ONEREAD orchestrator)
 - 2026-11-02 — PR 6363 single review (`session_013QoYWUVjQZrs11yZhwGK3u`): APPROVE-WITH-FIXES, all claims held. Fix pass sent: a topo row for the glued-tangency cell (its `tangent_lump` inversion survived all of topo ci, caught by one sweep test), a direct mixed-cell germ row, tables.rs's header, `lump` fail-loud on On, the source-anchored Fig. 18 example restored, one spelling of 'which flanker is On'. (ONEREAD orchestrator)
 - 2026-11-02 — Lane 1 handed back PR 6378 (`ba857ae4`, green): `bound_side` reads both orders on the caller's `Reading`; `reads_given` under rule 3 (`Contradicted`); `WholePlane` gone; the held-face bypass closed; diff 0 decided readings changed except one fuzz family that encoded main's override and now refuses. Dual tier, letter M: rule 1's draw byte 5 (mod 3 = 2) → SEQUENTIAL; one review dispatched (`session_013QoYWUDEDxtcCxa7i4Smzm`) on the frozen head. Filed by the lane: P3 `a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie`, P2 `vtxfac-partner-side-reads-a-partners-bounds-on-the-band-beside-its-tie`. (ONEREAD orchestrator)
+
+- 2026-11-02 — PR 6363 fix pass reported (`8bab8116`, green): F1 is held on its Out side by the stadium (in the CI set); the In side is a disabled red pending TANGRIM's filed join row `a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op` (P2 M). F2–F6 are met: `edge_sector_crossing` is one pure function, pinned cell by cell and with Fig. 18 restored; the lump fails loud on On. Orchestrator read: accepted. A misplaced doc line (`germ_rewrite`'s) was moved back in my commit `0f23145b`, which also closes the row. Merge on green.
+
+- 2026-11-02 — PR 6378's review (sequential arm, frozen head `ba857ae4`): APPROVE-WITH-FIXES, with one MAJOR. **M1**: a slack tie's descent drops its decided rise; the probe is red at head (`Leaves(Above)` where rise + parting < slack). Per rule 1, a second Opus review runs on the fix pass's head over the whole unit. Adjudicated:
+  - M1 is accepted as must-fix.
+  - The curvature charge over the slack (m3) is to be measured.
+  - Guard rows are owed for rule 3's two mechanics; mutants M4/M5 survive today.
+  - The held-face row and the P2 partner-side row are re-framed: they pin a conservatism, and the real exposure is descended bounds.
+  - Accepted: the `Parted`-as-`Distance` doc, a typed held-sheet handle, the stale Zero docs, the fuzz's vertex-relative givens, and the "taken" wording.
+  - s7 (three pierce spellings) goes to lane 2.
+  - `conic_bend_side`'s unthreaded slack gets a P3 row.
+  - The fix pass is sent to lane 1.
+
+- 2026-11-02 — PR 6363 merged (`c627fdd4`); the edge-sector row is closed. TANGRIM has its filed join row (P2) for the bore's In side, whose disabled red pin is in `pi_seam_and_kiss_through_the_boolean.rs`.
+
+- 2026-11-02 — Lane 1's fix pass on PR 6378 (`77e0488f`, green):
+  - F1: the slack tie's descent is now decided on rise + parting (`Departure::Jet`) over band + slack.
+  - F2: the curvature charge must also clear the slack.
+  - F3: mutants M4/M5 are killed.
+  - F4–F6 are met.
+  - P3 row `conic-bend-side-reads-no-slack` is filed.
+  - CI's first red, the margin door gate at `sectors.rs:772`, was the PR's own; it is fixed.
+
+  Open tension: the hidden-slope row's plain descent changed, so the Jet may move plain-band decisions. I asked the lane to answer by reading.
+
+  Second Opus review (sequential arm, rule 1) dispatched on `77e0488f`, the whole unit (`session_013QoYWU8Nn4sytEyakcRdig`). It is briefed to measure first whether any plain-band decision moves.
+
+- 2026-11-02 — PR 6378 second review (sequential arm, `77e0488f`): APPROVE-WITH-FIXES, no MAJOR.
+  - Confirmed F1–F3 and s3 with mutants; full topo lib suite green.
+  - The plain-band tension is resolved: `Departure::Jet` runs only on a slack tie, which no plain reading makes. Lane 1 found the same independently.
+  - Raised beyond R1: MINOR G1, the first order over a slack refuses in the band's gap instead of tying (not monotone in the rise, executed). The fuzz's apex mode never judges its disagreeing draws. `Tie` doesn't carry its `Reading`. The charge re-spells settle's slack move by hand.
+  - Adjudicated: G1 must fix, with probe and texts. G2–G4 wanted: Jet docs, a typed tie origin or a P3 row, a judged apex mode. The pierce spellings go to lane 2.
+  - Last fix pass sent to lane 1; no third review.
+
+- 2026-11-02: PR 6378 was merged as `51132bca` after two fix passes.
+  - Its dual-review row (sequential arm, both reviews) was the PR's last commit.
+  - The unit is closed and lane 2's row is unparked.
+  - Lane 2, `the-cone-sites-read-every-bounds-side-through-bound-read`, is dispatched to cloud session `session_013QoYWWx5jko2WWjMZRRnCP` on branch `oneread/cone-sites-bound-read`. Its scope:
+    - Item 1 at recl edge-edge and `cone_classes`.
+    - Item 4's re-wording.
+    - The P2 `vtxfac-partner-side-…` row, claimed into the lane.
+    - One pierce spelling, a carry-over from both reviews of PR 6378.
+  - The lane reviews at the dual tier, letter M, so rule 1's draw happens at hand-back.
+
+- 2026-11-02: lane 2 stopped on its stop rule, at head `44a836a6`. Items 1 and 4 move built → refused in 13 tangent-kiss tests, all `LineMaterialUnread` (`NoReference`) at recl's edge-edge line cone. The mechanism is the same in every case:
+  - At a kiss, each solid's line cone of the other is one plane, and the cone reads the rim's ray Zero. The descent decides the side and hands it in.
+  - Under `## Decided` item 3, a sector read only by a given side is no parity base, so no reference remains.
+  - At `cone_classes`, 11 On(k) readings move to Out/In, by descent, in 4 tests (still green).
+
+  The lane offered three options: A (a given-taken sector may be a base where no decided one exists), C (hand descended sides only where the cone's reading isn't Zero), or B (re-baseline the 13 as refusals).
+  - Rejected: B (the 13 are correct builds), and C (it keeps the motivating witness split between the two sites).
+  - Directed: measure A in its narrowest form (a decided base is always preferred), with an exact-oracle row and fuzz for given bases. Re-take both diffs against main. Every one of the 13 must build the same body as main, and every moved reading must be shown right. Only then do I amend item 3 (orchestrator-decided, never Ev-ratified). Any wrong move goes to a design weighing.
+  - Accepted: the lane's `given_side` distinctions (Unresolved(band)/Slack/Undecided), and Undecided for a bound in band of a far partner plane.
+  - The touched face (the brief's item 2) has no exposure from the cone's tie: the vertex's own point is unmoved. It stays on the plain band, with its row inverted to pin that.
+
+- 2026-11-02 — Lane 2 measured A (head `4c38a9ad`). A given-taken sector serves as the parity base only where no decided sector exists.
+  - 12 of the 13 build exactly as main (kind, counts and vertex hash, every op). Nothing else moved in 9,339 tests.
+  - recl germs are unchanged. 187 readings moved On(k) → Out/In, each equal to main's tangent lump.
+  - `cone_classes`: 79 moved readings, 0 disagreements with `point_in_solid` at the edge's second-order point.
+  - Holdout: `review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`. Every sector of the cone lies in q's plane, so no arc can be placed and parity cannot read it.
+  - Lane's candidate A′: q strictly inside one sector k's plane and sector, on no other sector, with k's side given and taken → the material is that side's. This is On(k) read to the orders read (item 4), and is sound by local geometry.
+  - Directed: prototype A′ without A, with exact-oracle rows and fuzz, and re-take both diffs. Take A′ alone if all 13 build as main. Otherwise measure A′+A and report.
+  - Once measured, I amend item 3 on this branch.
+
+- 2026-11-02 — Lane 2 measured A′ alone, with A reverted (head `3c0f0b5e`).
+  - All 13 kiss tests build exactly as main does, `review_4704` included. 0 ops moved across 9,339 tests.
+  - recl germs and memberships are unchanged; 26 readings moved On(k) → Out/In, and each followed main's tangent-lump membership.
+  - `cone_classes`: 59 moved readings, 0 disagreements with `point_in_solid`.
+  - Fuzz: 0 wrong at three ε.
+  - Taken: A′ alone. Item 3 of the line-cone side's `## Decided` is amended with the A′ clause; lane 1's "no parity base" rule stands.
+  - Lane 2 carries on: the slow-set three-ε diff, the `pick` germ, K-REPORT, item 4's re-wording, the sweep, then the PR.

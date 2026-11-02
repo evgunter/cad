@@ -50,12 +50,12 @@ fn villarceau(phi: f64, family: f64, traversal: f64, psi: f64) -> Curve3<f64> {
     let d = u_ref * phi.cos() + axis.cross(u_ref) * phi.sin();
     let tilt = (MINOR / MAJOR).asin();
     let lean = d.cross(axis) * tilt.cos() + axis * (family * tilt.sin());
-    Curve3::Circle {
-        center: center + d * MINOR,
-        axis: d.cross(lean) * traversal,
-        radius: MAJOR,
-        u_ref: d * psi.cos() + lean * psi.sin(),
-    }
+    Curve3::circle(
+        center + d * MINOR,
+        d.cross(lean) * traversal,
+        MAJOR,
+        d * psi.cos() + lean * psi.sin(),
+    )
 }
 
 /// The worst distance of a carrier's points from `torus()`.
@@ -412,12 +412,7 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
     let k = Tol::witness().k();
     let cv = axis.cross(u_ref);
     let delta = 2.0 * k * eps();
-    let crest = Curve3::Circle {
-        center: center + axis * MINOR + u_ref * delta,
-        axis,
-        radius: MAJOR,
-        u_ref: cv,
-    };
+    let crest = Curve3::circle(center + axis * MINOR + u_ref * delta, axis, MAJOR, cv);
     assert!(off_torus(&crest) < 0.5 * eps(), "the crest circle grazes");
     let got = chart_pcurve(&crest, &surface, band());
     assert!(
@@ -432,31 +427,24 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
          circles, and its general lane is not written yet on a torus: {got:?}"
     );
 
-    let Curve3::Circle {
-        center: c,
-        axis: n,
+    let Curve3::Circle(geom::Circle {
+        frame:
+            geom::Frame {
+                center: c,
+                axis: n,
+                u_ref: e,
+            },
         radius,
-        u_ref: e,
-    } = villarceau(0.4, 1.0, 1.0, 0.0)
+    }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
         unreachable!()
     };
-    let lifted = Curve3::Circle {
-        center: c + axis * (5.0 * k * eps()),
-        axis: n,
-        radius,
-        u_ref: e,
-    };
+    let lifted = Curve3::circle(c + axis * (5.0 * k * eps()), n, radius, e);
     let rot = |v: Vec3<f64>, by: f64| {
         // Rotate about the circle's own `u_ref` direction.
         v * by.cos() + e.cross(v) * by.sin() + e * (e.dot(v) * (1.0 - by.cos()))
     };
-    let tilted = Curve3::Circle {
-        center: c,
-        axis: rot(n, 1e-3),
-        radius,
-        u_ref: e,
-    };
+    let tilted = Curve3::circle(c, rot(n, 1e-3), radius, e);
     for (what, carrier) in [("lifted", lifted), ("tilted", tilted)] {
         let got = chart_pcurve(&carrier, &surface, band());
         assert!(
@@ -510,11 +498,13 @@ fn an_in_band_move_is_never_read_off_the_torus() {
         };
         let tilt = (minor / major).asin();
         let lean = Vec3::unit_y() * tilt.cos() + Vec3::unit_z() * tilt.sin();
-        let moved = |by: f64| Curve3::Circle {
-            center: Point3::new(minor, 0.0, by),
-            axis: Vec3::unit_x().cross(lean),
-            radius: major,
-            u_ref: Vec3::unit_x(),
+        let moved = |by: f64| {
+            Curve3::circle(
+                Point3::new(minor, 0.0, by),
+                Vec3::unit_x().cross(lean),
+                major,
+                Vec3::unit_x(),
+            )
         };
         for fraction in [0.2, 0.5, 0.9] {
             let what = format!("r/R {ratio}, moved {fraction}·ε along the axis");
@@ -562,12 +552,14 @@ fn each_villarceau_gate_alone_refuses_typed() {
     else {
         unreachable!()
     };
-    let Curve3::Circle {
-        center,
-        axis: n,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis: n,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = villarceau(0.4, 1.0, 1.0, 0.0)
+    }) = villarceau(0.4, 1.0, 1.0, 0.0)
     else {
         unreachable!()
     };
@@ -602,12 +594,14 @@ fn each_villarceau_gate_alone_refuses_typed() {
         ("radius", center, n, radius + delta, u_ref),
     ];
     for (gate, center, axis, radius, u_ref) in rows {
-        let carrier = Curve3::Circle {
-            center,
-            axis,
+        let carrier = Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        };
+        });
         let got = chart_pcurve(&carrier, &surface, band());
         assert!(
             matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
@@ -705,12 +699,12 @@ fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section
     let side = n.cross(pinch);
     let moved = |by: f64, half: f64| {
         let psi = half * TAU / 64.0;
-        Curve3::Circle {
-            center: Point3::new(0.0, r, 0.0) + n * by,
-            axis: n,
-            radius: big,
-            u_ref: pinch * psi.cos() - side * psi.sin(),
-        }
+        Curve3::circle(
+            Point3::new(0.0, r, 0.0) + n * by,
+            n,
+            big,
+            pinch * psi.cos() - side * psi.sin(),
+        )
     };
     let mut wrong = Vec::new();
     for half in [0.0, 0.5] {
@@ -769,12 +763,12 @@ fn a_tube_rate_gates_rejected_zero_is_a_class_reading() {
     };
     let axis = Vec3::new(0.0, 0.9e-9 / 2.0, 1.0).normalize();
     let seed = Vec3::unit_x();
-    let carrier = Curve3::Circle {
-        center: Point3::new(2.5e-9, 0.0, 0.0),
+    let carrier = Curve3::circle(
+        Point3::new(2.5e-9, 0.0, 0.0),
         axis,
-        radius: 2.0,
-        u_ref: (seed - axis * seed.dot(axis)).normalize(),
-    };
+        2.0,
+        (seed - axis * seed.dot(axis)).normalize(),
+    );
     let got = chart_pcurve(&carrier, &surface, band);
     let Err(
         refusal @ PcurveCertifyError::Escalated {

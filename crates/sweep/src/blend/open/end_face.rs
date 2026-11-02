@@ -171,9 +171,14 @@ impl<T: Decide + Bounds> EndCut<T> {
             let placed = placed.ok_or_else(unbuilt)?;
             let turn = (foot_a - center).cross(foot_b - center);
             let backward = match placed {
-                Curve3::Circle { axis, .. } | Curve3::Ellipse { axis, .. } => {
-                    turn.dot(axis).hi() < 0.0
-                }
+                Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                })
+                | Curve3::Ellipse(geom::Ellipse {
+                    frame: geom::Frame { axis, .. },
+                    ..
+                }) => turn.dot(axis).hi() < 0.0,
                 _ => return Err(unbuilt()),
             };
             Ok(EndCurve::Round(if backward {
@@ -186,12 +191,8 @@ impl<T: Decide + Bounds> EndCut<T> {
             (EndSection::Chord, _) => EndCurve::Chord,
             (EndSection::Circle, Some((spine, radius))) => {
                 let center = carry(spine);
-                let circle = Curve3::Circle {
-                    center,
-                    axis: n.normalize(),
-                    radius,
-                    u_ref: (foot_a - center).normalize(),
-                };
+                let circle =
+                    Curve3::circle(center, n.normalize(), radius, (foot_a - center).normalize());
                 round(Some(circle), center)?
             }
             (EndSection::Ellipse(ellipse), Some((spine, _))) => {
@@ -359,22 +360,30 @@ struct SliverBoundary<T: Real> {
     rims: [(Curve3<T>, (T, T)); 2],
 }
 
-/// A round section's frame in the end plane: `p − center` is inside
-/// it when `(d·u/major)² + (d·w/minor)² < 1`. `u` is along the larger
-/// semi-axis, so `major ≥ minor > 0` and `1/minor` bounds the scaling's
-/// stretch ([`Self::depth`], [`Self::outside`]).
+/// A round section in the end plane, as the ellipse `shape` centred at
+/// the origin and seamed along its larger semi-axis: `p − center` is
+/// inside it when its unit coordinates ([`geom::Conic::unit_in_plane`])
+/// lie inside the unit circle. `1/minor` bounds the scaling's stretch
+/// ([`Self::depth`], [`Self::outside`]).
 #[derive(Clone, Copy)]
 struct SectionFrame<T: Real> {
-    u: Vec3<T>,
-    w: Vec3<T>,
-    major: T,
-    minor: T,
+    shape: geom::Ellipse<T>,
 }
 
 impl<T: Bounds> SectionFrame<T> {
+    /// The section's smaller semi-axis.
+    fn minor(self) -> T {
+        geom::Conic::speed_lo(&self.shape)
+    }
+
+    /// `d` in the section's unit coordinates.
+    fn unit(self, d: Vec3<T>) -> (T, T) {
+        geom::Conic::unit_in_plane(&self.shape, Point3::origin() + d)
+    }
+
     /// The section's scaled radius at `d`: below one inside it.
     fn scaled(self, d: Vec3<T>) -> T {
-        let (x, y) = (d.dot(self.u) / self.major, d.dot(self.w) / self.minor);
+        let (x, y) = self.unit(d);
         (x.powi(2) + y.powi(2)).sqrt()
     }
 
@@ -391,18 +400,13 @@ impl<T: Bounds> SectionFrame<T> {
             Curve3::Line(geom::Line { origin, dir }) => self
                 .scaled(origin + dir * ta - center)
                 .max(self.scaled(origin + dir * tb - center)),
-            Curve3::Circle {
-                center: c, radius, ..
-            } => self.scaled(c - center) + radius / self.minor,
-            Curve3::Ellipse {
-                center: c,
-                semi_u,
-                semi_v,
-                ..
-            } => self.scaled(c - center) + Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
+            Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
+                Some(k) => self.scaled(k.frame().center - center) + k.speed_hi() / self.minor(),
+                None => unreachable!("a circle or an ellipse is a conic"),
+            },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
-        Some(self.minor * (T::one() - rho))
+        Some(self.minor() * (T::one() - rho))
     }
 
     /// **How far outside the section an edge stays**, in meters:
@@ -416,10 +420,7 @@ impl<T: Bounds> SectionFrame<T> {
     fn outside(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
-                let at = |p: Point3<T>| {
-                    let d = p - center;
-                    (d.dot(self.u) / self.major, d.dot(self.w) / self.minor)
-                };
+                let at = |p: Point3<T>| self.unit(p - center);
                 let (a, b) = (at(origin + dir * ta), at(origin + dir * tb));
                 let (ex, ey) = (b.0 - a.0, b.1 - a.1);
                 let s = (T::zero() - (a.0 * ex + a.1 * ey) / (ex.powi(2) + ey.powi(2)))
@@ -427,18 +428,13 @@ impl<T: Bounds> SectionFrame<T> {
                     .min(T::one());
                 ((a.0 + ex * s).powi(2) + (a.1 + ey * s).powi(2)).sqrt()
             }
-            Curve3::Circle {
-                center: c, radius, ..
-            } => self.scaled(c - center) - radius / self.minor,
-            Curve3::Ellipse {
-                center: c,
-                semi_u,
-                semi_v,
-                ..
-            } => self.scaled(c - center) - Curve3::semi_axes_by_size(semi_u, semi_v).0 / self.minor,
+            Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
+                Some(k) => self.scaled(k.frame().center - center) - k.speed_hi() / self.minor(),
+                None => unreachable!("a circle or an ellipse is a conic"),
+            },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
         };
-        Some(self.minor * (rho - T::one()))
+        Some(self.minor() * (rho - T::one()))
     }
 }
 
@@ -472,10 +468,11 @@ impl<T: Bounds> CapSliver<T> {
         if let Some(section) = self.inside {
             // The disc of the minor semi-axis lies inside the section,
             // and `far` is exact where the section's own bound is not.
-            clear =
-                clear
-                    .max(section.minor - far)
-                    .max(section.depth(carrier, window, self.center)?);
+            clear = clear.max(section.minor() - far).max(section.depth(
+                carrier,
+                window,
+                self.center,
+            )?);
         }
         for &(d, floor) in &self.floors {
             let (_, high) = piece_along(carrier, window, self.center, d)?;
@@ -491,9 +488,9 @@ impl<T: Bounds> CapSliver<T> {
     /// half-plane), so `G > 0` puts `p` outside `Ω`.
     fn beyond(&self, q: Vec3<T>) -> T {
         let rho = q.norm();
-        let v = self
-            .inside
-            .map_or(rho - self.reach, |s| (rho - self.reach).max(s.minor - rho));
+        let v = self.inside.map_or(rho - self.reach, |s| {
+            (rho - self.reach).max(s.minor() - rho)
+        });
         self.floors
             .iter()
             .fold(v, |v, &(d, floor)| v.max(floor - q.dot(d)))
@@ -526,7 +523,7 @@ impl<T: Bounds> CapSliver<T> {
         // from `center` as `q0·q0 − b²` does.
         let b = q0.dot(e);
         let d2 = (q0 - e * b).norm().powi(2);
-        let minor = self.inside.map(|s| s.minor);
+        let minor = self.inside.map(|s| s.minor());
         // Each floor as `a + k·s`.
         let affine = || {
             self.floors
@@ -613,18 +610,9 @@ impl<T: Bounds> CapSliver<T> {
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
 fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
-    let round = |c: &Curve3<T>| match *c {
-        Curve3::Circle { center, radius, .. } => Some((center, radius, radius)),
-        Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } => {
-            let (outer, inner) = Curve3::semi_axes_by_size(semi_u, semi_v);
-            Some((center, outer, inner))
-        }
-        _ => None,
+    let round = |c: &Curve3<T>| {
+        c.conic()
+            .map(|k| (k.frame().center, k.speed_hi(), k.speed_lo()))
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
         let (near, far) = piece_distance(carrier, window, o)?;
@@ -676,7 +664,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let section = self.inside?;
         let q = p - self.center;
         let [ua, ub] = b.feet.map(|f| f - self.center);
-        let mut least = (section.minor * (section.scaled(q) - T::one()))
+        let mut least = (section.minor() * (section.scaled(q) - T::one()))
             .min(b.axis.cross(ua).normalize().dot(q))
             .min(ub.cross(b.axis).normalize().dot(q));
         let ray = Curve3::line(self.center, q);
@@ -707,7 +695,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 .fold(beyond, |a, b| a.max(b));
         }
         self.inside.map_or(beyond, |section| {
-            beyond.max(section.minor * (T::one() - section.scaled(q)))
+            beyond.max(section.minor() * (T::one() - section.scaled(q)))
         })
     }
 
@@ -853,17 +841,23 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
-                    Curve3::Circle {
-                        center,
-                        axis,
+                    Curve3::Circle(geom::Circle {
+                        frame:
+                            geom::Frame {
+                                center,
+                                axis,
+                                u_ref,
+                            },
                         radius,
-                        u_ref,
-                    } => (center, axis, radius, radius, u_ref),
-                    ref ellipse @ Curve3::Ellipse { center, axis, .. } => {
+                    }) => (center, axis, radius, radius, u_ref),
+                    ref ellipse @ Curve3::Ellipse(geom::Ellipse {
+                        frame: geom::Frame { center, axis, .. },
+                        ..
+                    }) => {
                         let Some(f) = ellipse.major_frame() else {
                             unreachable!("an Ellipse carrier has a major frame")
                         };
-                        (center, axis, f.major.abs(), f.minor.abs(), f.major_dir)
+                        (center, axis, f.major, f.minor, f.major_dir)
                     }
                     Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                         return Err(unbuilt_geometry(
@@ -884,10 +878,11 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     return Err(backward());
                 }
                 let frame = SectionFrame {
-                    u,
-                    w: axis.cross(u),
-                    major,
-                    minor,
+                    shape: geom::Ellipse::new(
+                        geom::Frame::new(Point3::origin(), axis, u),
+                        major,
+                        minor,
+                    ),
                 };
                 (center, Some((frame, axis)))
             }
@@ -895,7 +890,8 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            directions.extend([frame.u, -frame.u, frame.w, -frame.w]);
+            let (u, w) = (frame.shape.frame.u_ref, frame.shape.frame.v_ref());
+            directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no
         // extreme of its own.
@@ -1017,10 +1013,13 @@ pub(in crate::blend) fn shared_rims_clear<T: Decide + Bounds>(
         let (carrier, _) = stored_piece(body, rim)?;
         let rate = match *carrier {
             Curve3::Line(_) => InfSpeed::new(T::one()),
-            Curve3::Circle { radius, .. } => InfSpeed::new(radius),
-            // An ellipse's speed is never below its minor semi-axis.
-            Curve3::Ellipse { semi_u, semi_v, .. } => {
-                InfSpeed::new(Curve3::semi_axes_by_size(semi_u, semi_v).1)
+            // A conic's speed is never below its floor (its smaller
+            // semi-axis).
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                match geom::carrier_speed::speed_floor(carrier) {
+                    Some(floor) => floor,
+                    None => unreachable!("`speed_floor` answers a circle and an ellipse"),
+                }
             }
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 return Err(unbuilt_geometry(
@@ -1292,10 +1291,15 @@ mod tests {
                 rims: [EdgeKey::default(); 2],
                 center: Point3::new(f(0.0), f(0.0), f(0.0)),
                 inside: self.section.map(|(a, major, minor)| SectionFrame {
-                    u: v(a.cos(), a.sin()),
-                    w: v(-a.sin(), a.cos()),
-                    major: f(major),
-                    minor: f(minor),
+                    shape: geom::Ellipse::new(
+                        geom::Frame::new(
+                            Point3::new(f(0.0), f(0.0), f(0.0)),
+                            Vec3::new(f(0.0), f(0.0), f(1.0)),
+                            v(a.cos(), a.sin()),
+                        ),
+                        f(major),
+                        f(minor),
+                    ),
                 }),
                 reach: f(self.reach),
                 floors: self
@@ -1647,10 +1651,11 @@ mod tests {
             rims: [EdgeKey::default(); 2],
             center: p(0.0, 0.0),
             inside: Some(SectionFrame {
-                u: v(1.0, 0.0),
-                w: v(0.0, 1.0),
-                major: 1.0,
-                minor: 1.0,
+                shape: geom::Ellipse::new(
+                    geom::Frame::new(p(0.0, 0.0), Vec3::unit_z(), v(1.0, 0.0)),
+                    1.0,
+                    1.0,
+                ),
             }),
             reach: 2f64.sqrt(),
             floors: Vec::new(),
@@ -1667,12 +1672,12 @@ mod tests {
 
     /// A whole circle of radius `r` about `(x, y)` in the end plane.
     fn ring(x: f64, y: f64, r: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center: Point3::new(x, y, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            radius: r,
-        }
+        Curve3::circle(
+            Point3::new(x, y, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            r,
+            Vec3::new(1.0, 0.0, 0.0),
+        )
     }
 
     #[allow(clippy::expect_used)]

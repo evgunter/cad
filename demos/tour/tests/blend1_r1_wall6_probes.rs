@@ -104,7 +104,7 @@ fn carrier_radius(body: &Body<f64>, edge: EdgeKey) -> f64 {
         .and_then(|g| g.certified())
         .expect("a revolved rim carries a certified carrier");
     match *c.carrier() {
-        Curve3::Circle { radius, .. } => radius,
+        Curve3::Circle(pncad::geom::Circle { radius, .. }) => radius,
         ref other => panic!("a latitude rim is a circle, got {other:?}"),
     }
 }

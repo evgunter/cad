@@ -30,38 +30,41 @@ use geom_core::{Point3, Real, Vec3};
 /// orthogonal triple over 3, so the frame is unit and orthogonal to
 /// rounding-free precision.
 fn tilted() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(-0.5, 4.0, 1.25),
-        axis: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
-        radius: 2.5,
-        u_ref: Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
-    }
+    Curve3::circle(
+        Point3::new(-0.5, 4.0, 1.25),
+        Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
+        2.5,
+        Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
+    )
 }
 
 fn axis_aligned() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(1.0, 2.0, 3.0),
-        axis: Vec3::unit_z(),
-        radius: 1.5,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::circle(
+        Point3::new(1.0, 2.0, 3.0),
+        Vec3::unit_z(),
+        1.5,
+        Vec3::unit_x(),
+    )
 }
 
 /// A circle wound the OTHER way (axis = −z), so increasing `t` runs
 /// clockwise in the global frame. No claim here may depend on the
 /// sense.
 fn wound_negative() -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(1.0, 2.0, 3.0),
-        axis: -Vec3::unit_z(),
-        radius: 1.5,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::circle(
+        Point3::new(1.0, 2.0, 3.0),
+        -Vec3::unit_z(),
+        1.5,
+        Vec3::unit_x(),
+    )
 }
 
 fn center_of(c: &Curve3<f64>) -> Point3<f64> {
     match c {
-        Curve3::Circle { center, .. } => *center,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            ..
+        }) => *center,
         _ => panic!("a circle fixture"),
     }
 }
@@ -313,12 +316,15 @@ fn the_answer_is_the_branch_within_half_a_turn_of_the_anchor() {
 /// the definition it is supposed to be pinning against.
 fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f64 {
     let (center, axis, u_ref) = match *carrier {
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             ..
-        } => (center, axis, u_ref),
+        }) => (center, axis, u_ref),
         _ => panic!("a circle fixture"),
     };
     let v_ref = axis.cross(u_ref);
@@ -478,13 +484,11 @@ fn the_line_arm_is_the_projection_and_ignores_the_anchor() {
 /// on the branch nearest the anchor, a turn away included.
 #[test]
 fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
-    let ellipse = Curve3::Ellipse {
-        center: Point3::new(0.5, -1.0, 2.0),
-        axis: Vec3::unit_z(),
-        semi_u: 2.0,
-        semi_v: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.5, -1.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
+        2.0,
+        1.0,
+    ));
     for t in [0.7, -2.9, 3.1, 0.7 + TAU] {
         for near in [t - 1.0, t, t + 1.5] {
             let got = ellipse.param_near(ellipse.eval(t), near).unwrap();

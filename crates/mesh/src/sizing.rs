@@ -434,10 +434,9 @@ pub(crate) fn curvature_step(target: f64, m: f64) -> f64 {
 }
 
 /// The per-chord parameter step for chord deviation ≤ `target` on an
-/// ellipse with semi-axes `semi_u` and `semi_v` in either order and sign
-/// (the stored semi-axes carry no order, `geom_brep::Conic`), capped at
-/// [`MAX_ANGULAR_STEP`]. Below, `major` and `minor` name the larger and
-/// the smaller MAGNITUDE.
+/// ellipse, capped at [`MAX_ANGULAR_STEP`]. Below, `major` and `minor`
+/// name the larger and the smaller semi-axis, in either stored order
+/// ([`geom::Ellipse::semi_axes_by_size`]).
 ///
 /// Certified-conservative from [`curvature_step`]: over a parameter
 /// span φ the arc length is `L ≤ major·φ` (`|dP/dθ| ≤ major`) and the
@@ -446,8 +445,8 @@ pub(crate) fn curvature_step(target: f64, m: f64) -> f64 {
 /// `R_eff = major·(major/minor)²`. Coarser than the circle's exact
 /// sagitta near `major = minor` — conservative is the promised
 /// direction.
-pub(crate) fn ellipse_step(target: f64, semi_u: f64, semi_v: f64) -> f64 {
-    let (major, minor) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
+pub(crate) fn ellipse_step(target: f64, ellipse: &geom::Ellipse<f64>) -> f64 {
+    let (major, minor) = ellipse.semi_axes_by_size();
     let r_eff = major * (major / minor) * (major / minor);
     cap_angular(curvature_step(target, r_eff))
 }
@@ -595,7 +594,11 @@ pub(crate) fn sphere_face_widest_cos(
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        let geom::Curve3::Circle { center: cc, .. } = *curve.carrier() else {
+        let geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center: cc, .. },
+            ..
+        }) = *curve.carrier()
+        else {
             return Err(TessellateError::UnsupportedCurve {
                 edge: ek,
                 note: "a sphere face bounded by an edge that is not a circle — its \
@@ -847,7 +850,7 @@ pub(crate) fn cone_face_rho_max(
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?
             .carrier();
-        if let geom::Curve3::Circle { radius, .. } = *carrier {
+        if let geom::Curve3::Circle(geom::Circle { radius, .. }) = *carrier {
             rho_max = Some(rho_max.map_or(radius, |m: f64| m.max(radius)));
         }
     }
@@ -898,25 +901,33 @@ pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError>
 mod tests {
     use super::*;
 
-    /// **[`ellipse_step`] reads the semi-axes as magnitudes in either
-    /// order.** An ellipse stored with `minor` the larger, or a negative
-    /// semi-axis, is the same locus; read as stored the step was taken
-    /// against far less than the true `sup|C″|` (or was `NaN`). Every
-    /// stored frame steps as the ordered one does, and the step keeps
-    /// the measured chord deviation of the whole ellipse within
-    /// `target`.
+    /// **[`ellipse_step`] reads the semi-axes in either order.** An
+    /// ellipse stored with `minor` the larger is the same locus; read as
+    /// stored the step was taken against far less than the true
+    /// `sup|C″|`. Either order steps as the ordered one does, and the
+    /// step keeps the measured chord deviation of the whole ellipse
+    /// within `target`.
     #[test]
     fn the_ellipse_step_reads_its_semi_axes_in_any_stored_frame() {
         let target = 1e-4;
         let (a, b) = (3.0_f64, 0.5_f64);
-        let ordered = ellipse_step(target, a, b);
-        for (major, minor) in [(b, a), (-a, b), (a, -b), (-b, -a)] {
-            let got = ellipse_step(target, major, minor);
-            assert!(
-                (got - ordered).abs() <= 1e-15 * ordered,
-                "({major}, {minor}): step {got} against the ordered {ordered}"
-            );
-        }
+        let ellipse = |u: f64, v: f64| {
+            geom::Ellipse::new(
+                geom::Frame::new(
+                    geom_core::Point3::origin(),
+                    geom_core::Vec3::unit_z(),
+                    geom_core::Vec3::unit_x(),
+                ),
+                u,
+                v,
+            )
+        };
+        let ordered = ellipse_step(target, &ellipse(a, b));
+        let got = ellipse_step(target, &ellipse(b, a));
+        assert!(
+            (got - ordered).abs() <= 1e-15 * ordered,
+            "({b}, {a}): step {got} against the ordered {ordered}"
+        );
         let p = |t: f64| (a * t.cos(), b * t.sin());
         let mut worst = 0.0_f64;
         let mut t = 0.0;

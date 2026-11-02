@@ -11,7 +11,7 @@
 //! `+y` and `tan α = 1/2`. The full cone's radius runs `1 → 0` over the
 //! same span: apex `(0, 1, 0)`, axis `−y`, `α = π/4`.
 
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::BooleanError;
 use super::join::{
@@ -108,17 +108,6 @@ fn shape(frame: &Frame) -> String {
         Err(FrameError::DegenerateTorus { convention, .. }) => {
             format!("degenerate torus {convention:?}")
         }
-    }
-}
-
-/// [`shape`] of a reading that may carry two loops.
-fn loops_shape(got: &Result<Option<super::join::SectionLoops<f64>>, FrameError>) -> String {
-    match got {
-        Ok(Some(super::join::SectionLoops::Two { .. })) => "two loops".into(),
-        Ok(Some(super::join::SectionLoops::One(lp))) => shape(&Ok(Some(lp.turn()))),
-        Ok(None) => shape(&Ok(None)),
-        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
-        Err(_) => "another refusal".into(),
     }
 }
 
@@ -409,8 +398,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         } else {
             (on.clone(), Vec::new())
         };
-        let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
-        let extent = frame_extent((a, &body, face), (c, &body, face), at, span, b).unwrap();
+        let at = frame_reading(a, on_a, on_b).unwrap();
+        let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
         (at, extent)
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
@@ -501,13 +490,13 @@ fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
         plane([q.x, q.y, q.z], tilted(in_band, 1.0)),
     );
     for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
-        assert_conic_frame(&pair_section_frame(x, y, at, None, b), q, n, label);
+        assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, label);
     }
     for (label, x, y) in [
         ("plane, wall", &banded, &wall),
         ("wall, plane", &wall, &banded),
     ] {
-        let got = pair_section_frame(x, y, at, None, b);
+        let got = pair_section_frame(x, y, at, b);
         assert_eq!(
             escalated(&got),
             "pc_rim_alignment",
@@ -528,7 +517,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
     let p = plane([0.0, 0.3, 0.0], Vec3::new(0.0, 1.0, 0.0));
     for extent in [
         FrameExtent::Radii,
-        FrameExtent::Span(1.0),
         FrameExtent::Wall {
             below: 1.0,
             above: 1.0,
@@ -585,8 +573,11 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
 /// both axes with semi-axes `1/cos(φ/2)` and `1`, an `O(φ²)` difference
 /// far inside the band. Both loops turn about the axes' meeting point,
 /// each about its own bisector plane's normal. At a `φ` in the band the
-/// pose's own row escalates (`cc_axes_parallel`).
+/// pose's own row escalates (`cc_axes_parallel`). Read on the section
+/// value's pose across a region of the walls' radius
+/// ([`super::join::bisector_loops`]), as the join reads it.
 #[test]
+#[allow(clippy::expect_used)]
 fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     let b = band();
     let wall = |phi: f64| geom::Surface::Cylinder {
@@ -601,10 +592,23 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     // `1 − cos φ`, to `u/φ²`.
     let (sh, ch) = (phi / 2.0).sin_cos();
     let (across, along) = (Vec3::new(-sh, ch, 0.0), Vec3::new(ch, sh, 0.0));
+    // The operation's region for two such walls two long about the
+    // origin: the ball about their boxes' overlap, `[−1, 1]³`, radius
+    // `√3`, which levers the tilt by `√3` (four band-widths at the radius
+    // read about seven across it, still definite; the in-band tilt below
+    // reads `0.95·escalate`, still in band).
+    let region = geom_brep::Reach::Ball(geom_brep::ExtentBall::new(Point3::origin(), 3f64.sqrt()));
+    let pose = |x: &geom::Surface<f64>, y: &geom::Surface<f64>| {
+        geom_brep::CylinderCylinderPose::decide(x, y, &region, b).expect("two cylinders")
+    };
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
-        let Ok(Some(super::join::SectionLoops::Two { loops, .. })) = got else {
-            panic!("{label}: the two bisector loops, got {}", loops_shape(&got));
+        let planes = pose(x, y)
+            .unwrap_or_else(|e| panic!("{label}: a decided pose, got {e:?}"))
+            .bisector_planes()
+            .unwrap_or_else(|| panic!("{label}: the bisector pose"));
+        let super::join::SectionLoops::Two { loops, .. } = super::join::bisector_loops(planes)
+        else {
+            panic!("{label}: the two bisector loops");
         };
         let normals: Vec<Vec3<f64>> = loops.iter().map(|lp| lp.axis.normalize()).collect();
         for lp in &loops {
@@ -622,11 +626,11 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     }
     let c = wall(((b.zero() + b.escalate()) / 2.0).asin());
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
-        let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
+        let got = pose(x, y);
         assert!(
-            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("cc_axes_parallel")),
-            "{label} in band: got {}",
-            loops_shape(&got)
+            matches!(&got, Err(geom_brep::SectionError::Escalated(d)) if d.predicate == Some("cc_axes_parallel")),
+            "{label} in band: got {:?}",
+            got.map(|p| p.stance())
         );
     }
 }
@@ -653,7 +657,7 @@ fn the_frames_cone_window_holds_its_face() {
         let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
-            let extent = frame_extent((a, &body, face), (c, &body, face), at, None, b).unwrap();
+            let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
             let FrameExtent::Cone(reach) = extent else {
                 panic!("{label}: a plane×cone pair reads the cone face, got {extent:?}");
             };
@@ -672,4 +676,310 @@ fn the_frames_cone_window_holds_its_face() {
             }
         }
     }
+}
+
+/// **A germ on the apex line pair rides the line its site lies on, or
+/// at the apex the line it runs along** ([`super::join::line_of`]): the
+/// widening cone against the plane `x = 0` through its apex, whose
+/// section ([`super::join::pk_section`]) is the lines along
+/// `(0, 2, ±1)`, in the order the table returns them. A site on either
+/// nappe, and a direction either way along a line, names that line;
+/// flipping the plane's normal swaps the order.
+#[test]
+fn a_germ_on_the_apex_line_pair_rides_its_own_line() {
+    use super::Branch;
+    use super::join::{PkSection, line_of, pk_section};
+    let cone = widening();
+    let apex = Point3::new(0.0, -1.0, 0.0);
+    let reach = measured(on_wall(), wall_reach());
+    let lines = |normal: Vec3<f64>| match pk_section(
+        &plane([0.0, -1.0, 0.0], normal),
+        &cone,
+        &reach,
+        band(),
+    ) {
+        Ok(PkSection::Lines(lines)) => lines,
+        _ => panic!("normal {normal:?}: the plane through the apex cuts the line pair"),
+    };
+    let (plus, minus) = (
+        lines(Vec3::new(1.0, 0.0, 0.0)),
+        lines(Vec3::new(-1.0, 0.0, 0.0)),
+    );
+    let unit = |d: Vec3<f64>| d / d.norm();
+    for k in 0..2 {
+        let d = unit(plus.dirs[k]);
+        assert!(
+            (d.x.abs() < 1e-12) && ((d.y / d.z).abs() - 2.0).abs() < 1e-12,
+            "line {k}: along (0, 2, ±1), not {d:?}"
+        );
+        assert!(
+            unit(minus.dirs[1 - k]).cross(d).norm() < 1e-12,
+            "line {k}: the flipped normal reads it as line {}",
+            1 - k
+        );
+    }
+    let read = |site, dir| line_of(&plus, (site, dir), band());
+    for k in 0..2 {
+        let d = unit(plus.dirs[k]);
+        for (what, site, dir) in [
+            ("a site up the line", apex + d * 0.4, -d),
+            ("a site on the far nappe", apex - d * 0.3, d),
+            ("at the apex, along it", apex, d),
+            ("at the apex, back down it", apex, -d),
+        ] {
+            assert_eq!(
+                read(site, dir).unwrap(),
+                Branch::Line(k),
+                "line {k}: {what}"
+            );
+        }
+    }
+    assert!(
+        matches!(
+            read(apex + Vec3::new(0.0, 0.5, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+            Err(BooleanError::JoinDesync { .. })
+        ),
+        "a site on neither line is a desync"
+    );
+    assert!(
+        matches!(
+            read(apex, Vec3::new(0.0, 1.0, 0.0)),
+            Err(BooleanError::JoinDesync { .. })
+        ),
+        "a germ at the apex along neither line is a desync"
+    );
+}
+
+/// **A plane×cone section that is no line pair is one loop**: the
+/// axis-normal plane's circle and the tilted plane's ellipse.
+#[test]
+fn a_plane_off_the_apex_reads_one_loop() {
+    use super::join::{PkSection, pk_section};
+    let reach = measured(on_wall(), wall_reach());
+    for (what, normal) in [
+        ("the axis-normal circle", Vec3::new(0.0, 1.0, 0.0)),
+        ("the tilted ellipse", Vec3::new(0.2, 1.0, 0.0)),
+    ] {
+        let p = plane([0.0, 0.5, 0.0], normal);
+        assert!(
+            matches!(
+                pk_section(&p, &widening(), &reach, band()),
+                Ok(PkSection::Loop(..))
+            ),
+            "{what} is one loop"
+        );
+    }
+}
+
+/// The cone wall about `z` with its apex at the origin (its lamina twin,
+/// which the fixture leaves on the seed's placeholder, put on the cone
+/// too, so the body moves) and the brick whose face `x = 0` holds the
+/// apex: its section the lines along `(0, ±1, 1)`.
+fn apex_pair() -> (crate::body::Body<f64>, crate::body::Body<f64>) {
+    let tol = Tol::witness();
+    let (mut wall, face) =
+        super::boxes::tests::cone_wall(core::f64::consts::FRAC_PI_4, 0.3, 2.8, 0.1, 2.0);
+    let carrier = wall
+        .get_surface(wall.get_face(face).unwrap().surface)
+        .unwrap()
+        .clone();
+    let twin = wall.faces().map(|(k, _)| k).find(|&k| k != face).unwrap();
+    wall.lifting_rechart_refusals_for_tests(|b| {
+        b.set_face_surfaces_describing(
+            vec![crate::construction::Rechart::new(carrier, twin, true)],
+            &[],
+            tol,
+        )
+    })
+    .unwrap();
+    let brick: crate::body::Body<f64> =
+        crate::test_support_fixtures::brick((0.0, 1.0), (-3.0, 3.0), (-3.0, 3.0), tol);
+    (wall, brick)
+}
+
+/// The cone face of `cone_body` and the face of `plane_body` on the
+/// plane through the origin square to `x`.
+fn apex_pair_faces(
+    cone_body: &crate::body::Body<f64>,
+    plane_body: &crate::body::Body<f64>,
+    x: Vec3<f64>,
+) -> (FaceKey, FaceKey) {
+    let face_of = |body: &crate::body::Body<f64>, keep: &dyn Fn(&geom::Surface<f64>) -> bool| {
+        body.faces()
+            .map(|(k, _)| k)
+            .find(|&k| keep(body.get_surface(body.get_face(k).unwrap().surface).unwrap()))
+            .unwrap()
+    };
+    let cone = face_of(cone_body, &|s| matches!(s, geom::Surface::Cone { .. }));
+    let plane = face_of(plane_body, &|s| {
+        matches!(s, geom::Surface::Plane { origin, normal, .. }
+            if normal.cross(x).norm() < 1e-9 && (*origin - Point3::origin()).dot(x).abs() < 1e-9)
+    });
+    (cone, plane)
+}
+
+/// **Every germ of a plane×cone pair through the apex names its line by
+/// the pair's one reading** ([`super::join::germ_branch`]): a cone wall
+/// about `z` with its apex at the origin against a brick whose face
+/// `x = 0` holds the apex, its section the lines along `(0, ±1, 1)`.
+/// The glue door holds the pair's line pair; sites on one line, on
+/// either nappe, and germs at the apex running along it name one index,
+/// the other line the other. So it reads with the operands swapped,
+/// with the cone's axis reversed, and with both bodies turned.
+#[test]
+fn germs_through_a_cone_apex_name_their_lines_by_one_reading() {
+    use super::join::PkSection;
+    use super::{Branch, Locus};
+    use crate::body::Body;
+    use geom_core::{Affine3, RigidMotion};
+    let tol = Tol::witness();
+    let turned =
+        |body: &Body<f64>, m: &RigidMotion<f64>| crate::transform_rigid(body, m, tol).unwrap();
+    let identity = geom_core::test_support::rigid(&Affine3::identity(), tol);
+    let flip = geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::PI,
+        ),
+        tol,
+    );
+    let turn = geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.5, 0.8).normalize(), 0.9),
+        tol,
+    );
+    let (wall, brick) = apex_pair();
+    for (pose, axis_flip, frame) in [
+        ("as built", &identity, &identity),
+        ("axis reversed", &flip, &identity),
+        ("turned", &identity, &turn),
+        ("axis reversed, turned", &flip, &turn),
+    ] {
+        let cone_body = turned(&turned(&wall, axis_flip), frame);
+        let plane_body = turned(&brick, frame);
+        let x = frame.transform_vec(Vec3::new(1.0, 0.0, 0.0));
+        let (cone, plane) = apex_pair_faces(&cone_body, &plane_body, x);
+        let at = |p: Point3<f64>| frame.transform_point(p);
+        let along = |v: Vec3<f64>| frame.transform_vec(v);
+        let (l0, l1) = (Vec3::new(0.0, 1.0, 1.0), Vec3::new(0.0, -1.0, 1.0));
+        for swapped in [false, true] {
+            let what = format!("{pose}, swapped {swapped}");
+            let ((a, fa), (b, fb)) = if swapped {
+                ((&plane_body, plane), (&cone_body, cone))
+            } else {
+                ((&cone_body, cone), (&plane_body, plane))
+            };
+            let (table, _) = super::glue::section_door(a, b, &super::Glue::none(), None, band())
+                .expect("the glue door reads the pair");
+            assert!(
+                matches!(
+                    table.plane_cone((a, fa), (b, fb)),
+                    Some(Ok(PkSection::Lines(_)))
+                ),
+                "{what}: the glue door holds the pair's line pair"
+            );
+            let read = |site: Point3<f64>, dir: Vec3<f64>| {
+                super::join::germ_branch(
+                    &table,
+                    (a, fa),
+                    (b, fb),
+                    (Locus::InFace(fa), Locus::InFace(fb)),
+                    (at(site), along(dir)),
+                    band(),
+                )
+                .unwrap()
+            };
+            let first = read(Point3::origin() + l0 * 0.6, -l0);
+            let Branch::Line(k) = first else {
+                panic!("{what}: a germ on the line pair rides a line, not {first:?}");
+            };
+            for (germ, site, dir, want) in [
+                ("up its line, outward", l0 * 1.5, l0, k),
+                ("on its far nappe", l0 * -0.4, l0, k),
+                ("at the apex, along it", Vec3::zero(), l0, k),
+                ("at the apex, back down it", Vec3::zero(), -l0, k),
+                ("on the other line", l1 * 0.8, -l1, 1 - k),
+                ("at the apex, along the other", Vec3::zero(), l1, 1 - k),
+            ] {
+                assert_eq!(
+                    read(Point3::origin() + site, dir),
+                    Branch::Line(want),
+                    "{what}: {germ}"
+                );
+            }
+        }
+    }
+}
+
+/// **The mint takes the pair's held reading, not a reading of its own**
+/// ([`super::join::germ_branch`]): on the cone apex pair, a table holding
+/// the line pair with its lines swapped names each germ the other
+/// index; one holding a loop mints no line, and a pierce germ at the apex
+/// whose branch names no line is refused as the disagreement it is
+/// (`vtxfac::apex_germ_on_a_line`). Each reading here differs from what
+/// the faces would read for themselves, so a mint that read the pair
+/// again would fail the row.
+#[test]
+fn the_mint_takes_the_pairs_held_reading() {
+    use super::join::PkSection;
+    use super::section_table::{ApexLines, SectionTable};
+    use super::{Branch, Locus};
+    let (wall, brick) = apex_pair();
+    let (cone, plane) = apex_pair_faces(&wall, &brick, Vec3::new(1.0, 0.0, 0.0));
+    let (a, b) = ((&wall, cone), (&brick, plane));
+    let loci = (Locus::InFace(cone), Locus::InFace(plane));
+    let (door, _) = super::glue::section_door(a.0, b.0, &super::Glue::none(), None, band())
+        .expect("the glue door reads the pair");
+    let Some(Ok(PkSection::Lines(lines))) = door.plane_cone(a, b).cloned() else {
+        panic!("the glue door holds the line pair");
+    };
+    let mint = |table: &SectionTable<f64>, d: Vec3<f64>| {
+        super::join::germ_branch(table, a, b, loci, (Point3::origin() + d * 0.6, -d), band())
+    };
+    let swapped = SectionTable::holding_plane_cone(
+        a,
+        b,
+        Ok(PkSection::Lines(ApexLines {
+            dirs: [lines.dirs[1], lines.dirs[0]],
+            ..lines
+        })),
+    );
+    for k in 0..2 {
+        let d = lines.dirs[k];
+        assert_eq!(
+            mint(&door, d).unwrap(),
+            Branch::Line(k),
+            "line {k}: the door's reading"
+        );
+        assert_eq!(
+            mint(&swapped, d).unwrap(),
+            Branch::Line(1 - k),
+            "line {k}: a held reading with its lines swapped"
+        );
+    }
+    let looped = SectionTable::holding_plane_cone(
+        a,
+        b,
+        Ok(PkSection::Loop(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        )),
+    );
+    let at_apex = super::join::germ_branch(
+        &looped,
+        a,
+        b,
+        loci,
+        (Point3::origin(), lines.dirs[0]),
+        band(),
+    )
+    .unwrap();
+    assert_eq!(at_apex, Branch::Only, "a held loop mints no line");
+    assert!(
+        matches!(
+            super::vtxfac::apex_germ_on_a_line(loci, at_apex),
+            Err(BooleanError::JoinDesync { .. })
+        ),
+        "a pierce germ along a ruling the held reading reads as a loop is a desync"
+    );
 }

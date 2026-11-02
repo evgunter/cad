@@ -49,7 +49,7 @@ runs ends: 23 at the cylinder's arm (`Door::Projected`), 27 at the
 sphere's (`Door::Sphere`), and 4 at the ring gate (`Door::Ring`, the
 two-loop poses' `B ∪ A` and `B ∖ A`). None builds. Until PR 6013, 26 of
 them stopped earlier, at the spline edge join
-(`splicecarrier/joining-a-spline-carrier-is-unbuilt`); see the
+(`splice/joining-a-spline-carrier-is-unbuilt`); see the
 2026-11-02 section below.
 
 ## What it needs
@@ -83,7 +83,7 @@ The conic-trim, ring and catch-all stops wait on other lanes.
 
 Since PR 6013 the spline edge join leaves standing the vertex where two
 chords meet end to end (both crease there; see
-`splicecarrier/joining-a-spline-carrier-is-unbuilt`). So the 26 runs
+`splice/joining-a-spline-carrier-is-unbuilt`). So the 26 runs
 that stopped at the join now reach this door, at every ε row on main
 `a285cdbf` (the counts above). Beside them are
 `conic_edge_curved_face::a_rim_crossing_reaches_the_join` (both balls
