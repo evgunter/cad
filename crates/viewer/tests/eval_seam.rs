@@ -220,6 +220,37 @@ fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
     assert_eq!(session.outstanding(), Outstanding::Current);
 }
 
+/// **A staged run out of member budget answers**: the staged seam hands
+/// back the exhausted run, which the session reads as its own answer,
+/// rather than nothing, which reads as a stage still checking forever.
+#[test]
+fn a_staged_run_out_of_member_budget_answers() {
+    use viewer::evalseam::{InlineStager, StagedKey, StagedRequest, StagedService};
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let (doc, row) = common::row_of_copies(
+        &doc,
+        extrude,
+        i64::from(u32::MAX),
+        (pncad::document::TargetAxis::X, 0.05),
+        tol,
+    );
+    let mut stager = InlineStager::new();
+    stager.submit(StagedRequest {
+        key: StagedKey(1),
+        doc,
+        prime: None,
+        resolver: None,
+        tol,
+    });
+    let done = stager.poll().expect("an exhausted stage answers");
+    assert!(
+        matches!(done.evaluation.outcome, EvalOutcome::Exhausted { at, .. } if at == row),
+        "it answers with the run out at the row: {:?}",
+        done.evaluation.outcome
+    );
+}
+
 /// **A run out of member budget never becomes the picture, and says so
 /// apart from a cancel**: a row of `u32::MAX` copies runs out at the row
 /// on landing, the session reports where, and re-evaluating the same

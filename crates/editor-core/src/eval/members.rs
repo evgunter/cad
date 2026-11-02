@@ -202,8 +202,9 @@ fn listing<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + 'a>(
 
 /// **The listing steps `chain`'s members take**: every index value
 /// bound while they are listed by [`members`]' own walk, over `env` and
-/// `nominal` as [`eval_family`] binds them, no member evaluated. `None` as soon as the steps pass `remaining`, so a
-/// charge never lists further than the budget it is charged against. A
+/// `nominal` as [`eval_family`] binds them, no member evaluated. `None`
+/// as soon as the steps pass `remaining`, so a charge never lists
+/// further than the budget it is charged against. A
 /// count that faults ends the listing where the family's evaluation
 /// refuses it.
 ///
@@ -556,8 +557,7 @@ mod tests {
         let tol = Tol::witness();
         let env = doc.var_env::<f64>();
         let nominal = doc.var_env::<f64>();
-        let entry = parts::PartStore::<f64>::new(None, topo::SweepStrategy::Realized, tol)
-            .enter_census(doc, None, cancel, tol);
+        let entry = parts::PartStore::<f64>::new(None, topo::SweepStrategy::Realized, tol).finish();
         let op_env = wire::OpEnv {
             twist: None,
             boolean_sweep: topo::SweepStrategy::Realized,
