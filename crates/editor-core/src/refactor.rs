@@ -680,11 +680,8 @@ fn carry_bundle(
         .unwrap_or_default();
     // A constraint's pose reads: a mate's two sides, a value's direction
     // or axis.
-    let reads = |c: &crate::mate::Constraint| match &c.kind {
-        crate::mate::ConstraintKind::Mate(mate) => vec![mate.on, mate.to],
-        crate::mate::ConstraintKind::Value(value) => {
-            value.coord.read().map(|r| r.read).into_iter().collect()
-        }
+    let reads = |c: &crate::mate::Constraint| -> Vec<VarId> {
+        c.reads().into_iter().map(|(_, &read)| read).collect()
     };
     for (source_c, minted) in bundle.iter().zip(&minted) {
         name_selections(source, target, vars, reads(source_c), reads(minted))
@@ -4188,11 +4185,11 @@ pub fn inline(
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
     for side in bundle
         .iter()
-        .flat_map(|c| match &c.kind {
-            crate::mate::ConstraintKind::Mate(mate) => vec![mate.on, mate.to],
-            crate::mate::ConstraintKind::Value(value) => {
-                value.coord.read().map(|r| r.read).into_iter().collect()
-            }
+        .flat_map(|c| {
+            c.reads()
+                .into_iter()
+                .map(|(_, &read)| read)
+                .collect::<Vec<_>>()
         })
         .filter(|&side| doc.var_name(side).is_none())
     {

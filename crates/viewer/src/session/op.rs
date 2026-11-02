@@ -861,9 +861,9 @@ pub enum SessionOp {
         input: Operand,
         /// Copy count.
         count: i64,
-        /// The replication rule; a circular rule's axis is read off
-        /// the input's own geometry at its numbers' nominal values, and
-        /// refuses [`Refusal::Frame`] as [`Self::AddSplit`]'s plane does.
+        /// The replication rule: its direction or axis one of the
+        /// space's axes or picked geometry the pattern reads, refusing
+        /// [`Refusal::Frame`] where the pick reads none.
         rule: PatternRuleSpec,
     },
     /// Insert one FUSED pattern of an existing body — the pattern

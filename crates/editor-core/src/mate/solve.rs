@@ -738,7 +738,7 @@ pub(crate) fn chained(left: SubgroupFamily) -> bool {
 ///   it frees ([`slides_left`]); which of them the mate takes is the
 ///   source's geometry's to say, decided once where the chart is read
 ///   ([`super::NoChartWhy::SlidesDoNotSpan`]).
-pub(crate) fn leaves(left: SubgroupFamily, coord: super::Coord) -> bool {
+pub(crate) fn leaves<R>(left: SubgroupFamily, coord: &super::Coord<R>) -> bool {
     use super::Coord;
     use SubgroupFamily as F;
     match coord {
@@ -749,6 +749,23 @@ pub(crate) fn leaves(left: SubgroupFamily, coord: super::Coord) -> bool {
         Coord::Slide(None) => !chained(left) && matches!(left, F::Cylindrical | F::Parallel),
         Coord::Slide(Some(_)) | Coord::SlideAlong(_) => slides_left(left) > 0,
     }
+}
+
+/// **The distinct slides of `coords` that `left` leaves**, each once,
+/// in the order given: what the bundle rule counts against the
+/// translations the residual frees, and what a rewrite keeps of them
+/// ([`super::pin`]).
+pub(crate) fn distinct_slides<'a, R: PartialEq + 'a>(
+    left: SubgroupFamily,
+    coords: impl IntoIterator<Item = &'a super::Coord<R>>,
+) -> Vec<&'a super::Coord<R>> {
+    let mut out: Vec<&super::Coord<R>> = Vec::new();
+    for c in coords {
+        if c.is_slide() && leaves(left, c) && !out.contains(&c) {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// **How many slides the residual `left` leaves**
@@ -791,7 +808,7 @@ fn written(
     let mut set: Vec<(Coord, crate::node::ConstraintId)> = Vec::new();
     let mut spins: Vec<(Coord, crate::node::ConstraintId)> = Vec::new();
     for &(id, coord) in values {
-        if !leaves(left, coord) {
+        if !leaves(left, &coord) {
             name(id);
             continue;
         }
@@ -911,14 +928,7 @@ fn already_fixed(
     let (_, twice) = written(left, &values);
     // More slides than the mates leave translations: the mates that fix
     // a translation fix the one too many.
-    let mut slides: Vec<super::Coord> = values
-        .iter()
-        .map(|&(_, c)| c)
-        .filter(|&c| c.is_slide() && leaves(left, c))
-        .collect();
-    slides.sort();
-    slides.dedup();
-    let excess = slides.len() > slides_left(left);
+    let excess = distinct_slides(left, values.iter().map(|(_, c)| c)).len() > slides_left(left);
     for &(id, coord) in &values {
         if excess && coord.is_slide() {
             for &(other, family) in &mates {
@@ -927,7 +937,7 @@ fn already_fixed(
                 }
             }
         }
-        if !leaves(left, coord) {
+        if !leaves(left, &coord) {
             for &(other, family) in &mates {
                 if !frees(family, coord) {
                     named(other, &mut out);

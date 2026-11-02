@@ -597,7 +597,10 @@ impl<T: SolveScalar> Chart<T> {
                 if let Some(across) = across {
                     let within = geom_core::k_stats::decide(
                         super::MATE_READ_SLIDE_WITHIN,
-                        Margin::levered(across, T::from_computed(self.arm.get())),
+                        Margin::levered(
+                            across,
+                            geom_core::Lever::unsourced(T::from_computed(self.arm.get())),
+                        ),
                         self.band,
                     );
                     if within != Ok(Sign::Zero) {
@@ -627,9 +630,10 @@ impl<T: SolveScalar> Chart<T> {
 }
 
 /// **A slide's direction, as the settle runs it**: a unit direction in
-/// what the mates leave, and whether it is one of the chart's own
-/// orthonormal axes there, where the slides' coordinates are their
-/// directions' dot products and no system is solved.
+/// what the mates leave, and whether it is one of one orthonormal frame's
+/// axes there (the chart's carried axes, or the target space's own with
+/// no mate), where the slides' coordinates are their directions' dot
+/// products and no system is solved. A read direction is never one.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Heading<T: geom_core::Real> {
     /// The direction.
@@ -651,7 +655,7 @@ fn independent<T: SolveScalar>(heads: &[Heading<T>], d: Vec3<T>, arm: Arm, band:
     matches!(
         geom_core::k_stats::decide(
             super::MATE_SLIDES_INDEPENDENT,
-            Margin::levered(det, T::from_computed(arm.get())),
+            Margin::levered(det, geom_core::Lever::unsourced(T::from_computed(arm.get()))),
             band,
         ),
         Ok(Sign::Positive | Sign::Negative)
@@ -835,8 +839,8 @@ pub struct Charted<'a> {
 /// chart does not read at `at` reads `None`: a link of a chain in
 /// another order, a spin about the target's direction with no mate
 /// fixing one, any freedom of a chart refused at its pole, and every
-/// slide beside one that reads a direction off a body, whose direction
-/// the caller does not hold. So a gesture that stands a copy somewhere
+/// slide beside one that reads a direction off a body or spins about a
+/// read axis, whose line the caller does not hold. So a gesture that stands a copy somewhere
 /// writes the values that place it there through the chart that will
 /// place it, never a second spelling of it.
 #[must_use]
@@ -846,7 +850,11 @@ pub fn read_back<R>(
     coords: &[Coord<R>],
     band: Band,
 ) -> Vec<Option<f64>> {
-    let reads_a_direction = coords.iter().any(|c| matches!(c, Coord::SlideAlong(_)));
+    // A read direction, or a chain link about a read line off the origin
+    // (whose turn moves the origin), is a line the caller does not hold.
+    let reads_a_direction = coords
+        .iter()
+        .any(|c| matches!(c, Coord::SlideAlong(_) | Coord::SpinAbout(_)));
     let Some(charted) = chart else {
         let chain = chain_read(&at.linear, coords);
         return coords
@@ -1090,13 +1098,16 @@ pub(crate) fn unmated_motion<T: SolveScalar>(
             Coord::SlideAlong(_) | Coord::Spin(_) | Coord::SpinAbout(_) => {}
         }
         if v.coord.is_slide() {
-            heads.push(Heading {
-                dir: match (v.coord, v.line) {
-                    (Coord::SlideAlong(_), Some(line)) => line.dir().get(),
-                    (Coord::Slide(Some(axis)), _) => axis.unit().get(),
-                    _ => unreachable!("a slide along a read direction is evaluated with its line"),
+            heads.push(match (v.coord, v.line) {
+                (Coord::SlideAlong(_), Some(line)) => Heading {
+                    dir: line.dir().get(),
+                    frame: false,
                 },
-                frame: true,
+                (Coord::Slide(Some(axis)), _) => Heading {
+                    dir: axis.unit().get(),
+                    frame: true,
+                },
+                _ => unreachable!("a slide along a read direction is evaluated with its line"),
             });
         }
     }
@@ -1209,14 +1220,31 @@ pub(crate) fn settle<T: SolveScalar>(
     );
     // Slides along carried target axes alone are admitted where they span
     // what the mate leaves, decided once from the source's geometry.
-    let carried: Option<Vec<usize>> = slides
+    // Slides along carried target axes, each its axis and its value: the
+    // slide along the mated direction is the carried axis `S` puts on it
+    // where `n` is a target axis, `about = ±S·e_j` exactly, its value
+    // signed so, which keeps a frame lane on the chart's closed form.
+    let carried: Option<Vec<(usize, T)>> = slides
         .iter()
         .map(|v| match v.coord {
-            Coord::Slide(Some(a)) => Some(a.index()),
+            Coord::Slide(Some(a)) => Some((a.index(), v.by)),
+            Coord::Slide(None) => {
+                let j = chart.aligned?;
+                let along_d = [chart.n.x, chart.n.y, chart.n.z][j] > T::zero();
+                let same = along_d == (chart.about.get().dot(chart.d.get()) > T::zero());
+                Some((j, if same { v.by } else { T::zero() - v.by }))
+            }
             _ => None,
         })
-        .collect();
-    if let Some(written) = &carried {
+        .collect::<Option<Vec<_>>>()
+        .filter(|pairs| {
+            pairs
+                .iter()
+                .enumerate()
+                .all(|(k, (a, _))| pairs[..k].iter().all(|(b, _)| b != a))
+        });
+    if let Some(pairs) = &carried {
+        let written: Vec<usize> = pairs.iter().map(|&(a, _)| a).collect();
         let spanned = match written.as_slice() {
             [] | [_, _, _] => true,
             [a] => chart.spans(*a),
@@ -1265,14 +1293,12 @@ pub(crate) fn settle<T: SolveScalar>(
     // axis exactly: re-reading a component along a direction the box
     // widens would spread the translation's width across the others,
     // which the differences below leave in place.
-    if let Some(written) = &carried {
+    if let Some(pairs) = &carried {
         let set = |a: usize| {
-            slides
+            pairs
                 .iter()
-                .zip(written)
-                .rev()
-                .find(|&(_, &w)| w == a)
-                .map(|(v, _)| v.by)
+                .find(|&&(w, _)| w == a)
+                .map(|&(_, by)| by)
                 .or_else(|| chart.seated(&m.linear, a))
         };
         if T::spins_by_frames()
@@ -1314,6 +1340,10 @@ pub(crate) fn settle<T: SolveScalar>(
                 .map_err(|why| refuse(v.value, why))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // Carried axes alone were admitted by their span above, decided once
+    // from the source's geometry (their parts in what the mate leaves
+    // are independent exactly where they span it); any other set is
+    // decided here, at evaluation, since a read moves with its body.
     if carried.is_none() && !chart.independent(&heads) {
         let why = if slides
             .iter()

@@ -138,6 +138,69 @@ impl Placed {
         unnamed(residual(families), &[] as &[Coord<Operand>], along)
     }
 
+    /// **[`Self::freedoms`], keeping the loaded freedoms that name their
+    /// direction**: a slide along the mated direction or a read
+    /// direction, or a spin about a read axis, of `loaded` (a bundle
+    /// being edited) that the mates still leave stays as it is written,
+    /// and the target-space freedoms fill the rest. An editor lists these
+    /// so a re-edit never turns a ring's slide along its axis into a
+    /// slide along a target axis; one the mates no longer leave is the
+    /// editor's to say dropped.
+    #[must_use]
+    pub fn freedoms_keeping<P>(
+        doc: &crate::doc::Doc<P>,
+        mates: &[Mate<Formula>],
+        along: Option<super::SlideAxes>,
+        loaded: &[Coord<Operand>],
+    ) -> Vec<Coord<Operand>> {
+        let left = residual(
+            mates
+                .iter()
+                .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry)),
+        );
+        // A chain turning about a read axis is kept whole, in its order:
+        // turns do not commute.
+        let read_chain = loaded.iter().any(|c| matches!(c, Coord::SpinAbout(_)));
+        let named: Vec<Coord<Operand>> = loaded
+            .iter()
+            .filter(|c| match c {
+                Coord::Slide(None) | Coord::SlideAlong(_) => true,
+                Coord::Spin(Some(_)) | Coord::SpinAbout(_) => read_chain,
+                Coord::Slide(Some(_)) | Coord::Spin(None) => false,
+            })
+            .cloned()
+            .collect();
+        let keep = kept(left, &named, None);
+        let named: Vec<Coord<Operand>> = named
+            .into_iter()
+            .zip(keep)
+            .filter_map(|(c, k)| k.then_some(c))
+            .collect();
+        // Beside a kept slide naming its direction, the target-axis
+        // slides kept are the loaded ones, which with it span what the
+        // mates leave as written; a gesture's reading off the geometry
+        // chooses them otherwise.
+        let along = if named.iter().any(Coord::is_slide) {
+            Some(super::SlideAxes::of(loaded.iter().filter_map(|c| match c {
+                Coord::Slide(Some(axis)) => Some(*axis),
+                _ => None,
+            })))
+        } else {
+            along
+        };
+        let fill = unnamed(left, &named, along);
+        let (fill_slides, fill_spins): (Vec<_>, Vec<_>) =
+            fill.into_iter().partition(Coord::is_slide);
+        let (named_slides, named_spins): (Vec<_>, Vec<_>) =
+            named.into_iter().partition(Coord::is_slide);
+        fill_slides
+            .into_iter()
+            .chain(named_slides)
+            .chain(named_spins)
+            .chain(fill_spins)
+            .collect()
+    }
+
     /// **This bundle as one write** ([`crate::DocEdit::place`],
     /// [`crate::DocEdit::SetConstraints`]): each mate and then each
     /// value under the next placeholder id
@@ -220,25 +283,11 @@ pub(crate) fn unnamed<R: Clone + PartialEq>(
         }
     } else {
         let spin = Coord::SPIN;
-        if leaves(left, &spin) && !written.contains(&spin) {
+        if super::solve::leaves(left, &spin) && !written.contains(&spin) {
             out.push(spin);
         }
     }
     out
-}
-
-/// [`super::solve::leaves`] of a freedom in either form: a read is
-/// left wherever its form is.
-fn leaves<R>(left: SubgroupFamily, coord: &Coord<R>) -> bool {
-    let form = match coord {
-        Coord::Slide(axis) => Coord::Slide(*axis),
-        Coord::Spin(axis) => Coord::Spin(*axis),
-        Coord::SlideAlong(_) => {
-            Coord::SlideAlong(crate::pose::RoleRead::plain(crate::VarId::WORLD))
-        }
-        Coord::SpinAbout(_) => Coord::SpinAbout(crate::pose::RoleRead::plain(crate::VarId::WORLD)),
-    };
-    super::solve::leaves(left, form)
 }
 
 /// **The written slides `left` keeps**, each once: those along the
@@ -250,7 +299,6 @@ fn slid<R: PartialEq>(
     written: &[Coord<R>],
     along: Option<super::SlideAxes>,
 ) -> Vec<&Coord<R>> {
-    let mut out: Vec<&Coord<R>> = Vec::new();
     let axes = TargetAxis::ALL.into_iter().filter_map(|a| {
         written
             .iter()
@@ -261,11 +309,7 @@ fn slid<R: PartialEq>(
         .iter()
         .filter(|c| matches!(c, Coord::Slide(None)))
         .chain(written.iter().filter(|c| matches!(c, Coord::SlideAlong(_))));
-    for c in axes.chain(rest) {
-        if leaves(left, c) && !out.contains(&c) {
-            out.push(c);
-        }
-    }
+    let mut out = super::solve::distinct_slides(left, axes.chain(rest));
     out.truncate(super::solve::slides_left(left));
     out
 }
@@ -292,7 +336,7 @@ pub(crate) fn kept<R: PartialEq>(
     written
         .iter()
         .map(|coord| {
-            if !leaves(left, coord) {
+            if !super::solve::leaves(left, coord) {
                 return false;
             }
             if chained && !coord.is_slide() {

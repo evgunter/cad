@@ -2190,7 +2190,13 @@ impl MateTool {
         } else {
             snap.as_ref().and_then(|s| s.along)
         };
-        let coords = Placed::freedoms(doc, &written, along);
+        // A loaded freedom that names its direction stays itself while
+        // the mates leave it ([`Placed::freedoms_keeping`]).
+        let loaded_coords: Vec<Coord> = base
+            .iter()
+            .filter_map(|c| c.value().map(|v| v.coord.clone()))
+            .collect();
+        let coords = Placed::freedoms_keeping(doc, &written, along, &loaded_coords);
         let measured = snap.as_ref().map_or_else(
             || vec![None; coords.len()],
             |snap| snap.read(chart.map(|k| written[k].orient), &coords, tol),

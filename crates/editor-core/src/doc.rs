@@ -3538,10 +3538,9 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         target: VarId,
         bundle: &[crate::mate::Constraint],
     ) -> Option<(VarId, VarId)> {
-        let reads = bundle.iter().filter_map(|c| match &c.kind {
-            crate::mate::ConstraintKind::Mate(mate) => Some(mate.to),
-            crate::mate::ConstraintKind::Value(value) => value.coord.read().map(|r| r.read),
-        });
+        let reads = bundle
+            .iter()
+            .flat_map(|c| c.target_reads().into_iter().copied().collect::<Vec<_>>());
         for read in reads {
             let spaces = self.reached_all([read]);
             if let Some(space) = spaces.into_iter().find(|&space| space != target) {

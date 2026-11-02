@@ -383,6 +383,87 @@ fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
     );
 }
 
+/// **The wedge of the sweep rested by its slope on the floor tilted
+/// `t` about `x`, by `values` under `o`**: where it stands, or the
+/// refusal.
+fn wedge_on_the_floor(
+    t: f64,
+    values: Vec<(Coord<editor_core::Operand>, Formula)>,
+    o: Orientation,
+) -> Out {
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("value-chart-sweep-wedge"),
+        Tol::witness(),
+    );
+    let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
+    let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
+    let (doc, floor, _) = fixture::floor(doc, rx(t));
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
+    );
+    let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
+    mate.orient = o;
+    place(
+        doc,
+        placement,
+        Placed {
+            mates: vec![mate],
+            values,
+        },
+    )
+    .0
+}
+
+/// **Where an oblique rest stands** (A11, `[placement.values]`: a
+/// carried slide beside a mate oblique in the source's coordinates runs
+/// along its part in what the mate leaves). The wedge's slope, whose
+/// normal `(0.6, 0.8, 0)` is no axis of the wedge, rests on the floor
+/// tilted `t`:
+/// - with its slides `0` its origin stands where the mate seats it, the
+///   plane's point nearest the target's origin: on the floor's normal
+///   through the origin, the slope's 2.4 off the wedge's origin away;
+/// - each slide moves it exactly its value, in the floor's plane: 0.5
+///   more along `x` moves it 0.5. (The slides along `x` and `z` span
+///   the plane: the slope's normal has a part along `y`.)
+///
+/// *Breaks if* a carried slide off the plane is read as the copy's
+/// origin measured along it, which seats the zero off the normal and
+/// steps a slide by more than its value.
+#[test]
+fn an_oblique_rest_stands_at_its_seat_and_steps_its_values() {
+    let x = |v| (Coord::slide(TargetAxis::X), len(v));
+    let z = |v| (Coord::slide(TargetAxis::Z), len(v));
+    let sp = (Coord::SPIN, fixture::ang(0.3));
+    let o = Orientation::IDENTITY;
+    for t in [0.0, 0.7] {
+        let up = up_x(t);
+        let at = |vx: f64, vz: f64| -> [f64; 3] {
+            wedge_on_the_floor(t, vec![x(vx), z(vz), sp.clone()], o)
+                .unwrap_or_else(|e| panic!("t={t}: the rest places: {e}"))
+                .translation
+        };
+        let zero = at(0.0, 0.0);
+        let along = dot(zero, up);
+        let off: f64 = (0..3)
+            .map(|k| (zero[k] - up[k] * along).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        assert!(
+            off < 1e-12 && (along.abs() - 2.4).abs() < 1e-12,
+            "t={t}: the zero stands at {zero:?}, {off:e} off the floor's normal, {along} along it"
+        );
+        let (a, b) = (at(3.0, 4.0), at(3.5, 4.0));
+        let step: Vec<f64> = (0..3).map(|k| b[k] - a[k]).collect();
+        let norm = step.iter().map(|c| c * c).sum::<f64>().sqrt();
+        let across = dot([step[0], step[1], step[2]], up);
+        assert!(
+            (norm - 0.5).abs() < 1e-12 && across.abs() < 1e-12,
+            "t={t}: 0.5 more along x moves the copy {norm}, {across:e} off the plane"
+        );
+    }
+}
+
 /// The wedge sweep under `orients`, for each pair of written slides
 /// named in `pairs`, the floor tilted from −1.5 to 1.5 rad in `steps`
 /// steps: where the slides span, the slope lies on the floor,
@@ -390,31 +471,7 @@ fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
 /// times the step.
 fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
     let mut bad = Vec::new();
-    let run =
-        |t: f64, values: Vec<(Coord<editor_core::Operand>, Formula)>, o: Orientation| -> Out {
-            let doc = ProfileDoc::empty(
-                DocumentId::derive("value-chart-sweep-wedge"),
-                Tol::witness(),
-            );
-            let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
-            let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
-            let (doc, floor, _) = fixture::floor(doc, rx(t));
-            let (doc, placement) = insert(
-                doc,
-                fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
-            );
-            let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
-            mate.orient = o;
-            place(
-                doc,
-                placement,
-                Placed {
-                    mates: vec![mate],
-                    values,
-                },
-            )
-            .0
-        };
+    let run = wedge_on_the_floor;
     let x = |v| (Coord::slide(TargetAxis::X), len(v));
     let y = |v| (Coord::slide(TargetAxis::Y), len(v));
     let z = |v| (Coord::slide(TargetAxis::Z), len(v));

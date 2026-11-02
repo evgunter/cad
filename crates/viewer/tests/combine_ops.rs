@@ -1152,34 +1152,15 @@ fn slanted_prism(lean: f64) -> (DocSession, RecipeNodeId) {
 }
 
 /// **The prism's straight edge running along `dir`**, as a viewport
-/// pick on it selects it: the first of its edges whose line runs along
-/// `dir`, read off the landed evaluation.
+/// pick on it selects it ([`edge_where`]).
 fn edge_along(
     session: &mut DocSession,
     prism: RecipeNodeId,
     dir: [f64; 3],
 ) -> viewer::session::EdgeSelection {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let node = common::drawn_node(session.committed_doc(), prism);
-    let norm = dir.iter().map(|c| c * c).sum::<f64>().sqrt();
-    let unit = dir.map(|c| c / norm);
-    let name = pncad::select::all_edges(eval, node)
-        .into_iter()
-        .find(|name| {
-            pncad::select::edge_frame(eval, node, name).is_ok_and(|pose| {
-                let a = [pose.axis.x, pose.axis.y, pose.axis.z];
-                let n = a.iter().map(|c| c * c).sum::<f64>().sqrt();
-                let along: f64 = a.iter().zip(unit).map(|(c, u)| c / n * u).sum();
-                (along.abs() - 1.0).abs() < 1e-12
-            })
-        })
-        .unwrap_or_else(|| panic!("the prism has an edge along {dir:?}"));
-    viewer::session::EdgeSelection {
-        name,
-        node,
-        body: 0,
-    }
+    edge_where(session, prism, pncad::select::CurveKind::Line, dir, |_| {
+        true
+    })
 }
 
 /// A row of three of the prism, stepped 50 mm along its edge `edge`.
@@ -1453,6 +1434,7 @@ fn a_ring_of_a_moved_body_turns_about_its_picked_edge() {
         [0.0, 0.0, 1.0],
         |_| true,
     );
+    let edge_name = edge.name.clone();
     let outcome = session.perform(SessionOp::AddPattern {
         input: proto.into(),
         count: 4,
@@ -1463,7 +1445,122 @@ fn a_ring_of_a_moved_body_turns_about_its_picked_edge() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let ring = outcome.made.expect("the ring is made");
-    assert_eq!(member_motions(&mut session, ring).len(), 4, "four members");
+    // The picked line in the moved block's own coordinates, those its
+    // members' motions are in: read off the block it copies.
+    let raw = match session.committed_doc().node(proto) {
+        Some(Node::Place { source, .. }) => session
+            .committed_doc()
+            .operation_of(source.read)
+            .expect("the moved block copies a body"),
+        other => panic!("the moved block is a placement: {other:?}"),
+    };
+    let line = {
+        let eval = session.evaluation().expect("the inline seam landed");
+        pncad::select::edge_frame(eval, raw, &edge_name).expect("the picked edge's line")
+    };
+    let on_line = [line.origin, line.origin + line.axis];
+    let motions = member_motions(&mut session, ring);
+    assert_eq!(motions.len(), 4, "four members");
+    for (k, m) in motions.iter().enumerate() {
+        for p in on_line {
+            assert!(
+                (m.transform_point(p) - p).norm() < 1e-12,
+                "member {k} keeps the picked line where it stands: {p:?}"
+            );
+        }
+    }
+    let centre = pncad::geom_core::linalg::Point3::origin();
+    assert!(
+        (motions[2].transform_point(centre) - centre).norm() > 1e-3,
+        "the half-turned member moved: the block's centre is off the line"
+    );
+}
+
+/// **The placement editor keeps a ring's slide along its axis on a
+/// re-edit**: a ring of a cylinder about its own axis, written by the
+/// pattern writer with one `Axis` mate and a slide along the mated
+/// direction, opened in the editor, proposes the loaded slide along the
+/// mated direction as it is, not a slide along a target axis, and drops
+/// nothing.
+#[test]
+fn the_placement_editor_keeps_a_rings_mated_slide() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.01,
+            })],
+        },
+    );
+    let cylinder = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.005),
+        },
+    );
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let side = {
+        let eval = session.evaluation().expect("the inline seam landed");
+        pncad::select::all_faces(eval, cylinder)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(eval, cylinder, name)
+                    .is_ok_and(|k| k == pncad::geom::SurfaceKind::Cylinder)
+            })
+            .expect("the cylinder has a round side")
+    };
+    let axis = pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
+        of: pncad::document::Operand::select(pncad::document::Operand::Node(cylinder), vec![side]),
+    }));
+    let k = viewer::combine::fresh_index(&doc);
+    let doc = pncad::document::apply(
+        &doc,
+        &pncad::pattern::index_decl(k.clone(), Formula::count(3), None),
+        tol,
+    )
+    .expect("an index declares")
+    .doc;
+    let space = doc.node_space(cylinder).expect("the cylinder's space");
+    let ring = pncad::pattern::circular_pattern(
+        &doc,
+        &k,
+        pncad::document::BodyRead::plain(pncad::document::Operand::Node(cylinder)),
+        pncad::document::Operand::Var(space),
+        pncad::pattern::RingAxis::Mated {
+            on: axis.clone(),
+            to: axis,
+            slide: len(0.002),
+        },
+        pncad::pattern::RingStep::Full(Formula::count(3)),
+    )
+    .expect("a ring");
+    let (doc, ring) = common::inserted(&doc, ring, tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let draft = viewer::matetool::MateTool::edit(doc, ring)
+        .expect("the ring is a placement")
+        .proposal(doc, ev, tol)
+        .expect("the loaded bundle proposes");
+    let coords: Vec<pncad::document::Coord<pncad::document::Operand>> =
+        draft.values.iter().map(|row| row.coord.clone()).collect();
+    assert!(
+        coords.contains(&pncad::document::Coord::SLIDE)
+            && !coords
+                .iter()
+                .any(|c| matches!(c, pncad::document::Coord::Slide(Some(_)))),
+        "the slide along the mated direction is kept as it is: {coords:?}"
+    );
+    assert!(
+        draft.dropped.is_empty(),
+        "nothing drops: {:?}",
+        draft.dropped
+    );
 }
 
 /// **A skewed grid is a parallelogram lattice**: two indices, each

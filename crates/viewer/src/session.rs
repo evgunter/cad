@@ -5681,7 +5681,7 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
 /// mate's `to`, or a value's direction or axis, which a re-target would
 /// strand.
 fn reads_its_space(c: &pncad::document::Constraint<Formula>) -> bool {
-    c.mate().is_some() || c.value().is_some_and(|v| v.coord.read().is_some())
+    !c.target_reads().is_empty()
 }
 
 /// **A combine's operands, in the first one's space** (D10

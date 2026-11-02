@@ -1350,12 +1350,9 @@ impl DuplicateTool {
 /// is. A duplicate is placed at its original copy's pose, so it lands
 /// along that copy's own +x.
 ///
-/// ONE home for the two gestures that step a copy along a line: the
-/// duplicate tool commits it, and the pattern form's direction field
-/// opens on it (`Drafts::default`). The pattern form's SPACING is not
-/// shared, because the two answer different questions — a pattern's
-/// spacing is a number the person types, a duplicate's is measured off
-/// the body ([`duplicate_step`]).
+/// The direction the duplicate tool steps its copy along. The pattern
+/// form names its direction as one of the space's axes or a pick
+/// (`Drafts::pattern_along`), never as components.
 pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
 
 /// **How much clear space a duplicate leaves AT LEAST**, as a fraction

@@ -3608,25 +3608,11 @@ fn side_rows<S: Slot>(
 where
     S::Read: Clone,
 {
-    let mut out = Vec::new();
-    for c in constraints {
-        let seat = |side| crate::OperandSlot::Side {
-            constraint: c.id,
-            side,
-        };
-        match &c.kind {
-            crate::mate::ConstraintKind::Mate(mate) => {
-                out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
-                out.push((seat(crate::mate::MateSide::To), mate.to.clone()));
-            }
-            crate::mate::ConstraintKind::Value(value) => {
-                if let Some(read) = value.coord.read() {
-                    out.push((value.coord.seat(c.id), read.read.clone()));
-                }
-            }
-        }
-    }
-    out
+    constraints
+        .iter()
+        .flat_map(crate::mate::Constraint::reads)
+        .map(|(seat, read)| (seat, read.clone()))
+        .collect()
 }
 
 /// [`side_rows`], writable, in the same order.

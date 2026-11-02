@@ -605,6 +605,31 @@ fn a_drafted_wall_under_a_held_spin_turns_by_its_draft() {
     }
 }
 
+/// **A drafted wall's rest stands at its seat** (A11: a carried slide
+/// beside a mate oblique in the source's coordinates runs along its part
+/// in what the mate leaves). The box's wall drafted 1° and −1° has a
+/// normal on no axis of the box; with its slides `0` the box stands
+/// where the mate seats it, the wall's point nearest the world's origin:
+/// its origin on the wall's normal, the `x` axis, `cos 1°` off it (the
+/// drafted plane passes through the foot edge at `x = 1`).
+///
+/// *Breaks if* a carried slide off the wall's plane is read as the
+/// copy's origin measured along it, which stands the zero `sin 1°`
+/// along the wall.
+#[test]
+fn a_drafted_walls_rest_stands_at_its_seat() {
+    for draft in [1.0_f64, -1.0] {
+        let at = box_on_the_wall(draft.to_radians(), 0.0);
+        let t = at.translation;
+        assert!(
+            t.y.abs() < 1e-12
+                && t.z.abs() < 1e-12
+                && (t.x.abs() - draft.to_radians().cos()).abs() < 1e-12,
+            "a {draft}° draft stands the box's origin at {t:?}"
+        );
+    }
+}
+
 /// **Ruling C-1 — a prism's flat through angle zero.** The flat's
 /// normal turned by `φ` about `z` through −1°, 0° and 1°, under a held
 /// spin of 30°: the copy turns by a turn proportional to `φ` (the

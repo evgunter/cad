@@ -412,6 +412,59 @@ impl<S: crate::Slot> Constraint<S> {
             }
     }
 
+    /// **Its pose reads, each at its seat**: a mate's `on` and `to`
+    /// ([`crate::OperandSlot::Side`]), a value's direction or axis
+    /// ([`crate::OperandSlot::Along`], [`crate::OperandSlot::About`]).
+    /// The one reading every walk of a bundle's reads takes.
+    #[must_use]
+    pub fn reads(&self) -> Vec<(crate::OperandSlot, &S::Read)> {
+        let id = self.id;
+        match &self.kind {
+            ConstraintKind::Mate(mate) => vec![
+                (
+                    crate::OperandSlot::Side {
+                        constraint: id,
+                        side: MateSide::On,
+                    },
+                    &mate.on,
+                ),
+                (
+                    crate::OperandSlot::Side {
+                        constraint: id,
+                        side: MateSide::To,
+                    },
+                    &mate.to,
+                ),
+            ],
+            ConstraintKind::Value(value) => value
+                .coord
+                .read()
+                .map(|r| (value.coord.seat(id), &r.read))
+                .into_iter()
+                .collect(),
+        }
+    }
+
+    /// **Its reads of the target space**: a mate's `to`, a value's
+    /// direction or axis — what the space walk asks and a re-target
+    /// would strand. A mate's `on` reads the copy.
+    #[must_use]
+    pub fn target_reads(&self) -> Vec<&S::Read> {
+        self.reads()
+            .into_iter()
+            .filter(|(seat, _)| {
+                !matches!(
+                    seat,
+                    crate::OperandSlot::Side {
+                        side: MateSide::On,
+                        ..
+                    }
+                )
+            })
+            .map(|(_, read)| read)
+            .collect()
+    }
+
     /// **This constraint in another slot form**: each pose read mapped
     /// by `read` at its seat (a mate's sides, a value's direction or
     /// axis), a value's scalar by `slot`, its id kept.

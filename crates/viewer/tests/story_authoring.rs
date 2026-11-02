@@ -45,7 +45,7 @@ use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
-use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, SessionOp};
+use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the rook's dimensions (metres) --------------------------------
@@ -339,11 +339,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let carved_doc = session.committed_doc().clone();
 
     // ── The crenellation experiment: a merlon block, patterned round
-    //    the axis — instances are not a body, and the fused door is
-    //    what the refusal points at ─────────────────────────────────
+    //    an edge of its own — instances read their space, and the fused
+    //    door is what the refusal points at ────────────────────────────
     // The block is drawn in a CORNER quadrant of the crown, `MERLON_OFF`
-    // out along x and y, and patterned about its space's z axis, which
-    // stands on the rook's axis once moved under the crown.
+    // out along x and y. First it is ringed about one of its own
+    // vertical edges, picked: a ring that reads the block's space.
     let block_profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
@@ -367,7 +367,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
+                axis: viewer::PatternDirection::Edge(vertical_edge(&mut session, block)),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -382,9 +382,31 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         };
         assert_eq!(instances.len(), 4, "four blocks round the crown");
     }
-    // The fused door: the same prototype and the same rule, said FUSED
-    // — one body out instead of four, which the boolean seat takes
-    // without complaint.
+    // Fusing THESE onto the rook is refused at the door, typed: a union's
+    // member seat reads the family whole (D10 `[repetition]`), but the
+    // family stands in the block's space and the carved rook in the
+    // rook's, and the ring reads the block's edge in its own space, so
+    // no re-target can carry it over (`in_one_space`).
+    let states = session.history().len();
+    let refused = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
+    });
+    assert!(
+        matches!(
+            &refused.refusal,
+            Some(Refusal::Edit(edit))
+                if matches!(edit.as_ref(), pncad::document::EditError::SpaceMismatch { .. })
+        ),
+        "{:?}",
+        refused.refusal
+    );
+    assert!(refused.committed.is_empty(), "a refusal commits nothing");
+    assert_eq!(session.history().len(), states, "and mints no state");
+
+    // The door that refusal points at: the same prototype, said FUSED
+    // and ringed about its space's z axis, which stands on the rook's
+    // axis once moved under the crown — one body out instead of four,
+    // which the boolean seat takes without complaint.
     let merlons = session_insert(
         &mut session,
         SessionOp::AddFusedPattern {
@@ -665,4 +687,26 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         );
     }
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A vertical straight edge of `node`**, as a viewport pick on it
+/// selects it, read off the landed evaluation.
+fn vertical_edge(session: &mut DocSession, node: RecipeNodeId) -> viewer::session::EdgeSelection {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let node = common::drawn_node(session.committed_doc(), node);
+    let name = pncad::select::all_edges(eval, node)
+        .into_iter()
+        .find(|name| {
+            pncad::select::edge_carrier_kind(eval, node, name)
+                .is_ok_and(|k| k == pncad::select::CurveKind::Line)
+                && pncad::select::edge_frame(eval, node, name)
+                    .is_ok_and(|pose| pose.axis.x == 0.0 && pose.axis.y == 0.0)
+        })
+        .expect("the block has a vertical edge");
+    viewer::session::EdgeSelection {
+        name,
+        node,
+        body: 0,
+    }
 }
