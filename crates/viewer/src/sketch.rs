@@ -420,30 +420,37 @@ impl HeldStep {
                 .iter()
                 .map(|step| Self(LoopProgram::Chain(vec![step.clone()])))
                 .collect(),
-            carrier @ (LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. }) => {
-                vec![Self(carrier.clone())]
-            }
+            whole @ (LoopProgram::Circle { .. }
+            | LoopProgram::CircleSplit { .. }
+            | LoopProgram::Rectangle { .. }) => vec![Self(whole.clone())],
         }
     }
 
-    /// **The loop program `rows` write**: a carrier row alone is its
-    /// carrier form, and every other list is the chain of its steps.
+    /// **The loop program `rows` write**: a complete-loop row alone is
+    /// its own form, and every other list is the chain of its steps.
     ///
     /// # Errors
     ///
-    /// [`RecordedProgramError::CarrierInChain`] for a carrier among
-    /// other rows — the lift's refusal of the same list.
+    /// [`RecordedProgramError::CarrierInChain`] for a complete-loop row
+    /// among other rows — the lift's refusal of the same list.
     pub fn program(rows: &[Self]) -> Result<LoopProgram<Formula>, RecordedProgramError> {
-        if let [Self(carrier @ (LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. }))] =
-            rows
+        if let [
+            Self(
+                whole @ (LoopProgram::Circle { .. }
+                | LoopProgram::CircleSplit { .. }
+                | LoopProgram::Rectangle { .. }),
+            ),
+        ] = rows
         {
-            return Ok(carrier.clone());
+            return Ok(whole.clone());
         }
         let mut chain = Vec::with_capacity(rows.len());
         for Self(row) in rows {
             match row {
                 LoopProgram::Chain(steps) => chain.extend(steps.iter().cloned()),
-                LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
+                LoopProgram::Circle { .. }
+                | LoopProgram::CircleSplit { .. }
+                | LoopProgram::Rectangle { .. } => {
                     return Err(RecordedProgramError::CarrierInChain);
                 }
             }
@@ -553,7 +560,8 @@ impl HeldStep {
             | StepShape::FarEndTo
             | StepShape::CloseTo
             | StepShape::Circle
-            | StepShape::CircleSplit { .. } => false,
+            | StepShape::CircleSplit { .. }
+            | StepShape::Rectangle => false,
         }
     }
 

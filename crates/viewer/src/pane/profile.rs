@@ -1751,30 +1751,35 @@ mod tests {
             !painted.iter().any(|text| text.contains("line_to")),
             "the door draws no corner leg: {painted:?}"
         );
-        let edit = drafts
-            .profile_edit(session.committed_doc(), profile)
-            .expect("held");
-        let [held] = edit.loops() else {
-            panic!("one loop: {:?}", edit.loops())
+        let doc = session.committed_doc().clone();
+        let edit = drafts.profile_edit(&doc, profile).expect("held");
+        assert_eq!(
+            edit.loops().iter().map(Vec::len).collect::<Vec<_>>(),
+            [1],
+            "one loop of one step"
+        );
+        let Step::Rectangle {
+            centre,
+            width,
+            height,
+        } = edit.step_at(&doc, (0, 0))
+        else {
+            panic!("one rectangle step: {:?}", edit.step_at(&doc, (0, 0)))
         };
-        match held[..] {
-            [
-                Step::Rectangle {
-                    centre,
-                    width,
-                    height,
-                },
-            ] => assert_eq!(
-                (centre.x, centre.y, width, height),
-                (0.002, -0.001, 0.03, 0.01),
-                "held as written"
-            ),
-            ref other => panic!("one rectangle step: {other:?}"),
-        }
-        let Step::Rectangle { width, .. } = &mut edit.steps_mut(0)[0] else {
-            unreachable!("matched above")
-        };
-        *width = 0.04;
+        assert_eq!(
+            (centre.x, centre.y, width, height),
+            (0.002, -0.001, 0.03, 0.01),
+            "held as written"
+        );
+        edit.set_step(
+            &doc,
+            (0, 0),
+            Step::Rectangle {
+                centre,
+                width: 0.04,
+                height,
+            },
+        );
         let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
         let out = session.perform(formed.expect("Apply formed the op"));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
