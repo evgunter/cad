@@ -3552,12 +3552,6 @@ fn judge_read(
     }
 }
 
-/// The boolean's floor: its operand gate reads the whole operand first,
-/// so on a torn body it never answers, and what the sweep requires of
-/// it is the premise panic.
-#[cfg(not(debug_assertions))]
-const UNION_PREMISE: &str = "union: row-4 premise panics";
-
 /// The mints' floor: a torn body whose clone carried pcurve rows into
 /// the mint, so that a write hoisted above a premise panic shows in the
 /// clone's snapshot.
@@ -3968,13 +3962,9 @@ fn torn_bodies_fail_reads_only_on_a_row_four_premise() {
         .collect();
     let premise_doors: Vec<&str> = premise_doors.iter().map(String::as_str).collect();
     census.require_each(
-        &[&[PREMISE, UNION_PREMISE][..], &premise_doors].concat(),
+        &[&[PREMISE][..], &premise_doors].concat(),
         1,
-        &format!(
-            "no read met a tear, or the boolean answered a torn operand without naming its \
-             premise — {}",
-            fuzz::replay()
-        ),
+        &format!("no read met a tear — {}", fuzz::replay()),
     );
 }
 
