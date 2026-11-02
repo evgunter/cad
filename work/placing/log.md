@@ -113,3 +113,24 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Out:** Transform's retirement, which becomes a stacked unit `placing/bundle-editor-transform`, and drawing the draft's copy, filed as `the-placement-editor-draws-no-preview-of-its-draft`.
   - **Review: dual tier.** The difficulty letter is H, so it is a CONCURRENT pair per `docs/DUAL-REVIEW-PROTOCOL.md`: two Opus reviewers dispatched concurrently on frozen head `a945aa17be`, R1 = `placing-dual-6300-r1` and R2 = `placing-dual-6300-r2` by dispatch order, with an identical brief (`~/.local/share/cad-work/placing-dual-6300-brief.md` on this box). Both lanes run locally and share the build mutex.
   - **The Transform half is held** until the pair reports. Its lane would build on a head the fix pass may change, and the disk cannot hold three lanes' targets. (PLACING orchestrator)
+- 2026-11-02 — **PR 6300's dual pair is in** (concurrent, frozen head `a945aa17be`). Both verdicts are NOT-MERGEABLE-AS-IS.
+  - **Correspondence pre-note** (for the row at merge; the blinded coding confirms the tally):
+    - *Unilateral MAJOR, demonstrated:*
+      - R1-M1: removing a mate turns the copy at the chain's pole. `read_back`'s chain read has no pole branch; it is a second spelling of `moves_of`.
+      - R2-M2: the Edit door's value rows are not editable and show raw variable ids.
+    - *Bilateral, with a severity split:* a variable unlinked because a value survives only by exact `Coord` key. R2 MAJOR, demonstrated; R1 NOTE n3.
+    - *Bilateral MINOR:*
+      - Apply enabled on a `Faults` verdict (R1-m1 executed, R2-MINOR-3);
+      - `along` from the snap, not the loaded slides (R1-m3, R2-MINOR-1, both by inspection);
+      - silent measured-0 fallbacks (R1 n1, R2 fail-loud);
+      - viewer re-spellings of the kernel's chart rules (R1 S1/S2/S4, R2 Q1 ×4);
+      - the verdict test accepting any fault (R1 S5, R2 MINOR-2).
+    - *Unilateral MINOR:*
+      - R1: a typed number that later disappears wedges the draft (m2); stale op docs (m4);
+      - R2: stale README and button label; Create door has no staleness check (NOTE-1); a fresh row on Edit-by-pick opens `Overconstrained`.
+  - **Adjudication:** the fix pass runs off the union (sent to the lane).
+  - **Classes logged:**
+    1. A second spelling of a kernel rule in the viewer. Four instances in one PR, including the very rider it closed; the fix pass consolidates them into kernel doors.
+    2. A value carried by key identity across a change of freedom set. "Kept" becomes "shown as dropped before Apply" wherever no kernel mapping carries it.
+
+  (PLACING orchestrator)
