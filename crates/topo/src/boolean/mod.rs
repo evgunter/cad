@@ -104,6 +104,8 @@ mod fragments;
 mod glue;
 mod holdings;
 #[cfg(test)]
+mod holdings_rows;
+#[cfg(test)]
 mod glued_pair_rows;
 pub(crate) mod insert;
 mod join;
