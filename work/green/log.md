@@ -232,3 +232,31 @@ closed-row routing and #6093's re-bless).
   opt 0 is corrected: it does at 0, 1, `s` and `z`.
 - Not done, for a later row: a member-manifest edit that only adds a
   target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.
+
+## 2026-11-02 — latency lane: the gates run one per CPU, and a script read by pncad-py stops forcing TIER=all
+
+The user asked for lower test-suite latency without more queueing.
+Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
+06:25Z, after the opt-1 tour. Median 12.8 min, p90 19.7.
+
+- **Queue time is not the tail.** Run created → first job: median 0.05
+  min, p90 1.05. Per job: p90 0.9, p99 5.2. The p90 is execution:
+  `test (kernel)` is the last job in 28 of the top-20% runs, and its
+  build step is most of that job.
+- **Two levers taken** (PR 6324):
+  - `scripts/run-gates.sh` runs the gates in parallel. Gates step
+    164 → 85 s on one runner, about 330 s → about 150 s on the
+    window's runners. Every run gets it, and docs-tier runs end with it.
+  - `scripts/ci-filter.py`'s `SCRIPT_READERS`: an edit to
+    `scripts/payload-rung-sweep.py` seeds pncad-py instead of forcing
+    TIER=all. That edit drove 16 of the window's 23 TIER=all runs.
+- **Filed, not taken:**
+  - `kernel-shard-long-pole-is-one-test-binary` (P2): the tail lever,
+    and a change to `test-aggregation`'s invariant.
+  - `test-shards-link-examples-nextest-never-runs` (P3): measured at
+    43 s on one runner.
+  - `test-shards-rebuild-dependencies-their-cache-holds` (P3).
+- **Method.** Hosted build times are bimodal by runner: the TIER=all
+  kernel build is 540–663 s on some runners and 821–868 s on others.
+  An A/B across runs measures the runner, so the lane's numbers come
+  from one runner running both sides.
