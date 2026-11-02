@@ -4837,9 +4837,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::VertexPairAtConeApex { operand, .. } => write!(
                 f,
-                "the tip of a cone face of the {} operand meets a corner of the other part \
-                 in a way the kernel cannot yet read around the tip. \
-                 Recourse: move the parts so the corner is clear of the cone's tip",
+                "the tip of a cone face of the {} operand meets a vertex of the other part \
+                 (a corner, a wedge's edge or another cone's tip) in a way the kernel cannot \
+                 yet read around the tip. Recourse: move the parts so the tip is clear of it",
                 operand_word(*operand),
             ),
             Self::ApexSection { reading, .. } => write!(

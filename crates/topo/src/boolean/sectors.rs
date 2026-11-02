@@ -202,8 +202,8 @@ impl<T: geom_core::Real> BoolSector<T> {
         match self.at_vertex {
             BoolFace::Tangent(normal) => normal,
             BoolFace::Apex(_) => unreachable!(
-                "a sector at a cone's apex has no tangent plane: the pierce reads it by its \
-                 apex arms, and the vertex-vertex lane refuses it first"
+                "a sector at a cone's apex has no tangent plane: its readers take its fan \
+                 arms (boolean::fan) or refuse through BoolSector::plane"
             ),
         }
     }
@@ -287,7 +287,11 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
 /// each sector is cut where a partner's side along it turns.
 #[derive(Clone, Debug)]
 pub(super) enum Partners<T: geom_core::Real> {
-    /// Nothing: every walk of a vertex no cone's apex is, read whole.
+    /// No partner's faces: an apex corner is cut into its four quarters
+    /// alone, and no sector is cut at a partner's extremes. The
+    /// vertex–vertex lane's first reading of each side, before it knows
+    /// whether either vertex is an apex, and the rows that read one
+    /// vertex's sectors on their own.
     None,
     /// The unit normal of the pierced face's plane through the apex: the
     /// pierce reads an apex corner against it alone.
@@ -2787,6 +2791,10 @@ pub(super) fn pair_search_at<T: Decide>(
                 super::fan::Meeting::Coincident => sector_overlap(sa, sb, band)?,
                 super::fan::Meeting::Rays(rays) => {
                     let mut hit = false;
+                    // `ray` is read as given, its lean folded into its
+                    // length: two planes' `n_a × n_b`, of length the
+                    // faces' sine, levers the within reading as
+                    // [`Leaned::line`] would; a fan's rulings are unit.
                     for &ray in rays {
                         let (plus, _) = rays_within(
                             Leaned::upright(ray),

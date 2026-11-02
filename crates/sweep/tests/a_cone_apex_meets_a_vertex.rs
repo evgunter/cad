@@ -397,3 +397,100 @@ fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
         }
     }
 }
+
+/// The volume of the cone of half-angle `alpha` (degrees, apex at
+/// `NORTH`, height 1 down `y`) inside the trihedral wedge at its apex
+/// spanned by the orthonormal `edges`: the integral over the cone's
+/// directions `d` with `d·eᵢ ≥ 0` of `⅓ (1/(d·â))³`, by the midpoint rule
+/// over its cap.
+fn wedge_volume(alpha: f64, edges: [Vec3<f64>; 3]) -> f64 {
+    let a = Vec3::new(0.0, -1.0, 0.0);
+    let (u, v) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let n = 2000;
+    let (dt, dp) = (alpha.to_radians() / f64::from(n), 2.0 * PI / f64::from(n));
+    let mut sum = 0.0;
+    for i in 0..n {
+        let t = (f64::from(i) + 0.5) * dt;
+        for j in 0..n {
+            let p = (f64::from(j) + 0.5) * dp;
+            let d = a * t.cos() + (u * p.cos() + v * p.sin()) * t.sin();
+            if edges.iter().all(|e| d.dot(*e) >= 0.0) {
+                sum += (1.0 / d.dot(a)).powi(3) / 3.0 * t.sin() * dt * dp;
+            }
+        }
+    }
+    sum
+}
+
+/// **A box cornered at the apex, turned off the axis**: the box
+/// `[0, 5] × [−5, 0] × [0, 5]` cornered at the apex and turned `0.7`
+/// about `(1, 0.3, −0.5)`, so that none of its faces through the apex
+/// holds the axis and each face's side of the fan turns inside the
+/// fan's quarters. Each flat sector is cut at the fan's extreme rulings
+/// along it, and each fan sector at the planes' (`boolean::sectors`'
+/// `partner_cuts`). Its far faces clear the cone, so the box holds the
+/// cone inside its trihedral wedge, [`wedge_volume`].
+#[test]
+fn a_box_cornered_at_the_apex_off_the_axis_holds_the_cone_in_its_wedge() {
+    let block = topo::test_support::brick((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0), tol());
+    let m = Affine3::rotation_about_axis(NORTH, Vec3::new(1.0, 0.3, -0.5).normalize(), 0.7)
+        * Affine3::translation(Vec3::new(0.0, 1.0, 0.0));
+    let b = moved(&block, m);
+    let edges = [
+        m.transform_vec(Vec3::new(1.0, 0.0, 0.0)),
+        m.transform_vec(Vec3::new(0.0, -1.0, 0.0)),
+        m.transform_vec(Vec3::new(0.0, 0.0, 1.0)),
+    ];
+    for alpha in [30.0f64, 45.0] {
+        let r = alpha.to_radians().tan();
+        let want = wedge_volume(alpha, edges);
+        for (form, body) in forms(alpha) {
+            let c = finished("c", body, tol());
+            let share = match intersect(&c, &b, tol()) {
+                Ok(BooleanResult::Body(x)) => {
+                    topo::test_support::pinned_volume("∩", &x.body, tol()).volume
+                }
+                other => panic!("{alpha}°, {form}: the intersection {other:?}"),
+            };
+            assert!(
+                (share - want).abs() < 2e-4,
+                "{alpha}°, {form}: ∩ {share} against the integral {want}"
+            );
+            let (ra, rb) = (
+                move || the_cone(r),
+                move || moved_region(membership::cuboid((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0)), m),
+            );
+            four_ops(
+                &format!("{alpha}°, {form}, a box off the axis"),
+                (&c, &ra, volume(alpha)),
+                (&b, &rb, 125.0),
+                share,
+                (Point3::new(-2.0, -0.25, -2.0), Point3::new(2.0, 1.75, 2.0)),
+            );
+        }
+    }
+}
+
+/// **An edge through the apex, not ending there, refuses at the apex**
+/// where the sweep reads it before the vertex pair can: the box
+/// `[0, 2] × [0.55, 1] × [−2, 2.3]`, its top holding the apex and its edge
+/// along `z` there passing through it. Read box first, that edge's root
+/// at the apex is no end's, and `box ∖ cone` refuses
+/// `CrossingAtConeApex` (`boolean::reduce::line_cone_roots`) rather than
+/// read a crossing there. Cone first, the apex vertex splits the edge
+/// before it is swept, and the op builds.
+#[test]
+fn an_edge_through_the_apex_refuses_at_the_apex_box_first() {
+    let b = moved(
+        &topo::test_support::brick((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3), tol()),
+        Affine3::identity(),
+    );
+    for (form, body) in forms(30.0) {
+        let c = finished("c", body, tol());
+        let r = subtract(&b, &c, tol());
+        assert!(
+            matches!(r, Err(topo::BooleanError::CrossingAtConeApex { .. })),
+            "{form}: box ∖ cone {r:?}"
+        );
+    }
+}

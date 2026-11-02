@@ -219,6 +219,10 @@ pub(super) fn meeting<T: Decide>(
                 (axa, pa.half_angle.cos()),
                 (axb, pb.half_angle.cos()),
             );
+            // `disc` levered by the arm reads the two rulings' half-angle
+            // apart, `√disc`, against `√(ε/arm)`: rulings closer than that
+            // read as a tangency and refuse, more than the band itself
+            // would ask (`ε/arm`), which is conservative.
             match decide("bool_fans_meet", Margin::levered(m.disc, arm), band).map_err(escalate)? {
                 Sign::Negative => Ok(Meeting::Rays(Vec::new())),
                 Sign::Zero => Err(tangency()),
@@ -495,4 +499,75 @@ pub(super) fn nappe_classes<T: Decide>(
             Ok((he, class))
         })
         .collect()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod rows {
+    use super::*;
+    use crate::boolean::sectors::Reach;
+    use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    /// **A whole-turn cone partner reads each bound by its nappe**
+    /// ([`nappe_classes`]): against the 45° cone's fan at `(0, 1, 0)`, its
+    /// nappe below, a bound down the axis is inside the nappe, one
+    /// across it outside, and one along a ruling on it. With the cone's
+    /// material inside, they read In, Out and On; with it outside (a
+    /// conical hole), Out, In and On.
+    #[test]
+    fn a_bound_reads_in_where_the_partner_cones_material_is() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let h = core::f64::consts::FRAC_PI_4;
+        let o = Point3::new(0.0, 1.0, 0.0);
+        let start = Vec3::new(h.sin(), -h.cos(), 0.0);
+        for sense in [true, false] {
+            let apex = ConeApex {
+                apex: o,
+                axis: Vec3::new(0.0, 1.0, 0.0),
+                half_angle: h,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                sense,
+            };
+            let sector = BoolSector {
+                he: HalfEdgeKey::from(key(1)),
+                start,
+                end: apex.ruling_from(start, core::f64::consts::FRAC_PI_2),
+                start_reach: Reach::Bisector(1.0),
+                end_reach: Reach::Bisector(1.0),
+                face: FaceKey::from(key(2)),
+                at_vertex: BoolFace::Apex(apex),
+                arm: 1.0,
+            };
+            let partner = super::super::vtxfac::Partner {
+                vertex: VertexKey::default(),
+                at: o,
+                sectors: vec![sector],
+            };
+            let (down, across, along) = (
+                HalfEdgeKey::from(key(3)),
+                HalfEdgeKey::from(key(4)),
+                HalfEdgeKey::from(key(5)),
+            );
+            let bounds = [
+                (down, o + Vec3::new(0.0, -1.0, 0.0)),
+                (across, o + Vec3::new(0.0, 0.0, 1.0)),
+                (along, o + start),
+            ];
+            let got = nappe_classes(&bounds, (Operand::A, &[partner]), None, band()).unwrap();
+            let (inside, outside) = if sense {
+                (SideCode::In, SideCode::Out)
+            } else {
+                (SideCode::Out, SideCode::In)
+            };
+            assert_eq!(
+                got,
+                vec![(down, inside), (across, outside), (along, SideCode::On)],
+                "material inside {sense}"
+            );
+        }
+    }
 }
