@@ -231,6 +231,15 @@ impl Readout {
         }
     }
 
+    /// The louder of two readouts: the one whose noise is larger.
+    pub(crate) fn louder(self, other: Self) -> Self {
+        if other.noise > self.noise {
+            other
+        } else {
+            self
+        }
+    }
+
     /// The louder of this readout and a NURBS operand's chart `root`,
     /// whose parameter spacing crosses into metres at `speed`, with
     /// `ulps` of it as noise.

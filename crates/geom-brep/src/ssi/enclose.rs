@@ -2763,6 +2763,61 @@ pub(super) mod tests {
         assert!(refused.is_nan(), "a refused normal read {refused}");
     }
 
+    /// **A curved partner's chart margin is a sine, whatever the form's
+    /// scale.** The flat unit square in `z = 0` against spheres of radius
+    /// `R` through its middle, each centred below it 60° off the square,
+    /// so every sphere crosses the square there at the same angle: a
+    /// window about the middle, read across the section, reads `cos 60°`
+    /// at `R = 1` and at `R = 100` alike, never above 1. Red against the
+    /// margin read without `‖∇f‖` (it then grows with the canonical
+    /// form's `2R`).
+    #[test]
+    fn a_curved_partners_chart_margin_is_a_sine_at_every_scale() {
+        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("clamped linear");
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ];
+        let square = NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).expect("square");
+        let boxes = NurbsBoxes::new(&square);
+        let (tx, ty) = (0.0_f64, 1.0_f64);
+        let margin = |radius: f64| {
+            // The sphere's centre below the square's middle, along the
+            // direction 60° off the square, so its surface crosses the
+            // square at `(½, ½)` at 30° to it.
+            let (s, c) = (
+                std::f64::consts::FRAC_PI_3.sin(),
+                std::f64::consts::FRAC_PI_3.cos(),
+            );
+            let sphere = Surface::Sphere {
+                center: Point3::new(0.5 - radius * c, 0.5, -radius * s),
+                radius,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let curved = super::super::residual::Curved::of(&sphere).expect("a sphere");
+            chart_transverse_margin(
+                &boxes,
+                ChartPhi::Curved(&curved),
+                win((0.499, 0.501, 0.499, 0.501)),
+                (tx, ty, 1.0),
+            )
+            .expect("the window is not degenerate")
+            .expect("the stretch is finite")
+        };
+        let (unit, large) = (margin(1.0), margin(100.0));
+        for (r, m) in [(1.0, unit), (100.0, large)] {
+            assert!(m > 0.0 && m <= 1.0, "R = {r}: the margin {m} is no sine");
+        }
+        assert!(
+            (unit / large - 1.0).abs() < 0.05,
+            "the margin moved with the form's scale: {unit} at R = 1, {large} at R = 100"
+        );
+    }
+
     /// **The derivative box shrinks with its window below a span cell.**
     /// The dome `x = s, z = t, y = −4d·s(1−s)·t(1−t)` is one quadratic
     /// Bézier patch, so every window touches the same single cell, whose

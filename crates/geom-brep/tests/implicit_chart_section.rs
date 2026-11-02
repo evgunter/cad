@@ -253,3 +253,26 @@ fn branch_at_answers_the_arc_its_seed_settles_on() {
     let out = section.all().expect("every branch");
     assert_eq!(out.branches.len(), 2, "the two arcs");
 }
+
+/// **A sphere of radius 100 cuts the strip in two arcs near its ends.**
+/// The sphere about `(0, 0, −99.5)`, its top `0.2` above the strip's
+/// middle, meets the strip where its fall `≈ x²/200` meets the strip's
+/// rise, at `x ≈ ±1.9`: two arcs across the strip, each on both
+/// surfaces. The canonical form's divisor here is `2R = 200`, so every
+/// reading that crosses the form to metres is read far from a unit: red
+/// against limb 2 reading the sphere's composite with no divisor (its
+/// hull over-reads the fit's deviation two hundred fold).
+#[test]
+fn a_large_sphere_cuts_the_strip_in_two_arcs() {
+    let (s, w) = (sphere(Point3::new(0.0, 0.0, -99.5), 100.0), strip());
+    let out = whole(&s, &w);
+    assert_eq!(out.branches.len(), 2, "two arcs");
+    on_both(&s, &w, &out, "large sphere × strip");
+    for b in &out.branches {
+        let x = b.carrier.eval(b.params.0).x.abs();
+        assert!(
+            (1.5..2.0).contains(&x),
+            "an arc near an end of the strip: {x}"
+        );
+    }
+}

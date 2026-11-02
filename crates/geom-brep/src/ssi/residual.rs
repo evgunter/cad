@@ -333,9 +333,12 @@ impl Curved {
 
 /// **A wall read against a curved partner before any march**: its
 /// chart speeds, its accounting floor over its knot rectangle and the
-/// settling tolerance of its boundary pass, minted once, as the plane ×
-/// NURBS lane mints them ([`super::PlaneSection`]), with no plane chart
-/// and no ℝ⁴ system: a crossing is settled on the wall alone.
+/// settling tolerance of its boundary pass and march, minted once, as
+/// the plane × NURBS lane mints them ([`super::PlaneSection`]), with no
+/// plane chart and no ℝ⁴ system: a crossing is settled on the wall
+/// alone. The residual a state settles to is read at the wall's point
+/// written about the partner's centre or axis, so the tolerance reads
+/// the louder of the wall's coordinates and those.
 pub(crate) struct ImplicitWall<'a> {
     charted: super::ChartedNurbs<'a, f64>,
     floor: super::exhaust::SweepFloor<super::exhaust::UvRect>,
@@ -356,6 +359,7 @@ impl<'a> ImplicitWall<'a> {
     /// tolerance's.
     pub(crate) fn of(
         wall: &'a geom::NurbsSurface<f64>,
+        curved: &Curved,
         domain: super::SsiDomain,
         band: geom_core::Band,
     ) -> Result<Self, super::SsiError> {
@@ -379,9 +383,19 @@ impl<'a> ImplicitWall<'a> {
             .ok_or(super::SsiError::UnsupportedCertificate {
                 what: "a NURBS wall with no control point",
             })?;
+        let framed = curved.framed(hull);
+        let about = super::march::Readout::spatial(
+            Box3 {
+                x: framed.x,
+                y: framed.y,
+                z: framed.z,
+            },
+            None,
+            super::SSI_QUADRIC_NOISE_ULPS,
+        );
         let tol = super::march::MarchTol::from_band(
             band,
-            super::spline_readout(hull, wall, root, speed),
+            super::spline_readout(hull, wall, root, speed).louder(about),
         )?;
         Ok(Self {
             charted,

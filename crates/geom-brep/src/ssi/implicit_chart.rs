@@ -144,7 +144,7 @@ impl<'a> ImplicitSection<'a> {
                        chart",
         })?;
         finite_operand("curved partner", partner)?;
-        let read = ImplicitWall::of(wall, domain, band)?;
+        let read = ImplicitWall::of(wall, &curved, domain, band)?;
         let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
         let root = UvRect { u: ud, v: vd };
         let speed = read.charted().speeds().max();

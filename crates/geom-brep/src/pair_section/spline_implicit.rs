@@ -882,9 +882,8 @@ pub(super) fn loop_free(
 ///
 /// The whole reading's refusal, mapped (module docs), and
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
-/// rectangle, which the plane lane's reading never marches; a curved
-/// partner's whole reading is not built
-/// ([`curved::whole`]).
+/// rectangle, which the chart lanes' readings never march; a curved
+/// partner's is [`curved::whole`]'s.
 pub(super) fn whole(
     pose: &SplineImplicitPose<f64>,
     band: Band,
