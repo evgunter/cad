@@ -3612,7 +3612,9 @@ fn apex_line<T: Decide>(
 /// **A plane×cone pair's apex line pair, read once for the operation**
 /// ([`super::section_table::SectionTable::apex_lines`]): the pair's
 /// section read as the join reads its frame, at the cone face's reach
-/// ([`frame_lever`], [`pk_section`]), on the first ask.
+/// ([`frame_lever`], [`pk_section`]), on the first ask. A section with
+/// no frame (an open conic, the apex touchings) is no line pair here;
+/// the join refuses it where it reads a germ's frame.
 ///
 /// # Errors
 ///
@@ -3638,7 +3640,7 @@ fn pair_apex_lines<T: Decide>(
         };
         match pk_section(plane, cone, &reach, band) {
             Ok(PkSection::Lines(lines)) => Ok(Some(lines)),
-            Ok(PkSection::Loop(..)) => Ok(None),
+            Ok(PkSection::Loop(..) | PkSection::Unframed(_)) => Ok(None),
             Err(e) => Err(frame_refusal(e, (face_a, sa), (face_b, sb))),
         }
     })
@@ -4234,10 +4236,11 @@ fn pk_germ_frame<T: Decide>(
             "a plane×cone frame was levered at no cone face's reach",
         ));
     };
-    Ok(match pk_section(plane, cone, &reach, band)? {
-        PkSection::Loop(center, axis) => Some((center, axis)),
-        PkSection::Lines(_) => None,
-    })
+    match pk_section(plane, cone, &reach, band)? {
+        PkSection::Loop(center, axis) => Ok(Some((center, axis))),
+        PkSection::Lines(_) => Ok(None),
+        PkSection::Unframed(e) => Err(e),
+    }
 }
 
 /// **What a plane×cone pair's section is to the join**: one loop, by
@@ -4247,6 +4250,10 @@ pub(super) enum PkSection<T: geom_core::Real> {
     Loop(geom_core::Point3<T>, geom_core::Vec3<T>),
     /// The two lines a plane through the apex cuts.
     Lines(super::section_table::ApexLines<T>),
+    /// A section the join has no frame for — the apex touchings, an
+    /// open conic — refused where a germ's frame is read
+    /// ([`pk_germ_frame`]), not where a germ's line is.
+    Unframed(FrameError),
 }
 
 /// **The plane×cone section, read once for both of its consumers**
@@ -4256,8 +4263,8 @@ pub(super) enum PkSection<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// [`pk_germ_frame`]'s: the apex's touching outcomes, an open conic,
-/// and the section's refusals.
+/// The section's refusals ([`section_refusal`]), and a line pair whose
+/// lines are no lines.
 pub(super) fn pk_section<T: Decide>(
     plane: &geom::Surface<T>,
     cone: &geom::Surface<T>,
@@ -4294,15 +4301,17 @@ pub(super) fn pk_section<T: Decide>(
         Ok(
             geom_brep::PlaneConeSection::ApexTangentLine(_)
             | geom_brep::PlaneConeSection::ApexPoint(_),
-        ) => Err(FrameError::Desync(
+        ) => Ok(PkSection::Unframed(FrameError::Desync(
             "germ pair's plane×cone section is not a locus",
-        )),
-        Ok(geom_brep::PlaneConeSection::OpenConic(section)) => Err(FrameError::OpenConic {
-            conic: section.conic(),
-        }),
-        Ok(_) => Err(FrameError::Desync(
+        ))),
+        Ok(geom_brep::PlaneConeSection::OpenConic(section)) => {
+            Ok(PkSection::Unframed(FrameError::OpenConic {
+                conic: section.conic(),
+            }))
+        }
+        Ok(_) => Ok(PkSection::Unframed(FrameError::Desync(
             "plane×cone classification carried a carrier its conic is not",
-        )),
+        ))),
         Err(e) => Err(section_refusal(e)),
     }
 }
