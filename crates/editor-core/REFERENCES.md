@@ -58,11 +58,11 @@ reader's seat.
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
 materialize and are never stored (`names/select.rs`).
 
-## DM1 — A sketch on a face is placed against the face's plane
+## DM1 — A body on a face is placed against the face's plane
 
-A profile is drawn on its own plane and a construction computes in its
-own coordinates (D10), so a sketch on a face is a placement: the
-construction placed against the face's body by a `Plane` mate from its
+A sketch on a face is not a placement: it is a profile drawn on a frame
+read off the face (`[placement]`, `ProfileProgram.on`). A body on a face
+(a construction, a part) is: the construction placed against the face's body by a `Plane` mate from its
 own start cap, flipped to look up its own `z` (`Flip`), to the pose
 `Plane { face }` (`pose.rs`), and values setting the freedoms the mate
 leaves — the slides along the target space's axes as the least turn
@@ -105,9 +105,6 @@ pose.
   elaboration: it is read off the evaluated body at the lane scalar, so at
   `Interval` it is an enclosure, which is what a face's plane is at that
   scalar. The profile itself is 2-D and stays f64-pinned (PP1).
-- **In the chrome**, "on this face" is one committed action
-  (`commit_action`): the profile, the construction, its placement against
-  the face (mate and values) and the combine with the face's body.
 
 *Built: DOCM-1 (PR 1829), with DM1a, DM1b and DM2; the placement form,
 INTENT stage 3 D.*
