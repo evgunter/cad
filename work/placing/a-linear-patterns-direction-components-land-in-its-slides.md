@@ -2,10 +2,12 @@
 id: a-linear-patterns-direction-components-land-in-its-slides
 kind: issue
 title: the linear-pattern gesture writes a typed direction's components into slide formulas, unnormalized, so a diagonal row steps spacing·√2
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
+design: true
+blocked_on: [6369]
 ---
 
 
