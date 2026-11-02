@@ -65,3 +65,23 @@ tangency (the sheets agreeing to first order) needs the second-order
 reading the cross-solid curved lanes take. The cross-solid analysis
 has the same gap (`TouchUnreadable`). The fix lands with these 19
 families read and the skip removed.
+
+## Measured at the merge base (`c7759b036c`, topo + sweep, slow set, default ε)
+
+The skip is not the row's 19 families: it takes 107 (test, point)
+readings in 37 tests over 17 test files. `a_ruling_lying_on_a_wall`,
+`a_ruling_through_a_box_corner_edge`, `a_tube_ending_on_a_ball`,
+`pi_seam_and_kiss_through_the_boolean` and `verbs_ga_r2_probes` run and
+no longer reach it.
+
+## What landed
+
+`sweep_self_touch_points` reads such a point over its faces' tangent
+cones (`self_touch_verdict`, `Link::tangent_at_point`,
+`FaceSector::tangent`), and `rest::one_material` holds the cone to the
+coincidences the faces keep (`rest::first_order`) before it reads it.
+Of the 107: 33 read `Rest`, none `Crossing`; 1 refuses in band; 73 the
+cones leave to second order (a cone's apex, a cusp corner, a
+first-order tangency), which keep the skip, named
+(`SelfTouch::SecondOrder`) and filed with the 13 rows refusing them
+would turn red: `a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread`.
