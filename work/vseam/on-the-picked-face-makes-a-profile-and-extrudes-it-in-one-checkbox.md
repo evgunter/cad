@@ -9,6 +9,11 @@ cost: M
 design: true
 ---
 
+**Reported against an older build** (Ev, in chat, 2026-11-02: "i had
+accidentally built a slightly old version of the gui"). Reproduce on
+current main before building anything; if main no longer shows it, close
+the row saying so.
+
 Reported by Ev (in chat, 2026-11-02): "it's not clear what it was
 supposed to do and it ?automatically extruded the profile? which seems
 like it can't possibly be a feature that people actually want to do in
