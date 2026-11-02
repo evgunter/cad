@@ -119,3 +119,13 @@ arch leaves the fork its core runs tangent to the stem's, its tube
 smaller) refuses `CellBudget` after about 20 s in debug
 (`crates/sweep/tests/mate7a_r1_probes.rs`
 `the_lilys_tori_exhaust_the_doors_cell_budget`, the pin).
+
+## On the nightly runner (GREEN's slow-test census, 2026-11-02)
+
+Nightly run 41276693129 (11-01) at 1e-12: `cylinder_sphere_frame` is
+1 004 test-s (10 % of the row; `…_in_two_loops` and `…_in_two_loops_turned`
+250 s each, `…_wider_than_the_wall` 168 s, red), 144 s at the default
+ε; `pair_section::a_seated_loop_is_the_loop_point_for_point` 99 s. On a
+4-core dev box at opt-level 2, `…_in_two_loops` at 1e-12 took 291 s
+with debug assertions on and 296 s with them and overflow checks off:
+the cost is the kernel's, not the checks'.
