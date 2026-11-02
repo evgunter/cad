@@ -2015,7 +2015,7 @@ fn whole_body_side<T: Decide>(
             else {
                 continue;
             };
-            if matches!(curve.carrier(), geom::Curve3::Line { .. }) {
+            if !curve.carrier().is_curved() {
                 continue;
             }
             let (t0, t1) = curve.params();

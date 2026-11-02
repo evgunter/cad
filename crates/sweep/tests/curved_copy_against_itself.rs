@@ -178,7 +178,7 @@ fn the_waisted_body_against_its_copy_refuses_at_the_line_cone_lane() {
             Some(geom::Surface::Cone {
                 axis, half_angle, ..
             }),
-            Some(geom::Curve3::Line { dir, .. }),
+            Some(geom::Curve3::Line(geom::Line { dir, .. })),
         ) = (surface, carrier)
         else {
             panic!("{label}: a line edge against a cone face");

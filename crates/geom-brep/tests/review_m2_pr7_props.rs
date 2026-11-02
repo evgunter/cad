@@ -284,14 +284,7 @@ fn meridian_edge(
             u_ref,
         } => {
             let (radial, _) = frame(axis, u_ref);
-            (
-                Curve3::Line {
-                    origin: origin + radial * radius,
-                    dir: axis,
-                },
-                v0,
-                v1,
-            )
+            (Curve3::line(origin + radial * radius, axis), v0, v1)
         }
         Surface::Cone {
             apex,
@@ -302,7 +295,7 @@ fn meridian_edge(
             let (sa, ca) = half_angle.sin_cos();
             let (radial, _) = frame(axis, u_ref);
             let dir = axis * ca + radial * sa; // unit generator; p(v) = apex + dir·v
-            (Curve3::Line { origin: apex, dir }, v0, v1)
+            (Curve3::Line(geom::Line { origin: apex, dir }), v0, v1)
         }
         Surface::Sphere {
             center,
@@ -534,17 +527,7 @@ fn torus_patch_matches_oracle_arbitrary_minor_intervals() {
 fn line_edge(a: Point3<f64>, b: Point3<f64>) -> LoopEdge<f64> {
     let d = b - a;
     let len = d.norm();
-    LoopEdge::hand_built(
-        Curve3::Line {
-            origin: a,
-            dir: d * (1.0 / len),
-        },
-        0.0,
-        len,
-        true,
-        0,
-        0,
-    )
+    LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, true, 0, 0)
 }
 
 /// Full circle in the z = h plane as a single self-loop edge, CCW
@@ -659,7 +642,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     );
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
-    if let Curve3::Line { dir, .. } = &mut lp.edges[1].carrier {
+    if let Curve3::Line(geom::Line { dir, .. }) = &mut lp.edges[1].carrier {
         *dir = (*dir + u_ref * 0.2).normalize();
     }
     assert!(
