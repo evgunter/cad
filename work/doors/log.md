@@ -197,11 +197,21 @@ AUTHOR's narrative is recoverable from
 - `a-split-of-a-drawn-body-is-drawn-unsplit`: live for a *placed* body only (`add_split` writes a bare `Split`, no takeover); P0→P1 M, a faithful elaboration of §5′.3 (a) (take the target over to `⊔[above, below]`, as blend/pattern do). Dispatched as `doors/split-takes-over`. Tier: style review + correctness reviewer (a wrong picture). The lane also fixes two stale texts the re-read found: `INTENT-STAGE3-SPEC.md:493`'s "`⊔`/`∪` operand slot" (6209 made it `⊔` only — a wording consequence of the ratified rule) and `op.rs:777`'s `AddMirror` doc.
 - `the-mirror-keeps-two-pieces-…`: open, design, P1→P2 (a missing feature; adding `⊔` output changes 6209's ratified README sentence). Tail for a successor; not this sitting.
 
+## 2026-11-02 08:00 — 6331 (split takeover) reviews in: fix pass 1
+
+- Style: mergeable; stale census/module/spec text the PR half-edited; product-slot row pins less than its name. Correctness: claims hold across duplicate, placed `⊔`, transform, mirror-then-split; MAJOR-1 — `held_as_itself` widened `successors`' reads to every split of the body for *every* takeover door, so a combine of a body with its own earlier split half drops a mate main kept.
+- Ruling: the reads are the body plus the halves of the split this action wrote, passed from `Wrote`, never rediscovered by walking the document — non-split doors ask exactly what they asked on main. Class note: widening a shared kernel query for one door changed every door; a lane that widens a shared query states and tests what the other callers now see.
+- The README sentence lands with the change: it describes §5′.3 (a), and its one choice (`⊔` over `∪`) was a designer pair's, not a ratified decision of Ev's.
 ## 2026-11-02 08:45 — P1 `a-split-of-a-drawn-body-is-drawn-unsplit` merges (PR 6331)
 
 - Style + correctness reviews, one fix pass (the shared successor query had been widened for every door; now the split passes its own halves as `intact`), re-verify says merge. CI green at `b572bc4803`.
 - Residue filed: `a-split-half-cannot-be-split` (P3 E), `a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it` (P3 M); `a-takeover-could-re-seat-a-pick-its-result-keeps`'s premise corrected in place.
 
+## 2026-11-02 09:20 — 6292 fix pass 1 in; re-verify dispatched
+
+- Head `b2015ee1c2`, CI green. M1: over a box, `Within` now rests on a station pair whose separation is enclosed over every realization; a straddling pair refuses `BoxDependent`, which is the drive's bisection cue. Every MUST FIX item reported fixed with a mutation.
+- Two disputes accepted: (1) facet pruning now serves only bounds with no upper end — the "largest facet" suggestion would answer `Exceeded` on `Within`'s evidence; (2) a reversed band refuses at evaluation (`EmptyBand` via `of_bound`), where `NotADistance` already refuses, since a band's ends are formulas.
+- Re-verify sent to the first correctness reviewer's cloud session (it posts on the PR).
 ## 2026-11-02 10:10 — P1 `a-clearance-assertion-is-decided-by-the-sweep` merges (PR 6292)
 
 - Correctness review → fix pass (M1: an upper bound over a box rested on one midpoint pair) → re-verify says merge: every decided verdict probed, at the door and per drive leaf, matches the analytic truth. Two implementer disputes accepted (facet pruning serves lower bounds only; a reversed band refuses at evaluation).
@@ -209,6 +219,17 @@ AUTHOR's narrative is recoverable from
 - Residue: R1 (a regression of the fix pass: meeting scopes over a box refuse where topology decides 0) is DOORS' P2 E — this sitting's to do if time allows; R2, R3 to CLEARTAIL with a seam note.
 - The viewer half `the-gui-has-no-clearance-consumer` is un-parked and dispatched (`doors/clearance-consumer`).
 
+## 2026-11-02 10:35 — 6292 merged; last P1 and one easy tail row dispatched
+
+- PR 6292 merged (`0479a02dab`) after its main-merge re-earned CI (gate ok).
+- `the-gui-has-no-clearance-consumer` (P1 M) dispatched locally on `doors/clearance-consumer`. Tier: style + correctness (a verdict drawn wrong is a wrong picture). The brief binds the witness faces to `name_run` (6264's gate) and seats to the document's words (no raw ids).
+- `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` (P2 E, a regression of 6292's fix pass) dispatched to a cloud session — tail work this sitting is best placed for. Tier: orchestrator's read (E).
+
+## 2026-11-02 12:10 — 6357 (clearance consumer) reviews in: fix pass 1
+
+- Correctness: seam, resolver, witness frames, seats-read-where-drawn, row and tool all HOLD; MAJOR — a clearance with a pattern seat crashes the viewer: the submit trigger was `usable()`, the value is a `Family`, and #6292's pncad door `unreachable!`s on it inside a worker whose panic takes the process down. Class note: a door that `unreachable!`s on a document's value violates D9 and only waits for its first reachable caller; the fix pass makes it a typed refusal.
+- Style: mergeable; the equation spelled twice (the kernel's `ClearanceBounds::equation` is unused), stale README counts, the witness gate restating `name_run`'s rule with `ptr::eq`, and two larger copies (a third seam, the tool's own seat handling) to be filed as rows.
+- Seats are read where drawn (a world copy, not the construction): accepted as faithful, not a fork — a clearance is about geometry as it stands; the reviewer found no pick computed in another space than the picture shows.
 ## 2026-11-02 11:35 — `a-meeting-scope-over-a-box-refuses-where-topology-decides-zero` merges (PR 6354)
 
 - Orchestrator's read: the 0 is read only for the meeting candidate's own station pair; soundness rests on the meeting being topological over the box (the shared point exists at every realization), not on the fixed stations tracking it. Over-broad mutation (every pair 0) reds the non-meeting rows. CI green.
@@ -217,3 +238,8 @@ AUTHOR's narrative is recoverable from
 
 - Style + correctness reviews; fix pass 1 (a pattern seat crashed the viewer via #6292's `unreachable!`; a row could read `certifying…` with nothing certifying; a twice-drawn body refused with the wrong words), fix pass 2 (the witness of a pattern member k ≠ 0 was drawn on member 0 — now carried from the kernel as `Witness::sides`); re-verify 2 says merge. CI green at `fd50108209`.
 - With this, DOORS has no P0 or P1 row left: the sitting hands the program back (`ready`).
+
+## 2026-11-02 13:40 — the sitting hands DOORS back (`ready`)
+
+- Every P0 and P1 row is closed: 6264 (takeover rebind), 6331 (split takeover), 6292 + 6354 (clearance kernel and its meeting-scope regression), 6357 (clearance viewer), with 6262 (face words) earlier; the extrude side superseded by D10, the fillet-on-a-union row by SPACES' 6265. The tail (P2 and below) is handed back; `plan.md`'s slate and order are rewritten for the next sitting, and three lessons added.
+- Open threads for a successor: none in flight. PLACING's two questions and CHROME's parked row were answered on their logs at 6264's merge. Private review reports are in `~/.local/share/cad-work/doors-fork/` (this container only).
