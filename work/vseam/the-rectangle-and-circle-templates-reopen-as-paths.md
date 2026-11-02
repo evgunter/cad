@@ -2,10 +2,10 @@
 id: the-rectangle-and-circle-templates-reopen-as-paths
 kind: issue
 title: A rectangle profile stores its corners, not the width and height written, and a bored circle stores its centre twice
-status: open
+status: parked
 opened: 2026-09-19
 priority: P1
-design: true
+blocked_on: [the-gui-cannot-author-a-profile-of-several-loops]
 cost: M
 ---
 
@@ -69,3 +69,11 @@ Ev's answers on PR 6143:
 - How part of a profile refers to earlier parts of the same profile
   (written values and derived ones, such as an arc's centre) is its own
   question: `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`.
+
+## 2026-11-02 — parked on multi-loop authoring
+
+Ruled on PR 6143. The build is: a `rectangle` step through the
+`profile` crate, editor-core, pncad-py and the viewer, and the bore
+preset dropped. Dropping the preset removes the GUI's only way to make
+a second loop until `the-gui-cannot-author-a-profile-of-several-loops`
+lands, so the row waits on it.
