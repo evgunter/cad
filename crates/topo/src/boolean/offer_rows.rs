@@ -561,7 +561,11 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
     };
     pierce_side(
         Vec3::new(1.0, 0.0, 0.0),
-        Reach::Conic { extent, bend, arc: None },
+        Reach::Conic {
+            extent,
+            bend,
+            arc: None,
+        },
         n,
         crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
@@ -2942,6 +2946,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "read_refusal", "Coincide::SectorSide", 1),
+    ("sectors.rs", "read_refusal", "Coincide::TangentSide", 1),
     ("sectors.rs", "read_refusal", "LeverArm::SectorCurving", 1),
     ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),

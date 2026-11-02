@@ -153,6 +153,17 @@ impl<T: Decide> Reach<T> {
         }
     }
 
+    /// The bound's base vertex, where it has a point behind it
+    /// ([`Self::witness`]).
+    fn base(self) -> Option<Point3<T>> {
+        match self {
+            Self::Chord { base, .. } => Some(base),
+            Self::Extent(_) => None,
+            Self::Conic { arc, .. } => arc.map(|arc| arc.at(T::zero())),
+            Self::Bisector { on, .. } => on.map(|on| on.base),
+        }
+    }
+
     /// **The bound's point at `l` from its base vertex**, `l` no longer
     /// than [`Self::length`]: a point of the edge, or of a bisector's
     /// sector face, that a witness reads ([`Tie::descend`]). A line
@@ -500,20 +511,24 @@ impl<T: geom_core::Real> Carrier<T> {
         geom_brep::implicit_residual(&self.surface(), p)
     }
 
-    /// The point of the carrier `p` stands over: `p` less its residual
-    /// along the carrier's unit gradient there. Exact on a cone's nappe
-    /// (whose residual is the distance), and within the band of the
-    /// carrier wherever `p` stands within a small fraction of its
-    /// radius of it; the witness that reads it re-reads its residual,
-    /// so a foot off the carrier refuses rather than misleads. `None`
-    /// where the gradient is poison (a cone's apex or axis, a torus's
-    /// axis).
+    /// **The point of the carrier nearest `p`**: the closed-form foot
+    /// the boolean's carrier distance reads
+    /// (`boolean::carrier_touch::distance`) on a sphere, a cylinder or a
+    /// torus; on a cone, `p` less its residual along the residual's unit
+    /// gradient, exact where the foot lies on the nappe (the residual is
+    /// the distance there, [`geom_brep::cone_elevation`]). `None` where
+    /// the foot is poison (`p` on an axis, a cone's apex).
     fn foot(self, p: Point3<T>) -> Option<Point3<T>> {
         let surface = self.surface();
-        let g = geom_brep::implicit_gradient(&surface, p);
-        let r = geom_brep::implicit_residual(&surface, p);
-        let norm = g.norm();
-        let foot = p - g * (r / norm.powi(2));
+        let foot = match self {
+            Self::Cone { .. } => {
+                p - geom_brep::implicit_gradient(&surface, p)
+                    * geom_brep::implicit_residual(&surface, p)
+            }
+            Self::Cylinder { .. } | Self::Sphere { .. } | Self::Torus { .. } => {
+                crate::boolean::carrier_touch::distance(&surface, p)?.1
+            }
+        };
         geom_core::is_finite_length(foot.x + foot.y + foot.z).then_some(foot)
     }
 }
@@ -565,7 +580,6 @@ impl<T: geom_core::Real> ConicArc<T> {
             to,
         })
     }
-
 }
 
 impl<T: Decide> ConicArc<T> {
@@ -755,13 +769,17 @@ pub(crate) enum ReadFault<T: geom_core::Real> {
     /// its arm in the band, or the parting poisoned or straddling the
     /// zero band (no gap of [`Unresolved::Gap`]'s).
     Parting(LeverEscalation),
+    /// The witness of a parting off the zero band does not stand it
+    /// ([`Tie::descend`]): decided against the parting's side, poisoned,
+    /// straddling the zero band, or no point to read.
+    Witness(Indeterminate),
 }
 
 impl<T: geom_core::Real> ReadFault<T> {
     /// The indeterminate the fault was read on.
     pub(crate) fn diag(self) -> Indeterminate {
         match self {
-            Self::Chord(diag) | Self::Bend(diag) => diag,
+            Self::Chord(diag) | Self::Bend(diag) | Self::Witness(diag) => diag,
             Self::Departure { escalation, .. } | Self::Parting(escalation) => escalation.diag(),
         }
     }
@@ -993,7 +1011,7 @@ impl<T: Decide> Tie<T> {
         let n = self.face.reference.vec();
         let w = self.reach.witness(self.dir, l)?;
         match self.face.bend {
-            FaceBend::Plane => Some((w - self.reach.witness(self.dir, T::zero())?).dot(n)),
+            FaceBend::Plane => Some((w - self.reach.base()?).dot(n)),
             FaceBend::Implicit {
                 gradient, carrier, ..
             } => {
@@ -1127,19 +1145,73 @@ impl<T: Decide> Tie<T> {
                 reach.length()
             );
             use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
                 let _ = f.write_all(format!("{line}\n").as_bytes());
             }
         }
-        match probe {
-            Ok(verdict) => Ok(Side::of(verdict).map_or(Descent::Rides, Descent::Leaves)),
+        let leading = match probe {
+            Ok(verdict) => match Side::of(verdict) {
+                Some(side) => Some(side),
+                None => return Ok(Descent::Rides),
+            },
             Err(escalation)
                 if escalation.rung() == geom_brep::LeverRung::Reading
                     && in_one_gap(escalation.diag()) =>
             {
-                Ok(Descent::Unresolved(Unresolved::Gap))
+                None
             }
-            Err(escalation) => Err(ReadFault::Parting(escalation)),
+            Err(escalation) => return Err(ReadFault::Parting(escalation)),
+        };
+        self.witnessed(leading, arm, band)
+    }
+
+    /// **The witness's verdict on a parting off the zero band** (the
+    /// design's certification of a `Leaves`): the bound's point at the
+    /// parting's arm ([`Self::witness_offset`]), read on the first
+    /// order's ladder under `"tangent_sector_witness"`. Where the parting
+    /// was decided toward `leading`, a witness decided on that side is
+    /// [`Descent::Leaves`], one within the zero band [`Descent::Rides`]
+    /// (the leading term overstated a bound that stays within the band
+    /// of the face at its reach), one in the gap
+    /// [`Unresolved::Gap`]. Where the parting lay in the gap
+    /// (`leading` `None`), the witness decides alone on the same ladder:
+    /// the leading term there is too small to carry a side.
+    ///
+    /// # Errors
+    ///
+    /// [`ReadFault::Witness`]: a witness decided against the parting's
+    /// side, poisoned or straddling the zero band, or none (a bound with
+    /// no point behind it, a foot that does not read).
+    fn witnessed(self, leading: Option<Side>, arm: T, band: Band) -> Result<Descent, ReadFault<T>> {
+        let offset = self
+            .witness_offset(arm)
+            .unwrap_or_else(|| T::from_f64(f64::NAN));
+        let decided = crate::validate::decide("tangent_sector_witness", Margin::of(offset), band);
+        let gap = Ok(Descent::Unresolved(Unresolved::Gap));
+        let side = match decided {
+            Ok(Sign::Zero) => return Ok(Descent::Rides),
+            Ok(Sign::Positive) => Side::Above,
+            Ok(Sign::Negative) => Side::Below,
+            Err(diag) if in_one_gap(diag) => return gap,
+            Err(diag) => return Err(ReadFault::Witness(diag)),
+        };
+        match leading {
+            Some(lead) if lead != side => Err(ReadFault::Witness(
+                crate::validate::decide_positive(
+                    "tangent_sector_witness",
+                    Margin::of(match lead {
+                        Side::Above => offset,
+                        Side::Below => T::zero() - offset,
+                    }),
+                    band,
+                )
+                .expect_err("a witness decided against the parting's side is not past it"),
+            )),
+            _ => Ok(Descent::Leaves(side)),
         }
     }
 }
@@ -1190,7 +1262,14 @@ mod tests {
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-        (tangent.normalize() * extent, Reach::Conic { extent, bend, arc: None })
+        (
+            tangent.normalize() * extent,
+            Reach::Conic {
+                extent,
+                bend,
+                arc: None,
+            },
+        )
     }
 
     /// **A tie is kept whole at first order and descended on asking**: a
@@ -1456,7 +1535,11 @@ mod tests {
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         (
-                            Reach::Conic { extent, bend, arc: None },
+                            Reach::Conic {
+                                extent,
+                                bend,
+                                arc: None,
+                            },
                             tangent.normalize() * extent,
                             Box::new(move |l| {
                                 center + (u_ref * (k * l).cos() + d * (k * l).sin()) * radius
@@ -1551,7 +1634,14 @@ mod tests {
             let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
             let tangent = carrier.deriv(0.0);
             let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-            (tangent.normalize() * extent, Reach::Conic { extent, bend, arc: None })
+            (
+                tangent.normalize() * extent,
+                Reach::Conic {
+                    extent,
+                    bend,
+                    arc: None,
+                },
+            )
         };
         let side =
             |s: &geom::Surface<f64>, p, outward: Vec3<f64>, (d, r): (Vec3<f64>, Reach<f64>)| {

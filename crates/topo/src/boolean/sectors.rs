@@ -962,6 +962,9 @@ fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
         ReadFault::Parting(escalation) => {
             BooleanError::of_lever(LeverArm::SectorCurving, DeclarationRead::Moot, escalation)
         }
+        ReadFault::Witness(diag) => {
+            BooleanError::coincidence(Coincide::TangentSide, DeclarationRead::Moot, diag)
+        }
     }
 }
 
@@ -3492,7 +3495,14 @@ mod tests {
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-        (tangent.normalize() * extent, Reach::Conic { extent, bend, arc: None })
+        (
+            tangent.normalize() * extent,
+            Reach::Conic {
+                extent,
+                bend,
+                arc: None,
+            },
+        )
     }
 
     /// **The split walk and the boolean read one edge's side of a plane
@@ -3745,7 +3755,11 @@ mod tests {
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         let dir = tangent.normalize() * extent;
-                        let reach = Reach::Conic { extent, bend, arc: None };
+                        let reach = Reach::Conic {
+                            extent,
+                            bend,
+                            arc: None,
+                        };
                         if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
                             continue;
                         }
@@ -3833,7 +3847,11 @@ mod tests {
         assert_eq!(
             pierce_side(
                 dir,
-                Reach::Conic { extent, bend, arc: None },
+                Reach::Conic {
+                    extent,
+                    bend,
+                    arc: None
+                },
                 n,
                 FaceBend::Plane,
                 NO_CURVATURE(),
