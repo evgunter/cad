@@ -557,6 +557,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 node: s(5, "Profile"),
             },
         ),
+        (
+            "TakeOverRepeatsCopy",
+            EditError::TakeOverRepeatsCopy {
+                node: s(5, "Place"),
+            },
+        ),
         ("EmptyWitnessBulk", EditError::EmptyWitnessBulk),
         (
             "NameUnresolvedInEvaluation",

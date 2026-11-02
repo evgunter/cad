@@ -152,21 +152,26 @@ impl ToolKind {
     /// no edge wins answers NOTHING rather than re-selecting the wall
     /// behind the edge the user was aiming at. Every other tool holds
     /// NODE picks, which a face and an edge answer equally well
-    /// ([`Selection::seat_node`] reaches the drawn body either way), so
-    /// none of them narrows anything.
+    /// ([`Selection::seat_node`] reaches the drawn body either way); a
+    /// profile's outline answers only a tool whose seat reads a profile,
+    /// so a body tool is never handed a node it cannot seat.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
             // The mirror tool's plane is a face, and its body is picked
             // by a face or in the tree.
             Self::Mate | Self::Mirror => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
-            Self::Revolve
-            | Self::Boolean
+            // Its one seat reads a profile, which a click on the
+            // profile's outline picks.
+            Self::Revolve => PickKinds::Any,
+            // Their seats read bodies, picked through a face or an
+            // edge; none reads a profile, so none is offered one.
+            Self::Boolean
             | Self::Split
             | Self::Transform
             | Self::Pattern
             | Self::Part
-            | Self::Duplicate => PickKinds::Any,
+            | Self::Duplicate => PickKinds::FacesAndEdges,
         }
     }
 
@@ -344,7 +349,7 @@ vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
     /// pane's add-profile and extrude forms, the profile
-    /// editor's apply and revert, and the label field a create form and
+    /// editor's apply, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
@@ -354,8 +359,6 @@ vocabulary! {
         Extrude,
         /// The profile editor's apply.
         EditProfile,
-        /// The profile editor's revert.
-        RevertProfile,
         /// A node's label field, on a create form or in the properties
         /// pane.
         Label,
@@ -372,7 +375,6 @@ impl FormKind {
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
             Self::EditProfile => "edit profile",
-            Self::RevertProfile => "revert profile",
             Self::Label => "label",
         }
     }
@@ -827,6 +829,27 @@ impl Tools {
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
             Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
+        }
+    }
+
+    /// **The picks the open tool holds** ([`crate::session::Holds`]):
+    /// the mate tool's faces, the mirror's plane and the blend's edges;
+    /// the seated tools hold bodies, whose reads a takeover keeps.
+    pub fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.held(),
+            Some(OpenTool::Blend(tool)) => tool.held(),
+            Some(OpenTool::Mirror(tool)) => tool.held(),
+            None
+            | Some(
+                OpenTool::Revolve(_)
+                | OpenTool::Boolean(_)
+                | OpenTool::Split(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_)
+                | OpenTool::Duplicate(_),
+            ) => Vec::new(),
         }
     }
 

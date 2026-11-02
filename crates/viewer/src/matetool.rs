@@ -88,7 +88,7 @@ use pncad::document::{
 use pncad::prelude::StableName;
 use pncad::select::{EntityKind, Resolution};
 
-use crate::pickindex::PickKinds;
+use crate::pickindex::{PickKinds, PickedKind};
 use crate::session::select::resolves;
 use crate::session::{EdgeSelection, FaceSelection, SessionOp, VertexSelection};
 use crate::tree::{DrawnBody, HeldPick, PickedEntity};
@@ -115,21 +115,20 @@ pub const MATE_KINDS: [(VarKind, &str); 4] = [
 /// **What the cursor may pick while the mate tool reads `kind`**: of
 /// every rule ([`PickKinds::ALL`]) admitting each entity the kind reads
 /// ([`reads`]), the one admitting fewest — so a kind that reads faces alone
-/// picks faces alone, and a narrow shelf or a small hole's wall stays
+/// picks faces alone, no kind is offered a profile (none reads one), and a narrow shelf or a small hole's wall stays
 /// pickable however near its own boundary the cursor is. A pick already
 /// held that the kind chosen since does not read is refused at the
 /// commit, typed ([`MateToolError::KindDoesNotRead`]).
 #[must_use]
 pub fn pick_kinds(kind: VarKind) -> PickKinds {
-    let read = reads(kind);
-    let entities = [EntityKind::Face, EntityKind::Edge, EntityKind::Vertex];
+    let read: Vec<PickedKind> = reads(kind).into_iter().filter_map(PickedKind::of).collect();
     PickKinds::ALL
         .into_iter()
-        .filter(|rule| read.iter().all(|&entity| rule.admits(entity)))
+        .filter(|rule| read.iter().all(|&picked| rule.admits(picked)))
         .min_by_key(|rule| {
-            entities
+            PickedKind::ALL
                 .iter()
-                .filter(|&&entity| rule.admits(entity))
+                .filter(|&&picked| rule.admits(picked))
                 .count()
         })
         .unwrap_or_default()
@@ -146,6 +145,25 @@ pub enum MatePick {
     Edge(EdgeSelection),
     /// A vertex pick.
     Vertex(VertexSelection),
+}
+
+/// A mate pick follows as the selection it was picked in does.
+impl crate::session::select::Follows for MatePick {
+    fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node(),
+            Self::Edge(edge) => edge.node(),
+            Self::Vertex(vertex) => vertex.node(),
+        }
+    }
+
+    fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
+        match self {
+            Self::Face(face) => face.follow(moved, doc),
+            Self::Edge(edge) => edge.follow(moved, doc),
+            Self::Vertex(vertex) => vertex.follow(moved, doc),
+        }
+    }
 }
 
 impl MatePick {
@@ -830,6 +848,19 @@ impl MateTool {
                 again(on);
                 again(to);
             }
+        }
+    }
+
+    /// **The picks the tool holds** ([`crate::session::Holds`]): `on`,
+    /// then `to`, as far as picked.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.state {
+            MateToolState::Idle => Vec::new(),
+            MateToolState::One(on) => vec![crate::session::select::Held::One(on)],
+            MateToolState::Two { on, to } => vec![
+                crate::session::select::Held::One(on),
+                crate::session::select::Held::One(to),
+            ],
         }
     }
 

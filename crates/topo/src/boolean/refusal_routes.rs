@@ -556,14 +556,15 @@ pub enum Coincide {
     TangentSide,
     /// How two corners of the two solids overlap where they meet: a
     /// direction within a sector, two sectors' faces parallel, their
-    /// bounds in line, the order of a strut's germs, whether a dihedral
-    /// wedge about a shared edge is reflex. Every verdict passes.
+    /// bounds in line, the order of a strut's germs, where a flank about
+    /// a shared edge lies against the other solid's faces there. Every
+    /// verdict passes.
     ///
     /// One question over sites a declaration settles and sites it does
     /// not: only `vtxfac`'s coplanar lump reads the pair ahead of it, with
     /// the classes its door admits for the pierced face; every other site
     /// (`within`, the strut order, `pair_search`, the directions' overlap,
-    /// the pierce germ line, the edge-edge wedge's extent) passes `Moot`
+    /// the pierce germ line, the edge-edge line cone's parity arc) passes `Moot`
     /// or a read minted with no class admitted, which the lookup never
     /// mints `Settles` from. The read, not the variant, carries the
     /// difference.
@@ -573,10 +574,12 @@ pub enum Coincide {
     /// clear angle.
     EdgeOnEdge,
     /// Whether plane faces of the two solids along an edge they share
-    /// overlap or only touch (`bool_dir_same`, the membership tie): the
-    /// cosine of two unit directions levered at the corner's arm, so
-    /// either definite sign passes and a decided zero refuses as the
-    /// in-band arm does ([`CORNER_SENSE`]). No declaration settles it:
+    /// overlap or only touch (`link_wedge`, the membership tie): where
+    /// one solid's flank lies in the plane of the other's, its distance
+    /// from the common line in that plane, drawn in to the other flank's
+    /// reach, so what it measures is the corner's shorter edge; either
+    /// definite sign passes and a decided zero refuses as the in-band arm
+    /// does ([`CORNER_SENSE`]). No declaration settles it:
     /// the door refuses `Tangent` on two planes, and `Rest` changes
     /// nothing here.
     FlankSense,
