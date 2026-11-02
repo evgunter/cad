@@ -2,3 +2,4 @@ fork: a-profile-refers-to-its-own-parts (vseam, a-profile-cannot-refer-to-its-ow
 drawn: 2026-11-02, /dev/urandom one byte
 byte: 96
 mapping: A = Opus designer, B = Fable designer
+further designer: C = Opus (round 4, fresh, on the two sub-questions)
