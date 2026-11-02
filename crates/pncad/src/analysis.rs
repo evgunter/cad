@@ -126,21 +126,28 @@ pub use editor_core::clearance::{
 
 /// **Every clearance requirement of `doc`, answered at nominal**: the
 /// document evaluated at the certifying scalar over no parameter box,
-/// and each clearance assertion's verdict read back in plain numbers,
-/// in document order. The door an at-rest certify seam submits: it is
-/// stopped by `cancel` like any evaluation, and says so.
+/// its parts resolved through `resolver`, and each clearance
+/// assertion's verdict read back in plain numbers, in document order,
+/// a refusal said in `doc`'s own words. The door an at-rest certify
+/// seam submits: it is stopped by `cancel` like any evaluation, and
+/// says so.
 ///
 /// # Errors
 ///
 /// [`Canceled`] when `cancel` was set before the evaluation finished.
 pub fn clearances_at_nominal(
     doc: &crate::document::ProfileDoc,
+    resolver: Option<std::sync::Arc<dyn crate::document::PartResolver>>,
     cancel: &crate::document::CancelToken,
     tol: geom_core::Tol,
 ) -> Result<Vec<ClearanceAnswer>, Canceled> {
     use editor_core::{AssertionVerdict, Claim, EvalOutcome, Node, NodeResult, ValuePayload};
+    let opts = editor_core::EvalOptions {
+        resolver,
+        ..editor_core::EvalOptions::default()
+    };
     let ev: editor_core::Evaluation<geom_core::Interval> =
-        editor_core::evaluate(doc, None, cancel, &editor_core::EvalOptions::default(), tol);
+        editor_core::evaluate(doc, None, cancel, &opts, tol);
     if ev.outcome == EvalOutcome::Canceled {
         return Err(Canceled);
     }
@@ -153,9 +160,18 @@ pub fn clearances_at_nominal(
             let answer = match ev.result(assertion) {
                 Some(NodeResult::Ok(value)) => match &value.payload {
                     ValuePayload::Assertion(AssertionVerdict::Clearance(report)) => {
-                        ClearanceOutcome::of(report.verdict())
+                        ClearanceOutcome::of(report.verdict(), crate::document::Speaker::of(doc))
                     }
-                    _ => unreachable!("a clearance assertion's value is its report"),
+                    // A seat over a pattern's members lifts the
+                    // requirement over the family: one per member.
+                    ValuePayload::Family => ClearanceOutcome::over_members(doc, assertion),
+                    other => ClearanceOutcome::Unanswered {
+                        sentence: format!(
+                            "{} evaluated to {}, not to a clearance verdict",
+                            doc.spoken(assertion),
+                            other.kind_name()
+                        ),
+                    },
                 },
                 Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
                     ClearanceOutcome::Unanswered {
@@ -203,6 +219,13 @@ pub enum ClearanceOutcome {
         /// The refusal said, with its recourse.
         sentence: String,
     },
+    /// **A requirement over a pattern's members**: a seat reads a
+    /// family, so the assertion is one requirement per member, which the
+    /// certifying lane does not decide yet. Said with its recourse.
+    OverMembers {
+        /// Why, said from the document, with the recourse.
+        sentence: String,
+    },
     /// The assertion did not evaluate: a seat that does not resolve, or
     /// a node under it that failed.
     Unanswered {
@@ -212,7 +235,25 @@ pub enum ClearanceOutcome {
 }
 
 impl ClearanceOutcome {
-    fn of(verdict: &ClearanceVerdict) -> Self {
+    /// **The answer for `assertion` when a seat reads a pattern's
+    /// members** ([`Self::OverMembers`]), said from `doc`.
+    pub fn over_members(
+        doc: &crate::document::ProfileDoc,
+        assertion: crate::document::RecipeNodeId,
+    ) -> Self {
+        Self::OverMembers {
+            sentence: format!(
+                "{} reads the members of a pattern, so it is one requirement per member, and a \
+                 clearance over a pattern's members is not certified yet. Recourse: seat one \
+                 member — project it with the projection tool and pick the projection",
+                doc.spoken(assertion)
+            ),
+        }
+    }
+
+    /// `verdict` in plain numbers, a refusal said by `by` — the
+    /// document's speaker, so a seat reads as the document names it.
+    pub fn of(verdict: &ClearanceVerdict, by: crate::document::Speaker<'_>) -> Self {
         match verdict {
             ClearanceVerdict::Holds => Self::Holds,
             ClearanceVerdict::Within(w) => Self::Within(PairOfPoints::of(w)),
@@ -220,7 +261,7 @@ impl ClearanceOutcome {
             ClearanceVerdict::Exceeded => Self::Exceeded,
             ClearanceVerdict::Refused(r) => Self::Refused {
                 name: r.name(),
-                sentence: r.to_string(),
+                sentence: crate::document::Said(r, by).to_string(),
             },
         }
     }
@@ -240,6 +281,11 @@ pub struct PairOfPoints {
     pub face_a: topo::FaceKey,
     /// The second seat's face.
     pub face_b: topo::FaceKey,
+    /// **Which body each face is of**, as the kernel resolved each seat:
+    /// the node it was read at and which of its output bodies — the
+    /// member, for a face seat on a pattern's member. The first seat's,
+    /// then the second's.
+    pub bodies: [(crate::document::RecipeNodeId, u32); 2],
 }
 
 impl PairOfPoints {
@@ -252,6 +298,7 @@ impl PairOfPoints {
             distance: g.distance,
             face_a: g.a,
             face_b: g.b,
+            bodies: w.sides,
         }
     }
 }

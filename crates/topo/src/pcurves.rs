@@ -2285,7 +2285,7 @@ pub fn loop_lift<T: Decide>(
 ) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
     let cycle = loop_rows(body, r#loop);
     let face = proven(&body.loops, r#loop, EntityId::Loop).face;
-    let surface = body.face_surface_linked(face, proven(&body.faces, face, EntityId::Face));
+    let surface = body.proven_face_surface(face);
     // No band is at hand, so the periods are the chart's as stated: on
     // every element a door wrote they are the decided ones
     // ([`ChartPeriods::stated`]).
@@ -8344,10 +8344,7 @@ pub(crate) mod pole_slit_tests {
         let faces: Vec<FaceKey> = twin.faces().map(|(f, _)| f).collect();
         assert_eq!(faces.len(), 2);
         let bound = |body: &Body<f64>, f: FaceKey| {
-            let s = body
-                .get_surface(body.get_face(f).unwrap().surface)
-                .unwrap()
-                .clone();
+            let s = body.face_surface(f).unwrap().clone();
             super::loop_windings(body, f, &s, band)
         };
         for periods in [5.0, 6.0, 10.0] {

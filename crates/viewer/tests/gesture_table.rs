@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 63;
+const OP_COUNT: usize = 64;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -405,6 +405,11 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             },
         },
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(node.into()),
+            b: viewer::session::ClearedSeat::Body(node.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+        },
     ]
 }
 
@@ -526,6 +531,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetSpaceHidden { .. } => (60, true),
         // What the document makes, as `SetProduct` is.
         SessionOp::AddToProduct { .. } => (61, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddClearance { .. } => (63, false),
     }
 }
 
@@ -1036,6 +1043,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
+        | SessionOp::AddClearance { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

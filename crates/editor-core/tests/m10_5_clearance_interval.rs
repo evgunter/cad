@@ -1366,6 +1366,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
         then: profiles[1..]
             .iter()
             .map(|&(profile, z)| editor_core::LoftSection {
+                id: None,
                 profile: profile.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -1374,6 +1375,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
             })
             .collect(),
         v_degree: Formula::count(2),
+        first_id: None,
     });
     let doc = r.doc;
     let sel = Selection::body_of(loft);

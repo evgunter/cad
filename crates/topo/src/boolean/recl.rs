@@ -72,10 +72,7 @@ fn carrier_of<T: Decide>(
     s: &BoolSector<T>,
 ) -> Result<CarrierDesc<T>, BooleanError> {
     super::carrier_pair::face_carrier(body, s.face).ok_or_else(|| {
-        let kind = body
-            .get_face(s.face)
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+        let kind = body.proven_face_surface(s.face).kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face: s.face,
@@ -122,16 +119,14 @@ pub(super) fn require_same<T: Decide>(
     let c2 = carrier_of(body2, o2, s2)?;
     let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
     let refusal = if curved(&c1) {
-        Some((o1, s1.face, body1.get_face(s1.face), body1))
+        Some((o1, s1.face, body1))
     } else if curved(&c2) {
-        Some((o2, s2.face, body2.get_face(s2.face), body2))
+        Some((o2, s2.face, body2))
     } else {
         None
     };
-    if let Some((operand, face, f, body)) = refusal {
-        let kind = f
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+    if let Some((operand, face, body)) = refusal {
+        let kind = body.proven_face_surface(face).kind();
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -334,8 +329,8 @@ pub(super) fn recl_sectors<T: Decide>(
             &[],
         );
         if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
-            let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
+            let s_a = a_body.proven_face_surface(sa.face).clone();
+            let s_b = b_body.proven_face_surface(sb.face).clone();
             let p = a_body.half_edge_start_point(sa.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
@@ -1688,8 +1683,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             &[],
         );
         let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_own = super::sectors::tangent_carrier(own_body, own_sec.face)?;
-            let s_other = super::sectors::tangent_carrier(other_body, other_sec.face)?;
+            let s_own = own_body.proven_face_surface(own_sec.face).clone();
+            let s_other = other_body.proven_face_surface(other_sec.face).clone();
             let p = own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-edge site lost its point",
@@ -1739,12 +1734,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         let (own_face, other_face) = (secs_of(own)[own_idx].face, secs_of(other)[oi].face);
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
-            .all(|&(body, face)| {
-                body.get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .map(geom::Surface::kind)
-                    == Some(geom::SurfaceKind::Plane)
-            });
+            .all(|&(body, face)| body.proven_face_surface(face).kind() == geom::SurfaceKind::Plane);
         let which = if planar {
             Coincide::FlankSense
         } else {
@@ -1977,8 +1967,8 @@ fn resolve_edge_sector<T: Decide>(
             let read = tangent_read(own_sec.face);
             let p = site_point(own_sec)?;
             super::sectors::tangent_lump(
-                &super::sectors::tangent_carrier(own_body, own_sec.face)?,
-                &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
+                own_body.proven_face_surface(own_sec.face),
+                ref_body.proven_face_surface(ref_sector.face),
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
                 ref_sector.tangent(),
                 own_sec.tangent(),

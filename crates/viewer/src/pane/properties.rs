@@ -672,7 +672,7 @@ impl ViewerBehavior<'_> {
         match group {
             SlotGroup::Scalar(row) => {
                 ui.horizontal(|ui| {
-                    ui.label(row.slot.label());
+                    ui.label(row.label.as_str());
                     self.slot_value_ui(ui, node, row);
                     self.slot_unit_ui(ui, node, core::slice::from_ref(row));
                     ui.weak(row.dimension.to_string());
@@ -1044,8 +1044,8 @@ impl ViewerBehavior<'_> {
             .map(|(_, refusal)| refusal.to_string())
             .collect();
         let refusals = refusals.join("\n");
-        let written: Vec<String> = writable.iter().map(|(row, _)| row.slot.label()).collect();
-        let skipped: Vec<String> = refused.iter().map(|(row, _)| row.slot.label()).collect();
+        let written: Vec<String> = writable.iter().map(|(row, _)| row.label.clone()).collect();
+        let skipped: Vec<String> = refused.iter().map(|(row, _)| row.label.clone()).collect();
         let skips = format!(
             "a pick writes {} and skips {}:\n{refusals}",
             written.join(", "),
@@ -1769,7 +1769,7 @@ fn slot_notes(
     reading: Option<&str>,
     notation: Notation,
 ) -> Option<VarId> {
-    for line in reading_notes(&row.slot.label(), &row.value, row.dimension, notation) {
+    for line in reading_notes(&row.label, &row.value, row.dimension, notation) {
         crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
     }
     let mut clicked = None;
@@ -1777,7 +1777,7 @@ fn slot_notes(
         if let Some(source) = &row.source {
             crate::widgets::message_toned(
                 ui,
-                format!("{} {} {source}", row.slot.label(), props::DRIVEN),
+                format!("{} {} {source}", row.label, props::DRIVEN),
                 theme,
                 Tone::Advisory,
             );
@@ -1786,7 +1786,7 @@ fn slot_notes(
             ui,
             format!(
                 "{}: {}",
-                row.slot.label(),
+                row.label,
                 Refusal::affordance(
                     variables,
                     row.slot,
@@ -1810,7 +1810,7 @@ fn slot_notes(
     if let Some(reading) = reading {
         crate::widgets::message_toned(
             ui,
-            format!("{}: {reading}", row.slot.label()),
+            format!("{}: {reading}", row.label),
             theme,
             Tone::Advisory,
         );
@@ -1956,6 +1956,7 @@ mod layout_tests {
     fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
         SlotRow {
             slot: SlotId::Distance,
+            label: SlotId::Distance.label(),
             dimension: Dimension::Length,
             structural: false,
             driver,
@@ -2250,6 +2251,7 @@ mod tests {
     fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
         SlotRow {
             slot: SlotId::Distance,
+            label: SlotId::Distance.label(),
             dimension: Dimension::Length,
             structural: false,
             driver,
