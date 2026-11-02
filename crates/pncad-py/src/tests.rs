@@ -4768,6 +4768,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
+            "take_over_repeats_copy",
             "unknown_constraint",
             "unknown_node",
             "unknown_slot",
