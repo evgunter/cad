@@ -886,16 +886,13 @@ class TestSnowman(unittest.TestCase):
         )
         self.assertTrue(set(waist) < set(described), "and they are two of the six")
 
-        # The description alone hands the roller the meridians, whose
-        # two sides are one sphere: no wedge to sit in.
+        # The description alone hands the roller the meridians too,
+        # whose two sides are one sphere: smooth seams it leaves as they
+        # are, so it rolls what the waist alone rolls.
         unsorted = doc.insert(Node.fillet(union, Formula.length_in(self.ROLL, m), described))
         rolled = doc.insert(Node.fillet(union, Formula.length_in(self.ROLL, m), waist))
         ev = evaluate(doc)
-        with self.assertRaises(EvaluationError) as refused:
-            ev.value(unsorted)
-        self.assertEqual(
-            (refused.exception.kind, refused.exception.inner_kind), ("fillet", "tangential_edge")
-        )
+        self.assert_volume(ev, unsorted, va + vb - vl + self.band_delta_v())
 
         self.assert_volume(ev, rolled, va + vb - vl + self.band_delta_v())
         self.assertEqual(len(ev.all_faces(rolled)), len(ev.all_faces(union)) + 1)

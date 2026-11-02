@@ -2343,10 +2343,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // Wall 6 — RETIRED, kept live. The lantern's mouth was a hard
     //    circle where the sphere zone meets the conical pucker, and the
     //    wall asked a rolling ball to soften it by requesting EVERY edge
-    //    of the lantern at once. What that refused (`KnifeEdge` at
-    //    margin exactly zero) was a seam meridian, an edge with the same
-    //    sphere on both sides, which no fillet should take; the rim
-    //    itself, asked for by both of its half-arcs, rolls. The scene
+    //    of the lantern at once. A seam meridian, an edge with the same
+    //    sphere on both sides, is a smooth seam the fillet leaves as it
+    //    is, so that request rolls every rim; the rim itself, asked for
+    //    by both of its half-arcs, rolls too. The scene
     //    now rolls it ([`roll_the_mouth`], r = [`FLOWER_MOUTH_ROLL`]),
     //    and what stays live is that the lantern the scene ships carries
     //    the band: one torus face, coaxial with the flower.
