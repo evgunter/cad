@@ -305,12 +305,13 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
+    let ray = geom::Line { origin: q, dir: d };
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).t();
-        r = q + d * (carrier.eval(near) - q).dot(d);
+        r = ray.foot(carrier.eval(near));
     }
-    let s = (r - q).dot(d);
+    let s = ray.param(r);
     let gap = match carrier.foot(r, near).on_carrier(band) {
         Ok(geom::OnCarrier::Off) => return Passes::Clear,
         Ok(geom::OnCarrier::On { .. }) => Gap::Zero,

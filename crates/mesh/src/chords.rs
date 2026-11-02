@@ -134,7 +134,7 @@ pub(crate) fn compute_chords(
         let span = t1 - t0;
         let target = edge_target(body, ek, delta)?;
         let n = match *curve.carrier() {
-            Curve3::Line { .. } => 1,
+            Curve3::Line(_) => 1,
             Curve3::Circle { .. } => {
                 let mut n = ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {

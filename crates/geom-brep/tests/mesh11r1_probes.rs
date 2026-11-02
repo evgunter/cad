@@ -203,10 +203,7 @@ fn r1_the_cone_arm_does_not_read_a_stray_line_as_a_generator() {
     // A line NOWHERE near the cone, whose foot-point parameter happens
     // to fall inside its stored span.
     let stray = vec![edge(
-        Curve3::Line {
-            origin: p3(5.0, 5.0, 5.0),
-            dir: v3(1.0, 0.0, 0.0),
-        },
+        Curve3::line(p3(5.0, 5.0, 5.0), v3(1.0, 0.0, 0.0)),
         -10.0,
         10.0,
         0,

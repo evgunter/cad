@@ -614,7 +614,7 @@ mod crossing_rows {
             .find_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match *c.carrier() {
-                    Curve3::Line { origin, dir }
+                    Curve3::Line(geom::Line { origin, dir })
                         if dir.z.abs() > 0.9
                             && Point3::new(origin.x, origin.y, 0.0).distance(foot) < 1e-12 =>
                     {
@@ -631,17 +631,14 @@ mod crossing_rows {
             .unwrap()
             .carrier()
         {
-            Curve3::Line { dir, .. } => dir,
+            Curve3::Line(geom::Line { dir, .. }) => dir,
             _ => panic!("a ruling is a line"),
         };
         let mid = body
             .split_edge(ruling, (0.5 - origin.z) / dir.z, tol)
             .unwrap()
             .vertex;
-        let along = Curve3::Line {
-            origin: foot,
-            dir: Vec3::unit_z(),
-        };
+        let along = Curve3::line(foot, Vec3::unit_z());
         match boundary_crossing(
             &body,
             (Operand::B, EdgeKey::default(), true),

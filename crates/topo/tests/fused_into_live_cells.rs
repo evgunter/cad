@@ -63,7 +63,7 @@ fn holds(body: &Body<f64>, cell: Cell, p: Point3<f64>, band: Band) -> bool {
                 .get_curve_geom(curve)
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
-            let Curve3::Line { origin, dir } = c.carrier() else {
+            let Curve3::Line(geom::Line { origin, dir }) = c.carrier() else {
                 panic!("a brick edge is a line: {:?}", c.carrier());
             };
             let (t0, t1) = c.params();

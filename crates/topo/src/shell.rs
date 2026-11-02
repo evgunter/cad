@@ -4497,7 +4497,7 @@ fn carrier_box<T: Decide>(
     params: (T, T),
     frame: &InPlane<T>,
 ) -> Option<[(T, T); 2]> {
-    if matches!(carrier, geom::Curve3::Line { .. }) {
+    if !carrier.is_curved() {
         return None;
     }
     let (center, radius) = crate::splitting::containment::carrier_ball(carrier, params)
@@ -5129,7 +5129,7 @@ fn moved_walls<T: Decide>(
                                 }
                             };
                         match *curve.carrier() {
-                            geom::Curve3::Line { .. } => EdgeArc::Line,
+                            geom::Curve3::Line(_) => EdgeArc::Line,
                             geom::Curve3::Circle {
                                 center,
                                 ref axis,

@@ -202,7 +202,7 @@ fn ringed_tube() -> (Body<f64>, FaceKey, topo::LoopKey) {
     let seam: Vec<EdgeKey> = halves_of(&body, wall)
         .into_iter()
         .map(|he| body.get_half_edge(he).unwrap().edge)
-        .filter(|&e| matches!(curve_of(&body, e).carrier(), Curve3::Line { .. }))
+        .filter(|&e| matches!(curve_of(&body, e).carrier(), Curve3::Line(_)))
         .collect();
     assert_eq!(seam.len(), 2, "the seam's two halves bound the wall");
     let e = body.get_edge(seam[0]).unwrap();
