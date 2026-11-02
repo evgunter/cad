@@ -474,6 +474,9 @@ pub(crate) enum TangentFan<T: Real> {
         d1: Vec3<T>,
         /// The edges along `d0` and `d1`, each with whether it is a line.
         bounds: [(EdgeKey, bool); 2],
+        /// The loop leaves the vertex back along the half-edge it came in
+        /// by, reversed: a spur's tip, its sector the whole turn.
+        spur: bool,
     },
     /// Inside an edge: the half-plane left of the loop's unit direction
     /// `along` the edge, about the outward normal, read out to `reach`.
@@ -2160,10 +2163,10 @@ impl<T: Decide> FaceSector<T> {
     /// of the face: the sector is the face only to first order, which
     /// [`rest::one_material`] reads as [`Tangent`] says.
     ///
-    /// A corner whose two departures are one direction along two edges (a
-    /// cusp: the face a horn about the ray, or the whole plane but it, as
-    /// its edges bend) is [`TouchUnread::Unreadable`], its sector being
-    /// second order; along one edge both ways it is a slit's tip, the
+    /// A corner whose two departures are one direction (a cusp: the face
+    /// a horn about the ray, or the whole plane but it, as its edges bend)
+    /// is [`TouchUnread::Unreadable`], its sector being second order; a
+    /// spur's tip, the loop back along the half-edge it came in by, is the
     /// whole turn. One whose turn reads in band is [`TouchUnread::InBand`].
     pub(crate) fn tangent(
         surface: geom::Surface<T>,
@@ -2175,8 +2178,13 @@ impl<T: Decide> FaceSector<T> {
     ) -> Result<Self, TouchUnread> {
         let plane_exact = matches!(surface, geom::Surface::Plane { .. });
         let (wedges, closed, bounds) = match fan_of {
-            TangentFan::Corner { d0, d1, bounds } => (
-                corner_fan(apex, outward, (d0, d1), bounds[0].0 == bounds[1].0, band)?,
+            TangentFan::Corner {
+                d0,
+                d1,
+                bounds,
+                spur,
+            } => (
+                corner_fan(apex, outward, (d0, d1), spur, band)?,
                 false,
                 Some(bounds),
             ),
@@ -2243,14 +2251,14 @@ fn in_plane<T: Decide>(
 /// `d0` (under half a turn), and past half a turn the rays at a quarter,
 /// a half and, where `d1` lies past it, three quarters of a turn from
 /// `d0`, scaled to the shorter departure. `d1` on `d0`'s line is half a
-/// turn where it points back along it; where it points the same way it
-/// is a whole turn at a `slit`'s tip (one edge both ways), and a cusp
-/// otherwise.
+/// turn where it points back along it, and a cusp where it points the
+/// same way. A `spur`'s tip, whose two departures are one half-edge's,
+/// is the whole turn from `d0`, read off nothing.
 fn corner_fan<T: Decide>(
     apex: Point3<T>,
     m: Vec3<T>,
     (d0, d1): (Vec3<T>, Vec3<T>),
-    slit: bool,
+    spur: bool,
     band: Band,
 ) -> Result<Vec<Segment<T>>, TouchUnread> {
     let rd = Reading {
@@ -2263,6 +2271,15 @@ fn corner_fan<T: Decide>(
     let reach = d0.norm().min(d1.norm());
     let quarter = m.cross(u);
     let mut rays = vec![a];
+    if spur {
+        rays.extend([
+            apex + quarter * reach,
+            apex - u * reach,
+            apex - quarter * reach,
+            a,
+        ]);
+        return Ok(rays.windows(2).map(|w| (w[0], w[1])).collect());
+    }
     match wedge_side(apex, m, a, b, rd) {
         Some(Sign::Positive) => {}
         Some(Sign::Negative) => {
@@ -2275,11 +2292,6 @@ fn corner_fan<T: Decide>(
         }
         Some(Sign::Zero) => match ahead(apex, a, b, rd) {
             Some(Sign::Negative) => rays.push(apex + quarter * reach),
-            Some(Sign::Positive) if slit => rays.extend([
-                apex + quarter * reach,
-                apex - u * reach,
-                apex - quarter * reach,
-            ]),
             Some(_) => return Err(TouchUnread::Unreadable),
             None => return Err(TouchUnread::InBand),
         },
@@ -3453,18 +3465,28 @@ pub(crate) mod rest {
         })
     }
 
-    /// Whether `r`, a point of a line edge's ray on a sector's plane
-    /// inside it, lies on that face's cylinder ([`Round`]), within the
-    /// band: the line is a ruling of the face, which holds it as its
-    /// tangent plane does. A sphere has no ruling, and no other carrier
-    /// is read.
-    fn on_carrier<T: Decide>(face: &super::LinkFace<T>, r: Point3<T>, band: Band) -> bool {
-        if !matches!(face.surface, geom::Surface::Cylinder { .. }) {
+    /// Whether `r`, a point of a line edge's ray from `p` lying in a
+    /// cylinder face's tangent sector there (outward unit `m`), lies on
+    /// the face's ruling through `p`: on the plane through `p` square to
+    /// the sector and holding the axis (the side of the axis's ray, in
+    /// the sector's plane, [`wedge_side`]), and on the carrier
+    /// ([`Round`]), each within the band. Such a ray is the ruling itself,
+    /// which the face holds as its tangent plane does. A sphere has no
+    /// ruling, and no other carrier is read.
+    fn on_carrier<T: Decide>(
+        face: &super::LinkFace<T>,
+        (p, m): (Point3<T>, super::Vec3<T>),
+        r: Point3<T>,
+        rd: Reading<T>,
+    ) -> bool {
+        let geom::Surface::Cylinder { axis, .. } = face.surface else {
             return false;
-        }
-        Round::of(&face.surface, face.sense)
-            .and_then(|round| Distance::off(&round, (r, r)))
-            .is_some_and(|d| metric::sign(LINK_ROUND, d, band) == Some(Sign::Zero))
+        };
+        let along = p + axis * (r - p).norm();
+        wedge_side(p, m, along, r, rd) == Some(Sign::Zero)
+            && Round::of(&face.surface, face.sense)
+                .and_then(|round| Distance::off(&round, (r, r)))
+                .is_some_and(|d| metric::sign(LINK_ROUND, d, rd.band) == Some(Sign::Zero))
     }
 
     /// **Whether a link of tangent sectors reads its faces' germ**
@@ -3516,7 +3538,9 @@ pub(crate) mod rest {
                     let kept = match t.place(p, r, rd) {
                         Ok(Place::Outside) => true,
                         Ok(Place::Bound) => kept_bound(link, j, (edge, line), r, rd),
-                        Ok(Place::Inside) => line && on_carrier(&link.faces[j], r, rd.band),
+                        Ok(Place::Inside) => {
+                            line && on_carrier(&link.faces[j], (p, t.outward), r, rd)
+                        }
                         Err(_) => return Some(TouchUnread::InBand),
                     };
                     if !kept {

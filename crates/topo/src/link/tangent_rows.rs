@@ -107,7 +107,12 @@ fn corner_at(
             } else {
                 (-m, ring[b], ring[a], [tag(b), tag(a)])
             };
-            let fan = TangentFan::Corner { d0, d1, bounds };
+            let fan = TangentFan::Corner {
+                d0,
+                d1,
+                bounds,
+                spur: false,
+            };
             FaceSector::tangent(plane(m), true, m, p, fan, band()).expect("a corner's face")
         })
         .collect()
@@ -388,7 +393,7 @@ fn two_whole_planes_are_read_one_plane_either_way_round() {
 fn a_slits_tip_is_the_whole_turn_and_a_cusp_refuses() {
     let z = v(0.0, 0.0, 1.0);
     let d = v(2.0, 0.0, 0.0);
-    let tip = corner_fan(Point3::origin(), z, (d, d), true, band()).expect("a slit's tip");
+    let tip = corner_fan(Point3::origin(), z, (d, d), true, band()).expect("a spur's tip");
     assert_eq!(tip.len(), 4, "{tip:?}");
     assert!(matches!(
         corner_fan(Point3::origin(), z, (d, d), false, band()),
@@ -408,4 +413,130 @@ fn a_bound_in_band_of_another_plane_refuses_in_band() {
     let mut s = corner(&ring, true, &k, &[]);
     s.push(whole(sphere(-1.0), true));
     assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::InBand));
+}
+
+/// **A bound kept on another's bound is kept only ahead of it**: two
+/// half-planes on curved carriers about one line, one bounded by the
+/// line edge `A` along `+x` and the closed curved edge `D` along `−x`,
+/// the other by `D` along `+x` and the line edge `C` along `−x` — `D`
+/// one vertex's edge, leaving along one direction and coming back along
+/// the other. `A` lies on the other's bound along `D`, another edge and
+/// a curve, so it refuses; `C`'s line behind that bound is no bound `A`
+/// lies on. Red where a bound is kept on a bound it lies behind.
+#[test]
+fn a_bound_is_kept_only_on_a_bound_it_lies_ahead_on() {
+    let k = edges(3);
+    let (a, c, d) = (k[0], k[1], k[2]);
+    let x = v(1.0, 0.0, 0.0);
+    let half = |n: Vec3<f64>, bounds| {
+        let fan = TangentFan::Corner {
+            d0: x,
+            d1: -x,
+            bounds,
+            spur: false,
+        };
+        FaceSector::tangent(cylinder(), true, n, Point3::origin(), fan, band()).unwrap()
+    };
+    let s = vec![
+        half(v(0.0, 0.0, 1.0), [(a, true), (d, false)]),
+        half(v(0.0, -1.0, 0.0), [(d, false), (c, true)]),
+    ];
+    assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::Unreadable));
+}
+
+/// **Only a spur's tip is the whole turn**: two departures a tenth of the
+/// band's zero apart along one edge's two ends (a closed edge's one
+/// vertex, not a spur) are a cusp, refused either way round. Red where a
+/// near-full turn reads as the whole one.
+#[test]
+fn a_near_full_turn_off_one_edge_is_a_cusp() {
+    let z = v(0.0, 0.0, 1.0);
+    let d0 = v(2.0, 0.0, 0.0);
+    let tiny = 0.1 * band().zero();
+    for d1 in [v(2.0, tiny, 0.0), v(2.0, -tiny, 0.0)] {
+        assert!(
+            matches!(
+                corner_fan(Point3::origin(), z, (d0, d1), false, band()),
+                Err(TouchUnread::Unreadable)
+            ),
+            "{d1:?}"
+        );
+    }
+}
+
+/// A corner standing on the plane `z = 0` at the origin, one line edge
+/// along `+x` in it, and `other`'s whole tangent plane there, outward
+/// `+z`, its material below.
+fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
+    let k = edges(3);
+    let n = v(0.0, 0.0, 1.0);
+    let frame = crate::census::carrier_frame(&other).unwrap();
+    let fan = TangentFan::Inside { reach: 2.0, frame };
+    let whole = FaceSector::tangent(other, sense, n, Point3::origin(), fan, band()).unwrap();
+    let ring = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
+    let mut s = corner(&ring, true, &k, &[]);
+    s.push(whole);
+    read(s)
+}
+
+/// **A line edge in a huge sphere's or cylinder's tangent plane lies in
+/// the face only along a cylinder's ruling**: radius 1e9, so the edge's
+/// far end stands within the band of the carrier whichever way it runs.
+/// On a sphere, which has no ruling, and across a cylinder's ruling, it
+/// refuses; along the ruling it reads. Red where the band alone keeps a
+/// line on a carrier.
+#[test]
+fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
+    let big = 1e9;
+    let sphere = geom::Surface::Sphere {
+        center: Point3::new(0.0, 0.0, -big),
+        radius: big,
+        axis: v(0.0, 0.0, 1.0),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    let tube = |axis: Vec3<f64>| geom::Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, -big),
+        axis,
+        radius: big,
+        u_ref: v(0.0, 0.0, 1.0),
+    };
+    let refused = TouchVerdict::Unread(TouchUnread::Unreadable);
+    assert_eq!(corner_on(sphere, true), refused, "a sphere");
+    assert_eq!(
+        corner_on(tube(v(0.0, 1.0, 0.0)), true),
+        refused,
+        "across a ruling"
+    );
+    assert!(
+        matches!(
+            corner_on(tube(v(1.0, 0.0, 0.0)), true),
+            TouchVerdict::Rest(_)
+        ),
+        "along a ruling"
+    );
+}
+
+/// **A frame direction opposite the normal turns no fan**: a sphere's
+/// whole plane on its equator opposite its reference direction, outward
+/// `−u_ref`, so the first frame direction is the normal reversed. The
+/// fan turns from another of the frame, in the plane; two balls kissing
+/// there refuse. Red where a direction is taken as square to the normal
+/// for lying below `+0.6` only.
+#[test]
+fn a_frame_direction_opposite_the_normal_turns_no_fan() {
+    let a = v(0.2, -0.5, 0.8).normalize();
+    let u = a.cross(v(0.3, -0.7, 0.2)).normalize();
+    let p = Point3::new(0.3, -0.2, 0.1);
+    let r = 0.7;
+    let frame = crate::census::carrier_frame(&ball(p + u * r, r, a)).unwrap();
+    let along = in_plane(p, -u, frame, band()).unwrap();
+    assert!(
+        along.dot(u).abs() < 1e-14 && (along.norm() - 1.0).abs() < 1e-14,
+        "{along:?}"
+    );
+    let s = vec![
+        whole_at(ball(p + u * r, r, a), -u, p, 1.0),
+        whole_at(ball(p - u * r, r, a), u, p, 1.0),
+    ];
+    assert_eq!(read_at(p, s), TouchVerdict::Unread(TouchUnread::Unreadable));
 }

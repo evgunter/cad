@@ -8575,11 +8575,7 @@ fn self_touch_verdict<T: Decide>(
         Ok(holds) => holds,
         Err(why) => return SelfTouch::Read(TouchVerdict::Unread(why)),
     };
-    let planar = Germ::of_holds(body, geo, &holds, at, band).and_then(|germ| match germ {
-        Germ::Link(link) => Ok(link),
-        Germ::Round { .. } => Err(TouchUnread::Unreadable),
-    });
-    match planar {
+    match Link::planar_of(body, geo, &holds, at, band) {
         Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
         Err(TouchUnread::Unreadable) => {
             match Link::tangent_of(body, geo, &holds, at, band)
@@ -8659,12 +8655,24 @@ impl<T: Decide> FaceSector<T> {
 }
 
 impl<T: Decide> Link<T> {
-    /// **Solid `solid`'s link at the touch point of `keys`**, gathered
-    /// structurally: every face of the solid holding one of its vertices
-    /// on those keys, at that corner; each edge of the solid a tie names
-    /// at the point, its two faces inside it; each face of the solid a
-    /// tie names at the point, inside it. How a face held more than one
-    /// way is read is [`FaceSector::of`]'s.
+    /// **The planar link of the faces holding `p` as `holds` say**
+    /// ([`Germ::of_holds`]); a lone round face, which is no link, is
+    /// [`TouchUnread::Unreadable`].
+    fn planar_of(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        holds: &std::collections::BTreeMap<FaceKey, Vec<Held>>,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        match Germ::of_holds(body, geo, holds, p, band)? {
+            Germ::Link(link) => Ok(link),
+            Germ::Round { .. } => Err(TouchUnread::Unreadable),
+        }
+    }
+
+    /// [`Link::planar_of`] over solid `solid`'s faces at the touch point
+    /// of `keys` ([`gather`]).
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
     fn touch_at_point(
@@ -8676,10 +8684,7 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        match Germ::touch_at_point(body, geo, ties, solid, keys, p, band)? {
-            Germ::Link(link) => Ok(link),
-            Germ::Round { .. } => Err(TouchUnread::Unreadable),
-        }
+        Self::planar_of(body, geo, &gather(body, geo, ties, solid, keys)?, p, band)
     }
 }
 
@@ -8900,6 +8905,7 @@ fn tangent_sectors<T: Decide>(
                 d0,
                 d1,
                 bounds: [(half.edge, l0), (e_in, l1)],
+                spur: back == he,
             };
             out.push(FaceSector::tangent(
                 surface.clone(),
