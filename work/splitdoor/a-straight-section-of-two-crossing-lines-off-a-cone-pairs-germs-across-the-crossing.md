@@ -2,7 +2,8 @@
 id: a-straight-section-of-two-crossing-lines-off-a-cone-pairs-germs-across-the-crossing
 kind: issue
 title: The join's on-line test is gated on a cone face, so a straight section of two crossing lines on any other carrier can pair germs across the crossing
-status: open
+status: dispatched
+branch: splitdoor/section-line-components
 opened: 2026-11-01
 priority: P1
 cost: M
