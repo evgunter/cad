@@ -18,6 +18,7 @@ use pncad::quantity::{AngleUnit, LengthUnit};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
 use crate::drafts::{ProfileEdit, RowEdit};
+use crate::forms::ShapeKind;
 use crate::frame;
 use crate::props::{self, Notation, SlotRow};
 use crate::session::{DocSession, SessionOp};
@@ -237,9 +238,9 @@ impl ArgDoors for HeldArgs<'_, '_> {
 /// rather than a copy of it.
 ///
 /// Every control of the create door is live here: a committed
-/// profile's steps are inserted, removed, reordered and re-verbed, and
-/// its arcs, targets and split counts changed, exactly as a new one's
-/// are, and Apply commits the whole program as ONE
+/// profile's loops are added and removed, its steps inserted, removed,
+/// reordered and re-verbed, and its arcs, targets and split counts
+/// changed, exactly as a new one's are, and Apply commits the whole program as ONE
 /// [`SessionOp::EditProfile`] saying which committed step each held
 /// step is ([`ProfileEdit::ids`]). A name on a step the program drops,
 /// or on a kept step's piece it stops drawing, is stranded; Apply says
@@ -268,11 +269,18 @@ pub(crate) fn edit_door_ui(
     ui.label(format!("profile {}", session.doc().spoken(node)));
     let loops = edit.loops().len();
     let mut rows = Vec::new();
+    let mut removed = None;
     for index in 0..loops {
-        // A loop label only where there is more than one: "loop 0"
-        // over the only loop is a number with nothing to tell apart.
+        // A loop header only where there is more than one: "loop 0"
+        // over the only loop is a number with nothing to tell apart,
+        // and a profile has at least one loop to remove.
         if loops > 1 {
-            ui.label(format!("loop {index}"));
+            ui.horizontal(|ui| {
+                ui.label(format!("loop {index}"));
+                if ui.button(REMOVE_LOOP).clicked() {
+                    removed = Some(index);
+                }
+            });
         }
         let salt = format!("edit_{}_{index}", node.full());
         let mut args = HeldArgs {
@@ -286,8 +294,15 @@ pub(crate) fn edit_door_ui(
             rows.push((index, row));
         }
     }
+    let added = add_loop_row(ui);
     for (index, row) in rows {
         edit.edit_row(index, row);
+    }
+    if let Some(index) = removed {
+        edit.remove_loop(index);
+    }
+    if let Some(kind) = added {
+        edit.add_loop(sketch::shape_steps(&crate::drafts::fresh_loop(kind)));
     }
     let refused = preview_verdict(ui, theme, preview);
     let held_up = drivers_hold(edit, session.doc());
@@ -331,6 +346,35 @@ pub(crate) fn edit_door_ui(
         return Err(frame::tool_news(&FormKind::RevertProfile.refuses(&error)));
     }
     Ok(None)
+}
+
+/// The button that drops a loop, on its loop's header row in either
+/// door.
+pub(crate) const REMOVE_LOOP: &str = "Remove loop";
+
+/// The button that appends a loop starting as `kind`'s template.
+pub(crate) fn add_loop_label(kind: ShapeKind) -> String {
+    let label = ShapeKind::ALL
+        .into_iter()
+        .find_map(|(each, label)| (each == kind).then_some(label))
+        .unwrap_or_else(|| unreachable!("`ShapeKind::ALL` lists every shape"));
+    format!("Add {label} loop")
+}
+
+/// **The editor's add-loop row**, one button per shape the form offers
+/// a first loop: the shape clicked, if one was. Both doors draw it
+/// under their loops, so a profile gains a loop the same way in each.
+pub(crate) fn add_loop_row(ui: &mut egui::Ui) -> Option<ShapeKind> {
+    ui.horizontal(|ui| {
+        let mut added = None;
+        for (kind, _) in ShapeKind::ALL {
+            if ui.button(add_loop_label(kind)).clicked() {
+                added = Some(kind);
+            }
+        }
+        added
+    })
+    .inner
 }
 
 /// **Why a driven argument holds Apply**, if one does — said under the
@@ -1636,6 +1680,364 @@ mod tests {
         );
     }
 
+    /// review 6295: preview verdict vs the door's refusal across containment cases.
+    #[test]
+    fn review_6295_containment_preview_agrees_with_the_door() {
+        use crate::forms::ShapeKind;
+
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let circle = |x: f64, y: f64, r: f64| ProfileShape::Circle {
+            centre: [x, y],
+            radius: r,
+        };
+        let rect = |w: f64, h: f64| ProfileShape::Rectangle {
+            width: w,
+            height: h,
+        };
+        // A case's name, its first shape, extent and radius, and the
+        // loops added after it.
+        type Case = (
+            &'static str,
+            Option<ShapeKind>,
+            [f64; 2],
+            f64,
+            Vec<ProfileShape>,
+        );
+        let cases: Vec<Case> = vec![
+            (
+                "outside",
+                Some(ShapeKind::Rectangle),
+                [0.01, 0.01],
+                0.0,
+                vec![circle(0.02, 0.0, 0.0025)],
+            ),
+            (
+                "overlap edge",
+                Some(ShapeKind::Rectangle),
+                [0.01, 0.01],
+                0.0,
+                vec![circle(0.005, 0.0, 0.0025)],
+            ),
+            (
+                "two holes overlap",
+                Some(ShapeKind::Rectangle),
+                [0.02, 0.02],
+                0.0,
+                vec![circle(-0.001, 0.0, 0.002), circle(0.001, 0.0, 0.002)],
+            ),
+            (
+                "island",
+                Some(ShapeKind::Rectangle),
+                [0.02, 0.02],
+                0.0,
+                vec![rect(0.01, 0.01), circle(0.0, 0.0, 0.0025)],
+            ),
+            (
+                "hole first",
+                Some(ShapeKind::Circle),
+                [0.0, 0.0],
+                0.0025,
+                vec![rect(0.01, 0.01)],
+            ),
+            (
+                "identical",
+                Some(ShapeKind::Rectangle),
+                [0.005, 0.005],
+                0.0,
+                vec![rect(0.005, 0.005)],
+            ),
+            (
+                "touching",
+                Some(ShapeKind::Rectangle),
+                [0.01, 0.01],
+                0.0,
+                vec![circle(0.0025, 0.0, 0.0025)],
+            ),
+            (
+                "tangent inside",
+                Some(ShapeKind::Circle),
+                [0.0, 0.0],
+                0.005,
+                vec![circle(0.0025, 0.0, 0.0025)],
+            ),
+            (
+                "with bore plus added hole",
+                Some(ShapeKind::Circle),
+                [0.0, 0.0],
+                0.01,
+                vec![circle(0.006, 0.0, 0.001)],
+            ),
+        ];
+        let mut disagree = Vec::new();
+        for (name, shape, extent, radius, more) in cases {
+            let mut drafts = Drafts {
+                profile_shape: shape,
+                profile_extent: if extent == [0.0, 0.0] {
+                    [0.01, 0.01]
+                } else {
+                    extent
+                },
+                profile_more: more,
+                ..Drafts::default()
+            };
+            if radius > 0.0 {
+                drafts.profile_radius = radius;
+            }
+            if name.starts_with("with bore") {
+                drafts.profile_bored = true;
+                drafts.profile_bore = 0.002;
+            }
+            let preview =
+                sketch::preview(sketch::profile_plane(), &drafts.profile_loops(), tol, chord);
+            let preview_refuses = match &preview {
+                Ok(p) => p.invalid.is_some(),
+                Err(_) => true,
+            };
+            let op = drafts
+                .profile_op(Notation::DEFAULT)
+                .expect("lowers")
+                .expect("an op");
+            let doc = pncad::document::Doc::empty_derived("containment", tol);
+            let mut session = crate::session::DocSession::inline(doc, tol);
+            let out = session.perform(op);
+            let door_refuses = out.refusal.is_some();
+            // and does the evaluation fail?
+            session.pump();
+            let eval_err = session
+                .evaluation()
+                .map(|e| {
+                    session
+                        .committed_doc()
+                        .ids()
+                        .into_iter()
+                        .filter_map(|id| e.node_error(id).map(|err| format!("{err:?}")))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if preview_refuses != (door_refuses || !eval_err.is_empty()) {
+                disagree.push(name);
+            }
+        }
+        assert!(
+            disagree.is_empty(),
+            "preview and door disagree on {disagree:?}"
+        );
+    }
+
+    /// **A plate of three loops**: a 20 mm square centred on the
+    /// origin, a 4 mm square hole left of centre (loop 1), and a 4 mm
+    /// square hole right of it (loop 2), whose far corner's x reads the
+    /// variable `w`; an extrude, and a shell opening the left hole's
+    /// bottom wall, a name on loop 1's step 1. Answers the session, the
+    /// profile and the driven slot.
+    fn three_loop_plate() -> (
+        crate::session::DocSession,
+        pncad::document::RecipeNodeId,
+        pncad::document::SlotId,
+    ) {
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, SlotId, StepArg, VarName};
+        use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
+        use pncad::select::PieceRole;
+
+        let tol = Tol::witness();
+        let hole = |x0: f64| {
+            vec![
+                Step::At(Point2::new(x0, -0.002)),
+                line_to(x0 + 0.004, -0.002),
+                line_to(x0 + 0.004, 0.002),
+                line_to(x0, 0.002),
+                Step::LineTo(Target::Start),
+            ]
+        };
+        let loops = [
+            sketch::shape_steps(&ProfileShape::Rectangle {
+                width: 0.02,
+                height: 0.02,
+            }),
+            hole(-0.006),
+            hole(0.002),
+        ]
+        .map(|steps| {
+            sketch::loop_program(&ProfileShape::Path { steps }, Notation::CANONICAL)
+                .expect("a chain lowers")
+        })
+        .to_vec();
+        let doc = Doc::empty_derived("three-loops", tol);
+        let (doc, profile) = inserted(
+            &doc,
+            Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+                on: None,
+            }),
+            tol,
+        );
+        let (doc, extrude) = inserted(
+            &doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: crate::test_support::len(0.01),
+            },
+            tol,
+        );
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        let wall = StableName {
+            kind: EntityKind::Face,
+            node: extrude,
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: program.ids[1][1],
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
+        };
+        let (doc, _carrier) = inserted(
+            &doc,
+            Node::Shell {
+                thickness: crate::test_support::len(0.001),
+                open: pncad::document::Operand::select(extrude, vec![wall]),
+            },
+            tol,
+        );
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        let driven = SlotId::Profile {
+            loop_: 2,
+            step: 1,
+            arg: StepArg::TargetX,
+        };
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.006),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot: driven,
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        (session, profile, driven)
+    }
+
+    /// The step ids of `profile`'s loops, as `session` holds them.
+    fn loop_ids(
+        session: &crate::session::DocSession,
+        profile: pncad::document::RecipeNodeId,
+    ) -> Vec<Vec<pncad::document::StepId>> {
+        let Some(Node::Profile(program)) = session.committed_doc().node(profile) else {
+            panic!("a profile")
+        };
+        program.ids.clone()
+    }
+
+    /// **A loop is added in the edit door, and another removed, in one
+    /// undo each, and the loops kept keep their step ids and their
+    /// expressions.** On the three-loop plate, `Add circle loop` holds
+    /// a fourth loop; moved into the plate's top half and applied, it
+    /// lands as one `SetProgram` and one history state, the three
+    /// loops before it keep their ids, and loop 2's driven corner still
+    /// reads `w`. Undone, the plate is back. Then loop 1's `Remove
+    /// loop`: Apply says it strands the shell's name on that loop's
+    /// wall before it is clicked, the outcome reports the strand, loop
+    /// 2 becomes loop 1 with its ids and its expression, and one undo
+    /// restores the plate.
+    #[test]
+    fn a_loop_is_added_and_removed_in_one_undo_each_keeping_the_others() {
+        use crate::forms::ShapeKind;
+        use crate::session::SessionOp;
+        use pncad::document::{DocEdit, Maintenance, SlotId};
+
+        let (mut session, profile, driven) = three_loop_plate();
+        let before = session.committed_doc().clone();
+        let ids = loop_ids(&session, profile);
+        let reads_w = |session: &crate::session::DocSession, slot: SlotId| {
+            let row = row_of(session, profile, slot);
+            row.driver.is_driven() && row.source.as_deref() == Some("w")
+        };
+        assert!(reads_w(&session, driven), "the fixture drives loop 2");
+        let mut drafts = Drafts::default();
+        let added = super::add_loop_label(ShapeKind::Circle);
+        let (_, formed) = click_door(&session, &mut drafts, profile, &added, 0);
+        assert!(formed.is_none(), "adding a loop forms no op");
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        assert_eq!(edit.loops().len(), 4, "{added} held a fourth loop");
+        edit.steps_mut(3)[0] = Step::Circle {
+            centre: Point2::new(0.0, 0.006),
+            radius: 0.002,
+        };
+        let (painted, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        assert!(!painted.contains("stranding"), "{painted}");
+        let state = session.history().current();
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "one whole-program edit: {:?}",
+            out.committed
+        );
+        let now = loop_ids(&session, profile);
+        assert_eq!(now.len(), 4, "the profile holds the added loop");
+        assert_eq!(now[..3], ids[..], "the loops before it keep their ids");
+        assert!(reads_w(&session, driven), "loop 2 still reads w");
+        assert!(
+            session.perform(SessionOp::Undo).refusal.is_none(),
+            "the add undoes"
+        );
+        assert_eq!(session.history().current(), state, "in one undo");
+        assert!(session.committed_doc().bit_eq(&before), "the plate is back");
+
+        let mut drafts = Drafts::default();
+        let (_, formed) = click_door(&session, &mut drafts, profile, super::REMOVE_LOOP, 1);
+        assert!(formed.is_none(), "removing a loop forms no op");
+        let label = "Apply, stranding 1 name";
+        let (_, formed) = click_door(&session, &mut drafts, profile, label, 0);
+        let out = session.perform(formed.expect("Apply, counting the strand, formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "one whole-program edit: {:?}",
+            out.committed
+        );
+        assert!(
+            out.maintenance
+                .iter()
+                .any(|row| matches!(row, Maintenance::StrandedSelection { .. })),
+            "the outcome reports the stranded name: {:?}",
+            out.maintenance
+        );
+        let now = loop_ids(&session, profile);
+        assert_eq!(
+            now,
+            vec![ids[0].clone(), ids[2].clone()],
+            "loop 1 went, and loop 2 is loop 1 with its ids"
+        );
+        let SlotId::Profile { step, arg, .. } = driven else {
+            unreachable!("built as a profile slot")
+        };
+        let moved = SlotId::Profile {
+            loop_: 1,
+            step,
+            arg,
+        };
+        assert!(reads_w(&session, moved), "and still reads w");
+        assert!(
+            session.perform(SessionOp::Undo).refusal.is_none(),
+            "the removal undoes"
+        );
+        assert_eq!(session.history().current(), state, "in one undo");
+        assert!(session.committed_doc().bit_eq(&before), "the plate is back");
+    }
+
     /// A session over the form's default 10 mm square as a committed
     /// profile, and the profile.
     fn square_session() -> (crate::session::DocSession, pncad::document::RecipeNodeId) {
@@ -2130,5 +2532,185 @@ mod tests {
             drafts.profile_edit.is_some(),
             "the held edits are kept for the person to revert or repair"
         );
+    }
+
+    // ---------------- review 6295 probes ----------------
+
+    /// The Apply label the door paints after `painted`'s last frame.
+    fn apply_label(painted: &str) -> String {
+        let last: Vec<&str> = painted.lines().collect();
+        let half = &last[last.len() / 2..];
+        half.iter()
+            .rev()
+            .find(|l| l.starts_with("Apply"))
+            .map(|l| (*l).to_owned())
+            .unwrap_or_else(|| panic!("no Apply painted: {painted}"))
+    }
+
+    /// Remove the given held loops (each nth REMOVE_LOOP, in order),
+    /// apply, perform; answers (label, outcome, ids after).
+    fn remove_then_apply(
+        session: &mut crate::session::DocSession,
+        profile: pncad::document::RecipeNodeId,
+        removals: &[usize],
+        add: Option<(crate::forms::ShapeKind, Step<f64>)>,
+    ) -> (String, crate::session::OpOutcome) {
+        let mut drafts = Drafts::default();
+        let mut painted = String::new();
+        for nth in removals {
+            painted = click_door(session, &mut drafts, profile, super::REMOVE_LOOP, *nth).0;
+        }
+        if let Some((kind, step)) = add {
+            let added = super::add_loop_label(kind);
+            click_door(session, &mut drafts, profile, &added, 0);
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            let n = edit.loops().len();
+            edit.steps_mut(n - 1)[0] = step;
+            // repaint to get the label after the edit
+            painted = crate::pane::headless::painted_text(|ui| {
+                let edit = drafts
+                    .profile_edit(session.committed_doc(), profile)
+                    .expect("held");
+                let _ = super::edit_door_ui(
+                    ui,
+                    session,
+                    Theme::DEFAULT,
+                    Notation::CANONICAL,
+                    edit,
+                    None,
+                    None,
+                );
+            });
+            painted = format!("{painted}\n{painted}");
+        }
+        let label = apply_label(&painted);
+        let (_, formed) = click_door(session, &mut drafts, profile, &label, 0);
+        let out = session.perform(formed.expect("Apply formed"));
+        (label, out)
+    }
+
+    /// review 6295: removing the outer loop of a plate with two holes
+    /// leaves two outers; the edit door's preview refuses before Apply,
+    /// and the door refuses the same way if Apply is forced.
+    #[test]
+    fn review_6295_removing_the_outer_of_two_holes_refuses_in_the_preview() {
+        let (mut session, profile, _driven) = three_loop_plate();
+        let before = session.committed_doc().clone();
+        let mut drafts = Drafts::default();
+        click_door(&session, &mut drafts, profile, super::REMOVE_LOOP, 0);
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        let preview = sketch::preview(
+            sketch::profile_plane(),
+            &edit.shapes(),
+            Tol::witness(),
+            1e-4,
+        );
+        assert!(
+            matches!(&preview, Ok(p) if p.invalid.is_some()),
+            "the preview refuses before Apply: {preview:?}"
+        );
+        let (_, out) = remove_then_apply(&mut session, profile, &[0], None);
+        assert!(out.refusal.is_some(), "two outers refuse at the door");
+        assert!(session.committed_doc().bit_eq(&before), "nothing landed");
+    }
+
+    #[test]
+    fn review_6295_remove_the_driven_loop() {
+        let (mut session, profile, _driven) = three_loop_plate();
+        let ids = loop_ids(&session, profile);
+        let (label, out) = remove_then_apply(&mut session, profile, &[2], None);
+        assert_eq!(label, "Apply", "the shell names loop 1, which is kept");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert_eq!(
+            loop_ids(&session, profile),
+            vec![ids[0].clone(), ids[1].clone()]
+        );
+    }
+
+    #[test]
+    fn review_6295_remove_and_add_in_one_draft() {
+        use crate::forms::ShapeKind;
+        use pncad::document::SlotId;
+        let (mut session, profile, driven) = three_loop_plate();
+        let ids = loop_ids(&session, profile);
+        let before = session.committed_doc().clone();
+        let (label, out) = remove_then_apply(
+            &mut session,
+            profile,
+            &[1],
+            Some((
+                ShapeKind::Circle,
+                Step::Circle {
+                    centre: Point2::new(0.0, 0.006),
+                    radius: 0.002,
+                },
+            )),
+        );
+        assert_eq!(label, "Apply, stranding 1 name");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let now = loop_ids(&session, profile);
+        assert_eq!(now.len(), 3);
+        assert_eq!(now[..2], [ids[0].clone(), ids[2].clone()]);
+        assert!(
+            !ids.iter().flatten().any(|id| now[2].contains(id)),
+            "the new loop has fresh ids"
+        );
+        let SlotId::Profile { step, arg, .. } = driven else {
+            unreachable!()
+        };
+        let row = row_of(
+            &session,
+            profile,
+            SlotId::Profile {
+                loop_: 1,
+                step,
+                arg,
+            },
+        );
+        assert_eq!(row.source.as_deref(), Some("w"));
+        let after = session.committed_doc().clone();
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Undo)
+                .refusal
+                .is_none()
+        );
+        assert!(session.committed_doc().bit_eq(&before));
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Redo)
+                .refusal
+                .is_none()
+        );
+        assert!(session.committed_doc().bit_eq(&after));
+    }
+
+    #[test]
+    fn review_6295_remove_every_hole() {
+        let (mut session, profile, _driven) = three_loop_plate();
+        let ids = loop_ids(&session, profile);
+        let before = session.committed_doc().clone();
+        // remove loop 2 then loop 1 (both nth 1 after the first, since loop 1 is nth 1)
+        let (label, out) = remove_then_apply(&mut session, profile, &[2, 1], None);
+        assert_eq!(label, "Apply, stranding 1 name");
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert_eq!(loop_ids(&session, profile), vec![ids[0].clone()]);
+        let strands = out
+            .maintenance
+            .iter()
+            .filter(|row| matches!(row, pncad::document::Maintenance::StrandedSelection { .. }))
+            .count();
+        assert_eq!(strands, 1);
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Undo)
+                .refusal
+                .is_none()
+        );
+        assert!(session.committed_doc().bit_eq(&before));
     }
 }

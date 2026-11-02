@@ -720,6 +720,7 @@ test_utils::f6_variants! {
         ValueNotRemoved,
         Draft,
         StrandedPick,
+        InTheProduct,
     ];
 }
 
