@@ -5118,6 +5118,12 @@ pub(super) fn line_wall_roots_of<T: Decide>(
 ///   its residual `A·(t − t_end)²`: one double root at the end, which
 ///   the caller reads as the end's incidence. Otherwise the lane refuses
 ///   [`Unsettled::AtApex`] rather than read a root there.
+/// - **`bool_line_cone_apex_spread`** — within the band of the apex is
+///   not at it: the roots of a line `δ` from the apex lie within
+///   `δ(1 + √(1 + |lead|))/|lead|` of that point along it, `lead` the
+///   lead rung's `A/|dir|²`. Not definitely in the band (a needle cone
+///   and a line near its axis): the lane refuses [`Unsettled::AtApex`]
+///   rather than place the root at the end.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
@@ -5179,17 +5185,26 @@ fn line_cone_roots<T: Decide>(
                 {
                     continue;
                 }
-                return match decide(
-                    "bool_line_cone_lead",
-                    Margin::levered(a2 / dd, length),
-                    band,
-                )
-                .map_err(escalate)?
+                let lead = a2 / dd;
+                if decide("bool_line_cone_lead", Margin::levered(lead, length), band)
+                    .map_err(escalate)?
+                    == Sign::Zero
                 {
-                    Sign::Zero => Ok(Err(Unsettled::Degenerate)),
-                    Sign::Positive | Sign::Negative => {
-                        Ok(Ok(Roots::<T, 2>::all([end, end]).widen()))
-                    }
+                    return Ok(Err(Unsettled::Degenerate));
+                }
+                // In the band, not AT the apex: about `p = at(end)`, `δ`
+                // from the apex, the form along the unit direction `u` is
+                // `lead·τ² + 2(Me·u)τ + eᵀMe` (`e = p − apex`, `‖M‖ ≤ 1`),
+                // so every root lies within `δ(1 + √(1 + |lead|))/|lead|` of
+                // `p` along the edge. Only where that spread is in the band
+                // is the double root there the end's meeting with the apex.
+                let delta = at(end).norm();
+                let spread = delta * (T::one() + (T::one() + lead.abs()).sqrt()) / lead.abs();
+                return match decide("bool_line_cone_apex_spread", Margin::of(spread), band)
+                    .map_err(escalate)?
+                {
+                    Sign::Zero => Ok(Ok(Roots::<T, 2>::all([end, end]).widen())),
+                    Sign::Positive | Sign::Negative => Ok(Err(Unsettled::AtApex)),
                 };
             }
             return Ok(Err(Unsettled::AtApex));
@@ -8278,6 +8293,50 @@ mod line_cone_rows {
         assert!(
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
+        );
+    }
+
+    /// **An edge ending at the apex meets it at that end alone**: its one
+    /// root is a double one there, at either end, at the apex or within a
+    /// twentieth of the zero band of it. A ruling ending there is
+    /// degenerate (the lead rung), and an end in the band whose roots can
+    /// spread past it along the edge refuses at the apex (the spread rung):
+    /// a line within a milliradian of a generator, half a zero band off.
+    #[test]
+    fn an_edge_ending_at_the_apex_has_its_double_root_at_that_end() {
+        let b = band();
+        for (label, origin, span, end) in [
+            ("ending at the apex", [-1.0, 0.0, 0.3], (0.0, 1.0), 1.0),
+            ("starting at the apex", [-1.0, 0.0, 0.3], (1.0, 2.0), 1.0),
+            (
+                "ending in band of it",
+                [-1.0, 0.05 * b.zero(), 0.3],
+                (0.0, 1.0),
+                1.0,
+            ),
+        ] {
+            let got = roots(origin, [1.0, 0.0, -0.3], span);
+            let Ok(CircleRoots::Certified(found)) = got else {
+                panic!("{label}: got {got:?}");
+            };
+            assert!(
+                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end),
+                "{label}: a double root at the end, got {found:?}"
+            );
+        }
+        let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
+        assert!(
+            matches!(ruling, Err(Unsettled::Degenerate)),
+            "a ruling ending at the apex, got {ruling:?}"
+        );
+        let steep = roots(
+            [-1.0, 0.5 * b.zero(), -1.001],
+            [1.0, 0.0, 1.001],
+            (0.0, 1.0),
+        );
+        assert!(
+            matches!(steep, Err(Unsettled::AtApex)),
+            "a line beside a generator ending in band of the apex, got {steep:?}"
         );
     }
 
