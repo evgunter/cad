@@ -4,6 +4,8 @@ kind: issue
 title: free-move refuses a body the author showed, and prunes a frame whose space only a show draws
 status: open
 opened: 2026-11-01
+priority: P2
+cost: M
 ---
 
 

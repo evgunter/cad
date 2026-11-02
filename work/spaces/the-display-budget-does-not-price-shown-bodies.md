@@ -4,6 +4,8 @@ kind: issue
 title: the display budget prices the gathered product, not the bodies the author's toggles show
 status: open
 opened: 2026-11-01
+priority: P3
+cost: M
 ---
 
 

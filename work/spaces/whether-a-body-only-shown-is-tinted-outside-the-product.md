@@ -4,6 +4,9 @@ kind: issue
 title: whether a body only the author's show draws carries the outside-the-product tint
 status: open
 opened: 2026-11-01
+priority: P2
+cost: E
+design: true
 ---
 
 

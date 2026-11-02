@@ -4,6 +4,8 @@ kind: issue
 title: a family member read alone has no toggle of its own
 status: open
 opened: 2026-11-01
+priority: P2
+cost: M
 ---
 
 
