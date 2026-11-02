@@ -190,10 +190,10 @@ the end of the session (the badge paragraph above).
   a silhouette loses to its rim on both sides of it. Elsewhere the face
   wins, and off the body and every outline nothing wins. A tool narrows
   the kinds it accepts through `PickKinds`. An outline is offered to
-  the bare cursor and to the revolve tool, whose seat reads a profile,
-  and to no other tool. Multi-select UX and the filter
-  vocabulary wait on sketcher and tree design; filters, heterogeneous
-  sets and vanishing-entity semantics are `docs/SELECT-DESIGN.md`'s.
+  the bare cursor and to no tool, since no tool's seat reads a
+  profile. Multi-select UX and the filter vocabulary wait on sketcher
+  and tree design; filters, heterogeneous sets and vanishing-entity
+  semantics are `docs/SELECT-DESIGN.md`'s.
 
 ## Toolkit and CI posture (GQ6)
 

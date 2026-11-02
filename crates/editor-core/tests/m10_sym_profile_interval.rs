@@ -426,7 +426,7 @@ const SLAB_LEDGER: [&str; 3] = [
 /// COEFFICIENT bound (`2^186`-scale coefficients). Folding `tan` the way
 /// rule D folds `sin`/`cos` takes both lines back to 0, measured on a
 /// probe and reverted
-/// (`work/rules/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
+/// (`work/sym/rule-d-leaves-tan-of-atan-opaque-and-the-cap-apex-mints-it`).
 /// The plate's receipt is `[811, 0, 140, 462]` either way, and the
 /// `*/Report` rows stay absent.
 ///
@@ -770,7 +770,7 @@ const PLATE_MAX_TERMS: usize = 28;
 ///
 /// **Pinned at what main measures** (2026-10-29), not explained: every
 /// line moved. The plate is the two-hole plate that PR 5728 and PR 5811
-/// moved (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`);
+/// moved (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`);
 /// #5542's `segment_gap` moved it first, and PR 5952 took the
 /// `*/Report` lines #5542 brought away again
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).

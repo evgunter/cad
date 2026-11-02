@@ -192,7 +192,7 @@ fn a_recorded_edge_the_blend_ends_on_keeps_its_record() {
 /// corner on the first block's edge, so the first block's face lies in
 /// the strip the blend would carve, and the blend refuses that touch
 /// itself (`FaceClearance`), never as a carry
-/// (`work/bandrule/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
+/// (`work/band/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
 /// Red where such a blend builds and drops the record, or refuses it as
 /// a `ContactCarry`.
 #[test]

@@ -204,7 +204,7 @@ pub(crate) struct Study {
 /// the annulus 630 -> 654, the link 922 -> 954, the bracket 1473 ->
 /// 1535 and the pad 1544 -> 1592. None refuses a registration or
 /// disputes a theorem. Which decisions the added symbolic ones are is
-/// unread (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+/// unread (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
 ///
 /// A cylinder rim's axial `cos t` and `sin t` terms are decided at
 /// `pcurve_cylinder_chart_axial` (`geom_brep::pcurve_cache`'s
@@ -273,7 +273,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
             // Pinned at what main measures (unbisected between PR 5728
-            // and PR 5811, `work/offset/main-red-three-m10-interval-pins-moved-at-5728`): shut, the door now refuses earlier,
+            // and PR 5811, `work/shell/main-red-three-m10-interval-pins-moved-at-5728`): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
             without_the_registry: Some(((727, 585), Some("Stalled { operand: Cylinder"))),
@@ -292,7 +292,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
             // Pinned at what main measures: (1566, 1384) -> (1474, 1228),
-            // unbisected between PR 5728 and PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+            // unbisected between PR 5728 and PR 5811 (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
             // Then (1474, 1228) -> (1474, 1218) when the simplicity pass
             // stopped reading a gap on a line pair that shares a vertex
             // (PR 5952), and (1474, 1218) -> (1488, 1218) with the
@@ -302,7 +302,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
-            // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
+            // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
             symbolic: [1613, 1613, 1613],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
@@ -323,7 +323,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // `(1211, 1328)` shipped, when they were angles).
             // Pinned at what main measures: (1546, 1260) -> (1592, 1250),
             // the same receipt as shipped, unbisected between PR 5728 and
-            // PR 5811 (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+            // PR 5811 (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
             without_the_registry: Some(((1660, 1250), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
@@ -718,7 +718,7 @@ fn m10_9_what_the_registry_buys() {
 /// into the door. The axis-order basis mints no `copysign` for rule F
 /// to fold, and at the scale the pad certifies whole at, over its
 /// analyzed box, the two dials read the same receipt at every ε row
-/// (`work/rules/the-negative-arm-lost-its-document-consumer`).
+/// (`work/sym/the-negative-arm-lost-its-document-consumer`).
 ///
 /// Re-taken on the tree that composes three changes: PCERT's
 /// chart-angle unit and the extrude's cap decide
@@ -843,7 +843,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     // Pinned at what main measures, (1546, 1260, 3026) -> (1592, 1250,
     // 2465) at every ε row, unbisected between PR 5728 and PR 5811
-    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     // Then PCERT E1c (every mint reads incidence first, PR 5889):
     // (1592, 1250, 2465) -> (1660, 1250, 3257), the read's decisions and
     // the forms it freezes.

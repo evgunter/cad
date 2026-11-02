@@ -52,7 +52,7 @@ use crate::m10_9_pins_interval::measured_studies;
 /// that no longer run their maps) and PR 5728 (limb 2 for every
 /// carrier), and every document moved, `frozen` most of all (the plate
 /// 1557 -> 229). No dispute fired. Which change moved which column is
-/// `work/offset/main-red-three-m10-interval-pins-moved-at-5728`'s to
+/// `work/shell/main-red-three-m10-interval-pins-moved-at-5728`'s to
 /// read.
 ///
 /// Then two numeric columns fell, both from the profile's simplicity

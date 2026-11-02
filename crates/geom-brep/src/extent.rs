@@ -64,8 +64,9 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
+use geom::cover::Cover;
 use geom::curves::boxes::ArcWindow;
-use geom::{Conic, Curve3, Line, Surface};
+use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
@@ -165,34 +166,12 @@ impl<T: Real> ExtentBall<T> {
         Self::new(lo + half, half.norm())
     }
 
-    /// **The ball holding a ring torus** `(center, R, r)`: every point of
-    /// it stands at most `R + r` from its centre. The one spelling of a
-    /// torus's ball; a section of the torus with anything lies in it.
+    /// **The ball a cover names** ([`Cover::ball`]): it holds the
+    /// cover's region, and so the entity the cover was read of.
     #[must_use]
-    pub fn of_torus(center: Point3<T>, major_radius: T, minor_radius: T) -> Self {
-        Self::new(center, major_radius + minor_radius)
-    }
-
-    /// The ball a sphere or a torus fits in, which encloses every face
-    /// on it whatever its trim: the sphere's own, the torus's of radius
-    /// `R + r` about its centre. `None` for every other kind, whose
-    /// faces a box of their own encloses.
-    #[must_use]
-    pub fn of_carrier(surface: &Surface<T>) -> Option<Self> {
-        match surface {
-            Surface::Sphere { center, radius, .. } => Some(Self::new(*center, *radius)),
-            Surface::Torus {
-                center,
-                major_radius,
-                minor_radius,
-                ..
-            } => Some(Self::of_torus(*center, *major_radius, *minor_radius)),
-            Surface::Plane { .. }
-            | Surface::Cylinder { .. }
-            | Surface::Cone { .. }
-            | Surface::Nurbs(_)
-            | Surface::Approx(_) => None,
-        }
+    pub fn of_cover(cover: &Cover<T>) -> Self {
+        let (center, radius) = cover.ball();
+        Self::new(center, radius)
     }
 }
 
@@ -702,9 +681,8 @@ impl<T: Real> Reach<T> {
     /// which is what a tilt that moves the region by ε is ε over.
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
-    /// - [`Self::Measured`]: the caller's length: the germ frame's longer
-    ///   of the larger radius and the walls' span, which the cylinder
-    ///   pair also floors at the foot's distance from `at`
+    /// - [`Self::Measured`]: the caller's length, which a pair of lines
+    ///   also floors at the foot's distance from `at`
     ///   ([`Self::lever_between`]).
     /// - [`Self::Face`]: its farthest distance from `at`: the plane×cone
     ///   arm levers its trileans at it. The plane×cylinder row reads a
@@ -1078,6 +1056,7 @@ fn minimax_on_axis<T: Real>(points: &[Point3<T>], origin: Point3<T>, axis: Vec3<
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom::Surface;
 
     /// **A conic span's lever reaches every point of it** from any pivot:
     /// centre distance plus the radius (or the larger semi-axis), round
@@ -1563,8 +1542,9 @@ mod tests {
         [p.x, p.y, p.z]
     }
 
-    /// The torus's lever from its own centre is `R + r`: the farthest
-    /// any point of the ring stands from the pivot its axis turns on.
+    /// The torus's lever from its own centre is `R + r`, to the cover's
+    /// rounding charge and never short of it: the farthest any point of
+    /// the ring stands from the pivot its axis turns on.
     #[test]
     fn a_torus_levers_at_its_outer_radius() {
         let torus = Surface::Torus {
@@ -1574,9 +1554,14 @@ mod tests {
             minor_radius: 0.5,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let ball = ExtentBall::of_carrier(&torus).unwrap();
-        assert_eq!(ball.lever_from(Point3::new(1.0, 2.0, 3.0)), 2.5);
-        assert_eq!(ball.lever_from(Point3::new(1.0, 2.0, 7.0)), 6.5);
+        let ball = ExtentBall::of_cover(&torus.cover().unwrap());
+        for (pivot, want) in [((1.0, 2.0, 3.0), 2.5), ((1.0, 2.0, 7.0), 6.5)] {
+            let got = ball.lever_from(Point3::new(pivot.0, pivot.1, pivot.2));
+            assert!(
+                got >= want && got - want < 1e-13,
+                "from {pivot:?}: {got} against {want}"
+            );
+        }
     }
 
     /// The enclosing ball sits at the parts' mean and reaches each

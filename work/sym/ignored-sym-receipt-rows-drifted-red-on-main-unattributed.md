@@ -315,7 +315,7 @@ also moved `frozen`, which no pin credited and no PR judged:
   bulge. `Study`'s note at the merge reads the credited trade the same
   way: the re-lowered centre froze to an atom a rim registration
   reached, and over the copied carrier it does not
-  (`work/rules/registrations-sealed-inside-frozen-compounds`). Building
+  (`work/sym/registrations-sealed-inside-frozen-compounds`). Building
   fewer re-lowered nodes leaves fewer to freeze, and no decision class
   moves beyond the credited trade. Which nodes left the set was not
   read: no per-node freeze listing was taken at the parent and the
