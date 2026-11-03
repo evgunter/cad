@@ -2,12 +2,14 @@
 id: the-ladders-follow-ups-from-its-review
 kind: issue
 title: geom_brep::ladder follow-ups: glue's existence-only read under First, a second non-finite rule in CoincidenceMeasure, a magnitude panic re-spelled, a stale shared_rim doc
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6333]
 branch: onecopy/ladder-climb
+closed: 2026-11-03
+pr: 6454
 ---
 
 From the FULL review and delta review of PR 6333 (`identity-data-reads-its-ladder-from-geom-brep`), recorded as MINORs at merge.

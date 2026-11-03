@@ -21,3 +21,10 @@ Found by the FULL review of ONECOPY's PR 6463. Each failure below is identical o
 - `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned`. `work/splice/main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171` names 4 files, but today's drift is wider: carrier_net, ruling, winds, residual, ssi/boundary, clearance, net, and others.
 
 Filed on GREEN, which carries main-red rows (work/issues/ is retired). Route each to the program that owns its ground (`python3 scripts/work.py territory --files -`), and correct the two open rows' stated states. This row closes once each failure has an owner's row.
+
+## Added (2026-11-03, the PR 6454 fix pass, failing identically at its merge base)
+
+- `editor-core` `m4_pr8_k_probe`'s corpus dump: 116 `<unnamed>` decisions, and the key-split pin.
+- `editor-core` `node_standing::every_node_result_reader_goes_through_usable_or_is_listed`: `viewer/src/session.rs` is in READERS with a count of 3 that the scan no longer finds. Same row as above, now with its cause.
+- topo `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`: `ruled_region.rs`, `shell.rs` and `splitting/containment.rs` read a box with no entry. Covered by BOXES' own main-red row.
+- `sweep` `ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`: its pinned red now PASSES on main ("pinned to stop … and it passed"). Its owners (CPAIR or CHARTTAIL) should retire or re-pin it. Reported by the PR 6463 lane.
