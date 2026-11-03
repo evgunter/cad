@@ -57,9 +57,10 @@ Decide whether the sphere door steps over null scaffolding too:
 
 `splice/held-pierce` moved `Scaffolding` and the placeholder predicate
 to one home, `topo::null` (`Scaffolding`, `is_placeholder`). Both
-`region::boundary` and the loop lift (`pcurves::loop_lift`, now with a
-`Scaffolding` policy) read them. The spline face's trim
-(`boolean::spline_region::Trim::of`) lifts its loops with
-`Scaffolding::Skipped`. The sphere region is now the only boundary
+`region::boundary` and the loop lift read them: the public
+`pcurves::loop_lift` stays strict, and the crate's
+`pcurves::loop_lift_past_placeholders` skips. The spline face's trim
+(`boolean::spline_region::Trim::of`) lifts its loops past placeholders
+(`Scaffolding::Skipped`). The sphere region is now the only boundary
 reader that refuses a placeholder: `sphere_face_region` passes
 `Scaffolding::Refused`, pinned by its `a_zones_null_edge_leaves_no_region`.
