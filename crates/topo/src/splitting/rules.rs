@@ -934,7 +934,7 @@ fn boundary_fold<T: Decide, R: Copy>(
     let face_data = proven(&body.faces, face, EntityId::Face);
     let mut extent = floor;
     let outer = face_data.outer;
-    for (loop_key, members) in body.face_boundary_by_loop(face, face_data) {
+    for (loop_key, members, _) in body.face_boundary_by_loop(face, face_data) {
         for member in members {
             let p = match member {
                 // An unbounded face has no finite lever arm.

@@ -777,6 +777,7 @@ impl SplitReduceError {
                     geom::SurfaceKind::Cone => "a cone face",
                     geom::SurfaceKind::Sphere => "a sphere face",
                     geom::SurfaceKind::Torus => "a torus face",
+                    geom::SurfaceKind::Spindle => "a spindle face",
                     geom::SurfaceKind::Plane => "a plane face",
                     geom::SurfaceKind::Cylinder => "a cylinder face",
                     geom::SurfaceKind::Nurbs => "a spline (NURBS) face",

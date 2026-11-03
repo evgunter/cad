@@ -989,7 +989,7 @@ pub(crate) fn face_window_steps<T: Decide>(
 ) -> Vec<Vec<WindowStep<'_, T>>> {
     let f = proven(&body.faces, face, EntityId::Face);
     body.face_boundary_by_loop(face, f)
-        .map(|(_, members)| {
+        .map(|(_, members, _)| {
             let cycle: Vec<(HalfEdgeKey, &Edge)> = members
                 .into_iter()
                 .filter_map(|member| match member {
@@ -1371,6 +1371,25 @@ pub(crate) fn face_box_rule<T: Decide>(
             axis: *axis,
             major_radius: *major_radius,
             minor_radius: *minor_radius,
+            u_ref: *u_ref,
+        },
+        // A sheet lies on its whole revolved circle, the tube about the
+        // circle of radius `|R|`: read as a torus off its ring, whose
+        // window is the whole tube. The tube radius is at least `|R|`,
+        // so no sheet reads as a ring, a stored one outside its range
+        // included, and the extent holds the tube about `|R|` of radius
+        // `r`.
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => FaceBoxRule::TorusWindow {
+            center: *center,
+            axis: *axis,
+            major_radius: major_radius.abs(),
+            minor_radius: minor_radius.max(major_radius.abs()),
             u_ref: *u_ref,
         },
     })

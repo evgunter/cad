@@ -1789,34 +1789,15 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     settle_in_plane([a, b], contacts, band)
 }
 
-/// The vertices bounding `face` of `body`, outer loop and rings.
+/// The vertices bounding `face` of `body`, outer loop and rings, for a
+/// face the contact record names ([`Body::proven_face_boundary`]).
 fn face_vertices<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<std::collections::BTreeSet<VertexKey>, BooleanError> {
-    let lost = |what| BooleanError::ClassificationInvariant { what };
-    let f = body
-        .get_face(face)
-        .ok_or(lost("a face an edge lies in vanished"))?;
-    let mut out = std::collections::BTreeSet::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        match body
-            .get_loop(lk)
-            .ok_or(lost("a loop of a face an edge lies in vanished"))?
-            .boundary
-        {
-            crate::LoopBoundary::Empty { vertex } => {
-                out.insert(vertex);
-            }
-            crate::LoopBoundary::Cycle { first } => out.extend(
-                body.loop_cycle(first)
-                    .ok_or(lost("a loop of a face an edge lies in does not walk"))?
-                    .into_iter()
-                    .filter_map(|he| body.get_half_edge(he).map(|h| h.start)),
-            ),
-        }
-    }
-    Ok(out)
+) -> std::collections::BTreeSet<VertexKey> {
+    body.proven_face_boundary(face)
+        .map(|member| member.vertex())
+        .collect()
 }
 
 /// A fragment of a line edge the line lane read lying in a planar face's
@@ -1863,10 +1844,13 @@ fn settle_in_plane<T: Decide>(
             Operand::A => (a, b),
             Operand::B => (b, a),
         };
+        // The contact record names the face, so its walk proves it first
+        // and panics on a stale one; the plane's `None` is then a face
+        // that is not planar.
+        let bounding = face_vertices(y, lie.face);
         let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
-        let bounding = face_vertices(y, lie.face)?;
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
@@ -5206,7 +5190,10 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
         // No root lane: the caller reads the span against the face as it
         // reads a door's refusal.
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => {
             return Ok(None);
         }
     })))
@@ -5294,7 +5281,8 @@ fn line_cone_roots<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = ((T::zero() - w0.dot(dir)) / dd)
+    let foot = geom::Line { origin, dir }
+        .param(apex)
         .max(t0.min(t1))
         .min(t0.max(t1));
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
