@@ -1288,3 +1288,4 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The spline trim lifts past the sweep's placeholders through a crate-private door, with one `is_placeholder` predicate; the public `Body::loop_lift` is strict.
   - The orchestrator read the fix pass. Slow sets on `985e2f4c`: topo 3909 plus the two known main reds, sweep 3536/3536, the tour green at three ε.
   - The demo-joins row (`curved-demo-joins-build`, now SPLICE's own since main retired `work/issues/`) swaps this row for SECTARMS' NURBS × sphere arm as teapot wall 3's default and 1e-12 blocker.
+- 2026-11-03 — **Filed by ONEDOOR: `main-red-loop-keys-guard-flags-spline-region-rows`** (P1, E). `925fa061ab` added a `Face::loop_keys` read in `boolean/spline_region_rows.rs`, and `live`'s guard reds on main. (ONEDOOR orchestrator)
