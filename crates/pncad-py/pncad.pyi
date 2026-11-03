@@ -2584,7 +2584,10 @@ class Node:
 
         The bounds are lengths from `Doc.parse_formula`, in exactly one
         shape: `at_least`, `at_most`, both (a band), or `equal` alone.
-        Any other combination raises ValueError.
+        Any other combination raises ValueError. Each is a slot of the
+        node, `clearance_low` (`at_least`, `equal`, a band's lower end)
+        or `clearance_high` (`at_most`, a band's upper end), which
+        `DocEdit.set_param` rewrites.
 
         The verdict needs the certified sweep, which reads enclosures.
         At the `f64` scalar this library evaluates at it is the third
