@@ -354,13 +354,48 @@ pub mod test_support {
         body: &crate::AtRestBody<f64>,
         tol: geom_core::Tol,
     ) -> crate::MassProperties<f64> {
-        match crate::mass_properties(body, tol, pinned_resolution(tol)) {
+        volume_at(what, body, tol, pinned_len(tol))
+    }
+
+    /// **`body`'s volume and area as numbers met at `resolution`** (mean
+    /// boundary displacement, m): [`pinned_volume`] at the width a row
+    /// states, for a row whose band [`pinned_resolution`] does not meet.
+    ///
+    /// # Panics
+    ///
+    /// Where the door refuses, or the resolution went unmet.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn volume_at(
+        what: &str,
+        body: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+        resolution: f64,
+    ) -> crate::MassProperties<f64> {
+        let settle = crate::Settle::Resolution(quantity::Length::from_meters(resolution));
+        match crate::mass_properties(body, tol, settle) {
             Ok(measured) => match measured.met() {
                 Ok(enclosure) => enclosure,
                 Err(unmet) => panic!("{what}: {unmet}"),
             },
             Err(refusal) => panic!("{what}: mass properties refused: {refusal}"),
         }
+    }
+
+    /// **A certified volume `volume ± pad` holds `want` within `band`
+    /// beyond its own bracket**: `|volume − want| ≤ band + pad`. The
+    /// assertion is only as sharp as `pad`: a row that needs it sharp
+    /// bounds the pad as well.
+    ///
+    /// # Panics
+    ///
+    /// Where it does not; `what` names the reading.
+    #[allow(clippy::panic)]
+    pub fn assert_volume_near(what: &str, volume: f64, pad: f64, want: f64, band: f64) {
+        assert!(
+            (volume - want).abs() <= band + pad,
+            "{what}: V = {volume} ± {pad:e}, want {want} within {band:e}"
+        );
     }
 
     /// [`pinned_resolution`]'s length (m), for a row that hands a face's
