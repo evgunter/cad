@@ -174,8 +174,8 @@ pub const HELD_FACES: usize = 3;
 /// **The picks a form or a tool HOLDS**: the second source of marks
 /// beside the live selection.
 ///
-/// A held pick outlives the selection that made it. The add-profile
-/// form drawing on a face latches the face so that an author can click the feature tree
+/// A held pick outlives the selection that made it. The traced-profile
+/// form latches the faces it reads so that an author can click the feature tree
 /// without losing it, and a modal tool keeps its picks until it
 /// commits. Nothing in the selection says so, so a picture that marked
 /// the selection alone would show no sign of a pick the next click
@@ -455,14 +455,12 @@ pub struct EdgeOverlay {
     ///
     /// A lane of its own rather than the preview's, because the two
     /// say different things — this one is in the document and the
-    /// preview is not. **No loop is meant to be in both**, and two
-    /// things keep it so. The create form's preview is of a profile
-    /// that is not a node yet, and the form comes to rest when its add
-    /// is accepted (`crate::drafts::Drafts::accepted`), so the node
-    /// it became is drawn here and nowhere else. A form that previews
-    /// an edit of a COMMITTED profile has to name that node to
-    /// `crate::sketch::committed`'s `except`, which leaves it out of
-    /// this lane; nothing checks that it does.
+    /// preview is not. **No loop is meant to be in both**: the profile
+    /// editor's preview is of an edit of a COMMITTED profile, and names
+    /// that node to `crate::sketch::committed`'s `except`, which leaves
+    /// it out of this lane; nothing checks that it does. (The
+    /// traced-profile form's preview is a trace, never a profile's
+    /// loops.)
     pub profiles: Vec<[f32; 3]>,
 }
 
@@ -1077,7 +1075,7 @@ mod tests {
     /// **The case a person can author and can see**: an outline most
     /// of which is ordinary and one corner of which is past the seam.
     ///
-    /// `7e307` is a number the add-profile form takes, because it is a
+    /// `7e307` is a number the profile editor takes, because it is a
     /// number. The lane draws the legs between the ordinary corners
     /// and drops the two that reach the far one, so what is on screen
     /// is a chain with a gap in it at a camera framed on the ordinary

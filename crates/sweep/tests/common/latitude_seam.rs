@@ -376,7 +376,7 @@ pub fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, CertifyError)
                 vertex_point(body, start_v).expect("a live vertex"),
                 vertex_point(body, end_v).expect("a live vertex"),
                 |sk| body.get_surface(sk).cloned(),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

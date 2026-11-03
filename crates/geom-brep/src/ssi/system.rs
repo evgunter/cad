@@ -543,7 +543,7 @@ mod tests {
         };
         let inner = [0.2, 0.0, 0.0];
         assert_eq!(
-            crate::curvature_lever_arm(&torus, Point3::from_array(inner)),
+            crate::curvature_lever_arm(&torus, Point3::from_array(inner)).length(),
             0.8,
             "FIXTURE: the kind's length scale is the tube radius"
         );

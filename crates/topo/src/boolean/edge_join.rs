@@ -582,7 +582,7 @@ fn joinable<T: Decide>(
     let reach = [e1, e2]
         .into_iter()
         .filter_map(|e| crate::edge_wedge_reach(body, e))
-        .reduce(T::max);
+        .reduce(geom_core::Lever::max);
     let Some(reach) = reach else {
         return Ok(None);
     };
