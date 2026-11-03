@@ -350,8 +350,9 @@ fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
 /// The relabelled brick's at-rest refusal, checked to sit on the
 /// relabelled face and nowhere else: one `DescriptionNotAdjacent` for
 /// each of the face's four boundary edges (lines the relabelled
-/// surface does not hold), and one pcurve finding on one of the face's
-/// own half-edges, which is returned.
+/// surface does not hold), any `MixedDihedral` on those edges, and one
+/// pcurve finding on one of the face's own half-edges, which is
+/// returned.
 fn refused_on_the_relabelled_face(b: Body<f64>, face: topo::FaceKey) -> topo::PcurveMintError {
     let outer = b.get_face(face).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
@@ -364,8 +365,18 @@ fn refused_on_the_relabelled_face(b: Body<f64>, face: topo::FaceKey) -> topo::Pc
         .collect();
     edges.sort();
     assert_eq!(edges.len(), 4);
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
+    let mut errors = topo::AtRestBody::validate(b, Tol::witness())
         .expect_err("a relabel over a brick's lines does not finish");
+    // A boundary line the relabelled surface does not hold can also meet
+    // it at a corner whose sign turns along the line: a mixed wedge, on
+    // one of the face's own edges.
+    errors.retain(|e| match e {
+        topo::ValidationError::MixedDihedral { edge, .. } => {
+            assert!(edges.contains(edge), "a mixed wedge off the face: {e:?}");
+            false
+        }
+        _ => true,
+    });
     assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
     let mut not_adjacent: Vec<_> = errors
         .iter()

@@ -1460,7 +1460,7 @@ pub enum ValidationError {
     /// It is the one refusal the opposed pairing earns: a definite
     /// κ_rel is a jet-determinate wedge end, legal at rest, and a
     /// collapsed one yields no wedge end at all — exclusive by
-    /// construction (`MaterialArmOutcome`), not by a precedence.
+    /// construction (`geom_brep::WedgeVerdict`), not by a precedence.
     ///
     /// In-band κ_rel is NOT this: an osculation the run cannot decide
     /// escalates as [`Self::SliverDihedral`] with the
@@ -2708,7 +2708,7 @@ pub enum CrossingSideVerdict {
     SameSide,
     /// The side question did not reach a verdict at a candidate that
     /// held the crossing: the dihedral or the sense algebra
-    /// (`geom_brep::classify_material_pairing`) escalated in band.
+    /// (`geom_brep::Tangency::pairing`) escalated in band.
     /// Escalated typed ([`ValidationError::CensusEscalated`]), never
     /// sampled, never a fake side verdict. A pair whose carriers are
     /// DEFINITELY transverse at the crossing never reaches this arm at

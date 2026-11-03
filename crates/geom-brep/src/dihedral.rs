@@ -1059,9 +1059,9 @@ fn fold_arms<T: Real>(
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs,
 /// the boolean rebuild's smooth seams and the split's section boundary
 /// route here through [`must_carry_over_edge`], which is where the
-/// gate and the verdict policy live; it, the tier-3 validator's check 4
-/// (`topo::validate`) and the boolean's shared-rim routing
-/// (`topo::boolean::rim_wedge`) read their stations through the one
+/// gate and the verdict policy live; it and the whole-edge fold
+/// ([`crate::edge_wedge_over`], which tier 3's check 4 and the boolean's
+/// shared-rim routing read) read their stations through the one
 /// [`second_order_walk`]. `Intersection`-tangency certification folds
 /// this reading into a walk of its own. One
 /// hand-rolled sibling remains, issue 1439's work:
@@ -1172,14 +1172,14 @@ pub(crate) enum SecondOrderWalk<B> {
 /// in order, where the first station not `Positive` decides.
 ///
 /// The one home of the walk's decision, which the must-carry rule
-/// ([`must_carry_over_edge`]), tier 3's check 4 (`topo::validate`) and
-/// the boolean's shared-rim routing (`topo::boolean::rim_wedge`) all
-/// ask: the constructor that stores a description and the validators
-/// that demand it read one walk, so the demanded set and the stored set
-/// are one set. The caller owns the schedule — an edge passes
-/// [`interior_stations`], a closed rim its every uniform phase — and a
-/// caller with reads of its own at each station (the material pairing
-/// and cusp side) takes them through `hook`, not a second loop.
+/// ([`must_carry_over_edge`]) and the whole-edge fold
+/// ([`crate::edge_wedge_over`]) both ask: the constructor that stores a
+/// description and the validators that demand it read one walk, so the
+/// demanded set and the stored set are one set. The caller owns the
+/// schedule — an edge passes [`interior_stations`], a closed rim its
+/// every uniform phase — and a caller with reads of its own at each
+/// station (the fold's material pairing and end) takes them through
+/// `hook`, not a second loop.
 ///
 /// The walk assumes the caller has established the contact as smooth
 /// first-order at every station; it does not gate.

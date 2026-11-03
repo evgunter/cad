@@ -2,23 +2,8 @@
 //! written against PR #1496 at `b873d783`; probe 2 INVERTED by the
 //! fix pass to pin its fix, red-first order adopt → fix → invert).
 //!
-//! Three probes:
-//!
-//! 1. **The dropped precondition.** `classify_material_pairing`'s own
-//!    doc says it answers "at an on-locus point where the tangent
-//!    planes already classified [`DihedralClass::Smooth`]", and both
-//!    prior consumers (`validate.rs` tier-3 check 4, gated on
-//!    `all_smooth`; `boolean/rim_wedge.rs`, which comments "the
-//!    material arm, now validly posed") establish that first. At the
-//!    frozen head the crossing rung did NOT: it handed the algebra
-//!    any declared pair that merely held the crossing point, and the
-//!    unit's own perpendicular row mis-read the resulting decided
-//!    zero — normals that name no side — as an in-band
-//!    ε residue. This probe is the RECORD of
-//!    those algebra facts (it consults `geom_brep` directly, so it is
-//!    green before and after): the reason the rung now runs the edge
-//!    screen and the `classify_dihedral == Smooth` gate before ever
-//!    consuming the pairing algebra.
+//! Two probes (the pairing is asked only of a tangency token, so a
+//! pairing at a transverse crossing is no longer a state to probe):
 //!
 //! 2. **Order-sensitivity, now order-freedom** (inverted). At the
 //!    frozen head the rung pushed `CensusEscalated` from inside its
