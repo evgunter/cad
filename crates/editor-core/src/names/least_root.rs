@@ -37,11 +37,6 @@ impl<K: Ord + Copy> LeastRoot<K> {
         let (ra, rb) = (self.root(a), self.root(b));
         self.link.insert(ra.max(rb), ra.min(rb));
     }
-
-    /// Every inserted key.
-    pub(crate) fn keys(&self) -> impl Iterator<Item = K> + '_ {
-        self.link.keys().copied()
-    }
 }
 
 #[cfg(test)]

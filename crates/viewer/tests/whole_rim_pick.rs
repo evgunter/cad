@@ -9,7 +9,7 @@
 
 use crate::common;
 
-use common::{ang, len, len3, plate_index, scl3, session_insert};
+use common::{ang, len, plate_index, session_insert};
 use pncad::document::{Dimension, Doc, Formula, NodeResult, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -366,12 +366,25 @@ fn a_split_revolves_circles_stay_in_their_own_half() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let feature = revolved(&mut session, 0.0, SIDE * 0.5, SIDE, core::f64::consts::TAU);
+    // Its flat face at `y = 0`, picked from below, slid half way up.
+    session.pump();
+    let flat = common::displayed_face_at(
+        &session,
+        &plate_index(&session),
+        &common::along_y(1.0, SIDE * 0.25, 0.0),
+    );
+    let plane = common::plane_inside(
+        pncad::document::Operand::select(
+            pncad::document::Operand::output(feature, 0),
+            vec![flat.name],
+        ),
+        SIDE / 2.0,
+    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: pncad::document::Operand::output(feature, 0),
-            origin: len3([0.0, SIDE / 2.0, 0.0]),
-            normal: scl3([0.0, 1.0, 0.0]),
+            plane,
         },
     );
     // The halves placed by hand: the split took the feature over.

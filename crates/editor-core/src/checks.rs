@@ -780,7 +780,10 @@ impl SaidFinding<'_> {
             }
             CheckEvidence::Unsupported { source } => write!(
                 f,
-                "the component count cannot be computed for this body: {source}"
+                "the component count cannot be computed for this body: {}",
+                // The shell door's reading, at a build, as the component
+                // count's check reads it.
+                source.render(geom_brep::recourse::Reading::Build)
             ),
             CheckEvidence::NotAtRest { errors } => match errors.as_slice() {
                 [] => write!(
@@ -789,12 +792,14 @@ impl SaidFinding<'_> {
                 ),
                 [first] => write!(
                     f,
-                    "the component count is not read: the body does not pass validation: {first}"
+                    "the component count is not read: the body does not pass validation: {}",
+                    first.render(geom_brep::recourse::Reading::AtRest)
                 ),
                 [first, rest @ ..] => write!(
                     f,
-                    "the component count is not read: the body does not pass validation: {first} \
+                    "the component count is not read: the body does not pass validation: {} \
                      (and {} more)",
+                    first.render(geom_brep::recourse::Reading::AtRest),
                     rest.len()
                 ),
             },

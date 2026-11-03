@@ -1783,7 +1783,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
         NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
         NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
-        NamingError::UnsupportedUnjudgedGlue { .. } => "unsupported_unjudged_glue",
+        NamingError::HoldingsUnread { .. } => "holdings_unread",
         NamingError::UnsupportedTurnedCell { .. } => "unsupported_turned_cell",
         // The PRECISION-LIMIT arms: a lever the model holds, neither a
         // kernel bug nor a missing rule.
@@ -2128,9 +2128,9 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 
 /// The stable tag for a STEP IMPORT refusal.
 ///
-/// `StepImportError` implements `Display`, so the human message is the
-/// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Every arm is reachable through
+/// The human message is the importer's own prose naming the entity id
+/// and line, rendered at the import door (`StepImportError::render`);
+/// this is the branchable discriminant. Every arm is reachable through
 /// `import_step` on some input, unlike [`workspace_error_tag`]'s door
 /// — a caller distinguishing a malformed file from an unsupported
 /// entity from a tier refusal has no other way to do it, because the

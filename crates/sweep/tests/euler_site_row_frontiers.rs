@@ -172,8 +172,9 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
         "tier 3 reads the mint's own refusal"
     );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
-    let built = refused.to_string();
-    let at_rest = topo::ValidationError::Pcurve { finding: refused }.to_string();
+    let built = refused.render(geom_brep::recourse::Reading::Build);
+    let at_rest = topo::ValidationError::Pcurve { finding: refused }
+        .render(geom_brep::recourse::Reading::AtRest);
     assert!(built.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{built}");
     assert!(
         at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),

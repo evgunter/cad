@@ -35,7 +35,7 @@ fn outcome(got: Result<(), topo::BooleanError>) -> Outcome {
             Outcome::Refused {
                 key,
                 defect,
-                text: err.to_string(),
+                text: err.render(geom_brep::recourse::Reading::Build),
             }
         }
     }
@@ -358,8 +358,10 @@ fn a_brick_grazing_a_tube_in_band_escalates_at_the_glue_door() {
             "op {k}"
         );
         assert!(
-            test_utils::offer::offered_below(&err.to_string()).is_none(),
-            "op {k}: no tolerance offered: {err}"
+            test_utils::offer::offered_below(&err.render(geom_brep::recourse::Reading::Build))
+                .is_none(),
+            "op {k}: no tolerance offered: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     }
 }

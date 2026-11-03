@@ -360,7 +360,7 @@ pub(crate) fn cone_classes<T: Decide>(
     p: Point3<T>,
     own: &[BoolSector<T>],
     edges: &[HalfEdgeKey],
-    partners: &[Partner<T>],
+    (partner_operand, partners): (Operand, &[Partner<T>]),
     touched: Option<Touched<'_, T>>,
     band: Band,
 ) -> Result<Result<Vec<(HalfEdgeKey, SideCode)>, EdgeInBand>, BooleanError> {
@@ -374,6 +374,21 @@ pub(crate) fn cone_classes<T: Decide>(
                 .ok_or(invariant("a vertex's edge is no edge of its own sectors"))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // A partner at a cone's apex is a fan of rulings, which a gathered
+    // cone of tangent sectors does not hold: where the partner is one
+    // cone face's whole turn, its material is the nappe's inside or
+    // outside, read in closed form ([`super::fan::nappe_classes`]).
+    if partners
+        .iter()
+        .any(|partner| partner.sectors.iter().any(|s| s.apex().is_some()))
+    {
+        let points: Vec<_> = bounds
+            .iter()
+            .map(|&(he, dir, reach)| (he, reach.point(p, dir)))
+            .collect();
+        return super::fan::nappe_classes(&points, (partner_operand, partners), touched, band)
+            .map(Ok);
+    }
     let corners: Vec<_> = partners
         .iter()
         .flat_map(|partner| super::sectors::fans(&partner.sectors, partner.at))
@@ -577,7 +592,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         piercing,
         vertex,
         tips,
-        super::sectors::ApexPlane::One(n_pierced.vec()),
+        &super::sectors::Partners::Pierced(n_pierced.vec()),
         band,
     )?;
     let n = sectors.len();
@@ -3337,7 +3352,7 @@ mod tests {
             ),
             "{err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
@@ -3438,7 +3453,15 @@ mod tests {
                 at: o + tie,
                 sectors: corner.clone(),
             };
-            cone_classes(o, &own, &[own[0].he], &[partner], None, band).unwrap()
+            cone_classes(
+                o,
+                &own,
+                &[own[0].he],
+                (crate::boolean::Operand::B, &[partner]),
+                None,
+                band,
+            )
+            .unwrap()
         };
         assert_eq!(
             read(Vec3::new(0.0, 0.0, 0.0)),
@@ -3503,7 +3526,15 @@ mod tests {
                 at: o + Vec3::new(tie, 0.0, 0.0),
                 sectors: corner_about(1.0, 10),
             };
-            cone_classes(o, &own, &[own[0].he], &[partner], touched, band).unwrap()
+            cone_classes(
+                o,
+                &own,
+                &[own[0].he],
+                (crate::boolean::Operand::B, &[partner]),
+                touched,
+                band,
+            )
+            .unwrap()
         };
         assert_eq!(read(0.0), Ok(vec![(own[0].he, Out)]), "at the point, Out");
         assert_eq!(
@@ -3584,7 +3615,7 @@ mod tests {
             (he[4], ball),
         ];
         let read = |edges: &[HalfEdgeKey], partners: &[Partner<f64>], touched| {
-            cone_classes(o, &own, edges, partners, touched, band).unwrap()
+            cone_classes(o, &own, edges, (Operand::B, partners), touched, band).unwrap()
         };
         let classes = |cs: &[SideCode]| he.iter().copied().zip(cs.iter().copied()).collect();
         assert_eq!(
@@ -3618,7 +3649,7 @@ mod tests {
                 o,
                 &graze,
                 &[graze[0].he, graze[1].he],
-                &[partner(1, 1.0)],
+                (Operand::B, &[partner(1, 1.0)]),
                 None,
                 band
             )
@@ -3788,7 +3819,10 @@ mod tests {
                     ),
                     "lifted {lift}"
                 ),
-                (got, _) => panic!("lifted {lift}: {:?}", got.map_err(|e| e.to_string())),
+                (got, _) => panic!(
+                    "lifted {lift}: {:?}",
+                    got.map_err(|e| e.render(geom_brep::recourse::Reading::Build))
+                ),
             }
         }
         // A bound rising at a slope whose side a unit radius of curvature
@@ -3935,7 +3969,7 @@ mod tests {
             Operand::A,
             vertex,
             &crate::sector_shape::SlitTips::default(),
-            crate::boolean::sectors::ApexPlane::None,
+            &crate::boolean::sectors::Partners::None,
             band,
         )
         .unwrap();

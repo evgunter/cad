@@ -75,7 +75,7 @@ fn assert_unsupported(
                 (at, slab),
                 "{what}: the pinned site and its slab are named"
             );
-            let msg = e.to_string();
+            let msg = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 msg.contains(&format!(
                     "loft sections {slab} and {} hold {at} of loop 0 at one point; that is a \
@@ -190,7 +190,7 @@ fn a_corner_in_band_escalates_naming_it() {
             },
         ) => {
             assert_eq!(source.predicate, Some("loft_corner_pinned"));
-            let msg = e.to_string();
+            let msg = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 msg.contains("whether loft sections 0 and 1 hold corner 0 of loop 0 at one point"),
                 "{msg}"
@@ -240,7 +240,7 @@ fn sections_that_meet_beyond_their_pinned_corners_refuse_naming_the_segments() {
                 },
             ) => {
                 assert_eq!(segments, want, "{what}: the first pair that meets is named");
-                let msg = e.to_string();
+                let msg = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     msg.contains(&format!(
                         "loft section 0's {} meets section 1's {}, so the body's boundary",
@@ -485,8 +485,10 @@ fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
             },
         ) => {
             assert!(
-                e.to_string().contains("a kernel limit, not an input fault"),
-                "{e}"
+                e.render(geom_brep::recourse::Reading::Build)
+                    .contains("a kernel limit, not an input fault"),
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             );
         }
         other => panic!("expected the class-1 refusal at the swept corner, got {other:?}"),
@@ -635,8 +637,10 @@ fn two_lines_leaving_a_shared_corner_along_one_ray_touch() {
             };
             assert_eq!(segments, [seg, seg]);
             assert!(
-                e.to_string().contains("off the pinned corner they share"),
-                "{e}"
+                e.render(geom_brep::recourse::Reading::Build)
+                    .contains("off the pinned corner they share"),
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             );
         }
         other => panic!("expected SectionsTouch sharing one corner, got {other:?}"),

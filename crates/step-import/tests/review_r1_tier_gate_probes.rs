@@ -594,7 +594,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
             ),
             Ok(other) => panic!("alpha={alpha:e}: unexpected non-solid {other:?}"),
             Err(err) => {
-                let msg = err.to_string();
+                let msg = err.render();
                 assert!(
                     msg.contains("geometry attachment gate"),
                     "alpha={alpha:e}: the far edge's in-band length refuses at attachment: {msg}"

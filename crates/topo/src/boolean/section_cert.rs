@@ -505,6 +505,9 @@ pub(crate) struct Touch<T: Real> {
     /// stand deepest in each other, and on both carriers within the
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
+    /// Whether it is two cones' touch at their common apex, which
+    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    pub apex: bool,
 }
 
 /// Why a component was cleared.
@@ -523,6 +526,11 @@ pub(crate) enum Cleared {
     /// A touch on a pair with no event, its centre placed `Out` of the
     /// named face.
     TouchOut(Side),
+    /// Two cones' touch at their common apex ([`Touch::apex`]), a vertex
+    /// of both faces: the touch is that vertex pair's, whose contact is
+    /// the pair's event there and whose neighbourhood the vertex lanes
+    /// read with their fan arms.
+    TouchAtVertex,
 }
 
 /// Why a pair refused.
@@ -663,6 +671,7 @@ fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<
         Section::Touch(Touch {
             name: p.name,
             at: at(),
+            apex: false,
         })
     } else {
         p.into()
@@ -1116,8 +1125,12 @@ fn cone_pair<T: Decide>(
             band,
         ) {
             // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
-            // two parallels, each essential on both; a common apex is the
-            // cones touching there or coinciding.
+            // two parallels, each essential on both. Apexes decided one
+            // (Zero) are a touch at the apex: the forms differ by
+            // `(cos²α₂ − cos²α₁)·|X − A|²` up to the apexes' gap, so the
+            // carriers meet within the band of the apex, about that one
+            // point (or are one double cone, whose faces' overlap is the
+            // glue door's). Undecided, it stays R-tan.
             AxisPose::Coaxial { slack, .. } => match signs_across(
                 [(
                     "section_cone_coaxial_apexes",
@@ -1128,7 +1141,10 @@ fn cone_pair<T: Decide>(
                 band,
             ) {
                 Ok(_) => essential_pair(true, true),
-                Err(tan) => tan.into(),
+                Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
+                    Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
+                    other => other,
+                },
             },
             AxisPose::Parallel { .. } => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1321,6 +1337,41 @@ fn cone_cone<T: Decide>(
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
     const APERTURE: &str = "section_cone_pair_aperture";
+    const COMMON: &str = super::fan::CONES_SHARE_APEX;
+    const RULINGS: &str = "section_cone_pair_common_rulings";
+    // One apex, axes apart (parallel ones through one apex are the
+    // coaxial arm's): both forms are homogeneous about the apex, so the
+    // section is the lines through it both double cones hold, each a
+    // ruling `d` with `d·a₁ = ±cos α₁` and `d·a₂ = ±cos α₂`
+    // ([`geom_brep::cone_cone_apex_meeting`] for each pairing of
+    // nappes). None: the cones touch at the apex alone. Otherwise each
+    // line is an unbounded component, as the plane's line pair through an
+    // apex is ([`cone_plane`]). A pairing that touches along a ruling is
+    // R-tan.
+    if !parallel && super::fan::cones_share_apex(one.apex, two.apex, band) == Ok(true) {
+        let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
+        let mut lines = 0;
+        for a2 in [two.a, -two.a] {
+            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            match sign(RULINGS, Margin::levered(m.disc, lever), band) {
+                Some(Sign::Positive) => lines += 2,
+                Some(Sign::Negative) => {}
+                Some(Sign::Zero) | None => return Section::Tangent(RULINGS),
+            }
+        }
+        if lines == 0 {
+            return Section::Touch(Touch {
+                name: COMMON,
+                at: one.apex,
+                apex: true,
+            });
+        }
+        let c = Component::closed_form(true, [false, false], None);
+        return Section::Components {
+            parts: vec![c; lines],
+            single: false,
+        };
+    }
     if let Err(tan) = signs(
         [
             (APEX, two.elevation(one.apex)),
@@ -1801,6 +1852,7 @@ pub(super) fn of_pair_section<T: Decide>(
                 Some(at) => Section::Touch(Touch {
                     name: zero.decision.name(),
                     at,
+                    apex: false,
                 }),
                 None => Section::Tangent(zero.decision.name()),
             },
@@ -1929,8 +1981,25 @@ pub(crate) fn certify<T: Decide>(
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
-        Section::Touch(t) if !evented => {
+        // Two cones' touch at their common apex, a vertex both faces hold,
+        // is that vertex pair's, whose contact is the pair's event there:
+        // the vertex lanes read the touch's neighbourhood with their fan
+        // arms, so it clears evented or not. Only an apex touch: any other
+        // touch at a vertex keeps the rules below, which no vertex lane
+        // has been shown to stand in for.
+        Section::Touch(t) => {
             let placed = place(t.at, band);
+            if t.apex
+                && let [
+                    Some(FaceContainment::OnVertex(_)),
+                    Some(FaceContainment::OnVertex(_)),
+                ] = placed
+            {
+                return Ok(vec![Cleared::TouchAtVertex]);
+            }
+            if evented {
+                return Err(Refusal::Tangent(t.name));
+            }
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
@@ -1938,7 +2007,6 @@ pub(crate) fn certify<T: Decide>(
                 .map(|(side, _)| vec![Cleared::TouchOut(side)])
                 .ok_or(Refusal::Tangent(t.name));
         }
-        Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
         Section::NoLane(scalar) => return Err(Refusal::NoLane(scalar)),
         Section::Unmarched => return Err(Refusal::Unmarched),

@@ -2855,6 +2855,22 @@ struct ConeWinding<T: Real> {
 /// for a loop that covers part of the nappe twice. Its caller decides
 /// that sweep against a whole turn, admitting the turn itself
 /// (`props_cone_apex_loop_sweep`).
+///
+/// **Through the apex.** The vertices' azimuths ([`ConeWinding::vertices`],
+/// which [`require_cone_loop_vertices_distinct`] reads) are accumulated
+/// from the edge that leaves the apex, not from the loop's first edge.
+/// The apex joint is skipped, so the turn across it is lost, and two
+/// vertices with the apex between them in accumulation order would be
+/// compared by an azimuth difference that misses it: a seam vertex's two
+/// copies, a period apart, would then read as one vertex met twice, and
+/// the loop's verdict would depend on where it happened to start. Read
+/// from the apex, a loop that passes it once has no two vertices off it
+/// with the apex between them. A loop that passes the apex TWICE is two
+/// lobes meeting there: its second apex vertex coincides with the first
+/// and has no azimuth, which the distinctness check refuses
+/// (`props_cone_loop_vertex`), and the Boolean names it first
+/// (`ResultPinchedAtConeApex`). The summed sweep is the same from every
+/// start: every joint off the apex is still read, cyclically.
 fn cone_loop_winding<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2985,9 +3001,17 @@ fn cone_loop_winding<T: Decide>(
     } else {
         cone_joints(apex, axis, edges)
     };
+    // The azimuths are read from the edge that leaves the apex, where the
+    // loop passes it, so that no two vertices off the apex have it
+    // between them in that order (the docs above, "Through the apex").
+    let first = steps
+        .iter()
+        .position(|&(_, ((_, start_apex), _))| start_apex)
+        .unwrap_or(0);
     let mut total = T::zero();
     let mut vertices = Vec::with_capacity(edges.len());
-    for (k, e) in edges.iter().enumerate() {
+    for k in (0..edges.len()).map(|i| (first + i) % edges.len()) {
+        let e = &edges[k];
         let (step, ((_, start_apex), (end, end_apex))) = steps[k];
         vertices.push((
             e.traversal_ends().0,
@@ -6246,6 +6270,9 @@ mod sphere_region_cover_rows {
     }
 }
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod apex_start_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;

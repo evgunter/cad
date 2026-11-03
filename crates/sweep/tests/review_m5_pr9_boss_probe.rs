@@ -222,7 +222,10 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
         }
         Err(e) => {
             // A typed refusal is honest; a wrong body is not.
-            eprintln!("CHAINED UNION REFUSED TYPED: {e}");
+            eprintln!(
+                "CHAINED UNION REFUSED TYPED: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
     }
 }
@@ -357,7 +360,10 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
                  the F7 exemption let a wrong body through"
             );
         }
-        Err(e) => eprintln!("NON-MAXIMAL CURVED OPERAND REFUSED TYPED: {e}"),
+        Err(e) => eprintln!(
+            "NON-MAXIMAL CURVED OPERAND REFUSED TYPED: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -378,9 +384,15 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
         // pinned where it executes, by
         // `verbs_germarms_r1_probes::r1_the_grazing_red_refuses_on_a_line_carrier`.
         Err(e @ topo::BooleanError::CurvedPierceUnsupported { .. }) => {
-            eprintln!("PIERCE FRONTIER: {e}");
+            eprintln!(
+                "PIERCE FRONTIER: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
-        Err(other) => eprintln!("PIERCE: refused via a different typed arm: {other}"),
+        Err(other) => eprintln!(
+            "PIERCE: refused via a different typed arm: {other_at}",
+            other_at = other.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(out) => {
             // If it works, the volume must be right (overhang union).
             let body = &out.body().expect("body").body;

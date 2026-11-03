@@ -213,6 +213,83 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
+/// **The walls join along their carried rulings**: in every op and
+/// order of the rod with its caps inside the drum, upright and turned
+/// off the coordinate axes, the result's edges between the two walls
+/// are the section value's two rulings, each a straight carrier
+/// described as the two walls' own intersection, citing the two faces
+/// it lies between, both cylinders, and no plane: the chords are cut
+/// from the pair's carried components, not from a plane both walls are
+/// cut by.
+#[test]
+fn the_walls_join_along_their_carried_rulings() {
+    for pose in [
+        upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+        turned(
+            upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+            Vec3::new(1.0, 2.0, 0.5),
+            0.7,
+        ),
+    ] {
+        for (op, got, _) in pose.runs() {
+            let what = format!("{} | {op}", pose.label);
+            let out = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let Some(body) = out.body() else {
+                continue;
+            };
+            let body = &body.body;
+            let mut rulings = 0;
+            for (_, e) in body.edges() {
+                let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    continue;
+                };
+                let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
+                    continue;
+                };
+                let cylinders = pair
+                    .keys()
+                    .iter()
+                    .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })));
+                if !cylinders {
+                    continue;
+                }
+                assert!(
+                    matches!(c.carrier(), geom::Curve3::Line(_)),
+                    "{what}: an edge between the walls is a ruling, not {:?}",
+                    c.carrier()
+                );
+                rulings += 1;
+            }
+            assert_eq!(rulings, 2, "{what}: the two rulings, between the walls");
+        }
+    }
+}
+
+/// **A rod's seam lying on the other rod's wall joins along the pair's
+/// carried ruling**: the unit rod about the origin, its seams at
+/// `(±1, 0)`, against a radius-0.3 rod about `(1, 0.3)` over
+/// `z ∈ [−0.5, 0.5]`, whose wall holds the unit rod's seam at `(1, 0)`.
+/// The germ there runs along that seam, an edge of one solid inside the
+/// other's wall, which is one of the pair's two rulings; it rides the
+/// carried lane on that ruling as the germs inside both walls do, and
+/// every op and order builds SOUND at its closed-form volume. (The
+/// rulings lane served this germ until it retired; a reviewer's probe.)
+#[test]
+fn a_seam_lying_on_the_other_wall_joins_along_the_carried_ruling() {
+    let (c, r) = ((1.0, 0.3), 0.3);
+    let (area, _) = lens((0.0, 0.0), 1.0, c, r);
+    let pose = Pose {
+        label: format!("unit rod × rod r {r} at {c:?} on its seam"),
+        a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
+        b: rod(r, c, (-0.5, 0.5)),
+        va: PI * 2.0,
+        vb: PI * r * r,
+        shared: area,
+    };
+    let bad = unsound(&[pose]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
 /// **The row's rods build in every op and order.** Their walls join
 /// along the rulings like the poses above. Each build passes tiers 2 and
 /// 3′, the certificate and its closed-form volume, and is a legal
@@ -547,13 +624,14 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     decision: topo::BooleanDecision::CylinderAxes,
                     diag,
                 }) if diag.predicate == Some("cc_axes_parallel")
-                    && e.to_string().ends_with(AXES_LEVER)
+                    && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
             );
             assert!(
                 axes_angle || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
         let turned = seams_on_the_walls(axis, 0.2);
@@ -563,7 +641,8 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: want {frontier:?}, got {:?}",
                 turned.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }
@@ -649,11 +728,12 @@ fn one_face_walls_read_their_axes_as_an_angle() {
                         decision: topo::BooleanDecision::CylinderAxes,
                         diag,
                     }) if diag.predicate == Some("cc_axes_parallel")
-                        && e.to_string().ends_with(AXES_LEVER)
+                        && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
                 ),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }

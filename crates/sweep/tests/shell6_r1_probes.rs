@@ -163,7 +163,12 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
             T,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{what}: shell refused: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: shell refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
         assert_eq!(
             topo::validate_geometric(&hollow, Tol::witness()),
@@ -194,7 +199,10 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
                     v0 - volume(&s.body),
                     cavity_closed_form(r0, r1, H, t)
                 ),
-                Err(e) => println!("[r1] {what} t={t}: shell refused: {e}"),
+                Err(e) => println!(
+                    "[r1] {what} t={t}: shell refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         }
 
@@ -207,7 +215,11 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
                     "[r1] {what} per-chart d={d}: BUILT, volume {}",
                     volume(&work)
                 ),
-                Err(e) => println!("[r1] {what} per-chart d={d}: {}: {e}", name(e)),
+                Err(e) => println!(
+                    "[r1] {what} per-chart d={d}: {}: {e_at}",
+                    name(e),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             }
             assert!(
                 got.is_ok(),
@@ -396,7 +408,11 @@ fn r1_per_chart_cone_offset_reachability_attack() {
                     );
                     assert_eq!(tier3, Ok(()), "{what}: tier 3");
                 }
-                Err(e) => println!("[r1] {what} d={d} chosen={chosen}: {}: {e}", name(e)),
+                Err(e) => println!(
+                    "[r1] {what} d={d} chosen={chosen}: {}: {e_at}",
+                    name(e),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         }
     }

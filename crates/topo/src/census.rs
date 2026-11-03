@@ -346,6 +346,7 @@ use crate::entity::{
 use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
+use crate::sweep_trace::SweepPairs;
 
 use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
@@ -513,8 +514,8 @@ struct Geo<T: Real> {
 /// definition of the candidate set, alive for the differential suite's
 /// pins alone. Outside `sweep-testing` this enum has ONE variant, and
 /// the trace plumbing ([`CensusTrace`]) rides every production sweep
-/// as `None` — the [`crate::boolean::SweepTrace`] precedent, kept
-/// rather than a test-only twin of the sweeps.
+/// as `None`, as the boolean sweep's ([`SweepPairs`]) does, rather than
+/// a test-only twin of the sweeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CensusStrategy {
     /// BVH-pruned candidates (the production path).
@@ -530,83 +531,41 @@ pub enum CensusStrategy {
     Idealized,
 }
 
-/// The pairs one sweep examined, and the ones it decided AGAINST —
-/// pushed at least one finding for — each in the sweep's own order.
-/// The differential suite's currency: realized `examined` must hold
-/// every idealized `accepted` pair (the conservative-superset pin).
-#[derive(Clone, Debug, Default)]
-pub struct SweepPairs {
-    /// Every pair the sweep examined, in decision order.
-    pub examined: Vec<(EntityId, EntityId)>,
-    /// The examined pairs whose examination pushed a finding.
-    pub accepted: Vec<(EntityId, EntityId)>,
-}
-
-impl SweepPairs {
-    fn note(&mut self, pair: (EntityId, EntityId), accepted: bool) {
-        self.examined.push(pair);
-        if accepted {
-            self.accepted.push(pair);
-        }
-    }
-
-    /// Whether this sweep's examined sequence is `exact`'s with pairs
-    /// removed and nothing reordered — the order pin of the
-    /// differential suites (`sweep-testing`; both suites read it here).
-    #[cfg(feature = "sweep-testing")]
-    pub fn is_restriction_of(&self, exact: &Self) -> bool {
-        let mut it = exact.examined.iter();
-        self.examined.iter().all(|p| it.any(|q| q == p))
-    }
-
-    /// `exact`'s accepted pairs this sweep never examined — any entry
-    /// is a finding the filter lost (the superset pin).
-    #[cfg(feature = "sweep-testing")]
-    pub fn lost_accepted(&self, exact: &Self) -> Vec<(EntityId, EntityId)> {
-        exact
-            .accepted
-            .iter()
-            .filter(|p| !self.examined.contains(p))
-            .copied()
-            .collect()
-    }
-}
-
 /// One census run's examined/accepted pairs, per sweep.
 #[derive(Clone, Debug, Default)]
 pub struct CensusTrace {
     /// Vertex×vertex (pass 1).
-    pub vv: SweepPairs,
+    pub vv: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×edge (pass 2).
-    pub ve: SweepPairs,
+    pub ve: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×curved edge (pass 2′).
-    pub vce: SweepPairs,
+    pub vce: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×face (pass 3).
-    pub vf: SweepPairs,
+    pub vf: SweepPairs<(EntityId, EntityId)>,
     /// Edge×face (pass 4).
-    pub ef: SweepPairs,
+    pub ef: SweepPairs<(EntityId, EntityId)>,
     /// Edge×edge (pass 5).
-    pub ee: SweepPairs,
+    pub ee: SweepPairs<(EntityId, EntityId)>,
     /// Curved edge×edge (pass 5′).
-    pub cee: SweepPairs,
+    pub cee: SweepPairs<(EntityId, EntityId)>,
     /// The cross-solid backstop's pairs: the face pairs that reached
     /// its reach test (after its structural and deferral skips) and
     /// the instance pairs that reached its extent-containment test.
-    pub backstop: SweepPairs,
+    pub backstop: SweepPairs<(EntityId, EntityId)>,
     /// The curved aligned arm's pairs (`curved_same_side_pairs`): those
     /// that reached the faces' reading, accepted where their interiors
     /// meet. A pair it certifies apart is examined and not accepted, and
     /// a cylinder pair apart by its axial spans alone is neither.
     /// Not among `CensusTrace::sweeps`, which the differential suites
     /// walk: it counts what the arm costs, not a candidate set they pin.
-    pub aligned: SweepPairs,
+    pub aligned: SweepPairs<(EntityId, EntityId)>,
 }
 
 #[cfg(feature = "sweep-testing")]
 impl CensusTrace {
     /// The eight sweeps by name, in census order — what a differential
     /// suite walks.
-    pub fn sweeps(&self) -> [(&'static str, &SweepPairs); 8] {
+    pub fn sweeps(&self) -> [(&'static str, &SweepPairs<(EntityId, EntityId)>); 8] {
         [
             ("vv", &self.vv),
             ("ve", &self.ve),
@@ -12316,7 +12275,7 @@ mod tests {
         assert_eq!(unread, 1, "{errors:?}");
         let accepted: usize = [&trace.vv, &trace.ve, &trace.vf, &trace.ef, &trace.ee]
             .iter()
-            .map(|t| t.accepted.len())
+            .map(|t| t.accepted().len())
             .sum();
         assert!(
             accepted > errors.len(),
@@ -13051,7 +13010,10 @@ mod tests {
                 subject: CensusSubject::FacePair(pair.0, pair.1),
             }
         );
-        assert_eq!(lane[0].to_string(), LANE_UNSUPPORTED_SENTENCE);
+        assert_eq!(
+            lane[0].render(geom_brep::recourse::Reading::AtRest),
+            LANE_UNSUPPORTED_SENTENCE
+        );
     }
 
     /// **The `None` path at the conformal face-pair arm, observed.** The
@@ -13626,7 +13588,7 @@ mod tests {
             panic!("the census's own finding: {errors:?}");
         };
         assert!(*face == cap && gaps.off_corner(), "{errors:?}");
-        let text = errors[0].to_string();
+        let text = errors[0].render(geom_brep::recourse::Reading::AtRest);
         assert!(
             text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
                 && !text.contains("could not be checked"),
@@ -14668,8 +14630,8 @@ mod tests {
                 lost.is_empty(),
                 "{name}: the filter pruned accepted pairs {lost:?}"
             );
-            assert_eq!(r.accepted, i.accepted, "{name}: accepted");
-            pruned += i.examined.len() - r.examined.len();
+            assert_eq!(r.accepted(), i.accepted(), "{name}: accepted");
+            pruned += i.examined().len() - r.examined().len();
         }
         pruned
     }
@@ -14695,7 +14657,7 @@ mod tests {
         );
         let &(_, EntityId::Face(face)) = ideal
             .vf
-            .accepted
+            .accepted()
             .first()
             .expect("a corner in a face's interior is a vertex-on-face event")
         else {
@@ -15066,8 +15028,8 @@ mod tests {
                 .expect("a point")
                 .x
         };
-        for (v, f) in &real.vf.examined {
-            let (EntityId::Vertex(v), EntityId::Face(f)) = (v, f) else {
+        for &(v, f) in real.vf.examined() {
+            let (EntityId::Vertex(v), EntityId::Face(f)) = (&v, &f) else {
                 panic!("a vf pair");
             };
             let LoopBoundary::Cycle { first } = far
@@ -15171,7 +15133,7 @@ mod tests {
             for f in [f_plus, f_minus] {
                 assert!(
                     real.vf
-                        .examined
+                        .examined()
                         .contains(&(EntityId::Vertex(v), EntityId::Face(f))),
                     "a poisoned face is examined against every vertex"
                 );
@@ -15179,7 +15141,7 @@ mod tests {
             assert!(
                 !real
                     .vf
-                    .examined
+                    .examined()
                     .contains(&(EntityId::Vertex(v), EntityId::Face(other_near_face))),
                 "a sound far face is pruned"
             );
@@ -15227,7 +15189,7 @@ mod tests {
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
             assert!(r.is_restriction_of(i), "{name}: order");
             assert!(
-                i.accepted.iter().all(|p| !r.examined.contains(p)),
+                i.accepted().iter().all(|p| !r.examined().contains(p)),
                 "{name}: every accepted pair is a pruned one"
             );
         }
@@ -15271,7 +15233,7 @@ mod tests {
             !predicates.iter().any(|p| p.starts_with("pm_census_ee_")),
             "an edge pair escalated: {predicates:?}"
         );
-        assert!(ideal.ee.accepted.is_empty(), "{:?}", ideal.ee.accepted);
+        assert!(ideal.ee.accepted().is_empty(), "{:?}", ideal.ee.accepted());
         restricted_and_silent(&real, &ideal);
     }
 
