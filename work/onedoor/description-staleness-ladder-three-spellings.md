@@ -63,6 +63,33 @@ and the sites still differ:
 - On an under-determined edge, the boolean keeps a coherent
   `TangentIntersection`, while the split restates it.
 
+## Evidence from onedoor/at-rest-adjacency (2026-11-03)
+
+Tier 3's reader is no longer hand-spelled: `validate.rs`'s
+`DescriptionNotAdjacent` pass and `Body::stored_description_adjacent`
+both call `Named::adjacent_at_rest` (`crates/topo/src/attach.rs`),
+the surface-only `Named::adjacent_by_surfaces` plus face identity
+(wrap iff the two halves bound one face). The gate and the re-chart
+planner keep the surface-only reading under that name.
+
+`crate::boolean::describe_edges`' smooth arm (`crates/topo/src/boolean/ops.rs`,
+the `let stale = match ...` ladder) still spells the at-rest reading by
+hand and leaves out face identity in two arms: a pair form and a
+non-wrap `Chart` on an edge whose halves bound ONE face read not
+stale, where `adjacent_at_rest` refuses both. Its wrap arm already
+matches. Folding it onto `adjacent_at_rest` (scaffold arm aside) is not
+a drop-in: on such an edge the restate path writes
+`EdgeCurve::restated_at(rest_locus(..))`, which for a one-surface rest
+is `restated_in_chart`, a non-wrap `Chart` (`EdgeDescriptionSpec::chart`),
+so the edge would be re-described and still refused. The ladder's one
+home has to decide what a one-face edge rests as (a wrap chart) before
+that arm can take the shared reading.
+Until then `merge_coplanar_faces`' debug postcondition
+(`stored_description_adjacent` over every kept-boundary edge
+`describe_edges` described) is the tripwire for that one-face hole: it
+panics in a debug build, by intent, rather than return a body tier 3
+refuses.
+
 ## Weighed (ONEDOOR, 2026-11-03)
 
 Two designers converged after two reconciliation rounds; the recommendation is `[ev]` PR 6427. Ratified `[edges]` (PR 5216) leaves no stored kind choice at a two-surface edge, so this ladder needs no home. The question it answers goes away instead:

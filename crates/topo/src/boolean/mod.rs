@@ -2083,23 +2083,24 @@ impl<T: Real> GluedPairs<T> {
 
 /// Every structural tangency of `body`, as `(face, its kind, other
 /// face, its kind)` both ways: the two faces across an edge described
-/// `TangentIntersection` of exactly their two surfaces.
+/// `TangentIntersection` that the at-rest adjacency reading accepts.
 fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
     for (ek, edge) in body.edges() {
         let sides = crate::readback::edge_sides_of(body, ek, edge);
-        let ((f1, f2), (s1, s2)) = (sides.faces(), sides.surfaces());
+        let (f1, f2) = sides.faces();
         let Some(curve) = body
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
         else {
             continue;
         };
-        if let geom_brep::EdgeDescription::TangentIntersection { pair, .. } = curve.description()
-            && f1 != f2
-            && *pair == geom_brep::SurfacePair::new(s1, s2)
+        if matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::TangentIntersection { .. }
+        ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
             let kind = |f| body.proven_face_surface(f).kind();
             let (k1, k2) = (kind(f1), kind(f2));

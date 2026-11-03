@@ -68,4 +68,8 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
 - 2026-11-03 — **PR [#6440](https://github.com/evgunter/cad/pull/6440)'s style review**: APPROVE-WITH-FIXES, all claims hold. Every finding is taken except `edge_join.rs`'s surface-distinctness sites, which state a different rule.
   - **A class finding, the third this sitting.** Giving a reading one home leaves its partial copies alive unless the fix sweeps for partial copies, not just whole ones: `tangent_struts` and `rest_parted_wrap_edges` each restated half of the at-rest reading.
   - **A naming rule from it.** Name a reading by what it reads (`adjacent_by_surfaces`), not by when it is used. The "in construction" name read wrong at the re-chart doors on resting bodies.
+- 2026-11-03 — **PR [#6440](https://github.com/evgunter/cad/pull/6440) closes `stored-description-adjacent-is-the-gates-reading-not-tier-3s`.**
+  - Review tier: single style review, APPROVE-WITH-FIXES; the fix pass took everything but `edge_join`'s locus rule.
+  - CI gate green at `71646a4`.
+  - The lane's local slow-set run went red on `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`. It is inherited: red on main's nightly 81 at all three eps rows with the same lists, and filed by BOXES (`main-red-the-box-door-inventory-misses-three-edge-cover-readers`). Main's nightly has failed three nights running; the hand-written-impl census reds are CENSUS's (`work/census/`). None of it is this PR's, and none of it is ONEDOOR ground.
   - (ONEDOOR orchestrator)
