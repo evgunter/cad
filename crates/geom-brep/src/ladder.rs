@@ -84,6 +84,20 @@ impl<A> Rung<A, Indeterminate> {
     }
 }
 
+impl<A, E> Rung<A, E> {
+    /// The rung with its kept reading mapped by `f`, for a reader whose
+    /// refusal carries more than the reading's own cause (the entity it
+    /// was read at). An answer and a pass are unchanged.
+    pub fn map_kept<F>(self, f: impl FnOnce(E) -> F) -> Rung<A, F> {
+        match self {
+            Self::Answers(a) => Rung::Answers(a),
+            Self::Passes => Rung::Passes,
+            Self::InBand(e) => Rung::InBand(f(e)),
+            Self::Blocked(e) => Rung::Blocked(f(e)),
+        }
+    }
+}
+
 /// **What an answer may do with the kept readings ahead of it**, which
 /// the caller of [`climb`] declares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

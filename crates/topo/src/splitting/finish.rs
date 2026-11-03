@@ -828,6 +828,15 @@ pub enum SplitFinishError {
         /// The sagitta's diagnostic (`"tangent_second_order"`).
         diag: geom_core::Indeterminate,
     },
+    /// The plane did not cut the operand, every vertex reads on it, and
+    /// which side its material lies on escalated: no curved edge's
+    /// midpoint reads definitely off the plane and one reads in band.
+    WholeBodySideEscalated {
+        /// The curved edge whose reading the refusal rests on.
+        edge: EdgeKey,
+        /// Its diagnostic (`"split_edge_side"`).
+        diag: geom_core::Indeterminate,
+    },
     /// A section-boundary edge's line chord, between vertices the split
     /// read on the plane or the operand placed on its faces, reads within
     /// the band of a surface it lies on, and not clearly on it, where the
@@ -1112,6 +1121,12 @@ impl SplitFinishError {
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
                      curvature",
+                    diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
+                )
+                .fmt(f),
+            Self::WholeBodySideEscalated { diag, .. } => diag
+                .undecided(
+                    "which side of the plane a solid the plane does not cut lies on",
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
@@ -1988,57 +2003,63 @@ pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitF
     }
 }
 
-/// The un-cut case: the whole body lands on one side, decided by the
-/// first non-ON cached vertex verdict (arena order — deterministic).
-/// A body whose every vertex is ON can still have material off the
-/// plane, along its curved edges — a one-segment cylinder touching the
-/// plane along its seam strut has its two vertices there — so then the
-/// first curved edge whose mid-parameter point is definitely off the
-/// plane decides (`split_edge_side`, the vertex verdict's margin at
-/// that point; edge arena order).
+/// The un-cut case: the whole body lands on one side. Every off-plane
+/// point of an un-cut body reads the same side, so the ladder
+/// ([`geom_brep::ladder::climb`], [`Answering::Any`]) reads the cached
+/// vertex verdicts (arena order), then, for a body whose every vertex
+/// is ON, the first curved edge whose mid-parameter point is off the
+/// plane (`split_edge_side`; edge arena order): a one-segment cylinder
+/// touching the plane along its seam strut has its two vertices there.
+/// A curved edge read in band refuses only where no later reading
+/// decides a side.
+///
+/// [`Answering::Any`]: geom_brep::ladder::Answering::Any
 fn whole_body_side<T: Decide>(
     body: Body<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     plane: &super::SplitPlane<T>,
     tol: Tol,
 ) -> Result<RawSplit<T>, SplitFinishError> {
-    let mut side = None;
-    for (v, _) in body.vertices() {
-        match sides.get(v) {
-            Some(PlaneSide::Above) => {
-                side = Some(PlaneSide::Above);
-                break;
-            }
-            Some(PlaneSide::Below) => {
-                side = Some(PlaneSide::Below);
-                break;
-            }
-            _ => {}
-        }
+    use geom_brep::ladder::{Answering, Climb, Rung, climb};
+    enum Reading<T: Decide> {
+        Vertex(VertexKey),
+        Edge(EdgeKey, geom::Curve3<T>, (T, T)),
     }
-    if side.is_none() {
-        let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-        for (_, edge) in body.edges() {
-            let Some(curve) = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
-                continue;
-            };
-            if !curve.carrier().is_curved() {
-                continue;
-            }
-            let (t0, t1) = curve.params();
-            let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
+    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+    let vertices = body.vertices().map(|(v, _)| Reading::Vertex(v));
+    let edges = body.edges().filter_map(|(key, edge)| {
+        let curve = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)?;
+        curve
+            .carrier()
+            .is_curved()
+            .then(|| Reading::Edge(key, curve.carrier().clone(), curve.params()))
+    });
+    let side = match climb(Answering::Any, vertices.chain(edges), |reading| match reading {
+        Reading::Vertex(v) => match sides.get(v) {
+            Some(&side @ (PlaneSide::Above | PlaneSide::Below)) => Rung::Answers(side),
+            Some(PlaneSide::On) | None => Rung::Passes,
+        },
+        Reading::Edge(edge, carrier, (t0, t1)) => {
+            let mid = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
             let offset = crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
-            match crate::validate::decide("split_edge_side", geom_core::Margin::of(offset), band) {
-                Ok(geom_core::Sign::Positive) => side = Some(PlaneSide::Above),
-                Ok(geom_core::Sign::Negative) => side = Some(PlaneSide::Below),
-                Ok(geom_core::Sign::Zero) | Err(_) => continue,
-            }
-            break;
+            Rung::decide("split_edge_side", geom_core::Margin::of(offset), band, |d| {
+                match d.sign {
+                    geom_core::Sign::Positive => Some(PlaneSide::Above),
+                    geom_core::Sign::Negative => Some(PlaneSide::Below),
+                    geom_core::Sign::Zero => None,
+                }
+            })
+            .map_kept(|diag| (edge, diag))
         }
-    }
+    }) {
+        Climb::Answered { answer, .. } => Some(answer),
+        Climb::Passed => None,
+        Climb::Undecided((edge, diag)) => {
+            return Err(SplitFinishError::WholeBodySideEscalated { edge, diag });
+        }
+    };
     match side {
         Some(PlaneSide::Above) => Ok(RawSplit {
             above: RawPart::Body(body),
@@ -2721,6 +2742,10 @@ mod escalation_endings {
                     edge: EdgeKey::default(),
                     diag,
                 },
+                SplitFinishError::WholeBodySideEscalated {
+                    edge: EdgeKey::default(),
+                    diag,
+                },
                 SplitFinishError::SectionWindingUndecided {
                     face: FaceKey::default(),
                     diag: Some(diag),
@@ -3007,5 +3032,66 @@ mod at_rest_rows {
             ),
             "beside a definite finding it is the kernel's: {beside:?}"
         );
+    }
+}
+
+/// `whole_body_side`'s ladder over the curved edges of a body whose
+/// every vertex reads ON: an edge read in band refuses typed, and only
+/// where no other edge decides the side.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod whole_body_side_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+    use slotmap::SecondaryMap;
+
+    use super::{RawPart, SplitFinishError, whole_body_side};
+    use crate::body::Body;
+    use crate::splitting::SplitPlane;
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, split_plane};
+
+    /// A unit-cylinder wall over azimuth `[0, π]` and height `[0, 1]`:
+    /// its two arcs' midpoints at `(0, 1, 0)` and `(0, 1, 1)`.
+    fn wall(tol: Tol) -> Body<f64> {
+        let mut body = Body::new();
+        cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            (0.0, core::f64::consts::PI),
+            (0.0, 1.0),
+            tol,
+        );
+        body
+    }
+
+    /// The plane with unit normal `n` whose offset at `(0, 1, 0)` is
+    /// `offset`.
+    fn plane(n: Vec3<f64>, offset: f64, tol: Tol) -> SplitPlane<f64> {
+        let n = n / n.norm();
+        split_plane(Point3::new(0.0, 1.0, 0.0) - n * offset, n, tol)
+    }
+
+    /// Every arc read in band: the side escalated, typed, where main
+    /// read every in-band edge as passed over and refused `Corrupt`.
+    /// One arc decided off the plane answers past the other's in-band
+    /// reading.
+    #[test]
+    fn an_in_band_edge_refuses_typed_only_where_no_edge_decides() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        let on = SecondaryMap::new();
+        let got = whole_body_side(wall(tol), &on, &plane(Vec3::unit_y(), in_band, tol), tol);
+        let Err(SplitFinishError::WholeBodySideEscalated { diag, .. }) = got else {
+            panic!("every arc in band escalates the side: {got:?}")
+        };
+        assert_eq!(diag.predicate, Some("split_edge_side"), "{diag:?}");
+        let tilted = plane(Vec3::new(0.0, 1.0, 0.1), in_band, tol);
+        match whole_body_side(wall(tol), &on, &tilted, tol) {
+            Ok(split) => assert!(
+                matches!(split.above, RawPart::Body(_)) && matches!(split.below, RawPart::Empty),
+                "the decided arc answers Above"
+            ),
+            Err(e) => panic!("the arc at height 1 decides Above: {e:?}"),
+        }
     }
 }
