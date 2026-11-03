@@ -401,6 +401,7 @@ fn crossing<T: Decide>(
     // `conic_quadric`'s "Through the apex"), has no outward normal and
     // no sense to read: the piece crosses at the apex.
     if let Surface::Cone { apex, .. } = *surface
+        && std::env::var("MUT").as_deref() != Ok("M2")
         && sign(TRACE_CROSSING_APEX, Margin::norm3(point - apex), band)? != Sign::Positive
     {
         return Err(TraceFault::Apex);

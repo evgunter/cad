@@ -1387,3 +1387,11 @@ mod review_6002_needle_join;
 mod review_6020_seam_probes;
 #[path = "review_r1_roots_split.rs"]
 mod review_r1_roots_split;
+#[path = "review_probe_b2.rs"]
+mod review_probe_b2;
+#[path = "probe_b2_apex_edges.rs"]
+mod probe_b2_apex_edges;
+#[path = "probe_b2_apex_curved.rs"]
+mod probe_b2_apex_curved;
+#[path = "delta_probe_b2.rs"]
+mod delta_probe_b2;
