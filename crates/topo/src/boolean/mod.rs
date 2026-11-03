@@ -8022,15 +8022,14 @@ pub(crate) enum FaceUnread {
 /// the census's face–face confirm (`census::confirm_face_pair`) make
 /// of it.
 ///
-/// The overlap is cut wherever either face's boundary can meet the line
+/// The overlap is cut wherever either face's boundary meets the locus
 /// ([`boundary_cuts`]), so no boundary crosses the open run between two
 /// cuts and one station, its middle, answers for each run: the reading
-/// is exact wherever both trims' carriers meet the line in closed form.
-/// Where one does not (a spiric or spline edge), where a meeting could
-/// not be placed (its edge's swing or its conic's rise in band), or
-/// where the locus is not a line, the certificate schedule's parameters
-/// are cuts too, and a run of that face's interior shorter than their
-/// spacing can be missed.
+/// is exact wherever the boundary pass reads both boundaries. Where it
+/// does not (a meeting in band, a walk or a root finder that could not
+/// certify, an edge with no certified curve), the certificate schedule's
+/// parameters are cuts too, and a run of that face's interior shorter
+/// than their spacing can be missed.
 /// A run inside the zero band is one cut met twice and is not read; a
 /// run in band is read, and may hold.
 ///
@@ -8066,15 +8065,12 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
         None
     };
     let mut cuts = vec![overlap.0, overlap.1];
-    let exact = match *locus {
-        geom::Curve3::Line(geom::Line { origin, dir }) => faces.iter().all(|&(body, face)| {
-            boundary_cuts(body, face, (origin, dir), overlap, band).is_some_and(|(ts, unsure)| {
-                cuts.extend(ts);
-                !unsure
-            })
-        }),
-        _ => false,
-    };
+    let exact = faces.iter().all(|&(body, face)| {
+        boundary_cuts(body, face, locus, overlap, band).is_some_and(|ts| {
+            cuts.extend(ts);
+            true
+        })
+    });
     if !exact {
         cuts.extend(
             (0..geom_brep::CERT_SAMPLES).map(|s| geom_brep::sample_param(overlap.0, overlap.1, s)),
@@ -8115,153 +8111,35 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     held.map_or(Ok(false), Err)
 }
 
-/// Where `face`'s boundary can meet the line `origin + t·dir` (`dir`
-/// unit) over `span`: the parameters, and whether some edge's meeting
-/// could not be placed (the caller then reads the schedule over the
-/// span as well).
+/// **Where `face`'s boundary meets `locus` over `span`**: the parameter
+/// of every meeting the boundary pass reads
+/// ([`carrier_cross::FaceBoundary::read`], each boundary vertex and edge
+/// read against the span through the curve-pair table). A run the locus
+/// shares with a boundary edge ends at a boundary vertex or at the span's
+/// end, each a cut already. `None` where the pass does not read: a
+/// refusal, or an edge with no certified curve.
 ///
-/// The parameters are the face's vertices' projections, and each
-/// edge's meeting with the line:
-/// - **A straight edge**, from its two ends: their offsets across the
-///   line, interpolated to where the offset is least, so no difference
-///   of nearly equal directions enters. An edge whose ends' offsets
-///   differ by less than the band stays within the band of the line
-///   wherever it meets it, and its ends' projections bound that; one
-///   in band of that is not placed.
-/// - **A circle or ellipse**, from its carrier: where the line meets
-///   its plane, the line leaving the plane by more than the band over
-///   `span`; where it meets the conic within the plane, the line within
-///   the band of the plane; neither placed, the rise in band.
+/// # Panics
 ///
-/// A meeting within the band of one of the face's vertices is that
-/// vertex's own event read off its edge's carrier, which agrees with
-/// the vertex only to the band, and is not a parameter of its own. A
-/// parameter that is no meeting only cuts a run in two, so the list may
-/// hold more than the meetings and never fewer. `None` where the
-/// boundary cannot be walked or an edge's carrier (a spiric, a spline,
-/// null scaffolding) has no closed form here.
+/// As [`carrier_cross::face_boundary`]'s, where a record past `face` does
+/// not resolve.
 fn boundary_cuts<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    locus: &geom::Curve3<T>,
     span: (T, T),
     band: Band,
-) -> Option<(Vec<T>, bool)> {
-    let along = |p: Point3<T>| (p - origin).dot(dir);
-    let across = |p: Point3<T>| (p - origin) - dir * along(p);
-    let sign = |name, x: T| crate::validate::decide(name, Margin::of(x.abs()), band);
-    let roots = |a: T, b: T, c: T, out: &mut Vec<T>| {
-        let r = (b.powi(2) - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
-        let q = (b + r.copysign(b)) * T::from_f64(-0.5);
-        out.extend([q / a, c / q]);
-    };
-    let (start, end) = (origin + dir * span.0, origin + dir * span.1);
-    let mut unsure = false;
-    // A conic's plane: where the line meets it, or whether the line
-    // lies within the band of it (its in-plane roots then cut); `None`
-    // where the line's rise across the plane is in band.
-    let conic = |center: Point3<T>, axis: geom_core::Vec3<T>, out: &mut Vec<T>| {
-        let (h0, h1) = ((start - center).dot(axis), (end - center).dot(axis));
-        match sign("bool_tangent_line_cut_plane", h1 - h0) {
-            Ok(Sign::Positive) => {
-                out.push((center - origin).dot(axis) / dir.dot(axis));
-                Some(false)
-            }
-            Ok(_) => Some(sign("bool_tangent_line_cut_plane", h0) != Ok(Sign::Positive)),
-            Err(_) => None,
-        }
-    };
-    let point = |v| {
-        body.get_vertex(v)
-            .and_then(|v| body.get_point(v.point))
-            .copied()
-    };
-    let f = body.get_face(face)?;
-    let mut vertices = Vec::new();
-    let mut meetings = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(lk)?.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => {
-                vertices.push(along(point(vertex)?));
-                continue;
-            }
-            crate::entity::LoopBoundary::Cycle { first } => first,
-        };
-        for he in body.loop_cycle(first)? {
-            let he = body.get_half_edge(he)?;
-            vertices.push(along(point(he.start)?));
-            let edge = body.get_edge(he.edge)?;
-            match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
-                geom::Curve3::Line(_) => {
-                    let ends = [edge.he_plus, edge.he_minus]
-                        .map(|h| body.get_half_edge(h).and_then(|h| point(h.start)));
-                    let [Some(a), Some(b)] = ends else {
-                        return None;
-                    };
-                    let (oa, ob) = (across(a), across(b));
-                    let swing = ob - oa;
-                    match sign("bool_tangent_line_cut_swing", swing.norm()) {
-                        Ok(Sign::Positive) => {
-                            let s = -oa.dot(swing) / swing.dot(swing);
-                            meetings.push(along(a) + (along(b) - along(a)) * s);
-                        }
-                        Ok(_) => {}
-                        Err(_) => unsure = true,
-                    }
-                }
-                geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
-                    radius,
-                }) => {
-                    let in_plane = conic(center, axis, &mut meetings);
-                    unsure |= in_plane.is_none();
-                    if in_plane == Some(true) {
-                        let w = origin - center;
-                        roots(
-                            T::one(),
-                            w.dot(dir) + w.dot(dir),
-                            w.dot(w) - radius.powi(2),
-                            &mut meetings,
-                        );
-                    }
-                }
-                geom::Curve3::Ellipse(geom::Ellipse {
-                    frame:
-                        geom::Frame {
-                            center,
-                            axis,
-                            u_ref,
-                        },
-                    semi_u,
-                    semi_v,
-                }) => {
-                    let in_plane = conic(center, axis, &mut meetings);
-                    unsure |= in_plane.is_none();
-                    if in_plane == Some(true) {
-                        let v_ref = axis.cross(u_ref);
-                        let w = origin - center;
-                        let (wu, wv) = (w.dot(u_ref) / semi_u, w.dot(v_ref) / semi_v);
-                        let (du, dv) = (dir.dot(u_ref) / semi_u, dir.dot(v_ref) / semi_v);
-                        roots(
-                            du.powi(2) + dv.powi(2),
-                            (wu * du + wv * dv) * T::from_f64(2.0),
-                            wu.powi(2) + wv.powi(2) - T::one(),
-                            &mut meetings,
-                        );
-                    }
-                }
-                _ => return None,
-            }
-        }
-    }
-    meetings.retain(|&m| {
-        !m.is_poison()
-            && vertices
-                .iter()
-                .all(|&v| sign("bool_tangent_line_cut_vertex", m - v) == Ok(Sign::Positive))
-    });
-    vertices.extend(meetings);
-    Some((vertices, unsure))
+) -> Option<Vec<T>> {
+    let boundary = carrier_cross::face_boundary(body, face).ok()??;
+    let swept = geom_brep::curve_pair::Span::new(locus, span);
+    let reading = boundary.read(&swept, band).ok()?;
+    Some(
+        reading
+            .meetings
+            .iter()
+            .map(|m| swept.at(m.on_span))
+            .collect(),
+    )
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
