@@ -33,7 +33,7 @@ is not iso, keeps the refusal.
 
 This is the second prerequisite, beside SHELL-3, for the loft
 embedding certificate both CARVE designers recommend
-(`work/carve/self-overlapping-spines-build-and-validate.md`, CARVE
+(`work/lathe/self-overlapping-spines-build-and-validate.md`, CARVE
 log 2026-10-06).
 
 Filed by the CARVE orchestrator, 2026-10-06, from two designer reports.

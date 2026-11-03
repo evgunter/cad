@@ -107,6 +107,6 @@ by exact id (`FILED_NO_RECOURSE` in `refusal_concision_chains.rs` and
 `work/shell/shell-refusals-short-of-the-shape-guard.md` (12),
 `work/msolve/msolve-refusals-short-of-the-shape-guard.md`,
 `work/recipe/edit-refusals-short-of-the-shape-guard.md` and
-`work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md` (8).
+`work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md` (8).
 Each list has a must-fire check, so an entry its owner's fix makes
 stale goes red.

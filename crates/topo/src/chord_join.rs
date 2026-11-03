@@ -285,7 +285,7 @@ pub enum SplitJoinError {
     ///
     /// A section loop that closes on one vertex bounds nothing however
     /// large the section it should be
-    /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
+    /// (`a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
     /// A pinch at a vertex does not reach it: the split's reduction keeps
     /// one vertex per piece round a vertex on each side, so pieces
     /// meeting there do not share one. A pinch along an edge in the
@@ -302,7 +302,7 @@ pub enum SplitJoinError {
     /// A slit trace whose tree holds an edge that is not a line: its
     /// slit would be two coincident curved edges, which no contact record
     /// backs and tier 3′ refuses
-    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     CurvedSlitTrace {
         /// The completed null face.
         face: FaceKey,
@@ -693,7 +693,7 @@ impl SplitJoinError {
                 f,
                 "an arc lying in the cut, wrapped round at both ends by the material \
                  across it, would leave two coincident arcs that no contact record backs \
-                 (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
+                 (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
                  {}",
                 geom_core::NOT_YET_ENDING
             ),

@@ -8,8 +8,8 @@
 //! a slit, two coincident edges from the rim to their tip at the apex.
 //! The wall's one loop runs round the rim and up the slit to the apex
 //! and back: a cap less a slit, which sweeps the whole turn round the
-//! apex. No door builds it (a Boolean refuses an edge at a cone's apex,
-//! `CrossingAtConeApex`), so it is built through the Euler doors.
+//! apex. It is built through the Euler doors, so the row reads the walk
+//! on exactly this shape, whichever Boolean would also reach it.
 //!
 //! Split through the apex, by planes that hold both slit edges on one
 //! side, the walk reads the wall's corner at the apex between the slit's

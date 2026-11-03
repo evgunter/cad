@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-01
 priority: P2
 cost: M
-refs: [a-fate-cut-touch-end-at-a-division-vertex-lies-in-no-piece]
 ---
 
 

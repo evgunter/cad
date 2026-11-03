@@ -75,7 +75,7 @@ accounted for in exactly one of three ways:
    assertions rather than prose.
 
    **A NAME MATCH ACCOUNTS MEMBERS, NOT THE TYPE** (Ev, 2026-09-09, on
-   `work/lib/datum-crosses-name-for-name-as-two-types.md`). Where the
+   `datum-crosses-name-for-name-as-two-types` (closed with LIB: `docs/doc-ledger/lib-leaves-the-tracker.md`)). Where the
    curated name resolves to a `pub enum` or `pub struct`, the match
    accounts only the members the Python namesake actually SPELLS — an
    arm as a class attribute of the same name (`SurfaceKind.Plane`) or
@@ -153,8 +153,8 @@ does, the census's family tag IS the id and the census owns it**
 (`FAMILIES`, below). Both halves are checked mechanically —
 `test_every_gap_entry_names_a_defined_id` reads the audit page's own
 gap tables and fails on a citation the page does not define, and on a
-family tag `FAMILIES` does not charter. `work/lib/log.md`'s "LIB
-residual register", category B, points here for the enumeration
+family tag `FAMILIES` does not charter. LIB's log's "LIB
+residual register" (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`), category B, points here for the enumeration
 rather than carrying one in prose.
 
 WHAT THIS DOES NOT CLAIM
@@ -846,7 +846,7 @@ BOUND_AS = {
     # `HitTestError`, built through the kernel's own `From`, so a
     # caller reads the same class, tag, `node`, `kind` and `body` in a
     # slot as at a raise. Whether the slot deserves a class of its own
-    # is `work/lib/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
+    # is `work/bind/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
     "UnnamedEntity": "HitTestError",
     # `NameLookupError` is those two doors' refusal of the WHOLE call —
     # the pairing, or the node's standing — and it crosses as the same
@@ -1528,7 +1528,7 @@ GAP = "gap"
 #: **The spelling.** `B-` is the register category these entries used
 #: to point at in prose — the "LIB residual register", category B,
 #: spelled `docs/LIB-LOG.md` when these entries were written and now
-#: living at `work/lib/log.md` — and that register points HERE for
+#: kept in LIB's log (recoverable by `docs/doc-ledger/lib-leaves-the-tracker.md`) — and that register points HERE for
 #: its enumeration, so the lineage stays legible in the id itself and
 #: a reader arriving from either document lands in the same place.
 #: Upper case with a hyphen makes an id unmistakable for an audit
@@ -1593,7 +1593,7 @@ FAMILIES: dict[str, str] = {
     # the `names::interrogate` twin), and the binding did not move with
     # it: `crates/pncad-py/*` is LIB's ground, and what a Python caller
     # can ask an edge for is still its FRAME, while a face answers for
-    # its kind. `work/lib/python-evaluation-has-no-edge-carrier-kind-twin`
+    # its kind. `work/pydoor/python-evaluation-has-no-edge-carrier-kind-twin`
     # carries the finding.
     "B-EDGE-KIND": (
         "the edge twin of `Evaluation.face_carrier_kind` — "
@@ -1650,7 +1650,7 @@ FAMILIES: dict[str, str] = {
     # move, because `crates/pncad-py/*` is LIB's ground. A Python
     # caller can author a profile program and cannot ask which profile
     # edges one of its steps became.
-    # `work/lib/python-has-no-step-to-profile-edge-door` carries the
+    # `work/pydoor/python-has-no-step-to-profile-edge-door` carries the
     # finding.
     "B-STEP-SEGMENTS": (
         "the authored-step to profile-edge map — "
@@ -1673,7 +1673,7 @@ FAMILIES: dict[str, str] = {
     # vertex authored through the paths vocabulary reads back `0.025 m`
     # — and the binding did not move with the door because
     # `crates/pncad-py/*` is LIB's ground.
-    # `work/lib/path-legs-erase-the-authored-notation-one-layer-down`
+    # `work/pydoor/path-legs-erase-the-authored-notation-one-layer-down`
     # carries the finding and unparks on the kernel door.
     "B-PATH-NOTATION": (
         "the notation a Python path leg was authored in — "
@@ -1692,7 +1692,7 @@ FAMILIES: dict[str, str] = {
     # `the-viewer-drops-every-dm7-rename-report`; a Python caller reads
     # a cascade's net off the document the walk ended at — by hand,
     # since nothing bound folds the rows. `crates/pncad-py/*` is
-    # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
+    # LIB's ground; `work/pydoor/python-has-no-maintenance-net-door`
     # carries the finding.
     "B-MAINT-NET": (
         "the net of a sequence of accepted edits' maintenance rows — "
@@ -2779,7 +2779,7 @@ NOT_BOUND = {
     #
     # Not a `gap:`, for the reason the blend four are not: the debt is
     # a door projecting its arms' FIELDS, which is
-    # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
+    # `work/bind/pncad-py-seven-doors-lack-field-projection.md`'s
     # (the `path` door is one of the six it names), and not a missing
     # binding for these five types. `ArcCheck` is the sixth, on the
     # same footing: `InconsistentArc`'s payload, crossing as the word
@@ -3596,7 +3596,7 @@ MEMBERS_BOUND_AS = {
     # bound because the facade leaves `Attr` and the record types out.
     # So the arm is bound, tagged and readable, and no Python program
     # can make one appear. Filed as
-    # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
+    # `work/pydoor/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::StrandedSelection` has no such gap: `Node.fillet`
     # takes a name selection and `DocEdit.delete_node` is bound.
     "Maintenance::Strand": "Maintenance.variant",
@@ -4259,7 +4259,7 @@ MEMBERS_NOT_BOUND = {
     # `WitnessDatum` or `BranchCertification` at all, so the arms have
     # no payload a consumer of that module can name — in Rust or in
     # Python. Filed as
-    # `work/lib/the-witness-edits-need-a-facade-type.md`.
+    # `work/pydoor/the-witness-edits-need-a-facade-type.md`.
     #
     # The EXPRESSION-PATH edit is neither: its payload is curated
     # (`ExprPath` is `EditError.path`) and the constructor is
@@ -4267,7 +4267,7 @@ MEMBERS_NOT_BOUND = {
     # renders the address through `Debug`, and the binding's prose
     # gate panics on that, so the door would panic exactly where it is
     # supposed to refuse. Filed as
-    # `work/lib/the-expression-path-edit-cannot-refuse-as-prose.md`.
+    # `work/pydoor/the-expression-path-edit-cannot-refuse-as-prose.md`.
     "DocEdit::SetExpression": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     "DocEdit::ReWitness": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     "DocEdit::ReWitnessBulk": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
@@ -4395,7 +4395,8 @@ class TestBindingCensus(unittest.TestCase):
         A `gap:` entry is OWED WORK, and the id after the colon is
         what a dispatcher works from. Before this guard those ids were
         free prose, and half of them read `register B <something>` —
-        a pointer at a PARAGRAPH of `work/lib/log.md`'s "LIB residual
+        a pointer at a PARAGRAPH of LIB's log's (recoverable by
+        `docs/doc-ledger/lib-leaves-the-tracker.md`) "LIB residual
         register", which is not an enumeration and cannot be
         dispatched against. So each entry now names exactly one id
         and each id must be defined:
