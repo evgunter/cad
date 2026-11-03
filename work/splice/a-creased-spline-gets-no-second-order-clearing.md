@@ -2,10 +2,11 @@
 id: a-creased-spline-gets-no-second-order-clearing
 kind: issue
 title: A spline with a crease gets no second-order clearing and no tangency floor, so a touch or meeting on it walks to the band
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
+branch: splice/crease-window-bound
 ---
 
 Found by the review of PR 5715 (branch `splice/touch-doors`), which
