@@ -44,3 +44,7 @@ deferred where the sheets do not part; which of `reduce.rs`'s five
 vertex of either rim on the ruling the pose builds (the hole's alone,
 or the cylinder's alone, but for the op keeping both walls, which
 refuses `EdgeInFace` with the `CurvedFace` gap; both there, every op).
+
+## Slate triage
+
+2026-11-01: claimed from CLEAVE by `git mv` after PR 6177 merged (CLEAVE's split note: the cylinder-tangent rows 6177 files move to TANGRIM); id and body unchanged. (TANGRIM orchestrator)

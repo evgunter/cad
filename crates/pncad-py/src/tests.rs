@@ -4007,7 +4007,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // move by its section and its place in the station, a
             // value's number by its constraint, a list's entry by its
             // position, a constraint's side by its constraint and which
-            // side, an indexed read's index by its seat, and a drawn
+            // side, a value's direction or axis by its constraint, an
+            // indexed read's index by its seat, and a drawn
             // profile's traced face by its place among the faces it
             // reads, none of which the word carries.
             None => assert!(
@@ -4024,6 +4025,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "measured"
                         | "cleared"
                         | "side"
+                        | "along"
+                        | "about"
                         | "traced"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
@@ -4561,7 +4564,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coord_tag",
         values: &[
-            "slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z",
+            "slide",
+            "slide_along",
+            "slide_x",
+            "slide_y",
+            "slide_z",
+            "spin",
+            "spin_about",
+            "spin_x",
+            "spin_y",
+            "spin_z",
         ],
         delegates: &[],
     },
@@ -5124,7 +5136,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &["slide_turns_a_ball", "slides_do_not_span"],
+        values: &[
+            "read_slides_do_not_span",
+            "slide_turns_a_ball",
+            "slides_do_not_span",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5273,6 +5289,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
+            "about",
+            "along",
             "axis",
             "body",
             "cleared",
@@ -5758,6 +5776,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis_heading",
             "chamfer_distance",
+            "clearance_high",
+            "clearance_low",
             "distance",
             "index",
             "origin_x",

@@ -3869,7 +3869,11 @@ mod value_field_tests {
                 &index,
                 pncad::document::BodyRead::plain(pncad::document::Operand::from(extrude)),
                 pncad::document::Operand::Var(target),
-                &[(pncad::document::TargetAxis::Y, len(0.08))],
+                &[(
+                    pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::Y),
+                    len(0.08),
+                )],
+                None,
             )
             .expect("a length pitch");
             let (doc, row) = inserted(&declared, row, tol);

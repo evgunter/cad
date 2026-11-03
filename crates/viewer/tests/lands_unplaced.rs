@@ -35,7 +35,7 @@ fn fresh_box(tol: Tol) -> (DocSession, RecipeNodeId) {
 /// A pattern of `input`, two members `2·BOX[0]` apart along `x`.
 fn pattern_op(input: RecipeNodeId, fused: bool) -> SessionOp {
     let rule = PatternRuleSpec::Linear {
-        direction: common::scl3([1.0, 0.0, 0.0]),
+        direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
         spacing: common::len(2.0 * BOX[0]),
     };
     if fused {

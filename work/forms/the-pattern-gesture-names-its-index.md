@@ -2,11 +2,12 @@
 id: the-pattern-gesture-names-its-index
 kind: issue
 title: The pattern gesture names its index k, k1, ... though the index has one reader and VR2 says the GUI proposes no name
-status: open
+status: parked
 opened: 2026-11-02
 priority: P2
 cost: E
 parent: a-seated-tools-values-have-no-home-after-insert
+blocked_on: [a-seated-tools-values-have-no-home-after-insert]
 ---
 
 

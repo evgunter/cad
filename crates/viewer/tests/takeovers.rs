@@ -520,7 +520,7 @@ fn a_fused_patterns_takeover_rebinds_the_mate_on_the_copys_top() {
         input: block.into(),
         count: 2,
         rule: PatternRuleSpec::Linear {
-            direction: common::scl3([0.0, 1.0, 0.0]),
+            direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
             spacing: len(0.1),
         },
     });

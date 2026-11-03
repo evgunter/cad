@@ -179,6 +179,27 @@ impl ToolKind {
         }
     }
 
+    /// **Whether this tool's form holds a label field.** A tool under
+    /// the create rule's "a creation proposes no label"
+    /// (`crates/viewer/README.md`, "A create gesture commits the
+    /// node") holds none: its insert stores `Kind N` on the node its
+    /// noun names, and the node's label row renames it. A tool brought
+    /// under the rule joins the list here.
+    pub fn offers_label(self) -> bool {
+        match self {
+            Self::Mirror => false,
+            Self::Mate
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend
+            | Self::Part
+            | Self::Duplicate
+            | Self::Clearance => true,
+        }
+    }
+
     /// **Whether this operation is this tool's one committed edit** —
     /// the rule that closes the tool that authored it, once the edit
     /// has actually landed. Which op belongs to which tool is
@@ -865,7 +886,13 @@ impl Tools {
                     }
                 }
                 Some(OpenTool::Pattern(tool)) => {
-                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                    match selection {
+                        Selection::Edge(edge) => tool
+                            .pick_direction(doc, crate::combine::DirectionPick::Edge(edge.clone())),
+                        Selection::Face(face) => tool
+                            .pick_direction(doc, crate::combine::DirectionPick::Face(face.clone())),
+                        _ => on_body_pick(selection, |node, body| tool.pick_at(doc, node, body)),
+                    }
                 }
                 Some(OpenTool::Part(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));

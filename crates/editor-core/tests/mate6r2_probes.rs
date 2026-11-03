@@ -120,9 +120,9 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         placement,
         seat.mate,
         &[
-            (Coord::Slide(TargetAxis::X), len(seat.apart)),
+            (Coord::slide(TargetAxis::X), len(seat.apart)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
