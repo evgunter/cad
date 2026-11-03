@@ -403,7 +403,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
-    let torus_circle_on_wall = ba.accepted.iter().any(|(e, f)| {
+    let torus_circle_on_wall = ba.accepted().iter().any(|(e, f)| {
         let circle = torus
             .get_edge(*e)
             .and_then(|e| torus.get_curve_geom(e.curve))

@@ -2882,19 +2882,37 @@ impl<T: Real> EdgeCurve<T> {
         &self,
         mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
     ) -> Option<Self> {
+        self.try_with_remapped_surfaces(|k| remap(k).ok_or(())).ok()
+    }
+
+    /// [`EdgeCurve::with_remapped_surfaces`] through a total `remap`.
+    #[must_use]
+    pub fn with_remapped_surfaces_total(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> crate::keys::SurfaceKey,
+    ) -> Self {
+        let Ok(remapped) =
+            self.try_with_remapped_surfaces(|k| Ok::<_, core::convert::Infallible>(remap(k)));
+        remapped
+    }
+
+    fn try_with_remapped_surfaces<E>(
+        &self,
+        mut remap: impl FnMut(crate::keys::SurfaceKey) -> Result<crate::keys::SurfaceKey, E>,
+    ) -> Result<Self, E> {
         let description = match self.description {
             EdgeDescription::Intersection { pair, ref selector } => {
-                let (pair, selector) = selector.remapped(pair, &mut remap)?;
+                let (pair, selector) = selector.try_remapped(pair, &mut remap)?;
                 EdgeDescription::Intersection { pair, selector }
             }
             EdgeDescription::TangentIntersection { pair, witness } => {
                 EdgeDescription::TangentIntersection {
-                    pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
+                    pair: pair.try_map(&mut remap)?,
                     witness,
                 }
             }
             EdgeDescription::OnPair { pair } => EdgeDescription::OnPair {
-                pair: pair.try_map(|k| remap(k).ok_or(())).ok()?,
+                pair: pair.try_map(&mut remap)?,
             },
             // The chart IMAGE travels verbatim, because it is geometry
             // stated in chart COORDINATES, which a bitwise re-creation
@@ -2907,7 +2925,7 @@ impl<T: Real> EdgeCurve<T> {
             // A scaffold names no surface — there is none yet.
             EdgeDescription::Scaffold(m) => EdgeDescription::Scaffold(m),
         };
-        Some(Self {
+        Ok(Self {
             description,
             authority: self.authority,
             carrier: self.carrier.clone(),
