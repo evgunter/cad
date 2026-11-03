@@ -685,7 +685,16 @@ struct EdgeEntry {
     turn: Option<Interval>,
 }
 
-fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, PropsError> {
+/// The finest resolution a projected edge's turn is read at, as a
+/// multiple of [`PROJECTED_ENTRY_PIECES`].
+const TURN_REFINE: usize = 1 << 6;
+
+/// What the lane reads of `e` before the rounds. A projected edge's
+/// turn is refined, doubling its pieces from [`PROJECTED_ENTRY_PIECES`]
+/// to [`TURN_REFINE`] times that, until its width, metered at the
+/// chart's lever, is a quarter of the band's zero: the closure reads it
+/// against the edge's own ends, at the vertex slack.
+fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ, band: Band) -> Result<EdgeEntry, PropsError> {
     let lever = chart.azimuth_lever();
     Ok(match e {
         EdgeTermQ::Harmonic(h) => EdgeEntry {
@@ -694,7 +703,17 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
         },
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, lever);
-            let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, PROJECTED_ENTRY_PIECES);
+            let mut pieces = PROJECTED_ENTRY_PIECES;
+            let turn = loop {
+                let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, pieces);
+                if pieces >= PROJECTED_ENTRY_PIECES * TURN_REFINE
+                    || !turn.is_certified()
+                    || (pt(turn.width()) * lever).mag() <= 0.25 * band.zero()
+                {
+                    break turn;
+                }
+                pieces *= 2;
+            };
             if !(length.is_finite() && turn.is_certified()) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a projected edge whose chart speed or turn reads no enclosure — its \
@@ -831,7 +850,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
     let entries: Vec<Vec<EdgeEntry>> = face
         .loops
         .iter()
-        .map(|edges| edges.iter().map(|e| edge_entry(e, chart)).collect())
+        .map(|edges| edges.iter().map(|e| edge_entry(e, chart, band)).collect())
         .collect::<Result<_, _>>()?;
     let winds = loop_windings::<T>(face, &entries, band)?;
     let anchor = level_anchor(&face.loops)?;
@@ -1045,6 +1064,10 @@ fn require_holes_wound_against(
         .collect();
     crate::props::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod swap_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -1284,7 +1307,7 @@ mod tests {
                 .collect();
             let anchor = level_anchor(&loops).unwrap();
             let a_s = loops.iter().flatten().fold(Interval::zero(), |a, e| {
-                let entry = edge_entry(e, chart).unwrap();
+                let entry = edge_entry(e, chart, band).unwrap();
                 a + edge_terms(e, &entry, chart, anchor, EDGE_INIT_PIECES).0[0]
             });
             let bounds = FaceCutBounds {
