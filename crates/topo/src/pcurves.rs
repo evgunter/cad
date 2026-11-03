@@ -758,6 +758,9 @@ fn chart_mints<T: Real>(chart: DescribedChart<'_, T>) -> bool {
         // (rim/ruling; polar/meridian; parallel/meridian) and mint
         // stored caches wherever the pass runs.
         Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
+        // A spindle sheet's chart takes the pass, whose mint refuses it
+        // typed until its classes are written.
+        Surface::Spindle { .. } => true,
         // Described NURBS charts mint (M6-3; RATIONAL charts since
         // M8-3): every loft/sweep wall boundary is an iso-parameter
         // curve of the wall it bounds. Seams and LINE cap rims have
@@ -1943,7 +1946,9 @@ impl<T: Decide> ChartPeriods<T> {
 fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
     match *surface {
         Surface::Sphere { radius, .. } => Some(radius),
-        Surface::Torus { minor_radius, .. } => Some(minor_radius),
+        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => {
+            Some(minor_radius)
+        }
         // The second channel is not an ANGLE on these charts, so no
         // polar radius levers it. That does not make it metres: on a
         // plane, cylinder or cone `v` IS a length, but a spline
@@ -4152,7 +4157,7 @@ fn singular_at<T: Decide>(
         // The singular points, from their one home, each read by the one
         // incidence reading: on the set where on one of them, off where
         // off every one, and otherwise the first escalation.
-        Surface::Sphere { .. } | Surface::Cone { .. } => {
+        Surface::Sphere { .. } | Surface::Cone { .. } | Surface::Spindle { .. } => {
             use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
             let Ok(inverse) = geom::ChartInverse::of(chart.surface()) else {
                 return Singular::Off;
@@ -4216,9 +4221,9 @@ fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point
     };
     match *chart.surface() {
         Surface::Cylinder { radius, .. } => Some(radius),
-        Surface::Sphere { center, axis, .. } | Surface::Torus { center, axis, .. } => {
-            Some(off_axis(center, axis))
-        }
+        Surface::Sphere { center, axis, .. }
+        | Surface::Torus { center, axis, .. }
+        | Surface::Spindle { center, axis, .. } => Some(off_axis(center, axis)),
         Surface::Cone { apex, axis, .. } => Some(off_axis(apex, axis)),
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
@@ -4895,7 +4900,8 @@ pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> O
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => Some(Period::new(T::tau())),
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => Some(Period::new(T::tau())),
         Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
     }
 }

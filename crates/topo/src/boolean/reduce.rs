@@ -5047,7 +5047,10 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
         // No root lane: the caller reads the span against the face as it
         // reads a door's refusal.
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => {
             return Ok(None);
         }
     })))

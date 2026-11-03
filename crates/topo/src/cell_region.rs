@@ -250,9 +250,9 @@ impl Ball {
 }
 
 /// Is the carrier's singular set decided clear of the ball: a cone's
-/// apex, and a torus's axis, which holds every point where a spindle or
-/// horn torus meets itself (a ring torus never comes near it). The
-/// other carriers have none.
+/// apex, and a torus's or spindle sheet's axis, which holds a sheet's
+/// apexes (a ring torus never comes near it). The other carriers have
+/// none.
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
@@ -260,7 +260,7 @@ fn clear_of_singular(
 ) -> bool {
     match *surface {
         Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
-        Surface::Torus { center, axis, .. } => {
+        Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
             let n = axis / axis.norm();
             let w = station - center;
             clear(SINGULAR, (w - n * w.dot(n)).norm())

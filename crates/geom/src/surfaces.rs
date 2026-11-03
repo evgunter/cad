@@ -525,6 +525,86 @@ pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, ban
 pub const PLACEHOLDER_SURFACE: &str =
     "the surface has no description yet: it is only the placeholder a construction starts from";
 
+/// An end of [`Surface::Spindle`]'s datum range `−r < R ≤ r`, `R ≠ 0`
+/// ([`spindle_sheet`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpindleEnd {
+    /// `R + r > 0`: at `R = −r` the lemon closes to a point on its axis.
+    Far,
+    /// `R ≠ 0`: at `R = 0` the sheet is a sphere, its own kind.
+    Sphere,
+    /// `r − R ≥ 0`: the horn closes the range, and past it the circle
+    /// sweeps a ring torus, its own kind.
+    Horn,
+}
+
+impl SpindleEnd {
+    /// What the end decides, as a clause.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Far => "whether a spindle sheet's major radius lies above minus its minor radius",
+            Self::Sphere => "whether a spindle sheet's major radius is nonzero",
+            Self::Horn => "whether a spindle sheet's major radius is at most its minor radius",
+        }
+    }
+}
+
+/// A spindle sheet's datums outside its range ([`spindle_sheet`]): the
+/// end missed, and its margin's verdict — decided with a sign that
+/// refuses, or undecided.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpindleMiss {
+    /// The end of the range missed.
+    pub end: SpindleEnd,
+    /// The end's margin, decided or not.
+    pub verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+}
+
+/// **The spindle sheet's datum range, decided: its one home.** With
+/// `r > 0` asked first (the margin's own, as a torus's tube is), the
+/// two datums relate by `−r < R ≤ r` and `R ≠ 0`, each a length on the
+/// band: `R + r` decided positive (`spindle_far_end`), `R` decided
+/// nonzero (`spindle_not_sphere`), and `r − R` decided positive or zero
+/// (`spindle_horn_end`), its zero the horn.
+///
+/// # Errors
+///
+/// [`SpindleMiss`] naming the first end missed, in that order.
+pub fn spindle_sheet<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(), SpindleMiss> {
+    use geom_core::Sign::{Negative, Positive, Zero};
+    let read = |name, margin: T, end, passes: &[geom_core::Sign]| {
+        let verdict =
+            geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band);
+        match verdict {
+            Ok(d) if passes.contains(&d.sign) => Ok(()),
+            _ => Err(SpindleMiss { end, verdict }),
+        }
+    };
+    read(
+        "spindle_far_end",
+        major_radius + minor_radius,
+        SpindleEnd::Far,
+        &[Positive],
+    )?;
+    read(
+        "spindle_not_sphere",
+        major_radius,
+        SpindleEnd::Sphere,
+        &[Positive, Negative],
+    )?;
+    read(
+        "spindle_horn_end",
+        minor_radius - major_radius,
+        SpindleEnd::Horn,
+        &[Positive, Zero],
+    )
+}
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload

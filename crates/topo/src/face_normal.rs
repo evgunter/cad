@@ -391,8 +391,10 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         // form to differentiate, and a foot of `p` can land on another
         // sheet: a caller holding the chart point it placed `p` at takes
         // [`spline_outward_normal_at`], and one without names the kind in
-        // its own refusal.
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Ok(None),
+        // its own refusal. A spindle sheet's arm is not written yet.
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+            Ok(None)
+        }
     }
 }
 
@@ -459,7 +461,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             let core = center + radial * (major_radius / radial.norm());
             clear(Margin::norm3(p - core))?;
         }
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return Err(FootNormalError::Unread);
         }
     }

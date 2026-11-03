@@ -241,6 +241,21 @@ pub(super) fn carrier_depth<T: Decide>(
                 source: Source::Carrier,
             })
         }
+        // A sheet's whole tube, read as a torus off its ring is.
+        FaceBoxRule::SheetTube {
+            center,
+            axis,
+            spine,
+            ..
+        } => Some(Proposed {
+            depth: Depth::Core {
+                center,
+                axis,
+                major: spine,
+            },
+            level: None,
+            source: Source::Carrier,
+        }),
         FaceBoxRule::BoundaryHull | FaceBoxRule::ControlNet(_) => None,
     }
 }
@@ -359,6 +374,17 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             center,
             normal: axis,
             major: major_radius.abs(),
+            minor: minor_radius.abs(),
+        }),
+        FaceBoxRule::SheetTube {
+            center,
+            axis,
+            spine,
+            minor_radius,
+        } => held(Ring {
+            center,
+            normal: axis,
+            major: spine,
             minor: minor_radius.abs(),
         }),
         FaceBoxRule::ControlNet(net) => match net.net_state() {

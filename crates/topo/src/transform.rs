@@ -372,6 +372,19 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
             minor_radius,
             u_ref: map_vec(map, u_ref),
         },
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => Surface::Spindle {
+            center: map.transform_point(center),
+            axis: map_vec(map, axis),
+            major_radius,
+            minor_radius,
+            u_ref: map_vec(map, u_ref),
+        },
         // A DESCRIBED net maps by its control points, weights and
         // knots untouched — the exact image, not a re-fit, so there is
         // no certificate to re-derive and no fit door to reach
@@ -693,7 +706,7 @@ pub(crate) enum OrientationClass {
     /// its own reversal, and a reflection writes it so its chart is
     /// unmoved ([`map_surface`]).
     Plane,
-    /// A cylinder, cone, sphere or torus: the outward side rides the
+    /// A cylinder, cone, sphere, torus or spindle: the outward side rides the
     /// face's `sense`, and a reflection maps the frame forward,
     /// reversing the azimuth `u` (MIRROR-DESIGN P1).
     Analytic,
@@ -710,7 +723,8 @@ impl OrientationClass {
             Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. } => Self::Analytic,
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. } => Self::Analytic,
             Surface::Nurbs(_) | Surface::Approx(_) => Self::Net,
         }
     }

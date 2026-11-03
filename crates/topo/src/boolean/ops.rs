@@ -1634,10 +1634,11 @@ fn one_sheet<T: crate::props::AtRestPolicy>(
     use geom::Surface as S;
     match surface {
         S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. } => {}
-        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => {
+        S::Plane { .. } | S::Sphere { .. } | S::Spindle { .. } | S::Nurbs(_) | S::Approx(_) => {
             return Err(BooleanError::ClassificationInvariant {
-                what: "the section certificate's W2 was asked of a face on a plane, a sphere or \
-                       a spline, on which no section arm marks a component essential",
+                what: "the section certificate's W2 was asked of a face on a plane, a sphere, \
+                       a spindle sheet or a spline, on which no section arm marks a component \
+                       essential",
             });
         }
     }
@@ -1803,7 +1804,9 @@ fn section_pass_takes<T: Real>(s: &geom::Surface<T>) -> bool {
     use geom::Surface as S;
     match s {
         S::Cylinder { .. } | S::Torus { .. } | S::Cone { .. } => true,
-        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => false,
+        S::Plane { .. } | S::Sphere { .. } | S::Spindle { .. } | S::Nurbs(_) | S::Approx(_) => {
+            false
+        }
     }
 }
 
@@ -5874,6 +5877,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         // Definite findings: a kernel defect.
         V::DanglingDescription { .. }
         | V::DegenerateTorus { .. }
+        | V::DegenerateSpindle { .. }
+        | V::SheetApexReached { .. }
         | V::DescriptionNotAdjacent { .. }
         | V::PlanarFaceResidual { .. }
         | V::PlanarBoundaryResidual { .. }

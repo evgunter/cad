@@ -1146,6 +1146,25 @@ pub enum ValidationError {
         /// The predicate-layer escalation.
         cause: Indeterminate,
     },
+    /// Tier 3: a face's spindle sheet stores a major radius outside its
+    /// range `−r < R ≤ r`, `R ≠ 0` ([`geom::spindle_sheet`]), decided
+    /// outside or undecided at this tolerance: past either end, or at
+    /// zero, the circle sweeps another kind.
+    DegenerateSpindle {
+        /// The face whose sheet is outside its range.
+        face: FaceKey,
+        /// The end missed and its margin's verdict.
+        miss: geom::SpindleMiss,
+    },
+    /// Tier 3: a spindle face's closure reaches an apex of its sheet at
+    /// one of its vertices, or the face is not shown clear of one: a
+    /// face at a sheet's apex has no lane yet.
+    SheetApexReached {
+        /// The face.
+        face: FaceKey,
+        /// The apex.
+        point: geom_brep::chart_singularity::Singularity,
+    },
     /// Tier 3: a face's analytic surface stores a datum that is not a
     /// finite number, or a direction (`normal`, `axis`, `u_ref`) that is
     /// the zero vector — a description that claims a locus and cannot
@@ -4331,6 +4350,8 @@ fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'stati
         geom_brep::chart_singularity::Singularity::North
         | geom_brep::chart_singularity::Singularity::South => "a pole of a sphere",
         geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
+        geom_brep::chart_singularity::Singularity::SheetApexUp
+        | geom_brep::chart_singularity::Singularity::SheetApexDown => "an apex of a spindle sheet",
     }
 }
 
@@ -4433,6 +4454,32 @@ impl ValidationError {
                 "{}{}",
                 geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
                 ended(at.map(|at| RING_TORUS.recourse(verdict.arm(), at)))
+            ),
+            Self::DegenerateSpindle { miss, .. } => match miss.verdict {
+                Ok(decided) => write!(
+                    f,
+                    "{} is refused: its margin {} decides outside the sheet's range \
+                     −r < R ≤ r, R ≠ 0, where the circle sweeps another kind. Recourse: \
+                     store the sphere or the ring torus the datums describe, or move the \
+                     major radius clearly inside the range",
+                    miss.end.subject(),
+                    decided.margin
+                ),
+                Err(cause) => write!(
+                    f,
+                    "{}",
+                    cause.undecided(
+                        miss.end.subject(),
+                        cause.ending("move the major radius clearly inside the sheet's range"),
+                    )
+                ),
+            },
+            Self::SheetApexReached { point, .. } => write!(
+                f,
+                "a spindle face reaches {} at one of its vertices, or is not shown clear of \
+                 it, and a face at a sheet's apex is not built yet. Recourse: keep the face's \
+                 boundary clear of its axis",
+                singularity_noun(*point)
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
                 f,
@@ -7655,7 +7702,8 @@ pub(crate) fn tier3_local_checks_marked<
                 | Surface::Cylinder { .. }
                 | Surface::Cone { .. }
                 | Surface::Sphere { .. }
-                | Surface::Torus { .. }),
+                | Surface::Torus { .. }
+                | Surface::Spindle { .. }),
             ) => {
                 let verdicts = surface_datum_errors(face_key, surface, band);
                 if !verdicts.is_empty() {
@@ -7690,6 +7738,18 @@ pub(crate) fn tier3_local_checks_marked<
                             });
                         }
                     }
+                }
+                if let Surface::Spindle {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = surface
+                    && let Err(miss) = geom::spindle_sheet(*major_radius, *minor_radius, band)
+                {
+                    errors.push(ValidationError::DegenerateSpindle {
+                        face: face_key,
+                        miss,
+                    });
                 }
             }
             // Cascade discipline: a face whose surface key does not
@@ -8468,6 +8528,11 @@ pub(crate) fn tier3_local_checks_marked<
         let every: Vec<usize> = (0..cycles.len()).collect();
         for (point, x) in singular_points(&chart) {
             let face = face_key;
+            let sheet_apex = matches!(
+                point,
+                geom_brep::chart_singularity::Singularity::SheetApexUp
+                    | geom_brep::chart_singularity::Singularity::SheetApexDown
+            );
             match place_on_boundary(&loops, x, band) {
                 Ok(Some(Lies::InsideEdge { r#loop, edge, .. })) => {
                     let Some(he) = body.half_edges.get(flat[r#loop].1[edge]) else {
@@ -8478,6 +8543,9 @@ pub(crate) fn tier3_local_checks_marked<
                         point,
                         lies: SingularityLies::InsideEdge { edge: he.edge },
                     });
+                }
+                Ok(Some(_)) if sheet_apex => {
+                    errors.push(ValidationError::SheetApexReached { face, point });
                 }
                 Ok(Some(_)) => {}
                 Ok(None) => match crate::one_region::door_side(body, face, &every, x, band) {
@@ -8495,6 +8563,9 @@ pub(crate) fn tier3_local_checks_marked<
                     // boundary first, past the band's far edge, so it is
                     // reachable only through the two readings' rounding,
                     // which the band's gap is far wider than.
+                    Ok(None) if sheet_apex => {
+                        errors.push(ValidationError::SheetApexReached { face, point });
+                    }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same
                     // distance, so it carries the boundary's ending; any
