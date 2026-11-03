@@ -261,7 +261,7 @@ pub(crate) fn incident<T: Real>(body: &Body<T>, cells: [Cell; 2]) -> bool {
         }
         [Cell::Vertex(v), Cell::Face(f)] => body.get_face(f).is_some_and(|face| {
             body.face_loops_linked(f, face)
-                .any(|(_, l)| match l.boundary {
+                .any(|(_, l, _)| match l.boundary {
                     LoopBoundary::Empty { vertex } => vertex == v,
                     LoopBoundary::Cycle { first } => body
                         .loop_walk(first)

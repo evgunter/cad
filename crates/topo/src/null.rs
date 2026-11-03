@@ -265,7 +265,7 @@ impl<T: Real> Body<T> {
             return Err(EulerOpError::SameLoop { r#loop: a });
         }
         for l in [a, b] {
-            if face_data.outer != l && !face_data.rings.contains(&l) {
+            if !face_data.holds_loop(l) {
                 return Err(EulerOpError::NullPairForeignLoop { face, r#loop: l });
             }
         }
@@ -1209,9 +1209,9 @@ mod tests {
     /// Every stored row of `face`'s loops, sorted.
     fn face_rows(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         let f = body.get_face(face).unwrap();
-        let mut out: Vec<String> = core::iter::once(f.outer)
-            .chain(f.rings.iter().copied())
-            .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+        let mut out: Vec<String> = body
+            .face_loops_linked(face, f)
+            .filter_map(|(_, l, _)| match l.boundary {
                 crate::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
                 crate::LoopBoundary::Empty { .. } => None,
             })

@@ -2578,9 +2578,10 @@ enum Decision<'a> {
 }
 
 /// A refusal whose recourse is a lever on the input no margin reads, the
-/// same at every door.
+/// same at every door: the one table of these levers, which the lane
+/// refusals read too (`edge_nurbs::LaneDecision`).
 #[derive(Clone, Copy)]
-enum Lever {
+pub(crate) enum Lever {
     /// The carrier's parameter range cannot carry the image.
     CarrierDomain,
     /// A fitted image needs the fitted door, which only a scalar with
@@ -2598,7 +2599,7 @@ enum Lever {
 }
 
 impl Lever {
-    fn recourse(self, at: ReadAt) -> String {
+    pub(crate) fn recourse(self, at: ReadAt) -> String {
         match self {
             Self::CarrierDomain => crate::CARRIER_DOMAIN_RECOURSE.to_owned(),
             Self::FittedDoor => fitted_door_recourse(at),
@@ -2865,12 +2866,11 @@ pub enum EnvelopeStatement {
     ///
     /// - **Cylinder, moving** (`β = ±1`; the image's radial is
     ///   `R·(â_r·cos t + β·e×â_r·sin t)` and `R·â_r = a_r·(1 + k)`):
-    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t − l_r·t` ⇒
-    ///   **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 + k) −
-    ///   b_r)` + **line** `‖l_r‖·T`. The axial channel is the carrier's
-    ///   own and cancels.
-    /// - **Cylinder, meridian** (radial motion decided Zero — or
-    ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
+    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t` (a conic,
+    ///   `l = 0`) ⇒ **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 +
+    ///   k) − b_r)`. The axial channel is the carrier's own and cancels.
+    /// - **Cylinder, meridian** (radial motion decided Zero):
+    ///   `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
     ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
     /// - **Cone, rim** (slant `v = h·cos α + n·‖a_r‖·sin α`, the rim's
@@ -3181,9 +3181,9 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         },
         P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        // The producer's one unsupported class is the placeholder wall,
-        // as the foot producer refuses it (`chart_foot_lane`).
-        P::Unsupported { .. } => PcurveCertifyError::PlaceholderChart,
+        // The wall this door was handed, as the foot producer refuses it
+        // (`chart_foot_lane`): one lever at both doors.
+        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
         other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
@@ -3193,7 +3193,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
-        | P::CarrierEnclosure(_)) => unreachable!(
+        | P::CarrierEnclosure(_)
+        | P::Unsupported { .. }
+        | P::WrongLane { .. }
+        | P::Tube(_)
+        | P::OutsideVocabulary) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -3217,7 +3221,13 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(_) => Err(PcurveCertifyError::PlaceholderChart),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
+            Err(PcurveCertifyError::PlaceholderChart)
+        }
+        Err(other) => unreachable!(
+            "the chart foot producer refuses an unsettled foot or the placeholder wall \
+             alone: {other:?}"
+        ),
     }
 }
 
@@ -3231,8 +3241,8 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::ImageMismatch`] for a circle's image (it takes
-/// no door) or a net the composite refuses.
+/// [`PcurveCertifyError::ImageMismatch`] for a circle's or a line's image
+/// (it takes no door) or a net the composite refuses.
 pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     image: &ProjectedImage<T>,
     twin_net: &NurbsCurve3<T>,
@@ -3246,7 +3256,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         why,
     };
     let FramedCarrier::Net(net) = &image.carrier else {
-        return Err(refuse("a circle's projected row takes no door"));
+        return Err(refuse("a circle's or a line's projected row takes no door"));
     };
     // The stored net at the certification scalar: control points, held
     // knots and weights, each through the certified enclosure of its
@@ -6066,7 +6076,6 @@ fn incidence<T: Decide>(
         ) => {
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
-            terms.add(Line, radial(l).norm() * reach);
             match derivation {
                 Derivation::CylinderMoving { beta } => {
                     terms.add(Centre, w_r.norm());
@@ -6080,7 +6089,10 @@ fn incidence<T: Decide>(
                         None,
                     );
                 }
+                // Only a line reaches the meridian with a linear part:
+                // the moving arm is a conic's, whose `l` is zero.
                 _ => {
+                    terms.add(Line, radial(l).norm() * reach);
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
                     terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
@@ -9010,9 +9022,8 @@ impl<T: Decide> Placement<T> {
 
 /// A carrier's own parameter interval, for a derivation no edge spans:
 /// one turn `[0, τ]` of a periodic carrier, a spline's knot domain, and
-/// a unit `[0, 1]` of a line, whose image has no moving angular channel
-/// but whose placement reads its lever at the interval's points
-/// ([`Levers`]).
+/// a unit `[0, 1]` of a line, whose placement reads its lever at the
+/// interval's points ([`Levers`]).
 pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
     match carrier {
         Curve3::Line(_) => (T::zero(), T::one()),
@@ -9049,14 +9060,15 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, a spline on any analytic chart), and otherwise
+/// circle on a sphere, a line on a cylinder, a spline on any analytic
+/// chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. A circle on a cone, torus or cylinder, a line and an
-/// ellipse have no general lane yet (units E2 and E4, `work/pcert/plan.md`).
-/// Where the projected lane is taken, a circle's lane choice or a
-/// spline's only image, the lane's own capability gap also ends "not yet":
+/// was definite. A circle on a cone, torus or cylinder, a line on a cone
+/// and an ellipse have no general lane yet (unit E4, `work/pcert/plan.md`).
+/// Where the projected lane is taken, a circle's or a line's lane choice
+/// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
 /// reading is in band, and [`PcurveCertifyError::NoGeneralLane`]
 /// ([`LaneGap::Pose`]) where its partition finds no sector
@@ -9423,16 +9435,19 @@ pub enum IsoFamily {
 pub enum IsoFamilyRefusal {
     /// The chart image's derivation refused ([`chart_pcurve`]'s).
     Image(PcurveCertifyError),
-    /// The cylinder arm read the carrier's radial amplitude in the band
+    /// The cylinder arm's class reading was in the band
     /// (`pcurve_chart_radial_moving`): a ruling or a moving carrier,
-    /// undecided. The mint takes the ruling's form there as a structure
-    /// tie-break that its envelope keeps honest; a family cannot be
-    /// read off a tie-break. Its sentence is the question
-    /// ([`ISO_FAMILY_CLAUSE`]) and the payload, with no ending; the join,
-    /// which holds it, reads the escalation and writes its own sentence
-    /// on the same clause.
+    /// undecided. The mint takes the general lane there (D3), which lies
+    /// on no family, so the family is the question. Its sentence is the
+    /// question ([`ISO_FAMILY_CLAUSE`]) and the payload, with no ending;
+    /// the join, which holds it, reads the escalation and writes its own
+    /// sentence on the same clause.
     Undecided(Indeterminate),
 }
+
+/// The cylinder arm's ruling reading: whether the carrier's radial part
+/// moves.
+const RADIAL_MOVING: &str = "pcurve_chart_radial_moving";
 
 /// What the chart-class reading of [`chart_iso_family`] asks of an
 /// edge, after "whether": the one spelling of that question.
@@ -9458,19 +9473,16 @@ crate::ended_by_write!(IsoFamilyRefusal);
 
 /// The iso family `carrier`'s image on `surface`'s chart lies on, read
 /// off the class arm [`chart_pcurve`]'s derivation selects for it, so
-/// the family is the mint's own structure. One reading is taken again:
-/// where the derivation took the cylinder's ruling form, its class
-/// verdict (`pcurve_chart_radial_moving`, the same margin) is re-read,
-/// because the mint takes that form for an in-band verdict too, as a
-/// tie-break. `None` for a planar chart, a spiric carrier, and an image
-/// on no family (a cylinder's oblique section, a cone's tilted one, a
+/// the family is the mint's own structure. `None` for a planar chart, a
+/// spiric carrier, and an image on no family (a cylinder's oblique
+/// section or a line shown off its rulings, a cone's tilted section, a
 /// torus's Villarceau circle).
 ///
 /// # Errors
 ///
 /// [`IsoFamilyRefusal::Image`] with [`chart_pcurve`]'s refusal, and
 /// [`IsoFamilyRefusal::Undecided`] where the cylinder arm's class
-/// reading is in the band, which the mint settles by a tie-break.
+/// reading is in the band, where the mint takes the general lane.
 pub fn chart_iso_family<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -9479,18 +9491,23 @@ pub fn chart_iso_family<T: Decide>(
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let (_, derivation) = derive_harmonic(carrier, surface, Placement::own(carrier, surface), band)
-        .map_err(IsoFamilyRefusal::Image)?;
-    if let (Derivation::CylinderMeridian, Surface::Cylinder { axis, .. }, Some(form)) =
-        (derivation, surface, carrier_harmonic(carrier))
-    {
-        decide(
-            "pcurve_chart_radial_moving",
-            Margin::of(radial_amplitude(&form, *axis)),
-            band,
-        )
-        .map_err(IsoFamilyRefusal::Undecided)?;
-    }
+    let derivation = match derive_class(carrier, surface, Placement::own(carrier, surface), band) {
+        Ok((_, derivation)) => derivation,
+        // The ruling reading in band; any other class reading in band
+        // keeps its own ending.
+        Err(Underived::General {
+            undecided: Some(cause),
+            ..
+        }) if cause.predicate == Some(RADIAL_MOVING) => {
+            return Err(IsoFamilyRefusal::Undecided(cause));
+        }
+        // A line shown off the ruling: its image is the general one, on
+        // no family.
+        Err(Underived::General {
+            undecided: None, ..
+        }) if matches!(surface, Surface::Cylinder { .. }) => return Ok(None),
+        Err(underived) => return Err(IsoFamilyRefusal::Image(harmonic_refusal(underived))),
+    };
     Ok(match derivation {
         Derivation::CylinderMeridian
         | Derivation::ConeRuling { .. }
@@ -9574,29 +9591,25 @@ fn derive_class<T: Decide>(
             // section/rim case — and β is its orientation against the
             // chart frame.
             let w_r = radial(w);
-            // The amplitude of the radial oscillation IS metres (the
-            // harmonic coefficients are displacement vectors) — it is
-            // compared against the band directly. Weighting it by the
-            // chart radius again (the pre-M6-3 form) squared the
-            // scale and misread a genuinely-moving rim on a
-            // near-band-radius cylinder as a meridian, which then
-            // failed the residual schedule loudly (the 100ε washer).
+            // The reading is `σ(a_r, b_r) + ‖l_r‖`, compared against
+            // the band directly. A conic's part is metres: the radial
+            // oscillation's amplitude. A line's `‖l_r‖` is metres per
+            // unit of its parameter, so it reads the line's radial
+            // speed, not how far it leaves a ruling over the edge
+            // (`work/pcert/the-ruling-question-is-read-in-two-units.md`).
             let moving = radial_amplitude(&form, axis);
-            match decide("pcurve_chart_radial_moving", Margin::of(moving), band) {
-                // Zero — AND the in-band arm (Err): a sub-escalation
-                // radial amplitude takes the meridian form as a D9
-                // tie-break (the `stable_azimuth` posture): this is
-                // STRUCTURE selection, not a topological decision —
-                // check 4's envelope is built from the true difference
-                // of forms, so the discarded drift lands in the
-                // certified sup bound and an amplitude that matters
-                // refuses there in metres. (The executed case: a wild
-                // NIST import whose near-meridian line carries a
-                // few-nanometre radial tilt.)
-                // The meridian's constant azimuth is read here only: a
-                // moving carrier's centre may sit on the axis, where its
-                // radial part names no direction to place.
-                Ok(Sign::Zero) | Err(_) => Ok((
+            let reading = decide(RADIAL_MOVING, Margin::of(moving), band);
+            #[cfg(test)]
+            let reading = match reading {
+                Err(_) if mutants::radial_fold() => Ok(Sign::Zero),
+                reading => reading,
+            };
+            match reading {
+                // A ruling shown (Zero) takes the meridian form. Its
+                // constant azimuth is read here only: a moving carrier's
+                // centre may sit on the axis, where its radial part names
+                // no direction to place.
+                Ok(Sign::Zero) => Ok((
                     Pcurve::Harmonic {
                         u: Channel::fixed_angle(place.phase(
                             Along::Azimuth,
@@ -9613,11 +9626,16 @@ fn derive_class<T: Decide>(
                     },
                     Derivation::CylinderMeridian,
                 )),
+                // A ruling not shown is D3's lane choice: in band, the
+                // general lane; and definite, too, for a line, whose only
+                // class here is the ruling.
+                Err(cause) => Err(incidence::general_lane(shown, Some(cause))),
+                Ok(Sign::Positive | Sign::Negative) if matches!(carrier, Curve3::Line(_)) => {
+                    Err(incidence::general_lane(shown, None))
+                }
                 Ok(Sign::Positive | Sign::Negative) => {
-                    // The moving case: radial(t) = a_r·cos t + b_r·sin t
-                    // (a linear radial part would not close a chart
-                    // circle; certification refuses it through the
-                    // residual). α is the azimuth of `a_r`; β is the
+                    // The moving case, a conic's: radial(t) = a_r·cos t +
+                    // b_r·sin t. α is the azimuth of `a_r`; β is the
                     // orientation of (a_r, b_r) against the chart's own
                     // frame, a named trilean metered at the radius.
                     let orient = a_r.cross(b_r).dot(axis);
@@ -10483,7 +10501,13 @@ fn derive_harmonic<T: Decide>(
     place: Placement<T>,
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
-    derive_class(carrier, surface, place, band).map_err(|u| match u {
+    derive_class(carrier, surface, place, band).map_err(harmonic_refusal)
+}
+
+/// [`derive_harmonic`]'s refusal for an [`Underived`]: the general lane
+/// is no closed form.
+fn harmonic_refusal(underived: Underived) -> PcurveCertifyError {
+    match underived {
         Underived::Refused(e) => e,
         // The class reading is in band: not shown either way, so a
         // closed form re-read here is undecided, never a contradiction.
@@ -10498,7 +10522,7 @@ fn derive_harmonic<T: Decide>(
             why: "the carrier is none of the chart's own classes, so it has no closed-form \
                   image; its image is the general one",
         },
-    })
+    }
 }
 
 /// The margin a [`PcurveCertifyError::CarrierOffChart`]'s incidence
@@ -11715,6 +11739,9 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
     }
 }
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
@@ -14132,8 +14159,8 @@ mod iso_family {
     //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
     //! `V`, an oblique section no family; a line tilted off the wall is
     //! refused by its incidence read, and one whose tilt off the axis is
-    //! in the band refuses undecided — the mint's tie-break takes the
-    //! ruling's form there, which no family may be read off.
+    //! in the band refuses undecided — the mint takes the general lane
+    //! there, which lies on no family.
     use super::{IsoFamily, IsoFamilyRefusal, chart_iso_family};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Vec3};

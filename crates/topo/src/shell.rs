@@ -2734,12 +2734,13 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     let interior = interior_edges(body, faces);
     let mut boundary: Vec<HeKey> = faces
         .iter()
-        .flat_map(|&f| {
-            let data = proven(&body.faces, f, EntityId::Face);
-            core::iter::once(data.outer)
-                .chain(data.rings.iter().copied())
-                .flat_map(|lk| cycle_of(body, lk))
-                .collect::<Vec<_>>()
+        .flat_map(|&f| body.proven_face_cycles(f))
+        .flat_map(|(lk, cycle)| {
+            debug_assert!(
+                !cycle.is_empty(),
+                "{lk:?} bounds a face of a finished wall, so it is a cycle"
+            );
+            cycle
         })
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
@@ -3698,7 +3699,7 @@ fn duplicate_in_loop<T: Real>(
     skip: &[EdgeKey],
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
     let data = proven(&body.faces, face, EntityId::Face);
-    for (r#loop, members) in body.face_boundary_by_loop(face, data) {
+    for (r#loop, members, _) in body.face_boundary_by_loop(face, data) {
         let mut cycle = Vec::new();
         for member in members {
             let BoundaryMember::Edge { he, ek, .. } = member else {
@@ -4478,7 +4479,7 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.face_cycles_linked(face) {
+    for he in body.proven_face_half_edges(face) {
         let h = proven(&body.half_edges, he, EntityId::HalfEdge);
         let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
         points.push((start.x, start.y));
@@ -5118,7 +5119,7 @@ fn moved_walls<T: Decide>(
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
-        for (_, cycle) in crate::pcurves::face_loop_walks(cavity, face) {
+        for (_, cycle) in cavity.proven_face_cycles(face) {
             let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
                 .iter()
                 .map(|&he| {
@@ -5385,7 +5386,7 @@ fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
 #[track_caller]
 fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let mut out = Vec::new();
-    for he in body.face_cycles_linked(face) {
+    for he in body.proven_face_half_edges(face) {
         let mate = body.proven_mate(he, crate::live::link(EntityId::Face(face), "cycle"));
         let parent = body.face_of_linked(mate.mate);
         if parent != face && !out.contains(&parent) {

@@ -1166,7 +1166,8 @@ bits to the tangency token `classify_dihedral` returns
 dihedral read smooth. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
-`rest::judge`); arm 2's touches between two solids
+`rest::judge`, a cylinder or cone face the edge is a ruling of read as
+its chord across the edge, `FaceSector::chord`); arm 2's touches between two solids
 (`TouchSite::verdict`, by `rest::judge`); and every point where one
 solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
@@ -1196,6 +1197,36 @@ a shared edge at dihedral π, graphs over complementary domains of one
 plane), each of which survives the perturbation. So the cone's verdict
 is the faces' at every small enough scale: the germ's, which is what
 the link claim is about.
+
+The chord reading is the cross-section's (`FaceSector::chord`). A
+cylinder or cone face along a line edge of it, the edge lying in a
+planar face `F` of its own solid, is cut at `p`, the middle of the cell
+read, by the plane square to the carrier's axis: a circle arc of radius
+`ρ` from `p`, tangent `h` into the face, to the face's real point `q` at
+the lever `ℓ`, inside the face's clearance. On the arc
+`x(φ) = p + ρ((1 − cos φ)·b̂ + sin φ·ĥ)`, with `b̂` toward the axis, its
+signed height off `F` (positive on `q`'s side) is
+`ρ((1 − cos φ)·β + sin φ·τ)`, `β = b̂·n̂` and `τ = ĥ·n̂`. A circle meets
+`F`'s line in the section once more at most, so where `h` and `q` read
+one side of `F` the arc between them lies on it. Where `h` reads Zero,
+`|τ|·ℓ ≤ z` (`z` the band's zero), and an arc tilted away from `q`'s
+side (`τ < 0`) dips toward the side opposite `q`'s by
+`ρ(√(β² + τ²) − β) ≤ ρτ²/(2β)` before it crosses back. `q` decided at
+`K·z` gives `ρ(1 − cos φ_q)·β ≥ K·z + ρ·sin φ_q·|τ| ≥ K·z`, and
+`ρ(1 − cos φ_q) = ℓ²/(2ρ)`, so `β ≥ 2ρKz/ℓ²` and the dip is at most
+`z/(4K)`: inside the band, at every `K > 1`. The lens between the arc and
+its chord then lies on `q`'s side of `F`, and no other sheet of the edge
+enters it (`chords_clear`, the one door the stand-in leaves by), so the
+half-plane from the edge through `q` bounds a wedge that meets `F`'s far
+side exactly where the face's does, and `rest::judge` reads it as a
+planar face. A cylinder is the same along its ruling. A cone's sections
+along the edge are one another scaled about its apex, which `F` holds as
+it holds the edge's line; the reading holds along the cell only where
+the apex lies off the edge, on or past one of its ends, which the reading
+reads (an edge through the apex meets a strip point-reflected through
+it, on `F`'s other side). Then the cell, `p` its middle, stands within
+twice `p`'s distance of the apex, and the dip at most doubles, to
+`z/(2K)`.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,
