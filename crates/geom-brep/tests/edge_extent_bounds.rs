@@ -2,9 +2,11 @@
 //! reads the edge's diameter `D` and its reach from its start `R` off a
 //! dense schedule (the sampled value, and that value plus the sampled
 //! speed's Lipschitz slack, bracket the true one), then pins:
-//! `edge_extent_inf ≤ D ≤ edge_extent_sup ≤ c·D` and
-//! `R ≤ edge_reach_from(start) ≤ c·R`, `c` stated per kind, so a bound
-//! that loosens (or reads `∞`) goes red beside one that stops bracketing.
+//! `edge_extent_inf ≤ D ≤ edge_extent_sup ≤ c·D` and `R ≤ reach ≤ c·R`,
+//! the reach the far distance of the carrier's cover over the window
+//! from the start (`ExtentBall::of_edge_from`), `c` stated per kind, so a
+//! bound that loosens (or reads `∞`) goes red beside one that stops
+//! bracketing.
 //!
 //! The rows marked off the schedule have their diameter and their reach
 //! attained between the bounds' own 16 samples (an asymmetric spike, a
@@ -16,19 +18,28 @@
 //!
 //! A wild parameterisation (clustered knots, weights 1e±3) is held to
 //! soundness alone ([`a_wild_parameterisation_is_bracketed_and_no_more`]):
-//! the bounds from above read a whole-carrier speed bound, and their
-//! tightness there is not claimed.
+//! the diameter's bound from above reads a whole-carrier speed bound and
+//! passes `D` many times over there, which is not claimed against; the
+//! reach, the window's pieces' nets, reads `R` to rounding.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, NurbsCurve3};
-use geom_brep::{
-    LeverBounds, edge_extent_inf, edge_extent_sup, edge_reach_bounds, edge_reach_from,
-};
+use geom_brep::{ExtentBall, LeverBounds, edge_extent_inf, edge_extent_sup, edge_reach_bounds};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
 use crate::shared::tol::band;
+
+/// The reach of `carrier` over `span` from `start`, from above: the
+/// ball about `start` holding the arc ([`ExtentBall::of_edge_from`]).
+fn reach_from(
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    start: Point3<f64>,
+) -> geom_core::Lever<f64> {
+    ExtentBall::of_edge_from(carrier, span, start).lever_from(start)
+}
 
 /// The dense schedule's piece count.
 const DENSE: u32 = 800;
@@ -318,7 +329,7 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         let (d, slack, r) = dense(c, row.window);
         let inf = edge_extent_inf(c, t0, t1, (start, end)).length();
         let sup = edge_extent_sup(c, t0, t1, (start, end)).length();
-        let reach = edge_reach_from(c, t0, t1, start).length();
+        let reach = reach_from(c, (t0, t1), start).length();
         println!(
             "[measured] {}: D {d:.6} (+{slack:.1e}), inf/D {:.6}, sup/D {:.6}, R {r:.6}, reach/R {:.6}",
             row.what,
@@ -340,7 +351,7 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         }
         // The reach read from both sides brackets it too: the samples
         // from below, the reach above it.
-        let bounds = edge_reach_bounds(c, (t0, t1), start, edge_reach_from(c, t0, t1, start));
+        let bounds = edge_reach_bounds(c, (t0, t1), start, reach_from(c, (t0, t1), start));
         check(
             bounds.below().length() <= (r + slack) * (1.0 + 1e-12)
                 && bounds.above().length() == reach,
@@ -381,12 +392,12 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
 
 /// **A wild parameterisation is bracketed, and nothing more is claimed**:
 /// clustered knots (three within 2e-7) and weights alternating 1e±3. The
-/// bounds from above read a whole-carrier speed bound, which the
-/// spline's fast stretches set, so on a window where the parameter
-/// crawls they pass the diameter and the reach many times over; only
-/// `inf ≤ D ≤ sup`, `R ≤ reach` and the samples' reach below `R` are
-/// pinned. The two-sided consumers read both bounds for this reason
-/// (`geom_brep::LeverBounds`).
+/// diameter's bound from above reads a whole-carrier speed bound, which
+/// the spline's fast stretches set, so on a window where the parameter
+/// crawls it passes `D` many times over (`sup/D` reaches 3e7). The
+/// reach is the window's pieces' nets and reads `R` to rounding on every
+/// window here, but no tightness is pinned on a carrier this wild: only
+/// `inf ≤ D ≤ sup`, `R ≤ reach` and the samples' reach below `R`.
 #[test]
 fn a_wild_parameterisation_is_bracketed_and_no_more() {
     let p = Point3::new;
@@ -428,7 +439,7 @@ fn a_wild_parameterisation_is_bracketed_and_no_more() {
         let (d, _, r) = dense(&wild, window);
         let inf = edge_extent_inf(&wild, t0, t1, (start, wild.eval(t1))).length();
         let sup = edge_extent_sup(&wild, t0, t1, (start, wild.eval(t1))).length();
-        let lever = edge_reach_from(&wild, t0, t1, start);
+        let lever = reach_from(&wild, (t0, t1), start);
         let LeverBounds::Between { below, above } =
             edge_reach_bounds(&wild, (t0, t1), start, lever)
         else {

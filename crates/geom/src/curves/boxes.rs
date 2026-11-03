@@ -2,7 +2,8 @@
 //! a box is a cache with a **containment contract** — the carrier's
 //! true locus over the stated span lies inside it — and each box is an
 //! enclosure by the [`Interval`] arithmetic the conic doors run in, or,
-//! for the spiric, by its scalar's own arithmetic on its period's cover.
+//! for the spiric, by its scalar's own arithmetic on its period's
+//! corners.
 //! Nothing is charged beyond it (`[simple.conditioned]`).
 //!
 //! **No kernel door reads these boxes now.** An edge's region is its
@@ -301,15 +302,18 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
-/// The box of a SPIRIC carrier's whole period: the bracketed world box
-/// of its period's cover (the tube met with the period's rectangle, the
-/// construction [`Curve3::cover`] reads), run in `T`'s own arithmetic,
-/// so an enclosure at `Interval` and the real-number box at `f64`
-/// (`[simple.conditioned]`), and hulled with the endpoints exactly as
-/// [`ellipse_arc_aabb`] is. A C10 superset: the exact per-axis extremes
-/// need a transcendental root and are not owed; a wider box is a weaker
-/// answer, never a wrong one. Off-regime data (`ρ_min² < d²`) has no
-/// cover, and gives the poison box.
+/// The box of a SPIRIC carrier's whole period, in closed form and
+/// **independent of the cover's construction**: the world box of the
+/// oval's four period corners `c + n·d + m·f ± a·r`, `f` at the two
+/// ends of its range ([`crate::curves::spiric_f_range`]),
+/// `n = u_ref`, `m = axis × u_ref`, `a = axis`, in `T`'s own
+/// arithmetic, and hulled with the endpoints exactly as
+/// [`ellipse_arc_aabb`] is. It reads no tube, no window and no
+/// [`ArcWindow`], so the cover's rows hold the cover against it as a
+/// second spelling of the period's box, not as a copy of the cover's
+/// arm. A C10 superset: the exact per-axis extremes need a
+/// transcendental root and are not owed. Off-regime data
+/// (`ρ_min² < d²`) roots at poison, and gives the poison box.
 ///
 /// `None` when `carrier` is not a `Spiric` (wrong lane — refuse loudly
 /// rather than guess). Residual padding stays the caller's
@@ -330,22 +334,28 @@ pub fn spiric_arc_aabb<T: Bounds>(
     else {
         return None;
     };
-    let tube = crate::cover::Cover::tube(center, axis, u_ref, major_radius, minor_radius);
-    let rectangle = crate::curves::spiric_rectangle(
-        center,
-        axis,
-        u_ref,
-        (major_radius, minor_radius),
-        offset,
-        crate::cover::ParamWindow::new(T::zero(), T::tau()),
+    let (f_lo, f_hi) = crate::curves::spiric_f_range(major_radius, minor_radius, offset);
+    let (m, base, tip) = (
+        axis.cross(u_ref),
+        center + u_ref * offset,
+        axis * minor_radius,
     );
-    let period = tube
-        .zip(rectangle)
-        .map_or_else(Aabb::poison, |(tube, rectangle)| {
-            tube.meet(rectangle).aabb(0.0)
-        });
-    let ends = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-    Some(ends.hull(&period))
+    let corners = [
+        base + m * f_lo + tip,
+        base + m * f_lo - tip,
+        base + m * f_hi + tip,
+        base + m * f_hi - tip,
+        end0,
+        end1,
+    ];
+    let poisoned = corners
+        .iter()
+        .any(|p| p.x.is_poison() || p.y.is_poison() || p.z.is_poison());
+    Some(if poisoned {
+        Aabb::poison()
+    } else {
+        Aabb::from_points(corners).unwrap_or_else(Aabb::poison)
+    })
 }
 
 /// The certified-conservative box of a conic ARC, whichever conic the

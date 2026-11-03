@@ -91,8 +91,7 @@ crates/geom-core/src/spline/knots.rs	1	constant	lo	knot_difference: a knot of a 
 crates/geom-core/src/sym.rs	1	constant	x	the Real impl's own door: Sym::from_f64 is the Lit
 crates/geom/src/convention.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/geom/src/cover.rs	1	constant	f64::from(k)	a piece index
-crates/geom/src/cover/readings.rs	1	constant	f64::from(k)	a spline window's piece index
-crates/geom/src/cover/readings.rs	1	constant	f64::from(SPLINE_PIECES)	the count a spline's window is cut into
+crates/geom/src/cover/readings.rs	1	constant	cut	a spline window's interior cut, a point the cover chooses from the window's point ends (geom-brep `net_param`'s posture)
 crates/geom/src/curves/banded.rs	1	constant	l	a dropped term's structural zero, signed as its pivot
 crates/geom/src/curves/fit.rs	1	constant	degree as f64	the fit degree, a count
 crates/geom/src/curves/nurbs.rs	1	constant	binom	a binomial coefficient

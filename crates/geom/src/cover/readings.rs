@@ -83,8 +83,8 @@ impl<T: SpanLocate> Curve3<T> {
     /// over the span, a spiric's tube met with the window's rectangle
     /// (the range of `f` and of the axial channel over the window), a
     /// spline's control net met with the hull of its pieces' nets over
-    /// the window cut in [`SPLINE_PIECES`]
-    /// ([`NurbsCurve3::restricted_nets`](crate::NurbsCurve3::restricted_nets)).
+    /// the window cut in [`SPLINE_PIECES`] (`piece_nets`, the scalar's
+    /// own restriction).
     /// Each narrows with the window.
     ///
     /// # Errors
@@ -142,15 +142,25 @@ impl<T: SpanLocate> Curve3<T> {
                 // it: a refusal here (an end the knots cannot locate, a net
                 // point that is not finite) leaves the whole net, which
                 // holds the curve already.
-                let (lo, hi) = (window.lo, window.hi);
-                let step = (hi - lo) / T::from_f64(f64::from(SPLINE_PIECES));
-                let end = |k: u32| match k {
-                    0 => lo,
-                    k if k == SPLINE_PIECES => hi,
-                    k => lo + step * T::from_f64(f64::from(k)),
+                // The cuts are points the cover chooses: each interior one
+                // computed from the window's ends and entered as the
+                // constant it is, so the pieces meet end to end at every
+                // scalar. A window end that is no single point leaves the
+                // whole net.
+                let ends = window.lo.point_value().zip(window.hi.point_value());
+                let end = |k: u32| {
+                    let (lo, hi) = ends?;
+                    Some(match k {
+                        0 => (lo, window.lo),
+                        k if k == SPLINE_PIECES => (hi, window.hi),
+                        k => {
+                            let cut = lo + (hi - lo) * f64::from(k) / f64::from(SPLINE_PIECES);
+                            (cut, T::from_f64(cut))
+                        }
+                    })
                 };
                 let pieces = (0..SPLINE_PIECES)
-                    .map(|k| spline.restricted_nets(end(k), end(k + 1)))
+                    .map(|k| piece_nets(spline, (end(k)?, end(k + 1)?)))
                     .collect::<Option<Vec<_>>>()
                     .and_then(|nets| {
                         nets.into_iter()
@@ -164,6 +174,64 @@ impl<T: SpanLocate> Curve3<T> {
             }
         }
     }
+}
+
+/// **A spline's pieces over the window between `a` and `b`** (either
+/// order), each end its `f64` point and its value in the scalar, as
+/// control nets: for each knot span the window meets, the
+/// dehomogenized Bernstein net of the piece over the meet, each
+/// homogeneous channel `(w·P, w)` restricted by the scalar's own door
+/// ([`SpanLocate::restrict_window`]: de Boor's recurrence at `f64`, the
+/// certified restriction at `Interval`). A meet end that is a knot is
+/// that knot's held value, and a window end is the window's own. With
+/// positive weights each piece lies in its net's hull.
+///
+/// `None`, which leaves the whole net, for a held knot that is not a
+/// single point, a meet the door refuses, and a restricted weight not
+/// positive for every value it stands for.
+fn piece_nets<T: SpanLocate>(
+    spline: &crate::NurbsCurve3<T>,
+    (a, b): ((f64, T), (f64, T)),
+) -> Option<Vec<Vec<Point3<T>>>> {
+    let ((lo, lo_t), (hi, hi_t)) = if a.0 <= b.0 { (a, b) } else { (b, a) };
+    let knots = spline.knot_values();
+    let (first, _) = knots.locate(lo_t)?;
+    let (_, last) = knots.locate(hi_t)?;
+    let held = knots.values();
+    let held_at = |x: f64, own: T| match knots.value_at(x) {
+        Ok(Some(k)) => k,
+        _ => own,
+    };
+    let mut nets = Vec::new();
+    for index in first.span().index()..=last.span().index() {
+        let Some(span) = knots.span(index).map(|s| s.span()) else {
+            continue;
+        };
+        let (k0, k1) = (held[index].point_value()?, held[index + 1].point_value()?);
+        let ends = (lo.max(k0), hi.min(k1));
+        let held_ends = (held_at(ends.0, lo_t), held_at(ends.1, hi_t));
+        let homogeneous: Vec<[T; 4]> = span
+            .window()
+            .map(|i| {
+                let (w, c) = (spline.weights()[i], spline.control()[i]);
+                [c.x * w, c.y * w, c.z * w, w]
+            })
+            .collect();
+        let channel = |c: usize| {
+            let line: Vec<T> = homogeneous.iter().map(|h| h[c]).collect();
+            T::restrict_window(&line, span, held, ends, held_ends)
+        };
+        let [x, y, z, w] = [0, 1, 2, 3].map(channel);
+        if !w.iter().all(|&w| w.structure_positive()) {
+            return None;
+        }
+        nets.push(
+            (0..w.len())
+                .map(|k| Point3::new(x[k] / w[k], y[k] / w[k], z[k] / w[k]))
+                .collect(),
+        );
+    }
+    (!nets.is_empty()).then_some(nets)
 }
 
 /// **How many equal pieces a spline's window is cut into**, each read

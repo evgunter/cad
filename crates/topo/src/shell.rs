@@ -4491,7 +4491,7 @@ fn edge_box_in<T: Decide>(
         Ok(cover) => cover_box_in(&cover, frame).to_vec(),
         Err(EdgeUncovered::Scaffold) => Vec::new(),
         Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
-            let poison = (T::zero() - T::one()).sqrt();
+            let poison = geom_core::poison::<T>();
             vec![(poison, poison); 2]
         }
     }
@@ -5177,7 +5177,7 @@ fn moved_walls<T: Decide>(
                     // other wall.
                     let (lo, hi) = cover.as_ref().map_or_else(
                         |_| {
-                            let poison = (T::zero() - T::one()).sqrt();
+                            let poison = geom_core::poison::<T>();
                             let p = geom_core::Point3::new(poison, poison, poison);
                             (p, p)
                         },

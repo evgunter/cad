@@ -491,15 +491,6 @@ fn bracket_vector<T: Bounds>(v: Vec3<T>) -> SpanBox<f64> {
     bracket_point(Point3::new(v.x, v.y, v.z))
 }
 
-/// The scalar's POISON, built through the totality policy rather than
-/// spelled per type: `Real::sqrt` of a negative is poison on every
-/// implementor (`geom_core::real` module docs — NaN at `f64`, the
-/// empty enclosure at the interval scalar, a poisoned value channel
-/// at the dual).
-fn poison_value<T: Real>() -> T {
-    (T::zero() - T::one()).sqrt()
-}
-
 /// The AXIAL SLAB: the axis segment over `h`, widened by `radius`
 /// **perpendicular to the axis and only there**.
 ///
@@ -809,7 +800,7 @@ pub(crate) fn torus_window_slack<T: Real>(
     // **The comparison, in the terms [`Real`] has.** There is no
     // ordering on a generic scalar here — an interval scalar cannot
     // answer `<=` — so the guard is spelled through the totality
-    // policy the module already builds [`poison_value`] with:
+    // policy the module already builds [`geom_core::poison`] with:
     // `√(bound − envelope)` is poison exactly when the envelope
     // exceeds the bound, and at a bracketed scalar it is poison as
     // soon as it MIGHT, which refuses in the direction that costs the
@@ -1788,7 +1779,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 }
                 BoundaryMember::Edge { ek, edge: e, .. } => match edge_cover_linked(body, ek, e) {
                     Ok(cover) => bracketed(cover_axial(&cover, origin, axis)),
-                    Err(_) => Span::exact(poison_value()),
+                    Err(_) => Span::exact(geom_core::poison()),
                 },
             });
         }
@@ -2087,8 +2078,10 @@ pub(crate) fn arc_cover<T: SpanLocate>(
 }
 
 /// **How far `edge` reaches from `pivot`, bounded from both sides**
-/// ([`piece_reach_bounds`] over the edge's whole span, its ends its
-/// vertices). `None` for null scaffolding.
+/// ([`geom_brep::edge_reach_bounds`]), its bound from above the far
+/// distance of the edge's cover ([`edge_cover_linked`]) from `pivot`,
+/// poison where the edge has no cover, which the reading levered at it
+/// escalates. `None` for null scaffolding.
 pub(crate) fn edge_reach_bounds<T: SpanLocate>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -2096,25 +2089,20 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
     pivot: Point3<T>,
 ) -> Option<geom_brep::LeverBounds<T>> {
     let curve = body.edge_curve_linked(edge, e).certified()?;
-    let ends = (
-        edge_end_point(body, edge, e.he_plus, "he_plus"),
-        edge_end_point(body, edge, e.he_minus, "he_minus"),
-    );
-    Some(piece_reach_bounds(
+    let cover = edge_cover_linked(body, edge, e).ok();
+    Some(reach_bounds_in(
         curve.carrier(),
         curve.params(),
-        ends,
+        cover.as_ref(),
         pivot,
     ))
 }
 
 /// **How far a piece of an edge reaches from `pivot`, bounded from both
-/// sides** ([`geom_brep::edge_reach_bounds`]): the piece of `carrier`
-/// over `span` with its two ends `ends`, its bound from above the far
-/// distance of its cover ([`edge_cover_over`]) from `pivot`, poison
-/// where it has no cover, which the reading levered at it escalates.
-/// The whole edge's ([`edge_reach_bounds`]), or a piece from a point
-/// inside it to one of its vertices (`overlap`'s half-turns).
+/// sides**: the piece of `carrier` over `span` from a point inside the
+/// edge to one of its vertices (`overlap`'s half-turns), its region the
+/// edge cover's construction over the piece ([`edge_cover_over`]), read
+/// as [`edge_reach_bounds`] reads the whole edge's.
 pub(crate) fn piece_reach_bounds<T: SpanLocate>(
     carrier: &geom::Curve3<T>,
     span: (T, T),
@@ -2122,7 +2110,18 @@ pub(crate) fn piece_reach_bounds<T: SpanLocate>(
     pivot: Point3<T>,
 ) -> geom_brep::LeverBounds<T> {
     let cover = edge_cover_over(carrier, span, ends).ok();
-    let above = geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever_from(pivot);
+    reach_bounds_in(carrier, span, cover.as_ref(), pivot)
+}
+
+/// The reach bounds of an arc whose region is `cover`: from above its
+/// far distance from `pivot` ([`geom_brep::ExtentBall::of_cover_from`]).
+fn reach_bounds_in<T: SpanLocate>(
+    carrier: &geom::Curve3<T>,
+    span: (T, T),
+    cover: Option<&Cover<T>>,
+    pivot: Point3<T>,
+) -> geom_brep::LeverBounds<T> {
+    let above = geom_brep::ExtentBall::of_cover_from(cover, pivot).lever_from(pivot);
     geom_brep::edge_reach_bounds(carrier, span, pivot, above)
 }
 

@@ -69,7 +69,7 @@
 use geom::cover::{Cover, ParamWindow, Site};
 use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
-use geom_core::{Lever, Point3, Real, Vec3, is_finite_length};
+use geom_core::{Lever, Point3, Real, Vec3, is_finite_length, poison};
 
 /// **The farthest a spline carrier reaches from `from`**: the largest
 /// distance from `from` to a point of its control net. With positive
@@ -287,7 +287,8 @@ impl<T: Real> ExtentBall<T> {
 
     /// **The ball about `at` holding an arc of `carrier` over
     /// `[t0, t1]`**: out to its cover's far distance from `at`
-    /// ([`edge_reach_from`]). For a reader with a carrier and a span but
+    /// ([`Cover::distance_range`]), never short of the arc's reach from
+    /// `at`. For a reader with a carrier and a span but
     /// no edge record, as topo's rest locus reads an edge being
     /// described; a reader of an edge reads its edge's cover through
     /// [`Self::of_cover_from`].
@@ -455,15 +456,10 @@ fn whole_cover<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> geom::co
         .or_else(|_| carrier.cover_over(ParamWindow::new(t0, t1)))
 }
 
-/// The scalar's poison, through the totality policy (`Real::sqrt` of a
-/// negative).
-fn poison<T: Real>() -> T {
-    (T::zero() - T::one()).sqrt()
-}
-
 /// How many pieces an edge's span is cut into where its extent is read
 /// from points of it ([`edge_extent_inf`]'s sampled pairs, the
-/// Lipschitz arms of [`edge_extent_sup`] and [`edge_reach_from`]).
+/// Lipschitz arms of [`edge_extent_sup`], and the samples' reach from
+/// below of [`edge_reach_bounds`]).
 const EXTENT_PIECES: u32 = 16;
 
 /// How many pieces [`edge_extent_sup`]'s ellipse arm reads the arc over,
@@ -702,35 +698,6 @@ fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
         // reading levered at it escalates rather than taking the other arm.
         Curve3::Nurbs(spline) => chord.max(farthest_pair(spline.control()).min(lipschitz())),
     }
-}
-
-/// **How far an arc of `carrier` over `[t0, t1]` reaches from
-/// `pivot`**, bounded from above: the farthest `|x − pivot|` over its
-/// points `x`, never short of it, at every carrier kind and scalar. The
-/// radius of a ball about `pivot` that must enclose the arc
-/// ([`ExtentBall`]). Sugar over the carrier's cover for a reader that
-/// has a carrier and a span but no edge yet: topo's rest locus, which
-/// reads an edge being described. A reader of an edge reads its edge's
-/// cover instead (topo's `boolean::boxes::edge_cover`).
-///
-/// It is the far distance of the carrier's cover over `[t0, t1]`
-/// ([`Cover::distance_range`]): exact on a line and a circle arc, past
-/// an ellipse arc by at most a quarter of its span's bulge, and on a
-/// spiric and a spline the far distance of the window's rectangle and of
-/// the window's pieces' nets, each of which narrows with the window.
-/// Every tightening of the reach is a stage of the cover's arm, so this
-/// reads nothing beside it.
-///
-/// So it is never by itself the lever of a reading that acts on every
-/// sign: such a reading reads [`edge_reach_bounds`] at both ends.
-/// Comparison-free; a carrier with no cover reads poison.
-pub fn edge_reach_from<T: SpanLocate>(
-    carrier: &Curve3<T>,
-    t0: T,
-    t1: T,
-    pivot: Point3<T>,
-) -> Lever<T> {
-    Lever::of_consumed_extent(cover_far(carrier, (t0, t1), pivot))
 }
 
 /// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,

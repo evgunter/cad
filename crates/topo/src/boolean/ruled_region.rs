@@ -404,7 +404,7 @@ fn reach_bound<T: Decide>(
             .iter()
             .map(|cover| {
                 cover.as_ref().map_or_else(
-                    |_| (T::zero() - T::one()).sqrt(),
+                    |_| geom_core::poison(),
                     |c| c.distance_range(&geom::cover::Site::Point(apex)).1,
                 )
             })
