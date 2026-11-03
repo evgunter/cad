@@ -241,6 +241,8 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "placement_values_direction.rs"]
+mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refactor_pose_definitions.rs"]
@@ -786,6 +788,8 @@ mod emit_edge_piece_locality;
 mod emit_nested_union_flat;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
+#[path = "emit_per_face_parent.rs"]
+mod emit_per_face_parent;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]

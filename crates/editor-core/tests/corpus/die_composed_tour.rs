@@ -214,7 +214,7 @@ pub fn document() -> CorpusDoc {
          this document's `result` names the wrong node"
     );
     let pip = first_pip(&doc);
-    let bump = value_bump(&doc, pip, Coord::Slide(TargetAxis::Z), PIP_SLIDE);
+    let bump = value_bump(&doc, pip, Coord::slide(TargetAxis::Z), PIP_SLIDE);
 
     CorpusDoc {
         name: "die_composed_tour",

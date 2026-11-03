@@ -561,11 +561,12 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         BoundSupport::Conic {
             extent: geom_core::test_support::fixture_lever(extent),
             bend,
+            arc: None,
         },
         n,
         crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
-        band(),
+        crate::link::metric::Reading::plain(band()),
     )
     .map(|_| ())
 }
@@ -2578,6 +2579,13 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::VertexOnCurvedFace",
         1,
     ),
+    ("fan.rs", "face_side_code", "Coincide::Sectors", 1),
+    ("fan.rs", "fan_within_signs", "Coincide::Sectors", 1),
+    ("fan.rs", "fans_overlap", "Coincide::Sectors", 1),
+    ("fan.rs", "meeting", "Coincide::Sectors", 1),
+    ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
+    ("fan.rs", "one_cone", "Coincide::Sectors", 1),
+    ("fan.rs", "plane_fan", "Coincide::Sectors", 1),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
     ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
@@ -2593,6 +2601,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "strut_order", "Coincide::Sectors", 1),
+    ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
     ("join.rs", "bool_connect", "Coincide::Section", 1),
     (
@@ -2601,6 +2610,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CylinderAxes",
         1,
     ),
+    ("join.rs", "cone_apex_plane", "Coincide::Section", 1),
     ("join.rs", "section_unbuilt", "BooleanDecision::Radius", 1),
     (
         "join.rs",
@@ -2628,6 +2638,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "section", "BooleanDecision::Coincidence", 1),
     ("join.rs", "section", "Coincide::Section", 1),
     ("join.rs", "section_refusal", "BooleanDecision::Torus", 1),
+    ("join.rs", "segment_arm", "Coincide::Section", 1),
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
@@ -2928,6 +2939,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
+    ("sectors.rs", "extreme_directions", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
@@ -2938,7 +2950,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "on_planar_face", "Coincide::EdgeOnPlane", 1),
-    ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "bound_refusal",

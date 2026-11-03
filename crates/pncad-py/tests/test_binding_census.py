@@ -646,6 +646,10 @@ BOUND_AS = {
     # `Node.clearance`, whose bounds are its keyword arguments.
     "Claim": "Node.clearance",
     "ClearanceBounds": "Node.clearance",
+    # Which end of the band a clearance's bound slot holds is spelled
+    # into the slot's word (`clearance_low`, `clearance_high`), the
+    # word `EditError.slot` answers in and `DocEdit.set_param` takes.
+    "BoundEnd": "EditError.slot",
     # A clearance verdict reads through the one `Verdict`: its state,
     # its refusal's class (with the sentence on `reason`), and the pair
     # that decided it, whose two points and distance are a
@@ -3026,6 +3030,10 @@ NOT_BOUND = {
     # by a `Formula`, `Formula.turn_over(4)` a quarter turn).
     "corner_frame_in": INTERIOR,
     "moved_frame": INTERIOR,
+    # The target axes a row's other slides run along, read off picked
+    # directions by a gesture holding an evaluation: Python names them
+    # itself (`Node.linear_pattern(..., across=["x", "z"])`).
+    "slides_across": INTERIOR,
     "FrameMove": INTERIOR,
     # A pose variable's evaluated value, read by the mates and the
     # splits that consume it: a Python caller reads where a face sits
@@ -3740,6 +3748,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::Backwards": "MateFault.variant",
     "MateFault::Unoriented": "MateFault.variant",
     "MateFault::SideUnevaluated": "MateFault.variant",
+    "MateFault::ReadUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::Unpinned": "MateFault.variant",
     # A bundle with no mate goes whole: `Doc.remove_mate` on any of its

@@ -192,10 +192,8 @@ fn parent_members(parent: &StableName) -> Option<BTreeSet<StableName>> {
 /// `Borders`** (N2, N3):
 /// - a face's name is a member face, a flat `Merged` of member faces, or
 ///   one of those followed by exactly one `Fragment(Borders)`;
-/// - a parent is published bare only when it is held as one face, and
-///   as fragments only when held as several;
-/// - no member face is listed by two parents, so a constituent a merge
-///   lists is never published by a face of its own;
+/// - a face is published bare only when no other face lists a member
+///   face it lists, and with `Borders` only when another does;
 /// - a `Borders` wall is the parent of a published face.
 ///
 /// Returns how many faces were checked.
@@ -207,29 +205,32 @@ fn faces_are_parents(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usi
         .map(|(name, _)| name.clone())
         .collect();
     let parents: BTreeSet<StableName> = faces.iter().map(parent_of).collect();
-    let mut listed: std::collections::BTreeMap<StableName, StableName> = Default::default();
-    for p in &parents {
-        let members = parent_members(p)
+    // Member face → how many published faces list it.
+    let mut listed: std::collections::BTreeMap<StableName, usize> = Default::default();
+    for face in &faces {
+        let p = parent_of(face);
+        let members = parent_members(&p)
             .unwrap_or_else(|| panic!("{at}: {p:?} is not a member face or a flat merge of them"));
         for m in members {
-            if let Some(other) = listed.insert(m.clone(), p.clone()) {
-                panic!("{at}: {m:?} is listed by two parents, {other:?} and {p:?}");
-            }
+            *listed.entry(m).or_default() += 1;
         }
     }
     for face in &faces {
         let parent = parent_of(face);
         let tail = &face.path[parent.path.len()..];
-        let pieces = faces.iter().filter(|f| parent_of(f) == parent).count();
+        let shared = parent_members(&parent)
+            .into_iter()
+            .flatten()
+            .any(|m| listed[&m] > 1);
         match tail {
-            [] => assert_eq!(
-                pieces, 1,
-                "{at}: {face:?} is bare but held as {pieces} faces"
+            [] => assert!(
+                !shared,
+                "{at}: {face:?} is bare, though another face lists a member face it lists"
             ),
             [RoleSeg::Fragment(editor_core::Qualifier::Borders(v))] => {
                 assert!(
-                    pieces > 1,
-                    "{at}: {face:?} is a fragment of a parent held whole"
+                    shared,
+                    "{at}: {face:?} is a fragment, though it alone lists each member face it lists"
                 );
                 for partner in v {
                     assert!(
@@ -375,16 +376,16 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
     }
 }
 
-/// **A face cut and merged in one step publishes no piece under a
-/// constituent's name** (N3). `fam012`: `a` = x 0..1 and `b` = x
-/// 0.5..1.5, flush, and a slab `g` at x 0.3..0.4 through `a`'s
-/// y = 0 wall. In `[b, g, a]` one step cuts `a`'s wall and merges its
-/// right piece with `b`'s; in `[a, b, g]` the wall merges first and `g`
-/// cuts the merge. Either way the wall is two faces, both fragments of
-/// the one merge, under the same two names, and `a`'s wall is published
-/// by no face.
+/// **A face cut and merged in one step is named for what each piece
+/// holds** (N2, N3). `fam012`: `a` = x 0..1 and `b` = x 0.5..1.5,
+/// flush, and a slab `g` at x 0.3..0.4 through `a`'s y = 0 wall. In
+/// `[b, g, a]` one step cuts `a`'s wall and merges its right piece with
+/// `b`'s; in `[a, b, g]` the wall merges first and `g` cuts the merge.
+/// Either way the wall is two faces under the same two names: the left
+/// piece holds `a`'s wall alone and is a piece of it, the right holds
+/// both and is a piece of the merge, each bordering the slab.
 #[test]
-fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
+fn a_face_cut_and_merged_in_one_step_names_each_piece_for_what_it_holds() {
     let case = cases()
         .into_iter()
         .find(|c| c.label == "fam012")
@@ -400,16 +401,19 @@ fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
             path: vec![RoleSeg::Merged(set)],
         };
         let t = table(ev, union);
-        assert!(t.lookup(&wa).is_none(), "{at}: {wa:?} is published");
+        assert!(t.lookup(&wa).is_none(), "{at}: {wa:?} is published bare");
         let pieces: BTreeSet<StableName> = t
             .iter()
-            .filter(|(name, _)| name.kind == EntityKind::Face && parent_of(name) == merge)
+            .filter(|(name, _)| {
+                name.kind == EntityKind::Face && (parent_of(name) == merge || parent_of(name) == wa)
+            })
             .map(|(name, _)| name.clone())
             .collect();
+        let of = |p: &StableName| pieces.iter().filter(|n| parent_of(n) == *p).count();
         assert_eq!(
-            pieces.len(),
-            2,
-            "{at}: pieces of the merged wall {pieces:?}"
+            (of(&wa), of(&merge)),
+            (1, 1),
+            "{at}: a piece of a's wall and a piece of the merge: {pieces:?}"
         );
         assert!(pieces.iter().all(|p| p.path.len() == 2), "{at}: {pieces:?}");
         spelled.insert(at.to_string(), pieces);
@@ -492,10 +496,10 @@ fn the_zip_document_publishes_one_table_in_every_order() {
 /// **The slab's cut of the merged top is named alike in every order.**
 /// In `near`, `[b, g, a]` and `[g, b, a]` cut `b`'s top before `a`
 /// joins, so `a`'s top is held as `a`'s piece beyond the slab and,
-/// past it, through `b`'s coincident top. The two tops are still one
-/// parent, cut by one obstacle the slab makes, so each piece is
-/// `Merged` of both and one `Borders` (N2), as where the merge comes
-/// first. The face table is compared.
+/// past it, through `b`'s coincident top. West of the slab the top
+/// holds `a`'s alone, east of it both, so one piece is `a`'s top and
+/// one `Merged` of both, each with one `Borders` (N2), as where the
+/// merge comes first. The face table is compared.
 #[test]
 fn a_cut_a_covered_face_meets_is_one_divider_in_every_order() {
     let (faces, _) = face_tables(&near_slab());
@@ -514,9 +518,18 @@ fn a_cut_a_covered_face_meets_is_one_divider_in_every_order() {
                     if set.len() == 2)
         })
         .count();
+    let alone = first
+        .iter()
+        .filter(|n| {
+            matches!(n.path.as_slice(),
+                [RoleSeg::From { of, .. }, RoleSeg::Fragment(editor_core::Qualifier::Borders(_))]
+                    if matches!(of.path.as_slice(), [RoleSeg::Cap(editor_core::CapEnd::End)]))
+        })
+        .count();
     assert_eq!(
-        tops, 2,
-        "{first_at}: the merged top is not cut in two: {first:?}"
+        (alone, tops),
+        (1, 1),
+        "{first_at}: the top is cut into a's piece and the merge's: {first:?}"
     );
     one_table(&faces);
 }

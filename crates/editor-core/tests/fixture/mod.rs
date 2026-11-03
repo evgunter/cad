@@ -148,7 +148,7 @@ pub fn plane(face: impl Into<editor_core::Operand>) -> editor_core::Operand {
 /// the moved `+z`), and the floor's placement into the world.
 pub fn floor(
     doc: ProfileDoc,
-    moves: Vec<(editor_core::Coord, Formula)>,
+    moves: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
 ) -> (ProfileDoc, editor_core::Operand, RecipeNodeId) {
     let (doc, profile) = insert(doc, Node::Profile(desc(vec![square(0.0, 0.0, 50.0)])));
     let (doc, slab) = insert(
@@ -164,7 +164,7 @@ pub fn floor(
         &doc,
         Vec::new(),
         vec![(
-            editor_core::Coord::Slide(editor_core::TargetAxis::Z),
+            editor_core::Coord::slide(editor_core::TargetAxis::Z),
             len(-1.0),
         )],
     );
@@ -358,7 +358,7 @@ pub fn constrain(
 pub fn constrain_with(
     doc: ProfileDoc,
     mate: editor_core::Mate<Formula>,
-    values: &[(editor_core::Coord, Formula)],
+    values: &[(editor_core::Coord<editor_core::Operand>, Formula)],
 ) -> (ProfileDoc, editor_core::MateRef) {
     let placement = placed_by(&doc, &mate);
     mated(doc, placement, mate, values)
@@ -513,7 +513,7 @@ pub fn pose_kind(doc: &ProfileDoc, read: &editor_core::Operand) -> Option<editor
 pub fn squared(
     doc: &ProfileDoc,
     mate: editor_core::Mate<Formula>,
-    values: &[(editor_core::Coord, Formula)],
+    values: &[(editor_core::Coord<editor_core::Operand>, Formula)],
 ) -> editor_core::Placed {
     editor_core::Placed::of(doc, vec![mate], values.to_vec())
 }
@@ -524,7 +524,7 @@ pub fn mated(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     mate: editor_core::Mate<Formula>,
-    values: &[(editor_core::Coord, Formula)],
+    values: &[(editor_core::Coord<editor_core::Operand>, Formula)],
 ) -> (ProfileDoc, editor_core::MateRef) {
     let placed = squared(&doc, mate, values);
     let (doc, minted) = write_bundle(doc, placement, placed.bundle());
@@ -667,7 +667,7 @@ pub fn with_values(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     mate: editor_core::Mate<Formula>,
-    values: Vec<(editor_core::Coord, Formula)>,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
 ) -> ProfileDoc {
     let placed = editor_core::Placed {
         mates: vec![mate],
@@ -1057,7 +1057,7 @@ pub fn scalar_of(index: VarId) -> Formula {
 pub fn family_of(
     doc: ProfileDoc,
     body: RecipeNodeId,
-    values: Vec<(editor_core::Coord, Formula)>,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let target = space(&doc, body);
     let read = body_read(&doc, body.into());
@@ -1085,7 +1085,7 @@ pub fn row(
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
     let (doc, k) = index(doc, name, n);
     let slide = Formula::mul(scalar_of(k), len(pitch)).expect("a length");
-    let (doc, row) = family_of(doc, body, vec![(editor_core::Coord::Slide(axis), slide)]);
+    let (doc, row) = family_of(doc, body, vec![(editor_core::Coord::slide(axis), slide)]);
     (doc, k, row)
 }
 
@@ -1142,7 +1142,11 @@ pub fn fresh_index_name(doc: &ProfileDoc) -> String {
 
 /// **The slides that move a copy `scalar(k)·spacing` along `dir`**,
 /// one per nonzero component on its space's axes.
-pub fn slides_along(k: VarId, dir: [f64; 3], spacing: f64) -> Vec<(editor_core::Coord, Formula)> {
+pub fn slides_along(
+    k: VarId,
+    dir: [f64; 3],
+    spacing: f64,
+) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
     use editor_core::TargetAxis as A;
     [A::X, A::Y, A::Z]
         .into_iter()
@@ -1150,7 +1154,7 @@ pub fn slides_along(k: VarId, dir: [f64; 3], spacing: f64) -> Vec<(editor_core::
         .filter(|&(_, d)| d != 0.0)
         .map(|(axis, d)| {
             let by = Formula::mul(scalar_of(k), len(d * spacing)).expect("a length");
-            (editor_core::Coord::Slide(axis), by)
+            (editor_core::Coord::slide(axis), by)
         })
         .collect()
 }
@@ -1191,15 +1195,13 @@ pub fn axis_operand(
 /// apart** (D10 `[repetition]`), under a fresh index: one placement in
 /// `input`'s space whose `Axis` mate equates `axis` read off the copy
 /// with `axis` read off `input`, spun `scalar(k)·step` and slid zero
-/// along the target axis `along` it runs on. `axis` reads `input`'s own
-/// geometry. The document, the index and the placement.
+/// along the mated direction, about an axis of any direction. `axis`
+/// reads `input`'s own geometry. The document, the index and the
+/// placement.
 pub fn circular(
     doc: ProfileDoc,
     input: RecipeNodeId,
-    (axis, along): (
-        editor_core::pose::RoleRead<editor_core::Operand>,
-        editor_core::TargetAxis,
-    ),
+    axis: editor_core::pose::RoleRead<editor_core::Operand>,
     step: f64,
     count: i64,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
@@ -1214,7 +1216,7 @@ pub fn circular(
         vec![mate(axis.clone(), axis)],
         vec![
             (editor_core::Coord::SPIN, spin),
-            (editor_core::Coord::Slide(along), len(0.0)),
+            (editor_core::Coord::SLIDE, len(0.0)),
         ],
     );
     let (doc, ring) = insert(
@@ -1257,7 +1259,7 @@ pub fn linear_on(
         .filter(|&(_, d)| d != 0.0)
         .map(|(axis, d)| {
             let by = Formula::mul(next.clone(), len(d * spacing)).expect("a length");
-            (editor_core::Coord::Slide(axis), by)
+            (editor_core::Coord::slide(axis), by)
         })
         .collect();
     let (doc, row) = family_of(doc, input, values);
@@ -1413,7 +1415,10 @@ pub fn mated_instance(doc_ref: editor_core::DocRef) -> AuthoredNode {
 /// in bundle order: its whole motion on its target space's axes.
 /// `None` for a bundle holding a mate. Panics on a node that is no
 /// placement.
-pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<Vec<(editor_core::Coord, Formula)>> {
+pub fn offset_of(
+    doc: &ProfileDoc,
+    id: RecipeNodeId,
+) -> Option<Vec<(editor_core::Coord<editor_core::Operand>, Formula)>> {
     let constraints = match doc.node(id) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
             constraints
@@ -1425,7 +1430,7 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<Vec<(editor_core:
         .map(|c| {
             c.value().map(|v| {
                 (
-                    v.coord,
+                    v.coord.into(),
                     doc.written(&editor_core::Expr::var(v.by, v.coord.dimension())),
                 )
             })
@@ -1489,9 +1494,10 @@ pub fn value_slot(
         .iter()
         .find(|c| c.value().is_some_and(|v| v.coord == coord))
         .unwrap_or_else(|| panic!("{placement} holds a value on {coord:?}"));
-    match coord {
-        editor_core::Coord::Slide(_) => editor_core::SlotId::ValueSlide { constraint: c.id },
-        editor_core::Coord::Spin(_) => editor_core::SlotId::ValueSpin { constraint: c.id },
+    if coord.is_slide() {
+        editor_core::SlotId::ValueSlide { constraint: c.id }
+    } else {
+        editor_core::SlotId::ValueSpin { constraint: c.id }
     }
 }
 
@@ -1520,9 +1526,10 @@ pub fn value_bump(
         Some(editor_core::FreeVar::Continuous { value, .. }) => *value,
         other => panic!("{placement}'s value on {coord:?} is a typed number, not {other:?}"),
     };
-    let value = match coord {
-        editor_core::Coord::Slide(_) => len(held + delta),
-        editor_core::Coord::SPIN | editor_core::Coord::Spin(_) => ang(held + delta),
+    let value = if coord.is_slide() {
+        len(held + delta)
+    } else {
+        ang(held + delta)
     };
     DocEdit::SetParam {
         node: placement,
@@ -1646,7 +1653,7 @@ pub fn authored(
         }
         editor_core::ConstraintKind::Value(v) => {
             editor_core::ConstraintKind::Value(editor_core::Value {
-                coord: v.coord,
+                coord: v.coord.into(),
                 by: Formula::var(v.by, v.coord.dimension()),
             })
         }
@@ -2280,11 +2287,11 @@ impl Recorder {
             },
             vec![
                 (
-                    editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                    editor_core::Coord::slide(editor_core::TargetAxis::X),
                     Formula::named(name, editor_core::Dimension::Length),
                 ),
                 (
-                    editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                    editor_core::Coord::slide(editor_core::TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
                 (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -2337,7 +2344,7 @@ impl Recorder {
         &mut self,
         placement: RecipeNodeId,
         mate: editor_core::Mate<Formula>,
-        values: Vec<(editor_core::Coord, Formula)>,
+        values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
     ) {
         self.write(
             placement,
@@ -2459,7 +2466,7 @@ impl Recorder {
     pub fn copies(
         &mut self,
         body: impl Into<editor_core::Operand>,
-        values: Vec<(editor_core::Coord, Formula)>,
+        values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
     ) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
         let at = match &read {
@@ -2477,7 +2484,7 @@ impl Recorder {
         &mut self,
         body: impl Into<editor_core::Operand>,
         of: RecipeNodeId,
-        values: Vec<(editor_core::Coord, Formula)>,
+        values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
     ) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
         let target = space(&self.doc, of);
@@ -2518,7 +2525,7 @@ impl Recorder {
     pub fn in_world_by(
         &mut self,
         body: impl Into<editor_core::Operand>,
-        values: Vec<(editor_core::Coord, Formula)>,
+        values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
     ) -> RecipeNodeId {
         let read = body_read(&self.doc, body.into());
         self.insert_placed(
@@ -2604,7 +2611,7 @@ impl Recorder {
                     orient,
                 }],
                 values: vec![
-                    (editor_core::Coord::Slide(editor_core::TargetAxis::Z), along),
+                    (editor_core::Coord::slide(editor_core::TargetAxis::Z), along),
                     (
                         editor_core::Coord::SPIN,
                         Formula::zero(editor_core::Dimension::Angle),
@@ -2639,7 +2646,7 @@ impl Recorder {
 pub fn in_world_by(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
-    values: Vec<(editor_core::Coord, Formula)>,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = body_read(&doc, body.into());
     let placed = editor_core::Placed {
@@ -2727,7 +2734,7 @@ pub fn square_frame(own: editor_core::Operand, at: &editor_core::Frame) -> edito
 pub fn turned_to(
     origin: [f64; 3],
     spins: &[(editor_core::TargetAxis, Formula)],
-) -> Vec<(editor_core::Coord, Formula)> {
+) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
     use editor_core::{Coord, Dimension, TargetAxis};
     let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
     let slides = axes.into_iter().zip(origin).map(|(axis, at)| {
@@ -2736,7 +2743,7 @@ pub fn turned_to(
         } else {
             len(at)
         };
-        (Coord::Slide(axis), by)
+        (Coord::slide(axis), by)
     });
     let spun = axes.into_iter().map(|axis| {
         let by = spins
@@ -2752,7 +2759,7 @@ pub fn turned_to(
 /// world's `z`, its origin at `origin`**: a quarter turn about `x`,
 /// written `turn/4`, and the three slides — the values of a bundle with
 /// no mate ([`Recorder::in_world_by`]).
-pub fn upright_at(origin: [f64; 3]) -> Vec<(editor_core::Coord, Formula)> {
+pub fn upright_at(origin: [f64; 3]) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
     use editor_core::{Coord, Dimension, TargetAxis};
     let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
     let slides = axes.into_iter().zip(origin).map(|(axis, at)| {
@@ -2761,7 +2768,7 @@ pub fn upright_at(origin: [f64; 3]) -> Vec<(editor_core::Coord, Formula)> {
         } else {
             len(at)
         };
-        (Coord::Slide(axis), by)
+        (Coord::slide(axis), by)
     });
     let spins = [
         (

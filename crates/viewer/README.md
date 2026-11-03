@@ -473,9 +473,9 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a pattern's picked direction or axis — could not be made from its numbers or its pick. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
-| `session::author` | `BooleanSpec`, `PatternRuleSpec`, `PartSelectSpec` — the authoring specs and their lowering to nodes, which hold no session state at all |
+| `session::author` | `BooleanSpec`, `PatternRuleSpec` and its `PatternDirection` (a target axis or a picked edge or face, never typed components), `PartSelectSpec` — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
 
@@ -2031,18 +2031,23 @@ A create gesture asks for two things and nothing else:
 - **which kind of node.** The button pressed says it. A choice that
   decides the node's kind, or which nodes exist, is a button and not a
   field: union, intersect or subtract; fillet or chamfer; a pattern's
-  rule and whether its copies are fused; a clearance bound's shape.
+  rule and whether its copies are fused. A clearance bound's shape
+  (at least, at most, exactly, between) is not one: it decides neither
+  the node's kind nor which nodes exist, so it is a row on the
+  requirement, and the create gesture inserts at least.
 - **what the node reads**: the selection, or the tool's picks. These
   are the profile an extrude or revolve sweeps, a boolean's members, a
-  split's target, a blend's edge set, and the face a profile is drawn
-  on. A live node's reads change only by the slot door or
+  split's target and the plane it cuts along (any plane the document
+  can read: a planar face, or a plane already defined), a blend's edge
+  set, and the face a profile is drawn on. A live node's reads change only by the slot door or
   `SetMembers` (DM6, `crates/editor-core/REFERENCES.md`), so they are
   stated at insert.
 
 It inserts the node with default values and selects the node its noun
 names (the pattern, not the pattern's placement). A default is worked
-out from the reads where it can be: the split plane through the
-target's centre, a revolve's axis off its profile's extent.
+out from the reads where it can be: a revolve's axis lies off its
+profile's extent. A pattern inserts with default values, which its
+placement and count rows edit.
 
 Every value is edited afterwards on the node's one edit surface: its
 Properties slot rows, the profile editor, or the placement editor.
@@ -2078,6 +2083,39 @@ is its preview.
   the node's label row renames it.
 - **Variables**: `New variable` adds the variable's row. Its name and
   dimension are what it is (VR2, VR3), and the row edits its value.
+
+### The seated tools whose values have a home
+
+Four seated tools hold no value field; what they used to type is a row
+of the node they insert.
+
+- **Blend.** The form asks for the edges and fillet or chamfer. The
+  insert writes the size at `blend::default_size`: a millimetre,
+  written in the working unit at one significant figure (`1 mm`,
+  `0.1 cm`, `0.04 in`). It is a constant rather than a measure of the
+  picked edges, because the faces beside an edge, not its length,
+  bound the blend a body takes. The size is then the blend's
+  `SlotId::Radius` or `SlotId::ChamferDistance` row.
+- **Mirror.** The form holds no label field (`ToolKind::offers_label`).
+  The gesture's noun is the mirror: the insert writes the image and
+  `body ∪ image` for every body, placed or not, and answers the image
+  as what it made, so the image is labelled `Mirror N` and selected.
+  The union takes no label.
+- **Clearance.** The form asks for the two seats and the bound's shape
+  (at least, at most, exactly, between), which decides how many bound
+  slots the requirement has. The insert writes every end at contact,
+  `0`. Each end is then a slot row of the requirement,
+  `SlotId::ClearanceBound` (`Low` or `High`; `= c` holds the low end),
+  taking a number or a formula. The evaluator reads a bound slot with
+  the measured values bound, as it reads a value claim's payload, and a
+  bound that does not evaluate fails the requirement as a slot fault
+  naming its end (`NodeErrorKind::Expr` at `ClearanceBound`).
+- **The pattern count.** An index's count is one widget
+  (`index_count_ui`), drawn on the index variable's own row and on the
+  rows of every node that reads the index (`props::indices_read`),
+  such as a pattern's placement. A number, a drag or a formula writes
+  the count through `props::index_count_edit`. The pattern form's own
+  count field stays.
 
 ### One open tool, not one optional value per tool
 

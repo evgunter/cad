@@ -261,7 +261,7 @@ impl SubgroupFamily {
     /// fixed a spin is a link of a chain about the target space's axes;
     /// where one is, the spin is the one about the target's own direction.
     #[must_use]
-    pub fn leaves(self, coord: super::Coord) -> bool {
+    pub fn leaves<R>(self, coord: &super::Coord<R>) -> bool {
         super::solve::leaves(self, coord)
     }
 

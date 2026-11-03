@@ -42,7 +42,7 @@
 //!
 //! The boolean sweep's candidate generation reads each edge's box and
 //! examines only the faces whose box it overlaps. A conic edge's box
-//! is the exact extremal construction (`topo`'s `EdgeBoxRule`, its
+//! is the exact extremal construction (`topo`'s edge cover, its
 //! conic arm), so it ends at the arc's own extreme — and the extreme
 //! of this file's cylinder rims lies mid-arc, strictly between the
 //! vertices. Both directions of that claim are pinned here through the

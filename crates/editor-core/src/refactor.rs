@@ -672,25 +672,19 @@ fn carry_bundle(
         })
         .map_err(BundleMiss::Edit)?;
     vars.minted(fresh, &record.fresh);
-    let minted: Vec<crate::mate::Mate> = target
+    let minted: Vec<crate::mate::Constraint> = target
         .doc()
         .node(new)
         .and_then(crate::mate::solve::bundle_of)
-        .map(|bundle| {
-            bundle
-                .iter()
-                .filter_map(crate::mate::Constraint::mate)
-                .cloned()
-                .collect()
-        })
+        .map(<[crate::mate::Constraint]>::to_vec)
         .unwrap_or_default();
-    let reads = |mate: &crate::mate::Mate| vec![mate.on, mate.to];
-    for (source_mate, minted) in bundle
-        .iter()
-        .filter_map(crate::mate::Constraint::mate)
-        .zip(&minted)
-    {
-        name_selections(source, target, vars, reads(source_mate), reads(minted))
+    // A constraint's pose reads: a mate's two sides, a value's direction
+    // or axis.
+    let reads = |c: &crate::mate::Constraint| -> Vec<VarId> {
+        c.reads().into_iter().map(|(_, &read)| read).collect()
+    };
+    for (source_c, minted) in bundle.iter().zip(&minted) {
+        name_selections(source, target, vars, reads(source_c), reads(minted))
             .map_err(BundleMiss::Edit)?;
     }
     Ok(())
@@ -2175,18 +2169,9 @@ fn remap_node(
         constraints
             .iter()
             .map(|c| {
-                c.try_map(
-                    |side, &var| {
-                        rd(
-                            crate::OperandSlot::Side {
-                                constraint: c.id,
-                                side,
-                            },
-                            var,
-                        )
-                    },
-                    &mut |&slot| Ok::<_, RemapMiss>(slot),
-                )
+                c.try_map(|seat, &var| rd(seat, var), &mut |&slot| {
+                    Ok::<_, RemapMiss>(slot)
+                })
             })
             .collect::<Result<Vec<_>, _>>()
     };
@@ -4200,8 +4185,12 @@ pub fn inline(
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
     for side in bundle
         .iter()
-        .filter_map(crate::mate::Constraint::mate)
-        .flat_map(|mate| [mate.on, mate.to])
+        .flat_map(|c| {
+            c.reads()
+                .into_iter()
+                .map(|(_, &read)| read)
+                .collect::<Vec<_>>()
+        })
         .filter(|&side| doc.var_name(side).is_none())
     {
         let written = rewritten_pose(doc, side, &mut |_| Ok::<_, InlineError>(None))?;

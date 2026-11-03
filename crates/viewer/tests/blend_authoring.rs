@@ -252,6 +252,78 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     );
 }
 
+/// **A blend is inserted at its default size, and the size is its row**:
+/// the tool holds no size field, so the commit writes
+/// `blend::default_size` in the working unit, a round number; the
+/// fillet's radius row then takes a formula over a variable, and the
+/// body follows the variable.
+///
+/// Red if the default is not a round number in the working unit, if the
+/// radius is no row of the fillet, or if the body does not follow a
+/// formula written there.
+#[test]
+fn a_blend_inserted_with_no_size_field_takes_a_formula_at_its_size_row() {
+    use pncad::quantity::{CM, IN, M, MM};
+    let at = |unit| {
+        let written = viewer::blend::default_size(unit).expect("a finite size");
+        let doc = Doc::<ProfileProgram>::empty_derived("blend-default", Tol::witness());
+        doc.unparse(&written)
+    };
+    assert_eq!(
+        [at(MM), at(CM), at(M), at(IN)],
+        ["1 mm", "0.1 cm", "0.001 m", "0.04 in"],
+        "a millimetre, at one significant figure in the working unit"
+    );
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = common::xy_box_in(&mut session, [SIDE; 3]);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+    let size = viewer::blend::default_size(MM).expect("a finite size");
+    let op = blend(&tools).fillet_op(size).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    let rows = viewer::props::slot_rows(session.committed_doc(), fillet);
+    assert_eq!(
+        rows.iter().map(|row| row.slot).collect::<Vec<_>>(),
+        [SlotId::Radius],
+        "the size is the fillet's one row"
+    );
+    let at_default = plain_body_volume(&mut session, fillet, tol);
+
+    let r = pncad::document::VarName::new("r").expect("a name");
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: r,
+        value: pncad::document::FreeVar::continuous(Dimension::Length, 0.002),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let written = session.perform(SessionOp::SetSlotExpression {
+        node: fillet,
+        slot: SlotId::Radius,
+        text: "r".to_owned(),
+    });
+    assert!(written.refusal.is_none(), "{:?}", written.refusal);
+    let at_r = plain_body_volume(&mut session, fillet, tol);
+    assert!(
+        at_r < at_default,
+        "a 2 mm radius takes more off than 1 mm: {at_r} vs {at_default}"
+    );
+    let var = session
+        .committed_doc()
+        .var_named("r")
+        .expect("r is declared");
+    let moved = session.perform(SessionOp::SetVariableText {
+        var,
+        text: "3 mm".to_owned(),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    let at_moved = plain_body_volume(&mut session, fillet, tol);
+    assert!(
+        at_moved < at_r,
+        "the body follows r from 2 mm to 3 mm: {at_moved} vs {at_r}"
+    );
+}
+
 /// **The chamfer twin**: the same picks, the other door, the other
 /// node — and a different solid, because the size means a setback
 /// rather than a radius.
@@ -829,16 +901,15 @@ fn only_the_open_blend_tool_accumulates_edges() {
     assert_eq!(blend(&tools).count(), 0, "a re-opened tool starts over");
 }
 
-/// The two kinds' labels and their one Length field's meaning — the
-/// chrome's radio row read as a value, so the sentence a user sees is
-/// checked without a window.
+/// The two kinds' labels — the chrome's radio row read as a value, so
+/// the words a user sees are checked without a window.
 #[test]
-fn the_kind_choice_names_what_the_one_field_means() {
+fn the_kind_choice_names_each_kind() {
     assert_eq!(
-        BlendKindChoice::ALL.map(|(kind, label)| (kind, label, kind.size_label())),
+        BlendKindChoice::ALL,
         [
-            (BlendKindChoice::Fillet, "fillet", "radius"),
-            (BlendKindChoice::Chamfer, "chamfer", "setback"),
+            (BlendKindChoice::Fillet, "fillet"),
+            (BlendKindChoice::Chamfer, "chamfer"),
         ]
     );
     assert_eq!(BlendKindChoice::default(), BlendKindChoice::Fillet);
@@ -1014,7 +1085,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
                 slot: crate::fixture::value_slot(
                     session.committed_doc(),
                     b,
-                    pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+                    pncad::document::Coord::slide(pncad::document::TargetAxis::X),
                 ),
                 value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0)
                     .expect("a finite length is a value"),

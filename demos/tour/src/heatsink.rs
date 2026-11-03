@@ -253,7 +253,11 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
             &k,
             BodyRead::plain(Operand::Node(fin_e)),
             Operand::Var(space),
-            &[(TargetAxis::X, pe("312.5 mm"))],
+            &[(
+                pncad::pattern::RowDirection::Axis(TargetAxis::X),
+                pe("312.5 mm"),
+            )],
+            None,
         )
         .expect("the pitch is a length"),
         tol,

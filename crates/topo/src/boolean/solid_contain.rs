@@ -2895,7 +2895,7 @@ fn clear_of_carrier<T: Decide>(
 /// carrier (normal `normal`) within the band, pass definitely beside the
 /// face? The ray lies in the plane through `q` spanned by `d` and
 /// `normal`, whose normal is `m = normal × d`; the face lies in the hull
-/// of its outer loop's vertices and its curved edges' balls
+/// of its outer loop's vertices and its edges' covers
 /// ([`loop_hull`](crate::splitting::containment::loop_hull)), so when
 /// every one of them is definitely on one side of that plane, no point
 /// of the face is on the ray. `bool_point_in_solid_beside` decides the
@@ -2913,19 +2913,20 @@ fn ray_passes_beside<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-    let (verts, balls) = crate::splitting::containment::loop_hull(body, f.outer)
+    let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
     let m = m / m.norm();
+    let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
-    // An edge lies in each of its balls, so on a side of the plane where
-    // either ball does: its clearance is the clearer ball's.
-    for pair in verts.into_iter().map(|v| [(v, T::zero()); 2]).chain(balls) {
-        let [(a, b), (a2, b2)] = pair.map(|(c, r)| {
-            let h = (c - q).dot(m);
-            (h - r, T::zero() - h - r)
-        });
-        let (a, b) = (a.max(a2), b.max(b2));
+    // Each part's least height above the plane, and least depth below it:
+    // a vertex's own, an edge's cover's support either way.
+    let vertex = |v: Point3<T>| {
+        let h = (v - q).dot(m);
+        (h, T::zero() - h)
+    };
+    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
     }

@@ -2638,9 +2638,8 @@ pub fn apply_with_names<T: Decide>(
             names.extend(mate.to.selected_names());
         }
         DocEdit::SetConstraints { constraints, .. } => {
-            for mate in constraints.iter().filter_map(crate::mate::Constraint::mate) {
-                names.extend(mate.on.selected_names());
-                names.extend(mate.to.selected_names());
+            for (_, read) in constraints.iter().flat_map(crate::mate::Constraint::reads) {
+                names.extend(read.selected_names());
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance

@@ -430,8 +430,8 @@ enum Place {
 pub(super) struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// The unit direction: the edge's tangent, or its secant.
     pub(super) dir: Vec3<T>,
-    /// How far the edge reaches from the vertex
-    /// ([`geom_brep::edge_reach_bounds`]): a corner's reading acts on
+    /// How far the edge reaches from the vertex, its edge cover's far
+    /// distance from above (`boxes::edge_reach_bounds`): a corner's reading acts on
     /// every sign, so its lever is the region's own measure from where
     /// it is read, and where that is known only from both sides (a curve
     /// other than a line or circle, whose bound from above can pass it
@@ -489,12 +489,11 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let curve = body.get_curve_geom(edge.curve)?.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
-    let (t0, t1) = curve.params();
     let reach = match curve.carrier() {
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
         }
-        carrier => geom_brep::edge_reach_bounds(carrier, t0, t1, base),
+        _ => super::boxes::edge_reach_bounds(body, h.edge, edge, base)?,
     };
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
@@ -1947,11 +1946,15 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             }
             .into());
         };
-        let run = match (p0, p1) {
-            (Place::Along(h), _) => h,
-            (_, Place::Along(h)) => body
-                .mate(h)
-                .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+        // The half running from `w0` to `w1`, and the one back, where an
+        // edge of a piece already runs that way: either end's `Along`
+        // names a half of a piece of the dropped face, while its mate may
+        // lie in the null scaffolding the join set between two pieces, or
+        // across the face's own boundary.
+        let (fwd, back) = match (p0, p1) {
+            (Place::Along(f), Place::Along(b)) => (Some(f), Some(b)),
+            (Place::Along(f), _) => (Some(f), None),
+            (_, Place::Along(b)) => (None, Some(b)),
             _ if across => continue,
             _ => {
                 let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol)?;
@@ -1970,13 +1973,31 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     kept_ends: [x0, x1],
                 });
                 slits.push((dropped, c));
-                c
+                let mate = body
+                    .mate(c)
+                    .ok_or_else(|| desync("a fate cut's chord has no mate"))?;
+                (Some(c), Some(mate))
             }
         };
-        let mate = body
-            .mate(run)
-            .ok_or_else(|| desync("a fate cut's run has no mate"))?;
-        halves.push((dropped, if fe.aligned { run } else { mate }, kept_he));
+        // The dropped face's side of the kept edge that the kept face
+        // holds: the kept half's own side where the copies' normals
+        // agree, the other where they are opposed.
+        let (want, other) = if fe.aligned { (fwd, back) } else { (back, fwd) };
+        let half = match (want, other) {
+            (Some(h), _) => h,
+            (None, Some(o)) => body
+                .mate(o)
+                .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+            (None, None) => unreachable!("one end of a fate cut runs along an edge"),
+        };
+        let face = face_of_he(body, half)?;
+        if div_d.root(face) != root || body.null_face_pair(face).is_some() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the side of a fate edge the kept face holds lies in no piece of the dropped face",
+            }
+            .into());
+        }
+        halves.push((dropped, half, kept_he));
     }
     for (operand, c) in slits {
         let body = match operand {
@@ -2255,7 +2276,12 @@ mod corner_bounds_rows {
             .unwrap(),
         ));
         let (t0, t1) = (0.2, 0.2001);
-        let arm = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        // A bound from above that passes the reach many times over: the
+        // whole carrier's net, which a reader with no window would read.
+        let start = wild.eval(t0);
+        let loose = geom_brep::ExtentBall::of_cover_from(Some(&wild.cover().unwrap()), start)
+            .lever_from(start);
+        let arm = geom_brep::edge_reach_bounds(&wild, (t0, t1), start, loose);
         let LeverBounds::Between { below, above } = arm else {
             panic!("a spline's reach is known from both sides, got {arm:?}");
         };
@@ -2470,9 +2496,10 @@ mod spline_departure_rows {
             "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
         );
         // The arc's farthest point from its start is its end, 2 off: the
-        // samples read it from below (the end is one), and the reach from
-        // above passes it by its samples' Lipschitz slack, short of the
-        // control net's reach √5.
+        // samples read it from below (the end is one), and the edge's
+        // cover from above, its pieces' nets over quarters of the span,
+        // within a few percent of it and short of the control net's reach
+        // √5.
         let geom_brep::LeverBounds::Between { below, above } = len else {
             panic!("a spline's reach is known from both sides, got {len:?}");
         };

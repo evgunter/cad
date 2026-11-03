@@ -89,7 +89,7 @@ pub(crate) struct Drafts {
     pub(crate) mate_verdict: Option<MateVerdict>,
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
-    pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
+    pub(crate) mate_value_edits: Vec<(pncad::document::Coord<pncad::document::Operand>, String)>,
     /// The door the value edits were typed under: a different door, or
     /// the same one over another bundle (a reload), drops them.
     pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
@@ -148,17 +148,16 @@ pub(crate) struct Drafts {
     /// because the slot it lands in is Count-typed and a number that
     /// was rounded on the way could differ from the one on screen.
     pub(crate) pattern_count: i64,
-    /// The linear rule's step direction (unitless).
-    pub(crate) pattern_direction: [f64; 3],
+    /// The linear rule's direction: one of the space's axes, or `None`
+    /// for the edge or face the tool holds picked.
+    pub(crate) pattern_along: Option<pncad::document::TargetAxis>,
     /// The linear rule's spacing, metres.
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
-    /// The circular rule's axis: a point on it, metres, in the
-    /// patterned body's own coordinates.
-    pub(crate) pattern_through: [f64; 3],
-    /// The circular rule's axis direction (unitless).
-    pub(crate) pattern_axis: [f64; 3],
+    /// The circular rule's axis: one of the space's axes through its
+    /// origin, or `None` for the edge or face the tool holds picked.
+    pub(crate) pattern_about: Option<pncad::document::TargetAxis>,
     /// Which instance of a pattern it projects — an INTEGER all the
     /// way from the field, for [`Drafts::pattern_count`]'s reason: the
     /// slot it lands in is Count-typed and a number rounded on the way
@@ -167,18 +166,8 @@ pub(crate) struct Drafts {
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
-    /// Its one Length field, metres. ONE field for both kinds by the
-    /// unit's spec: what the number means is the kind's to say
-    /// ([`BlendKindChoice::size_label`]), and a second field would be
-    /// a second place for the same quantity to be typed into.
-    pub(crate) blend_size: f64,
     /// The clearance form's choice of which side it bounds.
     pub(crate) clearance_bound: ClearanceBoundChoice,
-    /// Its first length, metres: the one bound, or a band's lower end
-    /// ([`ClearanceBoundChoice::bounds`]).
-    pub(crate) clearance_lo: f64,
-    /// A band's upper end, metres.
-    pub(crate) clearance_hi: f64,
     /// **The path editor opened on a committed profile** — its
     /// program as written, held for the edit door
     /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
@@ -1183,21 +1172,17 @@ impl Default for Drafts {
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
             // The one home both stepping gestures open on.
-            pattern_direction: crate::combine::STEP_DIRECTION,
+            pattern_along: Some(pncad::document::TargetAxis::X),
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
-            pattern_through: [0.0; 3],
-            pattern_axis: [0.0, 0.0, 1.0],
+            pattern_about: Some(pncad::document::TargetAxis::Z),
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
             // form wants is the one that selects something new.
             part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
-            blend_size: 0.001,
             clearance_bound: ClearanceBoundChoice::AtLeast,
-            clearance_lo: 0.002,
-            clearance_hi: 0.004,
             profile_edit: None,
             dropped: Vec::new(),
             label_text: None,
@@ -1602,7 +1587,7 @@ impl Drafts {
     pub(crate) fn sync_mate_edits(
         &mut self,
         door: Option<&crate::matetool::PlaceDoor>,
-        coords: &[pncad::document::Coord],
+        coords: &[pncad::document::Coord<pncad::document::Operand>],
     ) {
         if self.mate_value_door.as_ref() != door {
             self.mate_value_edits.clear();
@@ -1812,6 +1797,8 @@ pub(crate) enum CommitFault {
     Program(RecordedProgramError),
     /// A traced path does not lower.
     Traced(sketch::TracedLoopError),
+    /// A pattern's direction is the picked geometry, and none is picked.
+    NoDirection,
 }
 
 impl From<SeatError> for CommitFault {
@@ -1839,6 +1826,10 @@ impl std::fmt::Display for CommitFault {
             Self::Dimension(error) => error.fmt(f),
             Self::Program(error) => error.fmt(f),
             Self::Traced(error) => error.fmt(f),
+            Self::NoDirection => f.write_str(
+                "no direction is picked: pick an edge or a face of the body, or choose one of \
+                 the space's axes",
+            ),
         }
     }
 }
@@ -2145,8 +2136,8 @@ mod tests {
     fn the_placement_editors_value_edits_live_with_its_draft() {
         use crate::matetool::PlaceDoor;
         use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
-        let x = Coord::Slide(TargetAxis::X);
-        let y = Coord::Slide(TargetAxis::Y);
+        let x = || <Coord<Operand>>::slide(TargetAxis::X);
+        let y = || <Coord<Operand>>::slide(TargetAxis::Y);
         let door = PlaceDoor::Edit {
             placement: RecipeNodeId::new(0, 7),
             base: Vec::new(),
@@ -2156,37 +2147,37 @@ mod tests {
             base: pncad::document::stand().bundle(),
         };
         let mut drafts = Drafts::default();
-        drafts.sync_mate_edits(Some(&door), &[x, y]);
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned()), (y, "6 mm".to_owned())];
-        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        drafts.sync_mate_edits(Some(&door), &[x(), y()]);
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned()), (y(), "6 mm".to_owned())];
+        drafts.sync_mate_edits(Some(&door), &[x(), y()]);
         assert_eq!(
             drafts.mate_value_edits.len(),
             2,
             "kept across frames of one draft"
         );
-        drafts.sync_mate_edits(Some(&door), &[x]);
+        drafts.sync_mate_edits(Some(&door), &[x()]);
         assert_eq!(
             drafts.mate_value_edits,
-            [(x, "5 mm".to_owned())],
+            [(x(), "5 mm".to_owned())],
             "y's row left"
         );
-        drafts.sync_mate_edits(Some(&reloaded), &[x]);
+        drafts.sync_mate_edits(Some(&reloaded), &[x()]);
         assert!(
             drafts.mate_value_edits.is_empty(),
             "a reload drops the edits"
         );
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(
             Some(&PlaceDoor::Create {
                 body: Operand::Node(RecipeNodeId::new(0, 9)),
             }),
-            &[x],
+            &[x()],
         );
         assert!(
             drafts.mate_value_edits.is_empty(),
             "another door drops the edits"
         );
-        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.mate_value_edits = vec![(x(), "5 mm".to_owned())];
         drafts.sync_mate_edits(None, &[]);
         assert!(
             drafts.mate_value_edits.is_empty(),
