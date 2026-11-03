@@ -4,6 +4,8 @@ kind: issue
 title: pcurve_cache's Harmonic3 Circle and Ellipse arms re-spell geom_brep::Conic::of
 status: open
 opened: 2026-10-14
+priority: P1
+cost: E
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve` (conic
