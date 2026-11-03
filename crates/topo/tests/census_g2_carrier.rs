@@ -436,6 +436,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
             match e {
                 ChartRegionError::ChartDivergence { .. } => "ChartDivergence",
                 ChartRegionError::NonPlanarTrim { .. } => "NonPlanarTrim",
+                ChartRegionError::TrimOffFace { .. } => "TrimOffFace",
                 ChartRegionError::MissingCache { .. } => "MissingCache",
                 ChartRegionError::ArmUnbounded { .. } => "ArmUnbounded",
                 ChartRegionError::SeamBranch => "SeamBranch",

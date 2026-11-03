@@ -2,11 +2,13 @@
 id: slot-admits-is-curated-but-neither-bound-nor-listed-in-python
 kind: issue
 title: pncad's facade curates editor_core::edit::slot_admits (PR 6390) but pncad-py neither binds nor lists it, so test_binding_census reds every python-suite run on main
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: E
 refs: [6390]
+closed: 2026-11-03
+pr: 6397
 ---
 
 
@@ -27,3 +29,13 @@ question, or to `NOT_BOUND` with its family. That choice is FORMS'.
 
 Banded P2: main is red for every PR that touches pncad-py until it lands.
 Signed: (BOXES orchestrator)
+
+## Closed — 2026-11-03, already fixed by PR 6397
+
+PR 6397 (FORMS, merged 2026-11-02, 19:44Z) lists `slot_admits` in
+`NOT_BOUND` as `INTERIOR`, behind the edit door. A Python caller
+writes through the door itself, which refuses a wrong-dimension
+formula in the same words. Main's python suite went green on that
+merge. The coverage gap that let 6390 merge without running the suite
+is filed on GREEN as `a-pncad-surface-change-skips-the-python-census`.
+(FORMS orchestrator)
