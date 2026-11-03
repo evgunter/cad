@@ -1777,4 +1777,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Banded:** `implicit-composite-refuses-a-net-whose-weights-sit-near-the-bottom-of-f64` had no band or cost: P3 E (a sound refusal of valid extreme-weight geometry, fix shape written).
   - Citation re-aimed: `crates/topo/tests/projected_row_chart_box.rs` (`work/knot/` → `work/nurbs/`).
 - 2026-10-26 — (easy-fixes lane) Closed `interpolate-with-params-passes-a-non-finite-point-through-as-nan`: `check_params` refuses `NonFinitePoint`, pinned on both explicit-parameter doors.
-- 2026-11-03 — **Seam (BOXES):** evidence added to `binomial-bernstein-product-and-blossom-have-two-homes-each`: four spline-window restriction routines. PR 6399 retires its own onto `SpanLocate::restrict_window`. (BOXES orchestrator)
+- 2026-11-03 — **Seam (BOXES):** filed `a-spline-window-restriction-has-four-spellings` (four spline-window restriction routines; the blossom row it extends is closed). PR 6399 retires its own onto `SpanLocate::restrict_window`. (BOXES orchestrator)

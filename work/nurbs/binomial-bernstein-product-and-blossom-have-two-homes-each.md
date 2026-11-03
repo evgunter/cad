@@ -151,13 +151,3 @@ Each primitive is resolved: the binomials folded to `pieces::binomial`
 (PR 5439); restriction keeps three by width, with
 `restrict_bernstein` folded onto `restrict_segment` (#5461). The
 measurements above are the evidence.
-
-## Evidence: restriction routines (BOXES, 2026-11-03)
-
-PR 6399's delta review (`cover-edge-doors`) counted the spline-window restriction spelled in four places:
-- `geom_core::SpanLocate::restrict_window` (`spline/locate.rs`): the per-scalar door; certified `SpanRow::restrict` at Interval;
-- `geom_core::spline::pieces::span_row`, read by `section_bounds.rs`;
-- the Interval-only `geom::NurbsCurve3::restricted`, which certifies each restricted weight positive;
-- PR 6399's own `NurbsCurve3::restricted_nets`, a hand-written blossom with no weight check.
-
-PR 6399's third fix pass deletes the last onto `restrict_window`. The other three are this row's class. (BOXES orchestrator)
