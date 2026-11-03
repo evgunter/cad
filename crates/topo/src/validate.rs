@@ -898,7 +898,13 @@ impl CensusUnsupportedCause {
         match self {
             Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
-            Self::Containment(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
+            // The containment door's reading, at a build, whichever door
+            // reads the census.
+            Self::Containment(e) => write!(
+                f,
+                "{}",
+                geom_brep::recourse::read_at(e, geom_brep::recourse::at_build(at))
+            ),
             Self::FaceUnboundable => write!(
                 f,
                 "the face has no boundary vertex (an empty outer loop, or a boundary \
@@ -4837,7 +4843,8 @@ impl ValidationError {
                 )?;
                 match at.map(|at| (at, error.recourse(at))) {
                     Some((_, Some(recourse))) => write!(f, "{}. {recourse}", error.payload()),
-                    Some((at, None)) => write!(f, "{}", error.render(at)),
+                    // A nested refusal of the shell door, at a build.
+                    Some((_, None)) => write!(f, "{}", error.render(Reading::Build)),
                     None => write!(f, "{}", error.payload()),
                 }
             }
@@ -4878,7 +4885,8 @@ impl ValidationError {
                 OrientationUnread::Ray(source) => write!(
                     f,
                     "which side of a solid's faces its material lies on cannot be read: {}",
-                    read_at(source, at)
+                    // The containment door's reading, at a build.
+                    read_at(source, geom_brep::recourse::at_build(at))
                 ),
             },
             // The position alone: a witness may carry detail after " — "
