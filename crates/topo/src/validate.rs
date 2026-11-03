@@ -3339,21 +3339,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::CarrierOffChart { .. } => {
             unreachable!("a carrier off its chart carries its incidence read")
         }
-        CertifyError::NoGeneralLane {
-            gap: geom_brep::LaneGap::Unwritten,
-            ..
-        } => {
+        CertifyError::NoGeneralLane { .. } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
              write where such a curve sits on that face"
-        }
-        // The pose, not the pair: the lever that follows moves the edge
-        // or the chart's axis off it, so the reason names the pose.
-        CertifyError::NoGeneralLane {
-            gap: geom_brep::LaneGap::Pose { .. },
-            ..
-        } => {
-            "it passes through a pole or apex of its face's chart, where the kernel cannot yet \
-              write where it sits"
         }
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
@@ -3462,6 +3450,18 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
+        // A stored edge reaches no lane by a caller's dispatch, so a
+        // wrong-lane refusal at rest is the kernel's own routing.
+        CertifyError::PlaneNurbs(P::WrongLane { .. }) => {
+            "the check reached a lane that does not take its faces"
+        }
+        CertifyError::PlaneNurbs(P::Tube(_)) | CertifyError::AnalyticRung3(A::Tube(_)) => {
+            "the check's uniqueness tube could not be built around it"
+        }
+        CertifyError::PlaneNurbs(P::OutsideVocabulary)
+        | CertifyError::AnalyticRung3(A::OutsideVocabulary) => {
+            "the check refused for a reason its lane does not name"
+        }
         CertifyError::PlaneNurbs(P::TubeStraddles { .. })
         | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => STRADDLES,
         CertifyError::PlaneNurbs(P::TubeNotOneArc { .. })
@@ -3525,6 +3525,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                     | geom_brep::RowRefusal::ChartSpeed(_),
                 ..
             }
+            // `CertifyError::ending` is `None` only for its own arms that
+            // no decision owns; a lane refusal's ending is total
+            // (`PlaneNurbsRefusal::ending`, `AnalyticRung3Refusal::ending`).
             | CertifyError::PlaneNurbs(_)
             | CertifyError::AnalyticRung3(_) => {
                 unreachable!("a refusal whose ending its own type gives always has one")

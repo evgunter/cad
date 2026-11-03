@@ -193,8 +193,7 @@ use crate::ladder::{IdentityLadder, read_identity};
 #[cfg(test)]
 use crate::recourse::Reading;
 use crate::recourse::{
-    LeverOnly, ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
-    Unsized,
+    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2203,7 +2202,7 @@ impl PcurveCertifyError {
                 f,
                 "pcurve certification: the {} carrier is on the {} chart but is none of its own \
                  curves, and its general (projected) image does not yet cover this pose: piece \
-                 {piece}: {}",
+                 {piece}: {}. Recourse: {POSE_LEVER}",
                 carrier.name(),
                 chart.name(),
                 channel.describe()
@@ -2579,9 +2578,10 @@ enum Decision<'a> {
 }
 
 /// A refusal whose recourse is a lever on the input no margin reads, the
-/// same at every door.
+/// same at every door: the one table of these levers, which the lane
+/// refusals read too (`edge_nurbs::LaneDecision`).
 #[derive(Clone, Copy)]
-enum Lever {
+pub(crate) enum Lever {
     /// The carrier's parameter range cannot carry the image.
     CarrierDomain,
     /// A fitted image needs the fitted door, which only a scalar with
@@ -2599,7 +2599,7 @@ enum Lever {
 }
 
 impl Lever {
-    fn recourse(self, at: ReadAt) -> String {
+    pub(crate) fn recourse(self, at: ReadAt) -> String {
         match self {
             Self::CarrierDomain => crate::CARRIER_DOMAIN_RECOURSE.to_owned(),
             Self::FittedDoor => fitted_door_recourse(at),
@@ -2649,13 +2649,11 @@ pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, th
 enum Routing {
     Sized(SizedDecision),
     Unsized(Unsized),
-    /// "Not yet", never a defect or a tolerance and with no lever: a
-    /// lane choice with no general lane written for the pair
-    /// ([`PcurveCheck::ChartClass`]).
+    /// Lever-only "not yet", never a defect or a tolerance: a lane choice
+    /// with no general lane written ([`PcurveCheck::ChartClass`]), and a
+    /// written general lane that cannot image this pose yet
+    /// ([`PcurveCheck::GeneralLane`]).
     NotYet,
-    /// A geometry lever alone, no size the user chose: a written general
-    /// lane that cannot image this pose ([`PcurveCheck::GeneralLane`]).
-    LeverOnly(LeverOnly),
     /// A carrier's incidence on its chart ([`PcurveCheck::ChartIncidence`]):
     /// ended by its read ([`IncidenceRead::ending`]). A refusal that
     /// carries its read ends by it ([`PcurveCertifyError::ending`]); the
@@ -2696,12 +2694,10 @@ impl PcurveCheck {
             Self::AzimuthPeriod | Self::TubePeriod => {
                 Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }
-            // A lane choice whose general lane is not written yet (D3):
-            // "not yet", never a defect, never a tolerance. A written
-            // lane that cannot image THIS pose states the closed form's
-            // pose as its lever instead (D3 `[verdicts.consumers]`).
-            Self::ChartClass => Routing::NotYet,
-            Self::GeneralLane => Routing::LeverOnly(POSE_GAP),
+            // A lane choice whose general lane is not written yet (D3), and
+            // a written general lane's capability gap on this pose:
+            // lever-only "not yet", never a defect, never a tolerance.
+            Self::ChartClass | Self::GeneralLane => Routing::NotYet,
             // The placement integer and the stored copies the kernel
             // writes exactly.
             Self::ChartWinding | Self::ImageIdentity | Self::Sector => {
@@ -2734,7 +2730,6 @@ impl PcurveCheck {
             Routing::Sized(decision) => decision.recourse(arm, at),
             Routing::Unsized(decision) => decision.recourse(arm, at),
             Routing::NotYet => crate::recourse::not_yet(arm, at),
-            Routing::LeverOnly(lever) => lever.recourse(arm, at),
             Routing::Incidence => IncidenceRead::arm_ending(arm, at),
         }
     }
@@ -3200,7 +3195,10 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
         | P::CarrierEnclosure(_)
-        | P::Unsupported { .. }) => unreachable!(
+        | P::Unsupported { .. }
+        | P::WrongLane { .. }
+        | P::Tube(_)
+        | P::OutsideVocabulary) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -9198,16 +9196,12 @@ fn chart_image<T: Decide>(
     }
 }
 
-/// **The lever of a [`LaneGap::Pose`]**: a carrier through the chart's
-/// singular set has no one-branch image AT that pose, and nowhere else,
-/// so moving off the pose is a way through at every door — the closed
-/// form's pose as the lane choice's lever (D3 `[verdicts.consumers]`).
-/// Both doors that refuse the gap end by it
-/// ([`PcurveCheck::GeneralLane`], [`crate::certify::CertCheck::GeneralLane`]).
-pub(crate) const POSE_GAP: LeverOnly = LeverOnly {
-    lever: "a carrier through a pole, the cone's apex or the torus's core has no one-branch \
-            image there; split the edge at it, or re-aim the chart's axis away from it",
-};
+/// The lever of a [`LaneGap::Pose`]: the one sentence both
+/// [`PcurveCertifyError::NoGeneralLane`]'s and
+/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
+pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex or the torus's \
+     core has no one-branch image there; split the edge at it, or re-aim the chart's axis away \
+     from it";
 
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it
@@ -11893,10 +11887,7 @@ mod tests {
                     );
                     Some(decision.side)
                 }
-                Routing::Unsized(_)
-                | Routing::NotYet
-                | Routing::LeverOnly(_)
-                | Routing::Incidence => None,
+                Routing::Unsized(_) | Routing::NotYet | Routing::Incidence => None,
             };
             assert_eq!(side, want(check), "{check:?}");
         }
@@ -14455,16 +14446,15 @@ mod check_4_class_rows {
         }
     }
 
-    /// **A lane choice ends in its gap, never a defect and never a
-    /// tolerance** (D3 `[verdicts.consumers]`, `PcurveCheck::ChartClass`
-    /// and `GeneralLane`): a pair with no general lane written ends "not
-    /// yet", with no lever, on its undecided reading and on its definite
-    /// refusal alike; a written lane that cannot image this pose ends in
-    /// the closed form's pose as its lever, by identity (`POSE_GAP`), on
-    /// both. An identity check on a stored image's copies
-    /// (`ImageIdentity`) keeps the defect ending.
+    /// **A lane choice with no general lane yet ends lever-only "not
+    /// yet"** (D3, `PcurveCheck::ChartClass` and `GeneralLane`): its
+    /// undecided reading and its definite refusal (`NoGeneralLane`, for an
+    /// unwritten pair and an uncovered pose) all end in the
+    /// not-yet ending at every reading, never in a defect ending and
+    /// never in a tolerance offer. An identity check on a stored image's
+    /// copies (`ImageIdentity`) keeps the defect ending.
     #[test]
-    fn a_lane_choice_ends_in_its_gap_never_a_defect() {
+    fn a_lane_choice_with_no_lane_ends_not_yet_never_a_defect() {
         use crate::recourse::Reading;
         let cause = geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
@@ -14495,29 +14485,14 @@ mod check_4_class_rows {
                 channel: super::projected::SectorChannel::Azimuth,
             },
         };
-        let definite = crate::recourse::RefusedArm::SignCertain(None);
         for reading in [Reading::Build, Reading::AtRest] {
-            // The pair with no lane written, which has no lever.
-            for e in [&undecided, &unwritten] {
+            for e in [&undecided, &unwritten, &lane_undecided, &uncovered] {
                 let ending = e.ending(reading);
                 assert!(
                     ending.starts_with(geom_core::NOT_YET_ENDING),
                     "{reading:?}: {e:?} ends {ending}"
                 );
                 for not in ["defect", "tolerance", "Recourse:"] {
-                    assert!(!ending.contains(not), "{reading:?}: {ending}");
-                }
-            }
-            // The pose the written lane cannot image, whose lever is a
-            // way through: the one sentence, never a defect.
-            for e in [&lane_undecided, &uncovered] {
-                let ending = e.ending(reading);
-                assert_eq!(
-                    ending,
-                    super::POSE_GAP.recourse(definite, reading),
-                    "{reading:?}: {e:?} ends apart from the pose's lever"
-                );
-                for not in ["defect", "tolerance", geom_core::NOT_YET_ENDING] {
                     assert!(!ending.contains(not), "{reading:?}: {ending}");
                 }
             }

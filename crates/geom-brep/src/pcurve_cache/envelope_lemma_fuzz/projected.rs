@@ -2095,27 +2095,24 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
     );
 }
 
-/// **A spline net the projected lane cannot partition ends in its lane
-/// gap**, as a circle's lane choice does (`general_lane_refusal`, read
-/// from both of `chart_image`'s calls of the lane): the net's projected
-/// image is its only lane, and a sector that lane cannot find is the
-/// lane's own gap, not the description's defect. Nets near a sphere's pole and a
+/// **A spline net the projected lane cannot partition ends "not yet"**,
+/// as a circle's lane choice does (`general_lane_refusal`, read from both
+/// of `chart_image`'s calls of the lane): the net's projected image is its
+/// only lane, and a sector that lane cannot find is the lane's capability
+/// gap, not the description's defect. Nets near a sphere's pole and a
 /// cone's apex, minted through `chart_pcurve`:
 ///
 /// - a meridian arc over the pole, and one passing mid-band beside it;
 /// - a ruling segment through the apex, from one nappe to the other, and
 ///   a rim arc at a mid-band height, where the cone's nappe is read.
 ///
-/// Every outcome, at `f64` and at `Interval`, is an image, the pose's
-/// lever by identity where the lane cannot image this pose (`POSE_GAP`,
-/// D3 `[verdicts.consumers]`), or a "not yet" ending for a gap with no
-/// lever — none with a defect or a tolerance in it; and on each chart at
+/// Every outcome, at `f64` and at `Interval`, is an image or a "not yet"
+/// ending with no defect and no tolerance in it; and on each chart at
 /// least one pose reaches the lane's own refusal, so a spline arm that
 /// skips the relabel (its `SectorRefused` ends as a defect) reds the row.
 #[test]
-fn a_spline_net_the_projected_lane_cannot_partition_ends_in_its_lane_gap() {
-    use crate::recourse::{Reading, RefusedArm};
-    let definite = RefusedArm::SignCertain(None);
+fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
+    use crate::recourse::Reading;
     let b = band();
     let mid = 0.5 * (b.zero() + b.escalate());
     let sphere = Surface::Sphere {
@@ -2203,8 +2200,7 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_in_its_lane_gap() {
                 ),
             ] {
                 let Err(e) = got else { continue };
-                // A written lane that cannot image THIS pose: its lever.
-                let pose = matches!(
+                if matches!(
                     e,
                     PcurveCertifyError::Escalated {
                         check: PcurveCheck::GeneralLane,
@@ -2213,18 +2209,15 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_in_its_lane_gap() {
                         gap: crate::LaneGap::Pose { .. },
                         ..
                     }
-                );
-                if pose {
+                ) {
                     lane_gaps += 1;
                 }
                 for reading in [Reading::Build, Reading::AtRest] {
                     let ending = e.ending(reading);
-                    let want = if pose {
-                        ending == crate::pcurve_cache::POSE_GAP.recourse(definite, reading)
-                    } else {
-                        ending.starts_with(geom_core::NOT_YET_ENDING)
-                    };
-                    if !want || ending.contains("defect") || ending.contains("tolerance") {
+                    if !ending.starts_with(geom_core::NOT_YET_ENDING)
+                        || ending.contains("defect")
+                        || ending.contains("tolerance")
+                    {
                         wrong.push(format!(
                             "{chart}, {what} at {lane}, {reading:?}: {e:?} ends {ending}"
                         ));

@@ -1683,15 +1683,13 @@ impl SsiError {
             Self::SeedOutsideTube { .. } | Self::SeedOutsideChartTube { .. } => {
                 SEED_RECOURSE.to_owned()
             }
-            // Limb 1 with no residual to state: its own decision.
-            Self::FootPointInconclusive { .. } => crate::certify::recourse(
-                SsiLimb::OnLocus.check(),
-                RefusedArm::SignCertain(None),
-                reading,
-            ),
-            Self::UnsupportedCertificate { .. } | Self::CarrierEnclosure(_) => {
-                NOT_YET_ENDING.to_owned()
-            }
+            // A foot the projection would not settle has no residual to
+            // read: limb 1 was never decided, so no door may read it as a
+            // definite miss (a defect at rest, a damaged file at import).
+            // Nothing the caller changes settles it today.
+            Self::FootPointInconclusive { .. }
+            | Self::UnsupportedCertificate { .. }
+            | Self::CarrierEnclosure(_) => NOT_YET_ENDING.to_owned(),
             Self::WrongLane { .. } => WRONG_LANE_RECOURSE.to_owned(),
         }
     }

@@ -71,8 +71,8 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, PcurveCheck, chart_pcurve_over};
 use crate::recourse::{
-    Classified, LeverOnly, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass,
-    SpanDecision, Unsized,
+    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, SpanDecision,
+    Unsized,
 };
 
 // **The sized decisions' nouns, each spelled once.** A size noun is the
@@ -860,10 +860,11 @@ impl core::fmt::Display for CertifyError {
                 f,
                 "a conventional description's {} carrier is on its {} chart but is none of \
                  the chart's own curves, and its general image on that chart does not yet cover \
-                 this pose: piece {piece}: {}",
+                 this pose: piece {piece}: {}. Recourse: {}",
                 carrier.name(),
                 chart.name(),
                 channel.describe(),
+                crate::pcurve_cache::POSE_LEVER,
             ),
             Self::CarrierOffChart {
                 chart,
@@ -1233,12 +1234,9 @@ enum Ending {
     /// recourse says what is undefined and why, whatever the margin's
     /// numbers, which are not a reading of it.
     Undefined(&'static str),
-    /// A lane choice with no general lane written yet (D3): "not yet"
-    /// on every arm, with no lever.
+    /// A lane choice with no general lane written yet (D3): lever-only
+    /// "not yet" on every arm.
     NotYet,
-    /// A decision whose refusal a geometry lever reaches, with no size
-    /// the user chose ([`LeverOnly`]).
-    Lever(LeverOnly),
     /// A carrier's incidence (D3): a definite miss ended by the door, a
     /// read in band by its lever ([`crate::IncidenceRead::ending`]). A
     /// refused arm does not say which read it was (off and at a pose both
@@ -1594,12 +1592,7 @@ impl CertCheck {
             | Self::ChartResidual => Ending::Residual(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // A lane choice (D3): no defect and no tolerance on any arm.
-            // No general lane written for the pair is a capability gap
-            // with no lever; a written lane that cannot image THIS pose
-            // has the closed form's pose as its lever (D3
-            // [verdicts.consumers]), which is a way through today.
-            Self::ChartClass => Ending::NotYet,
-            Self::GeneralLane => Ending::Lever(crate::pcurve_cache::POSE_GAP),
+            Self::ChartClass | Self::GeneralLane => Ending::NotYet,
             // A residual, not a class gate (D3), ended by its read.
             Self::ChartIncidence => Ending::Incidence,
             // A fold over samples that each decided transverse: a poison
@@ -1677,7 +1670,6 @@ pub(crate) fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<Read
         (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
         (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
-        (Ending::Lever(lever), at) => lever.recourse(arm, at),
         (Ending::Incidence, at) => crate::IncidenceRead::arm_ending(arm, at),
     }
 }
@@ -9614,10 +9606,8 @@ mod tests {
         NoSize(Unsized),
         Miss(Unsized),
         Undefined,
-        /// A lane choice's "not yet", with no lever ([`Ending::NotYet`]).
+        /// A lane choice's lever-only "not yet" ([`Ending::NotYet`]).
         NotYet,
-        /// A geometry lever alone ([`Ending::Lever`]).
-        Lever,
         /// Ended by its read ([`Ending::Incidence`]): a definite miss by
         /// the door, a read in band by its lever.
         Incidence,
@@ -9672,7 +9662,7 @@ mod tests {
             (CertCheck::ChartResidual, Miss(Unsized::Defect)),
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::ChartClass, NotYet),
-            (CertCheck::GeneralLane, Class::Lever),
+            (CertCheck::GeneralLane, NotYet),
             (CertCheck::ChartIncidence, Class::Incidence),
             (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
             (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
@@ -9717,7 +9707,6 @@ mod tests {
                 Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
                 Ending::NotYet => NotYet,
-                Ending::Lever(_) => Class::Lever,
                 Ending::Incidence => Class::Incidence,
             };
             assert_eq!(&got, want, "{check:?}");

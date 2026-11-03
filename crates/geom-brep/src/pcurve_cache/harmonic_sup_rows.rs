@@ -768,9 +768,7 @@ fn the_closed_forms_are_the_sampled_sup() {
 }
 
 /// **Where the general lane cannot image an on-sphere circle near a pole,
-/// it refuses in the pose's lever, never a defect** (D3
-/// `[verdicts.consumers]`: a lane choice refuses with the closed form's
-/// pose as its lever; the PCERT E1 review's P3).
+/// it refuses "not yet", never a defect** (D3; the PCERT E1 review's P3).
 /// Three circles on the unit sphere passing within the band of its pole,
 /// whose class reading sends them to the projected lane: a great circle
 /// tilted mid-band off a meridian (its meridian reading in band), a
@@ -778,17 +776,15 @@ fn the_closed_forms_are_the_sampled_sup() {
 /// meridian, passing mid-band from the pole), and a small circle through
 /// the pole itself. The projected lane's partition cannot put a piece
 /// clear of the axis there, so it escalates or refuses its sector; the
-/// lane choice reads that as a gap on this pose
+/// lane choice reads that as its own capability gap
 /// (`PcurveCheck::GeneralLane`, `NoGeneralLane { gap: LaneGap::Pose }`).
-/// Every outcome, at `f64` and at `Interval`, is a certified image or
-/// the pose's lever by identity (`POSE_GAP`), with no defect and no
-/// tolerance in it; and at least one pose reaches the general lane's own
-/// refusal, so a routing of `GeneralLane` to the defect ending, or a
-/// swapped lever, reds the row.
+/// Every outcome, at `f64` and at `Interval`, is a certified image or a
+/// "not yet" ending with no defect and no tolerance in it; and at least
+/// one pose reaches the general lane's own refusal, so a routing of
+/// `GeneralLane` to the defect ending reds the row.
 #[test]
-fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_in_the_poses_lever() {
-    use crate::recourse::{Reading, RefusedArm};
-    let definite = RefusedArm::SignCertain(None);
+fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet() {
+    use crate::recourse::Reading;
     fn read<T: geom_core::Decide>(
         at: impl Fn(f64) -> T,
         n: Vec3<f64>,
@@ -846,10 +842,10 @@ fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_in_the_poses_lever() 
             }
             for reading in [Reading::Build, Reading::AtRest] {
                 let ending = e.ending(reading);
-                let levered = ending == crate::pcurve_cache::POSE_GAP.recourse(definite, reading)
+                let not_yet = ending.starts_with(geom_core::NOT_YET_ENDING)
                     && !ending.contains("defect")
                     && !ending.contains("tolerance");
-                if !levered {
+                if !not_yet {
                     wrong.push(format!(
                         "{what} at {lane}, {reading:?}: {e:?} ends {ending}"
                     ));
@@ -872,8 +868,8 @@ fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_in_the_poses_lever() 
 /// image, which certifies over the turn, at `f64` and at `Interval`. Three
 /// parallels, well clear of the poles: a northern one, the equator (a
 /// great circle) and a southern one. Near a pole the lane's partition
-/// refuses instead, in the pose's lever
-/// (`a_circle_near_a_pole_the_general_lane_cannot_image_ends_in_the_poses_lever`).
+/// refuses instead, "not yet"
+/// (`a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet`).
 #[test]
 fn an_in_band_class_on_the_sphere_takes_the_projected_lane() {
     fn read<T: geom_core::Decide>(
