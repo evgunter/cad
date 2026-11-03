@@ -25,6 +25,6 @@ Opened 2026-10-20 by WIRE's cut. Nothing dispatched.
 
 ## Review posture
 
-Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews; FULL where a check could pass vacuously.
+Inherits WIRE's (WIRE's plan, recoverable by `docs/doc-ledger/wire-leaves-the-tracker.md`): protocol v7, single reviews; FULL where a check could pass vacuously.
 
 **Class note from WIRE's 2026-10-20 sitting:** a check that cannot go red is the commonest failure here. PR 5460's VACUOUS lists, and its admission lists that red in both directions, are the precedent. Every new check is shown red by a mutant before it merges.

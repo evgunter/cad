@@ -350,7 +350,7 @@ fn with_logged_quantity(wire: serde_json::Value) -> String {
 /// own word (`dimension`) and drops the check's (`mismatch`), which
 /// `crate::tags::edit_inner_variant_tag` would supply and which it
 /// calls at its other two sites. Filed as
-/// `work/lib/persist-inner-variant-stops-one-rung-above-the-check.md`;
+/// `work/bind/persist-inner-variant-stops-one-rung-above-the-check.md`;
 /// this row is the kernel-side fact that one rests on.
 #[test]
 fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {

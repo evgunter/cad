@@ -704,7 +704,7 @@ fn a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel() {
 /// trench (`0.3 z` wide at height `z` for the box, `0.96 / 13` of the
 /// triangle's section for the prisms) along their x overlap. Tier 3′
 /// refuses an `EdgeEdgeOverlap` the result carries no record of
-/// (`work/cleave/a-union-beside-a-slit-misses-an-edge-overlap-record.md`);
+/// (`work/touchrec/a-union-beside-a-slit-misses-an-edge-overlap-record.md`);
 /// the Boolean door certifies tier 3, and 3′ waits on REACHHOLD's census
 /// over its result. At every pose.
 #[test]
@@ -1109,7 +1109,7 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
 /// narrow vee above it, one edge, but the ring's two edges stay there,
 /// floor | wall each, their wedges overlapping: `x − y` refuses
 /// `LineWedges` `Overlap` at the result gate, a construction gap
-/// (`work/cleave/a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges.md`).
+/// (`work/cleavetail/a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges.md`).
 #[test]
 fn a_face_closed_across_part_of_the_slit_refuses_typed() {
     let tol = t();
@@ -1863,7 +1863,7 @@ fn a_fate_corner_inside_an_edge_of_its_faces_division_builds() {
 /// no edge lies on the keel inside the vee's stretch, and the keel's two
 /// edges lie beside it. Both orders build, tier 3 and 3′, as the closed
 /// form says
-/// (`work/cleave/a-partner-along-part-of-a-slit-refuses-result-invalid.md`).
+/// (`a-partner-along-part-of-a-slit-refuses-result-invalid` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 #[test]
 fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
     let tol = t();

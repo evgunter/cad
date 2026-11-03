@@ -150,7 +150,7 @@ slates and on `work/issues/`:
 - `work/curved/curved-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
 - `work/linalg/linalg-escalations-offer-a-declaration-the-door-cannot-take.md`: 1,
   plus `FrameError::Degenerate`, which the second pass found
-- `work/lib/lib-escalations-offer-a-declaration-the-door-cannot-take.md`:
+- `work/pydoor/lib-escalations-offer-a-declaration-the-door-cannot-take.md`:
   `CensusEscalated` at Python's `import_step` and `Body.validate_geometric`
 - `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`
   also takes `BooleanError::Escalated`'s raisers that no face pair names
@@ -243,7 +243,7 @@ topo
   - (b) at Python's `Body.validate_geometric` (`crates/pncad-py/src/py/value.rs` :465), which takes no declaration;
   - (c) at the shell op's closing gate (`crates/topo/src/shell.rs` :1715), whose `NotValid` renders only a count.
 
-  Filed on `work/lib/lib-escalations-offer-a-declaration-the-door-cannot-take.md`.
+  Filed on `work/pydoor/lib-escalations-offer-a-declaration-the-door-cannot-take.md`.
 - `validate.rs:6340, :6809, :6819` (`RingOuterVerdict::Escalated`, `EdgePair::Unsure`, `Window::Unsure`): c (`validate.rs` near :6298 → `RingContactEscalated`; `shell.rs` near :1594 → `ShellError::Escalated`)
 
 ### What the greps cannot see

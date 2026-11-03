@@ -760,7 +760,7 @@ fn p12_a_plane_tangent_to_the_middle_of_a_hole() {
     // edges D1 parts it into would bound a cusp, whose reading on a line
     // of coincident edges is not built, and it refuses typed rather than
     // return the ruling whole across the wall
-    // (`work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
+    // (`work/parting/the-boolean-parting-refuses-its-rarer-configurations.md`).
     // [`p12_a_plane_through_the_middle_of_a_diamond_holes_edge`] is the
     // same cut with no tangency, and builds.
     let [union, cut, cut_back, common] = got.as_slice() else {

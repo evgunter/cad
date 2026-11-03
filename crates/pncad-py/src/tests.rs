@@ -7669,7 +7669,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `editor-core` and `topo`, not here, and the arm is not
 /// constructible from this crate (see
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
-/// them. `work/lib/` carries that as its own row.
+/// them. BIND carries that as its own row
+/// (`work/bind/select-refusal-predicate-names-are-unpinned.md`).
 ///
 /// **The `reason` and `door` words are a second family, and no raise
 /// site under `src/py/` MINTS one any more.** Such an attribute is as
@@ -8043,7 +8044,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             "nothing: it is a `#[doc(hidden)]` anchor whose whole content is a \
              six-row prose table, and the count that table fixes was written \
              three ways with two different numbers before it existed, which is \
-             `work/lib/the-dimension-door-table-is-prose-nothing-re-derives.md`",
+             `work/bind/the-dimension-door-table-is-prose-nothing-re-derives.md`",
         )],
     },
     MintingItem {

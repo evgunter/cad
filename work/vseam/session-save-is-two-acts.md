@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-08
 closed: 2026-10-31
 pr: 6135
-refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
+refs: [1117, 2016]
 priority: P0
 cost: M
 ---
@@ -118,7 +118,7 @@ row 223 records the decision. What the build is:
 Out of this row: dropping `edits` from the format
 (`work/doctail/the-save-format-drops-its-edit-log`), and the store's
 overwrite of a different document's file
-(`work/lib/save-at-overwrites-a-file-holding-another-document`).
+(`work/pydoor/save-at-overwrites-a-file-holding-another-document`).
 Neither blocks the build, because `docio::save_path` overwrites any
 target today.
 

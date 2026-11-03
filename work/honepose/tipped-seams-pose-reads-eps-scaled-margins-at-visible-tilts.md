@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: M
-refs: [an-in-band-axis-parallelism-offers-a-proximity-lever]
 ---
 
 Found by PR 5061's review (NOTE-5) and measured on its branch
