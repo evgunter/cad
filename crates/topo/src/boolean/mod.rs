@@ -3980,13 +3980,13 @@ pub enum BooleanError {
     /// the margin band (D4 ¶3).
     JoinUndecided(edge_join::JoinUndecided),
     /// **A curved join on a carrier the stage cannot run on.** The join
-    /// restates the kept edge over both edges' span on its own carrier:
-    /// a closed join over the carrier's period, an open one through the
-    /// killed edge's far end, recovered on the carrier
-    /// (`Curve3::param_near`). A carrier with no period, or no
-    /// parameter inverse there (a spline), cannot be run on, and the
-    /// join refuses rather than leave the vertex standing
-    /// (`work/splice/joining-a-spline-carrier-is-unbuilt`).
+    /// restates the kept edge over both edges' span on its own carrier
+    /// (`edge_join::joined_spec` says where the far parameter comes
+    /// from). Every rung missed: the killed edge is on another carrier,
+    /// and this one has no period, or no parameter inverse there (a
+    /// spline), so the join refuses rather than leave the vertex
+    /// standing
+    /// (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter`).
     JoinCarrierUnsupported {
         /// The edge the join keeps.
         edge: EdgeKey,
@@ -5436,7 +5436,8 @@ impl BooleanError {
                 f,
                 "the Boolean cannot yet join edge {edge:?} across a vertex on its {} carrier: \
                  the join runs the edge on along its carrier {}, which this carrier has no \
-                 reading for (work/splice/joining-a-spline-carrier-is-unbuilt)",
+                 reading beside the other edge's carrier \
+                 (work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter)",
                 carrier.name(),
                 if *closed {
                     "over a whole period"

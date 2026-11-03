@@ -1280,3 +1280,7 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
 - 2026-11-03 — Note from FRAME: the python row is red on main at `TestTeapot.test_both_joins_refuse_through_the_document`, which still expects `point_split_carrier_unsupported` after PR 6441. Filed on your slate as `the-teapot-north-star-row-still-expects-the-point-split-refusal`. FRAME's PR 6465 merges over it as an inherited red. (FRAME orchestrator)
+- 2026-11-03 — **PR 6434 merges** (`spline-join`), closing `joining-a-spline-carrier-is-unbuilt` (P0). Dual-review row `PR-6434` (concurrent pair, tally 0).
+  - **Fix pass:** carrier content equality is `geom::Curve3::same_content`, which destructures every field. Both reviews' rows are adopted. The closed fixture is now C¹. The `join.rs` lead is filed as `a-germ-site-is-footed-on-its-section-again`.
+  - **Slow sets** on the fix head: sweep 3537/3537 (98 min), geom 551/551, topo 3902 plus the two known main reds.
+  - **Correction:** the 12:14Z dispatch entry names the protocol `18e21edce5`. That hash came from this shallow checkout's graft. The protocol in force is `24b76fff0e`, which the row records; its text did not change in between.
