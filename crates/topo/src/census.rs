@@ -91,13 +91,16 @@
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid); a point
 //!   where a solid touches itself with a curved face or edge in its link
-//!   whose tangent cones leave it unread ([`SelfTouch::SecondOrder`]) —
-//!   a cone's apex or a vertex in the band of its axis, a corner whose
-//!   two edges leave along one tangent (a cusp; a spur's tip, the loop back
-//!   along the half-edge it came by, reads as the whole turn), a spline face held off a
-//!   corner, a face whose foot normal, reach or corner face does not
-//!   read, a curved edge with no certified curve, sheets tangent to
-//!   first order there, or sectors read lying on each other (two
+//!   whose tangent cones leave it unread, at first order and one order
+//!   down ([`crate::link::FaceSector::tangent`], `link::second_order`;
+//!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
+//!   of its axis, a cusp corner whose edges' bends do not part it, a horn
+//!   beside a sheet along its ray or a ring of horns that reads as no
+//!   thorn, a spline face held off a corner, a face whose foot normal,
+//!   reach or corner face does not read, a curved edge with no certified
+//!   curve, sheets along a tied ray that one order down meet or do not
+//!   part, a curved sheet holding a tied ray inside it, two whole tangent
+//!   planes on one plane, or sectors read lying on each other (two
 //!   tangent sectors that coincide, or a slit or doubled sheet of planar
 //!   faces in a link with a curved face) — which
 //!   [`sweep_self_touch_points`] leaves unread
@@ -8459,9 +8462,10 @@ fn edge_in_own_face<T: Decide>(
 /// planar face with a spline edge, or a point tied inside a curved edge
 /// ([`Germ::of_holds`] answers `Unreadable` before any other
 /// refusal) is read as its faces' tangent cones ([`self_touch_verdict`]),
-/// wherever their first order decides. Where it does not, or the cones
-/// do not build, the point is left unread, named
-/// ([`SelfTouch::SecondOrder`]): no reading of second order parts it yet.
+/// wherever their first order decides, or one order down where it ties
+/// at a cusp corner or along a ray (`link::second_order`). Where neither
+/// decides, or the cones do not build, the point is left unread, named
+/// ([`SelfTouch::SecondOrder`]).
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8538,19 +8542,21 @@ enum SelfTouch {
     /// The link's verdict.
     Read(TouchVerdict),
     /// A curved face or edge takes part and the faces' tangent cones do
-    /// not decide the point ([`Link::tangent_of`]): what a reading of
-    /// second order would part, which there is none of yet, and what the
-    /// tangent reading cannot build. [`TouchUnread::Unreadable`] for a
-    /// face with no tangent plane there (a cone's apex, or a vertex in
-    /// the band of its axis), a corner whose two edges leave it along one
-    /// tangent (a cusp) other than a spur's tip, a spline face held off a
-    /// corner, a face whose normal at the foot or whose reach does not
-    /// read, a corner face [`crate::sector_face::resolve`] refuses, a
-    /// curved edge with no certified curve, or a bound or plane lying on
-    /// another sheet's to first order only (a tangency, two kissing balls
-    /// at any pose included); [`TouchUnread::Degenerate`] for two sectors
-    /// read lying on each other, which takes in a slit or a doubled sheet
-    /// of planar faces as well as tangent sectors that coincide.
+    /// not decide the point ([`Link::tangent_of`]), at first order or one
+    /// order down (`link::second_order`), or the tangent reading cannot
+    /// build. [`TouchUnread::Unreadable`] for a face with no tangent plane
+    /// there (a cone's apex, or a vertex in the band of its axis), a cusp
+    /// corner its edges' bends do not part, a horn beside a sector along
+    /// its ray or a ring of horns that reads as no thorn, a spline face
+    /// held off a corner, a face whose normal at the foot or whose reach
+    /// does not read, a corner face [`crate::sector_face::resolve`]
+    /// refuses, a curved edge with no certified curve, sheets along a
+    /// tied ray that one order down meet or do not part, a curved sheet
+    /// holding such a ray inside it, or two whole tangent planes on one
+    /// plane (two kissing balls at any pose included);
+    /// [`TouchUnread::Degenerate`] for two sectors read lying on each
+    /// other, which takes in a slit or a doubled sheet of planar faces as
+    /// well as tangent sectors that coincide.
     SecondOrder(TouchUnread),
 }
 
@@ -8847,8 +8853,11 @@ impl<T: Decide> Link<T> {
     /// is named by its edge ([`rest::one_material`] holds the cone to the
     /// coincidences its faces keep).
     ///
-    /// A face with no tangent plane at the point (a cone's apex, or a
-    /// vertex in the band of its axis), a spline face held anywhere but a
+    /// A cusp corner reads as its edges bend: the whole turn, or a horn
+    /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
+    /// with no tangent plane at the point (a cone's apex, or a vertex in
+    /// the band of its axis), a cusp corner its bends do not part, a
+    /// spline face held anywhere but a
     /// corner, a curved edge with no certified curve, or a face whose
     /// normal or reach does not read is [`TouchUnread::Unreadable`]; a
     /// reading of it in band, [`TouchUnread::InBand`].
@@ -9041,7 +9050,11 @@ fn departure<T: Decide>(
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let (_, dir, bend) =
         crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
-    Ok((dir, bend.is_none(), bend.map_or(Vec3::zero(), |b| b.curvature)))
+    Ok((
+        dir,
+        bend.is_none(),
+        bend.map_or(Vec3::zero(), |b| b.curvature),
+    ))
 }
 
 /// Half-edge `he`'s unit direction at `p`, a point inside its edge,

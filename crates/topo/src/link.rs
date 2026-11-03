@@ -467,10 +467,10 @@ pub enum TouchUnread {
     /// does not read it — held at a corner, or bounded by a curve no
     /// clearance reads; and where the faces' tangent cones are read
     /// ([`FaceSector::tangent`]), a face with no tangent plane at the
-    /// point (a cone's apex), a corner whose edges leave it along one
-    /// tangent (a cusp), or a bound or plane lying on another sheet's to
-    /// first order only (a tangency), which a reading of second order
-    /// would part. (A tied edge whose key does not
+    /// point (a cone's apex), or a cusp corner or a bound or plane lying
+    /// on another sheet's to first order only (a tangency) that the
+    /// reading one order down does not part ([`second_order`]). (A tied
+    /// edge whose key does not
     /// resolve reads the same; tier 1, which the census runs behind,
     /// admits none. A face whose surface or loops do not resolve reads
     /// [`Self::Corrupt`].)
@@ -2596,7 +2596,9 @@ fn corner_fan<T: Decide>(
         None => return Err(TouchUnread::InBand),
     }
     rays.push(b);
-    Ok(CornerTurn::Fan(rays.windows(2).map(|w| (w[0], w[1])).collect()))
+    Ok(CornerTurn::Fan(
+        rays.windows(2).map(|w| (w[0], w[1])).collect(),
+    ))
 }
 
 /// The fan about `p` normal to `outward` whose every chord stands past
@@ -3800,7 +3802,9 @@ pub(crate) mod rest {
     /// the other's bound along the same edge, or along a line edge where
     /// it is one too ([`kept_bound`]), or inside a
     /// cylinder's sector as a line on its carrier, a ruling
-    /// ([`on_carrier`]); else it is a tangency, [`TouchUnread::Unreadable`].
+    /// ([`on_carrier`]); else it is a tangency, kept where the sheets
+    /// along that ray part one order down ([`super::second_order::parts`])
+    /// and [`TouchUnread::Unreadable`] where they do not.
     /// Two closed sectors have no bounds, so each pair of them with a plane
     /// not its face's own is read for one plane, each against the other:
     /// two rays of one's fan a quarter turn apart on the other's plane,
@@ -4191,11 +4195,11 @@ mod round_rows;
 
 #[cfg(test)]
 mod cleared_rows;
-#[cfg(test)]
-mod tangent_rows;
 mod second_order;
 #[cfg(test)]
 mod second_order_rows;
+#[cfg(test)]
+mod tangent_rows;
 
 #[cfg(test)]
 mod tests {
@@ -5104,6 +5108,10 @@ mod tests {
     ///   and two in `either` (a hull where the scalar holds one);
     /// - no text is made of a number: no `format!(`, `format_args!`,
     ///   `write!`, `writeln!`, `write_fmt` or `to_string(`;
+    /// - the reading one order down (`link/second_order.rs`, a child
+    ///   module in its own file) holds to the module's rules: no
+    ///   `Margin::`, `decide(` or pairing, no bare sign reader, no
+    ///   structure read and no text made;
     /// - the boolean's side decides nothing of its own: none of the bare
     ///   sign readers above, no structure read, no text made, no reading
     ///   through the link's door (`sign_over`, `metric::`) and none

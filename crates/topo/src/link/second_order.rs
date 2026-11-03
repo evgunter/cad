@@ -169,7 +169,11 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
         for (other, _) in &rays[k + 1..] {
             let off = |f: &usize| {
                 matches!(
-                    metric::sign(LINK_PLANE, Distance::of(*other, p, horns[*f].outward), rd.band),
+                    metric::sign(
+                        LINK_PLANE,
+                        Distance::of(*other, p, horns[*f].outward),
+                        rd.band
+                    ),
                     Some(Sign::Positive | Sign::Negative)
                 )
             };
@@ -312,17 +316,17 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
         }
     }
     sheets.len() >= 2
-        && sheets.iter().enumerate().all(|(i, a)| {
-            sheets[i + 1..]
-                .iter()
-                .all(|b| apart(p, a, b, arm, rd))
-        })
+        && sheets
+            .iter()
+            .enumerate()
+            .all(|(i, a)| sheets[i + 1..].iter().all(|b| apart(p, a, b, arm, rd)))
 }
 
 /// Whether two sheets along a ray decidedly do not meet one order down
 /// but at an edge's point they share ([`parts`]).
 fn apart<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading<T>) -> bool {
-    let toward = |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
+    let toward =
+        |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
     if a.edge.is_some() && a.edge == b.edge {
         // One edge's two faces, from its one point: they part unless
         // they run on along one line one way.
@@ -341,7 +345,8 @@ fn apart<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading<
 /// Whether the sheet `b` decidedly does not meet the sheet `a`, read
 /// against `a`'s line in the cut ([`parts`]).
 fn misses<T: Decide>(p: Point3<T>, a: &Sheet<T>, b: &Sheet<T>, l: T, rd: Reading<T>) -> bool {
-    let toward = |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
+    let toward =
+        |v: Vec3<T>, n: Vec3<T>| metric::sign_over(LINK_PLANE, Distance::of(p + v * l, p, n), rd);
     // `b`'s anchor against a line through `a`'s, of normal `n`, with
     // `also` charged beside the anchors' first-order parting.
     let off = |n: Vec3<T>, also: Option<Distance<T>>| {

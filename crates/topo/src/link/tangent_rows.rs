@@ -148,11 +148,17 @@ fn a_corners_fan_turns_as_its_departures_do() {
         v(t.cos(), t.sin(), 0.0) * 2.0
     };
     for (deg, wedges) in [(90.0, 1), (191.0, 3), (300.0, 4), (180.0, 2)] {
-        let fan =
-            corner_fan(Point3::origin(), z, (at(0.0), at(deg)), [Vec3::zero(); 2], false, band())
-                .expect("a fan")
-                .fan()
-                .expect("a fan");
+        let fan = corner_fan(
+            Point3::origin(),
+            z,
+            (at(0.0), at(deg)),
+            [Vec3::zero(); 2],
+            false,
+            band(),
+        )
+        .expect("a fan")
+        .fan()
+        .expect("a fan");
         assert_eq!(fan.len(), wedges, "{deg}°: {fan:?}");
         for &(a, b) in &fan {
             let (a, b) = (a - Point3::origin(), b - Point3::origin());
@@ -173,7 +179,14 @@ fn a_corners_fan_turns_as_its_departures_do() {
     }
     assert!(
         matches!(
-            corner_fan(Point3::origin(), z, (at(0.0), at(0.0) * 0.5), [Vec3::zero(); 2], false, band()),
+            corner_fan(
+                Point3::origin(),
+                z,
+                (at(0.0), at(0.0) * 0.5),
+                [Vec3::zero(); 2],
+                false,
+                band()
+            ),
             Err(TouchUnread::Unreadable)
         ),
         "a cusp"
@@ -411,7 +424,14 @@ fn a_spurs_tip_is_the_whole_turn_and_a_cusp_refuses() {
         .expect("a spur's tip");
     assert_eq!(tip.len(), 4, "{tip:?}");
     assert!(matches!(
-        corner_fan(Point3::origin(), z, (d, d), [Vec3::zero(); 2], false, band()),
+        corner_fan(
+            Point3::origin(),
+            z,
+            (d, d),
+            [Vec3::zero(); 2],
+            false,
+            band()
+        ),
         Err(TouchUnread::Unreadable)
     ));
 }
@@ -471,7 +491,14 @@ fn a_near_full_turn_off_one_edge_is_a_cusp() {
     for d1 in [v(2.0, tiny, 0.0), v(2.0, -tiny, 0.0)] {
         assert!(
             matches!(
-                corner_fan(Point3::origin(), z, (d0, d1), [Vec3::zero(); 2], false, band()),
+                corner_fan(
+                    Point3::origin(),
+                    z,
+                    (d0, d1),
+                    [Vec3::zero(); 2],
+                    false,
+                    band()
+                ),
                 Err(TouchUnread::Unreadable)
             ),
             "{d1:?}"

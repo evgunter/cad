@@ -105,7 +105,8 @@ fn a_cusp_corner_reads_as_its_edges_bend<T: Decide>() {
     let (zero, escalate) = (band().zero(), band().escalate());
     // The parting `(κ₁ − κ₀)·ŷ·l²/2` at the arm `l = 2`.
     let past = (escalate + 0.5 * zero) / 2.0;
-    let rows: [(&str, Vec3<T>, [f64; 2], Option<bool>); 7] = [
+    type Row<T> = (&'static str, Vec3<T>, [f64; 2], Option<bool>);
+    let rows: [Row<T>; 7] = [
         ("in left of out", d, [1.0, 2.0], Some(true)),
         ("in right of out", d, [2.0, 1.0], Some(false)),
         ("alike", d, [1.0, 1.0], None),
@@ -125,7 +126,7 @@ fn a_cusp_corner_reads_as_its_edges_bend<T: Decide>() {
         ("along the normal", d, [f64::NAN, f64::NAN], None),
     ];
     for p in apexes::<T>() {
-        for (what, d1, [k0, k1], horn) in rows.clone() {
+        for (what, d1, [k0, k1], horn) in rows {
             let bends = if k0.is_nan() {
                 [v(0.0, 0.0, 1.0), v(0.0, 0.0, 3.0)]
             } else {
@@ -213,7 +214,11 @@ fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
             unread,
             "a thorn inside a plane's material at {p:?}"
         );
-        assert_eq!(read(p, thorn(p, keys, true)), unread, "a needle alone at {p:?}");
+        assert_eq!(
+            read(p, thorn(p, keys, true)),
+            unread,
+            "a needle alone at {p:?}"
+        );
         assert!(
             rest(&read(p, with(thorn(p, keys, true), toward()))),
             "a needle inside a plane's material at {p:?}"
@@ -235,7 +240,12 @@ fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
             let mut pieces = thorn(p, keys, false);
             let b = bound(k[2], [0.0, 2.0, 0.0]);
             let a = bound(k[1], [0.0, 1.0, 0.0]);
-            pieces[1] = corner(p, v(0.0, 0.0, 1.0), (d, d), [bound(k[0], [0.0, 0.0, 0.0]), b]);
+            pieces[1] = corner(
+                p,
+                v(0.0, 0.0, 1.0),
+                (d, d),
+                [bound(k[0], [0.0, 0.0, 0.0]), b],
+            );
             pieces[2] = corner(p, v(0.0, 0.0, -1.0), (d, d), [b, a]);
             pieces
         };
@@ -337,10 +347,7 @@ fn wedge_over_a_plane<T: Decide>(p: Point3<T>, up: f64) -> Vec<TangentPiece<T>> 
 /// side of the groove.
 fn a_grooves_mouth<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
     let k = edges(4);
-    let (out, back) = (
-        bound(k[0], [0.0, 1.0, 0.0]),
-        bound(k[1], [0.0, -1.0, 0.0]),
-    );
+    let (out, back) = (bound(k[0], [0.0, 1.0, 0.0]), bound(k[1], [0.0, -1.0, 0.0]));
     let (right_edge, left_edge) = (bound(k[2], [0.0; 3]), bound(k[3], [0.0; 3]));
     let x = v::<T>(2.0, 0.0, 0.0);
     let s = core::f64::consts::FRAC_1_SQRT_2;
@@ -392,7 +399,10 @@ fn sheets_along_one_ray_part_by_their_bends<T: Decide>() {
             unread,
             "an arc bending through a plane at {p:?}"
         );
-        assert!(rest(&read(p, a_grooves_mouth(p))), "a groove's mouth at {p:?}");
+        assert!(
+            rest(&read(p, a_grooves_mouth(p))),
+            "a groove's mouth at {p:?}"
+        );
     }
 }
 
@@ -408,11 +418,7 @@ fn sheets_along_one_ray_part_by_their_bends_interval() {
 
 /// A horn at `p` of outward unit `m` along `ends`, held as built: what
 /// [`FaceSector::tangent_piece`] keeps of a cusp corner it reads as one.
-fn horn<T: Real>(
-    p: Point3<T>,
-    m: Vec3<T>,
-    ends: [(Vec3<T>, Bound<T>); 2],
-) -> TangentPiece<T> {
+fn horn<T: Real>(p: Point3<T>, m: Vec3<T>, ends: [(Vec3<T>, Bound<T>); 2]) -> TangentPiece<T> {
     TangentPiece::Horn(Horn {
         outward: m,
         apex: p,
@@ -455,7 +461,10 @@ fn a_thorn_is_read_with_its_first_order_charged<T: Decide>() {
     };
     for p in apexes::<T>() {
         assert!(
-            matches!(read(p, thin(p, [0.0, 0.0, beta], 0.0)), TouchVerdict::Rest(_)),
+            matches!(
+                read(p, thin(p, [0.0, 0.0, beta], 0.0)),
+                TouchVerdict::Rest(_)
+            ),
             "a thin thorn at {p:?}"
         );
         assert_eq!(
@@ -504,7 +513,10 @@ fn a_thorn_is_read_with_its_first_order_charged_interval() {
 /// the normal `(0, −tilt, 1)`.
 fn two_wedges_tilted<T: Decide>(p: Point3<T>, rise: f64, tilt: f64) -> Vec<TangentPiece<T>> {
     let k = edges(2);
-    let (e1, e2) = (bound(k[0], [0.0, -1.0, rise]), bound(k[1], [0.0, -3.0, 0.0]));
+    let (e1, e2) = (
+        bound(k[0], [0.0, -1.0, rise]),
+        bound(k[1], [0.0, -3.0, 0.0]),
+    );
     let x = v::<T>(2.0, 0.0, 0.0);
     let n = Vec3::new(0.0, -tilt, 1.0).normalize();
     vec![
@@ -527,7 +539,10 @@ fn a_sheet_along_anothers_line_is_read_with_its_lean_charged<T: Decide>() {
     let rise = (escalate + 0.5 * zero) / 2.0;
     for p in apexes::<T>() {
         assert!(
-            matches!(read(p, two_wedges_tilted(p, rise, 0.0)), TouchVerdict::Rest(_)),
+            matches!(
+                read(p, two_wedges_tilted(p, rise, 0.0)),
+                TouchVerdict::Rest(_)
+            ),
             "two wedges, one above the other's line, at {p:?}"
         );
         assert_eq!(
@@ -612,7 +627,10 @@ fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
     let up = (escalate + 0.5 * zero) / 2.0;
     for p in apexes::<T>() {
         assert!(
-            matches!(read(p, wedge_over_a_sheet(p, up, 0.0, false)), TouchVerdict::Rest(_)),
+            matches!(
+                read(p, wedge_over_a_sheet(p, up, 0.0, false)),
+                TouchVerdict::Rest(_)
+            ),
             "an arc just past the escalation off a plane at {p:?}"
         );
         assert_eq!(
