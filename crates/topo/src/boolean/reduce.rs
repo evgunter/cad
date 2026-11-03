@@ -8959,6 +8959,227 @@ mod spline_face_rows {
         );
     }
 
+    /// Review probe (claim 3): an ANALYTIC boundary edge (the chord, a
+    /// line) of a spline face, met by a line across it, reaches the held
+    /// branch. The held parameter and the read-back the held branch
+    /// replaces are compared, and so are the two splits' children.
+    #[test]
+    fn review_a_meeting_on_an_analytic_boundary_edge_of_a_spline_face_reaches_the_held_branch() {
+        use crate::boolean::contain::FaceContainment;
+        use geom::surfaces::nurbs::NurbsSurface;
+        use geom_core::spline::KnotVector;
+        let tol = Tol::witness();
+        let (mut y, face, arc) = super::curved_lane_spline_rows::spline_sheet(
+            [
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 2.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            [1.0; 3],
+            Vec3::unit_z(),
+        );
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(1).unwrap());
+        let control = vec![
+            Point3::new(-1.0, -1.0, 0.0),
+            Point3::new(-1.0, 3.0, 0.0),
+            Point3::new(3.0, -1.0, 0.0),
+            Point3::new(3.0, 3.0, 0.0),
+        ];
+        let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
+        y.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::construction::Rechart::new(
+                    Surface::Nurbs(std::sync::Arc::new(patch)),
+                    face,
+                    true,
+                )],
+                &[],
+                tol,
+            )
+        })
+        .unwrap();
+        let cases: &[([f64; 2], [f64; 2])] = &[
+            ([0.7, 0.5], [0.7, -0.5]),
+            ([0.3, 0.6], [1.1, -0.4]),
+            ([0.123456789, 0.31], [1.7654321, -0.27]),
+            ([1.9, 0.05], [1.95, -0.05]),
+            ([0.05, 0.05], [0.0999, -0.05]),
+        ];
+        for &(a, b) in cases {
+            let mut x = Body::<f64>::new();
+            let seed = x.mvfs(Point3::new(a[0], a[1], 0.0), true).unwrap();
+            let ek = x
+                .mev_line(
+                    crate::construction::MevSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    Point3::new(b[0], b[1], 0.0),
+                    tol,
+                )
+                .unwrap()
+                .edge;
+            let mut yy = y.clone();
+            let mut acc = ContactAcc::default();
+            let event = arm(&x, ek, &mut yy, face, &mut acc);
+            let (p, ey, on_edge) = match event {
+                Ok(CurvedEvent::Pierce {
+                    p,
+                    at: FaceContainment::OnEdge(e),
+                    on_edge,
+                    ..
+                }) => (p, e, on_edge),
+                other => {
+                    eprintln!("REVIEW case {a:?}->{b:?}: {other:?}");
+                    continue;
+                }
+            };
+            assert_ne!(ey, arc, "lands on the chord");
+            let curve = super::certified(yy.get_edge(ey).and_then(|e| yy.get_curve_geom(e.curve)))
+                .unwrap()
+                .clone();
+            let old = super::point_param(&yy, Operand::B, ey, &curve, p).unwrap();
+            eprintln!(
+                "REVIEW case {a:?}->{b:?}: held {on_edge:?} read-back {old:?} diff {:e} carrier(held)-p {:e} carrier(old)-p {:e}",
+                on_edge.map_or(f64::NAN, |s| s - old),
+                on_edge.map_or(f64::NAN, |s| (curve.carrier().eval(s) - p).norm()),
+                (curve.carrier().eval(old) - p).norm(),
+            );
+            let mut y_new = yy.clone();
+            let mut y_old = yy.clone();
+            let by = crate::boolean::Cell::Edge(ek);
+            let w_new = super::split_other_at_point(
+                &mut y_new,
+                Operand::B,
+                ey,
+                (p, on_edge),
+                by,
+                band(),
+                tol,
+                &mut ContactAcc::default(),
+            )
+            .unwrap();
+            let w_old = super::split_other_at_point(
+                &mut y_old,
+                Operand::B,
+                ey,
+                (p, None),
+                by,
+                band(),
+                tol,
+                &mut ContactAcc::default(),
+            )
+            .unwrap();
+            let pn = y_new.resolve_vertex_point(w_new, crate::live::Proven);
+            let po = y_old.resolve_vertex_point(w_old, crate::live::Proven);
+            assert!((pn - po).norm() == 0.0, "vertex point");
+            let params = |b: &Body<f64>| {
+                let mut v: Vec<(f64, f64)> = b
+                    .edges()
+                    .filter_map(|(_, e)| b.get_curve_geom(e.curve))
+                    .filter_map(|c| c.certified().map(|c| c.params()))
+                    .collect();
+                v.sort_by(|l, r| l.partial_cmp(r).unwrap());
+                v
+            };
+            eprintln!(
+                "REVIEW   params new {:?}\nREVIEW   params old {:?}",
+                params(&y_new),
+                params(&y_old)
+            );
+            let s = on_edge.expect("an analytic edge reaches the held branch");
+            assert!(
+                (s - old).abs() <= 1e-12,
+                "the held parameter is the read-back's to the meeting's certificate: {s} vs {old}"
+            );
+        }
+    }
+
+    /// Review probe (claim 4): a line across the chord `δ = c·ε` from its
+    /// end at the origin vertex, at every ε row: the held parameter is
+    /// carried only with an `OnEdge` placement, and the split it drives
+    /// either mints the vertex at `p` or refuses typed.
+    #[test]
+    fn review_a_meeting_eps_from_a_boundary_edges_end() {
+        use crate::boolean::contain::FaceContainment;
+        use geom::surfaces::nurbs::NurbsSurface;
+        use geom_core::spline::KnotVector;
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let (mut y, face, _arc) = super::curved_lane_spline_rows::spline_sheet(
+            [
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 2.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            [1.0; 3],
+            Vec3::unit_z(),
+        );
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(1).unwrap());
+        let control = vec![
+            Point3::new(-1.0, -1.0, 0.0),
+            Point3::new(-1.0, 3.0, 0.0),
+            Point3::new(3.0, -1.0, 0.0),
+            Point3::new(3.0, 3.0, 0.0),
+        ];
+        let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
+        y.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::construction::Rechart::new(
+                    Surface::Nurbs(std::sync::Arc::new(patch)),
+                    face,
+                    true,
+                )],
+                &[],
+                tol,
+            )
+        })
+        .unwrap();
+        for c in [
+            0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0, 30.0, 100.0, 1e3, 1e4,
+        ] {
+            let d = c * eps;
+            let mut x = Body::<f64>::new();
+            let seed = x.mvfs(Point3::new(d, d, 0.0), true).unwrap();
+            let ek = x
+                .mev_line(
+                    crate::construction::MevSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    Point3::new(d, -0.1, 0.0),
+                    tol,
+                )
+                .unwrap()
+                .edge;
+            let mut yy = y.clone();
+            let event = arm(&x, ek, &mut yy, face, &mut ContactAcc::default());
+            match event {
+                Ok(CurvedEvent::Pierce { p, at, on_edge, .. }) => {
+                    let split = match at {
+                        FaceContainment::OnEdge(ey) => Some(
+                            super::split_other_at_point(
+                                &mut yy.clone(),
+                                Operand::B,
+                                ey,
+                                (p, on_edge),
+                                crate::boolean::Cell::Edge(ek),
+                                band(),
+                                tol,
+                                &mut ContactAcc::default(),
+                            )
+                            .map(|_| ()),
+                        ),
+                        _ => {
+                            assert!(on_edge.is_none(), "held only OnEdge");
+                            None
+                        }
+                    };
+                    eprintln!("REVIEW eps {eps:e} c {c}: {at:?} held {on_edge:?} split {split:?}");
+                }
+                other => eprintln!("REVIEW eps {eps:e} c {c}: {other:?}"),
+            }
+        }
+    }
+
     /// The twisted sheet `(u, v, 0.6·u·v)` over `[¼, ¾]²`, and a body
     /// holding the one line edge from `p` to `q`.
     fn twisted_and_a_line(
