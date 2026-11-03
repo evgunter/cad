@@ -206,8 +206,8 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
             head_at(base, in_part(base, base_body, CapEnd::End)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), x),
-            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::slide(TargetAxis::X), x),
+            (Coord::slide(TargetAxis::Y), len(1.0)),
             (Coord::SPIN, turn),
         ],
     );
@@ -581,8 +581,8 @@ fn a4_the_same_bundle_without_the_key_loads() {
         coords,
         [
             Coord::SPIN,
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
         ],
         "the rest's values come back as written: the spin given, then the zeros"
     );

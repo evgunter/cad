@@ -152,8 +152,8 @@ fn seat(
         top,
         fixture::rest(bottom, base_top),
         &[
-            (Coord::Slide(TargetAxis::X), len(1.0)),
-            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::slide(TargetAxis::X), len(1.0)),
+            (Coord::slide(TargetAxis::Y), len(1.0)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     )

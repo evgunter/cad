@@ -3086,6 +3086,15 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
+            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+                constraints
+                    .iter()
+                    .filter_map(|c| {
+                        let coord = &c.value()?.coord;
+                        Some((coord.seat(c.id), coord.read()?.role))
+                    })
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }
@@ -3100,6 +3109,17 @@ impl<P, S: Slot> Node<P, S> {
         match (self, seat) {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
+            (
+                Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
+                O::Along { constraint } | O::About { constraint },
+            ) => constraints
+                .iter_mut()
+                .find(|c| c.id == constraint)
+                .and_then(|c| match &mut c.kind {
+                    crate::mate::ConstraintKind::Value(v) => v.coord.read_mut(),
+                    crate::mate::ConstraintKind::Mate(_) => None,
+                })
+                .map(|read| &mut read.role),
             _ => None,
         }
     }
@@ -3602,27 +3622,20 @@ where
 }
 
 /// **A bundle's pose reads**, each at its seat
-/// ([`crate::OperandSlot::Side`]), in bundle order, `on` before a pose
-/// `to` (a world read reads no variable).
+/// ([`crate::OperandSlot::Side`], [`crate::OperandSlot::Along`],
+/// [`crate::OperandSlot::About`]), in bundle order, a mate's `on` before
+/// its `to`.
 fn side_rows<S: Slot>(
     constraints: &[crate::mate::Constraint<S>],
 ) -> Vec<(crate::OperandSlot, S::Read)>
 where
     S::Read: Clone,
 {
-    let mut out = Vec::new();
-    for c in constraints {
-        let seat = |side| crate::OperandSlot::Side {
-            constraint: c.id,
-            side,
-        };
-        let Some(mate) = c.mate() else {
-            continue;
-        };
-        out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
-        out.push((seat(crate::mate::MateSide::To), mate.to.clone()));
-    }
-    out
+    constraints
+        .iter()
+        .flat_map(crate::mate::Constraint::reads)
+        .map(|(seat, read)| (seat, read.clone()))
+        .collect()
 }
 
 /// [`side_rows`], writable, in the same order.
@@ -3636,11 +3649,18 @@ fn side_rows_mut<S: Slot>(
             constraint: id,
             side,
         };
-        let Some(crate::mate::Mate { on, to, .. }) = c.mate_mut() else {
-            continue;
-        };
-        out.push((seat(crate::mate::MateSide::On), on));
-        out.push((seat(crate::mate::MateSide::To), to));
+        match &mut c.kind {
+            crate::mate::ConstraintKind::Mate(crate::mate::Mate { on, to, .. }) => {
+                out.push((seat(crate::mate::MateSide::On), on));
+                out.push((seat(crate::mate::MateSide::To), to));
+            }
+            crate::mate::ConstraintKind::Value(value) => {
+                let at = value.coord.seat(id);
+                if let Some(read) = value.coord.read_mut() {
+                    out.push((at, &mut read.read));
+                }
+            }
+        }
     }
     out
 }
@@ -3654,20 +3674,6 @@ fn map_constraints<S: Slot, S2: Slot, E>(
 ) -> Result<Vec<crate::mate::Constraint<S2>>, E> {
     constraints
         .iter()
-        .map(|c| {
-            let id = c.id;
-            c.try_map(
-                |side, r| {
-                    read(
-                        crate::OperandSlot::Side {
-                            constraint: id,
-                            side,
-                        },
-                        r,
-                    )
-                },
-                f,
-            )
-        })
+        .map(|c| c.try_map(&mut *read, f))
         .collect()
 }

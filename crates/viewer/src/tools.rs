@@ -886,7 +886,13 @@ impl Tools {
                     }
                 }
                 Some(OpenTool::Pattern(tool)) => {
-                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                    match selection {
+                        Selection::Edge(edge) => tool
+                            .pick_direction(doc, crate::combine::DirectionPick::Edge(edge.clone())),
+                        Selection::Face(face) => tool
+                            .pick_direction(doc, crate::combine::DirectionPick::Face(face.clone())),
+                        _ => on_body_pick(selection, |node, body| tool.pick_at(doc, node, body)),
+                    }
                 }
                 Some(OpenTool::Part(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));

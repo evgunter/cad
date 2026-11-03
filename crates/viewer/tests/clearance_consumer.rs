@@ -741,7 +741,7 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
             input: left.into(),
             count: 3,
             rule: viewer::session::PatternRuleSpec::Linear {
-                direction: viewer::test_support::scl3([0.0, 1.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
                 spacing: len(0.05),
             },
         },
@@ -872,7 +872,7 @@ fn member_scene(
             input: left.into(),
             count: 3,
             rule: viewer::session::PatternRuleSpec::Linear {
-                direction: viewer::test_support::scl3([0.0, 1.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
                 spacing: len(0.05),
             },
         },
