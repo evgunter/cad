@@ -992,8 +992,7 @@ pub enum SectionRead<T: Real> {
 /// no bounded side asked with no `region` ([`SectionError::NoRegion`]);
 /// a spline and an implicit surface asked with no `lane`
 /// ([`SectionError::NoMarch`]), and with one, the pass's and the whole
-/// reading's refusals, mapped by name, and a curved partner's declined
-/// sweep ([`SectionError::RoutesToGeneralRung`]; [`spline_implicit`]).
+/// reading's refusals, mapped by name ([`spline_implicit`]).
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
@@ -1627,9 +1626,11 @@ impl<T: Decide> PairSection<T> {
     /// carrier's period), and the joined carrier is certified again
     /// against the pose's operands through `lane`, since the shifted
     /// knots are rounded. The seated carrier runs from `at`'s point
-    /// round to it. A component that is open, or whose carrier is a
-    /// closed form, is returned as it is: a closed form's parameter is an
-    /// angle, which a chord reads on any branch.
+    /// round to it. A closed form (a circle or an ellipse, whose
+    /// parameter is an angle) is seated by its span alone, `at` to `at`
+    /// plus a turn, its carrier as it is and its witness the new span's
+    /// middle. A component that is open, or a
+    /// spline holding no certificate, is returned as it is.
     ///
     /// # Errors
     ///
@@ -1643,7 +1644,19 @@ impl<T: Decide> PairSection<T> {
         at: T,
         band: Band,
     ) -> Result<CarriedComponent<T>, CarryError> {
-        if !component.closed() || component.certificate.is_none() {
+        if !component.closed() {
+            return Ok(component.clone());
+        }
+        if matches!(component.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+            let (lo, hi) = component.span;
+            let span = (at, at + (hi - lo));
+            return Ok(CarriedComponent {
+                span,
+                witness: component.carrier.mid_point(span.0, span.1),
+                ..component.clone()
+            });
+        }
+        if component.certificate.is_none() {
             return Ok(component.clone());
         }
         let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
@@ -1729,11 +1742,11 @@ pub struct SsiLane<T: Real> {
     /// A spline wall and an implicit surface's classification past what
     /// the scalar reads ([`spline_implicit`]): a curved partner's hull and
     /// door, the boundary pass, the regularity sweep, and where it
-    /// declines a plane's whole reading.
+    /// declines the whole reading.
     spline: fn(SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
-    /// A spline wall and an implicit surface's section read whole, on the
-    /// pass its classification carried: a plane's; a curved partner's
-    /// is unbuilt.
+    /// A spline wall and an implicit surface's section read whole: a
+    /// plane's on the pass its classification carried, a curved
+    /// partner's on the 1×2 trace.
     whole: fn(&SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// Two spline walls' section, read whole ([`spline_pair`]).
     spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,

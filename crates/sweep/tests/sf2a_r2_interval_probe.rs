@@ -128,6 +128,9 @@ fn interval_offset_planes_together_hexagon() {
                 "the enclosure contains the exact inset volume {want}"
             );
         }
-        Err(e) => println!("[r2a-interval] hexagon inset: refused/escalated, {e}"),
+        Err(e) => println!(
+            "[r2a-interval] hexagon inset: refused/escalated, {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }

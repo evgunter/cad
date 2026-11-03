@@ -60,7 +60,7 @@ pub mod program;
 /// query whose answer is meant to REPLACE the sampling probe's
 /// reading, in a consumer nothing in this tree has built yet
 /// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/lib/certified-range-has-no-python-door`). The certificate IS
+/// `work/pydoor/certified-range-has-no-python-door`). The certificate IS
 /// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
 /// be the sampler it exists to improve on.
 pub mod range;
@@ -145,11 +145,11 @@ pub use eval::{
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
     EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError,
     NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault,
-    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
-    traced_faces,
+    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped, ValuePayload,
+    evaluate, traced_faces,
 };
 pub use refusal::Refusal;
-pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
+pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
     SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,

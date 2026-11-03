@@ -5707,7 +5707,7 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
 /// Booleans), for the two doors that share it: the Boolean's [`gate`]
 /// and [`crate::splitting::split`]. The other doors that gate at rest
 /// type on their own
-/// (`work/cleave/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
+/// (`work/onehome/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
 /// A result read in band is the operands' ill-conditioning, which
 /// definite cuts can compose: where every finding is a reading in band of
 /// a shell's role (check 10) or a solid's orientation (check 7) — an
@@ -6828,23 +6828,23 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         let src: &Body<T> = if operand == Operand::A { a } else { b };
         let corrupt = |what| BooleanError::ClassificationInvariant { what };
         let solid = single_solid(src).map_err(|_| corrupt("re-cut operand is not one solid"))?;
-        // Shell of each group's representative face, arena order.
-        let shell_of = |face: FaceKey| -> Result<ShellKey, BooleanError> {
-            src.shells()
-                .find(|(_, sd)| sd.faces.contains(&face))
-                .map(|(k, _)| k)
-                .ok_or(corrupt("re-cut representative face has no shell"))
-        };
         let mut rotated: Vec<(Body<T>, Vec<FaceKey>)> = Vec::new();
         let mut cut_shells: Vec<ShellKey> = Vec::new();
         for r in &mine {
-            let shell = shell_of(r.representative)?;
+            // The representative is a face of the at-rest operand the
+            // scan read, so it and its `shell` link resolve (D2 row 4).
+            let face = r.representative;
+            let shell = proven(&src.faces, face, EntityId::Face).shell;
             cut_shells.push(shell);
-            let faces = src
-                .get_shell(shell)
-                .ok_or(corrupt("re-cut shell lost"))?
-                .faces
-                .clone();
+            let faces = linked(
+                &src.shells,
+                shell,
+                EntityId::Shell,
+                EntityId::Face(face),
+                "shell",
+            )
+            .faces
+            .clone();
             let ball = carve(src, solid, &[shell])
                 .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
@@ -6912,9 +6912,9 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push((turned, faces));
         }
-        let keep: Vec<ShellKey> = src
-            .shells_of_solid(solid)
-            .ok_or(corrupt("re-cut solid lost"))?
+        // `single_solid` resolved `solid` on this operand.
+        let keep: Vec<ShellKey> = proven(&src.solids, solid, EntityId::Solid)
+            .shells
             .iter()
             .copied()
             .filter(|s| !cut_shells.contains(s))
@@ -8069,7 +8069,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
                     face,
                     by: fe.kept,
                     kind: e.kind(),
-                    what: e.to_string(),
+                    what: e.render(geom_brep::recourse::Reading::Build),
                 }));
             }
             (Err(e), _) => {
@@ -8755,7 +8755,7 @@ mod tests {
         assert_eq!(
             gate(described, band, tol)
                 .map(|_| ())
-                .map_err(|e| e.to_string()),
+                .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
             Ok(()),
             "the described box passes"
         );
@@ -9203,7 +9203,7 @@ mod tests {
         // The refusal names the face kind that stopped it and ends on
         // what the person can do; the lift blocker is the variant's
         // rustdoc, not the sentence.
-        let msg = err.to_string();
+        let msg = err.render(geom_brep::recourse::Reading::Build);
         assert!(msg.contains("spline (NURBS) face"), "{msg}");
         assert!(msg.contains("Recourse: "), "{msg}");
     }
@@ -10264,7 +10264,7 @@ mod tests {
             &[(kept, strut)],
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ))
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("seam") && !text.contains("kept face"),
             "the boolean words it as its own seam's: {text}"
@@ -10391,7 +10391,7 @@ mod tests {
                 format!("{own:?}"),
                 "the merge door's refusal comes back as the boolean's own"
             );
-            (merged.to_string(), own)
+            (merged.render(geom_brep::recourse::Reading::Build), own)
         };
         let lever = "Recourse: move the geometry so each edge and vertex that meets a face lies \
                      clearly on it or clearly off it, and an edge that ends on it leaves it at a \
@@ -10409,7 +10409,7 @@ mod tests {
             "a line chord read in band of its face is the edge's reading: {err:?}"
         );
         assert_eq!(
-            err.to_string(),
+            err.render(geom_brep::recourse::Reading::Build),
             format!(
                 "whether an edge of the result lies on both faces it bounds is undecided: {}. \
                  {lever}",

@@ -1516,7 +1516,7 @@ fn nested<T: Decide>(
 /// flush faces. No pose reaches it, and the answer is unwitnessed, so
 /// it refuses: a limit of the reading, in the invariant's voice until
 /// a typed limit lands
-/// (`work/cleave/a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug.md`).
+/// (`work/cleavetail/a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug.md`).
 fn tied_held<T: Decide>(
     secs: &[BoolSector<T>],
     (own, own_leaves): (Cut<T>, bool),
@@ -2130,7 +2130,7 @@ fn orbit_step_at<T: geom_core::Real>(
 /// leaves the same line. That pose is not an invariant break, and no
 /// pose reaches it, so the read tie refuses unwitnessed: a limit, in
 /// the invariant's voice until a typed limit lands
-/// (`work/cleave/a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug.md`).
+/// (`work/cleavetail/a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug.md`).
 fn strut_anchor<T: Decide>(
     body: &Body<T>,
     (operand, vertex): (Operand, VertexKey),
@@ -3703,7 +3703,12 @@ mod tests {
             ),
             "{err:?}"
         );
-        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+        assert!(
+            err.render(geom_brep::recourse::Reading::Build)
+                .ends_with(KERNEL_DEFECT_ENDING),
+            "{err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// The strut order ranks two germs by their angle from the arrival

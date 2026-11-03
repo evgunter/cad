@@ -2,7 +2,7 @@
 id: wirerefuse
 kind: program
 title: WIREREFUSE — WIRE's refusal tail: endings typed by the wrong D9 row, recourse labels spelled by hand or missing, and the eval doors' record and index plumbing
-status: active
+status: ready
 opened: 2026-10-28
 group: api/eval
 prefix: wirerefuse/

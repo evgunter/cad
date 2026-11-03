@@ -61,7 +61,12 @@ fn mirror_oval<T: AtRestPolicy>(sigma: f64) -> (Body<T>, [HalfEdgeKey; 2]) {
             FaceSurface::Inherit,
             tol,
         )
-        .unwrap_or_else(|e| panic!("axis {sigma}: the closed oval edge: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "axis {sigma}: the closed oval edge: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     (body, [made.he_plus, made.he_minus])
 }
 
@@ -70,8 +75,12 @@ fn a_whole_spiric_oval_closes_one_edge_on_its_mirror_torus<T: AtRestPolicy + Bou
     let band = Band::linear(tol).unwrap();
     for sigma in [1.0, -1.0] {
         let (mut body, hes) = mirror_oval::<T>(sigma);
-        topo::mint_pcurves(&mut body, tol)
-            .unwrap_or_else(|e| panic!("axis {sigma}: the mint refuses: {e}"));
+        topo::mint_pcurves(&mut body, tol).unwrap_or_else(|e| {
+            panic!(
+                "axis {sigma}: the mint refuses: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         for he in hes {
             let row = body
                 .pcurve(he)
@@ -144,8 +153,12 @@ fn the_oval_on_its_mirror_torus_mirrors<T: AtRestPolicy + Bounds>() {
         ] {
             let at = format!("axis {sigma}, across {plane} = 0");
             let reflection = topo::Reflection::across(Point3::origin(), normal, tol).unwrap();
-            let image = topo::mirror_body(&body, &reflection, tol)
-                .unwrap_or_else(|e| panic!("{at}: the mirror refuses: {e}"));
+            let image = topo::mirror_body(&body, &reflection, tol).unwrap_or_else(|e| {
+                panic!(
+                    "{at}: the mirror refuses: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert_eq!(
                 topo::validate(&image),
                 topo::validate(&body),

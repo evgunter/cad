@@ -1,5 +1,5 @@
 //! **A curved face crossed more than twice is chorded along the arcs
-//! inside it** (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`,
+//! inside it** (`split-pairs-curved-face-crossings-across-the-wrong-arc` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`),
 //! PR 3718 review): steep splits of cylinders at many seam turns, of
 //! tubes (concentric and eccentric bores, `sense: false` walls), of a
 //! keyed cylinder made by `topo::subtract`, and planes through a seam's

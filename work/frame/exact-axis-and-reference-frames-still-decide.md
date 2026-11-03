@@ -4,6 +4,9 @@ kind: issue
 title: An axis-aligned frame given as an exact axis and an exact reference still pays the aim mint's decision
 status: open
 opened: 2026-10-21
+priority: P4
+cost: M
+design: true
 ---
 
 ## What

@@ -1,7 +1,7 @@
 ---
 id: a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed
 kind: issue
-title: A box corner within a fraction of the band of a cone's apex refuses EdgeUndescribed box first, while cone first builds
+title: A box corner or edge within a fraction of the band of a cone's apex refuses EdgeUndescribed box first, while cone first builds
 status: open
 opened: 2026-11-02
 priority: P2
@@ -39,3 +39,25 @@ refusing. Cone first, the apex vertex is placed against the box's
 faces first. Trace which rung answers `EdgeUndescribed`, and whether a
 corner in the band should be read as at the apex, the vertex pair's,
 in both orders.
+
+## The edge pose (2026-11-03, SPLITDOOR B2 fix pass)
+
+The DUAL review of PR 6424 (stage B2), reviewer R1, found the same
+refusal for an EDGE ending a fraction of the band off the apex, not a
+corner: the 45° cone, both forms, against the box
+`[0, 2] × [0.55, 1] × [±0.3ε, 2.3]` turned `0.4` about the axis, its
+edge along `x` at `z = ±0.3ε` passing three tenths of a band from the
+apex. Box first, `∩` and `box ∖ cone` refuse `EdgeUndescribed`
+(`AnalyticRung3`'s `KernelLimit` on the cone, a bound of about `2e-9`);
+cone first, both build. Same rung, same order dependence, so it is
+folded in here rather than filed apart.
+
+It is pinned as it stands, both orders:
+`crates/sweep/tests/a_cone_apex_on_an_edge.rs`,
+`an_edge_ending_just_off_the_apex_refuses_box_first_and_builds_cone_first`.
+That row reproduces the class on the main tree, which the corner pose
+above needed R1's harness for. When the fix lands, the row's box-first
+arm flips to building, and the corner poses can join it.
+
+— SPLITDOOR
+

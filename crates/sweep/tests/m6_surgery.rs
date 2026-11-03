@@ -115,7 +115,12 @@ fn pip_tool() -> AtRestBody<f64> {
             SweepStrategy::Realized,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("assembling the pip tool: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "assembling the pip tool: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body()
         .expect("a body")
         .body
@@ -133,7 +138,12 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "pip subtraction: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     out.body().expect("a body").body.clone().into_body()
 }
 
@@ -433,11 +443,14 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
                     .is_some_and(|m| (m - -0.05).abs() < 1e-15)
             );
         }
-        other => panic!("expected RingClearance, got {other}"),
+        other => panic!(
+            "expected RingClearance, got {other_at}",
+            other_at = other.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     let text = ring_clearance(face, sweep::blend::Convexity::Convex, -0.05, band())
         .unwrap_err()
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("ring") && text.contains("reduce the blend size"),
         "refusal names the situation and the recourse: {text}"
@@ -449,11 +462,16 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
         sweep::blend::BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
         }
-        other => panic!("expected Escalated, got {other}"),
+        other => panic!(
+            "expected Escalated, got {other_at}",
+            other_at = other.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     assert!(
-        err.to_string().contains("reduce the blend size"),
-        "the escalated arm shares the definite arm's recourse: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("reduce the blend size"),
+        "the escalated arm shares the definite arm's recourse: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -475,7 +493,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         Tol::witness(),
     )
     .expect_err("a curved end face is a run-out, not built");
-    let text = format!("{err}");
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains(sweep::blend::battery::END_FACE_CURVED),
         "the refusal names the run-out gap: {text}"
@@ -502,7 +520,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         Tol::witness(),
     )
     .expect_err("an open rim arc stops at a seam vertex");
-    let text = format!("{err}");
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("chart-seam vertex") && text.contains("request the rim whole"),
         "the refusal names the seam vertex and the whole rim: {text}"

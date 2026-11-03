@@ -941,7 +941,8 @@ fn checks_err_saying(py: Python<'_>, err: &d::ChecksError, message: String) -> P
         // the WHOLE document; none has a node to name.
         d::ChecksError::Band { .. }
         | d::ChecksError::EvaluationOfAnotherDocument { .. }
-        | d::ChecksError::Product { .. } => none(),
+        | d::ChecksError::Product { .. }
+        | d::ChecksError::Canceled(_) => none(),
     };
     typed_err(
         py,
@@ -1024,7 +1025,9 @@ pub(crate) fn run_checks(
         .paired_with(doc)
         .map_err(|m| mispaired_checks(py, m))?;
     evaluation
-        .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
+        .gathered(|memo, doc, ev| {
+            crate::product_memo::checks_report(memo, doc, ev, cfg, evaluation.stop(), tol)
+        })
         .map(|report| ChecksReport {
             report,
             doc: evaluation.doc_shared(),

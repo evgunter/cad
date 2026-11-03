@@ -135,7 +135,7 @@
 //!   instead returns the true volumes with the hole's wall touching the
 //!   cut face's interior along the contact, with no edge for it, and
 //!   tier 3 passes that
-//!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
+//!   (`tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 //! - A convex wall whose material, read at first order, lies across
 //!   from its `S`-ON-`S` neighbours disagrees with them (they are curves
 //!   on the same wall) and refuses as a sliver
@@ -1435,7 +1435,7 @@ mod tests {
     /// A refusal's ending is the split's lever alone, after a payload
     /// that is not the poisoned-margin sentence.
     fn ends_in_the_lever(label: &str, e: &SplitReduceError) {
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(&format!(
                 ". Recourse: {}",
@@ -1508,8 +1508,10 @@ mod tests {
         };
         assert!((m.abs() - 1.0).abs() <= 1e-15, "{label}: the margin {m}");
         assert!(
-            e.to_string().contains("within the zero band"),
-            "{label}: {e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("within the zero band"),
+            "{label}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
         ends_in_the_lever(label, e);
     }
@@ -1697,7 +1699,7 @@ mod tests {
                 face: FaceKey::default(),
                 reading,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(want.as_str()), "{label}: {text}");
         }
     }

@@ -578,22 +578,6 @@ impl<T: Decide> CylinderCylinderPose<T> {
         Some((foot, normals))
     }
 
-    /// **The plane the parallel pose's rulings lie in** (their radical
-    /// plane, square to the axes' offset), as a point of it and its unit
-    /// normal, where the axes are parallel and the walls meet in a ruling
-    /// or two; `None` otherwise (walls apart or nested, coaxial ones
-    /// among them, name no plane).
-    pub fn rulings_plane(&self) -> Option<(Point3<T>, Vec3<T>)> {
-        let CcStance::Parallel { foot, across, .. } = self.stance else {
-            return None;
-        };
-        if matches!(self.parallel_section(), Some(ParallelSection::Empty) | None) {
-            return None;
-        }
-        let (at, u, _) = radical_foot(foot, across, self.radii);
-        Some((at, u))
-    }
-
     /// The point where the walls touch at an outer touch, `r₁` along the
     /// common perpendicular from the first axis toward the second.
     fn touch(&self, foot: Point3<T>, normal: Vec3<T>, gap: T) -> Point3<T> {

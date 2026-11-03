@@ -305,7 +305,10 @@ fn the_sweep_against_the_whole_reading_it_skips() {
             s.components(),
             match &whole {
                 Ok(s) => format!("{:?}", s.components()).chars().take(60).collect(),
-                Err(e) => format!("refused: {e}"),
+                Err(e) => format!(
+                    "refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             },
             t.elapsed()
         );

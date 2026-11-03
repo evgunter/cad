@@ -995,7 +995,7 @@ impl ViewerBehavior<'_> {
         // only which components a pick writes and which it skips.
         let refusals: Vec<String> = refused
             .iter()
-            .map(|(_, refusal)| refusal.to_string())
+            .map(|(_, refusal)| crate::shown(refusal))
             .collect();
         let refusals = refusals.join("\n");
         let written: Vec<String> = writable.iter().map(|(row, _)| row.label.clone()).collect();
@@ -1272,7 +1272,7 @@ impl ViewerBehavior<'_> {
         let button = match refused {
             None => button.on_hover_text(PROBE_HOVER),
             // The refusal renders itself; nothing here composes words.
-            Some(refusal) => button.on_disabled_hover_text(refusal.to_string()),
+            Some(refusal) => button.on_disabled_hover_text(crate::shown(&refusal)),
         };
         if button.clicked() {
             self.ops.push(SessionOp::ProbeBounds {

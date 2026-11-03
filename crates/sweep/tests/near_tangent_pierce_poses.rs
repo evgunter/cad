@@ -640,7 +640,7 @@ fn a_section_edge_read_in_band_of_its_face_refuses_typed() {
                         ..
                     },
                 ) => {
-                    let text = e.to_string();
+                    let text = e.render(geom_brep::recourse::Reading::Build);
                     if !text.ends_with(
                         "Recourse: move the geometry so each edge and vertex that meets a face lies \
                          clearly on it or clearly off it, and an edge that ends on it leaves it at \

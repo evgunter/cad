@@ -62,21 +62,19 @@ Parked, and not counted:
 
 ## The intent-refactor hold (Ev, `[ev]` PR 3990, 2026-10-03)
 
-Rows that meaningfully use declared contact, declared flush pairs,
-continuations or the REST zip wait for INTENT stage 4
-(`work/intent/plan.md`). INTENT stage 4's PR A (PR 4364,
-`the-join-builds-what-the-rest-zip-builds`) merged 2026-10-09: the join
-now builds what the REST zip built, and the REST zip is gone. The rest
-of stage 4 is unbuilt, so the rows gated on it stay parked on
-`intent-stage4-is-built`: the corner pair with an edge in the partner's
-face plane, the pre-zip pinch weld, and the pinch whose seams do not
-link.
+The hold has lifted. Rows that meaningfully used declared contact,
+declared flush pairs, continuations or the REST zip waited for INTENT
+stage 4; `intent-stage4-is-built` closed on 2026-10-24 and INTENT
+itself on 2026-10-30 (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`). The three rows it
+kept parked (the corner pair with an edge in the partner's face plane,
+the pre-zip pinch weld, and the pinch whose seams do not link) are
+closed, and no FLUSH row waits on it.
 
 The declared-flush rows on the open slate were released from the hold
 by INTENT's re-homing on 2026-10-08, each with its reason in its own
 `## Released from the D10 hold` section: their open step is the join's
-own topology, which D10 keeps. A lane that finds its row does need
-declared pairs or contact after all parks it on its INTENT stage row.
+own topology, which D10 keeps.
 
 **What is in flight on the same ground (2026-10-11, after F).** INTENT
 stage 4 F (PR 4641) merged. The declared surface is gone:

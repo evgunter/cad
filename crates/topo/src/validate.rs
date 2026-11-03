@@ -889,12 +889,22 @@ pub enum CensusUnsupportedCause {
 // the certifiable set, so the declare-or-separate menu is a false
 // lead and `what` is the only honest steering. The arm that used to
 // append that menu to every decline appended it there too.
-impl core::fmt::Display for CensusUnsupportedCause {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl CensusUnsupportedCause {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::ChartRegion(e) => write!(f, "{e}"),
+            Self::ChartRegion(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::ContactLane(refusal) => write!(f, "{refusal}"),
-            Self::Containment(e) => write!(f, "{e}"),
+            // The containment door's reading, at a build, whichever door
+            // reads the census.
+            Self::Containment(e) => write!(
+                f,
+                "{}",
+                geom_brep::recourse::read_at(e, geom_brep::recourse::at_build(at))
+            ),
             Self::FaceUnboundable => write!(
                 f,
                 "the face has no boundary vertex (an empty outer loop, or a boundary \
@@ -904,6 +914,8 @@ impl core::fmt::Display for CensusUnsupportedCause {
         }
     }
 }
+
+geom_brep::ended_by_write!(CensusUnsupportedCause);
 
 /// **What check 7's readings found where none decided a solid's
 /// orientation** ([`ValidationError::OrientationUndecided`]).
@@ -2945,7 +2957,7 @@ impl fmt::Display for StaleDeclaration {
 /// property row `carried_refusal_payloads_are_matchable_through_the_prelude`
 /// extended to cover it, and a Python word beside the arm on
 /// `ValidationError.findings`. Both are the façade crate's to write
-/// (`work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md`), and
+/// (`work/bind/wedge-check-is-a-rung-under-sliver-dihedral.md`), and
 /// publishing the name without them would add a subject to that rule
 /// with no row to check it.
 ///
@@ -4348,11 +4360,14 @@ impl ValidationError {
         }
     }
 
-    /// The at-rest ending of a finding [`Self::incidence_read`] reads.
-    fn incidence_ending(&self) -> String {
-        self.incidence_read()
-            .map(|read| read.ending(Reading::AtRest))
-            .unwrap_or_else(|| unreachable!("incidence_ending: a finding with no incidence read"))
+    /// The ending, at `at`, of a finding [`Self::incidence_read`] reads,
+    /// after its joint (`". …"`); nothing where it is read at no door.
+    fn incidence_ending(&self, at: Option<geom_brep::recourse::ReadAt>) -> String {
+        let read = self
+            .incidence_read()
+            .unwrap_or_else(|| unreachable!("incidence_ending: a finding with no incidence read"));
+        at.map(|at| format!(". {}", read.ending(at)))
+            .unwrap_or_default()
     }
 
     /// Whether this is one of tier 3's check-11 verdicts
@@ -4366,9 +4381,17 @@ impl ValidationError {
     }
 }
 
-impl fmt::Display for ValidationError {
+impl ValidationError {
+    /// The finding's sentence, its ending read at `at` where it is
+    /// `Some`; `None` writes the payload alone, its `Display`.
     #[allow(clippy::too_many_lines)] // one sentence per arm
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn write(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> fmt::Result {
+        use geom_brep::recourse::{read_at, undecided_at};
+        let ended = |ending: Option<String>| ending.map(|e| format!(". {e}")).unwrap_or_default();
         match self {
             Self::Band { error } => write!(
                 f,
@@ -4407,9 +4430,9 @@ impl fmt::Display for ValidationError {
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
-                "{}. {}",
+                "{}{}",
                 geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
-                RING_TORUS.recourse(verdict.arm(), Reading::AtRest)
+                ended(at.map(|at| RING_TORUS.recourse(verdict.arm(), at)))
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
                 f,
@@ -4417,9 +4440,9 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!(
                         "whether a torus face's tube radius is smaller than its ring radius"
                     ),
-                    ". {}"
+                    "{}"
                 ),
-                RING_TORUS.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                ended(at.map(|at| RING_TORUS.recourse(RefusedArm::Undecided(cause), at)))
             ),
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
                 f,
@@ -4487,29 +4510,29 @@ impl fmt::Display for ValidationError {
             ),
             Self::PlanarFaceResidual { .. } => write!(
                 f,
-                "a corner of a flat face lies off that face's plane. {}",
-                self.incidence_ending()
+                "a corner of a flat face lies off that face's plane{}",
+                self.incidence_ending(at)
             ),
             Self::PlanarFaceEscalated { .. } => write!(
                 f,
                 concat!(
                     geom_core::undecided!("whether a corner of a flat face lies on its plane"),
-                    ". {}"
+                    "{}"
                 ),
-                self.incidence_ending()
+                self.incidence_ending(at)
             ),
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
-                "an edge of a flat face leaves that face's plane between its ends. {}",
-                self.incidence_ending()
+                "an edge of a flat face leaves that face's plane between its ends{}",
+                self.incidence_ending(at)
             ),
             Self::PlanarBoundaryEscalated { .. } => write!(
                 f,
                 concat!(
                     geom_core::undecided!("whether an edge of a flat face stays on its plane"),
-                    ". {}"
+                    "{}"
                 ),
-                self.incidence_ending()
+                self.incidence_ending(at)
             ),
             Self::SliverDihedral { check, cause, .. } => {
                 write!(f, "{}. {}", check.lead(), check.ending(cause))
@@ -4540,18 +4563,23 @@ impl fmt::Display for ValidationError {
             Self::JoinUndecidedAtRest { undecided } => match undecided.diag() {
                 Some(diag) => write!(
                     f,
-                    "{} is undecided ({}). {}",
+                    "{} is undecided ({}){}",
                     crate::boolean::JOIN_SUBJECT,
                     diag.payload(),
-                    diag.ending_noted(
+                    ended(at.map(|at| diag.ending_noted(
                         crate::boolean::JOIN_LEVER,
-                        geom_brep::recourse::unreadable_margin_note(Reading::AtRest)
-                    )
+                        geom_brep::recourse::unreadable_margin_note(at)
+                    )))
                 ),
+                // An image's refusal the join read at rest ends as the
+                // join's did at a build.
                 None => write!(
                     f,
                     "{}",
-                    crate::boolean::JoinRefusal::Undecided(undecided.clone())
+                    read_at(
+                        &crate::boolean::JoinRefusal::Undecided(undecided.clone()),
+                        geom_brep::recourse::at_build(at)
+                    )
                 ),
             },
             Self::TangentNotIntrinsic { .. } => write!(
@@ -4561,9 +4589,9 @@ impl fmt::Display for ValidationError {
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
-                "an edge is not {}. {}",
+                "an edge is not {}{}",
                 geom_brep::DIHEDRAL_ARM_CLAUSE,
-                geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), Reading::AtRest)
+                ended(at.map(|at| geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), at)))
             ),
             Self::LaminaWedge { .. } => write!(
                 f,
@@ -4621,22 +4649,26 @@ impl fmt::Display for ValidationError {
             Self::WrapTipUndecided { cause, .. } => write!(
                 f,
                 "{}",
-                cause.undecided(
+                undecided_at(
+                    cause,
                     "whether the tip of an edge a face walks out and back lies on that face's \
                      pole or apex",
-                    geom_brep::chart_singularity::WRAP_TIP
-                        .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                    at.map(|at| {
+                        geom_brep::chart_singularity::WRAP_TIP
+                            .recourse(RefusedArm::Undecided(cause), at)
+                    })
                 )
             ),
             Self::ChartSingularityUndecided { point, reading, .. } => {
                 use geom_brep::chart_singularity::{SideUnread, Undecided};
                 let what = singularity_noun(*point);
-                let ending = reading.recourse(Reading::AtRest);
+                let ending = at.map(|at| reading.recourse(at));
                 match reading {
                     Undecided::Boundary(cause) => write!(
                         f,
                         "{}",
-                        cause.undecided(
+                        undecided_at(
+                            cause,
                             format_args!(
                                 "whether {what} lies at a corner of a face on that surface or \
                                  on its boundary"
@@ -4647,7 +4679,8 @@ impl fmt::Display for ValidationError {
                     Undecided::Side(SideUnread::Banded(cause)) => write!(
                         f,
                         "{}",
-                        cause.undecided(
+                        undecided_at(
+                            cause,
                             format_args!(
                                 "which side of a face's boundary on that surface {what} lies on"
                             ),
@@ -4657,7 +4690,8 @@ impl fmt::Display for ValidationError {
                     Undecided::Side(SideUnread::Straddle) => write!(
                         f,
                         "which side of a face's boundary on that surface {what} lies on cannot \
-                         be read: the reading lies within its own error bound. {ending}"
+                         be read: the reading lies within its own error bound{}",
+                        ended(ending)
                     ),
                 }
             }
@@ -4810,18 +4844,25 @@ impl fmt::Display for ValidationError {
                     "a shell's role in its solid cannot be read, so the solid's shells cannot \
                      be wound: ",
                 )?;
-                match error.recourse(Reading::AtRest) {
-                    Some(recourse) => write!(f, "{}. {recourse}", error.payload()),
-                    None => write!(f, "{error}"),
+                match at.map(|at| (at, error.recourse(at))) {
+                    Some((_, Some(recourse))) => write!(f, "{}. {recourse}", error.payload()),
+                    // A nested refusal of the shell door, at a build.
+                    Some((at, None)) => write!(
+                        f,
+                        "{}",
+                        read_at(error, geom_brep::recourse::at_build(Some(at)))
+                    ),
+                    None => write!(f, "{}", error.payload()),
                 }
             }
             Self::OrientationUndecided { reading, .. } => match reading {
                 OrientationUnread::Pair(pair) => write!(
                     f,
-                    "which side of a solid's faces its material lies on cannot be read: {}. {}",
+                    "which side of a solid's faces its material lies on cannot be read: {}{}",
                     crate::side_reader::PairPayload(pair),
-                    crate::props::AIMED_PAIR
-                        .recourse(RefusedArm::Undecided(&pair.gap), Reading::AtRest)
+                    ended(at.map(|at| {
+                        crate::props::AIMED_PAIR.recourse(RefusedArm::Undecided(&pair.gap), at)
+                    }))
                 ),
                 OrientationUnread::Volume {
                     margin,
@@ -4850,7 +4891,9 @@ impl fmt::Display for ValidationError {
                 }
                 OrientationUnread::Ray(source) => write!(
                     f,
-                    "which side of a solid's faces its material lies on cannot be read: {source}"
+                    "which side of a solid's faces its material lies on cannot be read: {}",
+                    // The containment door's reading, at a build.
+                    read_at(source, geom_brep::recourse::at_build(at))
                 ),
             },
             // The position alone: a witness may carry detail after " — "
@@ -5177,6 +5220,8 @@ impl fmt::Display for ValidationError {
         }
     }
 }
+
+geom_brep::ended_by_write!(ValidationError);
 
 impl std::error::Error for ValidationError {}
 
@@ -5704,12 +5749,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    fixed schedule, transversality for `Intersection` — with the same
 ///    deterministic sampling as at attachment
 ///    ([`ValidationError::EdgeCertification`]); then the
-///    **description-adjacency coherence** check: a two-surface
-///    description's surfaces (`Intersection`, `TangentIntersection`,
-///    `OnPair`) must be exactly the edge's two faces' surfaces, a chart
-///    image must name one of them, and an edge's two
-///    halves bound one face exactly when it is a wrap edge
-///    ([`ValidationError::DescriptionNotAdjacent`]).
+///    **description-adjacency coherence** check, the at-rest reading
+///    (`Named::adjacent_at_rest` in `crate::attach`, which states the
+///    rule) ([`ValidationError::DescriptionNotAdjacent`]).
 /// 3. **Planar-face corners** (faces, arena order; per face the outer
 ///    loop then rings in list order, vertices in cycle order): every
 ///    vertex of a face whose surface is a plane is read on that plane by
@@ -6721,13 +6763,16 @@ pub(crate) fn write_result_not_at_rest(
     f: &mut fmt::Formatter<'_>,
     subject: fmt::Arguments<'_>,
     errors: &[ValidationError],
+    at: Option<geom_brep::recourse::ReadAt>,
 ) -> fmt::Result {
     match errors {
+        // The finding is the at-rest gate's, ended there.
         [first, ..] => write!(
             f,
             "{subject} did not pass the at-rest gate, so no body is returned ({} finding(s)); \
-             the first: {first}",
+             the first: {}",
             errors.len(),
+            geom_brep::recourse::read_at(first, geom_brep::recourse::at_rest(at)),
         ),
         [] => write!(
             f,
@@ -7734,7 +7779,6 @@ pub(crate) fn tier3_local_checks_marked<
                 error,
             });
         }
-        let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
         // yet. This edge has two faces — the lookup above answered —
@@ -7743,34 +7787,7 @@ pub(crate) fn tier3_local_checks_marked<
         if curve.description().is_scaffold() {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
-        let (f_plus, f_minus) = sides.faces();
-        let one_face = f_plus == f_minus;
-        let adjacent = match curve.description() {
-            geom_brep::EdgeDescription::Intersection { pair, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
-            | geom_brep::EdgeDescription::OnPair { pair } => {
-                !one_face && *pair == geom_brep::SurfacePair::new(fs_plus, fs_minus)
-            }
-            // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
-            // described chart is ONE of the edge's two adjacent faces'
-            // surfaces — a wall–wall seam is the u-boundary iso of
-            // either wall, and the minted convention names one. The
-            // wrap flag and the face count agree both ways (D1): a wrap
-            // edge's halves bound ONE face, the face whose chart closes
-            // across it, and an edge whose halves bound one face is
-            // that face's wrap edge. Nothing at rest is a slit: a
-            // bridge between a face's loops is construction scaffolding
-            // that `kemr` retires before the op returns.
-            geom_brep::EdgeDescription::Chart(c) if c.wrap => c.surface == fs_plus && one_face,
-            geom_brep::EdgeDescription::Chart(c) => {
-                !one_face && (c.surface == fs_plus || c.surface == fs_minus)
-            }
-            // A scaffold names no surface; the fence above is the
-            // complaint it earns, and stacking a second one on the
-            // same edge would report one fault twice.
-            geom_brep::EdgeDescription::Scaffold(_) => true,
-        };
-        if !adjacent {
+        if !Named::of_description(curve.description()).adjacent_at_rest(sides) {
             errors.push(ValidationError::DescriptionNotAdjacent { edge: edge_key });
         }
     }
@@ -11937,7 +11954,7 @@ mod tests {
                 limit,
                 volume: Some((-1.0, 1.0)),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 !text.contains(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
                     && !text.contains(geom_core::KERNEL_DEFECT_ENDING)
@@ -12777,14 +12794,17 @@ mod tests {
                 },
             };
             assert!(
-                error.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING),
-                "the shell door reads at a build: {error}"
+                error
+                    .render(geom_brep::recourse::Reading::Build)
+                    .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "the shell door reads at a build: {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             let at_rest = ValidationError::ShellRoleUndecided {
                 solid: SolidKey::default(),
                 error,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(at_rest.ends_with(DEFECT), "{at_rest}");
             assert!(
                 !at_rest.contains("tolerance"),
@@ -13050,7 +13070,7 @@ mod tests {
             ),
         ];
         for (label, e) in rows {
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 text.ends_with(&format!(". {DEFECT}")),
                 "{label}: the defect ending, alone: {text}"
@@ -13067,7 +13087,7 @@ mod tests {
     fn no_validate_ending_says_lower_the_tolerance() {
         let problems: Vec<_> = crate::test_support_samples::validation_error_samples()
             .iter()
-            .map(|(label, e)| (label, e.to_string()))
+            .map(|(label, e)| (label, e.render(geom_brep::recourse::Reading::AtRest)))
             .filter(|(_, text)| text.contains("lower the tolerance"))
             .map(|(label, text)| format!("{label}: {text}"))
             .collect();
@@ -13131,7 +13151,7 @@ mod tests {
             };
             let (why, ending) = classify_pcurve(&finding);
             assert_eq!(why, reason, "{error:?}");
-            let built = finding.to_string();
+            let built = finding.render(geom_brep::recourse::Reading::Build);
             match lever {
                 None => {
                     assert_eq!(ending, DEFECT, "{error:?}: a definite miss at rest");
@@ -13346,8 +13366,8 @@ mod tests {
                     vertex,
                     cause: in_band,
                 },
-                "Recourse: the edge's curve is not shown on the face it bounds at this \
-                 tolerance: move the geometry so it lies clearly on that face"
+                "Recourse: move the geometry so the boundary lies clearly on the face it \
+                 bounds at this tolerance"
                     .to_owned(),
             ),
             (
@@ -13362,8 +13382,8 @@ mod tests {
                     edge,
                     cause: in_band,
                 },
-                "Recourse: the edge's curve is not shown on the face it bounds at this \
-                 tolerance: move the geometry so it lies clearly on that face"
+                "Recourse: move the geometry so the boundary lies clearly on the face it \
+                 bounds at this tolerance"
                     .to_owned(),
             ),
             (
@@ -13543,7 +13563,7 @@ mod tests {
             ),
         ];
         for (row, error, ending) in rows {
-            let text = error.to_string();
+            let text = error.render(geom_brep::recourse::Reading::AtRest);
             assert!(text.ends_with(&ending), "{row}: {text}");
         }
     }
@@ -13598,7 +13618,7 @@ mod tests {
             let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
-            let text = finding.to_string();
+            let text = finding.render(geom_brep::recourse::Reading::AtRest);
             let got = match finding {
                 ValidationError::SliverDihedral {
                     check: WedgeCheck::Arm,
@@ -13691,12 +13711,18 @@ mod tests {
             ),
             ("certify, definite", collapsed.to_string()),
             ("check 4, undecided", WedgeCheck::Arm.lead().to_owned()),
-            ("check 4, definite", no_arm.to_string()),
+            (
+                "check 4, definite",
+                no_arm.render(geom_brep::recourse::Reading::AtRest),
+            ),
             (
                 "boolean seam",
                 crate::boolean::LeverArm::Seam.subject().to_owned(),
             ),
-            ("merge, kept boundary", merge.to_string()),
+            (
+                "merge, kept boundary",
+                merge.render(geom_brep::recourse::Reading::Build),
+            ),
         ];
         for (door, text) in &tellings {
             assert!(text.contains(SHAPE), "{door}: {text}");
@@ -13706,13 +13732,14 @@ mod tests {
             assert!(!lead.contains("tolerance"), "{door}: {text}");
         }
         assert!(
-            merge
-                .to_string()
-                .ends_with(&geom_brep::DIHEDRAL_ARM.recourse(
+            merge.render(geom_brep::recourse::Reading::Build).ends_with(
+                &geom_brep::DIHEDRAL_ARM.recourse(
                     geom_brep::recourse::RefusedArm::Undecided(&in_band),
                     geom_brep::recourse::Reading::Build,
-                )),
-            "the merge door ends the arm as the dihedral's: {merge}"
+                )
+            ),
+            "the merge door ends the arm as the dihedral's: {merge_at}",
+            merge_at = merge.render(geom_brep::recourse::Reading::Build)
         );
         assert_eq!(
             CertCheck::TransversalityArm.to_string(),
@@ -13781,7 +13808,7 @@ mod tests {
         let mut covered = [false; ValidationErrorKind::COUNT];
         for (_, err) in &all {
             // Display and Error are wired up; content is human-oriented.
-            assert!(!err.to_string().is_empty());
+            assert!(!err.render(geom_brep::recourse::Reading::AtRest).is_empty());
             let _: &dyn std::error::Error = err;
             covered[ValidationErrorKind::from(err) as usize] = true;
         }
@@ -17649,7 +17676,7 @@ mod tests {
                 subject,
                 cause: cause.clone(),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             // The lane's reason reaches the reader as the classifier
             // words it, with the one recourse that fits it — never the
             // cause's `Debug`, which is the S6 bug one variant over,
@@ -17711,7 +17738,7 @@ mod tests {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             unboundable.contains("a face has no corner to bound it by"),
             "{unboundable}"
@@ -17748,7 +17775,7 @@ mod tests {
             subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
             cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             chart.ends_with("Recourse: move the edges clearly apart or clearly across each other"),
             "{chart}"
@@ -17757,7 +17784,7 @@ mod tests {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             unboundable.ends_with("this is a kernel defect or a damaged file; report it"),
             "{unboundable}"
@@ -17766,7 +17793,7 @@ mod tests {
             subject: CensusSubject::Entity(EntityId::Edge(EdgeKey::default())),
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable { what }),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             contact.ends_with("There is no way through yet"),
             "{contact}"
@@ -17795,7 +17822,7 @@ mod tests {
             witness: "(0e0, 0e0, 0e0)".to_string(),
             margin: Some(geom_core::MarginDiag::value(0.0)),
         };
-        let msg = contact.to_string();
+        let msg = contact.render(geom_brep::recourse::Reading::AtRest);
         // The CONTACT tier carries the two-arm menu (SELECT-DESIGN
         // §3d, ratified): declare the named class / move the geometry.
         // The three-arm decidability sentence must not leak in — its
@@ -17815,7 +17842,7 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        let msg = escalated.to_string();
+        let msg = escalated.render(geom_brep::recourse::Reading::AtRest);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             1,
@@ -18076,7 +18103,7 @@ mod offset_fit_door_rows {
                 face: FaceKey::default(),
                 error: OffsetFitError::Meter(error),
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
         };
         let escalated = |meter: Meter, margin| MeterError::Escalated {
             meter,
@@ -18175,7 +18202,7 @@ mod offset_fit_door_rows {
                 face: FaceKey::default(),
                 error,
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
         };
         let split = [
             says(OffsetFitError::WallReached {
@@ -18256,7 +18283,7 @@ mod certify_escalation_rows {
             edge: EdgeKey::default(),
             error,
         }
-        .to_string()
+        .render(geom_brep::recourse::Reading::AtRest)
     }
 
     /// A fixed band, so the quoted `m/K` is the same at every eps row.
