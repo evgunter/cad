@@ -132,15 +132,15 @@ fn failures<T: topo::AtRestPolicy + geom_core::Decide>(ev: &Evaluation<T>) -> Ve
 }
 
 /// The zero values a seat at rest names: no slide, no spin.
-fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
+fn at_rest() -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
     use editor_core::{Coord, TargetAxis};
     vec![
         (
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             Formula::zero(Dimension::Length),
         ),
         (
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             Formula::zero(Dimension::Length),
         ),
         (Coord::SPIN, Formula::zero(Dimension::Angle)),

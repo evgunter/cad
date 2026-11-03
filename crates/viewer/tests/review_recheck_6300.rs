@@ -32,13 +32,16 @@ fn authored(
 }
 
 /// Each value of the bundle, as the panel reads it.
-fn read(session: &DocSession, placement: RecipeNodeId) -> Vec<(Coord, String)> {
+fn read(
+    session: &DocSession,
+    placement: RecipeNodeId,
+) -> Vec<(Coord<pncad::document::Operand>, String)> {
     authored(session, placement)
         .iter()
         .filter_map(|c| {
             c.value().map(|v| {
                 (
-                    v.coord,
+                    v.coord.clone(),
                     viewer::matetool::value_text(session.committed_doc(), &v.by).replace(' ', ""),
                 )
             })
@@ -49,7 +52,7 @@ fn read(session: &DocSession, placement: RecipeNodeId) -> Vec<(Coord, String)> {
 fn id_on(
     session: &DocSession,
     placement: RecipeNodeId,
-    coord: Coord,
+    coord: Coord<pncad::document::Operand>,
 ) -> pncad::document::ConstraintId {
     authored(session, placement)
         .iter()
@@ -98,7 +101,12 @@ fn set(session: &mut DocSession, name: &str, at: f64) {
     session.pump();
 }
 
-fn spin_reads(session: &mut DocSession, placement: RecipeNodeId, coord: Coord, text: &str) {
+fn spin_reads(
+    session: &mut DocSession,
+    placement: RecipeNodeId,
+    coord: Coord<pncad::document::Operand>,
+    text: &str,
+) {
     let constraint = id_on(session, placement, coord);
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: placement,

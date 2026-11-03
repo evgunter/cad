@@ -2297,7 +2297,7 @@ fn placed_against(
         TargetAxis::ALL
             .into_iter()
             .zip(by)
-            .map(|(axis, by)| (Coord::Slide(axis), len(by)))
+            .map(|(axis, by)| (Coord::slide(axis), len(by)))
             .collect(),
     );
     let space = doc
@@ -3699,7 +3699,10 @@ fn asm2a_constrain(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
     mate: pncad::document::Mate<pncad::document::Formula>,
-    values: Vec<(pncad::document::Coord, pncad::document::Formula)>,
+    values: Vec<(
+        pncad::document::Coord<pncad::document::Operand>,
+        pncad::document::Formula,
+    )>,
 ) -> (pncad::document::ProfileDoc, pncad::document::MateRef) {
     let placed = pncad::document::Placed {
         mates: vec![mate],
@@ -3758,7 +3761,7 @@ fn asm2a_pin(
         TargetAxis::ALL
             .into_iter()
             .zip(at.translation)
-            .map(|(axis, by)| (Coord::Slide(axis), len(by)))
+            .map(|(axis, by)| (Coord::slide(axis), len(by)))
             .collect(),
     );
     applied(&doc, placed.write(instance)).doc
@@ -4083,8 +4086,8 @@ fn asm_r2a_mated_assembly(
     };
     let length = |m: f64| Formula::literal(m, pncad::document::Dimension::Length).expect("finite");
     let values = vec![
-        (Coord::Slide(TargetAxis::X), length(30.0)),
-        (Coord::Slide(TargetAxis::Y), length(0.0)),
+        (Coord::slide(TargetAxis::X), length(30.0)),
+        (Coord::slide(TargetAxis::Y), length(0.0)),
         (
             Coord::SPIN,
             Formula::zero(pncad::document::Dimension::Angle),
@@ -7304,9 +7307,9 @@ fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() 
     );
     let mut moved = pncad::document::stand();
     moved.values = vec![
-        (Coord::Slide(TargetAxis::X), len(3.25)),
-        (Coord::Slide(TargetAxis::Y), len(-1.5)),
-        (Coord::Slide(TargetAxis::Z), len(0.75)),
+        (Coord::slide(TargetAxis::X), len(3.25)),
+        (Coord::slide(TargetAxis::Y), len(-1.5)),
+        (Coord::slide(TargetAxis::Z), len(0.75)),
         (
             Coord::Spin(Some(TargetAxis::X)),
             Formula::literal(0.0, Dimension::Angle).unwrap(),
@@ -7407,9 +7410,9 @@ fn a_far_turned_copy_builds_and_its_read_out_refuses_to_compose() {
     // the distance scales with it.
     let d = (1.0e17 * Tol::witness().eps()).max(1.0e7);
     far.values = vec![
-        (Coord::Slide(TargetAxis::X), len(d + 0.3)),
-        (Coord::Slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
-        (Coord::Slide(TargetAxis::Z), len(0.2 * d + 0.1)),
+        (Coord::slide(TargetAxis::X), len(d + 0.3)),
+        (Coord::slide(TargetAxis::Y), len(-0.3 * d - 0.7)),
+        (Coord::slide(TargetAxis::Z), len(0.2 * d + 0.1)),
         (Coord::Spin(Some(TargetAxis::X)), turn(0.3)),
         (
             Coord::Spin(Some(TargetAxis::Y)),
@@ -7458,7 +7461,7 @@ mod pattern_presets_are_recognised_as_themselves {
     use pncad::document::{
         BodyRead, Formula, Operand, ProfileDoc, RecipeNodeId, TargetAxis, VarName,
     };
-    use pncad::pattern::{Recognised, RingStep};
+    use pncad::pattern::{Recognised, RingAxis, RingStep, RowDirection};
 
     /// The box, an index `k = index(4)` beside it, and the box's space.
     fn with_index(name: &'static str) -> (ProfileDoc, RecipeNodeId, Operand) {
@@ -7498,16 +7501,56 @@ mod pattern_presets_are_recognised_as_themselves {
             &k,
             BodyRead::plain(Operand::Node(body)),
             space,
-            &[(TargetAxis::X, super::len(3.0))],
+            &[(RowDirection::Axis(TargetAxis::X), super::len(3.0))],
+            None,
         )
         .expect("a length pitch");
         let (doc, row) = super::insert(doc, row);
         let want = Recognised::Linear {
             index: index_of(&doc, "k"),
-            steps: vec![(TargetAxis::X, super::len(3.0))],
+            steps: vec![(RowDirection::Axis(TargetAxis::X), super::len(3.0))],
         };
         assert_eq!(pncad::pattern::recognise(&doc, row), Some(want));
         assert_eq!(pncad::pattern::recognise(&doc, body), None);
+    }
+
+    /// A row along the cap's axis, read off the box: one slide along the
+    /// read direction, the other two the constant `0` along the target
+    /// axes `across` names, read back as the row along that read.
+    #[test]
+    fn a_row_along_a_read_direction_is_recognised_as_a_row() {
+        let (doc, body, space) = with_index("k");
+        let k = VarName::from_static("k");
+        let read = pncad::document::pose::RoleRead::plain(cap_axis(body));
+        let row = pncad::pattern::linear_pattern(
+            &k,
+            BodyRead::plain(Operand::Node(body)),
+            space,
+            &[(RowDirection::Read(read), super::len(3.0))],
+            Some(pncad::document::SlideAxes::of([
+                TargetAxis::X,
+                TargetAxis::Y,
+            ])),
+        )
+        .expect("a length pitch");
+        let (doc, row) = super::insert(doc, row);
+        let k = index_of(&doc, "k");
+        match pncad::pattern::recognise(&doc, row) {
+            Some(Recognised::Linear { index, steps }) => {
+                assert_eq!(index, k, "the row's index");
+                match steps.as_slice() {
+                    [(RowDirection::Read(read), pitch)] => {
+                        assert!(
+                            matches!(read.read, Operand::Var(_)) && read.role.is_none(),
+                            "the row's direction is the read it was written with: {read:?}"
+                        );
+                        assert_eq!(*pitch, super::len(3.0), "the row's pitch");
+                    }
+                    other => panic!("one step along the read direction, not {other:?}"),
+                }
+            }
+            other => panic!("a row, not {other:?}"),
+        }
     }
 
     #[test]
@@ -7519,17 +7562,20 @@ mod pattern_presets_are_recognised_as_themselves {
             pncad::pattern::index_decl(j.clone(), Formula::count(3), Some(&i)),
         )
         .doc;
+        let x = RowDirection::Axis(TargetAxis::X);
+        let y = RowDirection::Axis(TargetAxis::Y);
         let grid = pncad::pattern::grid(
-            (&i, (TargetAxis::X, super::len(3.0))),
-            (&j, (TargetAxis::Y, super::len(2.5))),
+            (&i, (x.clone(), super::len(3.0))),
+            (&j, (y.clone(), super::len(2.5))),
             BodyRead::plain(Operand::Node(body)),
             space,
+            None,
         )
         .expect("length pitches");
         let (doc, grid) = super::insert(doc, grid);
         let want = Recognised::Grid {
-            outer: (index_of(&doc, "i"), vec![(TargetAxis::X, super::len(3.0))]),
-            inner: (index_of(&doc, "j"), vec![(TargetAxis::Y, super::len(2.5))]),
+            outer: (index_of(&doc, "i"), vec![(x, super::len(3.0))]),
+            inner: (index_of(&doc, "j"), vec![(y, super::len(2.5))]),
         };
         assert_eq!(pncad::pattern::recognise(&doc, grid), Some(want));
     }
@@ -7543,7 +7589,13 @@ mod pattern_presets_are_recognised_as_themselves {
             Formula::count_to_scalar(Formula::count(5)).expect("a count converts"),
         )
         .expect("an angle");
-        let axis = (cap_axis(body), cap_axis(body), TargetAxis::Z);
+        // Stood up the axis, as a raised ring is: the slide is a
+        // constant, and the ring reads back as one.
+        let axis = RingAxis::Mated {
+            on: cap_axis(body),
+            to: cap_axis(body),
+            slide: super::len(0.5),
+        };
         let ring = pncad::pattern::circular_pattern(
             &doc,
             &k,
@@ -7578,6 +7630,24 @@ mod pattern_presets_are_recognised_as_themselves {
         .expect("an angle");
         assert_eq!(
             pncad::pattern::recognise(&doc, bolts),
+            Some(Recognised::Circular {
+                index: index_of(&doc, "k"),
+                step: quarter.clone(),
+            })
+        );
+        // About an axis read in the target, with no mate.
+        let about = pncad::pattern::bolt_circle(
+            &doc,
+            &k,
+            Formula::count(4),
+            BodyRead::plain(Operand::Node(body)),
+            Operand::Var(doc.node_space(body).expect("the box stands in a space")),
+            RingAxis::About(pncad::document::pose::RoleRead::plain(cap_axis(body))),
+        )
+        .expect("a count");
+        let (doc, about) = super::insert(doc, about);
+        assert_eq!(
+            pncad::pattern::recognise(&doc, about),
             Some(Recognised::Circular {
                 index: index_of(&doc, "k"),
                 step: quarter,

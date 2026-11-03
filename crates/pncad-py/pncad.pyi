@@ -2423,25 +2423,34 @@ class Node:
         index: VarName,
         source: _BodyArg,
         target: _SpaceArg,
-        steps: Sequence[tuple[Literal["x", "y", "z"], _LengthArg]],
+        steps: Sequence[tuple[Literal["x", "y", "z"] | _PoseRead, _LengthArg]],
+        across: Optional[Sequence[Literal["x", "y", "z"]]] = None,
     ) -> Node:
         """A ROW: `source` copied into `target`, member `k` slid
-        `scalar(k)·pitch` along each `(axis, pitch)` of `steps` on the
-        target's axes, with no mate — a `Node.place` whose values read
-        the index `index` (`VarDecl.index(n)`), so its copy is a family
-        of `n` members. Each pitch is a length (ValueError otherwise)."""
+        `scalar(k)·pitch` along each `(direction, pitch)` of `steps`,
+        with no mate — a `Node.place` whose values read the index
+        `index` (`VarDecl.index(n)`), so its copy is a family of `n`
+        members. A direction is a target axis (`"x"`, `"y"`, `"z"`) or
+        a `Direction` or `Axis` read off a body in the target space,
+        plainly or through a role, so the row follows that body. Every
+        other freedom is the constant `0`, its slides along the target
+        axes `across` names (independent of the row's directions), or
+        `x`, `y` and `z` in order. Each pitch is a length (ValueError
+        otherwise)."""
 
     @staticmethod
     def grid(
-        outer: tuple[VarName, Literal["x", "y", "z"], _LengthArg],
-        inner: tuple[VarName, Literal["x", "y", "z"], _LengthArg],
+        outer: tuple[VarName, Literal["x", "y", "z"] | _PoseRead, _LengthArg],
+        inner: tuple[VarName, Literal["x", "y", "z"] | _PoseRead, _LengthArg],
         source: _BodyArg,
         target: _SpaceArg,
+        across: Optional[Sequence[Literal["x", "y", "z"]]] = None,
     ) -> Node:
         """A GRID: `linear_pattern` over two indices, each
-        `(index, axis, pitch)`, `inner`'s declared within `outer`'s
+        `(index, direction, pitch)`, `inner`'s declared within `outer`'s
         (`VarDecl.index(n, within=outer)`) — the family indexed
-        `[outer, inner]`."""
+        `[outer, inner]`; along two read directions, a parallelogram
+        lattice."""
 
     @staticmethod
     def circular_pattern(
@@ -2449,17 +2458,21 @@ class Node:
         index: VarName,
         source: _BodyArg,
         target: _SpaceArg,
-        axis: tuple[_Operand, _Operand, Literal["x", "y", "z"]],
+        axis: tuple[_Operand, _Operand] | _PoseRead,
         *,
         count: Optional[_CountArg] = None,
         step: Optional[_AngleArg] = None,
+        slide: Optional[_LengthArg] = None,
     ) -> Node:
-        """A RING: `source` copied into `target` by one `Axis` mate
-        equating `axis[0]` (read off the copy) with `axis[1]` (in the
-        target), member `k` spun `scalar(k)·step` about it and slid zero
-        along the target axis `axis[2]`. Exactly one of `count` (a full
-        ring of that many) and `step` (the angle as written), or
-        TypeError. `doc` reads the mate's kinds, as `Placed.of`'s."""
+        """A RING: `source` copied into `target`, member `k` spun
+        `scalar(k)·step` about `axis`: `(on, to)`, one `Axis` mate
+        equating an axis read off the copy with one in the target, each
+        member slid `slide` (zero where None) along the mated direction;
+        or an `Axis` read off a body in the target space, each member
+        spun about that line with no mate (TypeError with a `slide`).
+        Exactly one of `count` (a full ring of that many) and `step`
+        (the angle as written), or TypeError. `doc` reads the mate's
+        kinds, as `Placed.of`'s."""
 
     @staticmethod
     def bolt_circle(
@@ -2468,7 +2481,7 @@ class Node:
         count: _CountArg,
         source: _BodyArg,
         target: _SpaceArg,
-        axis: tuple[_Operand, _Operand, Literal["x", "y", "z"]],
+        axis: tuple[_Operand, _Operand] | _PoseRead,
     ) -> Node:
         """A BOLT CIRCLE: a full ring of `count` copies of `source`
         about `axis` (`circular_pattern(..., count=count)`)."""
@@ -3264,11 +3277,11 @@ class Recognised:
     def inner_index(self) -> Var | None:
         """A grid's inner index; None for a row or a ring."""
     @property
-    def steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+    def steps(self) -> list[tuple[Literal["x", "y", "z"] | Var | RoleRead, Formula]]:
         """A row's slides, or a grid's along its outer index, each axis
         and its pitch per member; empty for a ring."""
     @property
-    def inner_steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+    def inner_steps(self) -> list[tuple[Literal["x", "y", "z"] | Var | RoleRead, Formula]]:
         """A grid's slides along its inner index; empty for a row or a
         ring."""
     @property
@@ -6006,10 +6019,14 @@ class Orientation:
 
 class Coord:
     """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`,
-    a slide along the chart's axis; `Coord.spin()`, the spin about the
+    a slide along the chart's axis; `Coord.slide()`, along the mated
+    direction itself; `Coord.slide_along(read)`, along a direction read
+    off a body in the target space; `Coord.spin()`, the spin about the
     target's own direction beside a mate fixing one; or `Coord.spin("x")`,
-    `"y"` or `"z"`, a link of a chain of turns about the target space's
-    axis where none is fixed.
+    `"y"` or `"z"` or `Coord.spin_about(read)`, a link of a chain of
+    turns about the target space's axis or a read axis where none is
+    fixed. The copy stands where its mates and spins seat it plus the
+    sum of its slides, each its value along its direction.
 
     Beside a mate fixing a direction, the chart is the target space's
     own axes carried by the least turn from where the mate's
@@ -6025,8 +6042,17 @@ class Coord:
     of spins about the target space's axes, in the order written."""
 
     @staticmethod
-    def slide(axis: Literal["x", "y", "z"]) -> Coord:
-        """Raises ValueError for any other axis word."""
+    def slide(axis: Optional[Literal["x", "y", "z"]] = None) -> Coord:
+        """Along the mated direction with no `axis`, along the chart's
+        `axis` with one. Raises ValueError for any other axis word."""
+    @staticmethod
+    def slide_along(along: _PoseRead) -> Coord:
+        """Along a `Direction`, or an `Axis` for its direction, read off
+        a body in the target space."""
+    @staticmethod
+    def spin_about(about: _PoseRead) -> Coord:
+        """A chain link about an `Axis` read off a body in the target
+        space, about its line."""
     @staticmethod
     def spin(axis: Optional[Literal["x", "y", "z"]] = None) -> Coord:
         """The spin about the target's own direction with no `axis`, a chain
@@ -6035,7 +6061,18 @@ class Coord:
     @property
     def variant(
         self,
-    ) -> Literal["slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z"]: ...
+    ) -> Literal[
+        "slide_x",
+        "slide_y",
+        "slide_z",
+        "slide",
+        "slide_along",
+        "spin",
+        "spin_x",
+        "spin_y",
+        "spin_z",
+        "spin_about",
+    ]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -6047,9 +6084,10 @@ class MateValue:
 
     Beside a mate fixing a direction it is charted on the target
     space's own axes carried by the least turn from where the mate's
-    orientation puts the copy's mated direction onto the mated one: a
-    slide is the copy's origin measured along a carried axis, the spin
-    the turn left about the target's own direction. Zero says the copy's own
+    orientation puts the copy's mated direction onto the mated one, the
+    spin the turn left about the target's own direction. The copy stands
+    where its mates and spins seat it plus the sum of its slides, each
+    its value along its direction (`Coord`). Zero says the copy's own
     coordinates agree with the target space's, up to the orientation,
     as far as the mates allow.
 

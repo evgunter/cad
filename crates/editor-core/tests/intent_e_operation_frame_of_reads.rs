@@ -577,7 +577,7 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
     let before = editor_core::NodePick::build_with(&first, copy, 0, 0.1, tol, &mut memo)
         .expect("the copy tessellates");
     memo.end_picture();
-    let slid = editor_core::Coord::Slide(editor_core::TargetAxis::X);
+    let slid = editor_core::Coord::slide(editor_core::TargetAxis::X);
     let edit = fixture::value_bump(&doc, copy, slid, 1.5);
     let moved = editor_core::apply(&doc, &edit, tol)
         .expect("the value moves")

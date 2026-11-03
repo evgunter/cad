@@ -437,7 +437,7 @@ let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75)));
 let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5) });
 // The one bundle constructor: the slide its author writes, and the
 // constant zero on every freedom left unnamed.
-let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), len(1.0))]);
+let placed = Placed::unmated(vec![(Coord::slide(TargetAxis::Z), len(1.0))]);
 // The copy is placed into the box's space, its bundle written whole.
 let in_base = Operand::Var(doc.node_space(base).expect("a construction is in its own space"));
 let (doc, resting) = insert(

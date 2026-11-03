@@ -36,7 +36,8 @@ use crate::seats::{
 };
 use crate::session::refuse::one_body;
 use crate::session::{
-    BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp,
+    BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
+    SessionOp,
 };
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
@@ -971,9 +972,9 @@ vocabulary! {
 
 /// **The pattern tool**: a body pick, committing one
 /// [`SessionOp::AddPattern`] or one [`SessionOp::AddFusedPattern`] (a
-/// family, or the union of one); the
-/// circular rule's axis is a point and a direction in the body's own
-/// coordinates, read off its geometry by the session door.
+/// family, or the union of one). Its direction, or its ring's axis, is
+/// one of the space's axes or an edge or a face picked once the body is
+/// held ([`PatternDirection`]), read by the pattern where it stands.
 ///
 /// **One tool, two ops**: the output choice ([`PatternOutputChoice`])
 /// picks which op each door mints, because everything the tool holds is
@@ -986,6 +987,27 @@ vocabulary! {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
     seats: Seats,
+    picked: Option<DirectionPick>,
+}
+
+/// **The geometry a pattern's direction is picked on**: an edge or a
+/// face, which the rule reads as its line, its normal or its axis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DirectionPick {
+    /// An edge.
+    Edge(crate::session::EdgeSelection),
+    /// A face.
+    Face(FaceSelection),
+}
+
+impl DirectionPick {
+    /// The rule's direction this pick names.
+    pub fn direction(&self) -> PatternDirection {
+        match self {
+            Self::Edge(edge) => PatternDirection::Edge(edge.clone()),
+            Self::Face(face) => PatternDirection::Face(face.clone()),
+        }
+    }
 }
 
 impl Default for PatternTool {
@@ -999,7 +1021,27 @@ impl PatternTool {
     pub const fn new() -> Self {
         Self {
             seats: Seats::one(Seat::PatternBody),
+            picked: None,
         }
+    }
+
+    /// **Feed one edge or face pick**: the direction, once a body is
+    /// held; while none is, the body it is on.
+    pub fn pick_direction(&mut self, doc: &Doc<ProfileProgram>, pick: DirectionPick) {
+        if self.seats.is_empty() {
+            let (node, body) = match &pick {
+                DirectionPick::Edge(edge) => (edge.node, edge.body),
+                DirectionPick::Face(face) => (face.node, face.body),
+            };
+            self.seats.pick_at(doc, node, Some(body));
+        } else {
+            self.picked = Some(pick);
+        }
+    }
+
+    /// The edge or face the direction is picked on, where one is.
+    pub fn picked(&self) -> Option<&DirectionPick> {
+        self.picked.as_ref()
     }
 
     /// The seats, roles and picks together — what the panel's line is
@@ -1030,9 +1072,10 @@ impl PatternTool {
         self.seats.choose_half(i, half);
     }
 
-    /// Empty the seat.
+    /// Empty the seat and the direction.
     pub fn clear(&mut self) {
         self.seats.clear();
+        self.picked = None;
     }
 
     /// The survival step ([`crate::seats`]).
@@ -1045,7 +1088,8 @@ impl PatternTool {
         self.seats.respeak(doc);
     }
 
-    /// **The one committed edit**, stepping along a direction.
+    /// **The one committed edit**, stepping `spacing` along
+    /// `direction`.
     ///
     /// # Errors
     ///
@@ -1056,7 +1100,7 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        direction: [Formula; 3],
+        direction: PatternDirection,
         spacing: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(pattern_op(
@@ -1067,8 +1111,7 @@ impl PatternTool {
         ))
     }
 
-    /// **The one committed edit**, stepping around the axis through
-    /// `through` along `direction`.
+    /// **The one committed edit**, stepping `step` around `axis`.
     ///
     /// # Errors
     ///
@@ -1077,17 +1120,16 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        through: [Formula; 3],
-        direction: [Formula; 3],
+        axis: PatternDirection,
         step: Formula,
     ) -> Result<SessionOp, SeatError> {
         let input = self.seats.require_read(0)?;
-        let rule = PatternRuleSpec::Circular {
-            through,
-            direction,
-            step,
-        };
-        Ok(pattern_op(output, input, count, rule))
+        Ok(pattern_op(
+            output,
+            input,
+            count,
+            PatternRuleSpec::Circular { axis, step },
+        ))
     }
 }
 
@@ -1118,46 +1160,6 @@ pub fn fresh_index(doc: &Doc<ProfileProgram>) -> pncad::document::VarName {
         .find(|name| doc.var_named(name).is_none())
         .and_then(|name| pncad::document::VarName::new(&name).ok())
         .unwrap_or_else(|| unreachable!("an unnamed index"))
-}
-
-/// **A row's slides**: each target axis whose component of `direction`
-/// is written nonzero, stepped `spacing` times it.
-///
-/// # Errors
-///
-/// [`pncad::document::DimensionError`] where a component is no scalar
-/// or `spacing` no length — the expression door's answer.
-pub fn row_steps(
-    direction: &[Formula; 3],
-    spacing: &Formula,
-) -> Result<Vec<(pncad::document::TargetAxis, Formula)>, pncad::document::DimensionError> {
-    use pncad::document::TargetAxis as A;
-    [A::X, A::Y, A::Z]
-        .into_iter()
-        .zip(direction)
-        .filter(|(_, d)| !written_zero(d))
-        .map(|(axis, d)| Ok((axis, Formula::mul(spacing.clone(), d.clone())?)))
-        .collect()
-}
-
-/// **The target axis a ring's free slide is written on**: the last
-/// of `z`, `y`, `x` whose component of the axis `direction` is written
-/// nonzero, which the slide along the axis spans.
-pub fn ring_slide_axis(direction: &[Formula; 3]) -> pncad::document::TargetAxis {
-    use pncad::document::TargetAxis as A;
-    [
-        (A::Z, &direction[2]),
-        (A::Y, &direction[1]),
-        (A::X, &direction[0]),
-    ]
-    .into_iter()
-    .find(|(_, d)| !written_zero(d))
-    .map_or(A::Z, |(axis, _)| axis)
-}
-
-/// Whether `d` is written zero: the zero formula, or a literal `0`.
-fn written_zero(d: &Formula) -> bool {
-    d.is_zero() || d.literal_value() == Some(0.0)
 }
 
 /// **The part tool**: one pick of a family, committing one
@@ -1348,12 +1350,9 @@ impl DuplicateTool {
 /// is. A duplicate is placed at its original copy's pose, so it lands
 /// along that copy's own +x.
 ///
-/// ONE home for the two gestures that step a copy along a line: the
-/// duplicate tool commits it, and the pattern form's direction field
-/// opens on it (`Drafts::default`). The pattern form's SPACING is not
-/// shared, because the two answer different questions — a pattern's
-/// spacing is a number the person types, a duplicate's is measured off
-/// the body ([`duplicate_step`]).
+/// The direction the duplicate tool steps its copy along. The pattern
+/// form names its direction as one of the space's axes or a pick
+/// (`Drafts::pattern_along`), never as components.
 pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
 
 /// **How much clear space a duplicate leaves AT LEAST**, as a fraction
@@ -1701,7 +1700,7 @@ pub fn duplicate_moves(
         .filter(|&(_, d)| d != 0.0)
         .map(|(axis, d)| {
             Ok((
-                Coord::Slide(axis),
+                Coord::slide(axis),
                 Formula::literal(d * step, Dimension::Length)?,
             ))
         })

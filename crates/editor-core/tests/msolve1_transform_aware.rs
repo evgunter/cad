@@ -207,7 +207,7 @@ fn row_on(
         .filter(|&(_, d)| d != 0.0)
         .map(|(axis, d)| {
             (
-                Coord::Slide(axis),
+                Coord::slide(axis),
                 Formula::mul(next.clone(), len(d * spacing)).unwrap(),
             )
         })

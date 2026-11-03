@@ -210,6 +210,8 @@ fn reads_as_body(seat: OperandSlot) -> bool {
         | OperandSlot::Face
         | OperandSlot::Traced(_)
         | OperandSlot::Side { .. }
+        | OperandSlot::Along { .. }
+        | OperandSlot::About { .. }
         | OperandSlot::Measured(..)
         | OperandSlot::Cleared(_)
         | OperandSlot::Tool

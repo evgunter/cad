@@ -186,8 +186,8 @@ pub(crate) fn seat_edits(
     let placed = editor_core::Placed {
         mates: vec![fixture::rest(mover, onto)],
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(at[0])),
-            (Coord::Slide(TargetAxis::Y), len(at[1])),
+            (Coord::slide(TargetAxis::X), len(at[0])),
+            (Coord::slide(TargetAxis::Y), len(at[1])),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
@@ -223,8 +223,8 @@ pub(crate) fn seat_turned(
     let placed = editor_core::Placed {
         mates: vec![fixture::rest(mover, onto)],
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(at[0])),
-            (Coord::Slide(TargetAxis::Y), len(at[1])),
+            (Coord::slide(TargetAxis::X), len(at[0])),
+            (Coord::slide(TargetAxis::Y), len(at[1])),
             (Coord::SPIN, ang(turn)),
         ],
     };
@@ -291,9 +291,9 @@ pub(crate) fn pinned_lifting(
     // `z` lifted by the variable.
     let moves = editor_core::test_support::moves_at(&pose)
         .into_iter()
-        .filter(|(coord, _)| *coord != Coord::Slide(TargetAxis::Z))
+        .filter(|(coord, _)| *coord != Coord::slide(TargetAxis::Z))
         .chain(std::iter::once((
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
             Formula::add(
                 len(pose.translation[2]),
                 Formula::named(lift(), Dimension::Length),
@@ -479,9 +479,9 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         6,
         "an inserted instance stands by the identity bundle"
     );
-    let typed: Vec<(Coord, Formula)> = TargetAxis::ALL
+    let typed: Vec<(Coord<editor_core::Operand>, Formula)> = TargetAxis::ALL
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
+        .map(|axis| (Coord::slide(axis), Formula::zero(Dimension::Length)))
         .chain(
             TargetAxis::ALL
                 .into_iter()
@@ -612,7 +612,7 @@ fn removing_a_value_writes_its_freedom_zero() {
         (
             "the pin's slide along y",
             base,
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             [0.0, 0.0, 0.0],
         ),
         ("the seat's spin", top, Coord::SPIN, [1.0, 1.0, BASE_HEIGHT]),
@@ -1194,7 +1194,10 @@ fn pair_beside_a_base(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// One instance's world mate beside its image's.
-type PinPair = (Option<Vec<(Coord, Formula)>>, Option<Vec<(Coord, Formula)>>);
+type PinPair = (
+    Option<Vec<(Coord<editor_core::Operand>, Formula)>>,
+    Option<Vec<(Coord<editor_core::Operand>, Formula)>>,
+);
 
 /// Every instance's world mate in `doc` beside the one `onto` holds at
 /// its image under `map`.

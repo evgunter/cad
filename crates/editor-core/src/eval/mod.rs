@@ -4921,7 +4921,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v22: a mate writes its orientation, by where the copy's
+            /// v23: a slide beside a mate whose direction is oblique in
+            /// the source's own coordinates runs along its carried axis's
+            /// part in what the mate leaves, and a value may slide along
+            /// the mated direction or a read direction, or spin about a
+            /// read axis (`value_coord`'s `SLIDE`, `SLIDE_ALONG` and
+            /// `SPIN_ABOUT`). v22: a mate writes its orientation, by where the copy's
             /// `x` and `z` lie, and a spin beside a mate fixing a
             /// direction is its own word (`value_coord::SPIN`), the turn
             /// about the target's own direction. v21: a placement copies
@@ -4958,7 +4963,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 22,
+            VERSION = 23,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5063,6 +5068,9 @@ mod tag {
             SPIN_Y = 6,
             SPIN_Z = 7,
             SPIN = 8,
+            SLIDE = 9,
+            SLIDE_ALONG = 10,
+            SPIN_ABOUT = 11,
         }
         /// Where an orientation puts one of the copy's axes
         /// ([`crate::mate::SignedAxis`]), written for its `x` and its
@@ -6461,9 +6469,12 @@ fn feed_bundle(
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
                 h.write_tag(match value.coord {
-                    Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
-                    Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
-                    Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
+                    Coord::Slide(None) => tag::value_coord::SLIDE,
+                    Coord::Slide(Some(TargetAxis::X)) => tag::value_coord::SLIDE_X,
+                    Coord::Slide(Some(TargetAxis::Y)) => tag::value_coord::SLIDE_Y,
+                    Coord::Slide(Some(TargetAxis::Z)) => tag::value_coord::SLIDE_Z,
+                    Coord::SlideAlong(_) => tag::value_coord::SLIDE_ALONG,
+                    Coord::SpinAbout(_) => tag::value_coord::SPIN_ABOUT,
                     Coord::Spin(None) => tag::value_coord::SPIN,
                     Coord::Spin(Some(TargetAxis::X)) => tag::value_coord::SPIN_X,
                     Coord::Spin(Some(TargetAxis::Y)) => tag::value_coord::SPIN_Y,
@@ -7476,8 +7487,8 @@ mod bundle_key {
             key(&[mate(TO)]),
             with(value(Coord::SPIN)),
             with(value(Coord::Spin(Some(TargetAxis::X)))),
-            with(value(Coord::Slide(TargetAxis::X))),
-            with(value(Coord::Slide(TargetAxis::Y))),
+            with(value(Coord::slide(TargetAxis::X))),
+            with(value(Coord::slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {

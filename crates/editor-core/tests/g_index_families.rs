@@ -181,8 +181,8 @@ fn sunk_fins(n: i64) -> (ProfileDoc, VarId, RecipeNodeId, RecipeNodeId) {
         &doc,
         Vec::new(),
         vec![
-            (Coord::Slide(TargetAxis::X), slide),
-            (Coord::Slide(TargetAxis::Z), fixture::len(0.75)),
+            (Coord::slide(TargetAxis::X), slide),
+            (Coord::slide(TargetAxis::Z), fixture::len(0.75)),
         ],
     );
     let node = fixture::place_node(
@@ -295,8 +295,8 @@ fn a_grid_is_two_indices_one_within_the_other() {
         doc,
         cell,
         vec![
-            (Coord::Slide(TargetAxis::X), slide(i)),
-            (Coord::Slide(TargetAxis::Y), slide(j)),
+            (Coord::slide(TargetAxis::X), slide(i)),
+            (Coord::slide(TargetAxis::Y), slide(j)),
         ],
     );
     let ev = run(&doc);
@@ -336,8 +336,8 @@ fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
         &doc,
         Vec::new(),
         vec![
-            (Coord::Slide(TargetAxis::X), slide(i)),
-            (Coord::Slide(TargetAxis::Y), slide(j)),
+            (Coord::slide(TargetAxis::X), slide(i)),
+            (Coord::slide(TargetAxis::Y), slide(j)),
         ],
     );
     let refused = fixture::insert_refused(

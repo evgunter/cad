@@ -316,7 +316,9 @@ impl NodeErrorClass {
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
-            MateFault::SideUnevaluated { .. } => Self::MateSideUnevaluated,
+            MateFault::SideUnevaluated { .. } | MateFault::ReadUnevaluated { .. } => {
+                Self::MateSideUnevaluated
+            }
             MateFault::NoChart { .. } => Self::MateNoChart,
             MateFault::Backwards { .. } => Self::MateBackwards,
             MateFault::Unoriented { .. } => Self::MateUnoriented,
