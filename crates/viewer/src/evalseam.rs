@@ -121,7 +121,7 @@
 
 use std::sync::Arc;
 
-use pncad::analysis::{Canceled, ClearanceAnswer, clearances_at_nominal};
+use pncad::analysis::{ClearanceAnswer, clearances_at_nominal};
 use pncad::document::{
     CancelToken, Doc, DoorFindings, DoorJob, EvalOptions, EvalOutcome, Evaluation, PartResolver,
     ProfileProgram, coincide, evaluate,
@@ -825,7 +825,11 @@ impl DoorService for InlineProver {
         let request = self.pending.take()?;
         Some(DoorDone {
             generation: request.generation,
-            findings: request.job.run(&request.doc, &CancelToken::new()),
+            // The inline seam holds no token: its cancel drops the
+            // pending request before it runs.
+            findings: request
+                .job
+                .run(&request.doc, &pncad::document::Stop::default()),
         })
     }
 
@@ -858,9 +862,10 @@ pub struct CertifyRequest {
 pub struct CertifyDone {
     /// The generation the request carried.
     pub generation: Generation,
-    /// One answer per clearance assertion, in document order, or the
-    /// cancelation that stopped the run before it answered.
-    pub answers: Result<Vec<ClearanceAnswer>, Canceled>,
+    /// One answer per clearance assertion, in document order, or how
+    /// the run stopped before it answered: canceled, or out of its
+    /// member budget.
+    pub answers: Result<Vec<ClearanceAnswer>, pncad::document::Stopped>,
 }
 
 /// The certify job: the landing's document at the certifying scalar.
@@ -873,7 +878,12 @@ fn run_certify(request: CertifyRequest, cancel: &CancelToken) -> CertifyDone {
     } = request;
     CertifyDone {
         generation,
-        answers: clearances_at_nominal(&doc, resolver, cancel, tol),
+        answers: clearances_at_nominal(
+            &doc,
+            resolver,
+            &pncad::document::Stop::canceled_by(cancel),
+            tol,
+        ),
     }
 }
 
@@ -1732,7 +1742,9 @@ mod threaded {
                     "viewer-door",
                     |request: DoorRequest, cancel| DoorDone {
                         generation: request.generation,
-                        findings: request.job.run(&request.doc, cancel),
+                        findings: request
+                            .job
+                            .run(&request.doc, &pncad::document::Stop::canceled_by(cancel)),
                     },
                 )?,
             })

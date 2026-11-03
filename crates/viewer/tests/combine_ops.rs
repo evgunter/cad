@@ -893,7 +893,12 @@ fn the_transform_door_places_a_body_with_values() {
         common::band(),
     )
     .expect("a rotation axis with a direction");
-    let poses = pncad::document::solve_document(doc, &pncad::document::EvalOptions::default(), tol);
+    let poses = pncad::document::solve_document(
+        doc,
+        &pncad::document::EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
+        tol,
+    );
     let at = poses
         .relative(placed)
         .expect("the copy stands in its body's space");

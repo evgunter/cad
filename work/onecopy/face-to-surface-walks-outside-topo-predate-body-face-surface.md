@@ -37,3 +37,7 @@ Repoint each face walk at `Body::face_surface` (or, holding the face
 record, read its fields beside it), deciding at each site whether a
 stale face key is a desync or an honest no; delete the twins. The
 tests and demos are mechanical; the `src/` sites are each a decision.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

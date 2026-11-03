@@ -21,10 +21,10 @@ use crate::intent_s6_c_trace::{
 use editor_core::coincide::{self, Proof, Recourse, Rung};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DrawnOn, Formula, FreeVar, LoopProgram, Node, Operand,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName,
-    TraceCrossing, TracePassage, TraceSense, UnitSym, VarDecl, VarName, all_edges, all_faces,
-    all_vertices, edge_carrier_kind, face_carrier_kind, vertex_position,
+    Dimension, DocEdit, DrawnOn, Formula, FreeVar, LoopProgram, Node, Operand, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, TraceCrossing,
+    TracePassage, TraceSense, UnitSym, VarDecl, VarName, all_edges, all_faces, all_vertices,
+    edge_carrier_kind, face_carrier_kind, vertex_position,
 };
 use geom::{CurveKind, SurfaceKind};
 use geom_core::Tol;
@@ -136,7 +136,7 @@ pub(crate) fn tangency(doc: ProfileDoc, members: Vec<Operand>) -> Proof {
         &[(union, &rows[..])],
         None,
         Tol::witness(),
-        &CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door");
     let tangent: Vec<_> = rows
@@ -583,7 +583,7 @@ fn a_boss_on_a_spheres_small_circle_is_not_proven_tangent() {
                 &[(union, &rows[..])],
                 None,
                 Tol::witness(),
-                &CancelToken::new(),
+                &editor_core::Stop::default(),
             )
             .expect("an uncanceled door");
             assert!(
