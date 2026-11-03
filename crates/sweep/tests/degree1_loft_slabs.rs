@@ -98,8 +98,12 @@ fn heights(n: usize, spacing: &str) -> Vec<f64> {
 /// scale `scale(i)`.
 fn loft(shape: Shape, zs: &[f64], scale: impl Fn(usize) -> f64) -> Lofted<f64> {
     let sections: Vec<Section> = (0..zs.len()).map(|i| shape.section(scale(i))).collect();
-    loft_body::<f64>(&sections, &stacked_at(zs), 1, tol())
-        .unwrap_or_else(|e| panic!("{shape:?} at {zs:?}: the degree-1 loft builds: {e}"))
+    loft_body::<f64>(&sections, &stacked_at(zs), 1, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{shape:?} at {zs:?}: the degree-1 loft builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// The closed form: each slab of a degree-1 loft between homothetic
@@ -258,8 +262,12 @@ fn a_degree_one_loft_that_changes_scale_is_its_frusta() {
     let hs = [1.0, 0.7, 1.2];
     let zs = [0.0, 0.8, 2.0];
     let sections: Vec<Section> = hs.iter().map(|&s| holed(s)).collect();
-    let lofted = loft_body::<f64>(&sections, &stacked_at(&zs), 1, tol())
-        .unwrap_or_else(|e| panic!("the holed square lofts: {e}"));
+    let lofted = loft_body::<f64>(&sections, &stacked_at(&zs), 1, tol()).unwrap_or_else(|e| {
+        panic!(
+            "the holed square lofts: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(
         lofted.side_faces.iter().flatten().all(|w| w.len() == 2),
         "every loop's walls are two slabs"
@@ -454,7 +462,12 @@ fn a_degree_one_path_sweep_is_one_wall_per_slab() {
     .unwrap();
     let section = Shape::Square.section(0.4);
     let swept = sweep::sweep_body::<f64>(&section, profile::SketchPlane::xy(), &path, 5, 1, tol())
-        .unwrap_or_else(|e| panic!("the degree-1 sweep builds: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the degree-1 sweep builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert!(
         swept.side_faces[0].iter().all(|w| w.len() == 4),
         "four slabs a segment"
@@ -509,7 +522,11 @@ fn an_interior_arc_refined_by_its_neighbours_refuses_typed() {
                 other.map(|_| ())
             ),
         }
-        loft_body::<f64>(&sections, &places, 2, tol())
-            .unwrap_or_else(|e| panic!("{bulges:?}: the recourse, degree 2, builds: {e}"));
+        loft_body::<f64>(&sections, &places, 2, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{bulges:?}: the recourse, degree 2, builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }

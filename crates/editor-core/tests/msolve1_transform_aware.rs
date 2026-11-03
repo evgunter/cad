@@ -1026,6 +1026,7 @@ fn a8e_a_cut_that_would_sever_the_target_refuses() {
         DocumentId::derive("msolve1-a8e-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("the cut severs the seat's target");
     assert!(
@@ -1097,6 +1098,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         DocumentId::derive("msolve1-a8f-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("a cut of untouched local geometry is accepted");
     // The placement moved in the remainder's numbering; its
@@ -1170,6 +1172,7 @@ fn a8g_a_kept_constraint_whose_operand_is_cut_refuses_at_the_door() {
         DocumentId::derive("msolve1-a8g-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("a kept constraint cannot keep an operand the cut took");
     assert!(
@@ -1211,6 +1214,7 @@ fn a8h_a_cut_constraint_whose_operand_is_kept_refuses_with_the_same_variant() {
         DocumentId::derive("msolve1-a8h-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("a cut constraint cannot carry an operand the part does not have");
     assert!(

@@ -957,6 +957,7 @@ fn a6_a_split_stands_its_instance_by_the_identity_bundle_with_or_without_a_resol
             DocumentId::derive("msolve6-p6-new-part"),
             Tol::witness(),
             resolver,
+            &editor_core::Stop::default(),
         )
     };
     let out = split(opts.resolver.as_ref())

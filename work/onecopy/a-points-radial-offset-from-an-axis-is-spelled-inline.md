@@ -31,3 +31,7 @@ Also owed with it: `crates/editor-core/src/pose.rs` `AxisLine::through`, whose s
 Not included: rejections of a free direction (`v − a·(v·a)` where `v` is no point's offset), which are a vector's component square to `a`, not a point's offset from a line.
 
 Fix: a reading on `geom::Line` for the offset (or the radial distance), with these sites repointed in one PR that re-baselines whatever bits move.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

@@ -321,8 +321,12 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
         "the inserted row carries row 0's weights"
     );
     let (v0, v1) = s.knots_v_f64_interim().domain();
-    let ok = certify_line::<T>(&s, &row, (u, v0), (0.0, v1 - v0))
-        .unwrap_or_else(|e| panic!("{lane}: case (a) with varying row-0 weights certifies: {e}"));
+    let ok = certify_line::<T>(&s, &row, (u, v0), (0.0, v1 - v0)).unwrap_or_else(|e| {
+        panic!(
+            "{lane}: case (a) with varying row-0 weights certifies: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         ok.certificate().statement,
         EnvelopeStatement::MapResidualIsoHull
@@ -389,7 +393,10 @@ fn c2_body<T: Decide + Bounds>(lane: &str) {
     )
     .unwrap();
     let ok = certify_line::<T>(&sb, &poly, (u, v0), (0.0, v1 - v0)).unwrap_or_else(|e| {
-        panic!("{lane}: case (b) non-unit chart, constant[3] carrier certifies: {e}")
+        panic!(
+            "{lane}: case (b) non-unit chart, constant[3] carrier certifies: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
     });
     assert!(ok.certificate().envelope.hi() < 1e-12);
     let vary = NurbsCurve3::new(
@@ -491,7 +498,8 @@ fn c3_body<T: Decide + Bounds>(lane: &str) {
             }
             Err(e) => assert!(
                 eta > 1e-12,
-                "{lane}: the smallest drift certifies at every ε: {e}"
+                "{lane}: the smallest drift certifies at every ε: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
         }
     }

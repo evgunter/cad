@@ -271,7 +271,7 @@ fn an_in_band_lean_between_neighbours_refuses_at_the_scan() {
         ),
         "the scan's own refusal: {refusal:?}"
     );
-    let text = refusal.to_string();
+    let text = refusal.render(geom_brep::recourse::Reading::Build);
     assert!(!text.contains("seam"), "the door speaks of no seam: {text}");
     assert_eq!(
         crate::fixtures::deep_snapshot(&body),

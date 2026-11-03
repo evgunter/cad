@@ -219,7 +219,7 @@ fn outcome<T: Decide + Bounds>(body: &Body<T>, edges: [EdgeKey; 2], verb: Verb) 
             }
         }
         Err(BlendError::Escalated { decision, .. }) => Outcome::Escalated(decision),
-        Err(e) => Outcome::Refused(e.to_string()),
+        Err(e) => Outcome::Refused(e.render(geom_brep::recourse::Reading::Build)),
     }
 }
 
@@ -694,7 +694,12 @@ fn the_concave_supplementary_corner_reads_and_decides_as_the_convex_one() {
         D,
         tol(),
     )
-    .unwrap_or_else(|r| panic!("the concave supplementary chamfer builds, got {}", r.error));
+    .unwrap_or_else(|r| {
+        panic!(
+            "the concave supplementary chamfer builds, got {}",
+            r.error.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     topo::validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the concave supplementary chamfer is tier-3 valid: {e:?}"));
     assert!(

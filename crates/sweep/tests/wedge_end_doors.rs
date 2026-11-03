@@ -756,7 +756,8 @@ fn a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op() {
         Err(e) => assert_eq!(
             e.kind(),
             BooleanErrorKind::CurvedPierceUnsupported,
-            "internal kiss, subtract: {e}"
+            "internal kiss, subtract: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Ok(r) => panic!("internal kiss, subtract: expected a refusal, got a result {r:?}"),
     }
@@ -882,7 +883,7 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
                     );
                     // The refusal says what it established: a wedge
                     // decided Zero with the material facing itself.
-                    let text = refusal.to_string();
+                    let text = refusal.render(geom_brep::recourse::Reading::Build);
                     assert!(text.contains("cusp or slit"), "{name} {verb}: {text}");
                 }
                 Ok(()) => panic!("{name} {verb}: blended a wedge-{name} edge"),
@@ -908,7 +909,10 @@ fn shell_refuses_a_cusp_or_slit_body_typed() {
                 tol(),
             ) {
                 Err(ShellError::Face { .. }) => {}
-                Err(other) => panic!("{name} at {thickness}: an unexpected refusal {other}"),
+                Err(other) => panic!(
+                    "{name} at {thickness}: an unexpected refusal {other_at}",
+                    other_at = other.render(geom_brep::recourse::Reading::Build)
+                ),
                 Ok(_) => panic!("{name} at {thickness}: shelled a wedge-{name} body"),
             }
         }

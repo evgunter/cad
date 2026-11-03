@@ -1206,8 +1206,12 @@ fn a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval() {
         ] {
             for phi in [0.0, 0.7] {
                 let what = format!("normal in {frame}, tilt {t}, seams at {phi}");
-                let s = cylinder_section::<f64>(phi, mid, n)
-                    .unwrap_or_else(|e| panic!("{what}, f64: {e}"));
+                let s = cylinder_section::<f64>(phi, mid, n).unwrap_or_else(|e| {
+                    panic!(
+                        "{what}, f64: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 let [region] = &s.regions[..] else {
                     panic!("{what}, f64: one region, got {}", s.regions.len());
                 };
@@ -1221,7 +1225,12 @@ fn a_steep_cut_through_a_cylinders_caps_answers_at_f64_and_interval() {
                     mid,
                     n.map(<Interval as geom_core::Real>::from_f64),
                 )
-                .unwrap_or_else(|e| panic!("{what}, Interval: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}, Interval: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 let [region] = &s.regions[..] else {
                     panic!("{what}, Interval: one region, got {}", s.regions.len());
                 };
@@ -1258,8 +1267,12 @@ fn a_normal_straddling_zero_in_one_component_still_cuts_at_interval() {
         Interval::from_f64(0.3),
         Interval::from_f64(1.0),
     );
-    let s = cylinder_section::<Interval>(0.0, Point3::new(0.0, 0.0, 0.5), n)
-        .unwrap_or_else(|e| panic!("the cut refused: {e}"));
+    let s = cylinder_section::<Interval>(0.0, Point3::new(0.0, 0.0, 0.5), n).unwrap_or_else(|e| {
+        panic!(
+            "the cut refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let [region] = &s.regions[..] else {
         panic!("one region, got {}", s.regions.len());
     };
@@ -1341,9 +1354,18 @@ fn an_axis_parallel_cut_of_a_cylinder_along_any_axis_pairs_each_ruling() {
                     };
                     let what = format!("along {axis}, seams at {turn:.3}, c {c}, phi {phi}");
                     let plane = topo::test_support::split_plane(origin, n, tol());
-                    split(&body, &plane, tol()).unwrap_or_else(|e| panic!("{what}: split: {e}"));
-                    let s = topo::plane_section(&body, &plane, tol())
-                        .unwrap_or_else(|e| panic!("{what}: section: {e}"));
+                    split(&body, &plane, tol()).unwrap_or_else(|e| {
+                        panic!(
+                            "{what}: split: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
+                    let s = topo::plane_section(&body, &plane, tol()).unwrap_or_else(|e| {
+                        panic!(
+                            "{what}: section: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
                     let [region] = &s.regions[..] else {
                         panic!("{what}: one region, got {}", s.regions.len());
                     };

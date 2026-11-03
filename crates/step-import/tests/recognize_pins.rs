@@ -580,7 +580,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         "the measured bound is the displacement the falsifier planted \
          (~5e-4 m at mid-parameter): {measured:e}"
     );
-    let text = StepImportError::Adoption { id, attempts, file }.to_string();
+    let text = StepImportError::Adoption { id, attempts, file }.render();
     assert!(
         text.contains("not on both surfaces"),
         "the refusal text states the declare-and-check verdict: {text}"

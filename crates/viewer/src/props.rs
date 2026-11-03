@@ -142,6 +142,59 @@ use pncad::quantity::{
     self, AngleUnit, LengthUnit, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength,
 };
 
+/// **Which way [`one_figure_length`] rounds.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rounding {
+    /// To the nearest figure.
+    Nearest,
+    /// To the least figure whose length is at least the one measured.
+    Up,
+}
+
+/// **`metres` written in `unit` at one significant figure**, rounded
+/// as `rounding` says, so a default a form inserts reads as a round
+/// number in the unit the person works in (`1 mm`, `0.04 in`). The one
+/// home of that rounding: a blend's size and a pattern row's spacing
+/// are written through it.
+///
+/// [`Rounding::Up`] holds exactly: the figure is the least whose length,
+/// read back in metres, is at least `metres`, so a measure already
+/// round to within float noise stays as it is and none comes out
+/// below.
+///
+/// # Errors
+///
+/// A value whose figure is not finite (the literal door's refusal).
+pub fn one_figure_length(
+    metres: f64,
+    unit: LengthUnit,
+    rounding: Rounding,
+) -> Result<Formula, DimensionError> {
+    let at = metres / WrittenLength::in_unit(1.0, unit).meters();
+    // `digit · 10^-places`, divided rather than multiplied so `0.04` is
+    // the double nearest four hundredths.
+    let places = -at.log10().floor();
+    let figure = |digit: f64| {
+        if places >= 0.0 {
+            digit / 10f64.powf(places)
+        } else {
+            digit * 10f64.powf(-places)
+        }
+    };
+    let scaled = at * 10f64.powf(places);
+    let value = match rounding {
+        Rounding::Nearest => figure(scaled.round()),
+        Rounding::Up => {
+            let mut digit = scaled.floor().max(1.0);
+            while WrittenLength::in_unit(figure(digit), unit).meters() < metres {
+                digit += 1.0;
+            }
+            figure(digit)
+        }
+    };
+    Formula::written_length(WrittenLength::in_unit(value, unit))
+}
+
 /// What is in a slot right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SlotValue {
