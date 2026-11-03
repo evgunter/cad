@@ -8,11 +8,13 @@
 //! - **A ridge on its floor rests.** The C-shaped block, its slot
 //!   `[−1, 3] × [1, 2.5]` across `z ∈ [0, 3]`, united with a ridge hanging
 //!   from its roof whose tip rests on the floor `y = 1` along
-//!   `z ∈ [1, 2]`: one solid, the tip one edge lying in the floor, its
-//!   wedge outside the floor's material. One face of the tip is a
-//!   cylinder whose ruling the tip is: an arc wall leaving the floor
-//!   across it, bowed either way, or tangent to the floor and bending
-//!   up off it, which only its bend parts. Tier 3′ passes each.
+//!   `z ∈ [0.5, 2.5]`: one solid, the tip one edge lying in the floor, its
+//!   wedge outside the floor's material. A face of the tip is a cylinder
+//!   whose ruling the tip is: an arc wall leaving the floor across it,
+//!   bowed either way; both walls arcs; a short arc bending back toward
+//!   the floor, read inside its own edges' clearance; or an arc tangent
+//!   to the floor and bending up off it, which only its bend parts. Tier
+//!   3′ passes each.
 //! - **A keel through its face crosses.** The block
 //!   `[1, 4] × [−2, 2] × [0, 4]` less a trench from `z = 2` up out of the
 //!   top whose keel lies in the face `x = 1`, its closing wall an arc
@@ -96,16 +98,18 @@ fn c_block(o: Vec3<f64>) -> BooleanBody<f64> {
 }
 
 /// **A ridge on its floor rests**: each ridge, its tip at `(1.5, 1)`
-/// along `z ∈ [1, 2]` and one wall from it a cylinder the tip is a
+/// along `z ∈ [0.5, 2.5]` and one wall from it a cylinder the tip is a
 /// ruling of, united with the C-shaped block into one solid whose tip
 /// lies in the floor on record. The floor's material is below it and
 /// the ridge's wedge above. Red if the chord is not read (the tip
 /// refuses `FaceThroughEdgeWedgeUndecided`, its cylinder face no
-/// sector), or reads the arc on the wrong side of the floor, or the
-/// tangent wall's bend is not read.
+/// sector), reads the arc on the wrong side of the floor, sets the
+/// lever past the face's own
+/// edges (the short arc's carrier then reads below the floor at it), or
+/// does not read the tangent wall's bend.
 #[test]
 fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
-    let ridges: [(&str, Corners); 3] = [
+    let ridges: [(&str, Corners); 5] = [
         (
             "an arc wall bowed out",
             &[(1.5, 1.0, 0.2), (2.1, 3.0, 0.0), (0.9, 3.0, 0.0)],
@@ -113,6 +117,22 @@ fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
         (
             "an arc wall bowed in",
             &[(1.5, 1.0, -0.2), (2.1, 3.0, 0.0), (0.9, 3.0, 0.0)],
+        ),
+        (
+            "both walls arcs",
+            &[(1.5, 1.0, 0.2), (2.1, 3.0, 0.0), (0.9, 3.0, 0.2)],
+        ),
+        (
+            // Leaving the floor at 8°, bending down at radius 1 for a
+            // chord of 0.1: its carrier comes back to the floor 0.28 out,
+            // so only the arc's own far edge holds the lever inside it.
+            "a short arc wall bending back toward the floor",
+            &[
+                (1.5, 1.0, -0.025015644561821086),
+                (1.5995988114088147, 1.0089485622281678, 0.0),
+                (1.5995988114088147, 3.0, 0.0),
+                (0.9, 3.0, 0.0),
+            ],
         ),
         (
             "an arc wall tangent to the floor",
@@ -128,7 +148,7 @@ fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
         let c = c_block(o);
         for (what, ridge) in ridges {
             let what = format!("{what}, {o:?} off");
-            let ridge = prism(&what, o, ridge, 1.0, 1.0);
+            let ridge = prism(&what, o, ridge, 0.5, 2.0);
             let r = built(&what, union(&c.body, &ridge, tol()));
             assert_eq!(r.body.solids().count(), 1, "{what}: one solid");
             assert_eq!(

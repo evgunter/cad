@@ -8992,6 +8992,9 @@ impl<T: Decide> Link<T> {
         };
         let plane = outward(floor)?;
         let halves = body.get_edge(e).ok_or(TouchUnread::Corrupt)?;
+        // Read per pass, not per face as `touch_on_edge` gathers them: a
+        // face along the edge twice is two sheets, two directions into it
+        // and, ruled, two chords.
         let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
         for he in [halves.he_plus, halves.he_minus] {
             let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
@@ -9004,15 +9007,18 @@ impl<T: Decide> Link<T> {
                 continue;
             }
             let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-            let mut clear = (edge.p0 - p).norm().min((edge.p1 - p).norm());
+            // The face's other edges, which end on the edge's ends too.
+            let mut clear: Option<T> = None;
             for cycle in face_cycles(body, face) {
                 for other in cycle.map_err(|_| TouchUnread::Corrupt)? {
                     let half = body.get_half_edge(other).ok_or(TouchUnread::Corrupt)?;
                     if half.edge != e {
-                        clear = clear.min(crate::link::clearance(body, other, p)?);
+                        let c = crate::link::clearance(body, other, p)?;
+                        clear = Some(clear.map_or(c, |r| r.min(c)));
                     }
                 }
             }
+            let clear = clear.ok_or(TouchUnread::Corrupt)?;
             let ruled = Ruled {
                 surface: body.face_surface_linked(f, face).clone(),
                 sense: face.sense,
@@ -9023,8 +9029,7 @@ impl<T: Decide> Link<T> {
             };
             chords.push(FaceSector::chord(&ruled, p, plane, band)?);
         }
-        crate::link::chords_clear(p, &chords, &into, band)?;
-        let mut sectors = Vec::new();
+        let mut sectors = crate::link::chords_clear(p, chords, &into, band)?;
         for f in planar {
             sectors.extend(FaceSector::of(
                 body,
@@ -9035,7 +9040,6 @@ impl<T: Decide> Link<T> {
                 band,
             )?);
         }
-        sectors.extend(chords.into_iter().map(|c| c.sector));
         Self::of(p, sectors)
     }
 

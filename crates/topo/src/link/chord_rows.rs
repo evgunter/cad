@@ -69,7 +69,8 @@ fn sheet(p: Point3<f64>, outward: Vec3<f64>, a: Vec3<f64>, half: bool) -> FaceSe
 #[derive(Clone, Copy)]
 enum Carrier {
     Cylinder,
-    /// A cone of this half-angle, its apex `3` below `p` on the ruling.
+    /// A cone of this half-angle, its apex below `p` on the ruling, as
+    /// far as puts the axis `rho` across from `p`.
     Cone(f64),
 }
 
@@ -85,7 +86,7 @@ impl Carrier {
             Self::Cone(alpha) => {
                 let axis = Z * alpha.cos() + bend * alpha.sin();
                 geom::Surface::Cone {
-                    apex: p - Z * 3.0,
+                    apex: p - Z * (rho / alpha.sin()),
                     axis,
                     half_angle: alpha,
                     u_ref: axis.cross(bend.cross(axis)).normalize() * -1.0,
@@ -127,8 +128,9 @@ fn judged(
     let d = dir(b);
     let read = || -> Result<TouchVerdict, TouchUnread> {
         let chord = FaceSector::chord(&ruled, p, floor, band())?;
-        chords_clear(p, core::slice::from_ref(&chord), &[d], band())?;
-        let edge = Link::of(p, vec![sheet(p, Z.cross(d), Z, true), chord.sector])?;
+        let mut sectors = chords_clear(p, vec![chord], &[d], band())?;
+        sectors.push(sheet(p, Z.cross(d), Z, true));
+        let edge = Link::of(p, sectors)?;
         let face = Link::of(p, vec![sheet(p, floor, v(1.0, 0.0, 0.0), false)])?;
         Ok(rest::judge(&edge, &face, band()))
     };
@@ -260,28 +262,30 @@ fn a_tangent_tilted_under_the_band_reads_by_its_bend() {
 }
 
 /// **An arc lying in the face to its chord refuses as two sheets on
-/// each other.** A cylinder tangent to the face `y = 0`, its radius so
-/// large that the arc's point at the lever rises half the band's zero
-/// off the face: `Degenerate`. Red if a Zero pair is read.
+/// each other.** A cylinder or cone tangent to the face `y = 0`, so wide
+/// across the edge that the arc's point at the lever rises half the
+/// band's zero off the face: `Degenerate`. Red if a Zero pair is read.
 #[test]
 fn an_arc_in_the_face_to_its_chord_refuses_degenerate() {
     let lever = 0.5;
     let rho = lever * lever / band().zero();
     for p in AT {
-        assert_eq!(
-            judged(
-                p,
-                (0.0, FRAC_PI_2),
-                Carrier::Cylinder,
-                true,
-                rho,
-                v(0.0, 1.0, 0.0),
-                1.0,
-                [p - Z * 2.0, p + Z * 2.0]
-            ),
-            TouchVerdict::Unread(TouchUnread::Degenerate),
-            "at {p:?}"
-        );
+        for (what, carrier) in CARRIERS {
+            assert_eq!(
+                judged(
+                    p,
+                    (0.0, FRAC_PI_2),
+                    carrier,
+                    true,
+                    rho,
+                    v(0.0, 1.0, 0.0),
+                    1.0,
+                    [p - Z * 2.0, p + Z * 2.0]
+                ),
+                TouchVerdict::Unread(TouchUnread::Degenerate),
+                "{what} at {p:?}"
+            );
+        }
     }
 }
 
@@ -341,64 +345,198 @@ fn an_edge_off_the_ruling_refuses() {
 }
 
 /// **The chord is the half-plane from the edge through the arc's real
-/// point, oriented as the face.** A cylinder of radius `1` tangent along
-/// `+x` at the origin, bending up: its point at the lever `½` lies on
-/// the carrier and on the chord's plane, the chord's fan turns from the
-/// edge toward it, its outward normal within a quarter turn of the
-/// face's, and its ball is the lever. Red if the point leaves the
-/// carrier, the chord turns off it, or its sense flips.
+/// point, oriented as the face.** A cylinder or cone of radius `1`
+/// across the edge, its tangent along `60°`, bending into its wedge: the
+/// arc's point at the lever `½`, found here by turning `p` about the
+/// carrier's axis, lies on the chord's plane, the chord leaves the edge
+/// toward it and the face's tangent into the face, its outward normal is
+/// within a quarter turn of the face's, its fan lies on the point's side
+/// of the plane `y = 0` it is read against, and its ball is the distance
+/// from `p` to the carrier's ruling through the point. At the origin and
+/// a kilometre off. Red if the point leaves the carrier, the chord or the
+/// tangent turns off the face, its sense flips, or its ball is read off
+/// another line.
 #[test]
 fn the_chord_is_the_half_plane_through_the_arcs_point() {
-    let p = Point3::origin();
-    let outward = v(0.0, -1.0, 0.0);
-    let ruled = Ruled {
-        surface: Carrier::Cylinder.surface(p, -outward, 1.0),
-        sense: false,
-        outward,
-        along: -Z,
-        ends: [p - Z * 2.0, p + Z * 2.0],
-        clear: 1.0,
-    };
-    let chord = FaceSector::chord(&ruled, p, v(0.0, 1.0, 0.0), band()).expect("a chord");
-    let s = &chord.sector.sector;
-    let q = p + chord.bounds[1] * 0.5;
-    assert!(
-        ((q - Point3::new(0.0, 1.0, 0.0)).norm() - 1.0).abs() < 1e-12,
-        "the arc's point on the carrier: {q:?}"
-    );
-    assert!(s.outward.dot(q - p).abs() < 1e-12, "on the chord's plane");
-    assert!(s.outward.dot(outward) > 0.9, "oriented as the face");
-    let square = (s.wedges[1].1 - p).normalize();
-    assert!(
-        square.dot(chord.bounds[1]) > 1.0 - 1e-12,
-        "the fan's quarter turn from the edge is toward it: {square:?}"
-    );
-    assert!(
-        (chord.sector.face.clear.unwrap() - 0.5).abs() < 1e-12,
-        "the ball"
-    );
+    let h = dir(FRAC_PI_3);
+    let outward = -(Z.cross(h));
+    let floor = v(0.0, 1.0, 0.0);
+    for p in AT {
+        for (what, carrier) in CARRIERS {
+            let at = format!("{what} at {p:?}");
+            let surface = carrier.surface(p, -outward, 1.0);
+            let ruled = Ruled {
+                surface: surface.clone(),
+                sense: true,
+                outward,
+                along: -Z,
+                ends: [p - Z * 2.0, p + Z * 2.0],
+                clear: 1.0,
+            };
+            let chord = FaceSector::chord(&ruled, p, floor, band()).expect("a chord");
+            let (origin, axis, apex) = match surface {
+                geom::Surface::Cylinder { origin, axis, .. } => (origin, axis, None),
+                geom::Surface::Cone { apex, axis, .. } => (apex, axis, Some(apex)),
+                _ => unreachable!("a ruled carrier"),
+            };
+            let centre = origin + axis * axis.dot(p - origin);
+            let radial = p - centre;
+            let rho = radial.norm();
+            let turn = 2.0 * (0.5 / (2.0 * rho)).asin();
+            let side = if axis.cross(radial).dot(h) > 0.0 {
+                1.0
+            } else {
+                -1.0
+            };
+            let q = centre + radial * turn.cos() + axis.cross(radial) * (side * turn.sin());
+            assert!(((q - p).norm() - 0.5).abs() < 1e-9, "{at}: the lever");
+            let s = &chord.sector.sector;
+            assert!(
+                s.outward.dot(q - p).abs() < 1e-9,
+                "{at}: on the chord's plane"
+            );
+            assert!(s.outward.dot(outward) > 0.9, "{at}: oriented as the face");
+            assert!(
+                (chord.bounds[0] - h).norm() < 1e-12,
+                "{at}: the tangent into the face"
+            );
+            let u = (q - p) - Z * Z.dot(q - p);
+            assert!(
+                chord.bounds[1].dot(u.normalize()) > 1.0 - 1e-9,
+                "{at}: the chord toward the point"
+            );
+            let square = (s.wedges[1].1 - p).normalize();
+            assert!(
+                square.dot(chord.bounds[1]) > 1.0 - 1e-9,
+                "{at}: the fan's quarter turn from the edge is toward it: {square:?}"
+            );
+            assert!(
+                floor.dot(s.wedges[1].1 - p) > 0.0 && floor.dot(q - p) > 0.0,
+                "{at}: the fan on the point's side of the plane"
+            );
+            let next = apex.map_or(axis, |a| (q - a).normalize());
+            let ball = ((q - p) - next * next.dot(q - p)).norm();
+            assert!(
+                (chord.sector.face.clear.unwrap() - ball).abs() < 1e-9,
+                "{at}: the ball, {:?} against {ball}",
+                chord.sector.face.clear
+            );
+        }
+    }
 }
 
-/// **The lever stays inside the section's circle.** A cylinder of radius
-/// `0.1` whose other edges stand `10` off: the arc's point is read at
-/// half the radius, not half the clearance, which no circle of that
-/// radius reaches; the wedge from `60°` to `120°` rests. Red if the
-/// lever outruns the circle (its point unread, the edge in band).
+/// **The lever stays inside the section's circle.** A cylinder or cone
+/// of radius `0.1` across the edge whose other edges stand `10` off: the
+/// arc's point is read at half the radius, not half the clearance, which
+/// no circle of that radius reaches; the wedge from `60°` to `120°`
+/// rests. Red if the lever outruns the circle (its point unread, the
+/// edge in band).
 #[test]
 fn the_lever_stays_inside_the_sections_circle() {
     for p in AT {
-        assert!(
-            rests(&judged(
+        for (what, carrier) in CARRIERS {
+            // The cone's apex is `0.1 / sin 0.4` below `p`: the edge stops
+            // short of it.
+            let below = match carrier {
+                Carrier::Cylinder => 20.0,
+                Carrier::Cone(alpha) => 0.09 / alpha.sin(),
+            };
+            assert!(
+                rests(&judged(
+                    p,
+                    (FRAC_PI_3, 2.0 * FRAC_PI_3),
+                    carrier,
+                    true,
+                    0.1,
+                    v(0.0, 1.0, 0.0),
+                    10.0,
+                    [p - Z * below, p + Z * 20.0]
+                )),
+                "{what} at {p:?}"
+            );
+        }
+    }
+}
+
+/// **A cone's apex inside the edge refuses.** A cone of half-angle `0.4`
+/// with its apex `3` below `p` (the radius across the edge `3·sin 0.4`)
+/// and the edge from `4` below `p` to `2` above, through the apex: past
+/// the apex the cone's strip lies point-reflected through it, on the
+/// face's other side, which no section at `p` sees. With the wedge from
+/// `60°` to `120°` over `y = 0`, `Unreadable`, at the origin and a
+/// kilometre off; the edge stopping at the apex reads. Red if the apex is
+/// not held off the edge.
+#[test]
+fn a_cones_apex_inside_the_edge_refuses() {
+    let alpha = 0.4;
+    let rho = 3.0 * f64::sin(alpha);
+    for p in AT {
+        let read = |below: f64| {
+            judged(
                 p,
                 (FRAC_PI_3, 2.0 * FRAC_PI_3),
-                Carrier::Cylinder,
+                Carrier::Cone(alpha),
                 true,
-                0.1,
+                rho,
                 v(0.0, 1.0, 0.0),
-                10.0,
-                [p - Z * 20.0, p + Z * 20.0]
-            )),
-            "at {p:?}"
+                1.0,
+                [p - Z * below, p + Z * 2.0],
+            )
+        };
+        assert_eq!(
+            read(4.0),
+            TouchVerdict::Unread(TouchUnread::Unreadable),
+            "at {p:?}: the edge through the apex"
+        );
+        assert!(rests(&read(3.0)), "at {p:?}: the edge ending at the apex");
+    }
+}
+
+/// **One edge along `z` through `p` both of whose faces are ruled**, in
+/// the face `y = 0` there, outward `+y`: the wedge from the first's
+/// tangent `dir(a)` counterclockwise to the second's `dir(b)`, each
+/// cylinder of radius `1` across the edge bending into the wedge.
+fn two_ruled(p: Point3<f64>, (a, b): (f64, f64)) -> TouchVerdict {
+    let floor = v(0.0, 1.0, 0.0);
+    let read = || -> Result<TouchVerdict, TouchUnread> {
+        let (ha, hb) = (dir(a), dir(b));
+        let (na, nb) = (-(Z.cross(ha)), Z.cross(hb));
+        let face = |n: Vec3<f64>, along: Vec3<f64>| Ruled {
+            surface: Carrier::Cylinder.surface(p, -n, 1.0),
+            sense: true,
+            outward: n,
+            along,
+            ends: [p - Z * 2.0, p + Z * 2.0],
+            clear: 1.0,
+        };
+        let chords = vec![
+            FaceSector::chord(&face(na, -Z), p, floor, band())?,
+            FaceSector::chord(&face(nb, Z), p, floor, band())?,
+        ];
+        let edge = Link::of(p, chords_clear(p, chords, &[], band())?)?;
+        let face = Link::of(p, vec![sheet(p, floor, v(1.0, 0.0, 0.0), false)])?;
+        Ok(rest::judge(&edge, &face, band()))
+    };
+    read().unwrap_or_else(TouchVerdict::Unread)
+}
+
+/// **Two ruled faces of one edge read their chords, and refuse where
+/// one's tangent enters the other's lens.** Both faces cylinders bending
+/// into the wedge: from `60°` to `120°` over the face whose material is
+/// below, a rest; from `60°` to `60° + 0.05`, the second's tangent
+/// inside the first's lens (`asin(¼)` wide), `Unreadable`. At the origin and a
+/// kilometre off. Red if the chords are not read against each other.
+#[test]
+fn two_ruled_faces_of_one_edge_hold_each_other_out_of_their_lenses() {
+    for p in AT {
+        assert!(
+            rests(&two_ruled(p, (FRAC_PI_3, 2.0 * FRAC_PI_3))),
+            "at {p:?}: rests"
+        );
+        assert_eq!(
+            two_ruled(p, (FRAC_PI_3, FRAC_PI_3 + 0.05)),
+            TouchVerdict::Unread(TouchUnread::Unreadable),
+            "at {p:?}: one tangent inside the other's lens"
         );
     }
 }
