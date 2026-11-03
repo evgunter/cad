@@ -89,11 +89,12 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
 
-use crate::sector_shape::{
-    ApexShape, CornerShape, FullTurn, SlitTips, TurnOrder, apex_corner_shape, corner_shape,
-};
+use crate::sector_shape::{ApexShape, SlitTips, apex_corner_shape};
 use crate::validate::decide;
-use geom_brep::sector_shape::{SectorFault, SectorShape, metering_arm};
+use geom_brep::sector_shape::{
+    CornerBounds, CornerShape, FullTurn, SectorFault, SectorShape, TurnOrder, corner_shape,
+    metering_arm,
+};
 
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
@@ -624,7 +625,7 @@ fn push_apex_corner<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     corner: OrbitCorner<T>,
     apex: &ConeApex<T>,
-    bounds: crate::sector_shape::CornerBounds,
+    bounds: CornerBounds,
     partners: &Partners<T>,
     band: Band,
 ) -> Result<(), SectorFault> {
@@ -662,7 +663,7 @@ fn push_apex_corner<T: Decide>(
     // spans a whole turn, and its two bounds' azimuth
     // ([`BoolSector::middle`]) reads its window.
     if !matches!(partners, Partners::Pierced(_)) {
-        rulings = crate::sector_shape::TurnOrder::FromOwn
+        rulings = TurnOrder::FromOwn
             .quarter_fractions()
             .into_iter()
             .map(|k| apex.ruling_from(unit_start, window * T::from_f64(k)))

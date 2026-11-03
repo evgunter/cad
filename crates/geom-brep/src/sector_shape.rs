@@ -1,66 +1,89 @@
-//! The vertex-neighborhood **sector-shape** predicates: one metering
-//! arm, one wideness verdict, one subdivision direction — shared by the
-//! two lanes that ask this question.
+//! The **sector-shape** predicates of a corner: a face's corner at a
+//! vertex, between two bounding chords leaving the vertex, read about
+//! the face's outward normal there. Three rungs decide it, one metering
+//! arm, one wideness verdict and one subdivision direction
+//! ([`sector_shape`]), and [`corner_shape`] reads a corner whose bounds
+//! the face wraps a full turn round.
 //!
-//! # What the question is
+//! # The inputs
 //!
-//! Both the splitting lane (`splitting::neighborhood`) and the
-//! boolean lane (`topo::boolean::sectors`) walk a vertex orbit and,
-//! for the sector CW-after orbit half-edge `he`, must answer three
-//! things about the corner bounded by `he`'s own outgoing chord and the
-//! next orbit chord:
+//! A corner is given as two chords leaving the vertex, each scaled to
+//! its edge's length (a line edge's chord; a curved edge's extent from
+//! below, [`crate::edge_extent_inf`], through [`crate::ConicDeparture`]),
+//! and the face's [`OutwardNormal`] at the vertex. `own` is the corner's
+//! own chord, its counter-clockwise-**last** bound, and `next` the
+//! counter-clockwise-**first**: the corner's interior directions sweep
+//! from `next` counter-clockwise about the normal to `own`. The rungs
+//! read the bounds as given and the normal's sense as it stands; they
+//! apply no sense of their own.
+//!
+//! # What each rung decides
 //!
 //! 1. **Is the corner metered at all?** The lever arm is the shorter of
-//!    the two bounds' lengths (metres: a line edge's chord, a curved
-//!    edge's extent from below, [`crate::edge_extent_inf`], through
-//!    [`crate::ConicDeparture`], on both sides); a non-positive arm
-//!    is a degenerate neighborhood, refused typed.
+//!    the two bounds' lengths ([`sector_arm`]); a bound whose length is
+//!    not a finite number, or underflowed out of the format, is refused
+//!    as such, and a non-positive arm is a degenerate corner, refused
+//!    typed.
 //! 2. **Is the corner convex (< 180°)?** `sin θ = (b̂ × â)·n` metered at
-//!    the arm. A face with a tangent plane at the vertex is
-//!    planar-or-charted there, so a sector's interior is the positive
-//!    cone of its bounds **iff** the angle is < 180°; only then does one
-//!    entry suffice. At a cone's apex there is no tangent plane, and the
-//!    interior is the fan of rulings between the bounds at every width,
-//!    so none of this holds there: that sector is read by
-//!    `topo::sector_shape::apex_corner_shape`, against a plane through the apex: the one
-//!    the split cuts with, or the face a Boolean's vertex pierces.
-//! 3. **If not definitely convex, where does it get subdivided?** Any
-//!    interior direction with both sub-angles < 180° is valid. Definite
-//!    reflex ⇒ `−normalize(â + b̂)` (the true bisector of the reflex
-//!    span); the straight band (θ ≈ π, where `â + b̂` collapses) ⇒
-//!    `n × b̂`, 90° into the interior. θ ≈ 0 or ≈ 2π between two
-//!    DISTINCT edges is a spike — ill-conditioned, refused rather than
-//!    guessed — unless the structure says which: at a slit's tip
-//!    (`topo::sector_shape::SlitTips`) the face wraps round the two coincident edges, and
-//!    `topo::sector_shape::corner_shape` reads the full turn and subdivides it at its three
-//!    quarters (`topo::sector_shape::FullTurn`). At a cone's apex the window between them
-//!    reads no width, and `topo::sector_shape::apex_corner_shape` reads the whole turn round
-//!    the apex the same way. Both take the turn by one rule
-//!    (`topo::sector_shape::reads_slit_tip_turn`). A wrap edge's tip is the one-edge form
-//!    of the same structure: its face's loop walks the edge out and
-//!    straight back, the face wraps the full turn round it, and
-//!    `topo::sector_shape::SlitTips` holds it beside the slits' tips (the name covers
-//!    both), so its corner reads the full turn by the same rule. Any
-//!    other one-edge orbit (a strut vertex) is the legitimate
-//!    full-circle sector and takes the 90° device.
+//!    the arm. Positive: the corner is convex and one entry reads it
+//!    (`bisector` is `None`).
+//! 3. **If not definitely convex, where is it subdivided?** Definite
+//!    reflex ⇒ `−normalize(â + b̂)`, the bisector of the reflex span; the
+//!    straight band (θ ≈ π, where `â + b̂` collapses) ⇒ `n × b̂`, 90° into
+//!    the interior. θ ≈ 0 or ≈ 2π between two distinct edges is a spike,
+//!    ill-conditioned, and refused rather than guessed; between the two
+//!    ends of one orbit half-edge (`full_circle`, a strut vertex) it is
+//!    the legitimate full-circle sector and takes the 90° direction.
 //!
-//! The three items above are the CONTRACT — what each rung decides and
-//! what it returns. The **derivations** — why convex subdivision beats
-//! the paper's complement-and-negate, why the wideness trilean has no
-//! escalation cliff, why the duplicate entry is what makes dangling
-//! null edges fall out of the generic run scan — stay in
-//! `splitting::neighborhood`'s module docs, which own them, and are not
-//! restated here.
+//! **The full turn.** Where the caller's structure says the face wraps a
+//! full turn round the bounds ([`CornerBounds::SlitTip`]: two coincident
+//! edges at a slit's tip, or one edge walked out and straight back at a
+//! wrap edge's tip), the spike reading is that turn: [`corner_shape`]
+//! returns it ([`FullTurn`]), cut at its three quarters
+//! ([`TurnOrder::quarter_fractions`]). Which refusals read as the turn
+//! is one rule, [`reads_slit_tip_turn`].
 //!
-//! # Which scalars the argument-order equality is proven for
+//! **Where the rungs do not apply.** They assume the face has a tangent
+//! plane at the vertex. At a cone's apex it has none: the interior is
+//! the fan of rulings between the bounds at every width, not the
+//! positive cone of the bounds, so rungs 2 and 3 answer nothing about
+//! it. A reader of such a corner takes [`sector_arm`] and
+//! [`metering_arm`] from here and reads the window itself, and takes a
+//! window of no width at [`CornerBounds::SlitTip`] bounds as the whole
+//! turn by [`reads_slit_tip_turn`].
 //!
-//! Two of the three rungs changed argument order when the lanes
-//! merged:
-//! the reflex bisector's `â + b̂` (the boolean wrote `b̂ + â`) and the
-//! straight rung's `â · b̂` (the boolean wrote `b̂ · â`). Bit-identity
-//! under that swap is what makes the merge K-neutral, so it is worth
-//! being exact about which scalars it is PROVEN for — the kernel is
-//! generic over [`Real`], and the proof is not.
+//! # Why convex subdivision
+//!
+//! A face with a tangent plane at the vertex is planar there to first
+//! order, so a corner's interior is exactly the positive cone of its two
+//! bounding directions **iff its angle is < 180°**: then the bounds'
+//! sides of any plane through the vertex decide every interior
+//! direction's side (a positive combination of two same-side vectors
+//! stays on that side), and one entry suffices. At ≥ 180° the cone
+//! argument fails, the interior can cross the plane while both bounds
+//! sit on one side, so the corner is split at an interior direction into
+//! two corners each < 180°, which restores it. The book's
+//! store-twice-with-bisector is this convex subdivision; the paper's
+//! complement-and-negate at 180° (interior-vector sign past it) answers
+//! point membership, not side classification, and offers no cone
+//! argument.
+//!
+//! The subdivision direction need not be the exact bisector: any
+//! interior direction with both sub-angles < 180° is valid, which is
+//! what makes `n × b̂` sound throughout the straight band. So the
+//! wideness verdict has **no escalation cliff**: subdividing is sound at
+//! every angle (a convex corner subdivided is merely redundant), so a
+//! zero or in-band reading of rung 2 takes the subdivision path. That is
+//! the deliberate posture of this one predicate; rung 3's spike
+//! refusal, and every side verdict a caller takes over the entries,
+//! stay strict.
+//!
+//! # Which scalars the rungs are symmetric for
+//!
+//! Rung 3's reflex bisector sums `â + b̂` and its straight margin reads
+//! `â · b̂`; each is the same bits with its two operands swapped at the
+//! scalars below, so a caller that names its bounds in the other order
+//! reads the same margins.
 //!
 //! - **`f64`, and the recording scalar `geom_core::k_stats::Probe`
 //!   (an `f64` newtype): proven.** [`Vec3::dot`] is the fixed
@@ -69,60 +92,26 @@
 //!   IEEE `*` and `+` are commutative on `f64` at every finite input,
 //!   ±0 included. `geom_core`'s `dot_symmetry_bit_exact` proptest pins
 //!   it (over `1.0e-3..1.0e3`, so 0, −0, inf and subnormals are argued
-//!   rather than sampled), and the 26541-sample K stream reproduced in
-//!   the unit's PR runs at `Probe`. The one f64 gap is NaN, whose
-//!   payload propagation is not specified bitwise — and a NaN chord
-//!   cannot reach these two rungs, since it fails the arm rung above.
+//!   rather than sampled). The one gap is NaN, whose payload
+//!   propagation is not specified bitwise, and a NaN chord fails rung 1
+//!   before it reaches rung 3.
 //! - **`geom_core::Interval`: NOT proven.** It is also a [`Decide`]
-//!   scalar and it is live for both lanes (`topo/tests/interval_body.rs`,
-//!   `m3_pr3_split.rs`, `m3_pr4_boolean.rs`), and its `Add`/`Mul`
-//!   delegate to the enclosure backend, whose bit-level commutativity
-//!   is asserted NOWHERE in-tree. The equality is expected — a rounded
-//!   endpoint of a symmetric operation is a symmetric function of the
-//!   operands — but expected is not pinned. Closing it needs a
-//!   `Vec3<Interval>` analogue of `dot_symmetry_bit_exact` in
-//!   `geom-core`; until that exists, the interval lane's sector margins
-//!   are equal by argument, not by proof. Nothing here is broken by
-//!   that: a divergence would be an enclosure differing in its last
-//!   bit, not a verdict changing.
+//!   scalar, and its `Add`/`Mul` delegate to the enclosure backend,
+//!   whose bit-level commutativity is asserted nowhere in-tree. Closing
+//!   it needs a `Vec3<Interval>` analogue of `dot_symmetry_bit_exact` in
+//!   `geom-core`. A divergence would be an enclosure differing in its
+//!   last bit, not a verdict changing.
 //!
 //! # One K name per rung
 //!
 //! The three rungs emit `sector_arm`, `sector_reflex` and
-//! `sector_straight` — **one name each, spelled here, for both
-//! lanes**. Until #652 they were six, `bool_sector_*` and
-//! `split_sector_*`, handed in as a `SectorPredicates` parameter so
-//! that #647's merge of the two bodies could be K-neutral; Ev ruled
-//! the two populations one (2026-08-19, #652), so the parameter is
-//! gone — there is nothing left for it to vary. **The evidence for
-//! that ruling, and the two-way precedent it weighed, live in
-//! `docs/K-REPORT.md`'s census note (2026-08-19)**, which is the
-//! decision's home and is not restated here. What binds code is two
-//! rules:
-//!
-//! - **Spelled here, nowhere else.** A lane that wants one of these
-//!   margins calls [`sector_shape`]; the guard row beside the corner
-//!   readings (`topo::sector_shape`) reads every `.rs` file under
-//!   `geom-brep/src` and `topo/src` for the quoted form of these three
-//!   names and of the six retired ones.
-//! - **The pooled names are NEW spellings, not either lane's old one.**
-//!   Keeping the 29:1 majority `bool_sector_*` was the cheap choice and
-//!   fails on its own terms: post-merge, every splitting-lane decision
-//!   would be filed under a prefix that says `bool_` — an actively
-//!   FALSE lane label on rows carrying nothing else to distinguish
-//!   them. A fresh spelling also self-dates a K row, which matters
-//!   because the K report compares snapshots across milestones. Both
-//!   arguments are quantified in the census note; the CSVs under
-//!   `docs/k-report-data/` are left exactly as the sweep wrote them.
-//!
-//! # Naming
-//!
-//! The two lanes name the bounds oppositely (`dir_a`/`dir_b` in
-//! splitting, `dir_end`/`dir_start` in the boolean). This module uses
-//! neither: `own` is the sector's own orbit chord (the CCW-**last**
-//! bound, splitting's `dir_a`, the boolean's `dir_end`) and `next` is
-//! the next orbit chord (the CCW-**first** bound, splitting's `dir_b`,
-//! the boolean's `dir_start`).
+//! `sector_straight`, **one name each, spelled here and nowhere else**:
+//! a reader that wants one of these margins calls [`sector_shape`] (or
+//! [`sector_arm`]). The names are private to this module, so no other
+//! file can import one; a crate's own guard row reads its sources for
+//! the quoted form (this crate's is `the_rungs_are_decided_in_one_place`
+//! below). The ruling that pooled the per-reader names into these three,
+//! and its evidence, is `docs/K-REPORT.md`'s census note (2026-08-19).
 
 use crate::OutwardNormal;
 use geom_core::k_stats::{decide, decide_negative, decide_positive};
@@ -131,13 +120,8 @@ use geom_core::{
     is_underflowed_length,
 };
 
-/// Rung 1's K name: the metering arm is positive.
-///
-/// This and its two siblings are PRIVATE to this module. They are rows
-/// of the census in `docs/K-REPORT.md`, and no other file can IMPORT
-/// one and re-implement the rung under it. Privacy stops the import,
-/// not a bare string literal; what stops that is the guard row
-/// `the_rungs_are_decided_in_one_place` in `topo::sector_shape`.
+/// Rung 1's K name: the metering arm is positive. Private, as its two
+/// siblings are (module docs, "One K name per rung").
 const SECTOR_ARM: &str = "sector_arm";
 
 /// Rung 2's K name: the corner is convex (`sin θ` levered at the arm).
@@ -145,12 +129,12 @@ const SECTOR_REFLEX: &str = "sector_reflex";
 
 /// Rung 3's K name: the straight/spike disambiguation (`cos θ` levered
 /// at the arm, so a straight corner reads NEGATIVE), reached only when
-/// rung 2 is not definitely signed. `topo::boolean::refusal_routes`' sized
-/// recourse reads that sign.
+/// rung 2 is not definitely signed. A recourse may read that sign: a
+/// tighter tolerance can decide a straight corner, never a spike.
 const SECTOR_STRAIGHT: &str = "sector_straight";
 
-/// What each rung decides, in the words a flip report states
-/// (`topo::boolean::decision_words`).
+/// What the rung named `predicate` decides, in the words a flip report
+/// states; `None` for a name that is not one of the three.
 pub fn rung_words(predicate: &str) -> Option<&'static str> {
     Some(match predicate {
         SECTOR_ARM => SectorRung::Arm.subject(),
@@ -248,13 +232,11 @@ pub struct SectorShape<T: Real> {
 ///
 /// `dir_own` and `dir_next` are the bounds **scaled to their edges'
 /// lengths** (a line's chord, a curved edge's extent from below) — their
-/// norms are the arm's raw material and their directions the bounds. `normal` is the sector face's
-/// [`OutwardNormal`] at the base vertex, minted by each lane's
-/// `sector_face`; the type carries the obligation that used to be a
-/// sentence here. This function must not re-apply the sense — the
-/// bounds come from the STORED orbit order, which `revert` reverses in
-/// the same breath as the sense bit, so a second factor would
-/// double-count and read every convex corner as reflex.
+/// norms are the arm's raw material and their directions the bounds.
+/// `normal` is the face's [`OutwardNormal`] at the base vertex, its sense
+/// already folded in; the bounds are in the orbit order that sense
+/// describes, so the rungs apply no sense of their own (a second factor
+/// would read every convex corner as reflex).
 /// `full_circle` says the two bounds are the SAME orbit half-edge (a
 /// strut vertex), which is what makes a θ ≈ 0 / ≈ 2π reading
 /// legitimate rather than a spike.
@@ -324,9 +306,7 @@ pub struct SectorShape<T: Real> {
 /// for a definite verdict the rung does not admit (non-positive arm; a
 /// spike between distinct edges) is the gate's rejection from
 /// [`decide_positive`] or [`decide_negative`], carrying the decided
-/// margin, on the frame's log. Each lane
-/// wraps this in its own error type — the two wrappings are the only
-/// thing that was ever genuinely per-lane here.
+/// margin, on the frame's log.
 pub fn sector_shape<T: Decide>(
     dir_own: Vec3<T>,
     dir_next: Vec3<T>,
@@ -344,20 +324,11 @@ pub fn sector_shape<T: Decide>(
     let reflex_margin = Margin::levered(unit_next.cross(unit_own).dot(n), metering_arm(arm));
     let bisector = match decide(SECTOR_REFLEX, reflex_margin, band) {
         Ok(Sign::Positive) => None,
-        // Definite reflex, θ ∈ (π, 2π). `unit_own + unit_next` is the
-        // splitting lane's spelling and `unit_next + unit_own` the
-        // boolean's; `Add` is componentwise, so this is bit-identical
-        // to both at every scalar whose addition is bitwise commutative
-        // — see the module docs on WHICH scalars that is proven for
-        // (`f64`/`Probe` yes, `Interval` expected but unpinned). (The
-        // collapse â + b̂ → 0 happens only at θ → π, which lands in the
-        // Zero band below, never here.)
+        // Definite reflex, θ ∈ (π, 2π): symmetric in the two bounds at
+        // the scalars the module docs name. The collapse â + b̂ → 0
+        // happens only at θ → π, which lands in the Zero band below.
         Ok(Sign::Negative) => Some(-((unit_own + unit_next).normalize())),
         Ok(Sign::Zero) | Err(_) => {
-            // Likewise `unit_own.dot(unit_next)` vs the boolean's
-            // `unit_next.dot(unit_own)`: componentwise products, same
-            // summation order — bit-identical under the same scalar
-            // scope as above, not for every `T: Real` unconditionally.
             let straight_margin = Margin::levered(unit_own.dot(unit_next), metering_arm(arm));
             let rung = SectorRung::Straight { full_circle };
             if full_circle {
@@ -447,13 +418,144 @@ fn refused(rung: SectorRung) -> impl FnOnce(Indeterminate) -> SectorFault {
     move |diag| SectorFault::Rung { rung, diag }
 }
 
+/// What the caller's structure says about a corner's two bounds, which
+/// [`corner_shape`] reads a θ ≈ 0 / ≈ 2π reading by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CornerBounds {
+    /// Two distinct edges that do not coincide: such a reading is a
+    /// spike.
+    Distinct,
+    /// One orbit half-edge, a strut vertex ([`sector_shape`]'s
+    /// `full_circle`).
+    OneEdge,
+    /// Bounds the face wraps a full turn round: two coincident edges at
+    /// a slit's tip, or one edge walked out and straight back at a wrap
+    /// edge's tip.
+    SlitTip,
+}
+
+/// What [`corner_shape`] read: the rungs' answer, or a full turn.
+#[derive(Clone, Copy, Debug)]
+pub enum CornerShape<T: Real> {
+    /// The rungs decided the corner ([`sector_shape`]).
+    Sector(SectorShape<T>),
+    /// The face's full turn round bounds read [`CornerBounds::SlitTip`].
+    FullTurn(FullTurn<T>),
+}
+
+/// A face's full turn round [`CornerBounds::SlitTip`] bounds, from the
+/// next orbit chord counter-clockwise (about the face's outward normal)
+/// round to the corner's own, the two along one ray.
+#[derive(Clone, Copy, Debug)]
+pub struct FullTurn<T: Real> {
+    /// The metering arm, as [`SectorShape::arm`].
+    pub arm: T,
+    /// Unit direction of the next orbit chord, the turn's start.
+    pub unit_next: Vec3<T>,
+    /// Unit direction of the corner's own orbit chord, its end.
+    pub unit_own: Vec3<T>,
+    /// `unit_next` turned a quarter about the outward normal.
+    quarter: Vec3<T>,
+}
+
+/// The order a reader takes a whole turn's quarters in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TurnOrder {
+    /// Counter-clockwise from the next chord: the sector bounds' order.
+    FromNext,
+    /// From the corner's own chord round to the next: the orbit's order.
+    FromOwn,
+}
+
+impl TurnOrder {
+    /// **The quarter cuts of a whole turn, as fractions of it from the
+    /// next bound**, listed in this order: a quarter, a half and three
+    /// quarters from [`TurnOrder::FromNext`], the reverse from
+    /// [`TurnOrder::FromOwn`]. Every whole turn is cut here, a tangent
+    /// plane's ([`FullTurn::quarters`]) and a caller's own (a cone apex's
+    /// window, cut in azimuth).
+    #[must_use]
+    pub const fn quarter_fractions(self) -> [f64; 3] {
+        match self {
+            Self::FromNext => [0.25, 0.5, 0.75],
+            Self::FromOwn => [0.75, 0.5, 0.25],
+        }
+    }
+}
+
+impl<T: Real> FullTurn<T> {
+    /// The three directions that cut the turn into convex quarters:
+    /// `unit_next` turned [`TurnOrder::quarter_fractions`] of the turn,
+    /// listed in `order`.
+    pub fn quarters(&self, order: TurnOrder) -> [Vec3<T>; 3] {
+        let (q, back) = (self.quarter, -self.unit_next);
+        match order {
+            TurnOrder::FromNext => [q, back, -q],
+            TurnOrder::FromOwn => [-q, back, q],
+        }
+    }
+}
+
+/// [`sector_shape`], with a reading that the bounds leave along one ray
+/// read by `bounds`: for [`CornerBounds::SlitTip`] the face's full turn,
+/// otherwise a spike as the rungs refuse it.
+///
+/// # Errors
+///
+/// As [`sector_shape`], but for the full turn round
+/// [`CornerBounds::SlitTip`] bounds.
+pub fn corner_shape<T: Decide>(
+    dir_own: Vec3<T>,
+    dir_next: Vec3<T>,
+    normal: OutwardNormal<T>,
+    bounds: CornerBounds,
+    band: Band,
+) -> Result<CornerShape<T>, SectorFault> {
+    match sector_shape(
+        dir_own,
+        dir_next,
+        normal,
+        bounds == CornerBounds::OneEdge,
+        band,
+    ) {
+        Ok(shape) => Ok(CornerShape::Sector(shape)),
+        Err(fault) if reads_slit_tip_turn(bounds, &fault, Sign::Positive) => {
+            let unit_next = dir_next.normalize();
+            Ok(CornerShape::FullTurn(FullTurn {
+                arm: dir_own.norm().min(dir_next.norm()),
+                unit_next,
+                unit_own: dir_own.normalize(),
+                quarter: normal.vec().cross(unit_next),
+            }))
+        }
+        Err(fault) => Err(fault),
+    }
+}
+
+/// **Whether a refused corner is a whole turn**: `bounds` is
+/// [`CornerBounds::SlitTip`], and `fault` is the straight rung's
+/// rejection of the reading `along`, which says the corner's bounds
+/// leave along one ray. `along` is `Positive` for a tangent plane's
+/// `cos θ = +1` ([`corner_shape`]) and `Zero` for a reading whose
+/// window between the bounds has no width (a cone apex's chord, a
+/// caller's own). Between distinct edges the same rejection is a spike,
+/// and it stays refused.
+#[must_use]
+pub fn reads_slit_tip_turn(bounds: CornerBounds, fault: &SectorFault, along: Sign) -> bool {
+    bounds == CornerBounds::SlitTip
+        && matches!(
+            fault,
+            SectorFault::Rung {
+                rung: SectorRung::Straight { .. },
+                diag,
+            } if diag.margin.rejected_sign() == Some(along)
+        )
+}
+
 /// **A point's signed distance from a plane, in metres**: `q` against
-/// the plane through `origin` with unit normal `normal`. The one reading
-/// both lanes decide a real vertex's side with: the splitting lane's
-/// vertex classes against the split plane, and the boolean's
-/// line-bound side codes, where `q` is the edge's far vertex and
-/// `origin` its base vertex. A point needs no lever: its distance is
-/// what a margin measures.
+/// the plane through `origin` with unit normal `normal`, positive on
+/// the normal's side. A point needs no lever: its distance is what a
+/// margin measures.
 pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
     (q - origin).dot(normal)
 }
@@ -805,5 +907,112 @@ mod tests {
                 "{rung}: the refusal is the logged escalation"
             );
         }
+    }
+
+    /// At bounds along one ray, the full turn at a slit's tip and a
+    /// spike between distinct edges: the turn starts at `next`, its
+    /// quarters run counter-clockwise about the normal from it, and the
+    /// two orders list the same three cuts reversed.
+    #[test]
+    fn bounds_along_one_ray_are_a_full_turn_only_at_a_slit_tip() {
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let ray = Vec3::new(2.0, 0.0, 0.0);
+        let read = |bounds| corner_shape(ray, ray, n, bounds, band());
+        assert!(
+            matches!(
+                read(CornerBounds::Distinct),
+                Err(SectorFault::Rung {
+                    rung: SectorRung::Straight { full_circle: false },
+                    ..
+                })
+            ),
+            "between distinct edges the reading is a spike, refused"
+        );
+        let Ok(CornerShape::FullTurn(turn)) = read(CornerBounds::SlitTip) else {
+            panic!("at a slit's tip the reading is the full turn");
+        };
+        assert_eq!(turn.arm, 2.0, "the arm is the shorter bound's length");
+        let from_next = turn.quarters(TurnOrder::FromNext);
+        for (got, want) in from_next.iter().zip([
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+        ]) {
+            assert_dir(*got, want);
+        }
+        let mut from_own = turn.quarters(TurnOrder::FromOwn);
+        from_own.reverse();
+        assert!(
+            from_own.iter().zip(&from_next).all(|(&a, &b)| bits_eq(a, b)),
+            "the orbit order lists the same quarters reversed"
+        );
+        let mut fractions = TurnOrder::FromOwn.quarter_fractions();
+        fractions.reverse();
+        assert_eq!(fractions, TurnOrder::FromNext.quarter_fractions());
+    }
+
+    /// **The anti-re-fork row, for this crate's sources.** The three
+    /// rung names are spelled, in quotes, in this module and in no other
+    /// file under `geom-brep/src`, and the six per-reader names they
+    /// pooled (`bool_sector_*`, `split_sector_*`, `docs/K-REPORT.md`'s
+    /// census note) are spelled nowhere. A crate that reads these rungs
+    /// guards its own sources the same way (`topo::sector_shape`'s row).
+    ///
+    /// Both rosters are built from the rung words rather than written
+    /// out, so this file is read like any other. The retired set is
+    /// therefore tied to the current rung words: a rung renamed would
+    /// stop guarding its old retired spellings, and whoever renames one
+    /// carries them forward by hand.
+    ///
+    /// The check is textual over the quoted forms, so a doc comment
+    /// that quotes a retired name reds it too; backticks do not.
+    #[test]
+    fn the_rungs_are_decided_in_one_place() {
+        let (pooled, retired) = rung_rosters();
+        let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+        let home = src.join("sector_shape.rs");
+        let files = test_utils::source::rust_sources(&src);
+        assert!(
+            files.contains(&home),
+            "the walk found {} file(s) but not the home module",
+            files.len()
+        );
+        for path in &files {
+            let text = std::fs::read_to_string(path).expect("a readable source file");
+            for name in &retired {
+                assert!(
+                    !text.contains(name.as_str()),
+                    "{} spells the retired per-reader sector predicate {name}",
+                    path.display()
+                );
+            }
+            if path == &home {
+                continue;
+            }
+            for name in &pooled {
+                assert!(
+                    !text.contains(name.as_str()),
+                    "{} spells the sector-shape predicate {name}: the rungs are decided \
+                     only in `sector_shape`",
+                    path.display()
+                );
+            }
+        }
+        let here = std::fs::read_to_string(&home).expect("the home module is readable");
+        for name in &pooled {
+            assert!(here.contains(name.as_str()), "{name} is spelled in the home");
+        }
+    }
+
+    /// The three pooled names and the six retired ones, each with its
+    /// quotes, assembled from the rung words.
+    fn rung_rosters() -> (Vec<String>, Vec<String>) {
+        let rungs = ["arm", "reflex", "straight"];
+        let pooled = rungs.iter().map(|r| format!("\"sector_{r}\"")).collect();
+        let retired = ["bool", "split"]
+            .iter()
+            .flat_map(|lane| rungs.iter().map(move |r| format!("\"{lane}_sector_{r}\"")))
+            .collect();
+        (pooled, retired)
     }
 }

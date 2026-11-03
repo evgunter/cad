@@ -1,22 +1,15 @@
-//! The vertex-neighborhood **corner readings** over the sector-shape
-//! rungs ([`geom_brep::sector_shape`], which owns the three rungs, their
-//! K names and their contract): a corner's shape where the structure
-//! says more than its two bounds — at a slit's tip ([`SlitTips`]) the
-//! face wraps round the two coincident edges, and [`corner_shape`] reads
-//! the full turn and subdivides it at its three quarters ([`FullTurn`]);
-//! at a cone's apex there is no tangent plane, and [`apex_corner_shape`]
-//! reads the fan of rulings between the bounds against a plane through
-//! the apex. Both take the turn by one rule ([`reads_slit_tip_turn`]).
-//! A wrap edge's tip is the one-edge form of the same structure: its
-//! face's loop walks the edge out and straight back, the face wraps the
-//! full turn round it, and [`SlitTips`] holds it beside the slits' tips
-//! (the name covers both), so its corner reads the full turn by the same
-//! rule. Any other one-edge orbit (a strut vertex) is the legitimate
-//! full-circle sector and takes the 90° device.
+//! The vertex-neighborhood corner readings that read a `Body`: which
+//! corners are a slit's tip or a wrap edge's ([`SlitTips`]), whose face
+//! wraps a full turn round its bounds, and a corner at a cone's apex
+//! ([`apex_corner_shape`]), whose face has no tangent plane there and
+//! whose interior is the fan of rulings between its bounds, read
+//! against a plane through the apex. The rungs, and the corner reading
+//! of a tangent-plane corner and of a slit tip's full turn, are
+//! [`geom_brep::sector_shape`]'s; the apex reading takes the turn by
+//! its rule ([`reads_slit_tip_turn`]).
 
-use geom_brep::OutwardNormal;
 use geom_brep::sector_shape::{
-    SectorFault, SectorRung, SectorShape, metering_arm, sector_arm, sector_shape,
+    CornerBounds, SectorFault, SectorRung, metering_arm, reads_slit_tip_turn, sector_arm,
 };
 use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 
@@ -24,121 +17,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::live::proven;
 use crate::validate::{decide, decide_positive};
-
-/// What the structure says about a corner's two bounds, which
-/// [`corner_shape`] reads a θ ≈ 0 / ≈ 2π reading by.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CornerBounds {
-    /// Two distinct edges, not a slit's tip: such a reading is a spike.
-    Distinct,
-    /// One orbit half-edge, a strut vertex ([`sector_shape`]'s
-    /// `full_circle`).
-    OneEdge,
-    /// A slit's two coincident edges at its tip, or a wrap edge's tip
-    /// walked out and back ([`SlitTips`]): the face wraps a full turn
-    /// round them.
-    SlitTip,
-}
-
-/// What [`corner_shape`] read: the sector-shape rungs' answer, or a
-/// slit tip's full turn.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum CornerShape<T: Real> {
-    /// The rungs decided the corner ([`sector_shape`]).
-    Sector(SectorShape<T>),
-    /// The face's full turn round a slit's tip or a wrap edge's.
-    FullTurn(FullTurn<T>),
-}
-
-/// A face's full turn round a slit's tip or a wrap edge's ([`SlitTips`],
-/// whose name covers both), from the next orbit chord
-/// counter-clockwise (about the face's outward normal) round to the
-/// corner's own, the two along one ray.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct FullTurn<T: Real> {
-    /// The metering arm, as [`SectorShape::arm`].
-    pub arm: T,
-    /// Unit direction of the next orbit chord, the turn's start.
-    pub unit_next: Vec3<T>,
-    /// Unit direction of the corner's own orbit chord, its end.
-    pub unit_own: Vec3<T>,
-    /// `unit_next` turned a quarter about the outward normal.
-    quarter: Vec3<T>,
-}
-
-/// The order a lane reads a [`FullTurn`]'s quarters in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum TurnOrder {
-    /// Counter-clockwise from the next chord: the sector bounds' order.
-    FromNext,
-    /// From the corner's own chord round to the next: the orbit's order,
-    /// in which the split's walk lists a sector's duplicate entries.
-    FromOwn,
-}
-
-impl TurnOrder {
-    /// **The quarter cuts of a whole turn, as fractions of it from the
-    /// next bound**, listed in this order: a quarter, a half and three
-    /// quarters from [`TurnOrder::FromNext`], the reverse from
-    /// [`TurnOrder::FromOwn`]. The one home of the cut both whole turns
-    /// take: a slit tip's ([`FullTurn::quarters`]) and a cone apex
-    /// corner's in the vertex–vertex lane (`boolean::sectors`).
-    pub(crate) const fn quarter_fractions(self) -> [f64; 3] {
-        match self {
-            Self::FromNext => [0.25, 0.5, 0.75],
-            Self::FromOwn => [0.75, 0.5, 0.25],
-        }
-    }
-}
-
-impl<T: Real> FullTurn<T> {
-    /// The three directions that cut the turn into convex quarters:
-    /// `unit_next` turned [`TurnOrder::quarter_fractions`] of the turn,
-    /// listed in `order`.
-    pub(crate) fn quarters(&self, order: TurnOrder) -> [Vec3<T>; 3] {
-        let (q, back) = (self.quarter, -self.unit_next);
-        match order {
-            TurnOrder::FromNext => [q, back, -q],
-            TurnOrder::FromOwn => [-q, back, q],
-        }
-    }
-}
-
-/// [`sector_shape`], with a reading that the bounds leave along one ray
-/// read by `bounds`: at a slit's tip the face's full turn, otherwise a
-/// spike as the rungs refuse it. The one reading of a slit tip's corner
-/// for both lanes.
-///
-/// # Errors
-///
-/// As [`sector_shape`], but for the full turn at a slit's tip.
-pub(crate) fn corner_shape<T: Decide>(
-    dir_own: Vec3<T>,
-    dir_next: Vec3<T>,
-    normal: OutwardNormal<T>,
-    bounds: CornerBounds,
-    band: Band,
-) -> Result<CornerShape<T>, SectorFault> {
-    match sector_shape(
-        dir_own,
-        dir_next,
-        normal,
-        bounds == CornerBounds::OneEdge,
-        band,
-    ) {
-        Ok(shape) => Ok(CornerShape::Sector(shape)),
-        Err(fault) if reads_slit_tip_turn(bounds, &fault, Sign::Positive) => {
-            let unit_next = dir_next.normalize();
-            Ok(CornerShape::FullTurn(FullTurn {
-                arm: dir_own.norm().min(dir_next.norm()),
-                unit_next,
-                unit_own: dir_own.normalize(),
-                quarter: normal.vec().cross(unit_next),
-            }))
-        }
-        Err(fault) => Err(fault),
-    }
-}
 
 /// **The tips of an operand's slits and zero-area rings**, read from
 /// the operand at rest: each `(vertex, face)` where two distinct line
@@ -273,7 +151,7 @@ const SECTOR_APEX_WINDOW: &str = "sector_apex_window";
 /// What [`apex_shape`] decided about a sector at a cone's apex.
 #[derive(Clone, Debug)]
 pub(crate) struct ApexShape<T: Real> {
-    /// The metering arm, as [`SectorShape::arm`].
+    /// The metering arm, as [`geom_brep::sector_shape::SectorShape::arm`].
     pub arm: T,
     /// The azimuth the face's sweep turns through from the next bound to
     /// its own ([`crate::sector_face::ConeApex::azimuth_from`]), as the
@@ -314,7 +192,7 @@ pub(crate) struct ApexShape<T: Real> {
 ///
 /// # Errors
 ///
-/// As [`sector_shape`]'s arm rungs; a window between distinct edges
+/// As [`geom_brep::sector_shape::sector_shape`]'s arm rungs; a window between distinct edges
 /// whose width is not decided positive, or a reading in the band, as
 /// [`SectorRung::Straight`] (whether the corner folds back on itself).
 fn apex_shape<T: Decide>(
@@ -421,28 +299,12 @@ pub(crate) fn apex_corner_shape<T: Decide>(
     }
 }
 
-/// **Whether a refused corner is a slit tip's whole turn**: `bounds`
-/// is a slit's tip, and `fault` is the straight rung's rejection of the
-/// reading `along`, which says the corner's bounds leave along one ray.
-/// `along` is `Positive` for a tangent plane's `cos θ = +1`
-/// ([`corner_shape`]) and `Zero` for an apex window's chord
-/// ([`apex_corner_shape`]). Between distinct edges the same rejection is
-/// a spike, and it stays refused.
-fn reads_slit_tip_turn(bounds: CornerBounds, fault: &SectorFault, along: Sign) -> bool {
-    bounds == CornerBounds::SlitTip
-        && matches!(
-            fault,
-            SectorFault::Rung {
-                rung: SectorRung::Straight { .. },
-                diag,
-            } if diag.margin.rejected_sign() == Some(along)
-        )
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_brep::OutwardNormal;
+    use geom_brep::sector_shape::{SectorShape, sector_shape};
     use geom_core::{Point3, Tol};
 
     fn band() -> Band {
@@ -568,157 +430,30 @@ mod tests {
         }
     }
 
-    /// **The anti-re-fork row.** The three sector-shape K names are
-    /// decided in `geom_brep::sector_shape` and nowhere else in that
-    /// crate or this one, and the six per-lane names they replaced
-    /// (#652) are decided NOWHERE at all: no file under `geom-brep/src`
-    /// or `topo/src` but the home may spell the first set as a string
-    /// literal, and none may spell the second. Re-forking the rungs means re-introducing a
-    /// `decide("…_sector_arm", …)` somewhere, and that is exactly what
-    /// this reads for.
-    ///
-    /// Both rosters are BUILT from the rung words rather than written
-    /// out, so the check covers this file like any other — a
-    /// literal roster would be its own first counter-example, which is
-    /// exactly how this row went red on its own module while being
-    /// written.
-    ///
-    /// **What the derivation does NOT buy, said plainly because the
-    /// obvious reading is the reverse of the truth.** It does not keep
-    /// the two rosters in step across a future rename; it is what
-    /// breaks them. Rename a rung and `retired` becomes
-    /// `"bool_<newname>"` / `"split_<newname>"`, strings that have
-    /// never existed anywhere, so the six genuinely retired spellings
-    /// stop being guarded — silently, with nothing going red. #652 is
-    /// itself the proof that renames happen. **Nothing in the tree
-    /// protects the retired set across one.** Those six spellings
-    /// survive only in prose (`docs/K-REPORT.md`'s census note) and in
-    /// the committed CSVs they date. Whoever renames a rung next has to carry the old
-    /// spellings forward by hand — and has to assemble them from parts
-    /// the way this does, or this file becomes the counter-example
-    /// again.
-    ///
-    /// It walks the whole of both crates' `src/` at RUNTIME rather than
-    /// `include_str!`ing the two lane files it happens to know about,
-    /// so a re-fork that grows in a third file — a new module under
-    /// `boolean/` or `splitting/`, or a fresh crate-root sibling — is
-    /// caught too, and the guard does not need editing when a lane is
-    /// split across more files.
-    ///
-    /// **What replaced the second guard.** Before #652 this row had a
-    /// sibling, `both_lanes_decide_the_same_shape`, which ran every
-    /// input shape under both lanes' name sets and demanded
-    /// bit-identical results — the guard against a re-fork from INSIDE
-    /// the shared body (`names.arm == "…"`, a lane flag, a per-lane
-    /// band). Pooling deleted its subject: [`sector_shape`] no longer
-    /// takes a lane parameter, so there is nothing for the body to
-    /// branch on and nothing for that row to compare. It is gone
-    /// rather than trivially green.
-    ///
-    /// **The residue #647 shipped is closed.** Its third uncovered
-    /// case — a lane re-implementing the rungs while IMPORTING the
-    /// names, `decide(BOOL_SECTOR_PREDICATES.arm, …)`, which no string
-    /// search can see — cannot happen: the three consts are private to
-    /// this module, so no other file can name them at all.
-    ///
-    /// **What this still does not cover** (stated plainly rather than
-    /// as one careful caveat that implies the rest is covered — four
-    /// shapes, two of them found in review of #661):
-    ///
-    /// 1. **A re-fork under FRESH names.** Out of reach by
-    ///    construction; that one surfaces as new rows in the
-    ///    `docs/K-REPORT.md` census, which is the mechanism that
-    ///    already exists for it.
-    /// 2. **These names spelled outside `geom-brep/src` and
-    ///    `topo/src`.** The walk is scoped to the two crates, and any
-    ///    crate can call `geom_core::k_stats::decide` directly.
-    /// 3. **A lane that CALLS [`sector_shape`] and then re-derives the
-    ///    verdict from what comes back.** `arm`, `unit_own` and
-    ///    `unit_next` are `pub` fields of [`SectorShape`], so a
-    ///    lane can recompute `sin θ` or its own bisector and act on
-    ///    that instead of on `bisector`. The rungs still fire exactly
-    ///    once each, from here, so the K stream stays byte-identical,
-    ///    the census shows nothing new, and no string search can see
-    ///    it. It is the closed residue's shape one level in: the names
-    ///    are no longer importable, but the rungs' INPUTS are.
-    /// 4. **A re-fork that decides with NO K name at all** — a raw
-    ///    comparison where a `decide` call belongs. Residue 1's
-    ///    mitigation cannot reach this one: new census rows are how a
-    ///    freshly-named re-fork surfaces, and this emits no row. What
-    ///    catches it is review, or a hole noticed later in the census.
-    ///
-    /// **A permanent constraint on prose, not just on code.** The check
-    /// is textual and matches the QUOTED forms, so it is not only a
-    /// `decide` call that reds it: any doc comment anywhere under
-    /// `geom-brep/src` or `topo/src` that spells a retired name inside real quote marks —
-    /// documenting what was retired, say — fails this row. Backticks
-    /// are fine, and are what the module docs above use throughout.
-    /// That constraint is the price of the check being able to cover
-    /// its own home file, and it does not expire.
+    /// **The anti-re-fork row, for this crate's sources.** The three
+    /// sector-shape K names are decided in `geom_brep::sector_shape`
+    /// (whose own suite guards that crate), so no file under `topo/src`
+    /// spells one in quotes, nor one of the six per-reader names they
+    /// pooled. Both rosters are assembled from the rung words, so this
+    /// file is read like any other; a doc comment that quotes a name
+    /// reds it too, backticks do not.
     #[test]
     fn the_rungs_are_decided_in_one_place() {
-        let pooled: Vec<String> = ["arm", "reflex", "straight"]
+        let rungs = ["arm", "reflex", "straight"];
+        let names: Vec<String> = ["sector", "bool_sector", "split_sector"]
             .iter()
-            .map(|rung| format!("sector_{rung}"))
+            .flat_map(|stem| rungs.iter().map(move |r| format!("\"{stem}_{r}\"")))
             .collect();
-        // The retired six, each WITH its surrounding quotes — assembled
-        // rather than spelled, so this file is subject to the check like
-        // any other.
-        let retired: Vec<String> = ["bool", "split"]
-            .iter()
-            .flat_map(|lane| pooled.iter().map(move |rung| format!("\"{lane}_{rung}\"")))
-            .collect();
-        let geom_brep = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../geom-brep/src");
-        let home = geom_brep.join("sector_shape.rs");
-        let mut files = crate::source_walk::crate_sources();
-        let mut dirs = vec![geom_brep];
-        while let Some(dir) = dirs.pop() {
-            for entry in std::fs::read_dir(&dir).expect("a readable source directory") {
-                let path = entry.expect("a readable directory entry").path();
-                if path.is_dir() {
-                    dirs.push(path);
-                } else if path.extension().is_some_and(|e| e == "rs") {
-                    files.push(path);
-                }
-            }
-        }
-        assert!(
-            files.contains(&home),
-            "the walk found {} file(s) but not the home module — it is not reading geom-brep/src",
-            files.len()
-        );
-        for path in &files {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
-            for name in &retired {
+        for path in crate::source_walk::crate_sources() {
+            let text = std::fs::read_to_string(&path).expect("a readable source file");
+            for name in &names {
                 assert!(
                     !text.contains(name.as_str()),
-                    "{} decides the RETIRED per-lane sector predicate {name} — #652 \
-                     pooled the six lane names into three. Call `sector_shape`, which \
-                     spells the pooled name itself.",
+                    "{} spells the sector-shape predicate {name}: the rungs are decided in \
+                     `geom_brep::sector_shape`; call it",
                     path.display()
                 );
             }
-            if path == &home {
-                continue;
-            }
-            for name in &pooled {
-                assert!(
-                    !text.contains(&format!("\"{name}\"")),
-                    "{} names the sector-shape predicate `{name}` again — the rungs \
-                     have been re-forked out of geom_brep::sector_shape, which must hold \
-                     the only implementation. Call `sector_shape` instead.",
-                    path.display()
-                );
-            }
-        }
-        // The guard earns its line only if the strings it looks for are
-        // reachable at all: they must all be spelled in the home.
-        let here = std::fs::read_to_string(&home).expect("the home module is readable");
-        for name in &pooled {
-            assert!(
-                here.contains(&format!("\"{name}\"")),
-                "`{name}` is not spelled in geom_brep::sector_shape"
-            );
         }
     }
 }

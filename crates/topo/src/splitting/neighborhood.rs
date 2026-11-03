@@ -68,7 +68,7 @@
 //! `WideBisector` duplicates, up to two in one sector (a window over a
 //! half-turn holds both extrema), where a tangent plane's wide sector
 //! holds one and a slit tip's full turn three, at its quarters
-//! ([`crate::sector_shape::FullTurn`]). Every reader of the array takes
+//! ([`geom_brep::sector_shape::FullTurn`]). Every reader of the array takes
 //! several in a sector (rule (b)'s duplicate rows); the plane's side
 //! changes sign at most twice in a sector (a plane through the vertex
 //! meets a full turn along one line, two rays), so at most one stretch of
@@ -84,11 +84,11 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
-use crate::sector_shape::{
-    ApexShape, CornerBounds, CornerShape, SlitTips, TurnOrder, apex_corner_shape, corner_shape,
-};
+use crate::sector_shape::{ApexShape, SlitTips, apex_corner_shape};
 use crate::validate::decide;
-use geom_brep::sector_shape::{SectorFault, SectorShape};
+use geom_brep::sector_shape::{
+    CornerBounds, CornerShape, SectorFault, SectorShape, TurnOrder, corner_shape,
+};
 
 impl SectorFaceError {
     /// The split's refusal of `vertex`, whose sector the walk could not
