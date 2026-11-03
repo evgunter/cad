@@ -6912,9 +6912,9 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
             rotated.push((turned, faces));
         }
-        let keep: Vec<ShellKey> = src
-            .shells_of_solid(solid)
-            .ok_or(corrupt("re-cut solid lost"))?
+        // `single_solid` resolved `solid` on this operand.
+        let keep: Vec<ShellKey> = proven(&src.solids, solid, EntityId::Solid)
+            .shells
             .iter()
             .copied()
             .filter(|s| !cut_shells.contains(s))

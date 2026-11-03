@@ -99,3 +99,4 @@ crates/topo/src/shell.rs 4887 moved_walls unreachable!
 ```
 
 - 2026-11-03 (`onedoor/one-spelling-trio`): the two `crates/topo/src/boolean/combine.rs` hits (`image`, `fresh`) are fixed on that branch — both now panic through a `let … else` in the fn body, so their `#[track_caller]` reports the caller's line. The other hits are untouched.
+- 2026-11-03 (`onedoor/one-spelling-trio`, fix pass): `crates/topo/src/live.rs`'s `proven` and the `KeySource` answers behind `linked` and `Proven` (`Link::answer`, `Link::answer_geometry`, `Proven::answer`, `Proven::answer_geometry`) are fixed on that branch the same way: a `let … else` in the fn body. The combine.rs `fresh` is retired for `live::proven`/`live::proven_mut`.
