@@ -583,3 +583,39 @@ fn a_collapsed_side_is_cleared_over_its_whole_row() {
         "the door refuses the side: {got:?}"
     );
 }
+
+/// **A plane stored far along itself reads the touch its pivot pads.**
+/// The dome against the plane of normal `(0.1, 0.06, 1)` placed one ε
+/// above its tangent point `(0.55, 0.53, −0.0034)`, at ε 1e-9, its
+/// origin stored 1e5, 1e6 and 1e7 m along the plane. The plane is read
+/// at its pivot, the foot nearest the wall found in `f64`, which stands
+/// off the stored plane by the foot's certified height; the reading's
+/// band is padded by that shift, so the touch one ε off reads as the
+/// point it is. Red against the band read unpadded (the touch at the
+/// band's edge reads `Unaccounted`).
+#[test]
+fn a_plane_stored_far_along_itself_reads_the_touch_its_pivot_pads() {
+    let b = Band::new(1.0e-9, 1.0e-8).unwrap();
+    let n = Vec3::new(0.1, 0.06, 1.0);
+    let n = n * (1.0 / n.norm());
+    let above = pt(0.55, 0.53, -0.0034) + n * b.zero();
+    let Surface::Plane { normal, u_ref, .. } = plane(above, n) else {
+        unreachable!("a plane")
+    };
+    for far in [1.0e5, 1.0e6, 1.0e7] {
+        let stored = Surface::Plane {
+            origin: above + u_ref * far,
+            normal,
+            u_ref,
+        };
+        let got = match pair_section(&stored, &dome(), None, Some(SsiLane::marched()), b) {
+            Ok(SectionRead::Built(s)) => s.components().clone(),
+            other => panic!("stored {far:e} m along: {other:?}"),
+        };
+        assert!(
+            matches!(&got, Components::Counted(c) if c.len() == 1
+                && c[0].shape == crate::pair_section::ComponentShape::Point),
+            "stored {far:e} m along: one touch, got {got:?}"
+        );
+    }
+}

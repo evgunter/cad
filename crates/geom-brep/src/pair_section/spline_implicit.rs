@@ -47,11 +47,14 @@
 //! every branch with its three-limb certificate, every boundary region,
 //! and the accounting that they are all of them. The
 //! plane is read at its pivot, its origin moved to its foot nearest the
-//! wall (`SplineImplicitPose::anchored`), so where its origin is stored
-//! changes nothing. The foot is found in `f64`, so the plane read may
-//! stand off the stored one; that shift is certified and charged: the
-//! reading's band is padded by it, and the witness's bracket reads the
-//! stored plane's height. Each piece of the section is a component:
+//! wall (`SplineImplicitPose::pivot`), so its frame stands where the
+//! wall is wherever its origin is stored. The foot is found in `f64`, so
+//! the plane read may stand off the stored one; that shift is certified
+//! and charged: the reading's band is padded by it, and the witness's
+//! bracket reads the stored plane's height. Charged, the shift still
+//! moves a reading at the band's edge: where the origin is stored can
+//! decide a pose there
+//! (`work/sectarms/a-plane-at-the-bands-edge-reads-by-where-its-origin-is-stored.md`). Each piece of the section is a component:
 //!
 //! - a closed branch is a [`ComponentShape::Loop`], with its witness;
 //! - an open branch, which runs between two crossings of the wall's
@@ -120,7 +123,7 @@ pub struct SplineImplicitPose<T: Real> {
     partner_first: bool,
     /// The boundary pass the classification ran (stage 2), carried to
     /// the whole reading so it runs once.
-    pass: Option<std::sync::Arc<BoundaryPass<[f64; 2]>>>,
+    pass: Option<std::sync::Arc<(crate::ssi::PassKey, BoundaryPass<[f64; 2]>)>>,
 }
 
 impl<T: Real> SplineImplicitPose<T> {
@@ -360,20 +363,15 @@ impl<T: Decide> SplineImplicitPose<T> {
 }
 
 impl SplineImplicitPose<f64> {
-    /// **The plane read at its pivot**: the same carrier, its origin
-    /// moved to the foot on it of the wall's ball's centre, so the
-    /// reading's window stands where the wall is wherever the plane's
-    /// stored origin lies (as an angular datum is read at its pivot,
-    /// `section_cert`'s lever and pivot). The foot is found in `f64`,
-    /// so the plane read stands off the stored one by up to
-    /// [`Pivot::shift`], which the reading's band and the witness's
+    /// **The plane read at its pivot**, with what moving its origin
+    /// cost: the same carrier, its origin moved to the foot on it of the
+    /// wall's ball's centre, so its frame stands where the wall is
+    /// wherever the plane's stored origin lies (as an angular datum is
+    /// read at its pivot, `section_cert`'s lever and pivot). The foot is
+    /// found in `f64`, so the plane read stands off the stored one by up
+    /// to [`Pivot::shift`], which the reading's band and the witness's
     /// bracket are charged. A plane pose's alone: the classification
     /// reads it only where the partner is a plane.
-    pub(crate) fn anchored(&self) -> Surface<f64> {
-        self.pivot().plane
-    }
-
-    /// The plane read at its pivot, with what moving its origin cost.
     fn pivot(&self) -> Pivot {
         let Surface::Plane {
             origin,
@@ -408,36 +406,20 @@ impl SplineImplicitPose<f64> {
         }
     }
 
-    /// **The reading's domain**: against a plane, the window of the plane
-    /// read at its pivot (`Self::anchored`), reaching twice the farthest
-    /// control point from the pivot plus the feature extent, so it holds
-    /// the wall and a march ends only on the wall's rectangle. A curved
-    /// partner has no chart window and nothing marches on its pose, so its
-    /// domain carries only what the classification reads, the feature
-    /// extent and the accounting floor: the cube of the net's ball. The
-    /// feature extent is the net ball's diameter
-    /// ([`super::domain_about`]).
+    /// **The reading's domain**: the cube of the net's ball. The 1×2
+    /// trace marches on the wall's rectangle, which bounds it, against a
+    /// plane as against a curved partner, so no window bounds a march and
+    /// the domain carries only what the reading reads, the feature extent
+    /// and the accounting floor. The feature extent is the net ball's
+    /// diameter ([`super::domain_about`]).
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
-        if !self.is_plane() {
-            let ball = self.ball();
-            return super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0);
-        }
-        let Surface::Plane { origin, .. } = self.anchored() else {
-            unreachable!("the pose holds a plane")
-        };
-        let reach = self
-            .net()
-            .control()
-            .iter()
-            .map(|p| p.distance(origin))
-            .fold(0.0, f64::max);
-        let extent = self.ball().radius() * 2.0;
-        super::domain_about(origin, reach * 2.0 + extent, extent)
+        let ball = self.ball();
+        super::domain_about(ball.center(), ball.radius(), ball.radius() * 2.0)
     }
 }
 
-/// **The plane read at its pivot** (`SplineImplicitPose::anchored`).
+/// **The plane read at its pivot** (`SplineImplicitPose::pivot`).
 struct Pivot {
     /// The plane, its origin at the foot.
     plane: Surface<f64>,
@@ -451,14 +433,6 @@ struct Pivot {
 }
 
 impl Pivot {
-    /// The plane read at its pivot, as the sweep reads it.
-    fn phi(&self) -> sweep::Phi<'static> {
-        let Surface::Plane { origin, normal, .. } = self.plane else {
-            unreachable!("the pivot holds a plane")
-        };
-        sweep::Phi::Plane(origin, normal)
-    }
-
     /// The reading's band: `band` padded by the shift.
     ///
     /// # Errors
@@ -525,7 +499,7 @@ impl Bracketed<'_> {
     fn sign(self, s: Box3) -> Option<bool> {
         crate::ssi::section::sign(match self {
             Self::Plane(heights) => heights.over(s),
-            Self::Curved(_, curved) => curved.value(curved.framed(s)),
+            Self::Curved(_, form) => form.value(form.framed(s)),
         })
     }
 
@@ -544,8 +518,8 @@ impl Bracketed<'_> {
                     f64::EPSILON * (p - heights.origin).norm() * m.norm(),
                 )
             }
-            Self::Curved(surface, curved) => {
-                let q = curved.framed_point(p);
+            Self::Curved(surface, form) => {
+                let q = form.framed_point(p);
                 (
                     crate::implicit_residual(surface, p).abs(),
                     crate::implicit_gradient(surface, p),
@@ -754,11 +728,11 @@ pub(super) fn section(
             .map(|c| ChartReach::side(c.at.side))
             .chain(pass.contacts.iter().map(contact_reach))
             .fold(ChartReach::default(), ChartReach::or);
-        (reach, std::sync::Arc::new(pass.clone()))
+        (reach, std::sync::Arc::new((reading.pass_key(), pass.clone())))
     };
     let decided = match sweep::sweep(
         reading.boxes(),
-        pivot.phi(),
+        reading.form(),
         reading.account_floor(),
         read_band,
         pose.ball().certified_diameter(),
@@ -875,7 +849,9 @@ pub(super) fn whole(
     let reading = crate::ImplicitSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(super::whole_reading_refused)?;
     let reading = match &pose.pass {
-        Some(pass) => reading.with_pass(BoundaryPass::clone(pass)),
+        Some(carried) => reading
+            .with_pass((&carried.0, BoundaryPass::clone(&carried.1)))
+            .map_err(super::whole_reading_refused)?,
         None => reading,
     };
     listed(

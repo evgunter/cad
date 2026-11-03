@@ -8,7 +8,7 @@
 //! | shape | state | equations | SVD | used by |
 //! |---|---|---|---|---|
 //! | [`ImplicitPairR3`] | `(x, y, z) ∈ ℝ³` | `f₁ = f₂ = 0` | 2×3 | two residual sides (cylinder×sphere) |
-//! | [`ImplicitChartR2`] | `(u, v) ∈ ℝ²` | `f∘S = 0` | 1×2 | a residual and a chart (cylinder, sphere or torus × NURBS) |
+//! | [`ImplicitChartR2`] | `(u, v) ∈ ℝ²` | `f∘S = 0` | 1×2 | a residual and a chart (plane, cylinder, sphere or torus × NURBS) |
 //! | [`ParametricPairR4`] | `(u₁,v₁,u₂,v₂) ∈ ℝ⁴` | `G₁ − G₂ = 0` | 3×4 | two charts (plane×NURBS, NURBS×NURBS) |
 //!
 //! # The ℝ⁴ trace and OQ4

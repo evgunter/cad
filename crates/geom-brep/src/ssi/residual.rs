@@ -104,12 +104,38 @@ impl Form {
     }
 }
 
+/// The plane's kind ([`ImplicitForm::kind`]).
+pub(crate) const PLANE: &str = "plane";
+
+/// The refusal of a surface that is no implicit partner.
+const NOT_A_PARTNER: &str = concat!("only ", implicit_partners!(), " is an implicit partner here");
+
 impl ImplicitForm {
-    /// The partner `surface`, or why it is none: a cone or a spline is no
-    /// implicit partner here; a frame that does not certify, a radius not
-    /// certified positive, or a torus not certified a ring torus (`R > r`)
-    /// refuses.
+    /// **The kind of `surface`, where an implicit form is minted from
+    /// it**: the one test of the partner kinds (`implicit_partners!`
+    /// names them), its name for a refusal's text; `None` for a cone, a
+    /// spindle or a spline.
+    pub(crate) fn kind(surface: &Surface<f64>) -> Option<&'static str> {
+        match surface {
+            Surface::Plane { .. } => Some(PLANE),
+            Surface::Cylinder { .. } => Some("cylinder"),
+            Surface::Sphere { .. } => Some("sphere"),
+            Surface::Torus { .. } => Some("torus"),
+            Surface::Cone { .. }
+            | Surface::Spindle { .. }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => None,
+        }
+    }
+
+    /// The partner `surface`, or why it is none: a surface of no partner
+    /// kind ([`Self::kind`]) is none; a frame that does not certify, a
+    /// radius not certified positive, or a torus not certified a ring
+    /// torus (`R > r`) refuses.
     pub(crate) fn of(surface: &Surface<f64>) -> Result<Self, &'static str> {
+        if Self::kind(surface).is_none() {
+            return Err(NOT_A_PARTNER);
+        }
         let positive = |x: f64| x.is_finite() && x > 0.0;
         let form = match *surface {
             Surface::Plane { .. } => Form::Plane,
@@ -136,14 +162,7 @@ impl ImplicitForm {
             Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
                 return Err("the partner's radius is not certified positive and finite");
             }
-            Surface::Cone { .. }
-            | Surface::Spindle { .. }
-            | Surface::Nurbs(_)
-            | Surface::Approx(_) => {
-                return Err(
-                    "only a plane, a cylinder, a sphere or a torus is an implicit partner here",
-                );
-            }
+            _ => return Err(NOT_A_PARTNER),
         };
         let (origin, [u_ref, _, axis]) =
             chart_frame(surface).ok_or("only an analytic surface has a chart frame")?;
@@ -175,7 +194,7 @@ impl ImplicitForm {
     /// The partner's kind, for a refusal's text.
     pub(crate) fn name(&self) -> &'static str {
         match self.form {
-            Form::Plane => "plane",
+            Form::Plane => PLANE,
             Form::Cylinder { .. } => "cylinder",
             Form::Sphere { .. } => "sphere",
             Form::Torus { .. } => "torus",
@@ -350,13 +369,14 @@ impl ImplicitForm {
     }
 }
 
-/// **A wall read against a curved partner before any march**: its
+/// **A wall read against an implicit partner before any march**: its
 /// chart speeds, its accounting floor over its knot rectangle and the
 /// settling tolerance of its boundary pass and march, minted once, as
 /// the NURBS × NURBS lane mints its own ([`super::Section`]), with no
 /// plane chart and no ℝ⁴ system: a crossing is settled on the wall
 /// alone. The residual a state settles to is read at the wall's point
-/// written about the partner's centre or axis, so the tolerance reads
+/// written in the partner's frame (about the plane's origin, or a curved
+/// partner's centre or axis), so the tolerance reads
 /// the louder of the wall's coordinates and those.
 pub(crate) struct ImplicitWall<'a> {
     charted: super::ChartedNurbs<'a, f64>,
@@ -469,9 +489,9 @@ impl<'a> ImplicitWall<'a> {
     /// naming the partner's reach where that binds).
     pub(crate) fn march_tol(
         &self,
-        curved: &ImplicitForm,
+        form: &ImplicitForm,
     ) -> Result<super::march::MarchTol, super::SsiError> {
-        super::march::MarchTol::from_band(self.band, self.march_readout(curved)?)
+        super::march::MarchTol::from_band(self.band, self.march_readout(form)?)
     }
 
     /// The readout a march against `curved` settles by: the louder of
@@ -479,11 +499,11 @@ impl<'a> ImplicitWall<'a> {
     /// axis.
     pub(crate) fn march_readout(
         &self,
-        curved: &ImplicitForm,
+        form: &ImplicitForm,
     ) -> Result<super::march::Readout, super::SsiError> {
         let wall = self.charted.surface();
         let root = self.floor.root();
-        let framed = curved.framed(Self::hull(wall)?);
+        let framed = form.framed(Self::hull(wall)?);
         let about = super::march::Readout::about_partner(
             Box3 {
                 x: framed.x,
@@ -528,13 +548,13 @@ impl<'a> ImplicitWall<'a> {
     /// As [`super::boundary::Pass::run`].
     pub(crate) fn pass(
         &self,
-        curved: &ImplicitForm,
+        form: &ImplicitForm,
     ) -> Result<super::boundary::BoundaryPass<[f64; 2]>, super::SsiError> {
         super::boundary::Pass {
             wall: self.charted.surface(),
             boxes: self.charted.own_boxes(),
             speeds: self.charted.speeds(),
-            partner: curved,
+            partner: form,
             tol: self.tol,
             floor: self.domain.floor(self.band),
             extent: self.domain.extent,

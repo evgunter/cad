@@ -36,7 +36,7 @@ use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::{Band, Bounds, Interval, Margin, Vec3};
 
 use super::super::{ChartReach, Components, PairSection};
-use super::sweep::{self, Phi, Sweep};
+use super::sweep::{self, Sweep};
 use super::{Bracketed, Hull, SplineImplicitPose, contact_reach, door_on, hull_verdict, listed};
 use crate::intersect::SectionError;
 use crate::ssi::ImplicitSection;
@@ -56,9 +56,9 @@ pub(super) fn whole(
     let partner = pose.partner().clone();
     let reading = ImplicitSection::of(&partner, pose.net(), pose.domain(), band)
         .map_err(super::super::whole_reading_refused)?;
-    let curved = reading.curved().clone();
+    let form = reading.form().clone();
     let out = reading.all().map_err(super::super::whole_reading_refused)?;
-    listed(pose.clone(), Bracketed::Curved(&partner, &curved), out)
+    listed(pose.clone(), Bracketed::Curved(&partner, &form), out)
 }
 
 /// **The pair's classification, the march door's arm for a curved
@@ -77,12 +77,12 @@ pub(super) fn section(
     pose: SplineImplicitPose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
-    let curved = ImplicitForm::of(pose.partner())
+    let form = ImplicitForm::of(pose.partner())
         .map_err(|what| SectionError::DegenerateOperand { what })?;
-    if hull(&curved, pose.net(), band)? == Hull::Apart {
+    if hull(&form, pose.net(), band)? == Hull::Apart {
         return Ok(pose.section(Components::Counted(Vec::new())));
     }
-    door(&curved, pose.net(), band)?;
+    door(&form, pose.net(), band)?;
     let domain = pose.domain();
     let partner = pose.partner().clone();
     let reading = ImplicitSection::of(&partner, pose.net(), domain, band)
@@ -99,14 +99,14 @@ pub(super) fn section(
     };
     match sweep::sweep(
         reading.boxes(),
-        Phi::Curved(&curved),
+        &form,
         reading.account_floor(),
         band,
         pose.ball().certified_diameter(),
     ) {
         Sweep::Declined(_) => {
             let out = reading.all().map_err(super::super::whole_reading_refused)?;
-            listed(pose, Bracketed::Curved(&partner, &curved), out)
+            listed(pose, Bracketed::Curved(&partner, &form), out)
         }
         Sweep::LoopFree(decided) => {
             let witnesses = super::witnesses(reading.boxes(), &decided);
@@ -119,13 +119,13 @@ pub(super) fn section(
 /// The net's control points in the partner's frame, each certified, and
 /// their hull, which holds every point of the wall.
 fn framed(
-    curved: &ImplicitForm,
+    form: &ImplicitForm,
     net: &NurbsSurface<f64>,
 ) -> Result<(Vec<Vec3<Interval>>, Vec3<Interval>), SectionError> {
     let framed: Vec<Vec3<Interval>> = net
         .control()
         .iter()
-        .map(|&p| curved.framed_point(p))
+        .map(|&p| form.framed_point(p))
         .collect();
     let certified =
         |v: &Vec3<Interval>| v.x.is_certified() && v.y.is_certified() && v.z.is_certified();
@@ -158,11 +158,11 @@ fn framed(
 /// zero band of the partner everywhere (D10); [`SectionError::Escalated`]
 /// where its ceiling is in the band.
 pub(super) fn hull(
-    curved: &ImplicitForm,
+    form: &ImplicitForm,
     net: &NurbsSurface<f64>,
     band: Band,
 ) -> Result<Hull, SectionError> {
-    let (framed, box_) = framed(curved, net)?;
+    let (framed, box_) = framed(form, net)?;
     let (ku, kv) = (net.knots_u_f64_interim(), net.knots_v_f64_interim());
     let nv = kv.control_count();
     let weights = net.weights();
@@ -189,7 +189,7 @@ pub(super) fn hull(
     );
     let w2 = gw.mul(&gw);
     let radial = gx.mul(&gx).add(&gy.mul(&gy));
-    let (num, den) = match curved.form() {
+    let (num, den) = match form.form() {
         Form::Plane => (gz, gw),
         Form::Cylinder { radius } => (radial.sub(&w2.scale(radius.sqr())), w2),
         Form::Sphere { radius } => (radial.add(&gz.mul(&gz)).sub(&w2.scale(radius.sqr())), w2),
@@ -224,7 +224,7 @@ pub(super) fn hull(
         .map(|&f| {
             decide(
                 "section_nurbs_implicit_hull",
-                Margin::of(curved.floor_metres(f, box_)),
+                Margin::of(form.floor_metres(f, box_)),
                 band,
             )
             .ok()
@@ -234,7 +234,7 @@ pub(super) fn hull(
         let reach = values
             .iter()
             .fold(0.0_f64, |m, f| m.max(f.lo().abs()).max(f.hi().abs()));
-        let ceiling = curved.ceiling_metres(reach, box_);
+        let ceiling = form.ceiling_metres(reach, box_);
         decide_magnitude(
             "section_nurbs_implicit_coincident",
             Margin::of(ceiling),
@@ -249,15 +249,15 @@ pub(super) fn hull(
 ///
 /// [`SectionError::Unaccounted`], naming the side.
 pub(super) fn door(
-    curved: &ImplicitForm,
+    form: &ImplicitForm,
     net: &NurbsSurface<f64>,
     band: Band,
 ) -> Result<(), SectionError> {
-    door_on(net, band, curved.name(), |p| {
-        let q = curved.framed_point(p);
+    door_on(net, band, form.name(), |p| {
+        let q = form.framed_point(p);
         decide(
             "section_nurbs_implicit_pole",
-            Margin::of(curved.floor_metres(curved.value(q), q)),
+            Margin::of(form.floor_metres(form.value(q), q)),
             band,
         )
         .ok()

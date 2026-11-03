@@ -3176,6 +3176,15 @@ fn a_wall_too_large_for_its_coordinates_refuses_by_its_scale() {
         panic!("the {m:e} m wall: expected the settling door, got {r:?}");
     };
     let shown = err.render(Reading::Build);
+    // The chart binds at 1e-6 (doc), the wall's coordinates finer.
+    let chart_binds = band().zero() > 1e-7;
+    assert_eq!(
+        matches!(s.lane, ExhaustLane::Chart { .. }),
+        chart_binds,
+        "at ε {:e} the {} readout binds: {s:?}",
+        band().zero(),
+        if chart_binds { "chart's" } else { "wall's coordinates'" }
+    );
     match s.lane {
         ExhaustLane::R3 => {
             assert!(
@@ -6158,11 +6167,15 @@ fn a_sliver_the_march_could_step_through_refuses_as_near_tangent() {
             Err(SsiError::MarchStepInBand { limb, .. })
                 if matches!(**limb, SsiError::TubeStraddles { .. })
         );
-        assert!(
-            near_tangent(&r)
-                || (what.starts_with("pair β = ") && !what.contains("β = 1,") && step_over_tube),
-            "{what}: the near-tangent lever, got {r:?}"
-        );
+        let bends_three = what == "pair β = 3, g = 1e-3" || what == "pair β = -3, g = 1e-3";
+        if bends_three {
+            assert!(
+                step_over_tube,
+                "{what}: the march's step in the band over the tube refused, got {r:?}"
+            );
+        } else {
+            assert!(near_tangent(&r), "{what}: the near-tangent lever, got {r:?}");
+        }
     }
 }
 

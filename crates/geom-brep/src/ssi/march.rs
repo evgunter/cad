@@ -37,8 +37,8 @@
 //!      [`SSI_STEP_RELATIVE`] of its linear one, read twice, on the
 //!      carrier `C = P(x)` in metres ([`LocalSystem::carrier_jet`]),
 //!      `H ≤ 2ρ/κ` with `κ = ‖C″⊥‖/‖C′‖²` and the cubic rung on `‖C‴⊥‖`,
-//!      and on the state, whose bending on the ℝ⁴ lane holds the wall
-//!      chart's.
+//!      and on the state, whose bending on a chart lane holds the wall
+//!      pcurve's.
 //!    - The eventual cubic fit's between-sample error within
 //!      [`SSI_STEP_DEVIATION`]·ε on the carrier (`H ≤ (24δε/κ³)^¼`).
 //!    - The domain's diagonal.

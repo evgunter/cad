@@ -574,36 +574,17 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 }
 
 /// **The partner a chart tube reads `φ` of**, along the wall `S`: the
-/// plane distance `n·(S − p₀)`, or a curved partner's canonical form
-/// `f∘S` ([`ImplicitForm`](super::residual::ImplicitForm)). Limb 3's chart probe and
-/// its one-arc walk read the partner through this alone, one home for
-/// every partner of a chart.
+/// partner's canonical form `f∘S`
+/// ([`ImplicitForm`](super::residual::ImplicitForm)), the plane's `f = z`
+/// in its frame among them. Limb 3's chart probe and its one-arc walk
+/// read the partner through this alone, one home for every partner of a
+/// chart.
 #[derive(Clone, Copy)]
-pub(crate) enum ChartPhi<'a> {
-    /// A plane: its unit normal and a point on it, crossed into
-    /// certification arithmetic.
-    Plane([Interval; 3], [Interval; 3]),
-    /// A cylinder, sphere or torus, by its canonical form.
-    Curved(&'a super::residual::ImplicitForm),
-}
+pub(crate) struct ChartPhi<'a>(pub(crate) &'a super::residual::ImplicitForm);
 
-impl From<([Interval; 3], [Interval; 3])> for ChartPhi<'_> {
-    fn from((n, p0): ([Interval; 3], [Interval; 3])) -> Self {
-        Self::Plane(n, p0)
-    }
-}
-
-/// A plane by its origin and normal, crossed through the CERTIFIED door:
-/// the plane equation is what the whole limb certifies, so a component
-/// whose computation left its domain is refused, and so is every
-/// window's margin, rather than a zero-free enclosure of an equation
-/// nobody evaluated.
-impl<T: CertifiedBounds> From<(Point3<T>, Vec3<T>)> for ChartPhi<'_> {
-    fn from((origin, normal): (Point3<T>, Vec3<T>)) -> Self {
-        Self::Plane(
-            [normal.x, normal.y, normal.z].map(Interval::from_certified),
-            [origin.x, origin.y, origin.z].map(Interval::from_certified),
-        )
+impl<'a> From<&'a super::residual::ImplicitForm> for ChartPhi<'a> {
+    fn from(form: &'a super::residual::ImplicitForm) -> Self {
+        Self(form)
     }
 }
 
@@ -616,43 +597,31 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
     ) -> Interval {
         let b = w.map_or_else(refused_box, |w| boxes.rect_box(w));
-        match self {
-            Self::Plane(n, p0) => {
-                n[0] * (b.x - p0[0]) + n[1] * (b.y - p0[1]) + n[2] * (b.z - p0[2])
-            }
-            Self::Curved(c) => c.value(c.framed(b)),
-        }
+        self.0.value(self.0.framed(b))
     }
 
     /// `∇f` over the window `w` of the wall, in world coordinates: the
-    /// plane's normal, or the curved form's gradient over the wall's box
-    /// there.
+    /// form's gradient over the wall's box there (the plane's unit
+    /// normal).
     pub(crate) fn gradient<T: CertifiedBounds>(
         self,
         boxes: &NurbsBoxes<'_, T>,
         w: Option<UvWindow>,
     ) -> [Interval; 3] {
-        match self {
-            Self::Plane(n, _) => n,
-            Self::Curved(c) => {
-                let g = c.gradient(c.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))));
-                [g.x, g.y, g.z]
-            }
-        }
+        let form = self.0;
+        let g = form.gradient(form.framed(w.map_or_else(refused_box, |w| boxes.rect_box(w))));
+        [g.x, g.y, g.z]
     }
 
     /// An upper bound on `‖∇f‖` over the window `w` of the wall, which a
-    /// slope of `φ` is divided by to read as a sine; `None` on a plane,
-    /// whose normal is a unit, and `NaN` where it does not certify.
+    /// slope of `φ` is divided by to read as a sine (a unit, to its
+    /// rounding, on a plane); `NaN` where it does not certify.
     pub(crate) fn gradient_sup<T: CertifiedBounds>(
         self,
         boxes: &NurbsBoxes<'_, T>,
         w: UvWindow,
-    ) -> Option<f64> {
-        match self {
-            Self::Plane(..) => None,
-            Self::Curved(c) => Some(c.gradient_sup(c.framed(boxes.rect_box(w)))),
-        }
+    ) -> f64 {
+        self.0.gradient_sup(self.0.framed(boxes.rect_box(w)))
     }
 
     /// `φ`'s partial along `u` (`along_u`) or `v` over the window `w`:
@@ -672,13 +641,12 @@ impl ChartPhi<'_> {
 /// The chart probe's transversality margin over one chart window
 /// `rect`: `∇φ = (∇f·S_u, ∇f·S_v)` read along the chart direction
 /// transverse to the pcurve's tangent, divided by the chart's stretch
-/// along that direction and, on a curved partner, by an upper bound on
-/// `‖∇f‖` over the window ([`ChartPhi`]). `tangent` is `(t.x, t.y, ‖t‖)`,
+/// along that direction and by an upper bound on `‖∇f‖` over the window
+/// ([`ChartPhi`]). `tangent` is `(t.x, t.y, ‖t‖)`,
 /// the tangent's bracket tops and a positive finite norm, which select
 /// the direction (structure, not a bound). Both readings come from the
 /// derivative numerators' vector terms ([`CellNet::transverse_readings`],
-/// `∇f` over the window's box standing for the plane's `n` on a curved
-/// partner), so a rigid map that carries the partner with the wall moves
+/// `∇f` over the window's box), so a rigid map that carries the partner with the wall moves
 /// the margin by its rounding width. `Ok(None)` when the stretch or
 /// `‖∇f‖` has no finite bound; `NaN` where `∇φ`'s enclosure is refused
 /// ([`tube_margin`]), which measured nothing.
@@ -702,7 +670,7 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
     // margin: multiplying it by a lever arm in metres would give
     // metres² per chart unit (D4 ¶1 forbids exactly that). Dividing by
     // the chart's own stretch along e⊥ — ‖S_u·ex + S_v·ey‖, metres per
-    // chart unit — and by `‖∇f‖` (a unit on the plane) cancels the
+    // chart unit — and by `‖∇f‖` (a unit, to its rounding, on the plane) cancels the
     // units and leaves the dimensionless sine-like quantity the ℝ³
     // lane's `(∇f₁×∇f₂)·e` already is. UPPER bounds on both are used,
     // which can only shrink the margin: the safe direction.
@@ -710,7 +678,7 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         phi.gradient(boxes, Some(rect)),
         phi.gradient_sup(boxes, rect),
     );
-    if gradient.is_some_and(|g| !(g.is_finite() && g > 0.0)) {
+    if !(gradient.is_finite() && gradient > 0.0) {
         return Ok(None);
     }
     let (phi, stretch) = boxes.transverse_readings(rect, n, ex, ey);
@@ -728,10 +696,7 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
         ));
     }
     // A lower bound over an upper bound stays one only rounded down.
-    let per = match gradient {
-        None => stretch,
-        Some(g) => (Interval::point(stretch) * Interval::point(g)).hi(),
-    };
+    let per = (Interval::point(stretch) * Interval::point(gradient)).hi();
     Ok(Some(
         tube_margin(phi).map_or(f64::NAN, |m| div_down(m, per)),
     ))
@@ -2126,14 +2091,13 @@ pub(super) mod tests {
             v: (0.0, 1.0),
         };
         let (pu, pv) = speeds.pad(1e-3);
-        let n = [n.x, n.y, n.z].map(Interval::point);
-        let origin = [Interval::point(0.0); 3];
+        let plane = plane_form(n);
         let (tx, ty) = (1.0_f64, 0.3_f64);
         let tangent = (tx, ty, tx.hypot(ty));
         let margins = MARGIN_WINDOWS
             .into_iter()
             .map(|rect| {
-                chart_transverse_margin(&boxes, ChartPhi::Plane(n, origin), win(rect), tangent)
+                chart_transverse_margin(&boxes, ChartPhi(&plane), win(rect), tangent)
                     .expect("no window is degenerate")
                     .expect("every stretch is finite")
             })
@@ -2745,36 +2709,20 @@ pub(super) mod tests {
         }
     }
 
-    /// **A refused plane normal measures no chart margin.** Over the
-    /// dome, a window's transverse margin against a plane is a finite
-    /// distance from zero. With the normal refused, `∇φ` is refused while
-    /// the chart's stretch stays finite, and the margin reads `NaN`
-    /// (measured nothing), never the `0` of a straddle.
-    #[test]
-    fn a_refused_normal_measures_no_chart_margin() {
-        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
-            .expect("clamped quadratic");
-        let mut control = Vec::with_capacity(9);
-        for i in 0..3u8 {
-            for j in 0..3u8 {
-                let y = if i == 1 && j == 1 { -1.5 } else { 0.0 };
-                control.push(Point3::new(f64::from(i) / 2.0, y, f64::from(j) / 2.0));
-            }
-        }
-        let dome = NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("the dome");
-        let boxes = NurbsBoxes::new(&dome);
-        let (tx, ty) = (1.0_f64, 0.3_f64);
-        let tangent = (tx, ty, tx.hypot(ty));
-        let read = |n| {
-            let plane = ChartPhi::Plane(n, [Interval::point(0.0); 3]);
-            chart_transverse_margin(&boxes, plane, win(INSIDE_ONE_CELL), tangent)
-                .expect("the window is not degenerate")
-                .expect("the stretch is finite")
+    /// The plane through the origin normal to `n`, by its form, the one
+    /// way limb 3 reads a plane.
+    fn plane_form(n: Vec3<f64>) -> super::super::residual::ImplicitForm {
+        let u_ref = if n.x.abs() < 0.5 * n.norm() {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
         };
-        let measured = read([0.0, 1.0, 0.0].map(Interval::point));
-        assert!(measured.is_finite() && measured > 0.0, "{measured}");
-        let refused = read([Interval::refused(); 3]);
-        assert!(refused.is_nan(), "a refused normal read {refused}");
+        super::super::residual::ImplicitForm::of(&Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: n,
+            u_ref,
+        })
+        .expect("a plane has a form")
     }
 
     /// **A curved partner's chart margin is a sine, whatever the form's
@@ -2812,10 +2760,10 @@ pub(super) mod tests {
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
-            let curved = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
+            let form = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
             chart_transverse_margin(
                 &boxes,
-                ChartPhi::Curved(&curved),
+                ChartPhi(&form),
                 win((0.499, 0.501, 0.499, 0.501)),
                 (tx, ty, 1.0),
             )
@@ -2863,10 +2811,10 @@ pub(super) mod tests {
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let curved = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
+        let form = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
         let m = chart_transverse_margin(
             &boxes,
-            ChartPhi::Curved(&curved),
+            ChartPhi(&form),
             win((0.0, 1.0, 0.0, 1.0)),
             (0.0, 1.0, 1.0),
         )

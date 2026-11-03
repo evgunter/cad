@@ -104,20 +104,23 @@ fn deviation2a_the_inflected_walls_fit_deviation_is_measured_without_the_ring() 
     let (max, u_at_max) = trace_deviation(&w, 1e-9, 200_000);
     eprintln!("[review] inflected-wall fit deviation: {max:.3e} m at u = {u_at_max:.4}");
     let march = 2.41e-9;
-    let refined = band().zero() <= 1.1 * march && band().zero() >= 1e-10;
-    if refined {
-        assert!(
-            max < 0.93 * march,
-            "the march's deviation is not refined at ε {:e}: {max:e}",
-            band().zero()
-        );
+    // Each case pins its own reading within ±7%, so a deviation that
+    // grows, refined or not, goes red at every ε.
+    let (want, case) = if band().zero() > 1.1 * march {
+        (march, "unrefined: the band's zero is above the march's own")
+    } else if band().zero() >= 1e-10 {
+        (2.13e-10, "refined by one round")
     } else {
-        assert!(
-            (0.93 * march..=1.07 * march).contains(&max),
-            "the march's own deviation, unrefined at ε {:e}: {max:e} at u = {u_at_max:.4}",
-            band().zero()
-        );
-    }
+        (
+            march,
+            "the halving stopped by the step budget short of the span at the curvature zero",
+        )
+    };
+    assert!(
+        (0.93 * want..=1.07 * want).contains(&max),
+        "at ε {:e}, {case}: {max:e} at u = {u_at_max:.4}, expected {want:e}",
+        band().zero()
+    );
 }
 
 #[test]

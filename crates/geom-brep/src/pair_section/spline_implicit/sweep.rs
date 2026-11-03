@@ -10,17 +10,14 @@
 //! accounting), to the accounting floor. A cell is:
 //!
 //! - **excluded** where `φ` over it is decided past the band
-//!   (`spline_sweep_excluded`): on the plane its height on the
-//!   accounting's own enclosure
-//!   ([`crate::ssi::exhaust::chart_plane_height`]), over the normal's
-//!   length; on a curved partner `f` over the cell's box, a floor in
-//!   metres ([`ImplicitForm::floor_metres`]). So is `φ − c` for every `c`
+//!   (`spline_sweep_excluded`): the partner's form `f` over the cell's
+//!   box, a floor in metres ([`ImplicitForm::floor_metres`]), the
+//!   plane's `f = z` in its frame among them. So is `φ − c` for every `c`
 //!   within the band, the band read in metres;
 //! - **regular** where the wall's slope off the partner along `u` or
 //!   `v`, `∇f·S_d / (sup‖∇f‖·sup‖S_d‖)` on the closed cell's derivative
 //!   boxes ([`NurbsBoxes::deriv_box_closed`], [`NurbsBoxes::speed_sup`])
-//!   and, on a curved partner, `∇f` over the cell's box (`n` and its
-//!   length on the plane), levered by the feature extent, is decided off
+//!   and `∇f` over the cell's box (the plane's unit normal), levered by the feature extent, is decided off
 //!   zero (`spline_sweep_regular`), as the march decides
 //!   transversality;
 //! - neither, and halved down to the floor, where it is a critical
@@ -81,12 +78,12 @@
 use std::cell::RefCell;
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Interval, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Interval, Margin, Sign, Vec3};
 
 use crate::ssi::SsiError;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::{
-    REGULAR_SURVIVORS, SweepFloor, UvRect, chart_plane_height, sweep_chart_regular,
+    REGULAR_SURVIVORS, SweepFloor, UvRect, sweep_chart_regular,
 };
 use crate::ssi::residual::ImplicitForm;
 
@@ -95,14 +92,9 @@ mod critical;
 use critical::Jets;
 pub(in crate::pair_section) use critical::{Critical, Kind};
 
-/// **The partner the sweep reads `φ` of.**
-#[derive(Clone, Copy)]
-pub(super) enum Phi<'a> {
-    /// A plane, read at its pivot: its origin and its normal as stored.
-    Plane(Point3<f64>, Vec3<f64>),
-    /// A cylinder, sphere or torus.
-    Curved(&'a ImplicitForm),
-}
+/// **The partner the sweep reads `φ` of**: its form, a plane's read at
+/// its pivot.
+pub(super) type Phi<'a> = &'a ImplicitForm;
 
 /// What the sweep answers.
 #[derive(Clone, Debug, PartialEq)]
@@ -178,19 +170,12 @@ pub(super) fn sweep(
         )
     };
     // `∇f` over a window, and an upper bound on its length there.
-    let gradient = |w: UvWindow| match phi {
-        Phi::Plane(_, normal) => {
-            let n = normal.map(Interval::from_certified);
-            let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
-            (n, length)
-        }
-        Phi::Curved(curved) => {
-            let q = curved.framed(boxes.rect_box(w));
-            (
-                curved.gradient(q),
-                Interval::from_certified(curved.gradient_sup(q)),
-            )
-        }
+    let gradient = |w: UvWindow| {
+        let q = phi.framed(boxes.rect_box(w));
+        (
+            phi.gradient(q),
+            Interval::from_certified(phi.gradient_sup(q)),
+        )
     };
     // The wall's slope off the partner along `u` (`along_u`) or `v` over
     // a window, decided off zero.
@@ -217,25 +202,18 @@ pub(super) fn sweep(
         })
     };
     // `φ` over a cell, in metres: a floor on its distance, signed.
-    let value = |cell: UvRect| match phi {
-        Phi::Plane(origin, normal) => {
-            let n = normal.map(Interval::from_certified);
-            let length = (n.x.powi(2) + n.y.powi(2) + n.z.powi(2)).sqrt();
-            chart_plane_height(boxes, origin, normal, cell).map(|height| height / length)
-        }
-        Phi::Curved(curved) => {
-            let b = cell
-                .window()
-                .map_or_else(crate::ssi::enclose::refused_box, |w| boxes.rect_box(w));
-            let q = curved.framed(b);
-            let metres = curved.floor_metres(curved.value(q), q);
-            if metres.is_certified() {
-                Ok(metres)
-            } else {
-                Err(SsiError::UnsupportedCertificate {
-                    what: "a curved partner's form over a cell of the wall does not certify",
-                })
-            }
+    let value = |cell: UvRect| {
+        let b = cell
+            .window()
+            .map_or_else(crate::ssi::enclose::refused_box, |w| boxes.rect_box(w));
+        let q = phi.framed(b);
+        let metres = phi.floor_metres(phi.value(q), q);
+        if metres.is_certified() {
+            Ok(metres)
+        } else {
+            Err(SsiError::UnsupportedCertificate {
+                what: "a partner's form over a cell of the wall does not certify",
+            })
         }
     };
     // The side of the partner a cell is decided on (`true` above), or
@@ -578,7 +556,7 @@ fn swept(p: &geom::Surface<f64>, w: &geom::Surface<f64>, band: Band) -> Sweep {
         .expect("the pair is read");
     sweep(
         reading.boxes(),
-        pivot.phi(),
+        reading.form(),
         reading.account_floor(),
         band,
         pose.ball().certified_diameter(),

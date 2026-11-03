@@ -41,60 +41,39 @@
 //! | [`Section`] | **ℝ⁴** on two NURBS charts, 3×4 SVD | the shelled loft's wall–wall seams — all three limbs, the third the two-chart tube; one complete operation read at a seed or whole (`pair`) |
 //! | [`ImplicitSection`] | **ℝ²** residual × chart, 1×2 SVD | a plane, cylinder, sphere or ring torus against a NURBS wall: shape (iii)'s substrate (M5 PR 7b, folded onto this trace), and the classification's whole reading where its sweep declines — all three limbs, the third the chart tube read against the partner's form; one complete operation read at a seed or whole (`implicit_chart`) |
 //!
-//! # The plane×NURBS arm's retirement (M5 PR 7b)
+//! # The plane × NURBS arm
 //!
-//! Everything the ℝ⁴ shape needs landed in PR 7 and is exercised: the
-//! 3×4 SVD, third-order surface jets, the trace itself, the
-//! shared-parameter fit of the carrier and **both** pcurves (the OQ4
-//! identity, which [`trace_plane_nurbs_uncertified`] exposes and the
-//! acceptance suite pins), certified surface foot points for limb 1,
-//! the chart-form uniqueness tube for limb 3, and UV-domain
-//! exhaustiveness. The one missing limb — **limb 2 against the NURBS
-//! operand**, a *tight* between-samples sup bound — refused typed: the
-//! per-span first-order enclosure was sound but scaled like the span
-//! width (~1e-2 m reported where the true residual is ~1e-10 m),
-//! because it enclosed the curve's and the surface image's variations
-//! separately and threw away the cancellation that is the whole
-//! content of `S(P(t)) = C(t)`.
+//! A plane against a NURBS wall is traced on the wall's chart alone, the
+//! 1×2 trace ([`ImplicitSection`]), as every implicit partner is: the
+//! carrier is the wall's image of the traced pcurve, fitted with it on
+//! one shared parameter (the OQ4 identity, which
+//! [`trace_plane_nurbs_uncertified`] exposes, the plane's pcurve the
+//! carrier's exact affine image on the plane's chart), certified surface
+//! foot points for limb 1, the chart-form uniqueness tube for limb 3, and
+//! UV-domain exhaustiveness. Limb 2 against the NURBS operand, a *tight*
+//! between-samples sup bound, is **tensor-product Bernstein
+//! composition** (`geom_core::spline::compose::tensor`), which encloses
+//! the difference `S(P(t)) − C(t)` as ONE composite at the coefficient
+//! level, so the bound tracks the residual's own scale (measured within
+//! ~1% of a 2·10⁵-sample dense scan on the wall fixture): the arm is
+//! live **with its proof** (C12.1), never as a "sampled max pretending
+//! to be a bound" (C2.2).
 //!
-//! M5 PR 7b landed the machinery that refusal named: **tensor-product
-//! Bernstein composition** (`geom_core::spline::compose::tensor`),
-//! which encloses the difference `S(P(t)) − C(t)` as ONE composite at
-//! the coefficient level, so the bound tracks the residual's own scale
-//! (measured within ~1% of a 2·10⁵-sample dense scan on the wall
-//! fixture). Limb 2 flipped to that bound, the `implemented` flag
-//! flipped, and nothing else here changed — the arm retired **with its
-//! proof** (C12.1), never as a "sampled max pretending to be a bound"
-//! (C2.2).
-//!
-//! One honesty note the tight bound surfaced: the certificate now sees
-//! the *fit pair's* real between-samples deviation, which the loose
-//! bound used to drown. Where the wall's section curvature crosses
-//! zero, the step rule's fit rung (`h_fit ∝ (ε/κ³)^¼`) unbinds and the
-//! realized deviation of the two independent fits can genuinely exceed
-//! ε (measured 3.8e-9 m at march-ε = 1e-9 on a gently inflected wall)
-//! — the certificate then refuses that carrier at limb 2, which is
-//! the honest verdict about it, not a bound artifact (the bound sits
-//! within ~1% of the dense-scan truth there).
-//! That deviation is **phase-dependent and non-monotone in march-ε**,
-//! not a fixed cap (PR 7b review measurement: 4× tighter march-ε →
-//! 4.36× better, 16× → 16.92× better reaching 2.25e-10 m, 64× → only
-//! 6.83× better — where the samples land relative to the crossing
-//! decides), so a marcher-side fix must price the crossing span
-//! itself rather than assume a global scaling law. That is marcher
-//! work, out of PR 7b's scope by its spec §6. A wall with
+//! One honesty note the tight bound surfaces: the certificate sees the
+//! *fit pair's* real between-samples deviation. Where the wall's section
+//! curvature crosses zero, the step rule's fit rung (`h_fit ∝ (ε/κ³)^¼`)
+//! unbinds and the realized deviation of the two fits can exceed ε (on
+//! the 1×2 trace 2.41e-9 m at march-ε = 1e-9 on a gently inflected
+//! wall, `work/sectarms/the-implicit-chart-march-does-not-read-its-pcurves-timing.md`)
+//! — the certificate then refuses that carrier at limb 2 and refines it,
+//! the honest verdict about it, not a bound artifact. A wall with
 //! slowly-varying section curvature certifies with two orders of
 //! headroom.
 //!
-//! Practical breadth today, stated plainly: the certification the
-//! retired arm delivers end-to-end is **gentle single-cell walls near
-//! the origin** — an interior-knot (multi-cell) wall currently
-//! refuses at limb 1 (march/fit quality at the knot line), a span
-//! window straddling a knot line or leaving the domain hulls the
-//! neighbor cell's polynomial extension into the bound or refuses,
-//! and far-from-origin operands hit the projection and exhaustiveness
-//! machinery's own representation floors — every one of these is a
-//! loud, typed refusal, never a silent miscertification.
+//! Far-from-origin operands meet the projection and exhaustiveness
+//! machinery's own representation floors
+//! (`work/sectarms/a-chart-limb-1-foot-refuses-a-pose-far-from-the-origin.md`),
+//! each a loud, typed refusal, never a silent miscertification.
 //!
 //! **Why cylinder×sphere first**: both operands' polynomial composites
 //! convert to meters **exactly** (`÷2R`), so limb 2 certified with no
@@ -113,6 +92,15 @@
 //! **intersection layer**, plus the `split_edge` meter that lets PR 5's
 //! lanes consume a rung-3 carrier. Zipping curved booleans end to end,
 //! and the tangency regime the σ₂ band refuses toward, are PR 9.
+
+/// **The implicit partner kinds, in a refusal's words**: the one list
+/// the 1×2 lane's refusals name, beside the one test of a kind,
+/// [`residual::ImplicitForm::kind`].
+macro_rules! implicit_partners {
+    () => {
+        "a plane, cylinder, sphere or ring torus"
+    };
+}
 
 pub mod boundary;
 pub mod certify;
@@ -158,6 +146,7 @@ pub use exhaust::{
 };
 pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
 pub use implicit_chart::{ImplicitSection, SectionReading};
+pub(crate) use implicit_chart::PassKey;
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
@@ -177,17 +166,18 @@ use system::ImplicitPairR3;
 /// parameter (the OQ4 identity).
 type ChartSamples<'a> = [Option<&'a [geom_core::Point2<f64>]>; 2];
 
-/// A fitted rung-3 branch's curves: the 3-D carrier, and the two
-/// pcurves when the trace shape produced them (the ℝ⁴ shape does; the
-/// ℝ³ shape has no chart to project onto).
+/// A fitted rung-3 branch's curves: the 3-D carrier, and the pcurves the
+/// trace shape produced (both on the ℝ⁴ pair, the wall's alone on the
+/// 1×2 trace; the ℝ³ shape has no chart to project onto).
 pub(crate) type FittedBranch = (
     NurbsCurve3<f64>,
     Option<NurbsCurve2<f64>>,
     Option<NurbsCurve2<f64>>,
 );
 
-/// The ℝ⁴ trace's fitted triple: the carrier and both pcurves, on one
-/// shared parameter.
+/// The plane × NURBS trace's fitted triple: the carrier, the plane's
+/// pcurve (the carrier's affine image on the plane's chart) and the
+/// wall's, on one shared parameter.
 pub type TracedTriple = (NurbsCurve3<f64>, NurbsCurve2<f64>, NurbsCurve2<f64>);
 
 /// The degree of a fitted rung-3 carrier (C1 rung 3 / C11): cubic, the
@@ -308,18 +298,22 @@ impl core::fmt::Display for PointLever {
 /// the tolerance ([`SsiError::ShortBranchUncertified`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BranchBound {
-    /// The NURBS wall's knot rectangle: the plane × NURBS lane.
+    /// A NURBS wall's knot rectangle: the chart lanes, an implicit
+    /// partner traced on the wall's chart (1×2) and the NURBS × NURBS
+    /// pair (ℝ⁴).
     Wall,
-    /// The caller's ℝ³ slab: the implicit lane.
+    /// The caller's ℝ³ slab: the implicit pair lane.
     Slab,
 }
 
 impl BranchBound {
     /// The bound of the lane whose state has `N` coordinates: the
-    /// plane × NURBS lane traces in ℝ⁴, the implicit lane in ℝ³.
+    /// implicit pair traces in ℝ³, within the caller's slab; every other
+    /// lane on a wall's chart, the 1×2 trace's `(u, v)` and the pair's
+    /// ℝ⁴, within the wall's rectangle.
     #[must_use]
     pub(crate) const fn of_lane<const N: usize>() -> Self {
-        if N == 4 { Self::Wall } else { Self::Slab }
+        if N == 3 { Self::Slab } else { Self::Wall }
     }
 }
 
@@ -927,7 +921,7 @@ impl core::fmt::Display for SsiError {
                     ReachBound::Geometry => "geometry",
                     ReachBound::Domain => "domain",
                     ReachBound::Partner => {
-                        "spline face, written about the curved partner's centre or axis,"
+                        "spline face, written in the partner's frame,"
                     }
                 };
                 write!(
@@ -2012,8 +2006,8 @@ pub struct SsiBranch {
 pub struct SsiOutcome {
     /// The certified branches.
     pub branches: Vec<SsiBranch>,
-    /// The regions of the domain's boundary the plane meets in the band
-    /// (the plane × NURBS lane's boundary pass; empty on the ℝ³ lane):
+    /// The regions of the wall's rectangle the partner meets in the band
+    /// (the chart lanes' boundary pass; empty on the ℝ³ lane):
     /// each certifies that the intersection there lies within its reach
     /// of a corner or side (at a corner, at most one arc), and decides
     /// no contact.
@@ -2034,8 +2028,9 @@ pub struct SsiOutcome {
 /// decide against another.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiDomain {
-    /// The session-box slab (ℝ³ lane) or the plane window (ℝ⁴ lane),
-    /// as a center and half-extent in meters.
+    /// The session-box slab of the ℝ³ lane, as a center and
+    /// half-extent in meters; on a chart lane, which a wall's rectangle
+    /// bounds, only checked.
     pub center: Point3<f64>,
     /// Half-extent of the slab, in meters.
     pub half_extent: f64,
@@ -2389,7 +2384,7 @@ fn branch_tubes(branch: &SsiBranch) -> Vec<Box3> {
     certify::tube_boxes(c, radius)
 }
 
-/// The chart windows of a certified plane × NURBS branch — the tubes
+/// The chart windows of a certified chart-lane branch — the tubes
 /// the chart accounting pass consumes: [`certify::chart_tube_windows`]
 /// at the pad the certificate recorded, so accounting banks the region
 /// limb 3 proved and no other. A branch with no chart tube, or whose
@@ -2611,13 +2606,14 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// The march's settling against a curved partner whose own frame reaches
-/// further than its coordinates resolve: the wall's points stand that
-/// far from the partner's centre or axis wherever the scene is placed
-/// ([`ReachBound::Partner`]).
+/// The march's settling against a partner whose own frame reaches further
+/// than its coordinates resolve: the wall's points stand that far from
+/// the plane's stored origin, or from a curved partner's centre or axis,
+/// wherever the scene is placed ([`ReachBound::Partner`]).
 const PARTNER_SCALE: SizedDecision = SizedDecision {
-    lever: "use a curved partner whose radius is nearer the spline face's own size, or a coarser \
-            tolerance; moving the scene does not move the partner's frame",
+    lever: "store the plane's origin nearer the spline face, or use a curved partner whose \
+            radius is nearer the face's own size, or a coarser tolerance; moving the scene does \
+            not move the partner's frame",
     size: "scale",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -3530,7 +3526,7 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    if !matches!(plane, Surface::Plane { .. }) {
+    if residual::ImplicitForm::kind(plane) != Some(residual::PLANE) {
         return Err(SsiError::WrongLane {
             expected: PLANE_AND_WALL,
         });
@@ -5025,7 +5021,7 @@ mod ending_tests {
             (
                 "wrong lane",
                 SsiError::WrongLane {
-                    expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
+                    expected: "a plane and a NURBS surface traced on the wall's chart",
                 },
             ),
             (

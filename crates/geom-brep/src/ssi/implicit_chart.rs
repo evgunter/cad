@@ -8,8 +8,8 @@
 //! is eliminated, the carrier is the wall's image of the traced chart
 //! curve, and the branch carries the wall's pcurve and none on the
 //! partner, which has no chart. Its limb 3 is the chart tube in the
-//! wall's rectangle, read against the partner's form, the plane lane's
-//! one tube ([`super::enclose::ChartPhi`]).
+//! wall's rectangle, read against the partner's form
+//! ([`super::enclose::ChartPhi`]).
 //!
 //! [`ImplicitSection::of`] checks the operands, mints the wall's floors
 //! and the march's tolerance ([`ImplicitWall`]); the boundary pass
@@ -62,9 +62,22 @@ pub enum SectionReading<'s> {
     Region(&'s SsiBoundaryContact),
 }
 
+/// **What a boundary pass was run over**: the partner (its `f64`
+/// scalars, by their round-trip rendering), the wall by its address, the
+/// domain and the band, bit for bit. A pass carries to a section only
+/// over the same key ([`ImplicitSection::with_pass`]), as a chart minted
+/// once carries only to its own wall ([`ImplicitSection::of_charted`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PassKey {
+    partner: String,
+    wall: usize,
+    domain: [u64; 6],
+    band: [u64; 2],
+}
+
 /// What the section is read over, fixed by [`ImplicitSection::of`].
 struct Lane<'a> {
-    curved: ImplicitForm,
+    form: ImplicitForm,
     wall: ImplicitWall<'a>,
     wall_op: SsiOperand<'a, f64>,
     sys: ImplicitChartR2<'a>,
@@ -96,10 +109,9 @@ impl Lane<'_> {
     /// # Errors
     ///
     /// [`SsiError::UnsupportedCertificate`] where the form over the cell
-    /// does not certify, as the plane lane refuses a height that does not
-    /// ([`exhaust::chart_plane_height`]).
+    /// does not certify.
     fn excluded(&self, cell: UvRect) -> Result<bool, SsiError> {
-        let f = ChartPhi::Curved(&self.curved).over(self.wall.boxes(), cell.window());
+        let f = ChartPhi(&self.form).over(self.wall.boxes(), cell.window());
         if !f.is_certified() {
             return Err(SsiError::UnsupportedCertificate { what: FORM_REFUSED });
         }
@@ -108,7 +120,7 @@ impl Lane<'_> {
 }
 
 /// The exclusion's refusal of a cell whose form does not certify.
-const FORM_REFUSED: &str = "the curved partner's form over a cell of the NURBS wall does not \
+const FORM_REFUSED: &str = "the partner's form over a cell of the NURBS wall does not \
      certify — the wall's enclosure refused there";
 
 /// **The section of a plane, cylinder, sphere or ring torus and a NURBS wall**
@@ -198,31 +210,24 @@ impl<'a> ImplicitSection<'a> {
         band: Band,
         max_steps: usize,
     ) -> Result<Self, SsiError> {
-        // A partner that is not finite is refused by name before its form
-        // is read, whose frame would refuse it as no partner at all.
-        let operand = match partner {
-            Surface::Plane { .. } => "plane",
-            _ => "curved partner",
-        };
-        if matches!(
-            partner,
-            Surface::Plane { .. }
-                | Surface::Cylinder { .. }
-                | Surface::Sphere { .. }
-                | Surface::Torus { .. }
-        ) {
-            finite_operand(operand, partner)?;
+        // A partner that is not finite is refused by its kind's name
+        // before its form is read, whose frame would refuse it as no
+        // partner at all.
+        if let Some(kind) = ImplicitForm::kind(partner) {
+            finite_operand(kind, partner)?;
         }
-        let curved = ImplicitForm::of(partner).map_err(|_| SsiError::WrongLane {
-            expected: "a plane, cylinder, sphere or ring torus and a NURBS surface traced on the \
-                       wall's chart",
+        let form = ImplicitForm::of(partner).map_err(|_| SsiError::WrongLane {
+            expected: concat!(
+                implicit_partners!(),
+                " and a NURBS surface traced on the wall's chart"
+            ),
         })?;
         let read = ImplicitWall::of_charted((wall, chart), domain, band)?;
         let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
         let root = UvRect { u: ud, v: vd };
         let speed = read.charted().speeds().max();
         let seed_floor = SweepFloor::chart(root, domain.seed_floor(), speed, FloorKind::Seeding)?;
-        let ctx = read.march_tol(&curved).map(|tol| MarchContext::<2> {
+        let ctx = read.march_tol(&form).map(|tol| MarchContext::<2> {
             domain: [[ud.0, ud.1], [vd.0, vd.1]],
             extent: domain.extent,
             tol,
@@ -232,7 +237,7 @@ impl<'a> ImplicitSection<'a> {
         let wall_op = SsiOperand::Nurbs(read.charted().clone());
         Ok(Self {
             lane: Lane {
-                curved,
+                form,
                 wall: read,
                 wall_op,
                 sys: ImplicitChartR2 { partner, wall },
@@ -252,18 +257,52 @@ impl<'a> ImplicitSection<'a> {
     ///
     /// The pass's refusal.
     pub(crate) fn pass(&self) -> Result<&BoundaryPass<[f64; 2]>, SsiError> {
-        passed(&self.pass, || self.lane.wall.pass(&self.lane.curved))
+        passed(&self.pass, || self.lane.wall.pass(&self.lane.form))
     }
 
-    /// The section with its boundary pass already run, over the same
-    /// partner, wall, domain and band ([`ImplicitSection::pass`]'s answer
-    /// carried from an earlier reading of this pair), so no reading runs
-    /// it again.
-    pub(crate) fn with_pass(self, pass: BoundaryPass<[f64; 2]>) -> Self {
-        Self {
+    /// What this section's boundary pass is run over ([`PassKey`]).
+    pub(crate) fn pass_key(&self) -> PassKey {
+        let d = self.lane.wall.domain();
+        PassKey {
+            partner: format!("{:?}", self.lane.sys.partner),
+            wall: core::ptr::from_ref(self.lane.sys.wall) as usize,
+            domain: [
+                d.center.x,
+                d.center.y,
+                d.center.z,
+                d.half_extent,
+                d.extent,
+                d.floor_scale,
+            ]
+            .map(f64::to_bits),
+            band: [self.lane.wall.band().zero(), self.lane.wall.band().escalate()]
+                .map(f64::to_bits),
+        }
+    }
+
+    /// The section with its boundary pass already run
+    /// ([`ImplicitSection::pass`]'s answer carried from an earlier reading
+    /// of this pair), so no reading runs it again, where it was run over
+    /// this section's own partner, wall, domain and band.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::WrongLane`] for a pass run over another key, in every
+    /// build, before any reading.
+    pub(crate) fn with_pass(
+        self,
+        (key, pass): (&PassKey, BoundaryPass<[f64; 2]>),
+    ) -> Result<Self, SsiError> {
+        if *key != self.pass_key() {
+            return Err(SsiError::WrongLane {
+                expected: "a boundary pass run over the section's own partner, wall, domain \
+                           and band",
+            });
+        }
+        Ok(Self {
             pass: OnceCell::from(pass),
             ..self
-        }
+        })
     }
 
     /// The wall's chart enclosures, minted once for the section.
@@ -277,8 +316,8 @@ impl<'a> ImplicitSection<'a> {
     }
 
     /// The partner's form, as the section reads it.
-    pub(crate) fn curved(&self) -> &ImplicitForm {
-        &self.lane.curved
+    pub(crate) fn form(&self) -> &ImplicitForm {
+        &self.lane.form
     }
 
     /// **What holds `seed`** (module docs): the seed's foot on the wall,
@@ -301,7 +340,7 @@ impl<'a> ImplicitSection<'a> {
         if let Some(i) = self.banked.holding(&x) {
             return Ok(SectionReading::Branch(&self.banked.branches[i]));
         }
-        let pass = passed(&self.pass, || self.lane.wall.pass(&self.lane.curved))?;
+        let pass = passed(&self.pass, || self.lane.wall.pass(&self.lane.form))?;
         if let Some(i) = pass.regions.iter().position(|r| r.holds_state(&x)) {
             return Ok(SectionReading::Region(&pass.contacts[i]));
         }
@@ -329,7 +368,7 @@ impl<'a> ImplicitSection<'a> {
         // Every whole reading marches, so the march's tolerance is met
         // first, ahead of the pass whose crossings it would settle.
         let ends = lane.ends()?;
-        let pass = passed(&self.pass, || lane.wall.pass(&lane.curved))?;
+        let pass = passed(&self.pass, || lane.wall.pass(&lane.form))?;
         let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| lane.excluded(cell))?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
@@ -451,6 +490,36 @@ mod tests {
             "a mispaired chart came back {:?}",
             got.err()
         );
+    }
+
+    /// **A boundary pass carries only to its own section.** The trough's
+    /// pass, run once, carries to a fresh section of the same plane,
+    /// wall, domain and band, which then reads both branches; handed to
+    /// a section at another height, or of another band, it is refused
+    /// with [`SsiError::WrongLane`] before any reading.
+    #[test]
+    fn a_boundary_pass_carries_only_to_its_own_section() {
+        let wall = net(&|i, _| [0.25, -0.25, 0.25][i]);
+        let (low, high) = (level(0.1), level(0.2));
+        let first = ImplicitSection::of(&low, &wall, domain(), band()).unwrap();
+        let (key, pass) = (first.pass_key(), first.pass().unwrap().clone());
+        let same = ImplicitSection::of(&low, &wall, domain(), band())
+            .unwrap()
+            .with_pass((&key, pass.clone()))
+            .unwrap();
+        assert_eq!(same.all().unwrap().branches.len(), 2, "the carried pass reads");
+        let wider = Band::new(2e-9, 2e-8).unwrap();
+        for (what, other) in [
+            ("another height", ImplicitSection::of(&high, &wall, domain(), band())),
+            ("another band", ImplicitSection::of(&low, &wall, domain(), wider)),
+        ] {
+            let got = other.unwrap().with_pass((&key, pass.clone()));
+            assert!(
+                matches!(got, Err(super::SsiError::WrongLane { .. })),
+                "{what}: a foreign pass came back {:?}",
+                got.err()
+            );
+        }
     }
 
     /// **Each seed is answered by the branch through it.** The trough

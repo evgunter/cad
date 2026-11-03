@@ -109,34 +109,16 @@ struct Read {
 fn read(jets: &Jets, phi: Phi<'_>, u: Interval, v: Interval) -> Read {
     let jet = jets.net.ders(u, v);
     let p = Vec3::new(jet.point.x, jet.point.y, jet.point.z);
-    let (g, h, value, ceiling, frame): (Vec3<Interval>, [[Interval; 3]; 3], Interval, f64, _) =
-        match phi {
-            Phi::Plane(origin, normal) => {
-                let (o, n) = plane(origin, normal);
-                let value = (p - o).dot(n);
-                let ceiling = value.lo().abs().max(value.hi().abs());
-                let zero = Interval::point(0.0);
-                (n, [[zero; 3]; 3], value, ceiling, None)
-            }
-            Phi::Curved(curved) => {
-                let q = curved.framed(crate::ssi::enclose::Box3 {
-                    x: p.x,
-                    y: p.y,
-                    z: p.z,
-                });
-                let value = curved.value(q);
-                let ceiling = curved.ceiling_metres(value.lo().abs().max(value.hi().abs()), q);
-                (
-                    curved.frame_gradient(q),
-                    curved.frame_hessian(q),
-                    value,
-                    ceiling,
-                    Some(curved),
-                )
-            }
-        };
+    let q = phi.framed(crate::ssi::enclose::Box3 {
+        x: p.x,
+        y: p.y,
+        z: p.z,
+    });
+    let value = phi.value(q);
+    let ceiling = phi.ceiling_metres(value.lo().abs().max(value.hi().abs()), q);
+    let (g, h) = (phi.frame_gradient(q), phi.frame_hessian(q));
     // Every vector in the frame `g` and `h` are written in.
-    let framed = |d: Vec3<Interval>| frame.map_or(d, |c| c.frame_vector(d));
+    let framed = |d: Vec3<Interval>| phi.frame_vector(d);
     let (su, sv) = (framed(jet.du), framed(jet.dv));
     let (suu, suv, svv) = (framed(jet.duu), framed(jet.duv), framed(jet.dvv));
     let quad = |a: Vec3<Interval>, b: Vec3<Interval>| {
@@ -178,40 +160,22 @@ pub(super) fn along_line(
     let jet = jets.net.ders(u, v);
     let p = Vec3::new(jet.point.x, jet.point.y, jet.point.z);
     let d = if along_u { jet.du } else { jet.dv };
-    let (metres, g, d) = match phi {
-        Phi::Plane(origin, normal) => {
-            let (o, n) = plane(origin, normal);
-            ((p - o).dot(n), n, d)
-        }
-        Phi::Curved(curved) => {
-            let q = curved.framed(crate::ssi::enclose::Box3 {
-                x: p.x,
-                y: p.y,
-                z: p.z,
-            });
-            (
-                curved.floor_metres(curved.value(q), q),
-                curved.frame_gradient(q),
-                curved.frame_vector(d),
-            )
-        }
-    };
+    let q = phi.framed(crate::ssi::enclose::Box3 {
+        x: p.x,
+        y: p.y,
+        z: p.z,
+    });
+    let (metres, g, d) = (
+        phi.floor_metres(phi.value(q), q),
+        phi.frame_gradient(q),
+        phi.frame_vector(d),
+    );
     let norm = |w: Vec3<Interval>| {
         Interval::point(Certification::sqrt(w.x.sqr() + w.y.sqr() + w.z.sqr()).hi())
     };
     (metres, super::sine(g, norm(g), d, norm(d)))
 }
 
-/// A plane's origin and its unit normal, as enclosures: its `∇f`, and the
-/// point its height is read from.
-fn plane(origin: geom_core::Point3<f64>, normal: Vec3<f64>) -> (Vec3<Interval>, Vec3<Interval>) {
-    let n = normal.map(Interval::point);
-    let length = Certification::sqrt(n.x.sqr() + n.y.sqr() + n.z.sqr());
-    (
-        Vec3::new(origin.x, origin.y, origin.z).map(Interval::point),
-        Vec3::new(n.x / length, n.y / length, n.z / length),
-    )
-}
 
 /// The inverse of a 2×2 matrix, `None` where it is singular or not
 /// finite.
