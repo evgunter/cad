@@ -131,8 +131,9 @@ fn accepted_against_torus(
     let (ab, _) = sweep_traces(a, b, SweepStrategy::Realized, None, Tol::witness())
         .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
     let walls = torus_faces(b);
-    ab.accepted
-        .into_iter()
+    ab.accepted()
+        .iter()
+        .copied()
         .filter(|(e, f)| edges.contains(e) && walls.contains(f))
         .collect()
 }
@@ -213,11 +214,11 @@ fn the_lily_seams_cross_each_others_carriers_only_outside_the_windows() {
                 .count()
         };
         assert_eq!(
-            pairs(&trace.examined),
+            pairs(trace.examined()),
             walls.len(),
             "{label}: examined against every wall face"
         );
-        assert_eq!(pairs(&trace.accepted), 0, "{label}: and no event on any");
+        assert_eq!(pairs(trace.accepted()), 0, "{label}: and no event on any");
     }
 }
 
@@ -520,7 +521,7 @@ fn a_coaxial_seam_on_the_torus_is_placed_by_its_arc() {
     // Read once against B's wall and recorded there, never split: a
     // split re-reads the seam's fragment against the same face.
     assert_eq!(
-        (on_walls(&ab.examined), on_walls(&ab.accepted)),
+        (on_walls(ab.examined()), on_walls(ab.accepted())),
         (1, 1),
         "the whole seam arc is placed on B's wall by its ends: {ab:?}"
     );

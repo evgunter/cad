@@ -541,7 +541,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     )
     .expect("the sweep runs");
     assert!(
-        !b_trace.examined.contains(&(wall_edge, corner)),
+        !b_trace.examined().contains(&(wall_edge, corner)),
         "the pocket's y = 10 edge is still a candidate against the corner round"
     );
 }
