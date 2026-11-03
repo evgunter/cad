@@ -111,6 +111,16 @@ fn a_conical_ended_football_revolves() {
     for (what, band) in [
         ("the lemon", LEMON),
         ("the apple", APPLE),
+        (
+            "the wide apple",
+            Band {
+                major: 0.8,
+                minor: 1.0,
+                half: 2.4,
+                tip: 1.2,
+                at: (0.0, 0.0),
+            },
+        ),
         ("the lemon near its apexes", near_apex),
         (
             "the lemon a thousand out",
