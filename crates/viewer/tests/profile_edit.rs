@@ -4,7 +4,7 @@
 //! `SessionOp::EditProfile`.
 //!
 //! The rows claim four things the one-editor design rests on:
-//! everything the create form can author loads into the editor and
+//! every loop the editor's templates and step list write loads back and
 //! lowers back to the program it came from (the round trip); an
 //! untouched editor applied costs nothing — no edit, no history
 //! state (the no-op); an applied editor is ONE `SetProgram`, one
@@ -26,7 +26,7 @@ use pncad::document::{
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
 use viewer::props::Notation;
-use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::sketch::{self, HeldRefusal, HeldStep, HeldStepFault};
 
 /// A session over a throwaway document.
@@ -40,7 +40,7 @@ const MM: Notation = Notation {
     angle: pncad::quantity::DEG,
 };
 
-/// A closed square authored the way the form's default chain is.
+/// A closed square, as the editor's path template writes one.
 fn square(x0: f64, side: f64) -> Vec<Step<f64>> {
     vec![
         Step::At(Point2::new(x0, 0.0)),
@@ -51,108 +51,96 @@ fn square(x0: f64, side: f64) -> Vec<Step<f64>> {
     ]
 }
 
-/// Every loop list the add-profile form can author from its three
-/// shapes, each as the form would hand it over.
-fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
+/// Loop lists of every kind the editor writes — its circle and
+/// rectangle templates, and chains of each verb family its step list
+/// offers — each as steps at plain numbers.
+fn authored() -> Vec<(&'static str, Vec<Vec<Step<f64>>>)> {
     vec![
         (
             "circle",
-            vec![ProfileShape::Circle {
-                centre: [0.001, -0.002],
+            vec![vec![Step::Circle {
+                centre: Point2::from_array([0.001, -0.002]),
                 radius: 0.01,
-            }],
+            }]],
         ),
         (
             "circle with a bore loop",
             vec![
-                ProfileShape::Circle {
-                    centre: [0.0; 2],
+                vec![Step::Circle {
+                    centre: Point2::from_array([0.0; 2]),
                     radius: 0.01,
-                },
-                ProfileShape::Circle {
-                    centre: [0.0; 2],
+                }],
+                vec![Step::Circle {
+                    centre: Point2::from_array([0.0; 2]),
                     radius: 0.004,
-                },
+                }],
             ],
         ),
         (
             "rectangle",
-            vec![ProfileShape::Rectangle {
-                centre: [0.002, -0.001],
+            vec![vec![Step::Rectangle {
+                centre: Point2::from_array([0.002, -0.001]),
                 width: 0.03,
                 height: 0.01,
-            }],
+            }]],
         ),
-        (
-            "square path",
-            vec![ProfileShape::Path {
-                steps: square(0.0, 0.01),
-            }],
-        ),
+        ("square path", vec![square(0.0, 0.01)]),
         (
             "arc path",
-            vec![ProfileShape::Path {
-                steps: vec![
-                    Step::At(Point2::new(-0.01, 0.0)),
-                    Step::ArcTo(ArcData::Bulge {
-                        target: Target::Point(Point2::new(0.01, 0.0)),
-                        b: 1.0,
-                    }),
-                    Step::LineTo(Target::Start),
-                ],
-            }],
+            vec![vec![
+                Step::At(Point2::new(-0.01, 0.0)),
+                Step::ArcTo(ArcData::Bulge {
+                    target: Target::Point(Point2::new(0.01, 0.0)),
+                    b: 1.0,
+                }),
+                Step::LineTo(Target::Start),
+            ]],
         ),
         (
             "continue-to path",
-            vec![ProfileShape::Path {
-                steps: vec![
-                    Step::At(Point2::new(0.005, 0.0)),
-                    Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
-                    Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
-                    Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
-                    Step::LineTo(Target::Point(Point2::new(0.0, 0.005))),
-                    Step::ContinueTo(Target::Point(Point2::new(0.0, 0.0))),
-                    Step::LineTo(Target::StartArriving),
-                ],
-            }],
+            vec![vec![
+                Step::At(Point2::new(0.005, 0.0)),
+                Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+                Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
+                Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+                Step::LineTo(Target::Point(Point2::new(0.0, 0.005))),
+                Step::ContinueTo(Target::Point(Point2::new(0.0, 0.0))),
+                Step::LineTo(Target::StartArriving),
+            ]],
         ),
         (
             "tangent-arc path",
-            vec![ProfileShape::Path {
-                steps: vec![
-                    Step::At(Point2::new(0.0, 0.0)),
-                    Step::Angle(0.0),
-                    Step::TangentArcTo(Target::Point(Point2::new(0.0, 0.01))),
-                    Step::LineTo(Target::Start),
-                ],
-            }],
+            vec![vec![
+                Step::At(Point2::new(0.0, 0.0)),
+                Step::Angle(0.0),
+                Step::TangentArcTo(Target::Point(Point2::new(0.0, 0.01))),
+                Step::LineTo(Target::Start),
+            ]],
         ),
         (
             "split circle",
-            vec![ProfileShape::Path {
-                steps: vec![Step::CircleSplit {
-                    centre: Point2::new(0.0, 0.0),
-                    radius: 0.01,
-                    n: 3,
-                    phase: 0.25,
-                }],
-            }],
+            vec![vec![Step::CircleSplit {
+                centre: Point2::new(0.0, 0.0),
+                radius: 0.01,
+                n: 3,
+                phase: 0.25,
+            }]],
         ),
     ]
 }
 
-/// The held loops as the program the editor's Apply sends.
+/// The held loops as the program a change the editor offers sends.
 fn lowered(held: &[Vec<HeldStep>]) -> Vec<LoopProgram<Formula>> {
     held.iter()
         .map(|steps| HeldStep::program(steps).expect("a program's shape"))
         .collect()
 }
 
-/// Template loops lowered the way the create form lowers them.
+/// Loops of steps lowered in `notation`, as an insert writes them.
 fn templated(loops: &[Vec<Step<f64>>], notation: Notation) -> Vec<LoopProgram<Formula>> {
-    sketch::path_shapes(loops)
+    loops
         .iter()
-        .map(|shape| sketch::loop_program(shape, notation).expect("finite numbers"))
+        .map(|steps| sketch::path_program(steps, notation, &|_, _| None).expect("finite numbers"))
         .collect()
 }
 
@@ -219,11 +207,11 @@ fn units(held: &[Vec<HeldStep>]) -> Vec<Option<pncad::quantity::UnitDef>> {
 
 /// A session holding one profile of `loops`, lowered in
 /// `notation`; answers the session and the profile node.
-fn with_profile(loops: &[ProfileShape], notation: Notation) -> (DocSession, RecipeNodeId) {
+fn with_profile(loops: &[Vec<Step<f64>>], notation: Notation) -> (DocSession, RecipeNodeId) {
     let mut session = session(Tol::witness());
     let loops = loops
         .iter()
-        .map(|loop_| sketch::loop_program(loop_, notation).expect("a finite template"))
+        .map(|loop_| sketch::path_program(loop_, notation, &|_, _| None).expect("a finite loop"))
         .collect();
     let profile = session_insert(&mut session, SessionOp::AddProfile { loops });
     (session, profile)
@@ -237,7 +225,7 @@ fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
     }
 }
 
-/// The op the editor's Apply sends for `loops` over `node`'s committed
+/// The op the editor forms for `loops` over `node`'s committed
 /// program, every step kept where it is.
 fn edit_of(
     session: &DocSession,
@@ -253,8 +241,8 @@ fn edit_of(
     }
 }
 
-/// **Everything the create form authors loads, and an untouched load
-/// applied is nothing.** For every shape the form offers, written in
+/// **Every loop the editor writes loads back, and an untouched load
+/// committed is nothing.** For every loop list above, written in
 /// either notation: the committed profile loads into the editor as it
 /// is written; every step's view at plain numbers, written back over it
 /// in either notation, leaves it as written, unit and all; and the edit
@@ -301,14 +289,14 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
     }
 }
 
-/// **Every verb, arc mode and target form the form's pickers offer
+/// **Every verb, arc mode and target form the editor's pickers offer
 /// comes back as itself.** The rows above go through the document
 /// door, which admits only programs that replay; this one takes each
-/// fresh step the form can put in a row — valid profile or not — to
+/// fresh step the editor can put in a row — valid profile or not — to
 /// its program, holds it through the editor's loader, and writes its
 /// view back over it.
 #[test]
-fn every_verb_the_form_offers_loads_back_as_itself() {
+fn every_verb_the_editor_offers_loads_back_as_itself() {
     let mut steps: Vec<Step<f64>> = Verb::ALL
         .iter()
         .map(|&verb| sketch::fresh_step(verb))
@@ -328,7 +316,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let program = editor_core::test_support::stored_program(
             &mut doc,
             &ProfileProgram {
-                loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
+                loops: vec![shape(&[step])],
                 ids: Vec::new(),
                 on: None,
             },
@@ -368,9 +356,7 @@ fn committed_expr(
 /// unmoved ones read as authored; undo and redo walk it.
 #[test]
 fn a_moved_number_is_one_edit_and_undoes() {
-    let loops = [ProfileShape::Path {
-        steps: square(0.0, 0.01),
-    }];
+    let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let original = session.committed_doc().clone();
     let at = |step, arg| SlotId::Profile {
@@ -441,9 +427,7 @@ fn original_program(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> &ProfilePr
 /// each new one; one undo puts the committed program back.
 #[test]
 fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
-    let loops = [ProfileShape::Path {
-        steps: square(0.0, 0.01),
-    }];
+    let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
     let base = sketch::written_program(session.committed_doc(), program(&session, profile));
@@ -528,9 +512,7 @@ fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
 /// it as it was lands, and the expression is still what drives it.
 #[test]
 fn a_kept_driven_argument_is_not_written_over() {
-    let loops = [ProfileShape::Path {
-        steps: square(0.0, 0.01),
-    }];
+    let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::DeclareVar {
         name: VarName::from_static("side"),
@@ -606,9 +588,7 @@ fn a_kept_driven_argument_is_not_written_over() {
 /// keeps the expression. A node that is no profile still refuses.
 #[test]
 fn a_driven_argument_loads_as_its_expression() {
-    let loops = [ProfileShape::Path {
-        steps: square(0.0, 0.01),
-    }];
+    let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::DeclareVar {
         name: VarName::from_static("side"),
@@ -668,8 +648,8 @@ fn a_driven_argument_loads_as_its_expression() {
 /// and its other steps edit.** `line_to(at_x)` lowers against the pen
 /// its prefix leaves, which only an evaluation replays, so the editor
 /// has no view of it at plain numbers and holds it as written; the
-/// steps beside it are views like any other. Two corners moved, Apply
-/// is one `SetProgram` keeping every step, the pen step among them as
+/// steps beside it are views like any other. Two corners moved, the
+/// edit is one `SetProgram` keeping every step, the pen step among them as
 /// it was written.
 #[test]
 fn a_step_running_to_a_written_coordinate_opens_and_its_neighbours_edit() {
@@ -740,9 +720,7 @@ fn a_step_running_to_a_written_coordinate_opens_and_its_neighbours_edit() {
 /// about the program, and nothing lands.
 #[test]
 fn an_invalid_program_refuses_as_itself() {
-    let loops = [ProfileShape::Path {
-        steps: square(0.0, 0.01),
-    }];
+    let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
     let mut held = held(&session, profile);
@@ -778,9 +756,7 @@ fn an_invalid_program_refuses_as_itself() {
 #[test]
 fn a_move_whose_first_argument_alone_crosses_still_lands() {
     let tol = Tol::witness();
-    let loops = [ProfileShape::Path {
-        steps: square(0.0, 0.01),
-    }];
+    let loops = [square(0.0, 0.01)];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     // The premise, checked rather than assumed: the first corner's
     // write alone is refused by the door.
@@ -815,10 +791,7 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
         out.committed
     );
     let held = held(&session, profile);
-    assert!(sketch::authors_same_loops(
-        &sketch::path_shapes(&viewed(&held)),
-        &sketch::path_shapes(&[moved])
-    ));
+    assert!(sketch::authors_same_loops(&viewed(&held), &[moved]));
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert_eq!(session.history().current(), state, "one action, one undo");
 }
@@ -852,12 +825,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
 /// numbers refuse `ProfileEditStale` rather than landing on top.
 #[test]
 fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
-    let (mut session, profile) = with_profile(
-        &[ProfileShape::Path {
-            steps: square(0.0, 0.01),
-        }],
-        Notation::CANONICAL,
-    );
+    let (mut session, profile) = with_profile(&[square(0.0, 0.01)], Notation::CANONICAL);
     session.perform(SessionOp::SetLabel {
         node: profile,
         label: Some(pncad::document::Label::new("outline").expect("a label")),

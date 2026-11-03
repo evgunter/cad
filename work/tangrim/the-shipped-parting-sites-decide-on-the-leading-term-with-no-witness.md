@@ -14,8 +14,9 @@ Found by `a-leaves-verdict-carries-no-witness-point`'s lane
 (`the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`,
 `## Design`) ends: "the shipped leading-term sites adopt the witness".
 That lane built the witness for `topo::bound_side::Tie::descend` only
-(`Tie::witnessed`: a bound's own point at the parting's arm, its offset
-the carrier's residual). Every other site that reads a tie's side off
+(`Tie::witnessed`: a tied line or conic edge's own point at the
+parting's arm, its offset that point's signed distance from a sphere's
+or a cylinder's carrier, `link::Round`, the only kinds it reads). Every other site that reads a tie's side off
 `geom_brep::parting` still decides on the leading term at a length,
 whose third-order remainder over that length is unbounded:
 

@@ -42,7 +42,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::super::reduce::{ContactAcc, CurvedEvent, curved_face_arm};
-use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_side};
+use super::super::sectors::{BoundSupport, NO_CURVATURE, side_code, tangent_relative_side};
 use super::super::{BooleanError, BooleanErrorKind, Glue, GluedPair, GluedPairs, Operand};
 use super::tests::every_decision;
 use super::*;
@@ -193,18 +193,18 @@ fn sin_deg(x: f64) -> f64 {
 cases! {
     // The reviewer's C1 table (coincfr3), adopted.
     lever_arm_sector_side_in_band: "LeverArm(SectorSide)", D * FRAC_1_SQRT_2, SECTOR_SITE,
-        Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), Reach::Extent(D));
+        Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), BoundSupport::Extent(geom_core::test_support::fixture_lever(D)));
     lever_arm_sector_side_in_the_zero_band: "LeverArm(SectorSide)", Z * FRAC_1_SQRT_2,
-        SECTOR_SITE, Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), Reach::Extent(Z));
+        SECTOR_SITE, Valued => sector_side(Vec3::new(1.0, 0.0, 1.0), BoundSupport::Extent(geom_core::test_support::fixture_lever(Z)));
     // A bound in the face's plane: its departure is exactly zero, so the
     // arm binds and its length is quoted (the coincfr4 review's in-plane
     // pose, whose offer the previous head withdrew).
     lever_arm_sector_side_in_the_plane: "LeverArm(SectorSide)", D, SECTOR_SITE, Valued =>
-        sector_side(Vec3::new(1.0, 0.0, 0.0), Reach::Extent(D));
+        sector_side(Vec3::new(1.0, 0.0, 0.0), BoundSupport::Extent(geom_core::test_support::fixture_lever(D)));
     sector_side_above: "Coincidence(SectorSide)", D, SECTOR_SITE, Valued =>
-        sector_side(Vec3::new(1.0, 0.0, D), Reach::Extent(1.0));
+        sector_side(Vec3::new(1.0, 0.0, D), BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)));
     sector_side_below: "Coincidence(SectorSide)", -D, SECTOR_SITE, Valued =>
-        sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
+        sector_side(Vec3::new(1.0, 0.0, -D), BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
     conic_bend_short_of_the_band: "ConicBend", D, SECTOR_SITE, Valued => conic_bend(D);
@@ -329,16 +329,16 @@ cases! {
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
         super::super::sectors::parallel_same(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0,
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), geom_core::test_support::fixture_lever(1.0),
             super::RAY_COLLINEAR, band()
         ).map(|_| ());
     direction_along_a_short_arm: "DirectionSense", D, CORNER_SITE, Valued =>
         super::super::sectors::direction_sense(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), D, band()
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), geom_core::test_support::fixture_lever(D), band()
         ).map(|_| ());
     direction_against_a_short_arm: "DirectionSense", -D, CORNER_SITE, Valued =>
         super::super::sectors::direction_sense(
-            Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), D, band()
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), geom_core::test_support::fixture_lever(D), band()
         ).map(|_| ());
     direction_just_outside_a_sector: "Coincidence(Sectors)", -D, CORNER_SITE, Valued =>
         within_a_quarter(Vec3::new(1.0, -D, 0.0));
@@ -517,7 +517,7 @@ const GATE_SITE: Door = Door::Site(
 
 /// A corner's bound `dir` read against the face `z = 0` (outward `+z`),
 /// behind it `reach`, at arm 1.
-fn sector_side(dir: Vec3<f64>, reach: Reach<f64>) -> Result<(), BooleanError> {
+fn sector_side(dir: Vec3<f64>, reach: BoundSupport<f64>) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     side_code(dir, reach, n, NO_CURVATURE(), band()).map(|_| ())
 }
@@ -528,7 +528,14 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
+    side_code(
+        dir,
+        BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(0.5)),
+        n,
+        1.0,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// A unit-radius arc leaving a plane along it, short enough that the
@@ -551,8 +558,8 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
     };
     pierce_side(
         Vec3::new(1.0, 0.0, 0.0),
-        Reach::Conic {
-            extent,
+        BoundSupport::Conic {
+            extent: geom_core::test_support::fixture_lever(extent),
             bend,
             arc: None,
         },
@@ -632,7 +639,17 @@ fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
         (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt()
     };
     let read = DeclarationRead::Spent(GlueClass::Tangent);
-    tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
+    tangent_relative_side(
+        &ball,
+        &floor,
+        n,
+        p,
+        d,
+        geom_core::test_support::fixture_lever(arm),
+        read,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// The bottom edge of a thin prism, `x0` from the axis of a unit
@@ -962,11 +979,11 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start,
         end,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + start * reach,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + end * reach,
         },
@@ -975,7 +992,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             start.cross(end),
             true,
         )),
-        arm,
+        arm: geom_core::test_support::fixture_lever(arm),
         bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
@@ -1008,11 +1025,11 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: x,
         end: y,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + x,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + y,
         },
@@ -1021,7 +1038,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
-        arm: 1.0,
+        arm: geom_core::test_support::fixture_lever(1.0),
         bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::vtxfac::pierce_germ_dir(
@@ -1060,11 +1077,11 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: x,
         end: y,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + x,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + y,
         },
@@ -1073,7 +1090,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
-        arm: 1.0,
+        arm: geom_core::test_support::fixture_lever(1.0),
         bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
@@ -1092,7 +1109,17 @@ fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
     let accel = |s| geom_brep::implicit_graph_acceleration(s, p, d, n.vec());
     let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
     let read = DeclarationRead::Spent(GlueClass::Tangent);
-    tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
+    tangent_relative_side(
+        &ball,
+        &floor,
+        n,
+        p,
+        d,
+        geom_core::test_support::fixture_lever(arm),
+        read,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// A direction in the `z = 0` plane at `degrees` from `x`, of length
@@ -1456,11 +1483,11 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         he: crate::entity::HalfEdgeKey::default(),
         start,
         end,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + start * reach,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + end * reach,
         },
@@ -1469,7 +1496,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             start.cross(end),
             true,
         )),
-        arm,
+        arm: geom_core::test_support::fixture_lever(arm),
         bend: crate::bound_side::FaceBend::Plane,
     };
     let decls = Glue {
@@ -1527,11 +1554,11 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         he: crate::entity::HalfEdgeKey::default(),
         start: y,
         end: z,
-        start_reach: Reach::Chord {
+        start_reach: BoundSupport::Chord {
             base: o,
             far: o + y * arm,
         },
-        end_reach: Reach::Chord {
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + z * arm,
         },
@@ -1540,7 +1567,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             Vec3::new(1.0, 0.0, 0.0),
             true,
         )),
-        arm,
+        arm: geom_core::test_support::fixture_lever(arm),
         bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
@@ -1553,7 +1580,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         &sector(pb.side_faces[3]),
         &declared,
         super::super::recl::ReadOn::Faces,
-        arm,
+        geom_core::test_support::fixture_lever(arm),
         band(),
     )
     .map(|_| ())

@@ -778,7 +778,7 @@ mod tests {
                     start,
                     end,
                     surfaces,
-                    1.0,
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     geom_brep::NurbsLane::certified()
                 ),
@@ -795,7 +795,7 @@ mod tests {
                 start,
                 end,
                 surfaces,
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

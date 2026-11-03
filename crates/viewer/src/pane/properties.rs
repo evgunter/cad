@@ -56,7 +56,7 @@ impl ViewerBehavior<'_> {
         // The forms whose op takes the selection, under its header and
         // above its rows, where a reader who picked it looks first:
         // nothing at all unless the selection is a profile.
-        self.extrude_ui(ui);
+        self.sweep_ui(ui);
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");
@@ -208,7 +208,7 @@ impl ViewerBehavior<'_> {
     }
 
     /// **A feature's editing rows**: its slot rows — or, for a
-    /// profile, the add-profile form's own editor
+    /// profile, the profile editor
     /// ([`ViewerBehavior::edit_profile_ui`]), whose fields ARE its
     /// slots' fields. Only a profile the editor cannot hold shows its
     /// refusal and the slot rows instead.

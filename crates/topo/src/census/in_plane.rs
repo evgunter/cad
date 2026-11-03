@@ -68,7 +68,7 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::{BoxFrame, EdgeBoxRule, edge_box_rule, edge_end_point, sweep_pad};
+use crate::boolean::boxes::{BoxFrame, edge_end_point, sweep_pad};
 use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EdgeKey, EntityId, FaceKey};
@@ -218,8 +218,10 @@ fn standing<T: Decide>(
             }
         }
         if !matches!(
-            edge_box_rule(body.edge_curve_linked(e, edge).certified()),
-            EdgeBoxRule::Chord
+            body.edge_curve_linked(e, edge)
+                .certified()
+                .map(geom_brep::EdgeCurve::carrier),
+            Some(geom::Curve3::Line(_))
         ) {
             arcs.push(e);
         } else if s0 == Sign::Zero || s1 == Sign::Zero {

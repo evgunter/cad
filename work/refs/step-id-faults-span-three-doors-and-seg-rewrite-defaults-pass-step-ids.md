@@ -4,6 +4,8 @@ kind: issue
 title: StepIdFault spans three doors with arms only one can raise, and SegRewrite's edge and vertex default to the identity
 status: open
 opened: 2026-11-02
+priority: P3
+cost: M
 ---
 
 

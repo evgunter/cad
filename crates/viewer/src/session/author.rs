@@ -11,15 +11,6 @@ use pncad::document::AuthoredNode;
 use pncad::document::{Bodies, Formula, Node, Operand};
 use pncad::topo::BooleanOp;
 
-/// **The add-profile door's loop vocabulary**, re-exported from the
-/// module that owns it.
-///
-/// It is named by [`super::SessionOp::AddProfile`], so it has to be
-/// reachable beside the op; it is DEFINED in [`crate::sketch`],
-/// because the PATHS verb set and its lowering are a vocabulary of
-/// their own and this file is the crate's accretion case (#1386).
-pub use crate::sketch::ProfileShape;
-
 /// The payload of one pattern form (GAUTH-4), beside the other
 /// authoring spec for the reason it is here at all: it names what a
 /// form authors.
