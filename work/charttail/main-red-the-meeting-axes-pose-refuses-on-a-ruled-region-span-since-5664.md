@@ -58,3 +58,11 @@ Nightly run 40637814390 (main `a1cfd1cfdb`), `full suite`; re-run on main `91c83
 it goes red the day the row passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: possibly `carrier_endpoint_end` (`germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).
+
+## Evidence (ONECOPY `onecopy/angle-reads`, 2026-11-03)
+
+On that branch `verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar`
+builds at the default ε and 1e-6: `bool_ruled_region_span`'s whole-turn
+enclosure was `Conic::param_in`'s floor about the span's middle, which now
+reads through `Period::near`. The pin there is narrowed to 1e-12, where
+GERM's row still stops it.
