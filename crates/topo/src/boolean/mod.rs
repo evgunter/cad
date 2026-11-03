@@ -6317,7 +6317,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             let curved: Vec<FaceKey> = piercing_body
                 .faces()
                 .map(|(k, _)| k)
-                .filter(|&k| reduce::face_plane(piercing_body, k).is_none())
+                .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
                 curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band)?);
@@ -7860,7 +7860,7 @@ fn witness_span<T: Decide>(
     band: Band,
     pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
-    let along = |p: Point3<T>| (p - line.origin).dot(line.dir);
+    let along = |p: Point3<T>| line.param(p);
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
         let invalid = |what| BooleanError::InvalidInput { operand, what };
         let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
@@ -8517,10 +8517,12 @@ mod tests {
     /// added to `SurfaceKind` fails here until someone decides its arm.
     #[test]
     fn only_tangencies_that_are_a_global_side_certify_one() {
-        use geom::SurfaceKind::{self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
-        let all = [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx];
+        use geom::SurfaceKind::{
+            self, Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus,
+        };
+        let all = [Plane, Cylinder, Cone, Sphere, Torus, Spindle, Nurbs, Approx];
         let visit = |k: SurfaceKind| match k {
-            Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx => k,
+            Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx => k,
         };
         let admitted: Vec<(SurfaceKind, SurfaceKind)> = all
             .iter()

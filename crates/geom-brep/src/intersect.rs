@@ -200,7 +200,7 @@ impl PairRoute {
 /// no-wildcard grep row in `tests/pcurve_conic.rs` keeps the property
 /// pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     match (a, b) {
         // ---- Rung 1, implemented: the M2 pair, executed by the
         // existing splitting/boolean seam bit-identically. ----
@@ -440,6 +440,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         (Approx, Approx) => route(Nurbs, Nurbs),
         (Approx, other @ (Cylinder | Cone | Sphere | Torus | Nurbs))
         | (other @ (Cylinder | Cone | Sphere | Torus | Nurbs), Approx) => route(Nurbs, other),
+        // ---- A spindle sheet: no section lane yet. ----
+        (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => PairRoute {
+            rung: Rung::General,
+            implemented: false,
+            note: "a spindle sheet operand has no section lane yet",
+        },
     }
 }
 
@@ -521,14 +528,15 @@ pub fn route_pose<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<PairRoute, SectionError> {
-    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Spindle, Torus};
     let extent = || {
         [a, b]
             .into_iter()
             .filter_map(|s| match *s {
                 Surface::Cone { apex: anchor, .. }
                 | Surface::Sphere { center: anchor, .. }
-                | Surface::Torus { center: anchor, .. } => Some(reach.lever_from(anchor)),
+                | Surface::Torus { center: anchor, .. }
+                | Surface::Spindle { center: anchor, .. } => Some(reach.lever_from(anchor)),
                 Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Nurbs(_)
@@ -577,7 +585,9 @@ pub fn route_pose<T: Decide>(
         | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
-        | (Cylinder | Cone | Sphere | Torus, Approx) => Ok(()),
+        | (Cylinder | Cone | Sphere | Torus, Approx)
+        | (Spindle, Plane | Cylinder | Cone | Sphere | Torus | Spindle | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx, Spindle) => Ok(()),
     };
     let refused = |note| {
         Ok(PairRoute {

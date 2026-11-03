@@ -326,7 +326,7 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             (d_circle - minor_radius).abs()
         }
         // No closed-form distance oracle for a spline locus or a fit.
-        Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }
 }
 

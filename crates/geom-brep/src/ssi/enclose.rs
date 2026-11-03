@@ -385,7 +385,9 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
         }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
-        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Interval::refused(),
+        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Interval::refused()
+        }
     }
 }
 
@@ -435,7 +437,9 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             minor_radius,
             ..
         } => Quartic::over(b, center, axis, major_radius, minor_radius).gradient(),
-        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => refused,
+        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            refused
+        }
     }
 }
 

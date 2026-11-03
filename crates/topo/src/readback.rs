@@ -332,6 +332,12 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
             axis,
             u_ref,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            u_ref,
+            ..
         } => Ok(frame(*center, *axis, *u_ref)),
         Surface::Nurbs(_) => Err(ReadbackError::NoCanonicalFrame {
             carrier: "nurbs surface",

@@ -1796,8 +1796,9 @@ fn trim_frontier(
         ) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
-                note: "conic/B-spline/spiric trim on a plane/cone/sphere/torus chart — \
-                       the only trimmed-face tessellation lanes written are the \
+                note: "conic/B-spline/spiric trim on a plane, cone, sphere, torus or \
+                       spindle sheet chart — the only trimmed-face tessellation lanes \
+                       written are the \
                        cylinder chart's, the NURBS chart's and the sphere chart's for \
                        circle-bounded faces; the remaining analytic \
                        charts have no trimmed lane (the spiric-bounded torus wall and \

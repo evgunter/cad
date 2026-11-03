@@ -540,7 +540,7 @@ fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
 /// its own parameter span `t1 − t0`, carried as the ride's length.
 fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     match locus {
-        Locus::Line { origin, dir } => (p - origin).dot(dir),
+        Locus::Line { origin, dir } => geom::Line { origin, dir }.param(p),
         Locus::Rim(rim) => {
             let d = p - rim.center;
             let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));

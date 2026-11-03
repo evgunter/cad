@@ -59,20 +59,13 @@ fn read(carrier: &Curve3<f64>, params: (f64, f64)) -> Result<Boundary<f64>, Boun
 #[test]
 fn every_kind_pair_routes_to_its_door() {
     use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
-    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Spindle, Torus};
     let curves = [Line, Circle, Ellipse, Spiric, Nurbs];
-    let surfaces = [
-        Plane,
-        Cylinder,
-        Cone,
-        Sphere,
-        Torus,
-        SurfaceKind::Nurbs,
-        Approx,
-    ];
+    let surfaces = SurfaceKind::ALL;
     for c in curves {
         for s in surfaces {
             let want = match (c, s) {
+                (_, Spindle) => (Door::Sheet, false),
                 (Spiric, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
                 (_, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, true),
                 (Spiric, _) => (Door::Spiric, false),
