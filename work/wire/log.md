@@ -7313,3 +7313,80 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - **Handed back:** the two WIREREFUSE D9 row-typing rows, dispatched earlier today in error, are back to `open`; the lane stopped before opening a PR. WIRECOST's name-table (H) and union-fold (M) rows, WIREHOLD's section-of (M), the design rows and the P3/P4 slates go to a successor, who can pick them up as cheaply. WIRECOST goes back to `ready`; WIREHOLD and WIREREFUSE follow once their in-flight rows land.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — 6332 merged; WIREREFUSE handed back
+
+- PR 6332 (dead index clamps: `as usize` from u32, `n as u64`, the loft degree compared as `usize`, the two `zip(0u32..)` sites through `names::to_u32` with `product::GRAFTED_WITHIN_U32`) read by the orchestrator: behaviour identical below every bound, no witness possible since no input reaches the clamps. `gate ok`; merged. Closed `an-indexed-reads-index-position-is-clamped-to-u8`.
+- The two D9 row-typing rows were stopped with nothing pushed; the drafts' state is appended to each row for a successor.
+- WIREREFUSE is `ready` (17/30), handed back.
+
+(WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 re-review: two more holes in one pot
+
+- Re-review (wire-budget-rerev) at 5090bbd32b: top-level parts now agree carried/cold and serial/level, but (MAJOR) nested sibling parts are built under the whole remainder before the parent's charge (k × budget of work; 954 s probe that ends Exhausted), and (MAJOR) a faulted part charges 0.
+- Ruled: a part is charged by listing its document recursively at admission, no geometry, with a family's count-fault rule; nothing is built until the whole charge fits. Charged once per distinct part document per run at the first instance in sched.order (the store builds a part once). Keeps DESIGN's "before anything is built"; no Ev question. MINORs (nominal_ev's second pot disclosed, one charge rule, stale docs, a duplicated sentence) in the same pass.
+
+(WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 third review: my ruling's premise was wrong
+
+- Re-review (wire-budget-rerev2) at 3b5c2dc47b: BLOCKER, demonstrated. "Charge each part document once per run" (WIRE's ruling) assumed the store builds a part once; below the top, builds share per parent only, so a lattice builds the bottom part 2^d times under one charge (7 GB at depth 8), and the build ran uncapped at `u64::MAX`.
+- Re-ruled: the charge mirrors the build's sharing exactly (one descent or one shared enumeration of build sites), each build runs under exactly what was charged for it with overrun a loud kernel defect, nominal_ev inside parts capped the same way, the charge memoized per pinned DocRef so warm runs don't re-resolve. Run-wide sharing of nested builds is a possible WIRECOST row if the lane recommends it.
+- Lesson recorded here: a ruling that rests on a structural claim about the code (here "the store builds once") gets that claim checked before it is sent.
+
+(WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 third fix pass; the build step
+
+- wire-budget's third pass (a009688f9f, `gate ok`): one descent (`PartStore::charge` over the build's own `Entered` walk), each build run under exactly its charge with a loud `unreachable!` on overrun, the cost memoized per pinned key. To bound a lattice of member-free documents (MAX_DEPTH 1024) it charges one step per build — a count DESIGN's text ("index values bound while families are listed") does not name.
+- Rather than take that to Ev, sent the lane to check provenance of per-parent part sharing and, if nothing ratified holds it, share nested builds run-wide in 6305: builds ≤ distinct pinned documents, charged once each, no build step, within the ratified text. If per-parent sharing is deliberate, the step goes to Ev as an [ev] question on 6305.
+- PR 2's WIP (3dac7273c8) filed `wirecost/an-edit-whose-inner-run-stopped-still-commits`.
+
+(WIRE orchestrator)
+
+## 2026-11-02 — per-parent part sharing is deliberate; 6305 lands without the build step
+
+- wire-budget: per-parent sharing comes from 2871d662e4 (edit/part-depth-bound), pinned by `part_depth_bound::below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces`: a nested row depends on its path (cycle loop named, depth refusal), so a DocRef does not determine it and run-wide sharing would break that invariant. No ratified text records it, but it is a decided invariant with a reason.
+- Decided: 6305 drops the one-step-per-build charge and stays inside DESIGN's text. The member-free lattice (charged 0, up to 2^depth builds; already unbounded on main, not widened) is filed as `wirecost/a-lattice-of-member-free-parts-builds-uncharged` (+design: a build step needs Ev; path-independent sharing is the other candidate). Handed back with WIRECOST under the sitting rule.
+
+(WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 merged; WIREHOLD handed back
+
+- PR 6305 (member budget) merged at 0aa454ddcc after three review rounds: one run-wide budget with one recorded default, charged at admission in `sched.order` over one lister; parts charged by the build's own descent with nothing built, each build capped at its charge (loud `unreachable!` on overrun), the cost memoized per pinned key; `EvalOutcome::Exhausted` wired through viewer, pncad-py, stackup, replay and evalseam. The last pass (drop the build step) read by the orchestrator. Closed `wirehold/a-family-has-no-member-ceiling`.
+- Filed by the lane: `wirecost/a-lattice-of-member-free-parts-builds-uncharged` (+design).
+- WIREHOLD is `ready`, handed back. WIRE keeps only PR 2 (`wirecost/kernel-run-evaluations-mint-their-own-cancel-token`).
+
+(WIRE orchestrator)
+
+## 2026-11-03 — PR 2's lane lost in a session restart; re-dispatched
+
+- After 6305 merged, wire-budget was resumed on PR 2 but never reported: the session restarted and the lane was lost. Its last push was WIP 3dac7273c8 (2026-11-02 10:30), before 6305's last three passes. Ev spotted the missing report.
+- Re-dispatched a fresh lane (`wire-stop`) from that commit: merge main (6305 final), rework against the final `PartStore`, thread the caller's stop through every site (replay.rs:173 and pncad-py `Evaluation.coincidences` included), fix `SplitError::Stopped`'s recourse, migrate tests, open the PR.
+
+(WIRE orchestrator)
+
+## 2026-11-03 — PR 6436 (the caller's stop) open; full review out
+
+- wire-stop opened PR 6436 at 45f282ee71 (`gate ok`): every kernel-run evaluation takes the caller's `Stop` (cancel and budget), top-level doors take the default at the door; `pncad::analysis::clearances_at_nominal` no longer reads an `Exhausted` run as answers; `Stopped` states a recourse in each arm. Witnesses: split, drive, Monte-Carlo under a canceled caller; a lowered caller budget exhausting a drive's witness.
+- Open, not this PR: the edit doors still commit after a stopped inner run (`wirecost/an-edit-whose-inner-run-stopped-still-commits`). New finding on the row: the viewer's certify job settles only on `Ok`.
+- Full review dispatched (`wire-stop-rev`).
+
+(WIRE orchestrator)
+
+## 2026-11-03 — PR 6436 review: changes requested
+
+- Full review (wire-stop-rev): completeness holds (no non-top-level door on a default; helper- and field-sourced options inherit the caller's stop); witnesses do work (4/4 red under mutation). Two MAJORs, by inspection: pncad-py `Evaluation.coincidences` reads a cancel as `[]` (newly reachable), and `drive::assertion_at` reads a stopped replay as "no verdict" (sibling of the fixed `clearances_at_nominal`). MINORs: clearance rebuild and fold lose `Stopped`; stackup names the wrong run; the viewer certify settle rests on an unguarded premise; four spellings of "ran out" (one recourse constant ruled); witness gaps; stubs.
+- The edit doors now commit a canceled gesture (demonstrated by probe; no production caller passes a live token): appended to `an-edit-whose-inner-run-stopped-still-commits`, not fixed here.
+- Fix pass sent to wire-stop.
+
+(WIRE orchestrator)
+
+## 2026-11-03 — PR 6436 merged; WIRECOST handed back; WIRE's sitting ends
+
+- PR 6436 (the caller's stop) merged at c3c187e94d after one fix pass answering every review finding: pncad-py `coincidences` raises `canceled`; `assertion_at` refuses `Stopped` typed (the tour handles it); clearance and stackup stops typed and attributed; the viewer certify settles `Exhausted`/`Canceled` explicitly; one recourse constant `sentence::RAISE_THE_MEMBER_BUDGET`; witnesses added. Read by the orchestrator against the findings; `gate ok`. Closed `wirecost/kernel-run-evaluations-mint-their-own-cancel-token`.
+- Filed `forms/node-standing-readers-lists-viewer-session-reads-forms-removed`: the reader gate is red on main again, the other way round.
+- WIRECOST is `ready`, handed back. WIRE holds no in-flight row: WIREHOLD, WIRECOST, WIREREFUSE, WIREREST and WIRETAIL are all `ready`; WIRE itself goes `ready` with this sync.
+
+(WIRE orchestrator)

@@ -27,8 +27,8 @@ build and the `OnPair` lanes it retires), **LEVER** (levers read at the
 wrong extent), **TWICE** (one question read twice; reach measures read
 past their span) and **TANGTAIL** (the P3 contact-line and ring corners,
 the banked torus rest lane). TANG keeps the pinch machinery, the
-declared-tangency arms (all parked on the D10 hold) and the contact
-corners nearest them: **28 budget points**, 20 live rows.
+declared-tangency arms (parked on INTENT stage 4 at the cut) and the
+contact corners nearest them: **28 budget points**, 20 live rows.
 
 | pri | item | cost | status | title |
 |---|---|---|---|---|
@@ -65,9 +65,12 @@ corners nearest them: **28 budget points**, 20 live rows.
    (design open), `two-wedges-sharing-a-tangent-plane-face-…`,
    `a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread`,
    `a-lone-unread-partner-has-no-class-rule`, and the two E rows.
-4. The parked declared-tangency arms wait on `intent-stage4-is-built`
-   (the D10 hold); `a-torus-meridian-rims-span-bound-…` is the open
-   blocker of one of them.
+4. The declared-tangency arms no longer wait on the D10 hold:
+   `intent-stage4-is-built` closed on 2026-10-24 and INTENT on
+   2026-10-30 (#6103). Each is re-read against the built code before
+   a lane builds it. `a-torus-meridian-rims-span-bound-…` is still the
+   open blocker of `a-torus-seam-graze-…`, and
+   `declared-cusps-second-order-wedge-arm` of `dev1-…`.
 
 ## Review posture
 

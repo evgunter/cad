@@ -25,8 +25,8 @@ or lane beside it is a stopgap the design retires.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | H +design | A NURBS face against a cone or sphere has no C5 section arm (klein wall 3, teapot wall 3) |
-| P1 | `a-nurbs-face-against-a-torus-has-no-section-arm` | H | A NURBS face against a torus has no C5 section arm (lily wall 8, behind SPLICE's curved-crossing dispatch) |
+| P0 | `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm` | X (24), decided | A NURBS face against a cone or sphere has no C5 section arm (klein wall 3, teapot wall 3) |
+| P0 | `a-nurbs-face-against-a-torus-has-no-section-arm` | H | A NURBS face against a torus has no C5 section arm (lily wall 8, behind SPLICE's curved-crossing dispatch) |
 | P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | H +design | A cone wall against an oblique cylinder or another cone has no frame |
 | P1 | `skew-cylinder-germ-pair-has-no-section-frame` | M | Two cylinder walls with skew axes have no frame |
 | P1 | `the-walk-order-is-spelled-twice` | M | The order along a section conic is spelled twice |
@@ -41,8 +41,9 @@ or lane beside it is a stopgap the design retires.
    curve; that is the starting evidence.
 2. **Skew cylinders and the walk order**, on the value and matching by foot
    parameter. The walk order may close by retirement.
-3. **The cone frames**, once the cone has a metres conversion (SECTRUNG's
-   `cone-torus-rung-three-arm-waits-on-the-cone` names the same gap).
+3. **The cone frames**, once the cone has a metres conversion
+   (`sect/the-cone-has-no-implicit-enclosure-or-metres-conversion`, P0 since
+   2026-11-03, which also gates this track's NURBS × cone stage).
 The closed edge in a curved face and the C5 plane × torus / cone ×
 cylinder residue went to SECTSITE at the cut.
 

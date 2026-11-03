@@ -589,22 +589,14 @@ impl PcurveMintError {
         }
     }
 
-    /// This refusal's text read at `at`: a certification refusal nested
-    /// whole renders at that door ([`PcurveCertifyError::render`]).
-    #[must_use]
-    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
-        match self {
-            Self::Certify { half_edge, error } => format!(
-                "the pcurve of half-edge {half_edge:?} failed certification: {}",
-                error.render(at)
-            ),
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
-        }
-    }
-
-    /// Every arm's text but a nested certification refusal's, which no
-    /// door reads differently.
-    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    /// This refusal's text, a nested certification refusal ended at `at`
+    /// ([`PcurveCertifyError::render`]) and its payload alone where `at`
+    /// is `None`. Every other arm reads alike at every door.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Stale { role, key } => write!(
                 f,
@@ -616,7 +608,11 @@ impl PcurveMintError {
                  so it has no chart image. Recourse: describe the edge \
                  (`Body::set_edge_curve`), then ask again"
             ),
-            Self::Certify { .. } => unreachable!("`render` writes a nested certification refusal"),
+            Self::Certify { half_edge, error } => write!(
+                f,
+                "the pcurve of half-edge {half_edge:?} failed certification: {}",
+                geom_brep::recourse::read_at(error, at)
+            ),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
                 "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \
@@ -679,12 +675,7 @@ impl PcurveMintError {
     }
 }
 
-/// Read at a build: the pcurve pass a body's own operation runs.
-impl core::fmt::Display for PcurveMintError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
-    }
-}
+geom_brep::ended_by_write!(PcurveMintError);
 
 impl std::error::Error for PcurveMintError {}
 
@@ -6795,7 +6786,7 @@ mod recourse_tests {
         ];
         assert_eq!(arms.len(), 12, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::Build);
             match arm {
                 // A caller's own key states the fact: no recourse, and
                 // no defect claim.
@@ -6810,7 +6801,10 @@ mod recourse_tests {
                     assert!(msg.contains(&band_error.to_string()), "{msg}");
                 }
                 PcurveMintError::Certify { .. } => {
-                    assert!(msg.contains(&certify_error.to_string()), "{msg}");
+                    assert!(
+                        msg.contains(&certify_error.render(geom_brep::recourse::Reading::Build)),
+                        "{msg}"
+                    );
                 }
                 _ => {
                     let lower = msg.to_lowercase();
@@ -6841,7 +6835,7 @@ mod recourse_tests {
             },
         };
         assert_eq!(
-            finding.to_string(),
+            finding.render(geom_brep::recourse::Reading::Build),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
              passes limb 2 (control-hull sup-norm bound through its pcurve) is undecided: \
@@ -6897,7 +6891,7 @@ mod derive_without_a_door {
         let PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" } = err else {
             panic!("a dual derives no general image, and says so by name: {err:?}");
         };
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("dual scalar")
                 && text.contains("certification rights")

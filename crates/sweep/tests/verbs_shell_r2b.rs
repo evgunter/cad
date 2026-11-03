@@ -98,7 +98,12 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
     let chart = plane_chart_at_y(&body, h);
     println!("[r2b] vase mouth chart: {} face(s)", chart.len());
     let cup = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
-        .unwrap_or_else(|e| panic!("the squared vase must open: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the squared vase must open: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1);
@@ -215,7 +220,10 @@ fn r2b_one_holed_extrusion() {
             .expect("props");
             println!("[r2b] one-holed cup V = {}", props.enclosure.volume);
         }
-        Err(e) => println!("[r2b] one-holed extrusion REFUSED: {e}"),
+        Err(e) => println!(
+            "[r2b] one-holed extrusion REFUSED: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -281,7 +289,10 @@ fn r2b_partial_revolve_reaches_the_rim() {
                     });
                 }
             }
-            Err(e) => println!("[r2b] partial theta={theta} REFUSED typed: {e}"),
+            Err(e) => println!(
+                "[r2b] partial theta={theta} REFUSED typed: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }

@@ -1161,7 +1161,8 @@ fn every_new_cap_plane_refusal_states_one_ending_and_no_declaration() {
         sweep::CapPlaneError::Orientation(esc),
         sweep::CapPlaneError::EdgeOn,
     ] {
-        let s = sweep::ExtrudeError::CapPlane { source: e }.to_string();
+        let s =
+            sweep::ExtrudeError::CapPlane { source: e }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&s), 1, "{s}");
         assert!(!s.contains("declare"), "{s}");
     }

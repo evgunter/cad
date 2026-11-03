@@ -118,7 +118,12 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, depth: f64, side: ExtrudeSide) -> swee
         Extrusion::Distance { depth, side },
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the extrusion builds: {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "the extrusion builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// A one-segment circle extruded either way: two vertices, three edges
@@ -242,7 +247,12 @@ fn one_segment_circles_extrude_at_interval() {
                         },
                         tol(),
                     )
-                    .unwrap_or_else(|e| panic!("{what}: the extrusion builds at Interval: {e}"));
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{what}: the extrusion builds at Interval: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
                     tiers(&t.body, &what);
                     assert_eq!(census(&t.body), counts, "{what}");
                     let walls = t.walls.last().unwrap();
@@ -377,8 +387,12 @@ fn revolved<T: geom_core::Decide + topo::AtRestPolicy>(
     turn: sweep::Revolution<T>,
     what: &str,
 ) -> sweep::Revolved<T> {
-    sweep::revolve(&validated(loops), y_axis(), turn, tol())
-        .unwrap_or_else(|e| panic!("{what}: the revolve builds: {e}"))
+    sweep::revolve(&validated(loops), y_axis(), turn, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the revolve builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// The turns every revolve row sweeps: part of a turn either way, and
@@ -628,7 +642,12 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
     ];
     for (what, section, two_arcs, li) in cases {
         let one = sweep::loft_body::<f64>(&[section.clone(), section.clone()], &places, 1, tol())
-            .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the loft builds: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         tiers(&one.body, what);
         let [wall] = one.side_faces[li][0][..] else {
             panic!("{what}: one wall, got {:?}", one.side_faces[li]);
@@ -648,7 +667,12 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
                 1,
                 tol(),
             )
-            .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the loft builds at Interval: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
             assert_eq!(
                 validate_closed(&lofted.body),
@@ -730,7 +754,12 @@ fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
     ];
     let measure = |what: &str, [a, b]: [ProfileLoop<f64>; 2]| {
         let lofted = sweep::loft_body::<f64>(&[vec![a], vec![b]], &places, 1, tol())
-            .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the loft builds: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let m = topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
@@ -1179,7 +1208,12 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
         .find(|(edge, _)| *edge == strut)
         .map(|(_, spec)| spec)
         .expect("the wrap edge is on the wall's boundary")
-        .unwrap_or_else(|e| panic!("the wrap edge plans: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the wrap edge plans: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert!(
         matches!(
             spec.description,
@@ -1244,8 +1278,13 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
             .iter()
             .map(|_| vec![circle::<f64>(0.0, 0.0, 1.0, TAU)])
             .collect();
-        let lofted = sweep::loft_body::<f64>(&sections, &places, degree, tol())
-            .unwrap_or_else(|e| panic!("{z:?} at degree {degree}: the loft builds: {e}"));
+        let lofted =
+            sweep::loft_body::<f64>(&sections, &places, degree, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{z:?} at degree {degree}: the loft builds: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         // A degree-1 stack is one wall per slab, each with its strut.
         let wraps = wrap_edges(&lofted.body);
         let slabs = if degree == 1 { z.len() - 1 } else { 1 };

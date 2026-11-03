@@ -183,7 +183,8 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
             Err(BooleanError::Containment(e)) => panic!(
                 "sphere_caps = {sphere_caps}: the containment door still refuses \
                  by kind — issue 1011 retired that refusal for every analytic \
-                 kind this body carries: {e}"
+                 kind this body carries: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Err(other) => {
                 panic!("sphere_caps = {sphere_caps}: unexpected refusal shape: {other:?}")
@@ -293,7 +294,8 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
         ),
         Err(BooleanError::Containment(e)) => panic!(
             "the containment door still refuses a torus operand — this is the \
-             refusal issue 1011's torus half retires: {e}"
+             refusal issue 1011's torus half retires: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Err(other) => panic!("unexpected refusal shape for the fallback path: {other:?}"),
         Ok(out) => out,

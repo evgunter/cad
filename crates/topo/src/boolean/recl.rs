@@ -2969,7 +2969,7 @@ mod tests {
                         .any(|e| e.source.predicate == Some("link_wedge")),
                     "{label}: the refusal is on the frame's escalation log"
                 );
-                let text = err.to_string();
+                let text = err.render(geom_brep::recourse::Reading::Build);
                 let lever = "make the edges at the corner where the two faces meet span clearly \
                              more than the tolerance";
                 // The sized ending is the margin's own sentence for this
@@ -3019,11 +3019,12 @@ mod tests {
                 "{label}"
             );
             assert!(
-                err.to_string().ends_with(
+                err.render(geom_brep::recourse::Reading::Build).ends_with(
                     "Recourse: reshape the parts so the faces along that edge are planes that \
                      only touch there"
                 ),
-                "{label}: {err}"
+                "{label}: {err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
             );
         }
     }
@@ -3091,7 +3092,12 @@ mod tests {
         let BooleanError::Escalated { decision, diag } = &err else {
             panic!("an escalation: {err:?}");
         };
-        assert_eq!(*decision, BooleanDecision::DirectionSense, "{err}");
+        assert_eq!(
+            *decision,
+            BooleanDecision::DirectionSense,
+            "{err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
         assert_eq!(
             diag.margin.diagnostic_f64_for_error_text().value(),
             Some(arm),
@@ -3609,7 +3615,8 @@ mod tests {
         assert_eq!(
             *decision,
             BooleanDecision::Coincidence(Coincide::SectorSide, DeclarationRead::Moot),
-            "{err}"
+            "{err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
         let along = |err: BooleanError| match err {
             BooleanError::PartnerAlongFace { along, .. } => along,

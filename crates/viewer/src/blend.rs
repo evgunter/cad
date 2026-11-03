@@ -71,7 +71,7 @@ use pncad::document::{
     RecipeNodeId, Said, Say, Speaker, SpokenNode,
 };
 use pncad::prelude::StableName;
-use pncad::quantity::{LengthUnit, WrittenLength};
+use pncad::quantity::LengthUnit;
 
 use editor_core::resolve::RimNameFault;
 
@@ -133,17 +133,7 @@ vocabulary! {
 /// A unit whose millimetre is not finite.
 pub fn default_size(unit: LengthUnit) -> Result<Formula, DimensionError> {
     const MILLIMETRE: f64 = 0.001;
-    let at = MILLIMETRE / WrittenLength::in_unit(1.0, unit).meters();
-    // One significant figure: `digit · 10^-places`, divided rather than
-    // multiplied so `0.04` is the double nearest four hundredths.
-    let places = -at.log10().floor();
-    let digit = (at * 10f64.powf(places)).round();
-    let value = if places >= 0.0 {
-        digit / 10f64.powf(places)
-    } else {
-        digit * 10f64.powf(-places)
-    };
-    Formula::written_length(WrittenLength::in_unit(value, unit))
+    crate::props::one_figure_length(MILLIMETRE, unit, crate::props::Rounding::Nearest)
 }
 
 /// A typed tool event the chrome renders — every state change, or

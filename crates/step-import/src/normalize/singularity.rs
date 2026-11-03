@@ -1335,12 +1335,16 @@ mod review_on_boundary {
                             assert!(
                                 (d > zero(run) && d < esc(run))
                                     || (d > zero(file) && d < esc(file)),
-                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e}"
+                                "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
+                                e_at = e.render()
                             );
                             // The file's band is named where it, too,
                             // reads the distance in band.
                             let StepImportError::SingularityUndecided { band, .. } = e else {
-                                panic!("eps {eps} eps_in {eps_in}: refused at d = {d}: {e}")
+                                panic!(
+                                    "eps {eps} eps_in {eps_in}: refused at d = {d}: {e_at}",
+                                    e_at = e.render()
+                                )
                             };
                             let in_file = d > zero(file) && d < esc(file);
                             assert_eq!(

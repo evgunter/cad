@@ -45,7 +45,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
     let tol = Tol::witness();
     for name in ["ridge_u.step", "ridge_v.step"] {
         let imported = import_step(&fixture(name), &ImportOptions::default(), tol)
-            .unwrap_or_else(|e| panic!("{name} imports: {e}"));
+            .unwrap_or_else(|e| panic!("{name} imports: {e_at}", e_at = e.render()));
         let StepImport::Solid {
             body,
             normalizations,
@@ -186,7 +186,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
 fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
     let tol = Tol::witness();
     let imported = import_step(&fixture("seam_edge.step"), &ImportOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the lone knot imports: {e}"));
+        .unwrap_or_else(|e| panic!("the lone knot imports: {e_at}", e_at = e.render()));
     let StepImport::Solid {
         body,
         normalizations,
@@ -229,7 +229,7 @@ fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
 fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     let tol = Tol::witness();
     let imported = import_step(&fixture("half_cone.step"), &ImportOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the half cone imports: {e}"));
+        .unwrap_or_else(|e| panic!("the half cone imports: {e_at}", e_at = e.render()));
     let StepImport::Solid {
         body,
         normalizations,

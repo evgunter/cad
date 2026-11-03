@@ -1067,7 +1067,12 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
     // world's space — the near post by its pin, the rest because each
     // bundle's one mate pins it onto a copy that is — and no bundle
     // records a fault.
-    let poses = solve_document(doc, &with_store(ws), tol);
+    let poses = solve_document(
+        doc,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    );
     for (copy, what) in [
         (stand.post_a, "the near post"),
         (stand.shelf_i, "the shelf"),
@@ -1160,7 +1165,14 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
     // shelf's end, facing the same way: two flush pairs, each a row of its
     // own, which no mate states, so the lint reports those two and only
     // those (flush by number is reported; a flag mate is what states one).
-    let report = run_checks(doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    let report = run_checks(
+        doc,
+        &ev,
+        &ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the checks run");
     let unproven: Vec<Relation> = report
         .findings
         .iter()
@@ -1368,7 +1380,7 @@ fn placed_as_composed(
 /// rotated it further and still landed its seating point would pass
 /// the translation check and put the part in sideways.
 fn far_post_solved(doc: &ProfileDoc, stand: &Stand, opts: &EvalOptions, swing: f64, tol: Tol) {
-    let solved = solve_document(doc, opts, tol)
+    let solved = solve_document(doc, opts, &pncad::document::CancelToken::new(), tol)
         .placement(doc, stand.post_b)
         .expect("the far post is placed");
     let (sin, cos) = swing.sin_cos();
@@ -1445,8 +1457,15 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
         unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = run_checks_on(doc, ev, Subject::Product(&product), &at_rest_only, tol)
-        .unwrap_or_else(|e| panic!("the at-rest check runs: {}", e.spoken(doc)));
+    let report = run_checks_on(
+        doc,
+        ev,
+        Subject::Product(&product),
+        &at_rest_only,
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the at-rest check runs: {}", e.spoken(doc)));
     assert!(
         report.findings.is_empty(),
         "the stand must be at rest: {}",
@@ -1578,6 +1597,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         part_id,
         tol,
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("cutting one pinned instance out is legal");
     ws.create(&out.part, tol).expect("the new part is stored");
@@ -1738,9 +1758,14 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // trip that dropped it would still pass every name check above
     // while moving the part.
     let solved = |doc: &ProfileDoc, placement| {
-        solve_document(doc, &with_store(ws), tol)
-            .placement(doc, placement)
-            .expect("the shelf is placed in the world")
+        solve_document(
+            doc,
+            &with_store(ws),
+            &pncad::document::CancelToken::new(),
+            tol,
+        )
+        .placement(doc, placement)
+        .expect("the shelf is placed in the world")
     };
     // The restored shelf stands in the part's world, a space of its
     // own, at the pose its bundle gives it; that space is placed into
@@ -1753,7 +1778,12 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         on_the_world(&back.doc, back.placement),
         "the part's world is placed into the world by values alone"
     );
-    let poses = solve_document(&back.doc, &with_store(ws), tol);
+    let poses = solve_document(
+        &back.doc,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    );
     assert_eq!(
         poses.relative(back.placement),
         Some(Frame::IDENTITY),
@@ -1798,8 +1828,15 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             .filter(|&p| placed_shape(layout, p) == Some(pattern)),
     );
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    let posts = split(layout, &cell, posts_id, tol, Some(&store))
-        .unwrap_or_else(|e| panic!("the patterned-post cell splits out: {e}"));
+    let posts = split(
+        layout,
+        &cell,
+        posts_id,
+        tol,
+        Some(&store),
+        &pncad::document::Stop::default(),
+    )
+    .unwrap_or_else(|e| panic!("the patterned-post cell splits out: {e}"));
     ws.create(&posts.part, tol)
         .expect("the posts cell is stored");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
@@ -1857,9 +1894,14 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
 fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, tol: Tol) {
     println!("\n-- the update door: moving a pin is a recorded edit --");
     let before = run(&bench.doc, &with_store(ws), tol);
-    let crate_before = solve_document(&bench.doc, &with_store(ws), tol)
-        .placement(&bench.doc, bench.crate_i)
-        .expect("the crate is placed on the shelf");
+    let crate_before = solve_document(
+        &bench.doc,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
+    .placement(&bench.doc, bench.crate_i)
+    .expect("the crate is placed on the shelf");
     let (before_body, _) = product_of(&bench.doc, &before, tol);
     let before_volume = pncad::topo::mass_properties(
         &crate::booleans::at_rest(&before_body, tol),
@@ -1939,9 +1981,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // shelf's TOP face, so it rides up with the board by exactly the
     // thickness it gained, and the at-rest check passes the bench as it
     // stands.
-    let crate_after = solve_document(&updated, &with_store(ws), tol)
-        .placement(&updated, bench.crate_i)
-        .expect("the crate is placed on the thicker shelf");
+    let crate_after = solve_document(
+        &updated,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
+    .placement(&updated, bench.crate_i)
+    .expect("the crate is placed on the thicker shelf");
     let risen = crate_after.translation[2] - crate_before.translation[2];
     assert!(
         (risen - SHELF_THICKNESS * 0.5).abs() < 1e-12,
@@ -1985,9 +2032,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // is read off the post's own cap face, so a solve of a document
     // whose pin the store has moved past refuses that side rather than
     // remember an old pose.
-    let shelf_before = solve_document(&updated, &with_store(ws), tol)
-        .placement(&updated, stand.shelf_i)
-        .expect("the shelf is solved before the migration");
+    let shelf_before = solve_document(
+        &updated,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
+    .placement(&updated, stand.shelf_i)
+    .expect("the shelf is solved before the migration");
     let mut shorter = ws
         .resolve(
             &DocRef {
@@ -2072,9 +2124,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // the shelf's underside still holds, and the at-rest check passes both
     // seats. The face name is the state; the pose is derived.
     let ev = run(&migrated, &with_store(ws), tol);
-    let shelf_after = solve_document(&migrated, &with_store(ws), tol)
-        .placement(&migrated, stand.shelf_i)
-        .expect("the shelf is solved after the migration");
+    let shelf_after = solve_document(
+        &migrated,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
+    .placement(&migrated, stand.shelf_i)
+    .expect("the shelf is solved after the migration");
     let dropped = shelf_before.translation[2] - shelf_after.translation[2];
     assert!(
         (dropped - 0.04).abs() < 1e-12,
@@ -2088,9 +2145,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // crate rests on the shelf's top face, so it comes down with the
     // shelf by the same height; the at-rest check finds nothing on the
     // migrated bench.
-    let crate_migrated = solve_document(&migrated, &with_store(ws), tol)
-        .placement(&migrated, bench.crate_i)
-        .expect("the crate is solved after the migration");
+    let crate_migrated = solve_document(
+        &migrated,
+        &with_store(ws),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
+    .placement(&migrated, bench.crate_i)
+    .expect("the crate is solved after the migration");
     let crate_dropped = crate_after.translation[2] - crate_migrated.translation[2];
     assert!(
         (crate_dropped - 0.04).abs() < 1e-12,

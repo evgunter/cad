@@ -788,7 +788,12 @@ mod tests {
                 band,
                 &mut to_target(target),
             ))
-            .unwrap_or_else(|e| panic!("ring {r} at {level}: the schedule refused: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "ring {r} at {level}: the schedule refused: {e_at}",
+                    e_at = e.render(crate::recourse::Reading::AtRest)
+                )
+            });
             let pir2 = core::f64::consts::PI * r * r;
             let (hole, island) = (2.0 - pir2, 2.0 + pir2);
             assert!(

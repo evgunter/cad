@@ -24,8 +24,12 @@ fn a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap()
     let walls = nurbs_walls(&twisted_loft(0.3));
     let (_, wall) = &walls[0];
     for d in [0.05, -0.05] {
-        let (fit, cert) = fit_offset_at(wall, d, 1e-9, band())
-            .unwrap_or_else(|e| panic!("d = {d}: the saddle wall's fit refused at 1e-9: {e}"));
+        let (fit, cert) = fit_offset_at(wall, d, 1e-9, band()).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the saddle wall's fit refused at 1e-9: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let grid = fit.control_counts();
         assert_eq!((grid, cert.rounds), ((49, 26), 9), "d = {d}");
         assert!(

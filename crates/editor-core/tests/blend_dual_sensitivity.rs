@@ -157,6 +157,7 @@ fn a_fillet_radius_sensitivity_matches_finite_differences_of_the_f64_build() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the driver runs");

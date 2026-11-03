@@ -200,7 +200,6 @@
 //! `tests/fixtures/` and asserts validity, entity counts, and volume.
 
 use std::collections::HashMap;
-use std::fmt;
 
 use geom_core::Tol;
 use topo::{AtRestBody, EdgeKey, FaceKey, LoopKey, ShellKey};
@@ -323,8 +322,12 @@ pub enum StepExportError {
     Io(std::io::Error),
 }
 
-impl fmt::Display for StepExportError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl StepExportError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::NonFiniteReal { value, context } => write!(
                 f,
@@ -376,7 +379,10 @@ impl fmt::Display for StepExportError {
             Self::ShellUnclassified { source } => write!(
                 f,
                 "step export: a shell of a multi-shell solid cannot be classified \
-                 outer or void: {source}"
+                 outer or void: {}",
+                // The shell door's own reading, at a build, whichever door
+                // reads the export.
+                geom_brep::recourse::read_at(source.as_ref(), geom_brep::recourse::at_build(at))
             ),
             Self::InvalidUncertainty { value } => write!(
                 f,
@@ -388,6 +394,8 @@ impl fmt::Display for StepExportError {
         }
     }
 }
+
+geom_brep::ended_by_write!(StepExportError);
 
 impl std::error::Error for StepExportError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
