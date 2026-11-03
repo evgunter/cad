@@ -580,7 +580,7 @@ fn through_the_apex<T: Decide>(
     // and `|ε₁| ≤ 2δ·speed/per`. `δ` carries the point's own rounding.
     let delta = off_apex.norm()
         + geom_core::running::direction_rounding(
-            (conic.frame().center - apex).norm() + conic.speed_hi(),
+            (conic.frame().origin - apex).norm() + conic.speed_hi(),
         );
     let (e0, e1) = (
         delta.powi(2) / h.per,
