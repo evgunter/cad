@@ -16,6 +16,7 @@ use geom_brep::intersect::{
     cylinder_cylinder_section, plane_cylinder_section,
 };
 use geom_brep::{ExtentBall, Reach, TangentLocus, tangent_locus};
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 
 /// Where along its axis each cylinder's origin is stored, in metres
@@ -58,7 +59,7 @@ fn tilted(toward: Vec3<f64>) -> Vec3<f64> {
 /// The witness reads the same rows: it mints in both operand orders.
 #[test]
 fn plane_cylinder_reads_one_verdict_at_every_stored_origin() {
-    let reach = ExtentBall::new(Point3::origin(), 0.5);
+    let reach = ExtentBall::of_sphere(Point3::origin(), 0.5);
     let axis = tilted(Vec3::unit_z());
     for along in STORED {
         let cyl = cylinder(Point3::new(0.0, 0.0, 1.0), axis, along);
@@ -97,7 +98,7 @@ fn plane_cylinder_reads_one_verdict_at_every_stored_origin() {
 /// order and minted in the other.
 #[test]
 fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
-    let reach = ExtentBall::new(Point3::origin(), 1.0);
+    let reach = ExtentBall::of_sphere(Point3::origin(), 1.0);
     let toward = tilted(-Vec3::unit_y());
     for along1 in STORED {
         for along2 in STORED {
@@ -134,7 +135,7 @@ fn equal_cylinders_read_one_verdict_in_either_order_at_every_stored_origin() {
 /// axis row; neither reads it from a different lever than the other.
 #[test]
 fn the_tilt_lever_does_not_depend_on_operand_order() {
-    let reach = ExtentBall::new(Point3::new(0.0, -5.0, 0.0), 1.0);
+    let reach = ExtentBall::of_sphere(Point3::new(0.0, -5.0, 0.0), 1.0);
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
     let c2 = cylinder(Point3::new(0.0, 2.0, 0.0), tilted(-Vec3::unit_y()), -1000.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
@@ -167,7 +168,7 @@ fn the_tilt_lever_does_not_depend_on_operand_order() {
 /// radius reads its tilt as Zero.
 #[test]
 fn the_tilt_is_levered_from_the_nearer_foot() {
-    let reach = ExtentBall::new(Point3::new(0.0, -5.0, 0.0), 1.0);
+    let reach = ExtentBall::of_sphere(Point3::new(0.0, -5.0, 0.0), 1.0);
     let theta = band().zero() / 7.0;
     let toward = Vec3::unit_x() * theta.cos() - Vec3::unit_y() * theta.sin();
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 1000.0);
@@ -194,10 +195,7 @@ fn the_tilt_is_levered_from_the_nearer_foot() {
 /// Zero and the walls' two rulings were served.
 #[test]
 fn a_measured_lever_reaches_the_pivots_distance() {
-    let reach = Reach::Measured {
-        at: Point3::new(0.0, -10.0, 0.0),
-        lever: 1.0,
-    };
+    let reach = Reach::of_frame(Point3::new(0.0, -10.0, 0.0), (1.0, 1.0));
     let c1 = cylinder(Point3::origin(), Vec3::unit_x(), 0.0);
     let c2 = cylinder(Point3::new(0.0, 0.5, 0.0), tilted(Vec3::unit_y()), 0.0);
     for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
@@ -240,7 +238,7 @@ fn cone_cylinder_reads_one_verdict_at_every_stored_origin() {
             radius: big_r,
             u_ref: Vec3::unit_z(),
         };
-        match cone_cylinder_section(&cone, &cyl, 1.0, band()) {
+        match cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()) {
             Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                 for (c, want) in [(c1, station), (c2, -station)] {
                     let geom::Curve3::Circle(geom::Circle {
@@ -311,12 +309,7 @@ fn bounded(got: &Result<PlaneCylinderSection<f64>, geom_brep::SectionError>) -> 
 #[test]
 fn a_tilts_turn_across_the_wall_is_levered_at_the_faces_reach_across() {
     let at = Point3::new(1.0, 0.0, 0.0);
-    let reach = Reach::Face {
-        at,
-        below: 0.0,
-        above: 0.0,
-        across: 1.0,
-    };
+    let reach = Reach::of_face(at, (0.0, 0.0), fixture_lever(1.0));
     let leaning = |c: f64| Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
     for degrees in [90.0_f64, 60.0, 30.0] {
         let got = wall_cut(1.0, at, leaning(degrees.to_radians().sin()), &reach);
@@ -355,12 +348,7 @@ fn a_tangent_cut_is_levered_from_its_rulings_hinge() {
     let eps = band().zero();
     let (r, e) = (1e12 * eps, 1e4 * eps);
     let at = Point3::new(r, 0.0, 0.0);
-    let reach = Reach::Face {
-        at,
-        below: 0.0,
-        above: e,
-        across: e,
-    };
+    let reach = Reach::of_face(at, (0.0, e), fixture_lever(e));
     let tilted = |c: f64| Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
     for k in [0.5, 0.95] {
         let got = wall_cut(r, at, tilted(k * band().zero() / e), &reach);
@@ -389,12 +377,7 @@ fn a_tangent_cut_turns_about_its_rulings_hinge_not_its_foot() {
     let eps = band().zero();
     let at = Point3::new(1.0, 0.0, 0.0);
     let e = 10.0 * eps;
-    let reach = Reach::Face {
-        at,
-        below: 0.0,
-        above: e,
-        across: e,
-    };
+    let reach = Reach::of_face(at, (0.0, e), fixture_lever(e));
     let c = (0.6 * eps).sqrt();
     let got = wall_cut(1.0, at, Vec3::new((1.0 - c * c).sqrt(), 0.0, c), &reach);
     assert!(
@@ -421,8 +404,8 @@ fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
     let k = b.escalate() / b.zero();
     let q = 0.5 * b.zero();
     let extent = LeverBounds::Between {
-        below: 1.0,
-        above: 4.0 * k,
+        below: fixture_lever(1.0),
+        above: fixture_lever(4.0 * k),
     };
     let cone = |half_angle: f64, u_ref: Vec3<f64>| Surface::Cone {
         apex: Point3::origin(),
@@ -469,8 +452,8 @@ fn cone_cylinder_rows_each_read_their_side_of_the_extent() {
     // `coc_station_reach`: the station stands between the two bounds.
     let station = 0.25 / 0.5_f64.tan();
     let straddled = LeverBounds::Between {
-        below: 0.5 * station,
-        above: 2.0 * station,
+        below: fixture_lever(0.5 * station),
+        above: fixture_lever(2.0 * station),
     };
     match cone_cylinder_section(&cone(0.5, Vec3::unit_y()), &coaxial, straddled, b) {
         Err(SectionError::BeyondOperandExtent { .. }) => {}

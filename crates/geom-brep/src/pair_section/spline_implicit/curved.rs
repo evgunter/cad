@@ -102,7 +102,7 @@ pub(super) fn section(
         Phi::Curved(&curved),
         reading.account_floor(),
         band,
-        domain.extent,
+        pose.ball().certified_diameter(),
     ) {
         Sweep::Declined(_) => {
             let out = reading.all().map_err(super::super::whole_reading_refused)?;

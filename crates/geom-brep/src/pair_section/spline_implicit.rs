@@ -196,21 +196,7 @@ impl<T: Real> SplineImplicitPose<T> {
     /// net's control points: about the middle of their box, reaching the
     /// farthest.
     pub fn ball(&self) -> ExtentBall<T> {
-        let control = self.net.control();
-        let Some(&first) = control.first() else {
-            return ExtentBall::new(Point3::origin(), T::zero());
-        };
-        let (lo, hi) = control.iter().fold((first, first), |(lo, hi), &p| {
-            (
-                Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
-                Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
-            )
-        });
-        let center = lo + (hi - lo) * T::from_f64(0.5);
-        let radius = control
-            .iter()
-            .fold(T::zero(), |r, &p| r.max((p - center).norm()));
-        ExtentBall::new(center, radius)
+        ExtentBall::of_control_net(self.net.control())
     }
 }
 
@@ -238,7 +224,7 @@ impl<T: Real> SplineImplicitPose<T> {
         components: Components<T>,
         decided: Vec<super::ZeroVerdict>,
     ) -> PairSection<T> {
-        let lever = self.ball().radius();
+        let lever = self.ball().lever();
         PairSection {
             pose: PairPose::SplineImplicit(Box::new(self)),
             decided,
@@ -782,7 +768,7 @@ pub(super) fn section(
         pivot.phi(),
         reading.account_floor(),
         read_band,
-        pose.domain().extent,
+        pose.ball().certified_diameter(),
     ) {
         sweep::Sweep::Declined(_) => {
             let out = reading.all().map_err(super::whole_reading_refused)?;

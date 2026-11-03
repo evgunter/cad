@@ -139,9 +139,9 @@ pub(crate) fn section(
     let &geom::Surface::Cone { apex, .. } = cone else {
         panic!("the fixture sections a cone")
     };
-    let reach = geom_brep::Reach::Measured {
-        at: apex,
-        lever: 4.0 * s,
+    let reach = {
+        let lever = 4.0 * s;
+        geom_brep::Reach::fixture(apex, lever)
     };
     match geom_brep::plane_cone_section(&plane(o, n), cone, &reach, band()).unwrap() {
         geom_brep::PlaneConeSection::TiltedEllipse(c)

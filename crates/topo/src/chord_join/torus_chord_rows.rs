@@ -37,7 +37,13 @@ fn loops(
     lever: f64,
 ) -> ([SectionCurve<f64>; 2], LoopSplit<f64>) {
     let f = FaceKey::default();
-    match section_case(f, band(), cut, wall, SectionReach::Torus(lever)) {
+    match section_case(
+        f,
+        band(),
+        cut,
+        wall,
+        SectionReach::Torus(geom_core::test_support::fixture_lever(lever)),
+    ) {
         Ok(SectionCase::Loops { loops, split }) => (loops, split),
         Ok(_) => panic!("a two-loop section"),
         Err(e) => panic!("the torus arm refused {e:?}"),
@@ -188,13 +194,19 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
                 plane_off <= b.zero() && torus_off <= b.zero(),
                 "R = {big_r}, r = {r}, {what}: a circle of radius {} stands {plane_off:e} off \
                  the cut and {torus_off:e} off the torus, against the band's {:e}",
-                c.lever(),
+                c.lever().length(),
                 b.zero()
             );
         }
     };
     let case = |cut: &geom::Surface<f64>, wall: &geom::Surface<f64>| {
-        section_case(FaceKey::default(), b, cut, wall, SectionReach::Torus(reach))
+        section_case(
+            FaceKey::default(),
+            b,
+            cut,
+            wall,
+            SectionReach::Torus(geom_core::test_support::fixture_lever(reach)),
+        )
     };
     for (big_r, r) in [(1.1, 0.052), (2.0, 0.5)] {
         let wall = torus(big_r, r);
@@ -268,9 +280,13 @@ fn a_chord_on_an_oval_is_an_arc_on_its_own_parameter() {
     let d = torus(2.0, 0.5);
     let cut = plane(Point3::new(0.3, 0.0, 0.0), Vec3::unit_x());
     let two = loops(&cut, &d, 3.0);
-    let geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } =
-        geom_brep::plane_torus_section(&cut, &d, 3.0, band()).unwrap()
-    else {
+    let geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } = geom_brep::plane_torus_section(
+        &cut,
+        &d,
+        geom_core::test_support::fixture_lever(3.0),
+        band(),
+    )
+    .unwrap() else {
         panic!("x = 0.3 cuts two ovals");
     };
     let tau = core::f64::consts::TAU;

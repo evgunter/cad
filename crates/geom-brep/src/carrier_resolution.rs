@@ -258,7 +258,7 @@ mod tests {
             radius: 1.0,
             u_ref: Vec3::unit_x(),
         };
-        let reach = |at| Reach::Measured { at, lever: 1.0 };
+        let reach = |at| Reach::of_frame(at, (1.0, 1.0));
         let mut w = 0.0_f64;
         for t in [1.0, 0.3, 1e-2, 1e-4, 1e-6] {
             for (off, phi) in [(0.0, 0.4), (0.37, 1.9), (0.9, 5.1)] {
@@ -361,7 +361,8 @@ mod tests {
             plane(Point3::new(0.1, 0.2, -0.3), Vec3::unit_y()),
             plane(Point3::new(0.1, 0.5, -0.3), Vec3::unit_y()),
         ] {
-            match plane_torus_section(&cut, &torus, 3.0, band()).unwrap() {
+            let arm = geom_core::test_support::fixture_lever(3.0);
+            match plane_torus_section(&cut, &torus, arm, band()).unwrap() {
                 PlaneTorusSection::MeridianCircles { c1, c2 }
                 | PlaneTorusSection::ConcentricCircles { c1, c2 } => {
                     w = w.max(sweep(&c1, [&cut, &torus]).max(sweep(&c2, [&cut, &torus])));

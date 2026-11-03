@@ -35,7 +35,7 @@
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
 //! A bound's code against the other sector's face is read as its
-//! [`Reach`] allows ([`side_code`]): a line edge at its far vertex, in
+//! [`BoundSupport`] allows ([`side_code`]): a line edge at its far vertex, in
 //! metres; a curved edge and a bisector through
 //! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
 //! `Tangent ⇒ On` in the sector passes; the vertex-on-face pass reads a
@@ -76,7 +76,7 @@ use geom_brep::LeverBounds;
 use geom_brep::enters_material;
 use geom_brep::{ConicDeparture, EntersMaterial, OutwardNormal};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
-use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
 use super::{
@@ -96,7 +96,7 @@ use crate::validate::decide;
 
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
-pub(super) use crate::bound_side::{FaceBend, FaceShape, Reach, sagitta_charge};
+pub(super) use crate::bound_side::{BoundSupport, FaceBend, FaceShape, sagitta_charge};
 use crate::link::metric::Reading;
 
 /// One (convex) sector of a vertex neighborhood.
@@ -111,9 +111,9 @@ pub(crate) struct BoolSector<T: geom_core::Real> {
     /// or a bisector).
     pub end: Vec3<T>,
     /// What stands behind `start`: how its side of a plane is read.
-    pub start_reach: Reach<T>,
+    pub start_reach: BoundSupport<T>,
     /// What stands behind `end`.
-    pub end_reach: Reach<T>,
+    pub end_reach: BoundSupport<T>,
     /// The sector's face.
     pub face: FaceKey,
     /// What the face is at the base vertex ([`sector_face`]): its
@@ -127,7 +127,7 @@ pub(crate) struct BoolSector<T: geom_core::Real> {
     /// tangent plane is read against one order down.
     pub bend: FaceBend<T>,
     /// The metering arm: the shorter of its bounds' reaches, in metres.
-    pub arm: T,
+    pub arm: Lever<T>,
 }
 
 impl FaceShape {
@@ -156,20 +156,20 @@ impl<T: Decide> BoolSector<T> {
 impl<T: geom_core::Real> BoolSector<T> {
     /// Whether `start` is a real edge (false: a subdivision bisector).
     pub(super) fn start_edge(&self) -> bool {
-        !matches!(self.start_reach, Reach::Bisector { .. })
+        !matches!(self.start_reach, BoundSupport::Bisector { .. })
     }
 
     /// Whether `end` is a real edge.
     pub(super) fn end_edge(&self) -> bool {
-        !matches!(self.end_reach, Reach::Bisector { .. })
+        !matches!(self.end_reach, BoundSupport::Bisector { .. })
     }
 
     /// The two bounds, each with the length it reaches from the base
     /// vertex: what a per-bound reading levers at.
-    pub(super) fn reached_bounds(&self) -> [(Vec3<T>, T); 2] {
+    pub(super) fn reached_bounds(&self) -> [(Vec3<T>, Lever<T>); 2] {
         [
-            (self.start, self.start_reach.length()),
-            (self.end, self.end_reach.length()),
+            (self.start, self.start_reach.lever()),
+            (self.end, self.end_reach.lever()),
         ]
     }
 
@@ -194,8 +194,8 @@ impl<T: geom_core::Real> BoolSector<T> {
 
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
-    pub(super) fn span(&self) -> T {
-        self.start_reach.length().max(self.end_reach.length())
+    pub(super) fn span(&self) -> Lever<T> {
+        self.start_reach.lever().max(self.end_reach.lever())
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
     /// Only a pierce reads a sector at a cone's apex, through its own
@@ -231,7 +231,7 @@ impl<T: geom_core::Real> BoolSector<T> {
 impl<T: Decide> BoolSector<T> {
     /// **Whether the sector's bounds read off the plane through its
     /// vertex with unit normal `n`** (`bool_sector_coplanar`), on the
-    /// steeper bound's first-order departure ([`Reach::departure`]):
+    /// steeper bound's first-order departure ([`BoundSupport::departure`]):
     /// what a smaller tolerance reads off the plane first, and the
     /// sector with it. `Err` where it does not decide off, with that
     /// margin.
@@ -253,7 +253,7 @@ impl<T: Decide> BoolSector<T> {
 /// any subdivision: the corner after orbit half-edge `he`, sweeping CCW
 /// around its face's outward normal from `start` (the next orbit
 /// half-edge's departure) to `end` (`he`'s own), each unnormalized and
-/// as [`Reach`] says it was read: a line's chord, a curved edge's
+/// as [`BoundSupport`] says it was read: a line's chord, a curved edge's
 /// tangent at the vertex.
 pub(super) struct OrbitCorner<T: geom_core::Real> {
     /// The orbit half-edge the corner follows.
@@ -261,11 +261,11 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     /// The next orbit half-edge's departure: the CCW-first bound.
     pub start: Vec3<T>,
     /// What stands behind `start`.
-    pub start_reach: Reach<T>,
+    pub start_reach: BoundSupport<T>,
     /// `he`'s own departure: the CCW-last bound.
     pub end: Vec3<T>,
     /// What stands behind `end`.
-    pub end_reach: Reach<T>,
+    pub end_reach: BoundSupport<T>,
     /// The corner's face.
     pub face: FaceKey,
     /// What the face is at the vertex ([`sector_face`]).
@@ -400,6 +400,7 @@ pub(super) fn build_sectors<T: Decide>(
             unit_next: u_start,
             bisector: bisec,
         } = shape;
+        let arm = metering_arm(arm);
         match bisec {
             None => sectors.push(BoolSector {
                 he,
@@ -413,7 +414,7 @@ pub(super) fn build_sectors<T: Decide>(
                 arm,
             }),
             Some(b) => {
-                let bisector = Reach::bisector(arm, b.normalize(), normal.vec(), bend);
+                let bisector = BoundSupport::bisector(arm, b.normalize(), normal.vec(), bend);
                 // Chained order (module docs): the end-sharing half
                 // first, then the start-sharing half.
                 sectors.push(BoolSector {
@@ -442,6 +443,22 @@ pub(super) fn build_sectors<T: Decide>(
         }
     }
     Ok(sectors)
+}
+
+/// **A corner's metering arm** ([`crate::sector_shape`]'s, the shorter of
+/// its bounds' departure vectors' norms) as the lever its sectors read at.
+pub(crate) fn metering_arm<T: geom_core::Real>(arm: T) -> Lever<T> {
+    // Unsourced lever: the norm of a departure vector, a curved bound's
+    // read back from its extent times a unit tangent (or a line's chord),
+    // which differs from that extent by rounding: the edges' `Lever::min`
+    // would round differently.
+    Lever::unsourced(arm)
+}
+
+/// **A departure vector's norm as a lever**: the one bound's arm
+/// [`metering_arm`] reads, for a reading levered at a single departure.
+pub(crate) fn departure_arm_lever<T: geom_core::Real>(v: Vec3<T>) -> Lever<T> {
+    metering_arm(v.norm())
 }
 
 /// A sector rung's fault at `vertex`'s corner in `face`, as the
@@ -488,9 +505,10 @@ fn push_apex_corner<T: Decide>(
     };
     // In orbit order, from the own bound.
     let ApexShape { arm, rulings } = apex_corner_shape((end, start), apex, bounds, across, band)?;
+    let arm = metering_arm(arm);
     let (unit_end, unit_start) = (end.normalize(), start.normalize());
     // A ruling is a straight line on the cone.
-    let inner = Reach::straight_bisector(arm);
+    let inner = BoundSupport::straight_bisector(arm);
     let mut from = (unit_end, end_reach);
     for to in rulings
         .into_iter()
@@ -523,7 +541,7 @@ fn push_full_turn<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     he: HalfEdgeKey,
     turn: &FullTurn<T>,
-    (start_reach, end_reach): (Reach<T>, Reach<T>),
+    (start_reach, end_reach): (BoundSupport<T>, BoundSupport<T>),
     face: FaceKey,
     at_vertex: BoolFace<T>,
     bend: FaceBend<T>,
@@ -534,7 +552,8 @@ fn push_full_turn<T: Decide>(
         BoolFace::Tangent(normal) => normal.vec(),
         BoolFace::Apex(_) => unreachable!("a slit tip's full turn lies in a tangent plane"),
     };
-    let inner = |q: Vec3<T>| Reach::bisector(turn.arm, q.normalize(), normal, bend);
+    let arm = metering_arm(turn.arm);
+    let inner = |q: Vec3<T>| BoundSupport::bisector(arm, q.normalize(), normal, bend);
     let reaches = [start_reach, inner(q1), inner(q2), inner(q3), end_reach];
     for k in (0..4).rev() {
         sectors.push(BoolSector {
@@ -546,7 +565,7 @@ fn push_full_turn<T: Decide>(
             face,
             at_vertex,
             bend,
-            arm: turn.arm,
+            arm,
         });
     }
 }
@@ -571,7 +590,7 @@ pub(super) fn orbit_corners<T: Decide>(
     // carrier's outgoing tangent at the base vertex scaled by
     // `edge_extent_inf` for every curved one, a spline's included (its
     // chord is not where it leaves).
-    let departure = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
+    let departure = move |he: HalfEdgeKey| -> (Vec3<T>, BoundSupport<T>) {
         let end = body.proven_half_edge_end(he);
         let p_base = body.resolve_vertex_point(vertex, Proven);
         let p_end = body.resolve_vertex_point(end, Proven);
@@ -599,7 +618,7 @@ pub(super) fn orbit_corners<T: Decide>(
         match curve.carrier() {
             geom::Curve3::Line(_) => (
                 p_end - p_base,
-                Reach::Chord {
+                BoundSupport::Chord {
                     base: p_base,
                     far: p_end,
                 },
@@ -609,8 +628,8 @@ pub(super) fn orbit_corners<T: Decide>(
             | geom::Curve3::Spiric { .. }
             | geom::Curve3::Nurbs(_) => {
                 let ConicDeparture { dir, extent, bend } =
-                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
-                (dir, Reach::Conic { extent, bend })
+                    ConicDeparture::of(curve, he == edge.he_plus, (p_end, p_base));
+                (dir, BoundSupport::Conic { extent, bend })
             }
         }
     };
@@ -811,7 +830,7 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 /// first-order guess.
 pub(super) fn datum_code<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     face: FaceDatum<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -822,7 +841,7 @@ pub(super) fn datum_code<T: Decide>(
 #[cfg(test)]
 pub(super) fn side_code<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     face_normal: OutwardNormal<T>,
     lever: T,
     band: Band,
@@ -843,7 +862,7 @@ pub(super) fn side_code<T: Decide>(
 #[cfg(test)]
 pub(super) fn pierce_side<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     face_normal: OutwardNormal<T>,
     bend: FaceBend<T>,
     lever: T,
@@ -860,7 +879,7 @@ pub(super) fn pierce_side<T: Decide>(
 /// order.
 pub(super) fn pierce_side_reported<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     face_normal: OutwardNormal<T>,
     bend: FaceBend<T>,
     lever: T,
@@ -901,7 +920,7 @@ pub(super) struct BoundTie {
 /// ([`crate::link::Cone::reading`]).
 pub(super) fn bound_read<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     face: FaceDatum<T>,
     rd: Reading<T>,
 ) -> Result<BoundRead, BooleanError> {
@@ -1135,8 +1154,8 @@ pub(super) fn tangent_lump<T: Decide>(
     op: super::BooleanOp,
     on_side: Operand,
     sector_face: FaceKey,
-    bounds: [(Vec3<T>, T); 2],
-    arm: T,
+    bounds: [(Vec3<T>, Lever<T>); 2],
+    arm: Lever<T>,
     read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -1243,7 +1262,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     other_outward: OutwardNormal<T>,
     p: geom_core::Point3<T>,
     d: Vec3<T>,
-    arm: T,
+    arm: Lever<T>,
     read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -1253,7 +1272,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     match geom_brep::parting_side(
         n_ref * (graph_accel(sector_surface) - graph_accel(other_surface)),
         geom_brep::ReferenceNormal::of_face_outward(other_outward),
-        arm,
+        arm.length(),
         band,
     ) {
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
@@ -1350,7 +1369,7 @@ pub(super) fn within<T: Decide>(
 /// reads definitely off.
 pub(super) fn within_reaching<T: Decide>(
     s: &BoolSector<T>,
-    (dir, own): (Vec3<T>, Option<T>),
+    (dir, own): (Vec3<T>, Option<Lever<T>>),
     strict: bool,
     read: DeclarationRead,
     band: Band,
@@ -1378,7 +1397,7 @@ pub(super) fn reading_lever<T: geom_core::Real>(
 }
 
 /// [`reading_lever`] of two reaches known exactly.
-pub(super) fn exact_lever<T: geom_core::Real>(bound: T, own: Option<T>) -> T {
+pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever<T>>) -> Lever<T> {
     reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
 }
 
@@ -1443,8 +1462,10 @@ impl<T: geom_core::Real> Leaned<T> {
 /// lying in the reading's plane, the reading is the edge's far end's
 /// offset from the face line's other face; an edge off that plane adds
 /// its own departure, foreshortened by `cos φ` ([`rays_within`]).
-pub(super) fn leaned_lever<T: geom_core::Real>(lever: T, (l0, l1): (T, T)) -> T {
-    lever * l0.min(l1)
+pub(super) fn leaned_lever<T: geom_core::Real>(lever: Lever<T>, (l0, l1): (T, T)) -> Lever<T> {
+    // Unsourced lever: an arm scaled by a sine (the directions' lean),
+    // a length no source reads.
+    Lever::unsourced(lever.length() * l0.min(l1))
 }
 
 /// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:
@@ -1452,11 +1473,11 @@ pub(super) fn leaned_lever<T: geom_core::Real>(lever: T, (l0, l1): (T, T)) -> T 
 /// the other.
 fn within_signs<T: Decide>(
     s: &BoolSector<T>,
-    (dir, own): (Vec3<T>, Option<T>),
+    (dir, own): (Vec3<T>, Option<Lever<T>>),
     read: DeclarationRead,
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
-    let lever = |r: Reach<T>| exact_lever(r.length(), own);
+    let lever = |r: BoundSupport<T>| exact_lever(r.lever(), own);
     let c1 = Margin::levered(
         s.start.cross(dir).dot(s.tangent().vec()),
         lever(s.start_reach),
@@ -1516,11 +1537,11 @@ pub(super) fn bound_edges<T: Decide>(
         .collect()
 }
 
-/// [`bound_edges`] with each bound's [`Reach`].
+/// [`bound_edges`] with each bound's [`BoundSupport`].
 pub(super) fn bound_reaches<T: Decide>(
     body: &Body<T>,
     s: &BoolSector<T>,
-) -> Vec<(crate::entity::EdgeKey, Vec3<T>, Reach<T>)> {
+) -> Vec<(crate::entity::EdgeKey, Vec3<T>, BoundSupport<T>)> {
     let edge = |he| proven(&body.half_edges, he, EntityId::HalfEdge).edge;
     let mut out = Vec::new();
     if s.end_edge() {
@@ -2235,18 +2256,18 @@ pub(super) fn faces_at<T: Decide>(
 /// with no bend to read ([`bound_bend`]) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
-    (dir, reach): (Vec3<T>, Reach<T>),
+    (dir, reach): (Vec3<T>, BoundSupport<T>),
     band: Band,
 ) -> Result<bool, BooleanError> {
     let moot = DeclarationRead::Moot;
-    if !within_reaching(s, (dir, Some(reach.length())), false, moot, band)? {
+    if !within_reaching(s, (dir, Some(reach.lever())), false, moot, band)? {
         return Ok(false);
     }
     for (bound, along, is_edge) in [
         (s.start, s.start_reach, s.start_edge()),
         (s.end, s.end_reach, s.end_edge()),
     ] {
-        let lever = exact_lever(along.length(), Some(reach.length()));
+        let lever = exact_lever(along.lever(), Some(reach.lever()));
         if !(is_edge && parallel_same(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
             continue;
         }
@@ -2258,7 +2279,7 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let entered = geom_brep::parting(k - kb, u, l.min(lb));
+        let entered = geom_brep::parting(k - kb, u, l.min(lb).length());
         return Ok(
             decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
@@ -2277,7 +2298,7 @@ pub(super) fn runs_into<T: Decide>(
 pub(super) fn parallel_same<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
-    arm: T,
+    arm: Lever<T>,
     reading: Parallelism,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -2308,7 +2329,7 @@ pub(super) fn parallel_same<T: Decide>(
 pub(super) fn direction_sense<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
-    arm: T,
+    arm: Lever<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     Ok(
@@ -2369,7 +2390,7 @@ fn first_order_overlap<T: Decide>(
     ] {
         if within_reaching(
             s,
-            (dir, Some(reach.length())),
+            (dir, Some(reach.lever())),
             true,
             DeclarationRead::Moot,
             band,
@@ -2377,8 +2398,8 @@ fn first_order_overlap<T: Decide>(
             return Ok(true);
         }
     }
-    let along = |(u, ru): (Vec3<T>, Reach<T>), (v, rv): (Vec3<T>, Reach<T>)| {
-        let lever = exact_lever(rv.length(), Some(ru.length()));
+    let along = |(u, ru): (Vec3<T>, BoundSupport<T>), (v, rv): (Vec3<T>, BoundSupport<T>)| {
+        let lever = exact_lever(rv.lever(), Some(ru.lever()));
         parallel_same(u, v, lever, BOUNDS_PARALLEL, band)
     };
     let (a_start, a_end) = ((a.start, a.start_reach), (a.end, a.end_reach));
@@ -2395,14 +2416,18 @@ fn first_order_overlap<T: Decide>(
 /// whose bend is uncertified (a spiric section's). A one-order-down
 /// reading of a bound with none reads nothing, so the first-order
 /// reading stands.
-fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
+fn bound_bend<T: Decide>(reach: BoundSupport<T>) -> Option<(Vec3<T>, Lever<T>)> {
     match reach {
-        Reach::Conic { bend, .. } if matches!(bend.bounds, geom_brep::BendBounds::Unbounded) => {
+        BoundSupport::Conic { bend, .. }
+            if matches!(bend.bounds, geom_brep::BendBounds::Unbounded) =>
+        {
             None
         }
-        Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
-        Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
-        Reach::Extent(_) | Reach::Bisector { .. } => None,
+        BoundSupport::Conic { extent, bend } => Some((bend.curvature, extent)),
+        BoundSupport::Chord { .. } => {
+            Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.lever()))
+        }
+        BoundSupport::Extent(_) | BoundSupport::Bisector { .. } => None,
     }
 }
 
@@ -2446,7 +2471,9 @@ fn crescent<T: Decide>(
             let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
                 continue;
             };
-            if !matches!(ra, Reach::Conic { .. }) && !matches!(rb, Reach::Conic { .. }) {
+            if !matches!(ra, BoundSupport::Conic { .. })
+                && !matches!(rb, BoundSupport::Conic { .. })
+            {
                 continue;
             }
             if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
@@ -2470,7 +2497,7 @@ fn crescent<T: Decide>(
             {
                 continue;
             }
-            let opened = geom_brep::parting(kb - ka, u, l);
+            let opened = geom_brep::parting(kb - ka, u, l.length());
             if decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive {
                 return Ok(true);
             }
@@ -2540,7 +2567,7 @@ struct RunEdge<T: geom_core::Real> {
     /// Its unit direction at the site.
     dir: Vec3<T>,
     /// Its reach from the site, in metres, no shorter than its chord.
-    reach: T,
+    reach: Lever<T>,
     /// Its far end's site.
     far: Vec<VertexKey>,
 }
@@ -2554,7 +2581,7 @@ pub(super) fn corner_edge_bound<T: geom_core::Real>(
     sectors: &[BoolSector<T>],
     s: &BoolSector<T>,
     arrival: bool,
-) -> Option<(Vec3<T>, Reach<T>)> {
+) -> Option<(Vec3<T>, BoundSupport<T>)> {
     let mut corner = sectors.iter().filter(|o| o.he == s.he && o.face == s.face);
     if arrival {
         corner.find(|o| o.end_edge()).map(|o| (o.end, o.end_reach))
@@ -2601,7 +2628,7 @@ fn far_edge<T: Decide>(
     }
     Ok(Some(RunEdge {
         dir,
-        reach: reach.length(),
+        reach: reach.lever(),
         far: site_of(body, far)?,
     }))
 }
@@ -2628,7 +2655,7 @@ fn within_half_turn<T: Decide>(
 /// against.
 pub(super) fn sector_code<T: Decide>(
     dir: Vec3<T>,
-    reach: Reach<T>,
+    reach: BoundSupport<T>,
     face: &BoolSector<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
@@ -2742,7 +2769,7 @@ pub(super) fn pair_search<T: Decide>(
 /// **A vertex's sectors as the corners of a cone at its point**
 /// ([`crate::link::Fan`]): each orbit corner one fan about `apex`, its
 /// rays its bounds and any subdivision bisectors, each fixed at its
-/// reach ([`Reach::point`]). [`build_sectors`] pushes a corner's pieces
+/// reach ([`BoundSupport::point`]). [`build_sectors`] pushes a corner's pieces
 /// one after another, the end-sharing piece first, so the fan's rays
 /// run from the last piece's start to the first piece's end. Nothing is
 /// decided here: the subdivision is [`build_sectors`]'.
@@ -2938,11 +2965,15 @@ mod tests {
                 he: HalfEdgeKey::from(key(1)),
                 start,
                 end,
-                start_reach: Reach::straight_bisector(1.0),
-                end_reach: Reach::straight_bisector(1.0),
+                start_reach: BoundSupport::straight_bisector(
+                    geom_core::test_support::fixture_lever(1.0),
+                ),
+                end_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                    1.0,
+                )),
                 face: FaceKey::from(key(2)),
                 at_vertex: BoolFace::Apex(apex),
-                arm: 1.0,
+                arm: geom_core::test_support::fixture_lever(1.0),
                 bend: crate::bound_side::FaceBend::Plane,
             };
             let m = s.middle();
@@ -2976,17 +3007,17 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Chord {
+            start_reach: BoundSupport::Chord {
                 base: o,
                 far: o + x,
             },
-            end_reach: Reach::Chord {
+            end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + y,
             },
             face: FaceKey::default(),
             at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true)),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let err = within(
@@ -3038,7 +3069,14 @@ mod tests {
             let (u, v) = apart(sin);
             for norm in [1e-3, 1.0, 1e3] {
                 assert_eq!(
-                    parallel_same(u * norm, v * norm, 1.0, BOUNDS_PARALLEL, b).unwrap(),
+                    parallel_same(
+                        u * norm,
+                        v * norm,
+                        geom_core::test_support::fixture_lever(1.0),
+                        BOUNDS_PARALLEL,
+                        b
+                    )
+                    .unwrap(),
                     want,
                     "sin θ {sin:e} at norm {norm:e}"
                 );
@@ -3050,7 +3088,14 @@ mod tests {
         for norm in [1e-3, 1.0, 1e3] {
             for (w, want) in [(v, true), (-v, false)] {
                 assert_eq!(
-                    parallel_same(u * norm, w * norm, 2.0 * e, BOUNDS_PARALLEL, b).unwrap(),
+                    parallel_same(
+                        u * norm,
+                        w * norm,
+                        geom_core::test_support::fixture_lever(2.0 * e),
+                        BOUNDS_PARALLEL,
+                        b
+                    )
+                    .unwrap(),
                     want,
                     "the sense of {w:?} at norm {norm:e}"
                 );
@@ -3064,7 +3109,14 @@ mod tests {
                 Coincide::EdgeOnEdge,
             ),
         ] {
-            let err = parallel_same(u * 1e3, v * 1e3, 1.0, reading, b).expect_err("in band");
+            let err = parallel_same(
+                u * 1e3,
+                v * 1e3,
+                geom_core::test_support::fixture_lever(1.0),
+                reading,
+                b,
+            )
+            .expect_err("in band");
             let BooleanError::Escalated { decision, diag } = &err else {
                 panic!("{which:?}: an escalation: {err:?}");
             };
@@ -3096,14 +3148,38 @@ mod tests {
             (Vec3::zero(), Vec3::zero()),
             (Vec3::new(f64::NAN, 0.0, 0.0), u),
         ] {
-            let got = parallel_same(p, q, 1.0, BOUNDS_PARALLEL, b);
+            let got = parallel_same(
+                p,
+                q,
+                geom_core::test_support::fixture_lever(1.0),
+                BOUNDS_PARALLEL,
+                b,
+            );
             assert!(got.is_err(), "{p:?} against {q:?} decided {got:?}");
         }
         // A direction far below the squares' underflow band is still a
         // direction: normalize prescales it.
         let tiny = Vec3::new(1e-300, 0.0, 0.0);
-        assert!(parallel_same(tiny, u, 1.0, BOUNDS_PARALLEL, b).unwrap());
-        assert!(!parallel_same(-tiny, u, 1.0, BOUNDS_PARALLEL, b).unwrap());
+        assert!(
+            parallel_same(
+                tiny,
+                u,
+                geom_core::test_support::fixture_lever(1.0),
+                BOUNDS_PARALLEL,
+                b
+            )
+            .unwrap()
+        );
+        assert!(
+            !parallel_same(
+                -tiny,
+                u,
+                geom_core::test_support::fixture_lever(1.0),
+                BOUNDS_PARALLEL,
+                b
+            )
+            .unwrap()
+        );
     }
 
     /// **Two parallel directions' sense is its own decision, and its
@@ -3121,10 +3197,17 @@ mod tests {
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
         let u = Vec3::new(1.0, 0.0, 0.0);
-        assert!(direction_sense(u, u, 1.0, b).expect("a clear arm reads the sense"));
-        assert!(!direction_sense(u, -u, 1.0, b).expect("a clear arm reads the sense"));
+        assert!(
+            direction_sense(u, u, geom_core::test_support::fixture_lever(1.0), b)
+                .expect("a clear arm reads the sense")
+        );
+        assert!(
+            !direction_sense(u, -u, geom_core::test_support::fixture_lever(1.0), b)
+                .expect("a clear arm reads the sense")
+        );
         for arm in [(z + e) / 2.0, 0.5 * z] {
-            let err = direction_sense(u, u, arm, b).expect_err("a short arm refuses");
+            let err = direction_sense(u, u, geom_core::test_support::fixture_lever(arm), b)
+                .expect_err("a short arm refuses");
             let BooleanError::Escalated { decision, diag } = &err else {
                 panic!("{arm:e}: an escalation: {err:?}");
             };
@@ -3173,7 +3256,8 @@ mod tests {
             ((b.zero() + b.escalate()) / 2.0, false),
         ] {
             let bracket = Bracket::open();
-            let err = direction_sense(u, u, arm, b).expect_err("a short arm refuses");
+            let err = direction_sense(u, u, geom_core::test_support::fixture_lever(arm), b)
+                .expect_err("a short arm refuses");
             let log = bracket.finish();
             let BooleanError::Escalated { diag, .. } = err else {
                 panic!("{arm:e}: an escalation: {err:?}");
@@ -3210,7 +3294,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(0.3, 0.0, -1.0),
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -3221,7 +3305,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(0.3, 0.0, 1.0),
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -3232,7 +3316,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(1.0, 2.0, 0.0),
-                Reach::straight_bisector(1.0),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -3247,11 +3331,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: Vec3::from_array(start),
             end: Vec3::from_array(end),
-            start_reach: Reach::Extent(1.0),
-            end_reach: Reach::Extent(1.0),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             face: FaceKey::default(),
             at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::from_array(normal), true)),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         }
     }
@@ -3272,17 +3356,17 @@ mod tests {
         let floor = BoolSector {
             start: Vec3::new(-theta.sin(), -theta.cos(), 0.0),
             end: Vec3::new(-1.0, 0.0, 0.0),
-            start_reach: Reach::Extent(reach),
-            end_reach: Reach::straight_bisector(arm),
-            arm,
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(reach)),
+            end_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(arm)),
+            arm: geom_core::test_support::fixture_lever(arm),
             ..sector([0.0; 3], [0.0; 3], [0.0, 0.0, -1.0])
         };
         let wall = BoolSector {
             start: Vec3::new(0.0, 0.0, -1.0),
             end: Vec3::new(0.0, -1.0, 0.0),
-            start_reach: Reach::Extent(reach),
-            end_reach: Reach::Extent(reach),
-            arm: reach,
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(reach)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(reach)),
+            arm: geom_core::test_support::fixture_lever(reach),
             ..sector([0.0; 3], [0.0; 3], [-1.0, 0.0, 0.0])
         };
         let line = Vec3::new(0.0, -1.0, 0.0);
@@ -3290,7 +3374,10 @@ mod tests {
             !within(&floor, line, false, DeclarationRead::Moot, b).unwrap(),
             "the line reads outside the floor at its long bound's reach"
         );
-        let at_the_arm = Margin::levered(floor.start.cross(line).dot(floor.tangent().vec()), arm);
+        let at_the_arm = Margin::levered(
+            floor.start.cross(line).dot(floor.tangent().vec()),
+            geom_core::test_support::fixture_lever(arm),
+        );
         assert_eq!(
             decide("arm", at_the_arm, b).unwrap(),
             Sign::Zero,
@@ -3316,17 +3403,17 @@ mod tests {
         let a = BoolSector {
             start: at(290.0),
             end: down,
-            start_reach: Reach::Extent(0.11),
-            end_reach: Reach::Extent(1.23),
-            arm: 0.11,
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(0.11)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.23)),
+            arm: geom_core::test_support::fixture_lever(0.11),
             ..sector([0.0; 3], [0.0; 3], n_a.normalize().to_array())
         };
         let b = BoolSector {
             start: down,
             end: at(120.0),
-            start_reach: Reach::Extent(1.23),
-            end_reach: Reach::Extent(0.4),
-            arm: 0.4,
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.23)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(0.4)),
+            arm: geom_core::test_support::fixture_lever(0.4),
             ..sector([0.0; 3], [0.0; 3], at(30.0).to_array())
         };
         (a, b)
@@ -3485,7 +3572,14 @@ mod tests {
         };
         let d = Vec3::new(-0.1, 1.0, 0.0);
         assert_eq!(
-            side_code(d, Reach::straight_bisector(0.5), n, 1.0, b).unwrap(),
+            side_code(
+                d,
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(0.5)),
+                n,
+                1.0,
+                b
+            )
+            .unwrap(),
             SideCode::Out,
             "a definite slope certifies at slope·lever/2"
         );
@@ -3497,7 +3591,7 @@ mod tests {
     /// A unit-radius quarter arc at the origin, leaving along `+x` in
     /// the plane `z = 0` and bending toward `bend` (unit, normal to
     /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
-    fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
+    fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, BoundSupport<f64>) {
         let span = core::f64::consts::FRAC_PI_2;
         let carrier = geom::Curve3::circle(
             geom_core::Point3::origin() + bend,
@@ -3505,10 +3599,18 @@ mod tests {
             1.0,
             -bend,
         );
-        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
+        let extent = geom_brep::edge_extent_inf(
+            &carrier,
+            0.0,
+            span,
+            (carrier.eval(0.0), carrier.eval(span)),
+        );
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
-        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+        (
+            tangent.normalize() * extent.length(),
+            BoundSupport::Conic { extent, bend },
+        )
     }
 
     /// **The split walk and the boolean read one edge's side of a plane
@@ -3552,7 +3654,7 @@ mod tests {
                         .iter()
                         .flat_map(|s| [(s.start, s.start_reach), (s.end, s.end_reach)])
                         .find(|(d, r)| {
-                            matches!(r, Reach::Conic { .. })
+                            matches!(r, BoundSupport::Conic { .. })
                                 && d.normalize().dot(dir.normalize()) > 1.0 - 1e-12
                         })
                         .expect("a sector bound along the walk's departure");
@@ -3604,7 +3706,7 @@ mod tests {
         ] {
             let (dir, reach) = quarter_arc(bend);
             assert_eq!(
-                enters_material(dir, n, reach.length(), b).unwrap(),
+                enters_material(dir, n, reach.lever(), b).unwrap(),
                 EntersMaterial::Tangent,
                 "the first order ties: {bend:?}"
             );
@@ -3696,8 +3798,9 @@ mod tests {
                         assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
                         let samples = 4000;
                         let param = |i: usize| span * i as f64 / samples as f64;
-                        let chord = flat.eval(span).distance(base);
-                        let extent = geom_brep::edge_extent_inf(&flat, 0.0, span, chord);
+                        let extent_lever =
+                            geom_brep::edge_extent_inf(&flat, 0.0, span, (flat.eval(span), base));
+                        let extent = extent_lever.length();
                         // The witness the derivation names, found
                         // independently: the sample at arc length
                         // `l = min(max(extent, b·span), cap)`, `b` the
@@ -3754,8 +3857,11 @@ mod tests {
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         let dir = tangent.normalize() * extent;
-                        let reach = Reach::Conic { extent, bend };
-                        if enters_material(dir, n, extent, b) != Ok(EntersMaterial::Tangent) {
+                        let reach = BoundSupport::Conic {
+                            extent: extent_lever,
+                            bend,
+                        };
+                        if enters_material(dir, n, extent_lever, b) != Ok(EntersMaterial::Tangent) {
                             continue;
                         }
                         let heights: Vec<f64> = (0..=samples)
@@ -3831,13 +3937,18 @@ mod tests {
             chord > 1e4 * b.zero() && far < b.zero(),
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
-        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
+        let extent = geom_brep::edge_extent_inf(
+            &carrier,
+            0.0,
+            span,
+            (carrier.eval(span), geom_core::Point3::origin()),
+        );
         let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
-        let dir = carrier.deriv(0.0).normalize() * extent;
+        let dir = carrier.deriv(0.0).normalize() * extent.length();
         assert_eq!(
             pierce_side(
                 dir,
-                Reach::Conic { extent, bend },
+                BoundSupport::Conic { extent, bend },
                 n,
                 FaceBend::Plane,
                 NO_CURVATURE(),
@@ -3883,7 +3994,7 @@ mod tests {
             SideCode::On,
             "a great arc of a hollow sphere rides it"
         );
-        let Reach::Conic { extent, bend } = reach else {
+        let BoundSupport::Conic { extent, bend } = reach else {
             unreachable!("`quarter_arc` mints a conic reach")
         };
         // The arc's length and extent bounded loosely, but soundly, by
@@ -3912,8 +4023,8 @@ mod tests {
         };
         let got = pierce_side(
             dir,
-            Reach::Conic {
-                extent: short,
+            BoundSupport::Conic {
+                extent: geom_core::test_support::fixture_lever(short),
                 bend: loose,
             },
             n,
@@ -3922,7 +4033,7 @@ mod tests {
             b,
         );
         assert!(conic_bend(&got), "a lift inside the band: {got:?}");
-        let spiric = Reach::Conic {
+        let spiric = BoundSupport::Conic {
             extent,
             bend: ConicBend {
                 bounds: geom_brep::BendBounds::Unbounded,
@@ -3965,7 +4076,15 @@ mod tests {
             };
             let code = |q: f64, reach_over_peak: f64| {
                 let (d, peak) = at(q);
-                side_code(d, Reach::straight_bisector(peak * reach_over_peak), n, r, b)
+                side_code(
+                    d,
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                        peak * reach_over_peak,
+                    )),
+                    n,
+                    r,
+                    b,
+                )
             };
             // The residue: the reach is long enough that the first-order
             // reading itself is definite (`s·reach ≥ escalate`).
@@ -4004,7 +4123,7 @@ mod tests {
         assert_eq!(
             side_code(
                 d,
-                Reach::straight_bisector(peak * 1e6),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(peak * 1e6)),
                 n,
                 NO_CURVATURE::<f64>(),
                 b
@@ -4047,7 +4166,7 @@ mod tests {
             n,
             p,
             d,
-            arm,
+            geom_core::test_support::fixture_lever(arm),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4101,7 +4220,7 @@ mod tests {
         let departure = |extent: f64| Vec3::new(1.0, 0.0, 1.0).normalize().dot(n.vec()) * extent;
         let err = side_code(
             Vec3::new(1.0, 0.0, 1.0),
-            Reach::Extent(mid),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(mid)),
             n,
             NO_CURVATURE(),
             b,
@@ -4134,7 +4253,7 @@ mod tests {
         let short = 0.5 * z;
         let err = side_code(
             Vec3::new(1.0, 0.0, 1.0),
-            Reach::Extent(short),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(short)),
             n,
             NO_CURVATURE(),
             b,
@@ -4179,7 +4298,7 @@ mod tests {
         // (the coincfr4 review's in-plane pose).
         let err = side_code(
             Vec3::new(1.0, 0.0, 0.0),
-            Reach::Extent(mid),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(mid)),
             n,
             NO_CURVATURE(),
             b,
@@ -4204,7 +4323,7 @@ mod tests {
         // in band off the face's plane is the coincidence it names.
         let err = side_code(
             Vec3::new(1.0, 0.0, mid),
-            Reach::Extent(1.0),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             n,
             NO_CURVATURE(),
             b,
@@ -4237,7 +4356,7 @@ mod tests {
     fn a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence() {
         let dip = 500.0 * Tol::witness().eps();
         let o = Point3::new(0.0, 0.0, 0.0);
-        let chord = |v: [f64; 3]| Reach::Chord {
+        let chord = |v: [f64; 3]| BoundSupport::Chord {
             base: o,
             far: Point3::from_array(v),
         };
@@ -4252,13 +4371,13 @@ mod tests {
                 -va.cross(vb).normalize(),
                 true,
             )),
-            arm: vb.norm(),
+            arm: geom_core::test_support::fixture_lever(vb.norm()),
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
         let top = BoolSector {
             start_reach: chord([10.0, 0.0, 0.0]),
             end_reach: chord([0.0, 10.0, 0.0]),
-            arm: 10.0,
+            arm: geom_core::test_support::fixture_lever(10.0),
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
         let recs = search(&[tilted], &[top], band()).unwrap();
@@ -4327,15 +4446,21 @@ mod tests {
     /// A ball over the fixtures' plate and cylinders: their verdicts are
     /// exact, so the extent only has to enclose them.
     fn fixture_reach() -> geom_brep::ExtentBall<f64> {
-        geom_brep::ExtentBall::new(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::new(2.0, 0.5, 1.0), 4.0)
     }
 
     /// A sector's two bounds at the fixtures' touch, both reaching
     /// `reach`: one along the shared ruling (y), one across it (x).
-    fn fixture_bounds(reach: f64) -> [(Vec3<f64>, f64); 2] {
+    fn fixture_bounds(reach: f64) -> [(Vec3<f64>, geom_core::Lever<f64>); 2] {
         [
-            (Vec3::new(0.0, 1.0, 0.0), reach),
-            (Vec3::new(1.0, 0.0, 0.0), reach),
+            (
+                Vec3::new(0.0, 1.0, 0.0),
+                geom_core::test_support::fixture_lever(reach),
+            ),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                geom_core::test_support::fixture_lever(reach),
+            ),
         ]
     }
 
@@ -4370,7 +4495,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             fixture_bounds(0.5),
-            0.5,
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4390,7 +4515,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.5),
-            0.5,
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4420,7 +4545,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.25),
-            0.25,
+            geom_core::test_support::fixture_lever(0.25),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4441,7 +4566,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(zero_arm),
-            zero_arm,
+            geom_core::test_support::fixture_lever(zero_arm),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4476,7 +4601,7 @@ mod tests {
         let b = band();
         let p = geom_core::Point3::new(2.0, 0.5, 1.0);
         let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let lump = |bounds: [(Vec3<f64>, f64); 2], arm: f64| {
+        let lump = |bounds: [(Vec3<f64>, geom_core::Lever<f64>); 2], arm: f64| {
             tangent_lump(
                 &y_cyl(1.5, 0.5),
                 &plate_top(),
@@ -4488,7 +4613,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 bounds,
-                arm,
+                geom_core::test_support::fixture_lever(arm),
                 DeclarationRead::Spent(GlueClass::Tangent),
                 b,
             )
@@ -4511,14 +4636,26 @@ mod tests {
         // show still reads the side its long cross bound shows, not the
         // senses' lump: each bound is read over its own reach.
         let short_ruling = [
-            (Vec3::new(0.0, 1.0, 0.0), zero_arm),
-            (Vec3::new(1.0, 0.0, 0.0), 0.5),
+            (
+                Vec3::new(0.0, 1.0, 0.0),
+                geom_core::test_support::fixture_lever(zero_arm),
+            ),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                geom_core::test_support::fixture_lever(0.5),
+            ),
         ];
         assert_eq!(lump(short_ruling, zero_arm).unwrap(), SideCode::Out);
         // A short cross bound in band beside a ruling escalates.
         let short_cross = [
-            (Vec3::new(0.0, 1.0, 0.0), 0.5),
-            (Vec3::new(1.0, 0.0, 0.0), inband_arm),
+            (
+                Vec3::new(0.0, 1.0, 0.0),
+                geom_core::test_support::fixture_lever(0.5),
+            ),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                geom_core::test_support::fixture_lever(inband_arm),
+            ),
         ];
         assert!(
             matches!(lump(short_cross, 0.5), Err(BooleanError::Escalated { .. })),
@@ -4546,7 +4683,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.5),
-            0.5,
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
@@ -4570,7 +4707,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.5),
-            0.5,
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
@@ -4707,7 +4844,7 @@ mod tests {
         // `ρ`, 0.8 of one at `2ρ/3`.
         let s = (4.8 * b.escalate() / rho).sqrt();
         let dir = toward_apex * (1.0 - s * s).sqrt() + chart * s;
-        let bound = Reach::Chord {
+        let bound = BoundSupport::Chord {
             base: p,
             far: p + dir * reach,
         };
@@ -4763,7 +4900,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_departure_rows {
     use super::super::Operand;
-    use super::{Reach, orbit_corners};
+    use super::{BoundSupport, orbit_corners};
     use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
     use geom_core::{Band, Tol, Vec3};
 
@@ -4784,7 +4921,7 @@ mod spline_departure_rows {
             corner.end
         );
         assert!(
-            matches!(corner.end_reach, Reach::Conic { extent, .. } if (extent - 2.0).abs() < 1e-12),
+            matches!(corner.end_reach, BoundSupport::Conic { extent, .. } if (extent.length() - 2.0).abs() < 1e-12),
             "levered at its extent, the chord's length 2: {:?}",
             corner.end_reach
         );

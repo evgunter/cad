@@ -28,6 +28,7 @@ use geom_brep::Reach;
 use geom_brep::intersect::{
     PlaneConeSection, SectionError, plane_cone_section, plane_torus_section, route, route_pose,
 };
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 
 const PI_6: f64 = core::f64::consts::FRAC_PI_6;
@@ -50,10 +51,7 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// A reach of `lever` about [`cone_z`]'s apex: the scalar extent these
 /// rows read a pose at before `route_pose` took a [`Reach`].
 fn at_apex(lever: f64) -> Reach<f64> {
-    Reach::Measured {
-        at: Point3::new(0.0, 0.0, 1.0),
-        lever,
-    }
+    Reach::of_frame(Point3::new(0.0, 0.0, 1.0), (lever, lever))
 }
 
 /// The `z`-axis cone, apex at `(0, 0, 1)`.
@@ -222,7 +220,7 @@ fn a_refused_pose_carries_the_arms_own_grounds() {
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
     let Err(SectionError::RoutesToGeneralRung { why, .. }) =
-        plane_torus_section(&tilted, &tor, 4.0, band())
+        plane_torus_section(&tilted, &tor, fixture_lever(4.0), band())
     else {
         panic!("the arm refuses this pose");
     };

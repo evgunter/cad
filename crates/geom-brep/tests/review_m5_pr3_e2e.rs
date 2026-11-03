@@ -127,7 +127,7 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
         p0,
         p1,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )
@@ -144,7 +144,7 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
         p0,
         p1,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )
@@ -161,7 +161,7 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
         p0,
         p1,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

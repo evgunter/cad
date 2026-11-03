@@ -779,7 +779,8 @@ impl<P: Partner> Pass<'_, P> {
                 // plane across the side over the strip, levered by the
                 // extent alone, as every region decision is.
                 let sine = self.partner.sine(self.boxes, strip, inf, speed.get());
-                let margin = Margin::levered(sine, self.extent);
+                // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+                let margin = Margin::levered(sine, geom_core::Lever::unsourced(self.extent));
                 if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {
                     return Err(SsiError::BoundaryTangent { side, verdict });
                 }

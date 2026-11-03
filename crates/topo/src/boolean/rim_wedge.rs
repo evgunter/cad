@@ -183,7 +183,13 @@ fn same_circle<T: Decide>(
             ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
             (
                 "rim_circle_axis_parallel",
-                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+                // Unsourced lever: the two rims' radii summed, which no
+                // one extent's read is; their union's (the larger)
+                // would move verdicts by a shorter arm.
+                Margin::levered(
+                    ra.axis.cross(rb.axis).norm(),
+                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                ),
             ),
         ],
         band,
@@ -441,7 +447,7 @@ impl Cover {
 }
 
 /// Where one face meets a locus, in the locus's own parameter.
-struct Reach<T: Real> {
+struct FaceOnLocus<T: Real> {
     /// Each riding half-edge's span (`lo ≤ hi`; on a rim `lo` in
     /// `[0, 2π)`) and its traversal sign.
     rides: Vec<(T, T, geom_core::Sign)>,
@@ -449,7 +455,7 @@ struct Reach<T: Real> {
     cuts: Vec<T>,
 }
 
-impl<T: Decide> Reach<T> {
+impl<T: Decide> FaceOnLocus<T> {
     /// At locus parameter `s` (a piece's midpoint, never a cut): the
     /// riding edges covering it, every one of them, else whether the
     /// face contains the locus point there. Spans compare in meters
@@ -590,8 +596,8 @@ fn reach<T: Decide>(
     face: FaceKey,
     locus: Locus<T>,
     band: Band,
-) -> Result<Option<Reach<T>>, Indeterminate> {
-    let mut out = Reach {
+) -> Result<Option<FaceOnLocus<T>>, Indeterminate> {
+    let mut out = FaceOnLocus {
         rides: Vec::new(),
         cuts: Vec::new(),
     };
@@ -1045,7 +1051,7 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     s_minus: &geom::Surface<T>,
     sense_minus: bool,
     rim: Rim<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<RimRouting, Indeterminate> {
     let Rim {
@@ -1144,6 +1150,13 @@ pub(crate) fn classify_shared_rim<T: Decide>(
     }
 }
 
+/// A rim's diameter, the reach its wedge rows lever at: twice its
+/// circle's reach from its centre.
+#[cfg(test)]
+fn rim_diameter(rim: Rim<f64>) -> geom_core::Lever<f64> {
+    geom_brep::ExtentBall::of_circle(rim.center, rim.radius).twice_lever_from(rim.center)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cover_rows {
@@ -1168,7 +1181,7 @@ mod cover_rows {
             dir: Vec3::new(1.0, 0.0, 0.0),
         };
         let at = |rides: Vec<(f64, f64, geom_core::Sign)>| {
-            Reach {
+            FaceOnLocus {
                 rides,
                 cuts: Vec::new(),
             }
@@ -1224,7 +1237,13 @@ mod redfirst {
             ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
             (
                 "rim_circle_axis_parallel",
-                Margin::levered(ra.axis.cross(rb.axis).norm(), ra.radius + rb.radius),
+                // Unsourced lever: the two rims' radii summed, which no
+                // one extent's read is; their union's (the larger)
+                // would move verdicts by a shorter arm.
+                Margin::levered(
+                    ra.axis.cross(rb.axis).norm(),
+                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                ),
             ),
         ] {
             match crate::validate::decide(name, margin, band)? {
@@ -1336,10 +1355,26 @@ mod redfirst {
             radius: 1.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let same = classify_shared_rim(&sphere, true, &cylinder, true, equator, 2.0, band())
-            .expect("the equator tangency routes");
-        let opposed = classify_shared_rim(&sphere, true, &cylinder, false, equator, 2.0, band())
-            .expect("and so does its reversed reading");
+        let same = classify_shared_rim(
+            &sphere,
+            true,
+            &cylinder,
+            true,
+            equator,
+            rim_diameter(equator),
+            band(),
+        )
+        .expect("the equator tangency routes");
+        let opposed = classify_shared_rim(
+            &sphere,
+            true,
+            &cylinder,
+            false,
+            equator,
+            rim_diameter(equator),
+            band(),
+        )
+        .expect("and so does its reversed reading");
         assert_eq!(
             same,
             RimRouting::Seam,
@@ -1378,13 +1413,14 @@ mod redfirst {
             radius: 0.8,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let got = classify_shared_rim(&sphere, true, &plane, true, rim, 1.6, band());
+        let got = classify_shared_rim(&sphere, true, &plane, true, rim, rim_diameter(rim), band());
         println!("transverse rim answers {got:?}");
         assert!(
             !matches!(got, Ok(RimRouting::Seam)),
             "a definite 53-degree crossing is not a smooth seam: {got:?}"
         );
-        let flipped = classify_shared_rim(&sphere, true, &plane, false, rim, 1.6, band());
+        let flipped =
+            classify_shared_rim(&sphere, true, &plane, false, rim, rim_diameter(rim), band());
         println!("transverse rim, reversed sense, answers {flipped:?}");
         assert!(
             !matches!(flipped, Ok(RimRouting::Cusp(_))),
@@ -1456,7 +1492,7 @@ mod r2_probes {
             &cut_plane(1.0),
             true,
             cut_rim(),
-            1.6,
+            rim_diameter(cut_rim()),
             band(),
         );
         println!("[r2] transverse sphere/plane rim routes to {got:?}");
@@ -1486,7 +1522,7 @@ mod r2_probes {
             &cut_plane(1.0),
             true,
             cut_rim(),
-            1.6,
+            rim_diameter(cut_rim()),
             band(),
         );
         let down = classify_shared_rim(
@@ -1495,7 +1531,7 @@ mod r2_probes {
             &cut_plane(-1.0),
             true,
             cut_rim(),
-            1.6,
+            rim_diameter(cut_rim()),
             band(),
         );
         println!("[r2] normal up routes to {up:?}; normal down routes to {down:?}");

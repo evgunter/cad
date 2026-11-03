@@ -23,3 +23,10 @@ row is in the same position: the slow set cannot hold any of them.
 Fix: the name check enumerates each feature set the CI jobs build
 (`--features app` for the viewer), or the slow filter allows a
 per-feature section.
+
+2026-11-02, FORMS extrude/revolve lane (PR 6401): a second instance.
+`drive::driven::a_failed_revolve_does_not_hide_the_sphere_revolved_after_it`
+(`crates/viewer/tests/drive.rs`, `app`-gated) measured 0.88 s and
+1.41 s locally. Listing it in the slow filter failed the same check
+("slow-set entry matches no test"), so it runs in the app-feature job's
+fast set.
