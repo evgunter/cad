@@ -1277,6 +1277,9 @@ mod shell10_r2_dump;
 #[path = "cross_solid_apart.rs"]
 mod cross_solid_apart;
 
+#[path = "holdings_of_a_sunk_boss.rs"]
+mod holdings_of_a_sunk_boss;
+
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;
 

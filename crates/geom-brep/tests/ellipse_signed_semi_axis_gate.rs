@@ -57,7 +57,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
             |k| surfaces.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )

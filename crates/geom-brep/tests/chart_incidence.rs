@@ -802,7 +802,7 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
         circle.eval(t0),
         circle.eval(t1),
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -923,7 +923,7 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
                 carrier.eval(t0),
                 carrier.eval(t1),
                 &lookup,
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 geom_brep::NurbsLane::certified(),
             )

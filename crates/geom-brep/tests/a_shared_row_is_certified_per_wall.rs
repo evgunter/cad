@@ -151,7 +151,7 @@ impl Pair {
             carrier.eval(t0),
             carrier.eval(t1),
             |k| self.arena.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -194,7 +194,7 @@ impl Pair {
             p0,
             p1,
             |k| self.arena.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )

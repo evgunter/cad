@@ -61,7 +61,7 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -104,7 +104,7 @@ fn r2_the_same_chord_certifies_in_a_plane_that_contains_it() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -142,7 +142,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     );
@@ -215,7 +215,7 @@ fn r2_the_rest_conversion_moves_only_the_description() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -298,7 +298,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -309,7 +309,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -329,7 +329,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -341,7 +341,7 @@ fn r2_restating_a_certified_edge_preserves_is_declared() {
             q0,
             q1,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -367,7 +367,7 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -380,7 +380,7 @@ fn r2_splitting_a_declared_chart_image_keeps_both_children_declared() {
             s,
             e,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -418,7 +418,7 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
         q,
         p(1.0, 0.0, 0.0),
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -448,7 +448,7 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -503,7 +503,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
         q0,
         q1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         // The ε the PR names for the escalation.
         // Deliberately not `shared::tol::band()`: the zero threshold is
         // the fixed 1e-6 the PR names for this escalation, not the run's
