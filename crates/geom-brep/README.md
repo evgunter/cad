@@ -956,43 +956,30 @@ the ball about the overlap of the two operands' boxes, padded, which
 holds every section point the operation can use. No face's or site's
 extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
-or ends at a node (Edge descriptions). A node is a point of
-the section where one surface's residual `f`, restricted to the other
-surface `S` where `S` is smooth, has a critical point at value zero
-whose Hessian is indefinite and nondegenerate: by the Morse lemma, two
-branches crossing transversally there. The Hessian of `f|S` at such a
-point is `f`'s second-order form on `S`'s tangent plane `T`, corrected
-by `S`'s curvature in proportion to `∇f`'s component along `S`'s
-normal; it is the node's one datum. Two cases meet the condition, and
-they differ only in that correction. At a tangency of two smooth
-surfaces `∇f` is normal to `S` and nonzero, and the Hessian is their
-relative second fundamental form. At a singular point of `f`'s own
-surface lying on `S`, `∇f = 0`, the correction vanishes, and the
-Hessian is `f`'s own quadratic form on `T`, the restriction of the
-point's tangent cone. Of the analytic surfaces, a plane, a sphere, a
-cylinder and a ring torus are smooth everywhere; the singular points
-are a cone's apex, whose form's null lines on `T` are the two rulings
-in `T`, and a spindle torus's two tips on its axis, conical points
-whose quadratic form is nondegenerate and so reads as an apex does. A
-horn torus's centre has a degenerate quadratic form, so it is no
-node and refuses as contact of higher order. A spline net can be
-singular at a collapsed side (a pole,
-`chart_singularity::spline_collapsed_row`) where its tangent vectors
-span no plane, a pointed tip: the same criterion with the tip's tangent
-cone as the form, and it refuses by name until that tangent cone is
-read. Where neither surface is smooth at the point (two cones through
-one apex) the criterion does not apply: their section is the rulings
-they share. A node is decided
-on the pose (a Zero tangency whose section still has carriers, or a
-singular point's closed-form margin), placed in closed form or enclosed alone in
-a certified box, and a site at it reads as the node. The value lists
-each node with `S`'s normal, its two tangent lines (the Hessian's null
-lines) and the side of each other the surfaces lie on in the sectors
-between them, all read off that Hessian. Where it is definite the
-point is a touch, an isolated point of the section; where it is
-degenerate, the contact is of higher order and refuses (against a
-plane the cone's degenerate apex is no contact of higher order but the
-section's own line, read as such). Each arc end at a node names its line and the sense it
+or ends at a node (Edge descriptions). A node is a point where one
+surface's residual `f`, restricted to the other surface `S` where `S`
+is smooth, has a critical point at value zero whose Hessian is
+indefinite and nondegenerate (by the Morse lemma, two branches crossing
+transversally). That Hessian is the node's one datum: `f`'s
+second-order form on `S`'s tangent plane `T`, corrected by `S`'s
+curvature times `∇f`'s normal component. At a tangency of two smooth
+surfaces `∇f ≠ 0`, and it is their relative second fundamental form.
+At a singular point of `f`'s surface lying on `S`, `∇f = 0`, and it is
+`f`'s own quadratic form on `T`: a cone's apex (null lines the two
+rulings in `T`) or a spindle torus's tips. A horn torus's centre has a
+degenerate form and refuses as contact of higher order; a spline's
+singular tip (a collapsed side where its tangents span no plane,
+`chart_singularity::spline_collapsed_row`) refuses by name until its
+tangent cone is read. Where neither surface is smooth (two cones
+through one apex) the criterion does not apply: their section is their
+shared rulings. A node is decided on the pose (a Zero tangency whose
+section still has carriers, or a singular point's closed-form margin),
+placed in closed form or enclosed alone in a certified box, and a site
+at it reads as the node. The value lists each node with `S`'s normal,
+the Hessian's two null lines and the side of each other the surfaces
+lie on in the sectors between them. A definite Hessian is a touch, an
+isolated point of the section; a degenerate one refuses, except a
+plane holding a cone's ruling, whose section is that line. Each arc end at a node names its line and the sense it
 leaves along. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
