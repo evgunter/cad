@@ -159,3 +159,33 @@ fn a_canceled_caller_stops_the_run_inside_a_split() {
         refused.err()
     );
 }
+
+/// **A door that refuses as stopped states one recourse**, at either
+/// stop: the drive's and the Monte-Carlo run's refusals, held to
+/// [`test_utils::refusal::problems`]. Red if [`Stopped`]'s Display drops
+/// its recourse, or a wrapper adds a second.
+#[test]
+fn a_stopped_refusal_states_one_recourse() {
+    let stops = [
+        Stopped::Canceled,
+        Stopped::Exhausted {
+            budget: editor_core::DEFAULT_MEMBER_BUDGET,
+        },
+    ];
+    let mut problems = Vec::new();
+    for stopped in stops {
+        for (name, text) in [
+            (
+                format!("Drive/{stopped:?}"),
+                DriveRefusal::Stopped(stopped).to_string(),
+            ),
+            (
+                format!("Mc/{stopped:?}"),
+                McRefusal::Stopped(stopped).to_string(),
+            ),
+        ] {
+            problems.extend(test_utils::refusal::problems(&name, &text, &[], false));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
