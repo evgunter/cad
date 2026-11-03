@@ -119,3 +119,4 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     - `S173`'s quote of `face_normal`'s deleted placement argument is stale;
     - `boolean/boxes.rs`'s `PINNED` census and this allowlist must move together when `boxes` leaves `boolean/`.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **The gate caught its first arrival before it merged.** PR 6458's CI tests the merge with main, and main had gained two `boolean → splitting` names in `boolean/reduce.rs` from SPLICE's PR 6441. That work landed before the gate existed, so the baseline was re-taken (21 → 23) after merging main (`f39c412d`). Until the gate merges, each main merge can drift the baseline, so it merges as soon as its re-review clears. (ONEDOOR orchestrator)
