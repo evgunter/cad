@@ -260,10 +260,15 @@ fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
         };
         let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("interval props");
+        let (lo, hi) = (
+            m.enclosure.volume.lo() - m.enclosure.volume_pad,
+            m.enclosure.volume.hi() + m.enclosure.volume_pad,
+        );
         assert!(
-            m.enclosure.volume.lo() - m.enclosure.volume_pad <= want
-                && want <= m.enclosure.volume.hi() + m.enclosure.volume_pad,
-            "Interval {op}: volume {:?} ± {} brackets {want}",
+            lo <= want
+                && want <= hi
+                && m.enclosure.volume.hi() - m.enclosure.volume.lo() <= 1e-9 * want.abs().max(1.0),
+            "Interval {op}: volume {:?} ± {} brackets {want}, its enclosure (less the pad) no wider than 1e-9 of it",
             m.enclosure.volume,
             m.enclosure.volume_pad
         );

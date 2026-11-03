@@ -2695,7 +2695,7 @@ fn certifies_at_interval(cd: &crate::corpus::CorpusDoc) {
     let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
     let union = cd.result.expect("the scene's head is its union");
     match ev.nodes.get(&union) {
-        Some(editor_core::NodeResult::Ok(_)) => {}
+        Some(editor_core::NodeResult::Ok(v)) => matches_f64(cd, v),
         Some(editor_core::NodeResult::Failed(e))
             if Tol::witness().eps() != geom_core::tolerance::DEFAULT_EPS =>
         {
@@ -2708,6 +2708,55 @@ fn certifies_at_interval(cd: &crate::corpus::CorpusDoc) {
         }
         other => panic!("{}'s union certifies at Interval: {other:?}", cd.name),
     }
+}
+
+/// **`cd`'s union at `Interval` is its `f64` union**: both bodies pass
+/// the at-rest gate (`finished`), they have as many faces, edges and
+/// vertices, and the `Interval` volume enclosure, padded by the pinned
+/// resolution, brackets the `f64` body's pinned volume, the enclosure
+/// itself no wider than `1e-9` of it. A wrong body moves a count or the
+/// volume; a widened one fails the width, which the pad does not enter.
+fn matches_f64(cd: &crate::corpus::CorpusDoc, iv: &editor_core::NodeValue<geom_core::Interval>) {
+    use geom_core::Bounds;
+    let tol = Tol::witness();
+    let union = cd.result.expect("the scene's head is its union");
+    let ev = run(&cd.doc);
+    let Some(editor_core::NodeResult::Ok(fv)) = ev.nodes.get(&union) else {
+        panic!("{}: the union builds at f64", cd.name);
+    };
+    fn counts<T: geom_core::Real>(b: &topo::Body<T>) -> (usize, usize, usize) {
+        (b.faces().count(), b.edges().count(), b.vertices().count())
+    }
+    let f = topo::test_support::finished(
+        cd.name,
+        fv.payload.output_body(0).expect("one body").body().clone(),
+        tol,
+    );
+    let i = topo::test_support::finished(
+        cd.name,
+        iv.payload.output_body(0).expect("one body").body().clone(),
+        tol,
+    );
+    assert_eq!(
+        counts(&i),
+        counts(&f),
+        "{}: Interval f/e/v against f64",
+        cd.name
+    );
+    let want = topo::test_support::pinned_volume(cd.name, &f, tol).volume;
+    let m = topo::mass_properties(&i, tol, topo::test_support::pinned_resolution(tol))
+        .expect("interval props");
+    let (lo, hi) = (
+        m.enclosure.volume.lo() - m.enclosure.volume_pad,
+        m.enclosure.volume.hi() + m.enclosure.volume_pad,
+    );
+    assert!(
+        lo <= want
+            && want <= hi
+            && m.enclosure.volume.hi() - m.enclosure.volume.lo() <= 1e-9 * want.abs().max(1.0),
+        "{}: Interval volume [{lo}, {hi}] against f64 {want}, its enclosure less the pad no wider than 1e-9 of it",
+        cd.name
+    );
 }
 
 /// A row's two entity cells, as (input, name).
@@ -3187,7 +3236,7 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
         // insertion, the rounded mouth's curved pierce).
         let at_1e12 = Tol::witness().eps() == 1e-12;
         match ev.nodes.get(&union) {
-            Some(editor_core::NodeResult::Ok(_)) if !at_1e12 => {}
+            Some(editor_core::NodeResult::Ok(v)) if !at_1e12 => matches_f64(&cd, v),
             Some(editor_core::NodeResult::Failed(editor_core::NodeError {
                 kind: editor_core::NodeErrorKind::Boolean(e),
                 ..
