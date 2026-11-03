@@ -1042,10 +1042,12 @@ impl<T: Decide> ConicArc<T> {
             Ok(Reading::Carrier) => ConicHit::Carrier,
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
             Ok(Reading::End(_)) => ConicHit::End,
-            Err(geom::CarrierRefusal::Escalated(diag)) => return Err(diag.into()),
+            Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::InBand(diag))) => {
+                return Err(diag.into());
+            }
             // The ellipse's two bounds on its distance, which no margin
             // says: a straddle, typed.
-            Err(geom::CarrierRefusal::Straddle(diag)) => {
+            Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::Straddle(diag))) => {
                 return Err(ReadEscalation {
                     escalation: Escalation::Straddle,
                     diag,
@@ -1053,9 +1055,7 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-                ConicHit::Unsettled
-            }
+            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
         })
     }
 

@@ -2734,12 +2734,13 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     let interior = interior_edges(body, faces);
     let mut boundary: Vec<HeKey> = faces
         .iter()
-        .flat_map(|&f| {
-            let data = proven(&body.faces, f, EntityId::Face);
-            core::iter::once(data.outer)
-                .chain(data.rings.iter().copied())
-                .flat_map(|lk| cycle_of(body, lk))
-                .collect::<Vec<_>>()
+        .flat_map(|&f| body.proven_face_cycles(f))
+        .flat_map(|(lk, cycle)| {
+            debug_assert!(
+                !cycle.is_empty(),
+                "{lk:?} bounds a face of a finished wall, so it is a cycle"
+            );
+            cycle
         })
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
@@ -3500,7 +3501,7 @@ mod rim_seam_rows {
     /// maps to rather than a body that reaches it.
     #[test]
     fn a_mixed_rim_seam_refuses_naming_its_stations() {
-        let stations = geom_brep::MixedStations {
+        let stations = geom_brep::MixedStations::Class {
             transverse: 3,
             smooth: 4,
         };
@@ -3698,7 +3699,7 @@ fn duplicate_in_loop<T: Real>(
     skip: &[EdgeKey],
 ) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
     let data = proven(&body.faces, face, EntityId::Face);
-    for (r#loop, members) in body.face_boundary_by_loop(face, data) {
+    for (r#loop, members, _) in body.face_boundary_by_loop(face, data) {
         let mut cycle = Vec::new();
         for member in members {
             let BoundaryMember::Edge { he, ek, .. } = member else {
@@ -4478,7 +4479,7 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.face_cycles_linked(face) {
+    for he in body.proven_face_half_edges(face) {
         let h = proven(&body.half_edges, he, EntityId::HalfEdge);
         let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
         points.push((start.x, start.y));
@@ -4717,9 +4718,10 @@ fn walls_cross<T: Decide>(
     let r_b = b.normal.dot(b.origin - q);
     let det = cross.norm_squared();
     let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
-    let on_a = a.cut(p0, d, band)?;
-    let on_b = b.cut(p0, d, band)?;
-    let along = |p: geom_core::Point3<T>| (p - p0).dot(d);
+    let line = geom::Line { origin: p0, dir: d };
+    let on_a = a.cut(line, band)?;
+    let on_b = b.cut(line, band)?;
+    let along = |p: geom_core::Point3<T>| line.param(p);
     // Where the two faces are joined: every moved common edge, which
     // lies on `L`, and every shared vertex, widened to twice the
     // escalation width either side. Two joined faces come arbitrarily
@@ -4902,22 +4904,17 @@ impl<T: Decide> ArcPiece<T> {
 }
 
 impl<T: Decide> MovedWall<T> {
-    /// The intervals of `L = p0 + s·d` (`d` unit, in this face's plane)
-    /// the face covers, as `(lo, hi)` in `s` (module docs of
-    /// [`moved_walls_cross`] for the reading): the union of the two
-    /// readings that count a point on `L` with one side and with the
+    /// The intervals of the line `L` (its `dir` unit, in this face's
+    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// docs of [`moved_walls_cross`] for the reading): the union of the
+    /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
     /// lying on the other side, so the union holds them whichever side
-    /// the face lies on, and swapping the pair (which turns `d`, and so
-    /// both sides, around) reads the same.
-    fn cut(
-        &self,
-        p0: geom_core::Point3<T>,
-        d: geom_core::Vec3<T>,
-        band: Band,
-    ) -> Result<Vec<(T, T)>, Indeterminate> {
-        let mut out = self.cut_counting(p0, d, band, true)?;
-        out.extend(self.cut_counting(p0, d, band, false)?);
+    /// the face lies on, and swapping the pair (which turns `L.dir`, and
+    /// so both sides, around) reads the same.
+    fn cut(&self, line: geom::Line<T>, band: Band) -> Result<Vec<(T, T)>, Indeterminate> {
+        let mut out = self.cut_counting(line, band, true)?;
+        out.extend(self.cut_counting(line, band, false)?);
         Ok(out)
     }
 
@@ -4925,8 +4922,7 @@ impl<T: Decide> MovedWall<T> {
     /// positive side when `zero_up`, else with the negative one.
     fn cut_counting(
         &self,
-        p0: geom_core::Point3<T>,
-        d: geom_core::Vec3<T>,
+        line: geom::Line<T>,
         band: Band,
         zero_up: bool,
     ) -> Result<Vec<(T, T)>, Indeterminate> {
@@ -4935,7 +4931,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let m = self.normal.cross(d);
+        let m = self.normal.cross(line.dir);
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -4947,7 +4943,11 @@ impl<T: Decide> MovedWall<T> {
             if let Some(&(_, s)) = sides.iter().find(|(w, _)| Some(*w) == v) {
                 return Ok(s);
             }
-            let read = decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band);
+            let read = decide(
+                "shell_moved_wall_side",
+                Margin::of((p - line.origin).dot(m)),
+                band,
+            );
             let Some(v) = v else {
                 return Ok(read.map_or(zero_up, up));
             };
@@ -4975,7 +4975,7 @@ impl<T: Decide> MovedWall<T> {
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
                 let (a, b) = (ru * u.dot(m), rv * v.dot(m));
-                let sc = (center - p0).dot(m);
+                let sc = (center - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
@@ -4999,7 +4999,7 @@ impl<T: Decide> MovedWall<T> {
                         let p = at(split);
                         let s = up(decide(
                             "shell_moved_wall_side",
-                            Margin::of((p - p0).dot(m)),
+                            Margin::of((p - line.origin).dot(m)),
                             band,
                         )?);
                         ends.push((split, s));
@@ -5016,7 +5016,7 @@ impl<T: Decide> MovedWall<T> {
                     // one in the half-turn before it `φ − root`.
                     let half = ((lo + hi) * T::from_f64(0.5) - phi).reduce_periodic(T::tau());
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
-                    crossings.push((at(theta) - p0).dot(d));
+                    crossings.push(line.param(at(theta)));
                 }
                 continue;
             }
@@ -5036,11 +5036,10 @@ impl<T: Decide> MovedWall<T> {
                 let mut splits = 0;
                 while let Some((piece, a, b)) = work.pop_front() {
                     let (c, rho) = piece.ball();
-                    let w = c - p0;
-                    let along = w.dot(d);
+                    let along = line.param(c);
                     // The offset off `L` as a vector, not `|w|² − along²`,
                     // which cancels to noise when a small ball sits close.
-                    let perp = (w - d * along).norm();
+                    let perp = (c - line.foot(c)).norm();
                     // Undecided reaches: the read only grows the set.
                     if !matches!(
                         decide("shell_moved_wall_ball_reach", Margin::of(rho - perp), band),
@@ -5061,18 +5060,18 @@ impl<T: Decide> MovedWall<T> {
                         out.push((along - half, along + half));
                     }
                     if side_of(a)? != side_of(b)? {
-                        let (sp, sq) = ((a.1 - p0).dot(m), (b.1 - p0).dot(m));
+                        let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
-                        crossings.push((x - p0).dot(d));
+                        crossings.push(line.param(x));
                     }
                 }
                 continue;
             }
             let (p, q) = (edge.start.1, edge.end.1);
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
-                let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
+                let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
-                crossings.push((x - p0).dot(d));
+                crossings.push(line.param(x));
             }
         }
         // Ordered by decided comparisons, a selection rather than a
@@ -5118,7 +5117,7 @@ fn moved_walls<T: Decide>(
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
-        for (_, cycle) in crate::pcurves::face_loop_walks(cavity, face) {
+        for (_, cycle) in cavity.proven_face_cycles(face) {
             let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
                 .iter()
                 .map(|&he| {
@@ -5385,7 +5384,7 @@ fn count_components<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> usize {
 #[track_caller]
 fn face_neighbours<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let mut out = Vec::new();
-    for he in body.face_cycles_linked(face) {
+    for he in body.proven_face_half_edges(face) {
         let mate = body.proven_mate(he, crate::live::link(EntityId::Face(face), "cycle"));
         let parent = body.face_of_linked(mate.mate);
         if parent != face && !out.contains(&parent) {
@@ -5510,12 +5509,26 @@ mod tests {
             curve: conic(1.0, 1.0, (0.0, east.0), (2.0 * pi, east.0)),
         }]);
         close(
-            disc.cut(Point3::new(0.0, 0.6, 0.0), x, band).unwrap(),
+            disc.cut(
+                geom::Line {
+                    origin: Point3::new(0.0, 0.6, 0.0),
+                    dir: x,
+                },
+                band,
+            )
+            .unwrap(),
             &[(-0.8, 0.8)],
             "the disc at y = 0.6",
         );
         close(
-            disc.cut(Point3::new(0.0, 1.5, 0.0), x, band).unwrap(),
+            disc.cut(
+                geom::Line {
+                    origin: Point3::new(0.0, 1.5, 0.0),
+                    dir: x,
+                },
+                band,
+            )
+            .unwrap(),
             &[],
             "the disc at y = 1.5",
         );
@@ -5537,12 +5550,26 @@ mod tests {
         ]);
         let top = 0.91_f64.sqrt();
         close(
-            half.cut(Point3::new(0.3, 0.0, 0.0), y, band).unwrap(),
+            half.cut(
+                geom::Line {
+                    origin: Point3::new(0.3, 0.0, 0.0),
+                    dir: y,
+                },
+                band,
+            )
+            .unwrap(),
             &[(0.0, top)],
             "the half disc at x = 0.3",
         );
         close(
-            half.cut(Point3::new(0.3, 0.0, 0.0), -y, band).unwrap(),
+            half.cut(
+                geom::Line {
+                    origin: Point3::new(0.3, 0.0, 0.0),
+                    dir: -y,
+                },
+                band,
+            )
+            .unwrap(),
             &[(-top, 0.0)],
             "the half disc at x = 0.3, run down",
         );
@@ -5556,7 +5583,15 @@ mod tests {
         }]);
         let h = 0.75_f64.sqrt();
         close(
-            ellipse.cut(Point3::new(1.0, 0.0, 0.0), y, band).unwrap(),
+            ellipse
+                .cut(
+                    geom::Line {
+                        origin: Point3::new(1.0, 0.0, 0.0),
+                        dir: y,
+                    },
+                    band,
+                )
+                .unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
         );
@@ -5958,7 +5993,15 @@ mod tests {
                 plus,
             );
             for c in [0.3, 0.5, 0.8] {
-                let got = wall.cut(Point3::new(c, 0.0, 0.0), up, band).unwrap();
+                let got = wall
+                    .cut(
+                        geom::Line {
+                            origin: Point3::new(c, 0.0, 0.0),
+                            dir: up,
+                        },
+                        band,
+                    )
+                    .unwrap();
                 covers_exactly(
                     &got,
                     (0.0, 1.0 - c * c),
@@ -5966,7 +6009,15 @@ mod tests {
                     &format!("plus {plus}: the parabola at x = {c}"),
                 );
             }
-            let past = wall.cut(Point3::new(1.5, 0.0, 0.0), up, band).unwrap();
+            let past = wall
+                .cut(
+                    geom::Line {
+                        origin: Point3::new(1.5, 0.0, 0.0),
+                        dir: up,
+                    },
+                    band,
+                )
+                .unwrap();
             assert!(
                 past.is_empty(),
                 "plus {plus}: the parabola at x = 1.5 covers nothing, got {past:?}"
@@ -6073,7 +6124,13 @@ mod tests {
                 let cos_v = ((c * c + d * d).sqrt() - big) / small;
                 let top = small * (1.0 - cos_v * cos_v).sqrt();
                 let got = wall
-                    .cut(Point3::new(d, c, 0.0), Vec3::new(0.0, 0.0, 1.0), band)
+                    .cut(
+                        geom::Line {
+                            origin: Point3::new(d, c, 0.0),
+                            dir: Vec3::new(0.0, 0.0, 1.0),
+                        },
+                        band,
+                    )
                     .unwrap();
                 covers_exactly(
                     &got,

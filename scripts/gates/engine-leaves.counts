@@ -38,7 +38,7 @@ boolean-names-splitting    17  boolean/region.rs
 boolean-names-splitting     1  boolean/rim_wedge.rs
 boolean-names-splitting     3  boolean/ruled_region.rs
 boolean-names-splitting    18  boolean/sectors.rs
-boolean-names-splitting    37  boolean/solid_contain.rs
+boolean-names-splitting    36  boolean/solid_contain.rs
 boolean-names-splitting     6  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
 boolean-names-splitting    22  boolean/torus_region.rs
@@ -63,7 +63,7 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              61  boolean/region.rs
+crate-visible              60  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
@@ -95,7 +95,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             506  census.rs
+names-boolean             509  census.rs
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
@@ -104,8 +104,8 @@ names-boolean               3  census/point.rs
 names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean               3  chart_groups.rs
-names-boolean               4  chart_region.rs
-names-boolean              24  chord_join.rs
+names-boolean               5  chart_region.rs
+names-boolean              23  chord_join.rs
 names-boolean               1  chord_join/cone_ring_rows.rs
 names-boolean               1  chord_join/sibling_escalation_rows.rs
 names-boolean               3  chord_join/sphere_island_rows.rs
@@ -113,6 +113,7 @@ names-boolean              11  clearance.rs
 names-boolean              18  coincidence.rs
 names-boolean              10  construction.rs
 names-boolean               4  contact.rs
+names-boolean               2  entity.rs
 names-boolean               3  euler.rs
 names-boolean               5  euler_ring.rs
 names-boolean               7  face_boxes.rs
@@ -126,7 +127,7 @@ names-boolean              77  lib.rs
 names-boolean              99  lineage.rs
 names-boolean               3  link.rs
 names-boolean              88  link/cone_fuzz.rs
-names-boolean               4  live.rs
+names-boolean               6  live.rs
 names-boolean              43  merge_faces.rs
 names-boolean               1  merge_faces_kept_rows.rs
 names-boolean               3  offset_axial.rs
@@ -149,7 +150,7 @@ names-boolean              13  separation.rs
 names-boolean               2  seqgen.rs
 names-boolean              46  shell.rs
 names-boolean               1  shell/tests/footprint_fuzz.rs
-names-boolean              83  side_reader.rs
+names-boolean              82  side_reader.rs
 names-boolean               1  source_walk.rs
 names-boolean               1  split.rs
 names-boolean              26  stands.rs
@@ -161,7 +162,7 @@ names-boolean              31  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              48  tier3_tests.rs
 names-boolean               2  turn_rows.rs
-names-boolean              85  validate.rs
+names-boolean              84  validate.rs
 
 names-splitting            10  cell_region.rs
 names-splitting            56  census.rs

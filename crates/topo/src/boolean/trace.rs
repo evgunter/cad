@@ -294,7 +294,7 @@ pub fn circle_crossings<T: Decide>(
                 })
                 .collect()
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(TraceFault::Unsupported {
                 carrier: surface.kind(),
             });
@@ -470,7 +470,9 @@ pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
         Surface::Plane { origin, .. } => Some((origin, T::zero())),
         Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
         Surface::Cone { apex, .. } => Some((apex, T::zero())),
-        Surface::Sphere { .. } | Surface::Torus { .. } => surface.cover().ok().map(|c| c.ball()),
+        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+            surface.cover().ok().map(|c| c.ball())
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
@@ -550,6 +552,6 @@ pub fn plane_misses<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         },
         Surface::Cone { .. } => Ok(false),
-        Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(unsupported()),
     }
 }

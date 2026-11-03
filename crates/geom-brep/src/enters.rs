@@ -175,15 +175,29 @@ impl LeverEscalation {
     /// reading's rung, which no verdict is minted on.
     #[must_use]
     pub fn collapsed_arm(&self) -> Option<crate::recourse::Refused> {
-        let sign = self.refused?;
-        crate::recourse::Refused::of(
-            geom_core::Decided {
-                sign,
-                margin: self.diag.margin,
-            },
-            self.diag.band,
-        )
+        collapsed_arm(self.refused, self.diag)
     }
+
+    /// The sign the arm gate decided and refused, where it decided one.
+    pub(crate) const fn refused(self) -> Option<Sign> {
+        self.refused
+    }
+}
+
+/// The arm's verdict where its gate decided and refused `refused`,
+/// quoting `diag`'s margin: the one reading of a collapsed arm, for
+/// [`LeverEscalation`] and [`crate::WedgeEscalation`] both.
+pub(crate) fn collapsed_arm(
+    refused: Option<Sign>,
+    diag: Indeterminate,
+) -> Option<crate::recourse::Refused> {
+    crate::recourse::Refused::of(
+        geom_core::Decided {
+            sign: refused?,
+            margin: diag.margin,
+        },
+        diag.band,
+    )
 }
 
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
@@ -781,8 +795,10 @@ pub fn bends_into_material<T: Decide>(
     match surface.kind() {
         geom::SurfaceKind::Plane => return Ok(WallBend::Flat),
         geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone | geom::SurfaceKind::Sphere => {}
-        kind
-        @ (geom::SurfaceKind::Torus | geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
+        kind @ (geom::SurfaceKind::Torus
+        | geom::SurfaceKind::Spindle
+        | geom::SurfaceKind::Nurbs
+        | geom::SurfaceKind::Approx) => {
             return Err(WallBendError::Indefinite(kind));
         }
     }

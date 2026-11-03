@@ -125,8 +125,8 @@ impl OverlapRefusal {
                 BoundaryRefusal::Unread(_) => {
                     write!(f, "an edge's meeting with the boundary could not be read")
                 }
-                BoundaryRefusal::Fault(_) => {
-                    write!(f, "the meeting table misread a carrier (a kernel fault)")
+                BoundaryRefusal::Fault { what } => {
+                    write!(f, "the meeting table's kernel fault: {what}")
                 }
             },
             Self::Boundary(e) => {
@@ -303,7 +303,7 @@ fn loops<T: Decide>(
         .get_face(face)
         .ok_or(OverlapRefusal::StaleFace { face })?;
     let mut out = Vec::new();
-    for (_, members) in body.face_boundary_by_loop(face, f) {
+    for (_, members, _) in body.face_boundary_by_loop(face, f) {
         let mut cycle = Vec::with_capacity(members.len());
         for member in members {
             match member {

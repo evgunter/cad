@@ -50,6 +50,8 @@ pub enum Door {
     /// A spiric span against an analytic face: no producer reaches a
     /// boolean with one.
     Spiric,
+    /// Any span against a spindle sheet's face: no lane yet.
+    Sheet,
 }
 
 /// How [`route`] reads a pair of kinds.
@@ -69,7 +71,7 @@ pub struct Route {
 #[must_use]
 pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
     use CurveKind::{Circle, Ellipse, Line, Nurbs, Spiric};
-    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Plane, Sphere, Spindle, Torus};
     let built = |door, note| Route {
         door,
         implemented: true,
@@ -117,6 +119,10 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             "a spiric operand edge, deferred until its first producer \
              (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
         ),
+        (Line | Circle | Ellipse | Spiric | Nurbs, Spindle) => unbuilt(
+            Door::Sheet,
+            "a span against a spindle sheet's face, which has no lane yet",
+        ),
     }
 }
 
@@ -125,20 +131,15 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
 pub enum Boundary<T: geom_core::Real> {
     /// The span meets the boundary strictly inside itself, at `t` and
     /// `point`: a meeting on the face's boundary, where both edges are
-    /// split. Of several, the one the walk reaches first, which need not
-    /// be the least `t`. `edge` is the boundary edge's index in the walk.
+    /// split. Of several, a lone vertex's first, else the one the walk
+    /// reaches first, which need not be the least `t`.
     Meets {
         /// The parameter on the span.
         t: T,
         /// The point.
         point: Point3<T>,
-        /// The boundary edge, by its index in the walk.
-        edge: usize,
-        /// The parameter on the boundary edge's span where the meeting
-        /// reading placed the point strictly inside it; `None` where the
-        /// meeting is the edge's start vertex or within the band of one
-        /// of its ends, which split no boundary edge.
-        on_edge: Option<T>,
+        /// Where it sits on the boundary.
+        at: OnBoundary<T>,
     },
     /// The span lies along the boundary: a boundary edge shares a run of
     /// positive length with it, and no boundary edge or vertex meets the
@@ -167,7 +168,10 @@ pub enum BoundaryRefusal {
     Unread(MeetFault),
     /// The meeting table misread a carrier, or two of its readings
     /// contradict: a kernel fault, never a pose.
-    Fault(MeetFault),
+    Fault {
+        /// The carrier misread, or the readings that contradict.
+        what: &'static str,
+    },
 }
 
 /// Where a meeting of the span sits on the face's boundary
@@ -272,9 +276,10 @@ pub fn read<T: Decide>(
     Ok(reading)
 }
 
-/// **The boundary pass's answer for a span's interior** ([`read`] over the
-/// edges alone): the first meeting strictly inside the span, in walk
-/// order, else a run shared with a boundary edge, else clear.
+/// **The boundary pass's answer for a span's interior** ([`read`]): the
+/// first meeting strictly inside the span, a lone vertex's before the
+/// walk's and the walk's in its order, else a run shared with a boundary
+/// edge, else clear.
 ///
 /// # Errors
 ///
@@ -282,34 +287,32 @@ pub fn read<T: Decide>(
 pub fn boundary<T: Decide>(
     span: &Span<'_, T>,
     edges: &[(Point3<T>, Span<'_, T>)],
+    lone: &[Point3<T>],
     band: Band,
 ) -> Result<Boundary<T>, BoundaryRefusal> {
-    let reading = read(span, edges, &[], band)?;
+    let reading = read(span, edges, lone, band)?;
     // Walk order: an edge's start vertex, then the edge's meetings, and
-    // `meetings` holds every vertex before any edge's.
+    // `meetings` holds every vertex before any edge's, the lone first.
     let first = reading
         .meetings
         .iter()
-        .filter_map(|m| match (m.on_span, m.on_boundary) {
-            (Hit::On { t, .. }, OnBoundary::Vertex(edge)) => Some(Boundary::Meets {
+        .filter_map(|m| match m.on_span {
+            Hit::On { t, .. } => Some(Boundary::Meets {
                 t,
                 point: m.point,
-                edge,
-                on_edge: None,
+                at: m.on_boundary,
             }),
-            (Hit::On { t, .. }, OnBoundary::Edge(edge, on_edge)) => Some(Boundary::Meets {
-                t,
-                point: m.point,
-                edge,
-                on_edge: match on_edge {
-                    Hit::On { t: s, .. } => Some(s),
-                    Hit::End(_) => None,
-                },
-            }),
-            _ => None,
+            Hit::End(_) => None,
         })
         .min_by_key(|b| match *b {
-            Boundary::Meets { edge, .. } => edge,
+            Boundary::Meets {
+                at: OnBoundary::Lone(_),
+                ..
+            } => 0,
+            Boundary::Meets {
+                at: OnBoundary::Vertex(edge) | OnBoundary::Edge(edge, _),
+                ..
+            } => edge + 1,
             Boundary::Along { .. } | Boundary::Clear => usize::MAX,
         });
     let along = reading.shared.iter().find(|(_, run)| *run).map(|&(i, _)| i);
@@ -324,7 +327,10 @@ impl BoundaryRefusal {
             MeetFault::Escalated(diag) => Self::Meeting(diag),
             MeetFault::Touch(diag) => Self::Touch(diag),
             MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Self::Unread(fault),
-            MeetFault::Desync | MeetFault::Contradiction { .. } => Self::Fault(fault),
+            MeetFault::Desync => Self::Fault {
+                what: "a carrier the meeting table misread",
+            },
+            MeetFault::Contradiction { readings } => Self::Fault { what: readings },
         }
     }
 }
@@ -340,10 +346,10 @@ pub fn shares_a_run<T: geom_core::Real>(met: &Meetings<T>) -> bool {
 
 /// A point-on-span refusal of a vertex reading.
 fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
-    match crate::curve_pair::carrier_fault(refusal) {
-        MeetFault::Escalated(diag) => BoundaryRefusal::Escalated(diag),
-        fault => BoundaryRefusal::Unread(fault),
-    }
+    refusal.escalation().map_or_else(
+        |why| BoundaryRefusal::Unread(why.into()),
+        BoundaryRefusal::Escalated,
+    )
 }
 
 pub mod circle_roots;
