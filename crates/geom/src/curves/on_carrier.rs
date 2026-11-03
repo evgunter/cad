@@ -601,14 +601,13 @@ fn height_and_radius<T: Decide>(w: Vec3<T>, axis: Vec3<T>) -> (T, T) {
     (h, (w - axis * h).norm())
 }
 
-/// Whether `a` is decided smaller than `b`: a heuristic's choice, read
-/// on the least band so it takes the sign alone, and no verdict. It is
-/// decided outside the log (ledger row F32): an undecided pick keeps
-/// the candidate already held, whose gap is still an upper bound on the
-/// point's distance, and every verdict a foot gives is read and logged
-/// on that gap or on a bound of its own ([`Foot::on_carrier`]).
+/// Whether `a` is decided smaller than `b`, read on the least band so it
+/// takes the sign alone. Logged: an undecided pick keeps the candidate
+/// already held, and two tied candidates can lie on different branches
+/// of a spline, so the foot's parameter rests on it and a narrower box
+/// answers it.
 fn smaller<T: Decide>(a: T, b: T) -> bool {
-    check_unlogged("curve_foot_polish", b - a, Band::least(), "F32") == Ok(Sign::Positive)
+    decide("curve_foot_polish", Margin::of(b - a), Band::least()) == Ok(Sign::Positive)
 }
 
 #[cfg(test)]
