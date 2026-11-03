@@ -139,12 +139,14 @@ pub(super) fn boundary_crossing<T: Decide>(
 }
 
 /// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
-/// read against `swept`: its answer or refusal, or `None` where it is a
-/// meeting on a face holding a lone vertex (a pierce ring), which the
-/// pre-pass that places a meeting cannot read
-/// ([`super::contain::curved_boundary_containment`]), or where an edge
-/// has no certified curve, which the pass cannot; that face answers
-/// `None` before any decision of the pass is made, so it never escalates.
+/// read against `swept`: its answer or refusal, or `None` in two cases.
+/// A face with an edge that holds no certified curve, which the pass
+/// cannot read, answers `None` before any of the pass's decisions, so it
+/// never escalates. A meeting on a face holding a lone vertex (a pierce
+/// ring) answers `None` as well: the pre-pass that places a meeting
+/// cannot read such a face
+/// ([`super::contain::curved_boundary_containment`]). Its clear, its
+/// run along an edge and its refusals stand as they are.
 ///
 /// # Errors
 ///
@@ -161,8 +163,10 @@ pub(super) fn read_boundary<T: Decide>(
     band: Band,
 ) -> Result<Option<Result<Boundary<T>, BoundaryRefusal>>, BooleanError> {
     Ok(face_boundary(y, face)?.and_then(|b| {
-        let answer = curve_face::boundary(swept, &b.spans(), &b.lone_points(), band);
-        (b.lone.is_empty() || !matches!(answer, Ok(Boundary::Meets { .. }))).then_some(answer)
+        match curve_face::boundary(swept, &b.spans(), &b.lone_points(), band) {
+            Ok(Boundary::Meets { .. }) if !b.lone.is_empty() => None,
+            answer => Some(answer),
+        }
     }))
 }
 
@@ -315,6 +319,63 @@ mod crossing_rows {
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
     use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **A pierce ring answers what needs no placing.** The wall sheet
+    /// with a lone vertex at azimuth 0.8, height 0.5 (a strut killed by
+    /// `kemr`): a ruling past it, inside the sheet, is clear, and the
+    /// ruling through it meets the boundary at the lone vertex, which the
+    /// boundary pre-pass cannot place, so it is unread. Red when a lone
+    /// vertex is left out of the pass (the ruling through it clear) or
+    /// a face holding one answers nothing.
+    #[test]
+    fn a_pierce_ring_answers_a_clear_span_and_leaves_a_meeting_at_it_unread() {
+        use crate::construction::Construct;
+        use crate::euler::MevSite;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = crate::body::Body::<f64>::new();
+        let frame = CylFrame::canonical(1.0);
+        let face = cyl_wall_sheet(&mut body, frame, (0.2, 1.4), (0.0, 1.0), tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
+            panic!("the sheet's outer loop is a cycle");
+        };
+        let at = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                at(0.8, 0.5),
+                tol,
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let ruling = |u: f64| Curve3::line(at(u, 0.0), Vec3::unit_z());
+        let read = |u: f64| {
+            boundary_crossing(
+                &body,
+                (Operand::B, EdgeKey::default(), true),
+                face,
+                &ruling(u),
+                (0.2, 0.8),
+                band,
+            )
+            .unwrap()
+        };
+        let past = read(0.5);
+        assert!(
+            matches!(past, BoundaryCrossing::Clear),
+            "past the ring: {past:?}"
+        );
+        let through = read(0.8);
+        assert!(
+            matches!(through, BoundaryCrossing::Unread),
+            "through it: {through:?}"
+        );
+    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {
