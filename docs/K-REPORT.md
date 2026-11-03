@@ -3530,7 +3530,12 @@ the Body-free curve × face doors out of `topo` and beside
 decides the margin. Each name below is one site and one population, so
 each is renamed and nothing pools: margins, bands, outcomes and order
 are untouched, only the `predicate` column moves, and the census count
-is the same on both sides.
+is the same on both sides: the tables below map 33 names one to one,
+and none of the 33 new spellings was decided anywhere at the merge base.
+Re-measure the second half with `git grep -ohE
+'"(plane_crossing|circle_torus|ellipse_torus)_[a-z0-9_]+"' <base> --
+crates`, which at the base finds only `circle_torus_shallow_sweep`, a
+fuzz seed and not a K name.
 
 The plane-crossing door (`geom_brep::curve_face::plane_crossing`, until
 now `topo::splitting::classify::plane_crossing_lane`, decided for the
@@ -3542,7 +3547,7 @@ split and the Boolean alike under a split prefix):
 | `split_conic_belly_graze` | `plane_crossing_belly_graze` |
 | `split_conic_phase_frame` | `plane_crossing_phase_frame` |
 | `split_conic_graze_side` | `plane_crossing_graze_side` |
-| `split_conic_crossing_root` | `plane_crossing_crossing_root` |
+| `split_conic_crossing_root` | `plane_crossing_root_in_span` |
 | `split_conic_root_order` | `plane_crossing_root_order` |
 
 The circle × torus door (`geom_brep::curve_face::circle_torus`, until

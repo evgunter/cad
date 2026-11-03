@@ -795,7 +795,7 @@ fn even_crossing_belly_cut_at_interval() {
 // M3 fix rows: end-to-end trilean arms of the conic crossing lane
 // ---------------------------------------------------------------------
 
-/// `plane_crossing_crossing_root` Zero arm, end to end: the y = 0 plane's
+/// `plane_crossing_root_in_span` Zero arm, end to end: the y = 0 plane's
 /// rim roots land EXACTLY on the profile corners — nothing is
 /// inserted (the vertex sweep owns them), and the ON set is exactly
 /// the four original corners.

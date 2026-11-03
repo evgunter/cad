@@ -22,8 +22,9 @@ pub enum PlaneCrossingLane<T> {
     /// endpoints' sides say nothing about its interior, which can cross
     /// the plane and come back between same-side ends, and a parameter
     /// interpolated between them is not a point on the plane. A spline's
-    /// crossings are the curve × face table's ring-composite arm's, which
-    /// the boolean's planar lane reads; every other caller refuses it, or
+    /// crossings are the curve × face table's [`super::Door::SplineComposite`]
+    /// door's. A caller may not read an `Unlaned` span's crossings from
+    /// its endpoints: it refuses it, reads it through another door, or
     /// passes it only behind a certificate that its whole locus clears
     /// the plane.
     Unlaned,
@@ -103,8 +104,7 @@ impl ConicRootFault {
 }
 
 /// The lane that finds where a carrier's span crosses a plane
-/// ([`PlaneCrossingLane`]), the split lane's and the boolean sweep's
-/// alike. On a **conic** it finds the crossing roots over the span: the
+/// ([`PlaneCrossingLane`]). On a **conic** it finds the crossing roots over the span: the
 /// signed distance along the carrier is
 /// the sinusoid `d(θ) = D + R·cos(θ − φ)` with `D = (center − q)·n̂`,
 /// `R·cos φ = s_u·(û·n̂)`, `R·sin φ = s_v·(v̂·n̂)` (`s_u/s_v` the
@@ -114,7 +114,7 @@ impl ConicRootFault {
 /// crossing detection is **root-based, endpoint-verdict-free**:
 ///
 /// 1. `plane_crossing_belly_graze` — margin `R − |D|` (meters): Negative
-///    ⇒ the carrier never meets the split plane — no crossing;
+///    ⇒ the carrier never meets the plane — no crossing;
 ///    Positive ⇒ two distinct roots `φ ± acos(−D/R)`; Zero ⇒ the
 ///    plane grazes the carrier's extremum — ONE (double) root, `φ` or
 ///    `φ + π` as `plane_crossing_graze_side` decides D's sign, whose
@@ -123,7 +123,7 @@ impl ConicRootFault {
 ///    typed escalation (F6).
 /// 2. Each root, re-centred on the span's midpoint (retried on `t₀`
 ///    where that reading is indeterminate), is classified
-///    against the span by `plane_crossing_crossing_root` — the two
+///    against the span by `plane_crossing_root_in_span` — the two
 ///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
 ///    conservative minor-semi-axis meter): both Positive ⇒ a genuine
 ///    interior crossing (returned for insertion); any Zero ⇒ the root
@@ -136,9 +136,13 @@ impl ConicRootFault {
 ///    `plane_crossing_root_order` (never a raw comparison); ε-close
 ///    roots collapse to one insertion (Zero) or escalate (in-band).
 ///
-/// Downstream, `split_edge`'s own interiority trilean and child
-/// certification re-verify every insertion — this lane proposes,
-/// never silently commits.
+/// **What a caller may assume of a root**: it is the closed form's root
+/// at the scalar's rounding, decided strictly inside `[t0, t1]` (its
+/// distance from each end, metered at the smaller semi-axis, decided
+/// positive), and the roots are ascending and decided apart. It is not a point certified on the
+/// plane, and the door certifies nothing about the edge it lies on: a
+/// caller that splits an edge at one decides that split's own
+/// interiority and certifies the pieces itself.
 pub fn plane_crossing_lane<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -201,12 +205,7 @@ fn conic_plane_candidates<T: Decide>(
     // powi, NEVER a*a: both amplitudes straddle zero on near-parallel
     // frames (a rim circle against a perpendicular side plane), and a
     // plain interval product's spurious negative low end makes the
-    // sqrt refuse — the M2 interval-square bug class, found live here when
-    // the boolean's IDEALIZED sweep (M5 PR 9) first drove this lane
-    // over distant conic×plane pairs under the Interval scalar (the
-    // realized lane's boxes never examine them, so only the brute
-    // path escalated: a strategy divergence, the exact thing the
-    // differential suite exists to catch).
+    // sqrt refuse (the interval-square class).
     let r = (a.powi(2) + b.powi(2)).sqrt();
     // 0. The PARALLEL-frame gate: a conic whose plane is parallel to
     // the query plane (both amplitudes zero) either never meets it or
@@ -304,11 +303,8 @@ fn span_roots<T: Decide>(
     // every sub-period span, which is what makes the retry a different
     // representation rather than a second try at the same one — they
     // sit **(τ − span)/2 apart** on the circle, half the span's
-    // COMPLEMENT. Not half a period: that is the span → 0
-    // limit, and the separation SHRINKS as the span grows, reaching
-    // zero only at a full period. So the retry has room exactly when
-    // the span is well under τ, and is degenerate exactly where the
-    // sentence below says it is.
+    // complement: half a period only in the span → 0 limit, shrinking as
+    // the span grows to zero at a full period.
     // Anchored at the span MIDPOINT the bad point is the
     // midpoint's antipode (a definitely-EXTERIOR root — the re-run of a
     // split fragment meets the full circle's opposite intersection
@@ -324,7 +320,7 @@ fn span_roots<T: Decide>(
             Margin::metered(t - t0, meter),
             Margin::metered(t1 - t, meter),
         ] {
-            match decide("plane_crossing_crossing_root", margin, band) {
+            match decide("plane_crossing_root_in_span", margin, band) {
                 Ok(Sign::Positive) => {}
                 // At an endpoint vertex (already swept) or outside
                 // the span: nothing to insert for this root.
@@ -383,7 +379,7 @@ fn span_roots<T: Decide>(
 mod tests {
     //! DIRECT trilean rows for the conic crossing lane (M5 PR 5 fix
     //! pass, review M3): `plane_crossing_belly_graze` and
-    //! `plane_crossing_crossing_root` each get their definite /
+    //! `plane_crossing_root_in_span` each get their definite /
     //! exactly-degenerate / in-band arms against a pure band (the
     //! geom-core test discipline: never `Band::linear` in a lib test).
 
@@ -530,7 +526,7 @@ mod tests {
         }
     }
 
-    /// `plane_crossing_crossing_root`, all three arms: definitely
+    /// `plane_crossing_root_in_span`, all three arms: definitely
     /// interior (returned), exactly at an endpoint (skipped — the
     /// vertex sweep owns it), and in-band of an endpoint (typed
     /// escalation).
@@ -550,7 +546,7 @@ mod tests {
         // In-band: a root 5e-9 (meters, meter = r = 1) inside the
         // span end — typed escalation, named.
         let diag = roots_of(on_plane(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
-        assert_eq!(diag.predicate, Some("plane_crossing_crossing_root"));
+        assert_eq!(diag.predicate, Some("plane_crossing_root_in_span"));
     }
 
     /// `plane_crossing_plane_parallel`'s `Zero` arm hands back the conic's
@@ -631,12 +627,13 @@ mod tests {
     /// A candidate root sitting ON the span's start is the ordinary
     /// case — a re-run split fragment meets the full circle at its own
     /// start vertex — and at `Interval` its enclosure straddles `t₀`.
-    /// The MIDPOINT anchor's jump is half a period away from there, so
+    /// The MIDPOINT anchor's jump is `(τ − span)/2` away from there (a
+    /// quarter period on this semicircle; `span_roots`), so
     /// the recentred parameter comes back at the width of its input and
     /// the interiority verdict is reached; the `t₀` anchor's jump is
     /// exactly on it, which is why it is the FALLBACK and not the first
     /// try. The row measures both reductions on the same box so the
-    /// design's premise — two jumps, half a period apart — is pinned
+    /// design's premise — two jumps, `(τ − span)/2` apart — is pinned
     /// rather than described.
     ///
     /// Consults no tolerance: the two widths are widths, and the band
