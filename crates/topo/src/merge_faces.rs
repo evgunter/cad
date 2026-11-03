@@ -1857,6 +1857,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 crate::policy_lane::KernelSite::OneRecord,
                 (kept, other),
                 agree,
+                None,
                 tol,
             )
             .map_err(|error| MergeCoplanarError::Op { error })?;

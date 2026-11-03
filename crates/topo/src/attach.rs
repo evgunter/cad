@@ -149,7 +149,10 @@ impl<T: Decide> Body<T> {
     /// chart image re-derived where the two charts differ
     /// ([`Body::carried_redescriptions`]), and one naming the pair
     /// `{kept, other}` lies between two faces of one record now and
-    /// rests in its chart. Every listed edge is certified on `kept` as
+    /// rests in its chart. An image stated in `other`'s chart is carried
+    /// through `chart`, the chart change the caller's verdict holds
+    /// as its evidence, where it has one, and derived again on `kept`'s
+    /// chart otherwise. Every listed edge is certified on `kept` as
     /// `site`'s; no other boundary is asked to lie on `kept`, since it
     /// lay on `other`, decided the same carrier. The caller decided the
     /// coincidence and records its row; this reads no value.
@@ -162,6 +165,7 @@ impl<T: Decide> Body<T> {
         site: crate::policy_lane::KernelSite,
         (kept, other): (SurfaceKey, SurfaceKey),
         charts_agree: bool,
+        chart: Option<geom_brep::ChartMap<T>>,
         tol: Tol,
     ) -> Result<(), EulerOpError>
     where
@@ -177,11 +181,16 @@ impl<T: Decide> Body<T> {
         let Some((first, sense)) = wearers.next() else {
             return Ok(());
         };
-        let chart = wearers.fold(Rechart::shared(kept, first, sense), |chart, (f, s)| {
-            chart.with(f, s)
+        let onto = wearers.fold(Rechart::shared(kept, first, sense), |onto, (f, s)| {
+            onto.with(f, s)
         });
-        let charts = vec![chart];
+        let charts = vec![onto];
         let mut specs = self.carried_redescriptions(&charts)?;
+        if let Some(map) = chart {
+            for (edge, spec) in &mut specs {
+                self.carry_image(*edge, other, map, spec);
+            }
+        }
         let one = geom_brep::SurfacePair::new(kept, other);
         for edge in self.stranded_by(&charts)? {
             if specs.iter().any(|(e, _)| *e == edge) {
@@ -203,6 +212,37 @@ impl<T: Decide> Body<T> {
             tol,
         )
         .map(drop)
+    }
+
+    /// `spec`, `edge`'s description carried onto the kept record of a
+    /// one-carrier pair, given the image `edge` stores in `other`'s chart
+    /// restated through `map`, the chart change between the two
+    /// ([`geom_brep::Pcurve::map_affine`]), where the carry left it to be
+    /// derived again. An image the map refuses is left to that
+    /// derivation.
+    fn carry_image(
+        &self,
+        edge: EdgeKey,
+        other: SurfaceKey,
+        map: geom_brep::ChartMap<T>,
+        spec: &mut EdgeCurveSpec<T>,
+    ) {
+        let geom_brep::EdgeDescriptionSpec::Chart { image, .. } = &mut spec.description else {
+            return;
+        };
+        if image.is_some() {
+            return;
+        }
+        let data = proven(&self.edges, edge, EntityId::Edge);
+        let Some(curve) = self.edge_curve_linked(edge, data).certified() else {
+            return;
+        };
+        if let geom_brep::EdgeDescription::Chart(stored) = curve.description()
+            && stored.surface == other
+            && let Ok(mapped) = stored.pcurve.map_affine(map)
+        {
+            *image = Some(mapped);
+        }
     }
 
     /// The door [`Construct::set_face_surface_unvouched_for_tests`](crate::construction::Construct::set_face_surface_unvouched_for_tests) forwards to;

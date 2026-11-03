@@ -900,10 +900,15 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
             unreachable!("{edge:?}: the ladder decided its records one carrier and read no margin")
         };
         let [kept, other] = geom_brep::SurfacePair::new(ka, kb).keys();
+        let chart = match (self.get_surface(kept), self.get_surface(other)) {
+            (Some(k), Some(o)) => super::carrier_eq::chart_change(k, o, band),
+            _ => None,
+        };
         self.unify_surfaces(
             crate::policy_lane::KernelSite::OneRecord,
             (kept, other),
             charts_agree,
+            chart,
             tol,
         )?;
         Ok(Some(crate::Coincidence {

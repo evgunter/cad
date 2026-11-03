@@ -5617,10 +5617,16 @@ impl OneCarrierPairs {
                 );
                 continue;
             }
+            let band = Band::linear(tol)?;
+            let chart = match (body.get_surface(kept), body.get_surface(other)) {
+                (Some(k), Some(o)) => super::carrier_eq::chart_change(k, o, band),
+                _ => None,
+            };
             body.unify_surfaces(
                 crate::policy_lane::KernelSite::OneRecord,
                 (kept, other),
                 agree,
+                chart,
                 tol,
             )?;
             moved.insert(other, (kept, agree));

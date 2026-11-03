@@ -1541,3 +1541,62 @@ mod tests {
         }
     }
 }
+
+/// **The chart change between two surface records decided one carrier**,
+/// the evidence beside the verdict: the map taking `other`'s chart
+/// coordinates to `kept`'s, axis by axis
+/// ([`geom_brep::ChartMap`]), where it has a closed form. Two coaxial
+/// cylinders of one radius differ by where their seams sit and which
+/// way their axes run: `u` shifts by the angle of `other`'s seam in
+/// `kept`'s frame, reflected where the axes oppose, and `v` shifts by
+/// the axial offset of their origins, reflected likewise. `None` for
+/// any other pair of kinds, and where the axes' sense does not decide
+/// under `band`: the moved images are then derived again on `kept`'s
+/// chart.
+pub(in crate::boolean) fn chart_change<T: Decide>(
+    kept: &geom::Surface<T>,
+    other: &geom::Surface<T>,
+    band: Band,
+) -> Option<geom_brep::ChartMap<T>> {
+    use geom_brep::{AxisMap, ChartMap};
+    let (
+        &geom::Surface::Cylinder {
+            origin: o,
+            axis: a,
+            u_ref: r,
+            ..
+        },
+        &geom::Surface::Cylinder {
+            origin: o2,
+            axis: a2,
+            u_ref: r2,
+            ..
+        },
+    ) = (kept, other)
+    else {
+        return None;
+    };
+    let along = match geom_core::k_stats::decide(
+        "one_record_axis_sense",
+        geom_core::Margin::of(a.dot(a2)),
+        band,
+    ) {
+        Ok(geom_core::Sign::Positive) => true,
+        Ok(geom_core::Sign::Negative) => false,
+        Ok(geom_core::Sign::Zero) | Err(_) => return None,
+    };
+    let w = a.cross(r);
+    let seam = r2.dot(w).atan2(r2.dot(r));
+    let offset = (o2 - o).dot(a);
+    Some(if along {
+        ChartMap {
+            u: AxisMap::shift(seam),
+            v: AxisMap::shift(offset),
+        }
+    } else {
+        ChartMap {
+            u: AxisMap::reflect_about(seam),
+            v: AxisMap::reflect_about(offset),
+        }
+    })
+}
