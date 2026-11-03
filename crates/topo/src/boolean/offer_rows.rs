@@ -1617,7 +1617,7 @@ fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
         body.faces()
             .map(|(k, _)| k)
             .find(|&f| {
-                let (o, n) = super::super::solid_contain::face_plane(&body, f).unwrap();
+                let (o, n) = crate::face_normal::face_plane(&body, f).unwrap();
                 n.z.abs() > 0.99 && (o.z - z).abs() < 1e-12
             })
             .unwrap()
@@ -2987,7 +2987,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "Coincide::EdgeOnCurvedFace",
         2,
     ),
-    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 3),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",

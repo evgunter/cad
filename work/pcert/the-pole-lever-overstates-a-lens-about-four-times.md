@@ -57,3 +57,5 @@ Which lever reads a lens honestly? Candidates:
 - a factor folded into the cap.
 
 The answer goes to designers before any code.
+
+**Re-cited (onedoor/carrier-and-window, 2026-11-03).** `pole_branch`, `pole_lever`, `run_azimuth_images` and `chart_azimuth_range` are now in `topo::chart_window`; `pole_branch` decides as `chart_window_pole_branch`.

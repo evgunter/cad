@@ -3758,7 +3758,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         // it that does not resolve had to panic.
         judge_read(capture, &mut census, "face_azimuth_window_traces", || {
             use crate::chord_join::SplitJoinError;
-            match crate::chord_join::face_azimuth_window_traces(body, face, band) {
+            match crate::chart_window::face_azimuth_window_traces(body, face, band) {
                 Err(e @ SplitJoinError::Corrupt { .. }) => Err(e.to_string()),
                 answer => Ok(answer.is_ok()),
             }

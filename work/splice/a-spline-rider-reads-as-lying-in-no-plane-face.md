@@ -2,12 +2,14 @@
 id: a-spline-rider-reads-as-lying-in-no-plane-face
 kind: issue
 title: the slit pass's carrier_on_surface reads a spline or spiric edge as lying in no plane face, so a rider skips its EdgeInFaceGap refusal
-status: dispatched
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: E
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite]
 branch: splice/kind-reads
+closed: 2026-11-03
+pr: 6437
 ---
 
 
@@ -52,3 +54,7 @@ pair, a spline or spiric carrier among them, `Ok(false)` by its last
 arm. The finding stands as written against that arm.
 
 Moved from SPLICESEAM to SPLICE on 2026-11-02, by `git mv`, when SPLICESEAM merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Closed (SPLICE, PR 6437, 2026-11-03)
+
+`slit::holding` reads where a carrier lies on a face as `Placed::{On, Off, Unread}`. A spline carrier reads `Off` only when its whole control net clears the plane by more than the band (the hull, certified), and is never read `On`. A spiric carrier on a plane reads as a conic does, and a line on a sphere or ring torus reads `Off`. An unread carrier refuses `EdgeInFaceGap::CarrierUnread` wherever any record relates it to the face (an end on it, a crossing of its loops, or an edge-on-face record), never on a sampled point; `sectors::closed_reach` refuses on unread. The review's notch and keel cases are rows. Four builds now refuse rather than ship on a sampled read (the lofted cylinder's far `O ∪ B` and `B ∪ O`, around `B ∖ O`, and the tilted rod's β 0.7 union). Their way back is `an-unread-rider-related-only-by-its-own-vertices-refuses` (P0).
