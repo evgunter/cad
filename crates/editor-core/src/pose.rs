@@ -74,14 +74,26 @@ pub struct AxisLine<T: Real> {
 }
 
 impl<T: Real> AxisLine<T> {
-    /// **The line through `point` along `dir`**: its foot is `point`
-    /// with its component along `dir` taken off.
+    /// **The line through `point` along `dir`**: its foot is the
+    /// origin's foot on that line ([`geom::Line::foot`]).
     #[must_use]
     pub fn through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
-        let d = dir.get();
+        let line = geom::Line {
+            origin: point,
+            dir: dir.get(),
+        };
         Self {
-            foot: point - d * (point - Point3::origin()).dot(d),
+            foot: line.foot(Point3::origin()),
             dir,
+        }
+    }
+
+    /// The line itself, from its foot along its direction.
+    #[must_use]
+    pub fn line(&self) -> geom::Line<T> {
+        geom::Line {
+            origin: self.foot,
+            dir: self.dir.get(),
         }
     }
 
@@ -94,11 +106,7 @@ impl<T: Real> AxisLine<T> {
     /// The line's point nearest `p` ([`geom::Line::foot`]).
     #[must_use]
     pub fn foot_of(&self, p: Point3<T>) -> Point3<T> {
-        geom::Line {
-            origin: self.foot,
-            dir: self.dir.get(),
-        }
-        .foot(p)
+        self.line().foot(p)
     }
 
     /// The line's direction.
