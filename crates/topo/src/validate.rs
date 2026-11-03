@@ -3136,10 +3136,6 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// ([`geom_brep::recourse::BAND_TOLERANCE_RECOURSE`]).
 pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
-/// The recourse for a curve whose parameter range its image on a
-/// spline face cannot be expressed on — the lane's own.
-const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
-
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
 /// ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -3463,6 +3459,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
+        CertifyError::PlaneNurbs(P::PlaceholderWall) => {
+            "its face has no real surface yet, only the placeholder a construction starts from"
+        }
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
@@ -3473,6 +3472,18 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
         | CertifyError::AnalyticRung3(A::Unsupported { .. }) => KIND,
+        // A stored edge reaches no lane by a caller's dispatch, so a
+        // wrong-lane refusal at rest is the kernel's own routing.
+        CertifyError::PlaneNurbs(P::WrongLane { .. }) => {
+            "the check reached a lane that does not take its faces"
+        }
+        CertifyError::PlaneNurbs(P::Tube(_)) | CertifyError::AnalyticRung3(A::Tube(_)) => {
+            "the check's uniqueness tube could not be built around it"
+        }
+        CertifyError::PlaneNurbs(P::OutsideVocabulary)
+        | CertifyError::AnalyticRung3(A::OutsideVocabulary) => {
+            "the check refused for a reason its lane does not name"
+        }
         CertifyError::PlaneNurbs(P::TubeStraddles { .. })
         | CertifyError::AnalyticRung3(A::TubeStraddles { .. }) => STRADDLES,
         CertifyError::PlaneNurbs(P::TubeNotOneArc { .. })
@@ -3509,22 +3520,12 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::WrapOnNonPeriodic => DEFECT,
-            CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::Row {
                 refusal: geom_brep::RowRefusal::OffSide,
                 ..
             }
-            | CertifyError::TangentCertificateUnsupported
-            | CertifyError::PlaneNurbs(
-                P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
-            )
-            | CertifyError::AnalyticRung3(
-                A::NoOffsetBound { .. }
-                | A::NoTubeEnclosure { .. }
-                | A::Unsupported { .. }
-                | A::CarrierEnclosure(_),
-            ) => NOT_YET_ENDING,
+            | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::NoGeneralLane { .. }
@@ -3546,26 +3547,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                     | geom_brep::RowRefusal::ChartSpeed(_),
                 ..
             }
-            | CertifyError::PlaneNurbs(
-                P::NotTransverse { .. }
-                | P::TransversalityEscalated { .. }
-                | P::Limb { .. }
-                | P::TubeStraddles { .. }
-                | P::TubeNotOneArc { .. }
-                | P::Escalated { .. }
-                | P::ArcRim(_)
-                | P::ReportedTransversalityPoisoned(_)
-                | P::ChartSpeed(_)
-                | P::PcurveFit,
-            )
-            | CertifyError::AnalyticRung3(
-                A::Limb { .. }
-                | A::KernelLimit { .. }
-                | A::Escalated { .. }
-                | A::Stalled { .. }
-                | A::TubeStraddles { .. }
-                | A::TubeNotOneArc { .. },
-            ) => unreachable!("a refusal whose ending its own type gives always has one"),
+            // `CertifyError::ending` is `None` only for its own arms that
+            // no decision owns; a lane refusal's ending is total
+            // (`PlaneNurbsRefusal::ending`, `AnalyticRung3Refusal::ending`).
+            | CertifyError::PlaneNurbs(_)
+            | CertifyError::AnalyticRung3(_) => {
+                unreachable!("a refusal whose ending its own type gives always has one")
+            }
         }),
     };
     (why, recourse)
@@ -7719,7 +7707,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
-        for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
+        for loop_key in face.loop_keys() {
             let Some(loop_) = body.loops.get(loop_key) else {
                 continue;
             };
@@ -7983,9 +7971,8 @@ pub(crate) fn tier3_local_checks_marked<
         // read here for what it CLAIMS (which side is material), and
         // the loop's stored winding is falsified against that claim.
         let outward = plane_outward_normal(face, normal).vec();
-        for (l, is_outer) in
-            core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
-        {
+        for (role, l) in face.loop_roles() {
+            let is_outer = role.is_outer();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -8094,8 +8081,8 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole boundary's chart Green form, rings included, as its
         // flux does, each loop that bounds area.
         let sheet = matches!(surface, Surface::Spindle { .. });
-        let Ok(full) = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        let Ok(full) = face
+            .loop_keys()
             .map(|l| crate::props::loop_edges(body, l))
             .collect::<Result<FlatLoops<T>, _>>()
         else {
@@ -8247,8 +8234,8 @@ pub(crate) fn tier3_local_checks_marked<
             .map(|((edges, _), corners)| FaceLoop { edges, corners })
             .collect();
         let Ok(cycles) = crate::surface_boundary::surface_cycles(body, face_key) else {
-            // Tier 1 refuses a boundary that does not walk; a sheet's
-            // apex is not shown clear of it.
+            // A rotation that does not close: tier 1 refuses it, and a
+            // sheet's apex is not shown clear of it.
             sheet_unshown(face_key, &mut errors);
             continue;
         };
@@ -8824,7 +8811,7 @@ pub(crate) fn loop_point_groups<T: Real>(
     face: &crate::entity::Face,
 ) -> Vec<(Vec<HalfEdgeKey>, Vec<usize>)> {
     let mut out = Vec::new();
-    for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for l in face.loop_keys() {
         let Some(cycle) = loop_cycle_of(body, l) else {
             continue;
         };
@@ -10870,7 +10857,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                 to: GeomRef::Surface(face.surface),
             });
         }
-        for &loop_ in core::iter::once(&face.outer).chain(&face.rings) {
+        for loop_ in face.loop_keys() {
             if body.loops.contains_key(loop_) {
                 count_owner(&mut loop_owners, loop_, face_key);
             } else {
@@ -11564,8 +11551,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                     face: face_key,
                     named_loop,
                 });
-            } else if face.is_some_and(|f| f.outer != named_loop && !f.rings.contains(&named_loop))
-            {
+            } else if face.is_some_and(|f| !f.holds_loop(named_loop)) {
                 errors.push(ValidationError::StaleNullFaceOwnership {
                     face: face_key,
                     named_loop,
@@ -11614,7 +11600,7 @@ fn shell_component<T: Real>(
         let face = body.faces.get(face_key)?;
         faces += 1;
         rings += face.rings.len();
-        for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
+        for loop_key in face.loop_keys() {
             let loop_ = body.loops.get(loop_key)?;
             match loop_.boundary {
                 LoopBoundary::Empty { vertex } => {
@@ -13985,7 +13971,7 @@ mod tests {
         let band = Band::linear(tol).expect("the run's band");
         let mut seen = 0;
         for (_, face) in body.faces() {
-            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for lk in face.loop_keys() {
                 let Some(cycle) = loop_cycle_of(&body, lk) else {
                     continue;
                 };

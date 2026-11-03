@@ -2578,9 +2578,10 @@ enum Decision<'a> {
 }
 
 /// A refusal whose recourse is a lever on the input no margin reads, the
-/// same at every door.
+/// same at every door: the one table of these levers, which the lane
+/// refusals read too (`edge_nurbs::LaneDecision`).
 #[derive(Clone, Copy)]
-enum Lever {
+pub(crate) enum Lever {
     /// The carrier's parameter range cannot carry the image.
     CarrierDomain,
     /// A fitted image needs the fitted door, which only a scalar with
@@ -2598,7 +2599,7 @@ enum Lever {
 }
 
 impl Lever {
-    fn recourse(self, at: ReadAt) -> String {
+    pub(crate) fn recourse(self, at: ReadAt) -> String {
         match self {
             Self::CarrierDomain => crate::CARRIER_DOMAIN_RECOURSE.to_owned(),
             Self::FittedDoor => fitted_door_recourse(at),
@@ -3180,9 +3181,9 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         },
         P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        // The producer's one unsupported class is the placeholder wall,
-        // as the foot producer refuses it (`chart_foot_lane`).
-        P::Unsupported { .. } => PcurveCertifyError::PlaceholderChart,
+        // The wall this door was handed, as the foot producer refuses it
+        // (`chart_foot_lane`): one lever at both doors.
+        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
         other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
@@ -3192,7 +3193,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
-        | P::CarrierEnclosure(_)) => unreachable!(
+        | P::CarrierEnclosure(_)
+        | P::Unsupported { .. }
+        | P::WrongLane { .. }
+        | P::Tube(_)
+        | P::OutsideVocabulary) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -3216,7 +3221,13 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(_) => Err(PcurveCertifyError::PlaceholderChart),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
+            Err(PcurveCertifyError::PlaceholderChart)
+        }
+        Err(other) => unreachable!(
+            "the chart foot producer refuses an unsettled foot or the placeholder wall \
+             alone: {other:?}"
+        ),
     }
 }
 

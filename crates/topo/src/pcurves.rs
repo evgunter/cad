@@ -2339,31 +2339,10 @@ pub(crate) fn lifted_images<T: Decide>(
     halves.iter().map(|&he| by_half.get(he).cloned()).collect()
 }
 
-/// The loops of `face` — a face of the body, an arena member or a key
-/// its door resolved — outer first, each with its cycle
-/// ([`loop_rows`]; empty for a loop whose boundary is a lone vertex).
-/// The one walk of a face's cycles: [`face_loop_cycles`],
-/// [`Body::face_cycles_linked`] and [`Body::face_cycles`] all read it.
-///
-/// # Panics
-///
-/// Where `face`, a loop its record names, or a loop's walk does not
-/// resolve.
-#[track_caller]
-pub(crate) fn face_loop_walks<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
-    let data = proven(&body.faces, face, EntityId::Face);
-    body.face_loops_linked(face, data)
-        .map(|(lk, _)| (lk, loop_rows(body, lk)))
-        .collect()
-}
-
-/// [`face_loop_walks`], a loop whose boundary is a lone vertex left out.
+/// [`Body::proven_face_cycles`], a loop whose boundary is a lone vertex left out.
 #[track_caller]
 fn face_loop_cycles<T: Decide>(body: &Body<T>, face: FaceKey) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
-    face_loop_walks(body, face)
+    body.proven_face_cycles(face)
         .into_iter()
         .filter(|(_, cycle)| !cycle.is_empty())
         .collect()
@@ -3007,8 +2986,9 @@ fn derive_face<T: AtRestPolicy>(
     let Some(chart) = DescribedChart::minting(surface) else {
         return Ok(Vec::new());
     };
-    let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
+    let loops: Vec<LoopKey> = body
+        .face_loops_linked(face, face_data)
+        .map(|(lk, _, _)| lk)
         .collect();
     let mut walked: Vec<Walked<T>> = Vec::new();
     let mut refused: Vec<PcurveMintError> = Vec::new();
@@ -5056,7 +5036,7 @@ pub fn loop_windings<T: AtRestPolicy>(
     let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
     let period = ChartPeriods::of(chart, band).u();
     let mut out = Vec::new();
-    for lp in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+    for (lp, _, _) in body.face_loops_linked(face, face_data) {
         let Some(read) = read_loop(body, face, lp, (chart, described), period, band)? else {
             continue;
         };

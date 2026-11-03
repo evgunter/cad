@@ -79,7 +79,7 @@ pub(crate) fn region_errors<T: Decide>(
             }
         };
         let Ok(cycles) = crate::surface_boundary::surface_cycle_windings(body, face) else {
-            continue; // tier 1 refuses a boundary that does not walk
+            continue; // a rotation that does not close: tier 1 refuses it
         };
         let readings = if torus {
             match torus_readings(&cycles) {
