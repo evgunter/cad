@@ -171,8 +171,6 @@ use geom_core::{
 };
 
 use crate::body::Body;
-#[cfg(feature = "sweep-testing")]
-use crate::census::SweepPairs;
 use crate::chord_join::SplitJoinError;
 use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
@@ -180,6 +178,8 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::live::Proven;
 use crate::merge_faces::MergeCoplanarError;
+#[cfg(feature = "sweep-testing")]
+use crate::sweep_trace::SweepPairs;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{
@@ -5755,7 +5755,7 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// [`BooleanError`] — the same gates and sweep refusals as
 /// [`boolean_reduce`].
 #[cfg(feature = "sweep-testing")]
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity)] // (A→B, B→A) traces
 pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -5784,7 +5784,7 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity)] // (A→B, B→A) traces
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -5857,7 +5857,7 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity)] // (split A, split B, A→B trace, B→A trace)
 pub fn sweep_split(
     a_operand: &Body<f64>,
     b_operand: &Body<f64>,

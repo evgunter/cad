@@ -118,7 +118,7 @@ fn circle_wall_events(a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
     let count =
         |x: &Body<f64>, y: &Body<f64>, trace: &topo::SweepPairs<(topo::EdgeKey, topo::FaceKey)>| {
             trace
-                .accepted
+                .accepted()
                 .iter()
                 .filter(|(e, f)| {
                     let circle = x

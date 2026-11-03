@@ -248,6 +248,7 @@ pub(crate) mod star;
 pub(crate) mod strut;
 pub mod surface_boundary;
 pub mod surgery;
+pub(crate) mod sweep_trace;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -1315,7 +1316,7 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
     census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
 };
@@ -1331,6 +1332,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

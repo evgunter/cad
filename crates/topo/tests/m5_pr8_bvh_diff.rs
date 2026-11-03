@@ -106,8 +106,8 @@ fn disjoint_bodies_are_pruned() {
     let (r_ab, r_ba) = sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
     let (i_ab, i_ba) =
         sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
-    assert_eq!(r_ab.examined.len() + r_ba.examined.len(), 0);
-    assert!(i_ab.examined.len() + i_ba.examined.len() > 0);
+    assert_eq!(r_ab.examined().len() + r_ba.examined().len(), 0);
+    assert!(i_ab.examined().len() + i_ba.examined().len() > 0);
 }
 
 /// Pin 2: full boolean results bit-equal through either strategy —
@@ -199,7 +199,7 @@ fn planted_degradation_is_caught() {
     let b: Body<f64> = brick((1.0, 3.0), (-1.0, 3.0), (1.0, 3.0), Tol::witness());
     let (i_ab, _) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     let &(_, face) = i_ab
-        .accepted
+        .accepted()
         .first()
         .expect("crossing bricks accept A→B events");
     let plant = PlantedDegradation { face };
@@ -252,7 +252,7 @@ fn sweep_pad_derivation_transitions() {
         let (i_ab, i_ba) =
             sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
         assert!(
-            !r_ab.accepted.is_empty() || !r_ba.accepted.is_empty(),
+            !r_ab.accepted().is_empty() || !r_ba.accepted().is_empty(),
             "gap {gap:e}: flush contact must be accepted"
         );
         assert_eq!(r_ab.lost_accepted(&i_ab), vec![], "gap {gap:e}");
@@ -281,11 +281,11 @@ fn sweep_pad_derivation_transitions() {
         let (r_ab, r_ba) =
             sweep_traces(&a, &b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
         assert!(
-            !r_ab.examined.is_empty() || !r_ba.examined.is_empty(),
+            !r_ab.examined().is_empty() || !r_ba.examined().is_empty(),
             "gap {gap:e}: still a candidate inside 2·pad"
         );
         assert!(
-            r_ab.accepted.is_empty() && r_ba.accepted.is_empty(),
+            r_ab.accepted().is_empty() && r_ba.accepted().is_empty(),
             "gap {gap:e}: definitely-separate gap must accept nothing"
         );
     }
@@ -297,12 +297,12 @@ fn sweep_pad_derivation_transitions() {
     let (i_ab, i_ba) =
         sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
     assert_eq!(
-        r_ab.examined.len() + r_ba.examined.len(),
+        r_ab.examined().len() + r_ba.examined().len(),
         0,
         "beyond 2·pad the tree prunes everything"
     );
-    assert!(i_ab.examined.len() + i_ba.examined.len() > 0);
-    assert!(i_ab.accepted.is_empty() && i_ba.accepted.is_empty());
+    assert!(i_ab.examined().len() + i_ba.examined().len() > 0);
+    assert!(i_ab.accepted().is_empty() && i_ba.accepted().is_empty());
 }
 
 /// Pin 1(b): the suite CATCHES a pad regression — at pad = 0 the
@@ -371,7 +371,7 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
         let idealized = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness());
         let (r_ab, r_ba) = realized.expect("realized never examines the remote pair");
         assert_eq!(
-            r_ab.examined.len() + r_ba.examined.len(),
+            r_ab.examined().len() + r_ba.examined().len(),
             0,
             "k = {k}: laterally-remote pair must be pruned"
         );
@@ -383,9 +383,9 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
             );
         } else {
             let (i_ab, i_ba) = idealized.expect("out-of-band grazing is green idealized");
-            assert!(i_ab.examined.len() + i_ba.examined.len() > 0);
+            assert!(i_ab.examined().len() + i_ba.examined().len() > 0);
             assert!(
-                i_ab.accepted.is_empty() && i_ba.accepted.is_empty(),
+                i_ab.accepted().is_empty() && i_ba.accepted().is_empty(),
                 "k = {k}: a remote graze must accept nothing"
             );
         }

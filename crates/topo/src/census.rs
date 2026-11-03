@@ -343,6 +343,7 @@ use crate::entity::{
 use crate::geometry::PointKey;
 use crate::live::{BoundaryMember, proven};
 use crate::null::CurveGeom;
+use crate::sweep_trace::SweepPairs;
 
 use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
@@ -510,7 +511,7 @@ struct Geo<T: Real> {
 /// definition of the candidate set, alive for the differential suite's
 /// pins alone. Outside `sweep-testing` this enum has ONE variant, and
 /// the trace plumbing ([`CensusTrace`]) rides every production sweep
-/// as `None`, as the boolean sweep's does, rather than
+/// as `None`, as the boolean sweep's ([`SweepPairs`]) does, rather than
 /// a test-only twin of the sweeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CensusStrategy {
@@ -525,63 +526,6 @@ pub enum CensusStrategy {
     /// makes "production runs `Realized`" a fact the compiler holds.
     #[cfg(feature = "sweep-testing")]
     Idealized,
-}
-
-/// The pairs one sweep examined, and the ones it accepted, each in the
-/// sweep's own order: the currency of the idealized/realized
-/// differential suites (PERF-PLAN §4.4), whose comparators live here.
-/// A census pass's pair is `(EntityId, EntityId)` ([`CensusTrace`]) and
-/// it accepts a pair it pushed a finding for; the boolean reduction
-/// sweep's is `(edge of x, face of y)`, one per direction, and it
-/// accepts a pair where its exact predicates accepted an event (a
-/// crossing inside the face, or an endpoint contact). Realized
-/// `examined` must hold every idealized `accepted` pair (the
-/// conservative-superset pin).
-#[derive(Clone, Debug)]
-pub struct SweepPairs<P> {
-    /// Every pair the sweep examined, in decision order.
-    pub examined: Vec<P>,
-    /// The examined pairs the sweep accepted.
-    pub accepted: Vec<P>,
-}
-
-impl<P> Default for SweepPairs<P> {
-    fn default() -> Self {
-        Self {
-            examined: Vec::new(),
-            accepted: Vec::new(),
-        }
-    }
-}
-
-impl<P: Copy + PartialEq> SweepPairs<P> {
-    fn note(&mut self, pair: P, accepted: bool) {
-        self.examined.push(pair);
-        if accepted {
-            self.accepted.push(pair);
-        }
-    }
-
-    /// Whether this sweep's examined sequence is `exact`'s with pairs
-    /// removed and nothing reordered — the order pin of the
-    /// differential suites (`sweep-testing`; both suites read it here).
-    #[cfg(feature = "sweep-testing")]
-    pub fn is_restriction_of(&self, exact: &Self) -> bool {
-        let mut it = exact.examined.iter();
-        self.examined.iter().all(|p| it.any(|q| q == p))
-    }
-
-    /// `exact`'s accepted pairs this sweep never examined — any entry
-    /// is a finding the filter lost (the superset pin).
-    #[cfg(feature = "sweep-testing")]
-    pub fn lost_accepted(&self, exact: &Self) -> Vec<P> {
-        exact
-            .accepted
-            .iter()
-            .filter(|p| !self.examined.contains(p))
-            .copied()
-            .collect()
-    }
 }
 
 /// One census run's examined/accepted pairs, per sweep.
@@ -12294,7 +12238,7 @@ mod tests {
         assert_eq!(unread, 1, "{errors:?}");
         let accepted: usize = [&trace.vv, &trace.ve, &trace.vf, &trace.ef, &trace.ee]
             .iter()
-            .map(|t| t.accepted.len())
+            .map(|t| t.accepted().len())
             .sum();
         assert!(
             accepted > errors.len(),
@@ -14646,8 +14590,8 @@ mod tests {
                 lost.is_empty(),
                 "{name}: the filter pruned accepted pairs {lost:?}"
             );
-            assert_eq!(r.accepted, i.accepted, "{name}: accepted");
-            pruned += i.examined.len() - r.examined.len();
+            assert_eq!(r.accepted(), i.accepted(), "{name}: accepted");
+            pruned += i.examined().len() - r.examined().len();
         }
         pruned
     }
@@ -14673,7 +14617,7 @@ mod tests {
         );
         let &(_, EntityId::Face(face)) = ideal
             .vf
-            .accepted
+            .accepted()
             .first()
             .expect("a corner in a face's interior is a vertex-on-face event")
         else {
@@ -15044,8 +14988,8 @@ mod tests {
                 .expect("a point")
                 .x
         };
-        for (v, f) in &real.vf.examined {
-            let (EntityId::Vertex(v), EntityId::Face(f)) = (v, f) else {
+        for &(v, f) in real.vf.examined() {
+            let (EntityId::Vertex(v), EntityId::Face(f)) = (&v, &f) else {
                 panic!("a vf pair");
             };
             let LoopBoundary::Cycle { first } = far
@@ -15149,7 +15093,7 @@ mod tests {
             for f in [f_plus, f_minus] {
                 assert!(
                     real.vf
-                        .examined
+                        .examined()
                         .contains(&(EntityId::Vertex(v), EntityId::Face(f))),
                     "a poisoned face is examined against every vertex"
                 );
@@ -15157,7 +15101,7 @@ mod tests {
             assert!(
                 !real
                     .vf
-                    .examined
+                    .examined()
                     .contains(&(EntityId::Vertex(v), EntityId::Face(other_near_face))),
                 "a sound far face is pruned"
             );
@@ -15205,7 +15149,7 @@ mod tests {
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
             assert!(r.is_restriction_of(i), "{name}: order");
             assert!(
-                i.accepted.iter().all(|p| !r.examined.contains(p)),
+                i.accepted().iter().all(|p| !r.examined().contains(p)),
                 "{name}: every accepted pair is a pruned one"
             );
         }
@@ -15249,7 +15193,7 @@ mod tests {
             !predicates.iter().any(|p| p.starts_with("pm_census_ee_")),
             "an edge pair escalated: {predicates:?}"
         );
-        assert!(ideal.ee.accepted.is_empty(), "{:?}", ideal.ee.accepted);
+        assert!(ideal.ee.accepted().is_empty(), "{:?}", ideal.ee.accepted());
         restricted_and_silent(&real, &ideal);
     }
 

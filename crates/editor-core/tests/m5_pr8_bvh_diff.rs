@@ -167,9 +167,21 @@ fn corpus_boolean_operands_superset_pin() {
                 "{} node {id:?}: B→A lost accepted pairs",
                 d.name
             );
+            assert!(
+                r_ab.is_restriction_of(&i_ab),
+                "{} node {id:?}: A→B realized examined sequence is not a restriction of the \
+                 idealized one",
+                d.name
+            );
+            assert!(
+                r_ba.is_restriction_of(&i_ba),
+                "{} node {id:?}: B→A realized examined sequence is not a restriction of the \
+                 idealized one",
+                d.name
+            );
             booleans += 1;
-            examined += r_ab.examined.len() + r_ba.examined.len();
-            accepted += i_ab.accepted.len() + i_ba.accepted.len();
+            examined += r_ab.examined().len() + r_ba.examined().len();
+            accepted += i_ab.accepted().len() + i_ba.accepted().len();
         }
     }
     assert!(booleans > 0, "the corpus exercises boolean nodes");

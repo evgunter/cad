@@ -71,13 +71,13 @@ use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
-use crate::census::SweepPairs;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
+use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
 use geom_brep::roots::{Roots, Unsettled};
@@ -1063,7 +1063,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 break;
             };
             if let Some(tr) = trace.as_deref_mut() {
-                tr.examined.push((edge_key, face));
+                tr.examine((edge_key, face));
             }
             let edge =
                 x.get_edge(edge_key)
@@ -1113,7 +1113,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         | CurvedEvent::Along { recorded: false }
                 ) && let Some(tr) = trace.as_deref_mut()
                 {
-                    tr.accepted.push((edge_key, face));
+                    tr.accept_last();
                 }
                 // A wall crossing is split and recorded HERE, with the
                 // same triple the conic × plane root above uses: the
@@ -1379,7 +1379,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1394,7 +1394,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         if vertex_on_face(x_is, y, w, pw, face, &plane, on, contacts, band, tol)?
                             && let Some(tr) = trace.as_deref_mut()
                         {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1422,7 +1422,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             if !matches!(containment, FaceContainment::Out)
                                 && let Some(tr) = trace.as_deref_mut()
                             {
-                                tr.accepted.push((edge_key, face));
+                                tr.accept_last();
                             }
                             match containment {
                                 FaceContainment::Out => {}
@@ -1531,7 +1531,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             )?;
                         }
                         if hit && let Some(tr) = trace.as_deref_mut() {
-                            tr.accepted.push((edge_key, face));
+                            tr.accept_last();
                         }
                         continue;
                     }
@@ -1565,7 +1565,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     if !matches!(containment, FaceContainment::Out)
                         && let Some(tr) = trace.as_deref_mut()
                     {
-                        tr.accepted.push((edge_key, face));
+                        tr.accept_last();
                     }
                     match containment {
                         FaceContainment::Out => {}
@@ -1692,7 +1692,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         )?;
                     }
                     if hit && let Some(tr) = trace.as_deref_mut() {
-                        tr.accepted.push((edge_key, face));
+                        tr.accept_last();
                     }
                 }
             }
@@ -1946,8 +1946,8 @@ pub(super) struct DeferredTouch {
 ///
 /// Each fragment, walked from the deferred key along `he_plus` to the
 /// edge's far end, is read again by [`curved_face_arm`] against the
-/// deferred face; a pair it accepts is written to its direction's
-/// trace, as the sweep writes one. A fragment that clears or records is
+/// deferred face, and is written to its direction's trace as the sweep
+/// writes one: examined, and accepted where the arm accepts. A fragment that clears or records is
 /// done; one whose touch is still inside it, or that the arm reads as a
 /// crossing, answers the pair's typed frontier. So does a pair nothing
 /// split, read again exactly as it was deferred.
@@ -1980,6 +1980,9 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         what: "a deferred edge's fragment vanished",
                     })?;
             let ((u, pu), (v, pv)) = edge_ends(x, &edge)?;
+            if let Some(tr) = trace.as_deref_mut() {
+                tr.examine((fragment, d.face));
+            }
             match curved_face_arm(
                 x, y, d.x_is, fragment, &edge, u, v, d.face, pu, pv, declared, contacts, band, tol,
             )? {
@@ -1992,7 +1995,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 | CurvedEvent::Lies { recorded: true, .. }
                 | CurvedEvent::Along { recorded: true } => {
                     if let Some(tr) = trace.as_deref_mut() {
-                        tr.accepted.push((fragment, d.face));
+                        tr.accept_last();
                     }
                 }
                 CurvedEvent::Deferred | CurvedEvent::Pierce { .. } => return Err(d.refusal),

@@ -100,7 +100,7 @@ fn corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
 }
 
 fn ex(t: &SweepPairs<(topo::EdgeKey, topo::FaceKey)>) -> BTreeSet<(topo::EdgeKey, topo::FaceKey)> {
-    t.examined.iter().copied().collect()
+    t.examined().iter().copied().collect()
 }
 
 fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {

@@ -122,10 +122,11 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
             "{name}/{sweep}: the filter pruned pairs the exact sweep decided against: {lost:?}"
         );
         assert_eq!(
-            r.accepted, i.accepted,
+            r.accepted(),
+            i.accepted(),
             "{name}/{sweep}: the accepted pairs differ"
         );
-        pruned += i.examined.len() - r.examined.len();
+        pruned += i.examined().len() - r.examined().len();
     }
     pruned
 }
@@ -322,14 +323,14 @@ fn the_grazing_notch_keeps_the_candidate_the_exact_predicate_rejects() {
     let ideal = run("grazing_notch", &doc, CensusStrategy::Idealized);
     assert_eq!(real.errors, ideal.errors);
     assert!(
-        real.trace.ef.examined.len() >= 4,
+        real.trace.ef.examined().len() >= 4,
         "the brick's four bottom edges lie in the L's top face's box and survive the filter"
     );
     assert!(
-        real.trace.ef.examined.len() < ideal.trace.ef.examined.len(),
+        real.trace.ef.examined().len() < ideal.trace.ef.examined().len(),
         "the faces whose boxes the brick clears are pruned"
     );
-    assert!(real.trace.ef.accepted.is_empty(), "nothing touches");
+    assert!(real.trace.ef.accepted().is_empty(), "nothing touches");
     assert!(
         real.errors.is_empty(),
         "the notch scene is at rest with no contact: {:?}",
@@ -368,7 +369,7 @@ fn planted_degradation_is_caught() {
     );
     let &(_, EntityId::Face(face)) = ideal
         .vf
-        .accepted
+        .accepted()
         .first()
         .expect("the boss's arc joints rest in the plate's top face")
     else {
