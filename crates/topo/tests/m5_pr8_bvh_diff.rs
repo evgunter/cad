@@ -16,29 +16,12 @@
 
 use crate::common;
 
-use std::collections::BTreeSet;
-
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, SweepTrace,
-    boolean_op_with, sweep_traces, sweep_traces_with_pad,
+    AtRestBody, Body, BooleanOp, BooleanResult, PlantedDegradation, SweepStrategy, boolean_op_with,
+    sweep_traces, sweep_traces_with_pad,
 };
-
-type Pair = (topo::EdgeKey, topo::FaceKey);
-
-/// The suite's superset comparator (pins 1 and 3): idealized-accepted
-/// pairs missing from the realized candidate set. Any entry is a lost
-/// event — fatal.
-fn missing_pairs(realized: &SweepTrace, idealized: &SweepTrace) -> Vec<Pair> {
-    let examined: BTreeSet<Pair> = realized.examined.iter().copied().collect();
-    idealized
-        .accepted
-        .iter()
-        .copied()
-        .filter(|p| !examined.contains(p))
-        .collect()
-}
 
 /// The demo-body scenarios: (name, A, B) brick pairs from the M3
 /// acceptance heritage — crossing, flush-stacked, corner kiss,
@@ -92,21 +75,24 @@ fn realized_candidates_superset_of_idealized_accepted() {
         let (i_ab, i_ba) =
             sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()).unwrap();
         assert_eq!(
-            missing_pairs(&r_ab, &i_ab),
+            r_ab.lost_accepted(&i_ab),
             vec![],
             "{name}: A→B lost accepted pairs"
         );
         assert_eq!(
-            missing_pairs(&r_ba, &i_ba),
+            r_ba.lost_accepted(&i_ba),
             vec![],
             "{name}: B→A lost accepted pairs"
         );
-        // The realized examined set is itself a subsequence of the
+        // The realized examined sequence is a restriction of the
         // idealized one (same exact path, fewer candidates).
-        let i_ex: BTreeSet<Pair> = i_ab.examined.iter().copied().collect();
         assert!(
-            r_ab.examined.iter().all(|p| i_ex.contains(p)),
-            "{name}: realized examined a pair the idealized scan never did"
+            r_ab.is_restriction_of(&i_ab),
+            "{name}: A→B realized examined sequence is not a restriction of the idealized one"
+        );
+        assert!(
+            r_ba.is_restriction_of(&i_ba),
+            "{name}: B→A realized examined sequence is not a restriction of the idealized one"
         );
     }
 }
@@ -219,7 +205,7 @@ fn planted_degradation_is_caught() {
     let plant = PlantedDegradation { face };
     let (r_ab, _) =
         sweep_traces(&a, &b, SweepStrategy::Realized, Some(plant), Tol::witness()).unwrap();
-    let missing = missing_pairs(&r_ab, &i_ab);
+    let missing = r_ab.lost_accepted(&i_ab);
     assert!(
         missing.iter().any(|&(_, f)| f == face),
         "planted-empty face box must lose its accepted pairs (got {missing:?})"
@@ -269,8 +255,8 @@ fn sweep_pad_derivation_transitions() {
             !r_ab.accepted.is_empty() || !r_ba.accepted.is_empty(),
             "gap {gap:e}: flush contact must be accepted"
         );
-        assert_eq!(missing_pairs(&r_ab, &i_ab), vec![], "gap {gap:e}");
-        assert_eq!(missing_pairs(&r_ba, &i_ba), vec![], "gap {gap:e}");
+        assert_eq!(r_ab.lost_accepted(&i_ab), vec![], "gap {gap:e}");
+        assert_eq!(r_ba.lost_accepted(&i_ba), vec![], "gap {gap:e}");
     }
 
     // Escalated: gap strictly inside (zero, escalate) — BOTH
@@ -337,7 +323,7 @@ fn pad_zero_regression_is_caught() {
         Tol::witness(),
     )
     .unwrap();
-    let lost = missing_pairs(&r_ab, &i_ab).len() + missing_pairs(&r_ba, &i_ba).len();
+    let lost = r_ab.lost_accepted(&i_ab).len() + r_ba.lost_accepted(&i_ba).len();
     assert!(
         lost > 0,
         "pad = 0 must LOSE the tolerance-zone contact and the comparator must say so"

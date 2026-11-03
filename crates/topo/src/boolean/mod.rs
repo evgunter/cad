@@ -171,6 +171,8 @@ use geom_core::{
 };
 
 use crate::body::Body;
+#[cfg(feature = "sweep-testing")]
+use crate::census::SweepPairs;
 use crate::chord_join::SplitJoinError;
 use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
@@ -225,7 +227,7 @@ pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactR
 pub(crate) use records::{Parting, incident};
 #[cfg(feature = "sweep-testing")]
 pub use reduce::PlantedDegradation;
-pub use reduce::{SweepStrategy, SweepTrace};
+pub use reduce::SweepStrategy;
 pub use shell_witness::ShellOrientation;
 pub use zip::Fusions;
 #[cfg(feature = "sweep-testing")]
@@ -5755,13 +5757,20 @@ pub fn boolean_reduce<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// [`BooleanError`] — the same gates and sweep refusals as
 /// [`boolean_reduce`].
 #[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)]
 pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
     strategy: SweepStrategy,
     plant: Option<PlantedDegradation>,
     tol: Tol,
-) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+) -> Result<
+    (
+        SweepPairs<(EdgeKey, FaceKey)>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+    ),
+    BooleanError,
+> {
     sweep_traces_with_pad(a_operand, b_operand, strategy, plant, None, tol)
 }
 
@@ -5777,6 +5786,7 @@ pub fn sweep_traces<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)]
 pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_operand: &Body<T>,
     b_operand: &Body<T>,
@@ -5784,7 +5794,13 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     plant: Option<PlantedDegradation>,
     pad_override: Option<f64>,
     tol: Tol,
-) -> Result<(SweepTrace, SweepTrace), BooleanError> {
+) -> Result<
+    (
+        SweepPairs<(EdgeKey, FaceKey)>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+    ),
+    BooleanError,
+> {
     let band = Band::linear(tol)?;
     let none = Glue::none();
     let decls = &*glue::decided_glue(a_operand, b_operand, &none, band)?;
@@ -5805,8 +5821,8 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
-    let mut ab = SweepTrace::default();
-    let mut ba = SweepTrace::default();
+    let mut ab = SweepPairs::default();
+    let mut ba = SweepPairs::default();
     let ab_knobs = reduce::SweepKnobs {
         plant: plant.map(|p| p.face),
         pad_override,
@@ -5843,11 +5859,20 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ///
 /// [`BooleanError`] as [`sweep_traces`].
 #[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)]
 pub fn sweep_split(
     a_operand: &Body<f64>,
     b_operand: &Body<f64>,
     tol: Tol,
-) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+) -> Result<
+    (
+        Body<f64>,
+        Body<f64>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+        SweepPairs<(EdgeKey, FaceKey)>,
+    ),
+    BooleanError,
+> {
     let band = Band::linear(tol)?;
     let declared = GluedPairs::default();
     reduce::gate_operand_pairs(
@@ -5862,7 +5887,7 @@ pub fn sweep_split(
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
-    let (mut ab, mut ba) = (SweepTrace::default(), SweepTrace::default());
+    let (mut ab, mut ba) = (SweepPairs::default(), SweepPairs::default());
     let knobs = reduce::SweepKnobs::default();
     reduce::sweep_and_settle(
         (&mut a, &mut b),

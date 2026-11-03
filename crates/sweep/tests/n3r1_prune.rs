@@ -10,7 +10,7 @@ use crate::common::operands::{
 use geom_core::{Point2, Tol};
 use std::collections::BTreeSet;
 use sweep::test_support::{brick, finished};
-use topo::{Body, BooleanResult, SweepStrategy, SweepTrace, sweep_traces};
+use topo::{Body, BooleanResult, SweepPairs, SweepStrategy, sweep_traces};
 
 /// The corpus cylinder at `(cx, 0)`, `z in [0, 1]`: this suite poses
 /// it by translating the PROFILE in `x`.
@@ -99,7 +99,7 @@ fn corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
     v
 }
 
-fn ex(t: &SweepTrace) -> BTreeSet<(topo::EdgeKey, topo::FaceKey)> {
+fn ex(t: &SweepPairs<(topo::EdgeKey, topo::FaceKey)>) -> BTreeSet<(topo::EdgeKey, topo::FaceKey)> {
     t.examined.iter().copied().collect()
 }
 
@@ -142,17 +142,12 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
         };
         total_prune_pairs += ex(&real.0).len() + ex(&real.1).len();
         if let Ok((ix, iy)) = sweep_traces(&a, &b, SweepStrategy::Idealized, None, Tol::witness()) {
-            let lx = ix
-                .accepted
-                .iter()
-                .filter(|p| !ex(&real.0).contains(p))
-                .count();
-            let ly = iy
-                .accepted
-                .iter()
-                .filter(|p| !ex(&real.1).contains(p))
-                .count();
-            assert_eq!(lx + ly, 0, "{name}: an accepted pair was never examined");
+            let lost = (real.0.lost_accepted(&ix), real.1.lost_accepted(&iy));
+            assert_eq!(
+                lost,
+                (vec![], vec![]),
+                "{name}: an accepted pair was never examined"
+            );
         }
         let a = finished(&format!("{name}: A"), a, Tol::witness());
         let b = finished(&format!("{name}: B"), b, Tol::witness());

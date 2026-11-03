@@ -510,8 +510,8 @@ struct Geo<T: Real> {
 /// definition of the candidate set, alive for the differential suite's
 /// pins alone. Outside `sweep-testing` this enum has ONE variant, and
 /// the trace plumbing ([`CensusTrace`]) rides every production sweep
-/// as `None` — the [`crate::boolean::SweepTrace`] precedent, kept
-/// rather than a test-only twin of the sweeps.
+/// as `None`, as the boolean sweep's does, rather than
+/// a test-only twin of the sweeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CensusStrategy {
     /// BVH-pruned candidates (the production path).
@@ -527,20 +527,35 @@ pub enum CensusStrategy {
     Idealized,
 }
 
-/// The pairs one sweep examined, and the ones it decided AGAINST —
-/// pushed at least one finding for — each in the sweep's own order.
-/// The differential suite's currency: realized `examined` must hold
-/// every idealized `accepted` pair (the conservative-superset pin).
-#[derive(Clone, Debug, Default)]
-pub struct SweepPairs {
+/// The pairs one sweep examined, and the ones it accepted, each in the
+/// sweep's own order: the currency of the idealized/realized
+/// differential suites (PERF-PLAN §4.4), whose comparators live here.
+/// A census pass's pair is `(EntityId, EntityId)` ([`CensusTrace`]) and
+/// it accepts a pair it pushed a finding for; the boolean reduction
+/// sweep's is `(edge of x, face of y)`, one per direction, and it
+/// accepts a pair where its exact predicates accepted an event (a
+/// crossing inside the face, or an endpoint contact). Realized
+/// `examined` must hold every idealized `accepted` pair (the
+/// conservative-superset pin).
+#[derive(Clone, Debug)]
+pub struct SweepPairs<P> {
     /// Every pair the sweep examined, in decision order.
-    pub examined: Vec<(EntityId, EntityId)>,
-    /// The examined pairs whose examination pushed a finding.
-    pub accepted: Vec<(EntityId, EntityId)>,
+    pub examined: Vec<P>,
+    /// The examined pairs the sweep accepted.
+    pub accepted: Vec<P>,
 }
 
-impl SweepPairs {
-    fn note(&mut self, pair: (EntityId, EntityId), accepted: bool) {
+impl<P> Default for SweepPairs<P> {
+    fn default() -> Self {
+        Self {
+            examined: Vec::new(),
+            accepted: Vec::new(),
+        }
+    }
+}
+
+impl<P: Copy + PartialEq> SweepPairs<P> {
+    fn note(&mut self, pair: P, accepted: bool) {
         self.examined.push(pair);
         if accepted {
             self.accepted.push(pair);
@@ -559,7 +574,7 @@ impl SweepPairs {
     /// `exact`'s accepted pairs this sweep never examined — any entry
     /// is a finding the filter lost (the superset pin).
     #[cfg(feature = "sweep-testing")]
-    pub fn lost_accepted(&self, exact: &Self) -> Vec<(EntityId, EntityId)> {
+    pub fn lost_accepted(&self, exact: &Self) -> Vec<P> {
         exact
             .accepted
             .iter()
@@ -573,37 +588,37 @@ impl SweepPairs {
 #[derive(Clone, Debug, Default)]
 pub struct CensusTrace {
     /// Vertex×vertex (pass 1).
-    pub vv: SweepPairs,
+    pub vv: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×edge (pass 2).
-    pub ve: SweepPairs,
+    pub ve: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×curved edge (pass 2′).
-    pub vce: SweepPairs,
+    pub vce: SweepPairs<(EntityId, EntityId)>,
     /// Vertex×face (pass 3).
-    pub vf: SweepPairs,
+    pub vf: SweepPairs<(EntityId, EntityId)>,
     /// Edge×face (pass 4).
-    pub ef: SweepPairs,
+    pub ef: SweepPairs<(EntityId, EntityId)>,
     /// Edge×edge (pass 5).
-    pub ee: SweepPairs,
+    pub ee: SweepPairs<(EntityId, EntityId)>,
     /// Curved edge×edge (pass 5′).
-    pub cee: SweepPairs,
+    pub cee: SweepPairs<(EntityId, EntityId)>,
     /// The cross-solid backstop's pairs: the face pairs that reached
     /// its reach test (after its structural and deferral skips) and
     /// the instance pairs that reached its extent-containment test.
-    pub backstop: SweepPairs,
+    pub backstop: SweepPairs<(EntityId, EntityId)>,
     /// The curved aligned arm's pairs (`curved_same_side_pairs`): those
     /// that reached the faces' reading, accepted where their interiors
     /// meet. A pair it certifies apart is examined and not accepted, and
     /// a cylinder pair apart by its axial spans alone is neither.
     /// Not among `CensusTrace::sweeps`, which the differential suites
     /// walk: it counts what the arm costs, not a candidate set they pin.
-    pub aligned: SweepPairs,
+    pub aligned: SweepPairs<(EntityId, EntityId)>,
 }
 
 #[cfg(feature = "sweep-testing")]
 impl CensusTrace {
     /// The eight sweeps by name, in census order — what a differential
     /// suite walks.
-    pub fn sweeps(&self) -> [(&'static str, &SweepPairs); 8] {
+    pub fn sweeps(&self) -> [(&'static str, &SweepPairs<(EntityId, EntityId)>); 8] {
         [
             ("vv", &self.vv),
             ("ve", &self.ve),

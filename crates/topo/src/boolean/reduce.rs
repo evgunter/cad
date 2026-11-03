@@ -71,6 +71,7 @@ use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
+use crate::census::SweepPairs;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
@@ -105,20 +106,6 @@ pub enum SweepStrategy {
     /// is not built (see `sweep_direction`).
     #[cfg(feature = "sweep-testing")]
     Idealized,
-}
-
-/// One direction's sweep observations, for the differential suite's
-/// superset pin: `examined` = pairs whose exact classification ran
-/// (the candidate set), `accepted` = pairs where the exact predicates
-/// accepted at least one event (a crossing inside the face, or an
-/// endpoint contact). Pairs are `(edge of x, face of y)` in
-/// examination order.
-#[derive(Debug, Default, Clone)]
-pub struct SweepTrace {
-    /// Every candidate pair the exact path examined.
-    pub examined: Vec<(EdgeKey, FaceKey)>,
-    /// The subset of pairs that produced an accepted event.
-    pub accepted: Vec<(EdgeKey, FaceKey)>,
 }
 
 /// The suite's failure-injection seam (pin iii — "the suite must be
@@ -1014,7 +1001,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     strategy: SweepStrategy,
     knobs: &SweepKnobs,
-    mut trace: Option<&mut SweepTrace>,
+    mut trace: Option<&mut SweepPairs<(EdgeKey, FaceKey)>>,
     deferred: &mut Vec<DeferredTouch>,
     axes: &super::separating::OperandAxes<T>,
     tol: Tol,
@@ -1753,7 +1740,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     strategy: SweepStrategy,
     [ab_knobs, ba_knobs]: [&SweepKnobs; 2],
-    [mut ab_trace, mut ba_trace]: [Option<&mut SweepTrace>; 2],
+    [mut ab_trace, mut ba_trace]: [Option<&mut SweepPairs<(EdgeKey, FaceKey)>>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let mut deferred = Vec::new();
@@ -1972,7 +1959,7 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
     declared: &super::GluedPairs<T>,
     contacts: &mut ContactAcc,
     band: Band,
-    mut traces: [Option<&mut SweepTrace>; 2],
+    mut traces: [Option<&mut SweepPairs<(EdgeKey, FaceKey)>>; 2],
     tol: Tol,
 ) -> Result<(), BooleanError> {
     for d in deferred {
