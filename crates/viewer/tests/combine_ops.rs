@@ -744,6 +744,28 @@ fn a_rows_default_spacing_is_its_clearing_step_rounded_up() {
         "rounded up, at one significant figure in the working unit"
     );
     assert_eq!(at(0.05, MM), "50 mm", "a round step stays as it is");
+    // A step just past a round figure goes to the next one: the round
+    // figure would read back below it.
+    for (clears, unit, want) in [
+        (3.000_000_000_000_000_3e-4, MM, "0.4 mm"),
+        (0.0762, IN, "4 in"),
+    ] {
+        let spacing = viewer::combine::row_spacing(clears, unit).expect("a positive step");
+        assert_eq!(doc.unparse(&spacing), want, "{clears} m in {unit:?}");
+        assert!(
+            spacing.literal_value().expect("a written length") >= clears,
+            "{clears} m: never below the step"
+        );
+    }
+    for clears in [0.0, -0.01, f64::NAN] {
+        assert!(
+            matches!(
+                viewer::combine::row_spacing(clears, MM),
+                Err(viewer::combine::RowSpacingFault::NotPositive { .. })
+            ),
+            "{clears} m is no step to space a row by"
+        );
+    }
 }
 
 /// **A split half splits** (`work/doors/a-split-half-cannot-be-split.md`):

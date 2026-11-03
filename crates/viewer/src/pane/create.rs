@@ -317,7 +317,7 @@ pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 
 /// What the split panel says of its picks.
 const SPLIT_PICKS: &str = "pick a face: its body is split along its plane — pick another face to \
-     cut along that one, or select a plane variable's row; a tree pick re-picks the body";
+     cut along that one; a tree pick re-picks the body";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a proposed label counts by.

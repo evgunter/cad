@@ -1,7 +1,7 @@
 ---
 id: an-anonymous-index-cannot-be-written-into-a-value-row
 kind: issue
-title: A formula's text names a variable only by name, so a pattern whose index is anonymous cannot have its spacing or step typed on its row
+title: A value row's text names a variable only by name, so an anonymous pattern index cannot be typed
 status: open
 opened: 2026-11-03
 priority: P2

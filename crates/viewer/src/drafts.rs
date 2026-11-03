@@ -1750,6 +1750,8 @@ pub(crate) enum CommitFault {
     /// The session refused what a default is read off: a pattern's
     /// spacing, measured off its body.
     Refused(Box<Refusal>),
+    /// A pattern row's default spacing could not be written.
+    Spacing(crate::combine::RowSpacingFault),
 }
 
 impl From<SeatError> for CommitFault {
@@ -1761,6 +1763,12 @@ impl From<SeatError> for CommitFault {
 impl From<RecordedProgramError> for CommitFault {
     fn from(error: RecordedProgramError) -> Self {
         Self::Program(error)
+    }
+}
+
+impl From<crate::combine::RowSpacingFault> for CommitFault {
+    fn from(fault: crate::combine::RowSpacingFault) -> Self {
+        Self::Spacing(fault)
     }
 }
 
@@ -1784,6 +1792,7 @@ impl std::fmt::Display for CommitFault {
             Self::Program(error) => error.fmt(f),
             Self::Traced(error) => error.fmt(f),
             Self::Refused(refusal) => refusal.fmt(f),
+            Self::Spacing(fault) => fault.fmt(f),
         }
     }
 }

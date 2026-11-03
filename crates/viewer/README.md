@@ -2122,8 +2122,10 @@ of the node they insert, or a pick.
   held as the mirror holds its own (`combine::PlaneSeats`, one value
   for both tools); the first face pick seats the target too, a
   later one re-picks the plane, and a tree pick re-picks the target. A
-  `Plane` variable, or a `Frame` read through its `xy`, is picked as the
-  plane by selecting its row. `SessionOp::AddSplit` takes the plane as
+  `Plane` variable, or a `Frame` read through its `xy`, is taken as the
+  plane when the selection names it (`Selection::Variable`); no
+  Properties row lists a pose variable, so that pick comes through the
+  selection stream (a driver, the op vocabulary), not a row. `SessionOp::AddSplit` takes the plane as
   `SplitPlane`: that face, or a plane read written whole. The insert
   selects the split. Nothing is staged before it: the split's own
   evaluation, read on its tree row, says whether a side is empty.

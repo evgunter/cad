@@ -534,7 +534,8 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
 
 /// **The plane a split row cuts `body` along**: the plane `by` metres
 /// up from the start cap of the extrude `body` is built from, which is
-/// the plane square to `z` at `by` in that extrude's coordinates. A plane read as a caller writes one
+/// the plane square to `z` at `by` in that extrude's coordinates. A
+/// plane read as a caller writes one
 /// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
 /// the body along its normal ([`plane_inside`]).
 pub fn cut_across(

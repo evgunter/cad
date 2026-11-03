@@ -312,6 +312,8 @@ impl BooleanTool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaneSeats {
     seats: Seats,
+    /// The body seat's role, which names it in the line.
+    seat: Seat,
     /// The plane's role, which names it in the line and in a drop.
     role: FaceRole,
     /// The plane, said as it was picked ([`HeldPick::new`]), its nodes
@@ -340,6 +342,7 @@ impl PlaneSeats {
     const fn new(seat: Seat, role: FaceRole) -> Self {
         Self {
             seats: Seats::one(seat),
+            seat,
             role,
             plane: None,
         }
@@ -394,33 +397,34 @@ impl PlaneSeats {
         eval: &Evaluation<f64>,
     ) -> Option<PlaneEvent> {
         let role = self.role;
-        let verdict = match self.plane.as_ref()? {
-            HeldPlane::Face(held) => {
-                let face = held.face();
+        // Each arm hands the plane back where it still resolves, or
+        // turns it into its drop: the plane goes nowhere else. A lost
+        // face is said by the words kept at the pick, not read again,
+        // since a deleted copy would answer its own node, which the
+        // line never said.
+        match self.plane.take()? {
+            HeldPlane::Face(plane) => {
+                let face = plane.face();
                 let verdict =
                     crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
                 if crate::session::select::resolves(&verdict) {
+                    self.plane = Some(HeldPlane::Face(plane));
                     return None;
                 }
-                Some(verdict)
+                Some(PlaneEvent::PlaneLost {
+                    role,
+                    plane,
+                    resolution: Box::new(verdict),
+                })
             }
-            HeldPlane::Defined { var, .. } => {
+            HeldPlane::Defined { var, through } => {
                 if doc.var(var.id()).is_some() {
+                    self.plane = Some(HeldPlane::Defined { var, through });
                     return None;
                 }
-                None
+                Some(PlaneEvent::DefinedLost { role, var })
             }
-        };
-        // Said on the body kept at the pick: read again here, a deleted
-        // copy would answer its own node, which the line never said.
-        Some(match self.plane.take()? {
-            HeldPlane::Face(plane) => PlaneEvent::PlaneLost {
-                role,
-                plane,
-                resolution: Box::new(verdict?),
-            },
-            HeldPlane::Defined { var, .. } => PlaneEvent::DefinedLost { role, var },
-        })
+        }
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
@@ -446,20 +450,21 @@ impl PlaneSeats {
     /// copy seats), the plane on the copy it was clicked on, or as the
     /// variable it is. A node `by` does not hold is said as the tool
     /// kept it.
-    fn line(&self, seat: Seat, by: Speaker<'_>) -> String {
+    fn line(&self, by: Speaker<'_>) -> String {
         let body = self.seats.said(by, 0);
         let plane = self.plane.as_ref().map(|plane| match plane {
             HeldPlane::Face(held) => Said(held, by).to_string(),
             HeldPlane::Defined { var, .. } => var.to_string(),
         });
-        picks_line([(seat.name(), body), (self.role.name(), plane)])
+        picks_line([(self.seat.name(), body), (self.role.name(), plane)])
     }
 }
 
 /// **The split tool**: a target seat and the plane it is cut along
 /// ([`PlaneSeats`]), committing one [`SessionOp::AddSplit`]. A plane
 /// the document already defines, a `Plane` variable or a `Frame` read
-/// through its `xy`, is picked by selecting the variable's row.
+/// through its `xy`, is taken when the selection names the variable
+/// (`Selection::Variable`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
     held: PlaneSeats,
@@ -553,7 +558,7 @@ impl SplitTool {
 
     /// **The panel's held-picks line** ([`PlaneSeats`]).
     pub fn line(&self, by: Speaker<'_>) -> String {
-        self.held.line(Seat::SplitTarget, by)
+        self.held.line(by)
     }
 
     /// **The one committed edit**: the target split along the held
@@ -671,7 +676,7 @@ impl MirrorTool {
 
     /// **The panel's held-picks line** ([`PlaneSeats`]).
     pub fn line(&self, by: Speaker<'_>) -> String {
-        self.held.line(Seat::MirrorBody, by)
+        self.held.line(by)
     }
 
     /// **The one committed edit**: the body mirrored across the held
@@ -1159,33 +1164,52 @@ pub const PATTERN_COUNT: i64 = 4;
 
 /// **The spacing a row inserts with**: `clears` metres, the step that
 /// clears the body ([`duplicate_step`]), rounded UP to one significant
-/// figure in `unit`, as a blend's size is written
-/// ([`crate::blend::default_size`]), so the copies still clear and the
-/// row's slide reads a round number in the unit the person works in
-/// (`60 mm` for a 51.8 mm step).
+/// figure in `unit` ([`crate::props::one_figure_length`]), so the copies
+/// still clear and the row's slide reads a round number in the unit the
+/// person works in (`60 mm` for a 51.8 mm step).
 ///
 /// # Errors
 ///
-/// A step that is not finite.
+/// [`RowSpacingFault::NotPositive`] for a step that is not a positive
+/// finite length, and the literal door's refusal for a figure that is
+/// not finite.
 pub fn row_spacing(
     clears: f64,
     unit: pncad::quantity::LengthUnit,
-) -> Result<Formula, pncad::document::DimensionError> {
-    use pncad::quantity::WrittenLength;
-    let at = clears / WrittenLength::in_unit(1.0, unit).meters();
-    // `digit · 10^-places`, divided rather than multiplied so a
-    // fraction is the double nearest it, as `default_size` writes it.
-    let places = -at.log10().floor();
-    // Up, past the rounding a step that is already round picks up on
-    // the way here, so `50 mm` stays `50 mm`.
-    let digit = (at * 10f64.powf(places) * (1.0 - 1e-12)).ceil();
-    let value = if places >= 0.0 {
-        digit / 10f64.powf(places)
-    } else {
-        digit * 10f64.powf(-places)
-    };
-    Formula::written_length(WrittenLength::in_unit(value, unit))
+) -> Result<Formula, RowSpacingFault> {
+    if !(clears.is_finite() && clears > 0.0) {
+        return Err(RowSpacingFault::NotPositive { clears });
+    }
+    crate::props::one_figure_length(clears, unit, crate::props::Rounding::Up)
+        .map_err(RowSpacingFault::Dimension)
 }
+
+/// **Why a row has no default spacing** ([`row_spacing`]).
+#[derive(Debug)]
+pub enum RowSpacingFault {
+    /// The step that clears the body is no positive finite length.
+    NotPositive {
+        /// The step, metres.
+        clears: f64,
+    },
+    /// The literal door refused the figure.
+    Dimension(pncad::document::DimensionError),
+}
+
+impl core::fmt::Display for RowSpacingFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotPositive { clears } => write!(
+                f,
+                "the step that clears the body is {clears} m, not a positive length to space a \
+                 row by"
+            ),
+            Self::Dimension(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for RowSpacingFault {}
 
 /// **The axis a ring inserts about**: the target's `z`.
 pub const RING_ABOUT: pncad::document::TargetAxis = pncad::document::TargetAxis::Z;
