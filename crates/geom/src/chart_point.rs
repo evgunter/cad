@@ -24,7 +24,7 @@
 //! | cylinder | azimuth of `(x, y)` | `h` |
 //! | cone | azimuth of `σ·(x, y)` | `h·cos α + σ·ρ·sin α` |
 //! | sphere | azimuth of `(x, y)` | latitude of `(ρ, h)` |
-//! | torus | azimuth of `(x, y)` | tube angle of `(ρ − R, h)` |
+//! | torus, spindle | azimuth of `(x, y)` | tube angle of `(ρ − R, h)` |
 //!
 //! A cone's `v` is the point's foot on the nearer generator of its
 //! half-plane pair, `σ` the sign of `h`: on the mirror nappe (`σ = −1`)
@@ -122,6 +122,13 @@ pub enum ChartArm<T> {
         /// The minor radius r.
         minor: T,
     },
+    /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]`.
+    Spindle {
+        /// The signed major radius R.
+        major: T,
+        /// The minor radius r.
+        minor: T,
+    },
 }
 
 impl<T: Real> ChartInverse<T> {
@@ -166,6 +173,21 @@ impl<T: Real> ChartInverse<T> {
                 axis,
                 u_ref,
                 ChartArm::Torus {
+                    major: major_radius,
+                    minor: minor_radius,
+                },
+            ),
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => (
+                center,
+                axis,
+                u_ref,
+                ChartArm::Spindle {
                     major: major_radius,
                     minor: minor_radius,
                 },
@@ -250,7 +272,7 @@ impl<T: Decide> ChartInverse<T> {
                 Azimuth::of(h, rho).principal_in(Window::Latitude, band),
                 off("chart_point_on_axis", rho),
             ),
-            ChartArm::Torus { major, .. } => {
+            ChartArm::Torus { major, .. } | ChartArm::Spindle { major, .. } => {
                 let tube = Azimuth::of(h, rho - major);
                 (
                     Azimuth::of(y, x).principal(band),

@@ -36,7 +36,7 @@
 //! | sphere | `(\|p − c\|² − r²)/2r` | `(p − c)/r` |
 //! | cylinder | `(ρ² − r²)/2r` | `w/r` |
 //! | cone | `ρ·cos α − \|h\|·sin α` | `(w/ρ)·cos α − axis·copysign(sin α, h)` |
-//! | torus | `((ρ − R)² + h² − r²)/2r` | `((ρ − R)·(w/ρ) + axis·h)/r` |
+//! | torus, spindle (`R` signed) | `((ρ − R)² + h² − r²)/2r` | `((ρ − R)·(w/ρ) + axis·h)/r` |
 //!
 //! The cone's `|h|` makes the residual vanish on **both** nappes (the
 //! complete locus, per `geom`'s surface conventions); its residual is
@@ -192,6 +192,13 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             major_radius,
             minor_radius,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
         } => {
             let (h, w) = axial_radial(p, center, axis);
             let rho = w.norm();
@@ -248,6 +255,13 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             w_hat * c_a - axis * s_a.copysign(h)
         }
         Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | Surface::Spindle {
             center,
             axis,
             major_radius,
@@ -332,7 +346,7 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> geom_core::
             let (_, w) = axial_radial(p, apex, axis);
             w.norm()
         }
-        Surface::Torus { minor_radius, .. } => minor_radius,
+        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => minor_radius,
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
         // M5 PR 4) owns that story, not this module.
@@ -413,6 +427,11 @@ pub fn min_radius_of_curvature_toward<T: Real>(
             },
             SurfaceSide::Outer,
         ) => (*major_radius - *minor_radius).max(T::zero()),
+        // A sheet bends without bound toward one side at its apexes:
+        // the lemon's circumferential bend `(ρ − R)/(ρ·r)` turns inward,
+        // the apple's outward where `ρ < R`. Zero on both sides is the
+        // bound that holds on either sheet.
+        (Surface::Spindle { .. }, _) => T::zero(),
         _ => curvature_lever_arm(s, p).length(),
     }
 }
@@ -460,6 +479,13 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         // F = ((ρ − R)² + h² − r²)/2r: ∇²F = ((I − aaᵀ − ŵŵᵀ)·(ρ − R)/ρ
         // + ŵŵᵀ + aaᵀ)/r. Poison on the axis (ρ = 0).
         Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | Surface::Spindle {
             center,
             axis,
             major_radius,
@@ -706,7 +732,9 @@ fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
             rounding_charge(four * d * (at + d) + two * d.powi(2) + minor_radius.powi(2))
                 / (two * minor_radius)
         }
-        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            return None;
+        }
     })
 }
 
@@ -1757,7 +1785,11 @@ fn conic_residual_harmonics<T: Real>(
         ),
         // `Approx` joins the no-closed-form group: the fit is a spline
         // and the description's offset locus has no harmonic residual.
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Cone { .. }
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
             return None;
         }
     };

@@ -245,6 +245,48 @@ pub enum Surface<T: Real> {
         u_ref: Vec3<T>,
     },
 
+    /// One **sheet** of a spindle or horn torus: the revolved circle
+    /// `S(u, v) = center + radial(u)·(R + r·cos v) + axis·(r·sin v)`
+    /// restricted to the points where `ρ = R + r·cos v ≥ 0`, with `R` =
+    /// `major_radius` **signed** and `r` = `minor_radius`.
+    ///
+    /// - `u` in radians, 2π-periodic (the azimuth; seam at `u_ref`), as
+    ///   on the [`Surface::Torus`]. `v` in radians, **closed** on
+    ///   `[−v*, v*]` with `cos v* = −R/r`: the sheet's two ends are its
+    ///   **apexes** `center ± axis·(r·sin v*)` on the axis, where
+    ///   `∂S/∂u = 0` and the surface itself is singular (a conical
+    ///   point of half-angle `atan(√(r² − R²)/|R|)`, like a cone's
+    ///   apex). The horn (`R = r`) closes at one cusp, `v* = π`.
+    /// - `R < 0` is the **lemon** (the minor arc of the meridian circle,
+    ///   between the apexes: a football's wall); `0 < R < r` the
+    ///   **apple** (the major arc); `R = r` the horn. `R = 0` is the
+    ///   sphere, its own kind, and `R > r` the ring, [`Surface::Torus`].
+    /// - Convention `r > 0`, `R ≠ 0`, `−r < R ≤ r`, decided at rest by
+    ///   [`Surface::representability_margins`] and tier 3.
+    /// - The formula, its jet and its implicit residual are the
+    ///   torus's: with `R` signed, the residual
+    ///   `((ρ − R)² + h² − r²)/2r` vanishes on exactly this sheet, so
+    ///   chart, residual and normal agree at every point of it.
+    /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the
+    ///   tube — since `∂u × ∂v = (that)·(r·ρ)` and `ρ ≥ 0` on the
+    ///   sheet.
+    Spindle {
+        /// The centre of the meridian circles' revolution (on the axis,
+        /// in the tube's midplane).
+        center: Point3<T>,
+        /// The unit axis of revolution.
+        axis: Vec3<T>,
+        /// The signed major radius R in meters: the signed distance of
+        /// the meridian circle's centre from the axis, in the sketch
+        /// half-plane at `u`; negative on the lemon.
+        major_radius: T,
+        /// The minor radius r in meters: the meridian circle's radius
+        /// (positive by convention, `r ≥ R`).
+        minor_radius: T,
+        /// The unit reference direction ⊥ `axis` where u = 0 lives.
+        u_ref: Vec3<T>,
+    },
+
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
@@ -299,6 +341,8 @@ pub enum SurfaceKind {
     Sphere,
     /// A [`Surface::Torus`].
     Torus,
+    /// A [`Surface::Spindle`].
+    Spindle,
     /// A [`Surface::Nurbs`], described or the placeholder.
     Nurbs,
     /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
@@ -320,6 +364,7 @@ impl<T: Real> Surface<T> {
             Self::Cone { .. } => SurfaceKind::Cone,
             Self::Sphere { .. } => SurfaceKind::Sphere,
             Self::Torus { .. } => SurfaceKind::Torus,
+            Self::Spindle { .. } => SurfaceKind::Spindle,
             Self::Nurbs(_) => SurfaceKind::Nurbs,
             Self::Approx(_) => SurfaceKind::Approx,
         }
@@ -349,6 +394,7 @@ impl SurfaceKind {
             Self::Cone => "cone",
             Self::Sphere => "sphere",
             Self::Torus => "torus",
+            Self::Spindle => "spindle",
             Self::Nurbs => "nurbs",
             Self::Approx => "approx",
         }
@@ -364,6 +410,7 @@ impl SurfaceKind {
             Self::Cone => "conical",
             Self::Sphere => "spherical",
             Self::Torus => "toroidal",
+            Self::Spindle => "spindle",
             Self::Nurbs => "spline",
             Self::Approx => "fitted",
         }
@@ -506,7 +553,8 @@ impl<T: Real> Surface<T> {
             | Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. } => None,
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. } => None,
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
         }
@@ -537,7 +585,10 @@ impl<T: Real> Surface<T> {
     /// - `Torus`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention `R > r > 0`). The other half, `R > r`, relates
     ///   two datums rather than bounding one, and is not a margin here;
-    /// - **the frame**, for `Cylinder`, `Sphere` and `Torus`, after the
+    /// - `Spindle`: `minor_radius`, lower end, likewise; the sheet's
+    ///   range `−r < R ≤ r`, `R ≠ 0` relates the two datums and is
+    ///   [`spindle_sheet`]'s;
+    /// - **the frame**, for `Cylinder`, `Sphere`, `Torus` and `Spindle`, after the
     ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
     ///   each within `band`'s coincidence threshold ε at the kind's
     ///   radius (`convention::frame_margins`, which says what each frame
@@ -622,6 +673,15 @@ impl<T: Real> Surface<T> {
             } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
                 .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
                 .collect(),
+            Surface::Spindle {
+                center: _,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, major_radius.abs() + *minor_radius))
+                .collect(),
             Surface::Plane {
                 origin: _,
                 normal: _,
@@ -648,7 +708,7 @@ pub enum SurfaceDatum {
     Normal,
     /// The seam direction `u_ref` of any analytic kind.
     URef,
-    /// The `axis` of a cylinder, cone, sphere or torus.
+    /// The `axis` of a cylinder, cone, sphere, torus or spindle.
     Axis,
     /// A cylinder's or sphere's `radius`.
     Radius,
@@ -656,11 +716,11 @@ pub enum SurfaceDatum {
     Apex,
     /// A cone's `half_angle`.
     HalfAngle,
-    /// A sphere's or torus's `center`.
+    /// A sphere's, torus's or spindle's `center`.
     Center,
-    /// A torus's `major_radius`.
+    /// A torus's or spindle's `major_radius` (signed on a spindle).
     MajorRadius,
-    /// A torus's `minor_radius`.
+    /// A torus's or spindle's `minor_radius`.
     MinorRadius,
 }
 
@@ -801,6 +861,19 @@ impl<T: Real> Surface<T> {
                 (D::MinorRadius, Scalar(minor_radius)),
                 (D::URef, Direction(u_ref)),
             ]),
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
             Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
             Surface::Approx(ref a) => return SurfaceData::Approx(a),
         })
@@ -887,6 +960,13 @@ impl<T: SpanLocate> Surface<T> {
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+            | &Surface::Spindle {
                 center,
                 axis,
                 major_radius,
@@ -1068,6 +1148,13 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+            | &Surface::Spindle {
                 center,
                 axis,
                 major_radius,
@@ -1294,6 +1381,29 @@ mod tests {
                     u_ref: t_uref(),
                 },
             ),
+            // Both sheets' windows hold the proptests' `|v| ≤ 1.4`:
+            // the lemon's `v* = acos(0.15) ≈ 1.42`, the apple's
+            // `acos(−0.6) ≈ 2.21`.
+            (
+                "lemon",
+                Surface::Spindle {
+                    center: t_center(),
+                    axis: t_axis(),
+                    major_radius: -0.3,
+                    minor_radius: 2.0,
+                    u_ref: t_uref(),
+                },
+            ),
+            (
+                "apple",
+                Surface::Spindle {
+                    center: t_center(),
+                    axis: t_axis(),
+                    major_radius: 1.2,
+                    minor_radius: 2.0,
+                    u_ref: t_uref(),
+                },
+            ),
         ]
     }
 
@@ -1447,7 +1557,8 @@ mod tests {
                         // slant |v|: axis component v·cosα, radial |v|·sinα
                         rho - d.norm() * half_angle.sin(),
                     Surface::Sphere { radius, .. } => d.norm() - radius,
-                    Surface::Torus { major_radius, minor_radius, .. } => {
+                    Surface::Torus { major_radius, minor_radius, .. }
+                    | Surface::Spindle { major_radius, minor_radius, .. } => {
                         let dr = rho - major_radius;
                         (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
                     }

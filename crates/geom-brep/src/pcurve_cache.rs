@@ -3227,7 +3227,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
             major: cross(major_radius),
             minor: cross(minor_radius),
         },
-        Surface::Nurbs(_) | Surface::Approx(_) => {
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
     };
@@ -4146,7 +4146,8 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         | Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => {
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => {
             unreachable!("fitted_lane: `run_fitted_checks` admits only a spline chart at check 1")
         }
     };
@@ -5060,8 +5061,9 @@ fn chart_image_harmonic<T: Real>(pcurve: &Pcurve<T>, surface: &Surface<T>) -> Op
             }
         }
         // A spline chart's image has no harmonic decomposition —
-        // neither the payload's nor an approximating surface's fit.
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
+        // neither the payload's nor an approximating surface's fit. A
+        // spindle sheet's harmonic lane is not built.
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -5091,6 +5093,11 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
             major_radius,
             minor_radius,
             ..
+        }
+        | Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
         } => major_radius + minor_radius,
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
         // Non-periodic charts have no azimuth, so there is no lever to
@@ -5112,8 +5119,10 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
 /// (`v` is a latitude, so `cos` decreases in `|v|` up to the pole, where
 /// it reads zero); torus `R − r` (`R + r·cos v ≥ R − r` at every `v`);
 /// cone `v_inf·sin α` with `v_inf` the window's least `|v|`, zero where
-/// the window straddles the apex. Never negative: a spindle torus, or a
-/// window on the pole, reads zero.
+/// the window straddles the apex; spindle sheet `R + r·cos v` at the
+/// window's largest `|v|` (`cos` decreases in `|v|` up to `π`, and the
+/// sheet's apexes read zero). Never negative: a window on a pole or an
+/// apex reads zero.
 fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
     let arm = match *surface {
         Surface::Cylinder { radius, .. } => radius,
@@ -5126,6 +5135,11 @@ fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpee
             minor_radius,
             ..
         } => major_radius - minor_radius,
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => major_radius + minor_radius * v_lo.abs().max(v_hi.abs()).min(T::pi()).cos(),
         Surface::Cone { half_angle, .. } => {
             v_lo.max(T::zero() - v_hi).max(T::zero()) * half_angle.sin()
         }
@@ -5679,6 +5693,22 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
                 u_ref,
             }
         }
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = frame(axis, u_ref);
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+        }
         Surface::Plane {
             origin,
             normal,
@@ -5769,14 +5799,22 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             minor_radius,
             u_ref,
             ..
+        }
+        | Surface::Spindle {
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+            ..
         } => {
             // `(R + r·cos v)·Δrad + r·sin v·Δaxis`: the tube's share is
-            // the sphere's, `r` levering the two defects at their norm.
+            // the sphere's, `r` levering the two defects at their norm,
+            // and the spine's `|R|`, signed on a spindle sheet.
             let (d_axis, d_radial) = defect(axis, u_ref);
             let tube = harmonic_sup_scalar(d_radial, d_axis);
             #[cfg(test)]
             let tube = mutants::frame(d_radial, d_axis).unwrap_or(tube);
-            d_radial * major_radius + tube * minor_radius
+            d_radial * major_radius.abs() + tube * minor_radius
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("frame_defect: check 4's periodic arm reads an analytic periodic chart")
@@ -6235,7 +6273,9 @@ fn angle_periods<T: Real>(surface: &Surface<T>) -> Option<AnglePeriods<T>> {
     match *surface {
         Surface::Plane { .. } => Some((None, None)),
         Surface::Cylinder { .. } | Surface::Cone { .. } => Some((angle(), None)),
-        Surface::Sphere { .. } | Surface::Torus { .. } => Some((angle(), angle())),
+        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
+            Some((angle(), angle()))
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
@@ -7277,7 +7317,9 @@ pub fn chart_stretch_sup<T: Real>(
         // The sphere/torus second parameter IS an angle (M6-3): its
         // arm is the polar / meridional radius.
         Surface::Sphere { radius, .. } => Ok((azimuth(), SupSpeed::new(radius))),
-        Surface::Torus { minor_radius, .. } => Ok((azimuth(), SupSpeed::new(minor_radius))),
+        Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => {
+            Ok((azimuth(), SupSpeed::new(minor_radius)))
+        }
         // A described NURBS chart's honest arms are its derivative-net
         // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
         // of the local stretch, the safe direction exactly as the
@@ -7502,7 +7544,8 @@ pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
         | Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => zero,
+        | Surface::Torus { .. }
+        | Surface::Spindle { .. } => zero,
     }
 }
 
@@ -9104,7 +9147,13 @@ fn farthest_over_span<T: Real>(
             major_radius,
             minor_radius,
             ..
-        } => (center, major_radius + minor_radius),
+        }
+        | Surface::Spindle {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => (center, major_radius.abs() + minor_radius),
         Surface::Cone { apex, .. } => (apex, T::zero()),
         Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("farthest_over_span: the incidence test reads an analytic chart")
@@ -10284,6 +10333,10 @@ fn derive_class<T: Decide>(
         Surface::Approx(_) => Err(Underived::Refused(PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Approx,
         })),
+        // A spindle sheet's closed-form images are not built.
+        Surface::Spindle { .. } => Err(Underived::Refused(PcurveCertifyError::UnsupportedChart {
+            chart: geom::SurfaceKind::Spindle,
+        })),
     }
 }
 
@@ -10804,7 +10857,10 @@ const INCIDENCE_SAMPLES: u32 = 64;
 /// The exact distance of `p` from an analytic curved chart: the sphere's
 /// `|‖p − c‖ − R|`, the double cone's `|elevation|`
 /// ([`crate::implicit::cone_elevation`], exact on the double cone), the
-/// torus's `|√((ρ − R)² + h²) − r|`.
+/// torus's `|√((ρ − R)² + h²) − r|`. On a spindle sheet the torus's
+/// form is the distance from the sheet's whole revolved circle, which
+/// holds the sheet, so it bounds the sheet's from below: the one-sided
+/// reading [`incidence_over_span`] decides.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
         Surface::Sphere { center, radius, .. } => (p.distance(center) - radius).abs(),
@@ -10815,6 +10871,13 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             ..
         } => crate::implicit::cone_elevation(apex, axis, half_angle, None, p).abs(),
         Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | Surface::Spindle {
             center,
             axis,
             major_radius,
@@ -11024,7 +11087,9 @@ mod incidence {
         let mut moved = surface.clone();
         let anchor = match &mut moved {
             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => origin,
-            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
+            Surface::Sphere { center, .. }
+            | Surface::Torus { center, .. }
+            | Surface::Spindle { center, .. } => center,
             Surface::Cone { apex, .. } => apex,
             Surface::Nurbs(_) | Surface::Approx(_) => return None,
         };
@@ -11068,7 +11133,8 @@ mod incidence {
         *anchor = geom_core::Point3::new(off[0].value, off[1].value, off[2].value);
         if let Surface::Cylinder { axis, .. }
         | Surface::Cone { axis, .. }
-        | Surface::Torus { axis, .. } = &mut moved
+        | Surface::Torus { axis, .. }
+        | Surface::Spindle { axis, .. } = &mut moved
         {
             *axis = axis.normalize();
         }
@@ -11463,6 +11529,9 @@ fn spiric_chart_pcurve<T: Decide>(
         }),
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Approx,
+        }),
+        Surface::Spindle { .. } => Err(PcurveCertifyError::UnsupportedChart {
+            chart: geom::SurfaceKind::Spindle,
         }),
     }
 }

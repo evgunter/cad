@@ -16,7 +16,8 @@
 //! it.
 //!
 //! **The singular points** are [`singular_points`]: a sphere's two poles
-//! ([`sphere_poles`]) and a cone's apex, from the chart's own frame.
+//! ([`sphere_poles`]), a cone's apex and a spindle sheet's two apexes
+//! ([`sheet_apexes`]), from the chart's own frame.
 //!
 //! **On the boundary.** A point is at a vertex of the face where its
 //! distance to the vertex's stored point decides zero
@@ -117,6 +118,30 @@ pub enum Singularity {
     South,
     /// A cone's apex.
     Apex,
+    /// A spindle sheet's apex at the end of its `v` window along its
+    /// axis (`v = v*`); a horn's one cusp.
+    SheetApexUp,
+    /// A spindle sheet's apex at the end of its `v` window against its
+    /// axis (`v = −v*`); on a horn, the same cusp as
+    /// [`Self::SheetApexUp`].
+    SheetApexDown,
+}
+
+/// **A spindle sheet's two apexes**, the one along its axis first: its
+/// centre plus and minus its unit `axis` times `√(r² − R²)`, the height
+/// at which the meridian circle crosses the axis. On a horn (`R = r`)
+/// the two are its one cusp, the centre.
+pub fn sheet_apexes<T: Real>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+) -> [(Singularity, Point3<T>); 2] {
+    let height = (minor.powi(2) - major.powi(2)).sqrt();
+    [
+        (Singularity::SheetApexUp, center + axis * height),
+        (Singularity::SheetApexDown, center - axis * height),
+    ]
 }
 
 /// **A sphere's two poles**, north first: its centre plus and minus its
@@ -134,13 +159,15 @@ pub fn sphere_poles<T: Real>(
 }
 
 /// **A chart's singular points**: a sphere's two poles, north first
-/// ([`sphere_poles`]), and a cone's apex, from the chart's own frame;
-/// none for any other kind.
+/// ([`sphere_poles`]), a cone's apex, and a spindle sheet's two apexes
+/// ([`sheet_apexes`]), from the chart's own frame; none for any other
+/// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
     let (anchor, axis) = (chart.anchor(), chart.axis());
     match chart.arm() {
         ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
         ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
+        ChartArm::Spindle { major, minor } => sheet_apexes(anchor, axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
@@ -837,8 +864,8 @@ struct WalkSample<T: Real> {
 /// `None` where a sample reads no chart point away from every singular
 /// point, fewer than three samples read, a step cannot be certified to
 /// turn by less than a sixteenth of a turn, an edge has no speed bound
-/// ([`speed_bound`]: a rational spline), or the loop winds more than
-/// once.
+/// ([`speed_bound`]: a rational spline), the loop winds more than
+/// once, or the chart is a spindle sheet's, which has no walk lane yet.
 #[must_use]
 pub fn walk_loop<T: Decide>(
     chart: &ChartInverse<T>,
@@ -903,7 +930,7 @@ pub fn walk_loop<T: Decide>(
             })
         })
         .collect();
-    let shape = Shape::of(chart, on_loop, T::from_f64(band.escalate()));
+    let shape = Shape::of(chart, on_loop, T::from_f64(band.escalate()))?;
     // Certify every step's turn, bisecting where it is not.
     loop {
         let mut wide = Vec::new();
@@ -1006,21 +1033,23 @@ enum ShapeKind<T> {
 }
 
 impl<T: Decide> Shape<T> {
-    fn of(chart: &ChartInverse<T>, on_loop: Vec<Point3<T>>, escalate: T) -> Self {
+    /// `None` for a spindle sheet's chart, which has no walk lane yet.
+    fn of(chart: &ChartInverse<T>, on_loop: Vec<Point3<T>>, escalate: T) -> Option<Self> {
         let kind = match chart.arm() {
             ChartArm::Sphere { radius } => ShapeKind::Sphere(radius),
             ChartArm::Cone { half_angle } => ShapeKind::Cone(half_angle.sin(), half_angle.cos()),
             ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => {
                 ShapeKind::Other
             }
+            ChartArm::Spindle { .. } => return None,
         };
-        Self {
+        Some(Self {
             anchor: chart.anchor(),
             axis: chart.axis(),
             kind,
             on_loop,
             escalate,
-        }
+        })
     }
 
     /// `g(v)`, whose `v`-derivative is the chart's area element over
@@ -1329,8 +1358,8 @@ pub fn loop_holds_on_left<T: Decide>(
             ))
         }
         w => match singularity {
-            Singularity::North => Ok(w == 1),
-            Singularity::South => Ok(w == -1),
+            Singularity::North | Singularity::SheetApexUp => Ok(w == 1),
+            Singularity::South | Singularity::SheetApexDown => Ok(w == -1),
             Singularity::Apex => Ok((w == 1) == (nappe(walk)? == NonzeroSign::Negative)),
         },
     }

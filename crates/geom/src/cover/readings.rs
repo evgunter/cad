@@ -50,6 +50,17 @@ impl<T: Real> Surface<T> {
                 u_ref,
             } => Cover::tube(*center, *axis, *u_ref, *major_radius, *minor_radius)
                 .ok_or_else(|| refuse(Unknown::NonFinite)),
+            // The sheet lies on its whole revolved circle, which is the
+            // tube about the circle of radius `|R|`: the signed centre
+            // and its mirror across the axis sweep the same set.
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => Cover::tube(*center, *axis, *u_ref, major_radius.abs(), *minor_radius)
+                .ok_or_else(|| refuse(Unknown::NonFinite)),
             Surface::Nurbs(patch) => net(entity, patch.control()),
             Surface::Approx(approx) => net(entity, approx.fit().control()),
         }

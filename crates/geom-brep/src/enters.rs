@@ -781,8 +781,10 @@ pub fn bends_into_material<T: Decide>(
     match surface.kind() {
         geom::SurfaceKind::Plane => return Ok(WallBend::Flat),
         geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone | geom::SurfaceKind::Sphere => {}
-        kind
-        @ (geom::SurfaceKind::Torus | geom::SurfaceKind::Nurbs | geom::SurfaceKind::Approx) => {
+        kind @ (geom::SurfaceKind::Torus
+        | geom::SurfaceKind::Spindle
+        | geom::SurfaceKind::Nurbs
+        | geom::SurfaceKind::Approx) => {
             return Err(WallBendError::Indefinite(kind));
         }
     }
