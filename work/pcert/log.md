@@ -940,6 +940,17 @@ E1c waits on the answer.
   - **P3:** the rest of the refusal-vocabulary residue.
   - **P4:** the frozen-node cost item.
   - Order: E2 → E3 → E4, E5 beside. `plane-nurbs-refusal-ending…` and the two second-spelling rows fit between units, wherever they touch different code from the unit in flight.
+- 2026-11-03 — **P1 `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` merged** (PR 6474). Every `PlaneNurbsRefusal` and `AnalyticRung3Refusal` arm ends by its decision through an exhaustive match: no grouped `None`, no `_ =>`.
+  - Shared refusals end from one home with `PcurveCertifyError`:
+    - the placeholder wall ends in `PLACEHOLDER_RECOURSE`;
+    - `CarrierEnclosure` ends "not yet";
+    - an unsettled foot reads `SsiError::FootPointInconclusive`'s ending, which is now "not yet" at every reading, never a defect or a damaged file. That ending also corrects 6448's `FootUnsettled` and the SSI door's own golden.
+    - A wrong-lane call ends as `WrongLane`.
+    - The SSI flattens carry the `SsiError`'s own ending, which closes `wrappers-that-flatten-an-ssi-error-end-it-by-their-own-decision`.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR / 6 MINOR, with the fix list S read by the orchestrator.
+  - **The pose gap was reverted.** The lane had routed `GeneralLane` to the pose lever. The review found the gap also catches in-band poses *beside* a pole, where "split the edge at it" names no passage, and the same apex fact ending two ways. The 6448 pair stands, and the evidence is recorded on the row.
+  - The every-arm row now reads the other doors' homes, so the reviewer's mutant D reds at every door, and the edge-door lever is pinned by identity.
+  - Filed **`two-decision-tables-for-one-ending` (P1)**: `LaneDecision` and `pcurve_cache`'s `Decision` drift apart.
 - 2026-11-03 — **`harmonic3-circle-and-ellipse-arms-re-spell-conic-of` closed** (PR 6468): there was no code to change. PR 6349 (onehome) had already made `carrier_harmonic` read `Conic::of` / `semi_axis_vectors()`, bit-identical at f64 and at Interval. Filed `work/shell/topo-stands-and-shell-moved-walls-re-spell-a-conics-frame-by-kind.md`. Review tier: the orchestrator's read.
 - 2026-11-03 — **E2 merged** (PR 6470): a line on a cylinder has a general (projected) lane, as Ev ruled on `[ev]` PR 5186.
   - The lane: `has_lane` admits (Line, Cylinder), and check 4's line arm bounds incidence by a Bernstein convex-hull sup of ρ² − R², converted through the cylinder arm's own `over`.
