@@ -62,8 +62,6 @@ mod common;
 mod corpus;
 mod fixture;
 
-#[path = "probe_review_6431.rs"]
-mod probe_review_6431;
 #[path = "assembly_display.rs"]
 mod assembly_display;
 #[path = "assembly_walk.rs"]
@@ -132,6 +130,8 @@ mod mate_kinds;
 mod mate_tool_flow;
 #[path = "mirror_authoring.rs"]
 mod mirror_authoring;
+#[path = "probe_review_6431.rs"]
+mod probe_review_6431;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
