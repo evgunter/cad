@@ -65,7 +65,7 @@ use crate::description::{
     SurfacePair, authority_of,
 };
 use crate::dihedral::{
-    DihedralClass, WedgeEscalation, decide_positive, decide_reported, wedge_decided,
+    DihedralClass, FirstOrderEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
@@ -979,7 +979,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the shared row's image on surface {surface:?} is not the edge: its \
-                 certificate refused at its {check:?} check"
+                 certificate refused at its {} check",
+                check.words()
             ),
             Self::Row {
                 surface,
@@ -4134,6 +4135,7 @@ fn mint_refusal<T: Real>(
         // caller looking for a missing feature instead of a wrong locus.
         PcurveCertifyError::UnsupportedChart { .. }
         | PcurveCertifyError::ImageMismatch { .. }
+        | PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
         | PcurveCertifyError::FittedLaneUnsupported { .. }
         | PcurveCertifyError::SectorRefused { .. }
         | PcurveCertifyError::IsoUnsupported { .. }
@@ -4266,7 +4268,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 verdict,
                             });
                         }
-                        Err(WedgeEscalation::Lever(escalation)) => {
+                        Err(FirstOrderEscalation::Lever(escalation)) => {
                             if let Some(verdict) = escalation.collapsed_arm() {
                                 return Err(CertifyError::ArmCollapsed { sample: i, verdict });
                             }
@@ -4279,7 +4281,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 cause: escalation.diag(),
                             });
                         }
-                        Err(WedgeEscalation::NoTangentPlane(cause)) => {
+                        Err(FirstOrderEscalation::NoTangentPlane(cause)) => {
                             return Err(CertifyError::Escalated {
                                 check: CertCheck::TangentPlanes,
                                 sample: i,

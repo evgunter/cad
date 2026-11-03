@@ -315,8 +315,7 @@ pub mod stations;
 pub mod oblique;
 
 use geom::NurbsCurve3;
-use geom_core::linalg::frame::path_start_frame;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Band, Mat3, Point2, Point3, RigidMotion, Tol, UnitVec3, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -358,25 +357,31 @@ pub fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
         .collect()
 }
 
-/// The placement a path sweep starts from, read off the path's start:
-/// `geom_core::linalg::frame::path_start_frame`, the kernel's own
-/// door for it. The frame's local +Z is the start TANGENT, so the
-/// local XY plane is the plane the profile is drawn in, and the roll
-/// comes from the door's reference ladder (world +Z, then world +X)
-/// under the tolerance band. `sweep::sweep_places` carries this frame
-/// along the path by the rotation-minimizing frame
-/// (`crates/sweep/README.md` `[sweep.frame]`), so a section placed here
-/// stays normal to the path.
+/// **The frame a path sweep starts from at `point`, along `tangent`**:
+/// the world frame there turned onto the tangent by the least turn
+/// (`RigidMotion::turned_onto`). Its local +Z is the tangent, so its
+/// local XY plane is the plane the profile is drawn in, and its roll is
+/// the world frame's, carried.
 ///
-/// The door returns a typed refusal for a path whose start tangent
-/// fixes no frame; a fixture whose path is that degenerate is a fixture
-/// bug, so this unwraps with the refusal in the message.
+/// A fixture whose tangent has no direction, or is the world −z, is a
+/// fixture bug, so this unwraps with the refusal in the message.
+pub fn start_frame(point: Point3<f64>, tangent: Vec3<f64>) -> RigidMotion<f64> {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let tangent = UnitVec3::new(tangent, "test_start_tangent", band)
+        .unwrap_or_else(|e| panic!("the start tangent must have a direction: {e:?}"));
+    RigidMotion::axes_xy(point)
+        .turned_onto(tangent, "test_start_turn", band)
+        .unwrap_or_else(|e| panic!("the start tangent must be off the world -z: {e:?}"))
+}
+
+/// The placement a path sweep starts from, read off the path's start:
+/// [`start_frame`] at its start point and start tangent.
+/// `sweep::sweep_places` carries this frame along the path by the
+/// rotation-minimizing frame (`crates/sweep/README.md`
+/// `[sweep.frame]`), so a section placed here stays normal to the path.
 pub fn normal_start_place(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
     let (lo, _) = path.domain();
-    SketchPlane::from_frame(
-        path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
-            .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}")),
-    )
+    SketchPlane::from_frame(start_frame(path.eval(lo), path.deriv(lo)))
 }
 
 /// A closed four-line quad section (one loop, four vertices) — the
