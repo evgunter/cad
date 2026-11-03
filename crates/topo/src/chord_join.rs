@@ -542,9 +542,11 @@ pub enum SplitJoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
-    /// A run edge between two chords on a plane face is a spiric or a
-    /// spline, and the join has no row reading whether such an edge lies
-    /// in the cut's plane: its midpoint's side says nothing of the rest.
+    /// An edge on a section's loop is a spiric or a spline, which the
+    /// join has no row for: a run edge between two chords on a plane
+    /// face, whether it lies in the cut's plane (its midpoint's side says
+    /// nothing of the rest); a section edge, the area it bounds past its
+    /// chord.
     RunEdgeCarrierUnsupported {
         /// The face whose loop the run is on.
         face: FaceKey,
@@ -886,9 +888,9 @@ impl core::fmt::Display for SplitJoinError {
             ),
             Self::RunEdgeCarrierUnsupported { .. } => write!(
                 f,
-                "a cut joins two points of a face's boundary across a spiric or spline \
-                 (NURBS) edge, and the join cannot yet tell whether such an edge lies in the \
-                 cut. Recourse: {}",
+                "a cut meets a spiric or spline (NURBS) edge on a face's boundary, and the \
+                 join cannot yet read such an edge there: whether it lies in the cut, or the \
+                 area it bounds in the section. Recourse: {}",
                 crate::boolean::CONIC_EDGES_RECOURSE
             ),
             Self::TangentChordEscalated { diag, .. } => write!(
