@@ -3515,5 +3515,8 @@ and the census count is the same on both sides.
 | `split_sphere_pole_branch` | `chart_window_pole_branch` |
 | `bool_cone_apex_visit` | `chart_window_cone_apex` |
 
-The committed CSVs under `docs/k-report-data/` and the addenda above
-keep the old spellings, as the sweeps wrote them.
+Two of the old spellings are in committed snapshots, as the sweeps
+wrote them: `split_sphere_window_pole` (14 rows in each
+`m5-eps-*.csv.gz`, 28 in each `m7-eps-*.csv.gz`) and
+`split_sphere_window_pole_side` (4 and 8). The other three appear in
+no committed CSV, and no addendum above names any of the five.

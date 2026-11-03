@@ -72,7 +72,7 @@ use crate::body::Body;
 use crate::chord_join::{
     ChordJoiner, ConicCrossingsCase, CutOutcome, Datum, FragmentRows, JoinLane, Leave, SectionCase,
     SectionConic, SectionCtx, SegmentEdge, SplitJoinError, WallSection, corrupt_edge, corrupt_face,
-    corrupt_he, corrupt_loop, he_face, lone_site_placeholder, vertex_point, wall_section,
+    corrupt_he, corrupt_loop, he_face, lone_site_placeholder, wall_section,
 };
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::null::{CurveGeom, NullFacePair};
@@ -140,7 +140,10 @@ pub(super) fn split_connect<T: Decide + crate::props::AtRestPolicy>(
     // Sort points: each null edge's coincident-copy position.
     let mut points = Vec::with_capacity(red.null_edges.len());
     for r in &red.null_edges {
-        points.push(vertex_point(&red.body, r.attr.below_end));
+        points.push(
+            red.body
+                .resolve_vertex_point(r.attr.below_end, crate::live::Proven),
+        );
     }
     let sorted = order::sort_indices_by_point(&points, &red.plane, band, exact)
         .map_err(|diag| SplitJoinError::OrderEscalated { diag })?;
@@ -323,7 +326,7 @@ fn fixed_partners<T: Decide>(
             let germ = red.apex_germs.get(h).copied();
             crossings.push(Crossing {
                 half: h,
-                point: vertex_point(body, start),
+                point: body.resolve_vertex_point(start, crate::live::Proven),
                 // The half's up/down sense, read as the sweep reads it
                 // (`Sweep::is_down`).
                 down: above_set.contains_key(start),
@@ -424,7 +427,11 @@ fn leave_on<T: Decide>(
         .get_half_edge(half)
         .ok_or_else(|| corrupt_he(half))?
         .start;
-    let out = geom_brep::implicit_outward_normal(wall, sense, vertex_point(body, start));
+    let out = geom_brep::implicit_outward_normal(
+        wall,
+        sense,
+        body.resolve_vertex_point(start, crate::live::Proven),
+    );
     // A wall with no normal at the site (a cone's apex, where the half
     // carries its germ instead) has no direction to leave it in.
     let n = out.vec();
@@ -1124,8 +1131,8 @@ impl<T: Decide> Sweep<T> {
             let (t0, t1) = curve.params();
             let span = t1 - t0;
             let forward = edge.he_plus == he;
-            let a_pt = vertex_point(body, he_data.start);
-            let b_pt = vertex_point(body, end);
+            let a_pt = body.resolve_vertex_point(he_data.start, crate::live::Proven);
+            let b_pt = body.resolve_vertex_point(end, crate::live::Proven);
             let dt_signed = if forward { span } else { T::zero() - span };
             let a = a_pt - origin;
             let b = b_pt - origin;
@@ -1405,7 +1412,10 @@ pub(super) fn loop_points_of<T: Decide>(
     l: LoopKey,
 ) -> Result<Vec<Point3<T>>, SplitJoinError> {
     let starts = loop_starts(body, l)?;
-    Ok(starts.into_iter().map(|v| vertex_point(body, v)).collect())
+    Ok(starts
+        .into_iter()
+        .map(|v| body.resolve_vertex_point(v, crate::live::Proven))
+        .collect())
 }
 
 #[cfg(test)]

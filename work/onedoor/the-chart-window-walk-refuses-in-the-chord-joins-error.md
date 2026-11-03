@@ -16,3 +16,5 @@ Found by `onedoor/carrier-and-window` (2026-11-03), which moved the walk and lef
 - `review_d18`'s `face_azimuth_window_traces` row and `sweep`'s `pole_slit_window` read it through the public `topo::SplitJoinError`.
 
 The variants the walk raises are `Corrupt`, `Escalated`, `SectionInvariant`, `RunImageNotYet`, `RunImageIncidence`, `ApexUnlifted` and `PoleEdgesCoincide`; the last two are window-only. The question is whether the walk gets a `ChartWindowError` of its own, with `SplitJoinError` wrapping it at the chord join's island winding, which is the one reader that is the chord join. That change moves refusals, which is why it is a row and not part of the move.
+
+`corrupt_face`, the chord join's `SplitJoinError::Corrupt` constructor, is the walk's one other import from `chord_join` (`chart_window`'s `face_loop_azimuth_windows` and `face_azimuth_images`, for a face key that does not resolve); a `ChartWindowError` takes it with the rest.

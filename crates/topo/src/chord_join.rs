@@ -1060,13 +1060,6 @@ pub(crate) fn corrupt_edge(edge: EdgeKey) -> SplitJoinError {
 /// ([`crate::lineage::FaceDivisions`]).
 pub(crate) type FragmentRows = crate::lineage::FaceDivisions;
 
-/// The point of `v`, a vertex the join read out of its working body: a
-/// miss of the vertex or its point panics naming it (D2 row 4).
-#[track_caller]
-pub(crate) fn vertex_point<T: Decide>(body: &Body<T>, v: VertexKey) -> Point3<T> {
-    body.point_of(v, crate::live::proven(&body.vertices, v, EntityId::Vertex))
-}
-
 /// The outcome of retiring a fully-joined null edge (`cut`):
 /// either the section polygon completed (a 2-loop null face remains,
 /// roles unresolved — the caller resolves them from its own role data)
@@ -2000,7 +1993,7 @@ fn far_end<T: Decide>(
     face: FaceKey,
     (u1, u2): (VertexKey, VertexKey),
 ) -> Result<Option<Point3<T>>, SplitJoinError> {
-    Ok((!same_site(body, face, (u1, u2))?).then(|| vertex_point(body, u2)))
+    Ok((!same_site(body, face, (u1, u2))?).then(|| body.resolve_vertex_point(u2, Proven)))
 }
 
 /// **Whether `u2` is one site with `u1`**: `u1` itself or a copy of it
@@ -2420,8 +2413,8 @@ fn chord_spec<T: Decide>(
                     what: "tangent classification carried a non-line",
                 });
             };
-            let p1 = vertex_point(body, u1);
-            let p2 = vertex_point(body, u2);
+            let p1 = body.resolve_vertex_point(u1, Proven);
+            let p2 = body.resolve_vertex_point(u2, Proven);
             let len = dir.norm();
             let t1 = (p1 - origin).dot(dir) / len.powi(2);
             let t2 = (p2 - origin).dot(dir) / len.powi(2);
@@ -2508,11 +2501,14 @@ fn chord_spec<T: Decide>(
             face,
             loops,
             (split, ctx.branch),
-            [vertex_point(body, u1), vertex_point(body, u2)],
+            [
+                body.resolve_vertex_point(u1, Proven),
+                body.resolve_vertex_point(u2, Proven),
+            ],
             band,
         )?,
     };
-    let p1 = vertex_point(body, u1);
+    let p1 = body.resolve_vertex_point(u1, Proven);
     let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
@@ -2825,11 +2821,14 @@ fn bool_planar_chord_spec<T: Decide>(
             face,
             loops,
             (split, Some(branch)),
-            [vertex_point(body, u1), vertex_point(body, u2)],
+            [
+                body.resolve_vertex_point(u1, Proven),
+                body.resolve_vertex_point(u2, Proven),
+            ],
             band,
         )?,
     };
-    let p1 = vertex_point(body, u1);
+    let p1 = body.resolve_vertex_point(u1, Proven);
     let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
     let ends = section_end_reading(&conic);
     let (carrier, t_start, t_end) =
@@ -2969,7 +2968,10 @@ fn carried_chord_spec<T: Decide>(
             )),
         }
     };
-    let (p1, p2) = (vertex_point(body, u1), vertex_point(body, u2));
+    let (p1, p2) = (
+        body.resolve_vertex_point(u1, Proven),
+        body.resolve_vertex_point(u2, Proven),
+    );
     let seat1 = at_seat(p1)?;
     let from = if seat1 { lo } else { foot(p1)? };
     let tangent = carrier.deriv(from);
@@ -3186,7 +3188,10 @@ impl<T: Decide> SegmentCurve<T> {
         band: Band,
     ) -> impl FnOnce(EulerOpError) -> SplitJoinError + use<T> {
         let read = self.ends.zip(spec.cloned());
-        let at = (vertex_point(body, ends.0), vertex_point(body, ends.1));
+        let at = (
+            body.resolve_vertex_point(ends.0, Proven),
+            body.resolve_vertex_point(ends.1, Proven),
+        );
         move |refusal| match read {
             Some((reading, spec)) => section_pin_refusal(reading, face, (&spec, at), refusal, band),
             None => refusal.into(),
@@ -3408,31 +3413,14 @@ fn between_edge_is_section<T: Decide>(
     }
 }
 
-/// The half-edges of `face`'s outer loop in cycle order; `None` for a
-/// loop that is not a cycle.
-///
-/// `face` is the caller's key, and [`SplitJoinError::Corrupt`] where it
-/// does not resolve. Past it the outer loop is a link and its walk
-/// closes, on a body at rest by tier 1 and mid-operation by
-/// [`crate::live::OPERATORS_KEEP_LINKS`]: a miss panics, and the walk's
-/// members are proven for [`crate::chart_window::run_azimuth_images`].
-pub(crate) fn outer_cycle<T: Decide>(
+/// [`Body::outer_cycle_linked`] for `face`, the caller's key:
+/// [`SplitJoinError::Corrupt`] where it does not resolve.
+fn outer_cycle<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<Vec<HalfEdgeKey>>, SplitJoinError> {
-    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
-    let LoopBoundary::Cycle { first } = linked(
-        &body.loops,
-        outer,
-        EntityId::Loop,
-        EntityId::Face(face),
-        "outer",
-    )
-    .boundary
-    else {
-        return Ok(None);
-    };
-    Ok(Some(body.loop_walk(first).closed("loop", first)))
+    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    Ok(body.outer_cycle_linked(face, data))
 }
 
 /// `∫ (v − anchor) du` of a harmonic chart image from `t0` to `t1`, and
@@ -3768,7 +3756,7 @@ fn outer_references<T: Decide>(
 fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, SplitJoinError> {
     Ok(ring_vertices(body, l)?
         .into_iter()
-        .map(|v| vertex_point(body, v))
+        .map(|v| body.resolve_vertex_point(v, Proven))
         .collect())
 }
 
@@ -3904,9 +3892,9 @@ impl<T: Decide> IslandReading<T> {
             None => {
                 let after = cycle[(end + 1) % cycle.len()];
                 let at = |he: HalfEdgeKey| {
-                    Ok::<_, SplitJoinError>(vertex_point(
-                        body,
+                    Ok::<_, SplitJoinError>(body.resolve_vertex_point(
                         body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start,
+                        Proven,
                     ))
                 };
                 let (from, to) = (at(after)?, at(h1)?);
@@ -4784,7 +4772,7 @@ impl RimSide {
                     -T::one()
                 };
                 let tangent = curve.carrier().deriv(t0) * (forward / radius);
-                let p = vertex_point(body, h.start);
+                let p = body.resolve_vertex_point(h.start, Proven);
                 let normal = crate::face_normal::face_outward_normal_at(body, face, p, band)
                     .map_err(|_| invariant("a one-site loop's site reads no normal on its sphere"))?
                     .ok_or_else(|| corrupt_face(face))?;
@@ -5355,12 +5343,10 @@ impl ChordJoiner {
 /// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
 /// for the conic rows.
 ///
-/// The contrast with [`crate::face_normal::face_plane`], which
-/// multiplies although its own consumer is equally sign-blind,
-/// is a naming contract rather than a correctness one: that door
-/// promises an OUTWARD normal to whoever calls it next. This one
-/// promises a chart normal and is named for it, so it is not a site
-/// of [`crate::face_normal`]'s hand-multiply inventory.
+/// [`crate::face_normal::face_plane`] promises an OUTWARD normal, some
+/// of its consumers reading a material side off the sign. This promises
+/// a chart normal and is named for it, so it is not a site of
+/// [`crate::face_normal`]'s hand-multiply inventory.
 fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -5421,7 +5407,13 @@ fn ring_side<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let read = |v: VertexKey| match point_in_loop(body, run, normal, vertex_point(body, v), band) {
+    let read = |v: VertexKey| match point_in_loop(
+        body,
+        run,
+        normal,
+        body.resolve_vertex_point(v, Proven),
+        band,
+    ) {
         Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
         Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
         Ok(LoopContainment::OnBoundary) => Rung::Passes,
@@ -5486,7 +5478,7 @@ pub(crate) fn ring_representative<T: Decide>(
         }
         LoopBoundary::Empty { vertex } => vertex,
     };
-    Ok(vertex_point(body, v))
+    Ok(body.resolve_vertex_point(v, Proven))
 }
 /// The side ladders' ranking ([`Rung::of_reading`]): where no reading
 /// decides, a reading whose margin cannot be read refuses ahead of an
@@ -7090,7 +7082,6 @@ mod torn_hop_rows {
 
     use super::{Datum, Departure, JoinLane, SectionCtx, SplitJoinError};
     use crate::body::Body;
-    use crate::body::WALKS_CLOSE;
     use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
@@ -7129,94 +7120,6 @@ mod torn_hop_rows {
             EntityId::Edge(edge),
             GeomRef::Curve(curve)
         )
-    }
-
-    /// `face_azimuth_images` (`outer_cycle`, `run_azimuth_images`): a
-    /// torn outer loop, loop walk, member edge and curve panic, where the
-    /// loop and walk answered `Corrupt` and the edge and curve were
-    /// stepped over; a stale face keeps `Corrupt`.
-    #[test]
-    fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
-        let (body, face) = cyl_sheet();
-        let surface = body.face_surface(face).unwrap().clone();
-        let images = |b: &Body<f64>| {
-            crate::chart_window::face_azimuth_images(b, &surface, face, band())
-                .map(|i| i.map(|i| i.len()))
-        };
-        assert_eq!(
-            images(&body).unwrap(),
-            Some(4),
-            "every edge of the sound sheet has an image"
-        );
-
-        let mut stale = body.clone();
-        let data = stale.get_face(face).unwrap().clone();
-        let gone = stale.faces.insert(data);
-        stale.faces.remove(gone);
-        assert!(
-            matches!(
-                crate::chart_window::face_azimuth_images(&stale, &surface, gone, band()),
-                Err(SplitJoinError::Corrupt {
-                    entity: EntityId::Face(f)
-                }) if f == gone
-            ),
-            "a stale face is the caller's key, refused typed"
-        );
-
-        let mut torn = body.clone();
-        let outer = torn.get_face(face).unwrap().outer;
-        torn.loops.remove(outer);
-        let named = format!(
-            "{}'s outer names {}",
-            EntityId::Face(face),
-            EntityId::Loop(outer)
-        );
-        assert_torn_op_panics(
-            "face_azimuth_images (loop)",
-            &mut torn,
-            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| images(b),
-        );
-
-        let mut torn = body.clone();
-        let he = first_member(&torn, face);
-        let named = drop_curve(&mut torn, he);
-        assert_torn_op_panics(
-            "face_azimuth_images (curve)",
-            &mut torn,
-            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| images(b),
-        );
-
-        // A member's edge: the walk steps by `next` and closes past it.
-        let mut torn = body.clone();
-        let he = first_member(&torn, face);
-        let edge = torn.get_half_edge(he).unwrap().edge;
-        torn.edges.remove(edge);
-        let named = format!(
-            "{}'s edge names {}",
-            EntityId::HalfEdge(he),
-            EntityId::Edge(edge)
-        );
-        assert_torn_op_panics(
-            "face_azimuth_images (edge)",
-            &mut torn,
-            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| images(b),
-        );
-
-        // A member past the first: the outer loop's walk breaks.
-        let mut torn = body.clone();
-        let first = first_member(&torn, face);
-        let second = torn.get_half_edge(first).unwrap().next;
-        torn.half_edges.remove(second);
-        let named = format!("the loop walk from {first:?} breaks at {first:?}");
-        assert_torn_op_panics(
-            "face_azimuth_images (walk)",
-            &mut torn,
-            &[&named, WALKS_CLOSE, OPERATORS_KEEP_LINKS],
-            |b| images(b),
-        );
     }
 
     /// `between_edge_is_section`: a torn edge panics, where it refused

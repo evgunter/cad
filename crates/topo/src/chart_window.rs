@@ -17,9 +17,9 @@ use geom_brep::{Pcurve, chart_pcurve_over};
 use geom_core::{Band, Decide, InfSpeed, Margin, Real, Sign};
 
 use crate::body::Body;
-use crate::chord_join::{SplitJoinError, corrupt_face, outer_cycle, vertex_point};
+use crate::chord_join::{SplitJoinError, corrupt_face};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary};
-use crate::live::{linked, proven};
+use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 
@@ -144,7 +144,7 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
     pub(crate) entry: T,
     /// The azimuth at its end vertex.
     pub(crate) exit: T,
-    /// Its azimuth extent (padded by the image's harmonic amplitude).
+    /// Its azimuth extent over its edge's span ([`chart_azimuth_range`]).
     pub(crate) range: (T, T),
     /// The chart's second coordinate at its start and end vertices.
     pub(crate) v: (T, T),
@@ -166,30 +166,31 @@ pub(crate) struct AzimuthImage<T: geom_core::Real> {
 /// # Errors
 ///
 /// [`SplitJoinError::Corrupt`] where `face`, the caller's key, does not
-/// resolve; otherwise the walk's geometric refusals: a run edge with no
+/// resolve; otherwise the walk's geometric refusals: a boundary edge with no
 /// closed-form chart image, a fitted image, a vertex off the carrier, an
 /// apex junction ([`SplitJoinError::ApexUnlifted`]), or an escalation.
 ///
 /// # Panics
 ///
-/// On a torn hop past `face` ([`outer_cycle`], [`run_azimuth_images`]).
+/// On a torn hop past `face` ([`Body::outer_cycle_linked`], [`run_azimuth_images`]).
 pub(crate) fn face_azimuth_images<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
-    let Some(halves) = outer_cycle(body, face)? else {
+    let data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
+    let Some(halves) = body.outer_cycle_linked(face, data) else {
         return Ok(None);
     };
     run_azimuth_images(body, surface, face, &halves, band).map(Some)
 }
 
-/// **How a run edge's chart-image refusal ends at the join** (D3): a
+/// **How a boundary edge's chart-image refusal ends the walk** (D3): a
 /// class reading or a lane not built "not yet" ([`SplitJoinError::RunImageNotYet`]);
 /// an incidence refusal by its read, through the one map
 /// ([`SplitJoinError::RunImageIncidence`]); another escalation as the
-/// join's; anything else an invariant the shipped carriers keep.
+/// walk's; anything else an invariant the shipped carriers keep.
 fn run_image_refusal(
     face: FaceKey,
     kind: geom::SurfaceKind,
@@ -206,7 +207,7 @@ fn run_image_refusal(
             SplitJoinError::RunImageNotYet { face, kind }
         }
         // An incidence refusal ends by its read, through the one
-        // map, never as an invariant break or the join's own lever.
+        // map, never as an invariant break or the walk's own lever.
         refusal if geom_brep::IncidenceRead::of(&refusal).is_some() => {
             SplitJoinError::RunImageIncidence {
                 face,
@@ -282,7 +283,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                 // pinned.
                 if let geom::Surface::Cone { apex, .. } = surface {
                     let entry_v = he_data.start;
-                    let p = vertex_point(body, entry_v);
+                    let p = body.resolve_vertex_point(entry_v, Proven);
                     if decide(
                         "chart_window_cone_apex",
                         Margin::of((p - *apex).norm()),
@@ -302,7 +303,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                 } = surface
                 {
                     let entry_v = he_data.start;
-                    let p = vertex_point(body, entry_v);
+                    let p = body.resolve_vertex_point(entry_v, Proven);
                     let d = (p - *center).dot(*axis);
                     match decide(
                         "chart_window_sphere_pole",
@@ -364,7 +365,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                     None => nearest_branch(
                         surface,
                         face,
-                        vertex_point(body, he_data.start),
+                        body.resolve_vertex_point(he_data.start, Proven),
                         prev - raw,
                         band,
                     )?,
@@ -458,7 +459,7 @@ fn nearest_branch<T: Decide>(
     })
 }
 
-/// A run vertex on a sphere pole, as [`pole_branch`] reads it.
+/// A boundary vertex on a sphere pole, as [`pole_branch`] reads it.
 struct PoleJoint<T: Decide> {
     face: FaceKey,
     /// The sphere's centre, radius and axis.
@@ -608,7 +609,7 @@ fn pole_lever<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod first_image_rows;
 
-/// **A run's joint branch is a literal.** Over a box, an entry `k`
+/// **A walk's joint branch is a literal.** Over a box, an entry `k`
 /// periods from the previous exit as polynomials that are not constants,
 /// on a cylinder, at `k` either side of zero: the branch less `k` is the
 /// zero polynomial. And on a narrow cone (`sin α ≈ 0.01`), a continuous
@@ -1050,6 +1051,144 @@ mod pole_branch_rows {
     use core::f64::consts::{PI, TAU};
 }
 
+/// The walk's hops past the caller's key are links: a torn one panics
+/// naming it (`OPERATORS_KEEP_LINKS`: the walk runs mid-operation too).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use geom_core::{Band, Tol};
+
+    use super::SplitJoinError;
+    use crate::body::Body;
+    use crate::body::WALKS_CLOSE;
+    use crate::entity::{EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary};
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn cyl_sheet() -> (Body<f64>, FaceKey) {
+        let mut body = Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(1.0),
+            (0.2, 1.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        (body, face)
+    }
+
+    fn first_member(body: &Body<f64>, face: FaceKey) -> HalfEdgeKey {
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the fixture's outer loop is a cycle");
+        };
+        first
+    }
+
+    /// Drops the curve of `he`'s edge, and names the link that dangles.
+    fn drop_curve(body: &mut Body<f64>, he: HalfEdgeKey) -> String {
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let curve = body.get_edge(edge).unwrap().curve;
+        body.curves.remove(curve);
+        format!(
+            "{}'s curve names {}",
+            EntityId::Edge(edge),
+            GeomRef::Curve(curve)
+        )
+    }
+
+    /// `face_azimuth_images` (`Body::outer_cycle_linked`, `run_azimuth_images`): a
+    /// torn outer loop, loop walk, member edge and curve panic, where the
+    /// loop and walk answered `Corrupt` and the edge and curve were
+    /// stepped over; a stale face keeps `Corrupt`.
+    #[test]
+    fn the_azimuth_walk_panics_on_a_torn_loop_and_a_torn_curve() {
+        let (body, face) = cyl_sheet();
+        let surface = body.face_surface(face).unwrap().clone();
+        let images = |b: &Body<f64>| {
+            super::face_azimuth_images(b, &surface, face, band()).map(|i| i.map(|i| i.len()))
+        };
+        assert_eq!(
+            images(&body).unwrap(),
+            Some(4),
+            "every edge of the sound sheet has an image"
+        );
+
+        let mut stale = body.clone();
+        let data = stale.get_face(face).unwrap().clone();
+        let gone = stale.faces.insert(data);
+        stale.faces.remove(gone);
+        assert!(
+            matches!(
+                super::face_azimuth_images(&stale, &surface, gone, band()),
+                Err(SplitJoinError::Corrupt {
+                    entity: EntityId::Face(f)
+                }) if f == gone
+            ),
+            "a stale face is the caller's key, refused typed"
+        );
+
+        let mut torn = body.clone();
+        let outer = torn.get_face(face).unwrap().outer;
+        torn.loops.remove(outer);
+        let named = format!(
+            "{}'s outer names {}",
+            EntityId::Face(face),
+            EntityId::Loop(outer)
+        );
+        assert_torn_op_panics(
+            "face_azimuth_images (loop)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+
+        let mut torn = body.clone();
+        let he = first_member(&torn, face);
+        let named = drop_curve(&mut torn, he);
+        assert_torn_op_panics(
+            "face_azimuth_images (curve)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+
+        // A member's edge: the walk steps by `next` and closes past it.
+        let mut torn = body.clone();
+        let he = first_member(&torn, face);
+        let edge = torn.get_half_edge(he).unwrap().edge;
+        torn.edges.remove(edge);
+        let named = format!(
+            "{}'s edge names {}",
+            EntityId::HalfEdge(he),
+            EntityId::Edge(edge)
+        );
+        assert_torn_op_panics(
+            "face_azimuth_images (edge)",
+            &mut torn,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+
+        // A member past the first: the outer loop's walk breaks.
+        let mut torn = body.clone();
+        let first = first_member(&torn, face);
+        let second = torn.get_half_edge(first).unwrap().next;
+        torn.half_edges.remove(second);
+        let named = format!("the loop walk from {first:?} breaks at {first:?}");
+        assert_torn_op_panics(
+            "face_azimuth_images (walk)",
+            &mut torn,
+            &[&named, WALKS_CLOSE, OPERATORS_KEEP_LINKS],
+            |b| images(b),
+        );
+    }
+}
+
 #[cfg(test)]
 mod run_image_incidence {
     #![allow(clippy::unwrap_used)]
@@ -1058,12 +1197,11 @@ mod run_image_incidence {
     use geom_brep::{OffMargin, PcurveCertifyError, PcurveCheck};
     use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
 
-    /// **A run edge's incidence refusal ends by the one map** (review on
-    /// PR 5844, H3), through the run walk's own mapping
-    /// (`run_image_refusal`): decided off, the kernel's defect; at a pose, the pose
-    /// lever; undecided, its lever; a poisoned margin, the defect. Never
-    /// the invariant break or the join's own coincidence lever it ended in
-    /// before.
+    /// **A boundary edge's incidence refusal ends by the one map**,
+    /// through the walk's own mapping (`run_image_refusal`): decided off,
+    /// the kernel's defect; at a pose, the pose lever; undecided, its
+    /// lever; a poisoned margin, the defect. Never an invariant break or
+    /// a coincidence lever.
     #[test]
     fn a_run_edges_incidence_refusal_ends_by_its_read() {
         let off = |margin| PcurveCertifyError::CarrierOffChart {

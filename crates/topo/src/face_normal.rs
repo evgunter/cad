@@ -148,8 +148,8 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// a material side off the sign (`side_code`, a containment ray's
 /// `d·n̂`) are why the fold is here.
 ///
-/// `None` for a face that is not a plane, and for a `face` that does
-/// not resolve: the key may be a public door's caller's.
+/// `None` for a face that is not a plane, and for a `face` key that
+/// does not resolve: a public door hands this its own caller's key.
 ///
 /// # Panics
 ///

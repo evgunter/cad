@@ -515,6 +515,30 @@ impl<T: Real> Body<T> {
             })
     }
 
+    /// The half-edges of `face`'s outer loop in cycle order; `None` for an
+    /// outer loop that is not a cycle. The loop is a link of the face, and
+    /// its walk closes (tier 1 at rest, [`OPERATORS_KEEP_LINKS`]
+    /// mid-operation): a miss panics, so every member is proven.
+    #[track_caller]
+    pub(crate) fn outer_cycle_linked(
+        &self,
+        face: FaceKey,
+        data: &Face,
+    ) -> Option<Vec<HalfEdgeKey>> {
+        let LoopBoundary::Cycle { first } = linked(
+            &self.loops,
+            data.outer,
+            EntityId::Loop,
+            EntityId::Face(face),
+            "outer",
+        )
+        .boundary
+        else {
+            return None;
+        };
+        Some(self.loop_walk(first).closed("loop", first))
+    }
+
     /// [`Body::face_cycles_by_loop`] for a face key the kernel enumerated
     /// or read out of its own records ([`proven`]).
     ///
