@@ -366,8 +366,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let conic = geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius);
-    let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
+    let h = geom_brep::conic_torus_harmonics(&circle, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -376,7 +375,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // The walk's Taylor terms, read at the point (module docs, "The
     // harmonics' noise, and the jet").
     let jet = |theta| {
-        geom_brep::conic_torus_jet(&conic, t_center, t_axis, major_radius, minor_radius, theta)
+        geom_brep::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
     };
     door_half_angle_roots(
         &harmonics,
@@ -402,7 +401,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             row: ROOT_SLACK,
             residual: &|theta| {
                 geom_brep::conic_torus_implicit(
-                    &conic,
+                    &circle,
                     t_center,
                     t_axis,
                     major_radius,

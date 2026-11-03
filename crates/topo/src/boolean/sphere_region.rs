@@ -508,7 +508,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
             unreachable!("sphere_face_region admits circles only")
         };
         let roots = first_harmonic_root_directions(
-            &FirstHarmonic::circle_off_plane(
+            &FirstHarmonic::conic_off_plane(
                 &arc_circle,
                 (ray.course.circle.frame.origin, ray.course.circle.frame.axis),
             ),

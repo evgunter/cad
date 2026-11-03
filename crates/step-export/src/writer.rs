@@ -787,16 +787,16 @@ impl<'a> Writer<'a> {
         // prints natively since M6-3 (`Self::b_spline_surface`, the
         // loft walls); the one refusal left is the mvfs placeholder,
         // a mid-surgery fact rather than a frontier.
+        // The analytic arms' placement is the surface's own frame.
+        let frame = || {
+            surface.frame().ok_or(StepExportError::Corrupt {
+                what: "an analytic surface answers no frame",
+            })
+        };
         let surface_id = match *surface {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
-                let placement = self.axis2_placement(
-                    &geom::Frame::new(origin, normal, u_ref),
-                    ["plane origin", "plane normal", "plane u_ref"],
-                )?;
+            Surface::Plane { .. } => {
+                let placement = self
+                    .axis2_placement(&frame()?, ["plane origin", "plane normal", "plane u_ref"])?;
                 self.emit(&format!("PLANE('', #{placement})"))
             }
             // `cylindrical_surface`: S(u, v) = location + radius·(cos
@@ -804,14 +804,9 @@ impl<'a> Writer<'a> {
             // field for field (`origin` the v = 0 axis point, `u_ref`
             // the seam at u = 0). Both parameters keep their kernel
             // meaning (u radians, v metres).
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => {
+            Surface::Cylinder { radius, .. } => {
                 let placement = self.axis2_placement(
-                    &geom::Frame::new(origin, axis, u_ref),
+                    &frame()?,
                     ["cylinder origin", "cylinder axis", "cylinder u_ref"],
                 )?;
                 let r = fmt_real(radius, "cylinder radius")?;
@@ -836,16 +831,9 @@ impl<'a> Writer<'a> {
             // (When pcurves land, the cos α factor is the thing to
             // carry.) `semi_angle` is the kernel `half_angle`
             // verbatim, both in (0, π/2) radians.
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => {
-                let placement = self.axis2_placement(
-                    &geom::Frame::new(apex, axis, u_ref),
-                    ["cone apex", "cone axis", "cone u_ref"],
-                )?;
+            Surface::Cone { half_angle, .. } => {
+                let placement =
+                    self.axis2_placement(&frame()?, ["cone apex", "cone axis", "cone u_ref"])?;
                 let angle = fmt_real(half_angle, "cone half-angle")?;
                 self.emit(&format!("CONICAL_SURFACE('', #{placement}, 0.0, {angle})"))
             }
@@ -853,16 +841,9 @@ impl<'a> Writer<'a> {
             // (cos u·x + sin u·y) + sin v·z) — the kernel's `Sphere`
             // formula field for field (longitude u about the pole
             // `axis`, latitude v, seam meridian at `u_ref`).
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => {
-                let placement = self.axis2_placement(
-                    &geom::Frame::new(center, axis, u_ref),
-                    ["sphere centre", "sphere axis", "sphere u_ref"],
-                )?;
+            Surface::Sphere { radius, .. } => {
+                let placement = self
+                    .axis2_placement(&frame()?, ["sphere centre", "sphere axis", "sphere u_ref"])?;
                 let r = fmt_real(radius, "sphere radius")?;
                 self.emit(&format!("SPHERICAL_SURFACE('', #{placement}, {r})"))
             }
@@ -872,16 +853,12 @@ impl<'a> Writer<'a> {
             // minor angle v with v = 0 on the outer equator, seam at
             // `u_ref`).
             Surface::Torus {
-                center,
-                axis,
                 major_radius,
                 minor_radius,
-                u_ref,
+                ..
             } => {
-                let placement = self.axis2_placement(
-                    &geom::Frame::new(center, axis, u_ref),
-                    ["torus centre", "torus axis", "torus u_ref"],
-                )?;
+                let placement =
+                    self.axis2_placement(&frame()?, ["torus centre", "torus axis", "torus u_ref"])?;
                 let major = fmt_real(major_radius, "torus major radius")?;
                 let minor = fmt_real(minor_radius, "torus minor radius")?;
                 self.emit(&format!(

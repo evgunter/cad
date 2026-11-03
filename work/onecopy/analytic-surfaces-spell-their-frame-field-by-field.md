@@ -51,11 +51,13 @@ Stages 1 and 2 are `the-frame-carries-every-placement-reading`.
 
 **Holders the original row missed, all in scope of stages 2–3:** `Curve3::Spiric`, `ring_path::LoopArc::Crest.core`, step-import's `type Frame`, `mesh::planar::ChartFrame`, `topo::readback::Pose`, `separating::Circle`, `cover::{Arc, Tube}` storing `v_ref`, `gap.rs`'s loose-argument door, step-export's `axis2_placement`, and revolve's `wall_surface`.
 
-**Sites that rebuild a carrier's frame from its fields and wait for the kind structs** (found by PR 6463's review, which repointed the readers outside `geom` at `Surface::frame()`/`Curve3::frame()`):
+**Sites that rebuild a carrier's frame from its fields and wait for the kind structs** (PR 6463's final sweep for `Frame::new(` and `Circle::new(Frame::new(` outside test code; each is inside a match on a kind that stores no `Frame` yet, so it becomes `kind.frame` in the sweep):
+- `geom::Surface::frame` itself and `Curve3::frame`'s spiric arm (the door, reading the loose fields);
 - `geom::Surface::eval` and `jet`, whose azimuth arms build `Frame::new(origin, axis, u_ref)`;
 - `geom::cover::readings`' sphere, torus and spiric arms;
 - `Curve3`'s spiric evaluator arms (`azimuth::basis(&Frame::new(..))`);
-- step-export's writer arms (`axis2_placement(&Frame::new(..))`);
-- `topo::boolean::section_cert::Cone::new` (a loose-argument door);
-- geom-brep `pair_section/torus.rs` `Ring` (`Frame::new(self.center, self.axis, self.u_ref)` three times);
+- `topo::boolean::section_cert::Cone::new` (a loose-argument door whose second caller passes a turned axis, so it waits for the cone struct);
+- geom-brep `pair_section/torus.rs` `Ring` (`Frame::new(self.center, self.axis, self.u_ref)` three times) and `topo::boolean::section_cert::square_search`'s ring (`Frame::new(ring.c, ring.a, ring.b1)`): torus holders;
 - `pair_section.rs` `CylinderSpherePose`.
+
+The other `Frame::new` sites outside test code mint a new frame rather than rebuild a carrier's: the constructors (`Curve3::circle`, `Curve3::ellipse`, `Round::new`), the squared core (`gap::Core::of`), a reflection's image (`topo::transform`), step-import's placements, ring_path's new arcs, and a section's shape ellipse at the origin (`sweep::blend::open::end_face`).

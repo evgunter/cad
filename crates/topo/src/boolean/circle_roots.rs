@@ -208,24 +208,14 @@ pub(super) struct FirstHarmonic<T> {
 }
 
 impl<T: Decide> FirstHarmonic<T> {
-    /// **A circle's signed distance off a plane**: the circle
-    /// `center + radius·(û cos θ + v̂ sin θ)`, `v̂ = axis × û`, against the
-    /// plane through `on` of unit normal `n`, its residual
-    /// `n·(center − on) + radius(n·û) cos θ + radius(n·v̂) sin θ` and one
-    /// uniform rounding charge on the terms it is formed from. The one
-    /// spelling of a circle against a plane: an edge against a ray's or a
-    /// leg's plane, a leg against an edge's, a sphere face's arc against a
-    /// cut.
-    pub(super) fn circle_off_plane(circle: &geom::Circle<T>, plane: (Point3<T>, Vec3<T>)) -> Self {
-        Self::conic_off_plane(circle, plane)
-    }
-
     /// **A conic's signed distance off a plane**: the ellipse
     /// `center + a·û cos θ + b·v̂ sin θ`, `v̂ = axis × û` (a circle where
     /// `a = b`), against the plane through `on` of unit normal `n` — the
-    /// residual `n·(center − on) + a(n·û) cos θ + b(n·v̂) sin θ`, charged
-    /// as [`Self::circle_off_plane`] charges a circle, at the larger
-    /// semi-axis.
+    /// residual `n·(center − on) + a(n·û) cos θ + b(n·v̂) sin θ` and one
+    /// uniform rounding charge on the terms it is formed from, at the
+    /// larger semi-axis. The one spelling of a conic against a plane: an
+    /// edge against a ray's or a leg's plane, a leg against an edge's, a
+    /// sphere face's arc against a cut.
     pub(super) fn conic_off_plane(
         conic: &dyn geom::Conic<T>,
         (on, n): (Point3<T>, Vec3<T>),

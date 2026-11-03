@@ -413,7 +413,7 @@ impl<T: Decide> TorusFaceRegion<T> {
             return Ok(Roots::Miss);
         };
         first_harmonic_roots_in_band(
-            &FirstHarmonic::circle_off_plane(
+            &FirstHarmonic::conic_off_plane(
                 &circle,
                 (
                     leg.course.round.circle.frame.origin,
@@ -441,7 +441,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
         first_harmonic_leg_roots(
-            &FirstHarmonic::circle_off_plane(&leg.course.round.circle, (on, n)),
+            &FirstHarmonic::conic_off_plane(&leg.course.round.circle, (on, n)),
             leg.course.round.circle.radius,
             &ROOT_ROWS,
             band,

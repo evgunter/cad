@@ -7223,7 +7223,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
                 let roots = super::circle_roots::first_harmonic_roots(
-                    &super::circle_roots::FirstHarmonic::circle_off_plane(
+                    &super::circle_roots::FirstHarmonic::conic_off_plane(
                         &edge_circle,
                         (cut.center, k),
                     ),

@@ -798,7 +798,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
             (conic, LegShape::Parallel(round)) => {
                 let conic = conic_of(conic);
                 let roots = first_harmonic_roots_in_band(
-                    &FirstHarmonic::circle_off_plane(
+                    &FirstHarmonic::conic_off_plane(
                         &round.circle,
                         (conic.frame().origin, conic.frame().axis),
                     ),

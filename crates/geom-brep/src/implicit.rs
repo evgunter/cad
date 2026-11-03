@@ -819,24 +819,15 @@ pub fn conic_arc_residual_range<T: Real>(
     Some((scan.residual.0 - charge, scan.residual.1 + charge))
 }
 
-/// [`conic_arc_residual_range`] on the circle
-/// `C(θ) = center + radius·(û·cosθ + v̂·sinθ)`, `v̂ = axis × û`.
+/// [`conic_arc_residual_range`] on a circle.
 #[must_use]
 pub fn circle_arc_residual_range<T: Real>(
     s: &Surface<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
+    circle: &geom::Circle<T>,
     t0: T,
     t1: T,
 ) -> Option<(T, T)> {
-    conic_arc_residual_range(
-        s,
-        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
-        t0,
-        t1,
-    )
+    conic_arc_residual_range(s, circle, t0, t1)
 }
 
 /// A conservative enclosure of [`implicit_residual`] over an ENTIRE
@@ -871,15 +862,11 @@ pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) ->
     conic_arc_residual_range(s, conic, T::zero(), T::tau())
 }
 
-/// [`conic_residual_extremes`] on the circle
-/// `C(θ) = center + radius·(û·cosθ + v̂·sinθ)`, `v̂ = axis × û`.
+/// [`conic_residual_extremes`] on a circle.
 #[must_use]
 pub fn circle_residual_extremes<T: Real>(
     s: &Surface<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
+    circle: &geom::Circle<T>,
 ) -> Option<(T, T)> {
     if let Surface::Sphere {
         center: sc,
@@ -889,16 +876,13 @@ pub fn circle_residual_extremes<T: Real>(
     {
         // The factored extremes, each charged its own running bound and
         // the frame's defect (`CircleSphereHarmonic`).
-        let h = circle_sphere_harmonic(center, axis, radius, u_ref, sc, r);
+        let h = circle_sphere_harmonic(circle, sc, r);
         return Some((
             h.lo - h.lo_error - h.frame_error,
             h.hi + h.hi_error + h.frame_error,
         ));
     }
-    conic_residual_extremes(
-        s,
-        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
-    )
+    conic_residual_extremes(s, circle)
 }
 
 /// A bound on `|d²F/dθ²|` for [`implicit_residual`] composed with the
@@ -924,17 +908,9 @@ pub fn circle_residual_extremes<T: Real>(
 #[must_use]
 pub fn circle_residual_curvature_bound<T: Real>(
     s: &Surface<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
+    circle: &geom::Circle<T>,
 ) -> Option<T> {
-    arc_curvature_bound(
-        s,
-        &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
-        T::zero(),
-        T::tau(),
-    )
+    arc_curvature_bound(s, circle, T::zero(), T::tau())
 }
 
 /// [`circle_residual_curvature_bound`]'s arc-scoped form, on any
@@ -1662,20 +1638,25 @@ impl<T: Real> CircleSphereHarmonic<T> {
     }
 }
 
-/// [`CircleSphereHarmonic`] for the circle
-/// `center + radius·(u_ref cos θ + (axis × u_ref) sin θ)` against the
-/// sphere `(s_center, s_radius)`. The frame need not be orthonormal:
+/// [`CircleSphereHarmonic`] for `circle` against the sphere
+/// `(s_center, s_radius)`. The circle's frame need not be orthonormal:
 /// its defect is charged to [`CircleSphereHarmonic::frame_error`]. Total
 /// arithmetic.
 #[must_use]
 pub fn circle_sphere_harmonic<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
+    circle: &geom::Circle<T>,
     s_center: Point3<T>,
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
+    let geom::Circle {
+        frame:
+            geom::Frame {
+                origin: center,
+                axis,
+                u_ref,
+            },
+        radius,
+    } = *circle;
     use geom_core::running::{cross, dot, exact_vec, unit_defect};
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
@@ -1944,10 +1925,7 @@ mod tests {
         ];
         for (k, (c, (n, ur), rho, sc, r)) in poses.into_iter().enumerate() {
             let h = circle_sphere_harmonic(
-                Point3::from_array(c),
-                n,
-                rho,
-                ur,
+                &geom::Circle::new(geom::Frame::new(Point3::from_array(c), n, ur), rho),
                 Point3::from_array(sc),
                 r,
             );
@@ -2027,10 +2005,14 @@ mod tests {
     #[test]
     fn the_frame_charge_bounds_the_literal_circle() {
         let flat = circle_sphere_harmonic(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, -1.0),
-            1.0,
-            Vec3::new(0.0, 1.0, 0.0),
+            &geom::Circle::new(
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, -1.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                ),
+                1.0,
+            ),
             Point3::new(1.7, 0.3, 0.2),
             0.75,
         );
@@ -2053,10 +2035,14 @@ mod tests {
         for (k, (c, sc, n, ur)) in frames.into_iter().enumerate() {
             let (rho, r) = (1.3, 0.9);
             let h = circle_sphere_harmonic(
-                Point3::from_array(c),
-                Vec3::new(n[0], n[1], n[2]),
-                rho,
-                Vec3::new(ur[0], ur[1], ur[2]),
+                &geom::Circle::new(
+                    geom::Frame::new(
+                        Point3::from_array(c),
+                        Vec3::new(n[0], n[1], n[2]),
+                        Vec3::new(ur[0], ur[1], ur[2]),
+                    ),
+                    rho,
+                ),
                 Point3::from_array(sc),
                 r,
             );
@@ -2399,8 +2385,11 @@ mod tests {
             },
         ];
         for s in &kinds {
-            let (lo, hi) =
-                circle_residual_extremes(s, center, axis, radius, u_ref).expect("closed form");
+            let (lo, hi) = circle_residual_extremes(
+                s,
+                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+            )
+            .expect("closed form");
             let mut seen_lo = f64::INFINITY;
             let mut seen_hi = f64::NEG_INFINITY;
             for i in 0..4096 {
@@ -2430,8 +2419,11 @@ mod tests {
             minor_radius: 0.5,
             u_ref: Vec3::unit_x(),
         };
-        let (lo, hi) =
-            circle_residual_extremes(&torus, center, axis, radius, u_ref).expect("the torus arm");
+        let (lo, hi) = circle_residual_extremes(
+            &torus,
+            &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius),
+        )
+        .expect("the torus arm");
         let mut seen_lo = f64::INFINITY;
         let mut seen_hi = f64::NEG_INFINITY;
         for i in 0..4096 {
@@ -2457,7 +2449,13 @@ mod tests {
             half_angle: core::f64::consts::FRAC_PI_4,
             u_ref: Vec3::unit_x(),
         };
-        assert!(circle_residual_extremes(&cone, center, axis, radius, u_ref).is_none());
+        assert!(
+            circle_residual_extremes(
+                &cone,
+                &geom::Circle::new(geom::Frame::new(center, axis, u_ref), radius)
+            )
+            .is_none()
+        );
     }
 }
 
@@ -2671,7 +2669,11 @@ mod arc_clearance_tests {
             u_ref: u,
         } in cases()
         {
-            let bound = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
+            let bound = circle_residual_curvature_bound(
+                &s,
+                &geom::Circle::new(geom::Frame::new(c, axis, u), r),
+            )
+            .expect("closed form");
             let h = TAU / N as f64;
             let mut worst: f64 = 0.0;
             for k in 0..N {
@@ -2720,8 +2722,13 @@ mod arc_clearance_tests {
                 for start_steps in 0..8 {
                     let t0 = TAU * f64::from(start_steps) / 8.0;
                     let t1 = t0 + span;
-                    let (claimed, top) = circle_arc_residual_range(&s, c, axis, r, u, t0, t1)
-                        .expect("every case here has a curvature bound");
+                    let (claimed, top) = circle_arc_residual_range(
+                        &s,
+                        &geom::Circle::new(geom::Frame::new(c, axis, u), r),
+                        t0,
+                        t1,
+                    )
+                    .expect("every case here has a curvature bound");
                     let mut truth = f64::INFINITY;
                     let mut peak = f64::NEG_INFINITY;
                     for k in 0..=N {
@@ -2761,7 +2768,9 @@ mod arc_clearance_tests {
             1.0,
             Vec3::new(1.0, 0.0, 0.0),
         );
-        let (lo, hi) = circle_residual_extremes(&s, c, axis, r, u).expect("closed form");
+        let (lo, hi) =
+            circle_residual_extremes(&s, &geom::Circle::new(geom::Frame::new(c, axis, u), r))
+                .expect("closed form");
         let carrier_margin = lo.max(-hi);
         assert!(
             carrier_margin < 0.0,
@@ -2770,8 +2779,13 @@ mod arc_clearance_tests {
         let (t0, t1) = (0.0, PI / 3.0);
         // Through the door, not through the deleted two-endpoint fold:
         // this is the arithmetic `reduce.rs` runs.
-        let (arc_lo, arc_hi) =
-            circle_arc_residual_range(&s, c, axis, r, u, t0, t1).expect("closed form");
+        let (arc_lo, arc_hi) = circle_arc_residual_range(
+            &s,
+            &geom::Circle::new(geom::Frame::new(c, axis, u), r),
+            t0,
+            t1,
+        )
+        .expect("closed form");
         let arc_margin = arc_lo.max(-arc_hi);
         assert!(
             arc_margin > 1e-3,
@@ -2809,9 +2823,16 @@ mod arc_clearance_tests {
         // A circle in the ring plane whose centre stands exactly its
         // own radius from the axis: it MEETS the axis, at `t = π`.
         let center = Point3::new(0.5, 0.0, 0.0);
-        let (lo, hi) =
-            circle_arc_residual_range(&s, center, Vec3::unit_z(), 0.5, Vec3::unit_x(), 0.0, TAU)
-                .expect("the torus arm answers, infinitely");
+        let (lo, hi) = circle_arc_residual_range(
+            &s,
+            &geom::Circle::new(
+                geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+                0.5,
+            ),
+            0.0,
+            TAU,
+        )
+        .expect("the torus arm answers, infinitely");
         assert!(
             lo == f64::NEG_INFINITY && hi == f64::INFINITY,
             "the through-axis enclosure must be the whole line: [{lo}, {hi}]"
@@ -2820,9 +2841,14 @@ mod arc_clearance_tests {
             lo.max(-hi) == f64::NEG_INFINITY,
             "and the consumer's margin must be a definite negative"
         );
-        let bound =
-            circle_residual_curvature_bound(&s, center, Vec3::unit_z(), 0.5, Vec3::unit_x())
-                .expect("the torus arm answers");
+        let bound = circle_residual_curvature_bound(
+            &s,
+            &geom::Circle::new(
+                geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
+                0.5,
+            ),
+        )
+        .expect("the torus arm answers");
         assert!(bound.is_infinite(), "the bound itself is infinite: {bound}");
     }
 
@@ -2843,10 +2869,14 @@ mod arc_clearance_tests {
         let center = Point3::new(i(0.5), i(0.0), i(0.0));
         let (lo, hi) = circle_arc_residual_range(
             &s,
-            center,
-            Vec3::new(i(0.0), i(0.0), i(1.0)),
-            i(0.5),
-            Vec3::new(i(1.0), i(0.0), i(0.0)),
+            &geom::Circle::new(
+                geom::Frame::new(
+                    center,
+                    Vec3::new(i(0.0), i(0.0), i(1.0)),
+                    Vec3::new(i(1.0), i(0.0), i(0.0)),
+                ),
+                i(0.5),
+            ),
             i(0.0),
             Interval::tau(),
         )
@@ -2863,10 +2893,14 @@ mod arc_clearance_tests {
         );
         let bound = circle_residual_curvature_bound(
             &s,
-            center,
-            Vec3::new(i(0.0), i(0.0), i(1.0)),
-            i(0.5),
-            Vec3::new(i(1.0), i(0.0), i(0.0)),
+            &geom::Circle::new(
+                geom::Frame::new(
+                    center,
+                    Vec3::new(i(0.0), i(0.0), i(1.0)),
+                    Vec3::new(i(1.0), i(0.0), i(0.0)),
+                ),
+                i(0.5),
+            ),
         )
         .expect("the torus arm answers");
         assert!(
