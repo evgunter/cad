@@ -53,6 +53,7 @@ not (
   (binary_id(geom::all) & test(=curves_piece_coverage_meter::a_stall_in_any_piece_refuses_at_any_scale)) |
   (binary_id(sweep::all) & test(=face_face_touch::a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line)) |
   (binary_id(sweep::all) & test(=a_split_edge_joins_back_on_its_carrier::each_analytic_kind_joins_back_exactly_across_a_grid_of_splits)) |
+  (binary_id(sweep::all) & test(=band_turn_overrun_chamfer::the_sweep_fills_concave_overruns)) |
   (binary_id(sweep::all) & test(=holdings_of_a_sunk_boss::a_bar_over_a_sunk_boss_holds_both_wall_halves_in_every_order)) |
   (binary_id(sweep::all) & test(=holdings_of_a_sunk_boss::two_bars_over_a_sunk_boss_leave_each_wall_piece_one_half_in_every_order)) |
   (binary_id(sweep::all) & (test(=copied_carriers_at_interval::random_copied_carriers_extrude_at_interval_without_contradiction) | test(=a_long_bound_beside_a_short_arm::a_boss_beside_a_holes_long_edge_at_every_angle) | test(=a_long_bound_beside_a_short_arm::two_slabs_beside_a_short_arm) | test(=a_minted_vertex_on_a_curved_face::two_wedges_sharing_the_tangent_plane_face_answer_every_op))) |

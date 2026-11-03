@@ -208,7 +208,7 @@ pub enum CurveKind {
     Nurbs,
 }
 
-impl<T: Real + SpanLocate> Curve3<T> {
+impl<T: SpanLocate> Curve3<T> {
     /// **Whether `other` is this carrier by content**: one kind, and
     /// every value that states it one plain constant
     /// ([`SpanLocate::plain_constant`]) equal to its counterpart. Exact,
