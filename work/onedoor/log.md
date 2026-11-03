@@ -53,3 +53,10 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Review tier: dual.** This is a broad architectural decision that moves `WedgeCheck`'s semantics and every dihedral reader's K population. It is cost H, so the concurrent arm.
   - **Seams:** SELECT and SPLICE ground in `geom-brep/src/dihedral.rs`, where neither has a unit dispatched. `validate.rs` and `rim_wedge.rs` are double claims.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6433](https://github.com/evgunter/cad/pull/6433)'s style review**: APPROVE-WITH-FIXES, nothing blocking. Every finding was taken except S10 (bare indexes in a test module).
+  - **Two class findings**, recorded here as classes:
+    - **(a) A unification that hands the shared type to one consumer re-mints the shared-cores defect.** `SweepPairs<P>` went into `census.rs` with `boolean/` importing it. It moves to its own crate-root module. This is the same shape as `topo-shared-cores-hosted-in-one-half`, and PR 6426's `[topo.homes]` is what would have placed it.
+    - **(b) Merging two types without merging their writers moves an invariant from a type into a convention.** The census writes the trace through `note()` (examined and accepted together); the boolean pushes the fields at about ten sites. The fix pass puts the writer on the type.
+  - **D95 re-read.** The reviewer reads "six structurally identical siblings" as the six provenance silent skips beside the solid-provenance row-4 read, not the minted-key lookups. That fits the row better. The fix pass disposes of both, and the provenance row the lane filed closes in the same PR.
+  - **`fresh` retires.** It duplicates `live::proven`; one door per premise. `live::proven` and `Link::answer` get the `#[track_caller]` closure fix.
+  - (ONEDOOR orchestrator)
