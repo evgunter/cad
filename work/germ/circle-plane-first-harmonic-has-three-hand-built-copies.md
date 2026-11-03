@@ -55,3 +55,8 @@ The charge it carries is still the one this row questions: one uniform
 the noise audit of that one door, not the consolidation.
 
 Moved from ROOTS to GERM on 2026-11-02, by `git mv`, when ROOTS merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## Evidence (2026-11-03, ONECOPY `onecopy/meet-pose`)
+
+`sphere_region`'s copy is gone: the region landings read each leg against each arc through `geom_brep::curve_pair::meet`, and `circle_roots::first_harmonic_root_directions` went with it. The `apply_cut_ins` copy remains; ONECOPY's `loop-walks-read-a-ray-against-an-arc-by-hand-rows-beside-meet` proposes moving it onto `meet` as well, which would retire this row's last plane site.
+

@@ -3495,3 +3495,21 @@ compared with (`link::Cone::reads_given`), so no reading moved from it.
 is taken, the cone places the probe on that sector's plane
 (`Sector::place`) to read it off a face's interior, or to certify it off
 the sector, a place it did not read there before.
+
+## ONECOPY addendum (2026-11-03): the region landings read through `meet`
+
+**Roster change: nineteen names leave, and one joins.** The sphere,
+torus and ruled region doors (`topo/src/boolean/{sphere,torus,ruled}_region.rs`)
+read where a leg meets a boundary edge through
+`geom_brep::curve_pair::meet` (`region::landings`), whose own
+`curve_pair_*` rows now carry those readings. Their hand rows leave the
+roster: `bool_sphere_region_span`; `bool_torus_region_component`,
+`bool_torus_region_family` and `bool_torus_region_span`;
+`bool_ruled_region_component`, `bool_ruled_region_collinear` and
+`bool_ruled_region_span`; and each door's four `FirstHarmonicRows`
+names (`bool_{sphere,torus,ruled}_region_roots_{noise,coaxial,extreme,slack}`).
+`bool_ruled_region_nappe` stays, read now by the cone's apex reach and
+its generators' targets alone. `curve_pair_pose_across` joins: the
+choice of which conic of a two-conic pair is read across the other's
+plane (the larger `(A² − c₀²)/r²`), decided at `Band::least`, a
+parametrization choice and never a verdict.
