@@ -120,3 +120,19 @@
   - The lane made `a_partners_descended_bound_is_read_over_its_offset` ε-relative; it had failed at 1e-6/1e-12.
   - Review tier: dual, letter M. Rule 1's draw gave byte 177 (mod 3 = 0), so this is a holdout: a concurrent pair reviewing the same frozen head. The blinded-coding byte was drawn and recorded.
   - Two Opus reviews were dispatched with an identical brief, which includes a claim on the amended item 3 (A′).
+
+- 2026-11-03: both reviews of PR 6407 are in (concurrent pair, frozen head `1482661a`; coding recorded privately for the row).
+  - Verdicts: one APPROVE-WITH-FIXES (0/5/3), one NOT-MERGEABLE-AS-IS (1/2/2).
+  - **The MAJOR, found by both from different sides:** A′ certifies "on no other sector" only for sectors whose place was decided. A given sector in band of q, by plane or by place, is dropped, so A′ answers from one face where the cone without A′ refuses. Executed: a closed two-plane cone read In where parity reads Out; a fin a slack thin read In where main reads NoReference.
+  - **Also accepted:**
+    - A′ at a Bound turns main's In into Boundary, outside item 3.
+    - Four wirings are unpinned.
+    - Naming (`class != Out` in emit) was outside the outcome diff and must be measured.
+    - The K-REPORT addendum misses `link_wedge`/`link_ahead`.
+    - An oracle independent of the second-order model is wanted.
+    - The Ungiven mapping needs one home.
+    - Style fixes.
+  - The fix pass is sent to lane 2: re-take every diff, with the stop rule in force.
+  - **My earlier ruling was incomplete.** "The touched face has no exposure" covered only the partners' offset, not the vertex's own offset off the face. Filed `a-touched-faces-side-is-read-about-a-vertex-up-to-zero-off-the-face` (P3, E); it predates this PR in the pierce.
+  - The 1e-6 near-tangent main red is already filed (`work/issues/main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6.md`).
+  - CLEAVE's stale `pierce_side_reported` citation is noted on its log.
