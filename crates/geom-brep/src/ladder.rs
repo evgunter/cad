@@ -104,17 +104,22 @@ pub fn decided<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<Decided, Kept<Indeterminate>> {
-    decide_reported(name, readable(margin), band).map_err(Kept::of)
+    banded(margin, |m| decide_reported(name, m, band))
 }
 
-/// The margin a rung reads: `margin` where it is finite, else its
-/// residual ([`decided`]).
-fn readable<T: Decide>(margin: Margin<T>) -> Margin<T> {
-    if geom_core::is_finite_length(margin.value()) {
+/// `margin` read by `read`, the non-finite rule ([`decided`]) applied
+/// first: `margin` where it is finite, else its residual; and what the
+/// band left it, kept ([`Kept::of`]).
+fn banded<T: Decide, R>(
+    margin: Margin<T>,
+    read: impl FnOnce(Margin<T>) -> Result<R, Indeterminate>,
+) -> Result<R, Kept<Indeterminate>> {
+    let margin = if geom_core::is_finite_length(margin.value()) {
         margin
     } else {
         Margin::of(margin.value() - margin.value())
-    }
+    };
+    read(margin).map_err(Kept::of)
 }
 
 impl<A> Rung<A, Indeterminate> {
@@ -143,9 +148,9 @@ impl<A> Rung<A, Indeterminate> {
         band: Band,
         answer: impl FnOnce(Magnitude, MarginDiag) -> Option<A>,
     ) -> Self {
-        match decide_magnitude_reported(name, readable(margin), band) {
+        match banded(margin, |m| decide_magnitude_reported(name, m, band)) {
             Ok((magnitude, at)) => answer(magnitude, at).map_or(Self::Passes, Self::Answers),
-            Err(cause) => Self::kept(cause),
+            Err(kept) => kept.into(),
         }
     }
 
@@ -585,6 +590,39 @@ mod tests {
         assert!(cause.margin.is_invalid(), "the unreadable one: {cause:?}");
         assert_eq!(escalations.len(), 2, "both kept runs recorded");
         assert_eq!(search(Answering::First, &[1.0, -1.0]).0, Climb::Passed);
+    }
+
+    /// **An abort keeps every kept reading ahead of it live, under either
+    /// declaration**, and returns its own answer: the refusal rests on
+    /// the kept rungs, any of which a tighter tolerance may decide first.
+    #[test]
+    fn an_abort_keeps_the_readings_ahead_of_it_live() {
+        for answering in [Answering::Any, Answering::First] {
+            let (got, verdicts, escalations) = recorded(|| {
+                climb(answering, [5e-9, 1.0, f64::NAN], |m| {
+                    if m.is_nan() {
+                        return Rung::Aborts(Err("corrupt"));
+                    }
+                    Rung::decide("within", Margin::of(m), band(), |d| {
+                        (d.sign == Sign::Zero).then_some(Ok(m))
+                    })
+                })
+            });
+            assert_eq!(
+                got,
+                Climb::Answered {
+                    at: 2,
+                    answer: Err("corrupt")
+                },
+                "{answering:?}: the abort's error"
+            );
+            assert_eq!(verdicts, ["within"], "{answering:?}: the decided rung");
+            assert_eq!(
+                escalations,
+                ["within"],
+                "{answering:?}: the kept rung ahead stays live"
+            );
+        }
     }
 
     /// **A non-finite margin is a limit at every rung, never an answer**:

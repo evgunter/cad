@@ -97,11 +97,11 @@ pub(crate) enum RimRouting {
 /// wins; a face pair riding two common circles at once is not a rim
 /// contact and is outside what this door claims to see.
 ///
-/// **`answering` is the caller's question** ([`Answering`]). A caller
-/// that reads WHICH rim answered asks [`Answering::First`]: that it is
+/// **Which question the caller asks** ([`Answering`]). A caller
+/// that reads WHICH rim answered asks this door ([`Answering::First`]): that it is
 /// THE shared rim rests on no earlier pair being one too, so an
 /// undecided pair ahead of the answer stays live. A caller that asks
-/// only whether a rim exists asks [`Answering::Any`]: every pair decided
+/// only whether a rim exists asks [`rim_exists`] ([`Answering::Any`]): every pair decided
 /// one answers it alike, so an undecided pair ahead is superseded.
 ///
 /// **The comparison is the identity ladder's** ([`same_circle`] reads
@@ -137,6 +137,33 @@ pub(crate) enum RimRouting {
 /// [`Indeterminate`] naming the rim-identity predicate that landed in
 /// the band.
 pub(crate) fn shared_rim<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
+    rims(a, fa, b, fb, Answering::First, band)
+}
+
+/// Whether `fa` and `fb` end on a common circle: [`shared_rim`]'s ladder
+/// asked only whether a rim exists ([`Answering::Any`]).
+///
+/// # Errors
+///
+/// As [`shared_rim`].
+pub(in crate::boolean) fn rim_exists<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    rims(a, fa, b, fb, Answering::Any, band).map(|rim| rim.is_some())
+}
+
+/// The rim ladder under the caller's `answering` ([`shared_rim`]'s docs).
+fn rims<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
