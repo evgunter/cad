@@ -146,3 +146,8 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **The two closed-conic rows** pin the precise `CensusUnsupported` (abutting curved faces have no lane). Before this unit they ended at the backstop's `CensusUndecidable`: both refuse, and the new one names the gap. The capability itself goes to CHARTTAIL as its own row.
   - **The torax lune** re-pins to the shell's new refusal at the axis edge, but only if `TogetherAxialCorner` keeps a witness elsewhere. The cause is the shell door's keying by record, already filed on SHELL.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6480](https://github.com/evgunter/cad/pull/6480)'s style review**: APPROVE-WITH-FIXES. The moves are faithful and every stale-key caller resolves its key earlier.
+  - **The move re-mints the defect it closes:** `chart_window` imports its helpers back from `chord_join`, its consumer. The two body readings, `outer_cycle` and `vertex_point`, move to their own root home.
+  - **Class finding (the sixth this sitting):** five sweep guards filter K names by the `bool_` prefix, and the rename by home silently took `chart_window_cone_apex` out of their view. Once `[topo.homes]` makes a name's prefix its home, a prefix used as a category goes stale on every move. The guards must name what they mean.
+  - **Filed by the fix pass:** three chart-image loop walks that each claim to be the one.
+  - (ONEDOOR orchestrator)
