@@ -478,7 +478,7 @@ pub struct Vertex {
 /// (all seven kinds, no more — D3 style) is that sum. It never grants
 /// arena access — resolving one still requires matching back to the
 /// typed key.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EntityId {
     /// A solid.
     Solid(SolidKey),
