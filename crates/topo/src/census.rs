@@ -3115,13 +3115,13 @@ fn on_edge_interior_reading<T: Decide>(
     match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
-        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
-        }
-        Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-            unreachable!("a line's carrier reading walks no pieces")
-        }
+        Err(refusal) => match refusal.escalation() {
+            Ok(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                None
+            }
+            Err(_) => unreachable!("a line's carrier reading walks no pieces"),
+        },
     }
 }
 
@@ -6906,6 +6906,35 @@ fn line_unread(
         crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
             read_containment([a, b][i], Err::<(), _>(e), held);
         }
+        crate::boolean::FaceUnread::Boundary(refusal) => {
+            use geom_brep::curve_face::BoundaryRefusal;
+            held.push(match refusal {
+                BoundaryRefusal::Escalated(cause)
+                | BoundaryRefusal::Meeting(cause)
+                | BoundaryRefusal::Touch(cause) => ValidationError::CensusEscalated { cause },
+                BoundaryRefusal::Unread(_) => pair_lane_refused(
+                    a,
+                    b,
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a face of a two-carrier face pair whose boundary the meeting \
+                               reading cannot read against the tangent line",
+                    },
+                ),
+                BoundaryRefusal::Fault { what } => pair_lane_refused(
+                    a,
+                    b,
+                    crate::contact::ContactRefusal::NotCertifiable { what },
+                ),
+            });
+        }
+        crate::boolean::FaceUnread::Uncertified => held.push(pair_lane_refused(
+            a,
+            b,
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: "a face of a two-carrier face pair whose boundary holds an edge with no \
+                       certified curve",
+            },
+        )),
     }
 }
 
@@ -11297,6 +11326,21 @@ enum InteriorsUnread {
     Unbuilt,
 }
 
+impl InteriorsUnread {
+    /// A meeting reading's refusal: an escalation or a touch undecided,
+    /// every other refusal unbuilt. A fault folds in with the limits
+    /// (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
+    fn of(fault: MeetFault) -> Self {
+        match fault {
+            MeetFault::Escalated(_) | MeetFault::Touch(_) => Self::Undecided,
+            MeetFault::Unsettled(_)
+            | MeetFault::Unsupported { .. }
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => Self::Unbuilt,
+        }
+    }
+}
+
 /// **Whether two planar faces on one plane, facing the same way, share
 /// interior**: some vertex of one lies strictly inside the other, two of
 /// their edges cross properly (two half-planes whose lines cross share a
@@ -11569,24 +11613,15 @@ fn arc_interiors_meet<T: Decide>(
                                 match on.contact(end, near, band) {
                                     Ok(Some(hit)) => cuts.push(on.at(hit)),
                                     Ok(None) => {}
-                                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                                    Err(refusal) => {
+                                        note(InteriorsUnread::of(refusal.into()), &mut unread)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                Err(refusal) => note(
-                    match refusal.fault {
-                        MeetFault::Escalated(_) | MeetFault::Touch(_) => InteriorsUnread::Undecided,
-                        // A fault folds in with the limits
-                        // (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
-                        MeetFault::Unsettled(_)
-                        | MeetFault::Unsupported { .. }
-                        | MeetFault::Desync
-                        | MeetFault::Contradiction { .. } => InteriorsUnread::Unbuilt,
-                    },
-                    &mut unread,
-                ),
+                Err(refusal) => note(InteriorsUnread::of(refusal.fault), &mut unread),
             }
         }
     }
@@ -11601,7 +11636,7 @@ fn arc_interiors_meet<T: Decide>(
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
-                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                    Err(refusal) => note(InteriorsUnread::of(refusal.into()), &mut unread),
                 }
             }
         }
@@ -19388,16 +19423,17 @@ mod two_carrier_records {
             }
         }
 
-        /// Two spikes (slope 5) whose apexes stand 75ε above the line,
+        /// Two spikes (slope 5) whose apexes stand 35ε above the line,
         /// near its ends (x = 0.6 and x = 3.4), and a wide tab (2, 2.4):
-        /// each spike holds the line over two runs 15ε long, cut at its
-        /// apex, whose middles lie about 7ε from its sides, so the plate
-        /// reads them in band and they are held; the wide tab's run
-        /// answers, whichever way the line runs. Red when the first held
-        /// station's refusal is returned before a later station is read.
+        /// each spike holds the line over one run 14ε long, between its
+        /// sides' meetings with the line, whose middle lies about 7ε from
+        /// them, so the plate reads it in band and it is held; the wide
+        /// tab's run answers, whichever way the line runs. Red when the
+        /// first held station's refusal is returned before a later
+        /// station is read.
         #[test]
         fn a_held_station_does_not_stop_a_later_one_answering() {
-            let h = 75.0 * Tol::witness().eps();
+            let h = 35.0 * Tol::witness().eps();
             let outline = [
                 (0.0, -1.0),
                 (4.0, -1.0),
@@ -19679,6 +19715,66 @@ mod two_carrier_records {
                 );
                 eprintln!("{s}");
                 assert!(!stale(&errors), "{s}");
+            }
+
+            /// A plate whose only run under the line is a 0.01 spike at
+            /// x = 2, beside an apex at x = 1.1 standing `d` off the line.
+            fn apex_beside_a_spike(d: f64) -> Vec<(f64, f64)> {
+                vec![
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, -0.5),
+                    (2.02, -0.5),
+                    (2.0, 0.01),
+                    (1.98, -0.5),
+                    (1.2, -0.5),
+                    (1.1, d),
+                    (1.0, -0.5),
+                    (0.0, -0.5),
+                ]
+            }
+
+            /// **An apex in band of the line does not hide a spike
+            /// elsewhere on it**: the apex's reading may refuse, never
+            /// answer the line clear of the spike's run. Red where a
+            /// refusal at the apex drops the face's cuts and a coarser
+            /// reading misses the spike.
+            #[test]
+            fn an_apex_in_band_of_the_line_does_not_hide_a_spike_elsewhere() {
+                let eps = Tol::witness().eps();
+                for d in [3.0 * eps, 6.0 * eps, -10.0 * eps] {
+                    let (body, top) = top_of(&apex_beside_a_spike(d));
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                    assert!(oracle, "{d:e}: the spike holds the line");
+                    assert!(!matches!(read, Ok(false)), "{d:e}: {read:?}");
+                }
+            }
+
+            /// **A record through that spike is not stale**, whichever
+            /// face the record names first.
+            #[test]
+            fn a_record_through_a_spike_beside_an_apex_in_band_is_not_stale() {
+                let r = rig(
+                    &apex_beside_a_spike(3.0 * Tol::witness().eps()),
+                    (-1.0, 5.0),
+                    (-0.5, 0.5),
+                );
+                let b = Band::linear(Tol::witness()).unwrap();
+                for swap in [false, true] {
+                    let (x, y) = if swap {
+                        (r.top, r.wall)
+                    } else {
+                        (r.wall, r.top)
+                    };
+                    let errors = census_and_certify(
+                        &r.body,
+                        &one(&r.body, Cell::Face(x), Cell::Face(y)),
+                        b,
+                        Tol::witness(),
+                        None,
+                    );
+                    assert!(!stale(&errors), "swap {swap}: {errors:?}");
+                }
             }
 
             /// The unit half-disc cap (arc through +y, chord y = 0) and

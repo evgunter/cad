@@ -100,7 +100,7 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             506  census.rs
+names-boolean             510  census.rs
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
