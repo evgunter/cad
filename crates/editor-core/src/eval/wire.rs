@@ -3600,7 +3600,7 @@ fn in_member_space(
 /// own two-member union or intersect, its operand A the lesser read
 /// ([`member_ranks`]), so its verdicts and refusals are the same in
 /// every member order, and the edge pieces each judgement classified are
-/// the senses the node's vertices read (N2, [`names::UnionLinks`]).
+/// the senses the node's vertices read (N2, [`names::UnionPairSenses`]).
 /// **One verdict per carrier pair**: the kernel gives each step the
 /// verdicts on the member it joins, and the step decides no carrier pair
 /// of its own; the member faces each face holds are the last step's
@@ -3926,8 +3926,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // The judgements' rows, whole, each named in its two members' own
     // tables: the node's coincidences are its member pairs' (DM4), each
     // pair's in the order the kernel judged it. The edge pieces each
-    // judgement classified are the node's senses ([`names::UnionLinks`]).
-    let mut links = names::UnionLinks::default();
+    // judgement classified are the node's senses ([`names::UnionPairSenses`]).
+    let mut pair_senses = names::UnionPairSenses::default();
     let mut judged: Vec<Vec<crate::coincide::NamedCoincidence>> =
         Vec::with_capacity(judgements.len());
     for (k, j) in judgements.iter().enumerate() {
@@ -3948,7 +3948,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
             .map_err(NodeErrorKind::Naming)?,
         );
-        links
+        pair_senses
             .judged(
                 j.a,
                 j.b,
@@ -4008,7 +4008,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let member =
             names::narrow(joined, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
         if !pairwise {
-            // The pair's rows and links are its one step's, in the two
+            // The pair's rows and senses are its one step's, in the two
             // members' own tables and the order its records cite them,
             // as a pair verb records them.
             coincidences = crate::coincide::name_rows(
@@ -4026,7 +4026,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 ..row
             })
             .collect();
-            links
+            pair_senses
                 .judged(
                     0,
                     1,
@@ -4187,7 +4187,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         })
         .collect();
     let (table, published_groups) =
-        names::name_union(id, acc_body, &acc_table, &member_views, &fold, &links, tol)
+        names::name_union(id, acc_body, &acc_table, &member_views, &fold, &pair_senses, tol)
             .map_err(NodeErrorKind::Naming)?;
     let body = acc_body.clone().into_body();
     // The LAST step's records are the result's: every earlier step's

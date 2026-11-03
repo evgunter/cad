@@ -153,8 +153,7 @@ fn one_table(label: &str, fixture: &Tiles) {
 }
 
 /// **The worked example**: L is `t1`'s top bordering the bar's west
-/// wall; R is `Merged` of both tiles' tops bordering its east wall; and
-/// every member order names one table.
+/// wall; R is `Merged` of both tiles' tops bordering its east wall.
 #[test]
 fn a_bar_across_one_tile_of_two_flush_names_each_top_for_what_it_holds() {
     let f = tiles("per-face-worked", 0.4, false);
@@ -191,14 +190,21 @@ fn a_bar_across_one_tile_of_two_flush_names_each_top_for_what_it_holds() {
         r.path.last(),
         "L and R border two walls of the bar"
     );
-    one_table("worked", &f);
 }
 
-/// **A flush tile touching only L renames L alone**: L now holds `t0`'s
-/// top beside `t1`'s, and R, every edge bounding it and every other name
-/// that cites neither `t0` nor L is unchanged.
+/// **The worked example names one table in every member order.**
 #[test]
-fn a_flush_tile_touching_only_l_renames_l_alone() {
+fn the_worked_example_names_one_table_in_every_member_order() {
+    one_table("worked", &tiles("per-face-worked", 0.4, false));
+}
+
+/// **A flush tile beside `t1` renames only the faces gaining its
+/// area**: L now holds `t0`'s top beside `t1`'s, and the bottom and the
+/// two long side walls hold `t0`'s too. Every face that gains none of
+/// `t0`'s area names alike, R and every edge bounding it among them, and
+/// the one face that loses its area, `t1`'s wall against `t0`, is gone.
+#[test]
+fn a_flush_tile_beside_t1_renames_only_the_faces_gaining_its_area() {
     let before = tiles("per-face-t0", 0.4, false);
     let after = tiles("per-face-t0", 0.4, true);
     let (ev0, u0) = before.union(&before.members());
@@ -248,6 +254,65 @@ fn a_flush_tile_touching_only_l_renames_l_alone() {
         around(&ev1, u1, r1),
         "R's edges are named alike"
     );
+    // The face table's whole diff: each name only the union with `t0`
+    // has holds `t0`'s area, or borders a face that does (a wall is
+    // cited by the base of the face across it); each name only the
+    // union without it has is one that gained `t0`'s area or a wall
+    // that did, or is `t1`'s wall against `t0`.
+    let faces = |ev: &Evaluation<f64>, union: RecipeNodeId| {
+        table(ev, union)
+            .iter()
+            .filter(|(name, _)| name.kind == EntityKind::Face)
+            .map(|(name, _)| (modulo(name, union), name.clone()))
+            .collect::<std::collections::BTreeMap<String, StableName>>()
+    };
+    let (faces0, faces1) = (faces(&ev0, u0), faces(&ev1, u1));
+    let gained: Vec<&StableName> = faces1
+        .iter()
+        .filter(|(said, _)| !faces0.contains_key(*said))
+        .map(|(_, name)| name)
+        .collect();
+    let t0_read = after.read(t0);
+    let moved = |name: &StableName| {
+        let walls_moved = match name.path.last() {
+            Some(RoleSeg::Fragment(Qualifier::Borders(walls))) => walls
+                .iter()
+                .any(|w| cited_members(w).contains(&t0_read)),
+            _ => false,
+        };
+        cited_members(name).contains(&t0_read) || walls_moved
+    };
+    for name in faces1.values() {
+        assert_eq!(
+            moved(name),
+            gained.contains(&name),
+            "a face is renamed exactly where it or a wall it borders holds t0's area: {name}"
+        );
+    }
+    let body0 = body_of(&ev0, u0);
+    for (said, name) in faces0.iter().filter(|(said, _)| !faces1.contains_key(*said)) {
+        let mut kept = cited_members(name);
+        kept.sort();
+        let mut was = kept.clone();
+        was.push(t0_read);
+        was.sort();
+        let renamed = gained.iter().any(|now| {
+            let mut held = cited_members(now);
+            held.sort();
+            held == was || (held == kept && moved(now))
+        });
+        let Some(Entry::Unique(e)) = table(&ev0, u0).lookup(name) else {
+            panic!("{said} names one face");
+        };
+        let EntityKey::Face(f) = e.key else {
+            panic!("{said} names a face")
+        };
+        let against_t0 = face_points(&body0, f).iter().all(|p| p.x.abs() < 1e-9);
+        assert!(
+            renamed || against_t0,
+            "a face no longer named gained t0's area or lies against t0: {said}"
+        );
+    }
     one_table("with t0", &after);
 }
 
@@ -341,4 +406,126 @@ fn a_subtracts_face_holds_the_tool_face_lying_over_it() {
         1,
         "held by one face, unqualified: {bottom}"
     );
+}
+
+/// The plane face `f` of `body` lies on: a point of it and its outward
+/// unit normal.
+fn plane_of(body: &topo::Body<f64>, f: topo::FaceKey) -> (geom_core::Point3<f64>, [f64; 3]) {
+    let n = topo::face_normal::face_outward_normal(body, f)
+        .expect("a brick's face has a normal")
+        .vec();
+    let p = face_points(body, f)[0];
+    (p, [n.x, n.y, n.z])
+}
+
+/// **A subtract from an already-cut plate names each face for member
+/// faces lying under it**: the plate less a slot, then less each of
+/// three bricks whose walls meet the slot's own (a notch over the
+/// slot's west half, one over its east half, a pocket past the plate's
+/// west side). Each face's base cites only member faces on its own
+/// plane, read off the members' bodies; a substitution row read through
+/// the join's null scaffolding once made the slot's wall or floor cite a
+/// tool's side wall perpendicular to it.
+#[test]
+fn a_second_subtract_cites_only_member_faces_lying_under_each_face() {
+    for (what, x, y, z0) in [
+        ("notch west", (0.0, 2.0), (1.0, 2.0), 0.5),
+        ("notch east", (1.0, 3.0), (0.0, 1.0), 0.25),
+        ("pocket", (-1.0, 2.0), (1.0, 2.0), 0.5),
+    ] {
+        let doc = ProfileDoc::empty_derived("per-face-second-cut", Tol::witness());
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+        let (doc, slot) = block_on(doc, plate, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+        let (doc, cut) = insert(
+            doc,
+            Node::Subtract {
+                from: plate.into(),
+                tool: slot.into(),
+            },
+        );
+        let (doc, tool) = block_on(doc, plate, x, y, z0, 1.5 - z0);
+        let (doc, again) = insert(
+            doc,
+            Node::Subtract {
+                from: cut.into(),
+                tool: tool.into(),
+            },
+        );
+        let ev = run(&doc);
+        if let Some(refusal) = failure(&ev, again) {
+            panic!("{what}: the second subtract names, got {refusal:?}");
+        }
+        let body = body_of(&ev, again);
+        let operand = |read: VarId| {
+            [cut, tool]
+                .into_iter()
+                .find(|&n| doc.output(n, 0) == Some(read))
+                .unwrap_or_else(|| panic!("{what}: read {read:?} is an operand's"))
+        };
+        let mut cited = 0;
+        for (name, entry) in table(&ev, again).iter() {
+            let Entry::Unique(e) = entry else { continue };
+            let EntityKey::Face(f) = e.key else { continue };
+            let (p, n) = plane_of(&body, f);
+            let constituents: Vec<&StableName> = match name.path.first() {
+                Some(RoleSeg::Merged(set)) => set.iter().collect(),
+                _ => vec![name],
+            };
+            for c in constituents {
+                let Some(RoleSeg::From { read, of }) = c.path.first() else {
+                    panic!("{what}: a face cites an operand face through its read: {name}");
+                };
+                let node = operand(*read);
+                let Some(Entry::Unique(m)) = table(&ev, node).lookup(of.name()) else {
+                    panic!("{what}: {of} names one face of its operand");
+                };
+                let EntityKey::Face(mf) = m.key else {
+                    panic!("{what}: {of} names a face");
+                };
+                let (q, k) = plane_of(&body_of(&ev, node), mf);
+                let dot = n[0] * k[0] + n[1] * k[1] + n[2] * k[2];
+                let off = (q.x - p.x) * n[0] + (q.y - p.y) * n[1] + (q.z - p.z) * n[2];
+                assert!(
+                    (dot.abs() - 1.0).abs() < 1e-9 && off.abs() < 1e-9,
+                    "{what}: {name} cites {of}, which lies off its plane"
+                );
+                cited += 1;
+            }
+        }
+        assert!(cited > 10, "{what}: {cited} member faces cited");
+    }
+}
+
+/// **A union's wrap edge is named as a piece of the member edge its
+/// fold row names**: the corpus document `revolves_on_one_axis` unions
+/// two stacked rings, whose bores and walls each glue across the joint
+/// into one face holding a seam edge with that face on both sides. No
+/// cover is read for such an edge (it lies between no two faces), so it
+/// keeps the member edge its fold row names, and names a piece of that
+/// edge: no `Seam`, which needs two faces.
+#[test]
+fn a_unions_wrap_edge_is_a_piece_of_its_fold_rows_member_edge() {
+    let corpus = crate::corpus::revolves_on_one_axis::document();
+    let union = corpus.result.expect("the document unions the rings");
+    let ev = run(&corpus.doc);
+    if let Some(refusal) = failure(&ev, union) {
+        panic!("the union names, got {refusal:?}");
+    }
+    let body = body_of(&ev, union);
+    let mut wraps = 0;
+    for (name, entry) in table(&ev, union).iter() {
+        let Entry::Unique(e) = entry else { continue };
+        let EntityKey::Edge(k) = e.key else { continue };
+        let edge = body.get_edge(k).expect("a named edge resolves");
+        let face = |h| body.face_of_half_edge(h);
+        if face(edge.he_plus) != face(edge.he_minus) {
+            continue;
+        }
+        wraps += 1;
+        assert!(
+            matches!(name.path.first(), Some(RoleSeg::From { .. })),
+            "a wrap edge is a piece of a member's edge: {name}"
+        );
+    }
+    assert!(wraps >= 2, "the glued bore and wall each hold a wrap edge: {wraps}");
 }

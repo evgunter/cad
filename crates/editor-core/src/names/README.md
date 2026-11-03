@@ -593,8 +593,8 @@ a group that holds section faces is `Merged` of the plane and the operand
 faces it absorbed: the plane is a parent linked as an operand face is,
 cited once and bare, whatever number of sections the join completed, and
 every plane piece of the half is a piece of that parent. A split's group that holds no section
-face is named as a boolean names it: `Merged` of the operand faces its faces
-descend from, the faces of one such parent in one half told apart by `Keeps`
+face is `Merged` of the operand faces its merge group's faces descend
+from, the faces of one such parent in one half told apart by `Keeps`
 (N2). A `Merged` whose set has one element is that
 element: a face glued to its twin, the same read spelled twice (REFERENCES
 DM5), is named as the face. A merged row COVERS a name when the name is a constituent

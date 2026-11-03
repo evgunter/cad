@@ -2,9 +2,10 @@
 id: a-substitution-row-names-a-kept-fragment-of-a-face-across-the-corner
 kind: issue
 title: A subtract's substitution row names a kept fragment of a face perpendicular to its 'by' face, so holdings cite it
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
+closed: 2026-11-03
 ---
 
 
@@ -44,3 +45,24 @@ that. Which arm wrote the row is not yet read.
 The row is gone or names the floor's own fragment, `crossing_slots`'
 cavity floor holds exactly the two floors, and the corpus digest
 `lib_g16_corpus_name_digests` is re-pinned with that name.
+
+## Resolution (PR 6381)
+
+Not the corner arm: both rows came from `fate::cut`'s fate edges. Each
+fate edge of the witness (A's floor edges at x = 1 and x = 2) runs along
+an edge the dropped floor already held, so `place` returned `Along` at
+both ends, and the cut took the mate of the end-0 half because the
+copies' normals are opposed. That mate lies in a null face the join set
+between two pieces of the floor; null faces inherit the lineage of the
+face they were split from, here slot 2's `y = 1` wall (`9v1`), and at
+x = 2 the floor itself by chance (`7v3`). The half is now read from the
+end that runs the wanted way (each `Along` names a half of a non-null
+piece), and refuses as a classification invariant where it lies in no
+piece. The second subtract now records one row, `(B, 14v3, by 3v3)`, the
+floor's middle piece. A sweep of 720 brick booleans (plate and
+plate-less-slot, subtract/union/intersect over a brick grid) found 15
+such rows before the fix and none after
+(`holdings_rows::every_brick_booleans_face_holds_only_member_faces_on_its_plane`).
+`Holdings::of_records` now also reads each substitution and uncut row
+against the finished face (carrier, then overlap) and refuses
+`HeldRefusal::NotUnder` where a row contradicts the geometry.

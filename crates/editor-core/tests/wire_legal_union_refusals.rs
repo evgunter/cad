@@ -351,10 +351,28 @@ fn names_the_glue_in_every_order(
         }
         let pieces = crate::emit_union_borders::wall_pieces(&ev, boss);
         let names = crate::emit_union_borders::names_modulo(&ev, union);
+        // The member faces a face's base cites: each constituent of a
+        // `Merged` set, or its one member face, by each name along its
+        // chain of reads (a nested union's member cites its own
+        // member's face through one more read).
+        let held = |name: &StableName| -> Vec<String> {
+            let cited: Vec<&StableName> = match name.path.first() {
+                Some(RoleSeg::Merged(set)) => set.iter().collect(),
+                _ => vec![name],
+            };
+            let mut out = Vec::new();
+            for mut c in cited {
+                while let Some(RoleSeg::From { of, .. }) = c.path.first() {
+                    out.push(of.name().to_string());
+                    c = of.name();
+                }
+            }
+            out
+        };
         assert!(
             table(&ev, union).iter().any(|(name, _)| {
-                let said = name.to_string();
-                name.kind == EntityKind::Face && pieces.iter().all(|p| said.contains(p.as_str()))
+                let held = held(name);
+                name.kind == EntityKind::Face && pieces.iter().all(|p| held.contains(p))
             }),
             "{label} {order:?}: a face holds both boss wall pieces {pieces:?}: {names:?}"
         );

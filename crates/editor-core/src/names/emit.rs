@@ -11,7 +11,7 @@
 //! typed [`NamingError`], surfacing kernel-emission holes loudly),
 //! and injectivity is enforced by [`NameTable`] at insertion.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
@@ -593,11 +593,10 @@ shapes! {
         /// merged: along an operand rim beside one merged face.
         WithinOneOperand => "is a zipped seam between faces of one operand that are not both \
                              merged",
-        /// A union seam whose two faces descend from one parent: member
-        /// faces a judgement linked (N2) that the fold holds as two
-        /// faces meeting along an edge off every member edge, which no
-        /// rule names.
-        InsideOneParent => "is a union seam whose two faces descend from one parent",
+        /// A union seam whose two faces hold exactly the same member
+        /// faces (N2): one parent the fold holds as two faces meeting
+        /// along an edge off every member edge, which no rule names.
+        InsideOneParent => "is a union seam whose two faces hold the same member faces",
     }
 }
 
@@ -622,8 +621,9 @@ shapes! {
     /// What a name a union publishes met
     /// ([`NamingError::UnsupportedUnionName`]).
     UnionNameShape {
-        /// It cites member faces of several parents: a tied member face
-        /// is keyed to each candidate's parent, and those can differ.
+        /// It cites member faces several parents hold, and the faces
+        /// around the entity it names do not single one out (a tied
+        /// member face is keyed to each candidate's parent too).
         SeveralParents => "cites faces of several parents, so it names no one face",
         /// Two lines of a seam junction, met at different steps, collapse
         /// to one member-space line.
@@ -1073,6 +1073,25 @@ impl NamingError {
     }
 }
 
+/// **What a boolean's face, or a region a step discarded, holds**, as
+/// the naming reads it: the member faces, or the kernel's refusal as
+/// [`NamingError::HoldingsUnread`] (`face` the finished face, `None` for
+/// a discarded region). `None` where the kernel published no holdings
+/// for it, which each caller rules out by its door's own guarantee.
+pub(crate) fn read_held(
+    held: Option<&topo::Held>,
+    face: Option<FaceKey>,
+) -> Result<Option<&BTreeSet<topo::MemberFace>>, NamingError> {
+    match held {
+        Some(topo::Held::Faces(fs)) => Ok(Some(fs)),
+        Some(topo::Held::Refused(refusal)) => Err(NamingError::HoldingsUnread {
+            face,
+            refusal: refusal.clone(),
+        }),
+        None => Ok(None),
+    }
+}
+
 /// The kernel's reason a face's holdings went unread, in words.
 fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
     match refusal {
@@ -1087,6 +1106,16 @@ fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
         }
         topo::HeldRefusal::Recharted { .. } => {
             "a sphere shell's face was turned before the boolean, over the input shell's faces"
+                .to_owned()
+        }
+        topo::HeldRefusal::NotUnder { .. } => {
+            "the boolean's records say it holds a face lying on another surface, or apart from \
+             it, which is a kernel defect"
+                .to_owned()
+        }
+        topo::HeldRefusal::CarrierUnread { .. } => {
+            "whether a face the boolean's records say it holds lies on its surface could not \
+             be decided"
                 .to_owned()
         }
     }
@@ -1955,7 +1984,7 @@ mod display_tests {
                     edge: edges.0,
                     shape: SeamSidesShape::InsideOneParent,
                 },
-                vec![edge0.as_str(), "descend from one parent"],
+                vec![edge0.as_str(), "hold the same member faces"],
             ),
             (
                 NamingError::UnsupportedJoin {

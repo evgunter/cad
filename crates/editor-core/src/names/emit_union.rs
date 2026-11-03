@@ -116,10 +116,11 @@ use crate::names::defer::{TieRows, mint_candidates};
 use crate::names::discriminate::{ON_MEMBER_EDGE, band};
 use crate::names::emit::{
     DisagreeShape, Incidence, NamingError, SeamSidesShape, SeamVertexShape, UnionNameShape,
-    check_total, edge_ends, ent, face_half_edges, vertex_point,
+    check_total, edge_ends, ent, face_half_edges, read_held, vertex_point,
 };
 use crate::names::emit_topo::{
     CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, HeldFace, Lone, ParentEntities,
+    held_base,
     UNSIDED, edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
     line_name as line_name_of, name_corner_copies, name_edge_pieces, name_held_faces,
     sense_along_line, sets_per_line,
@@ -264,7 +265,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     folded: &NameTable,
     members: &[Member<'_, T>],
     fold: &Fold<'_>,
-    links: &Links<T>,
+    pair_senses: &PairSenses<T>,
     tol: geom_core::Tol,
 ) -> Result<(Arc<NameTable>, Rederived), NamingError> {
     let bnd = band(tol)?;
@@ -291,7 +292,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
         by_parents.vertices,
         body,
         (&flush, fold),
-        (&lines, links),
+        (&lines, pair_senses),
         (&parents, &by_parents.seam_heads),
         &mut groups,
     )?;
@@ -642,7 +643,7 @@ struct Flush<'a, T: geom_core::Decide> {
 }
 
 impl<'a, T: geom_core::Decide> Flush<'a, T> {
-    /// The finished body's faces as the collapsed table `t` names them,
+    /// The finished body's faces by their parents ([`Parents`]),
     /// and every finished edge's member edges.
     fn of(
         union: RecipeNodeId,
@@ -754,7 +755,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let Some(member) = self.members.get(i) else {
             unreachable!(
                 "a union reads a member entity under index {i} of {} members: every index is a \
-                 member's place in the fold (`Fold`, `Links::judged`)",
+                 member's place in the fold (`Fold`, `PairSenses::judged`)",
                 self.members.len()
             )
         };
@@ -927,7 +928,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         &self,
         v: topo::VertexKey,
         lines: &EdgeLines<'_>,
-        links: &Links<T>,
+        pair_senses: &PairSenses<T>,
     ) -> Result<Option<StableName>, NamingError> {
         let bug = |what| NamingError::Emission { what };
         let at = self.inc.vertex_edges.get(&v).map_or(&[][..], Vec::as_slice);
@@ -1029,7 +1030,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     ));
                 }
             };
-            let sense = self.line_sense(v, line, &others, links)?;
+            let sense = self.line_sense(v, line, &others, pair_senses)?;
             return Ok(Some(StableName {
                 kind: EntityKind::Vertex,
                 node: self.union,
@@ -1056,7 +1057,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             }
             run.push(RunLine {
                 line: line_name(self.union, line),
-                sense: self.line_sense(v, line, &others, links)?,
+                sense: self.line_sense(v, line, &others, pair_senses)?,
             });
         }
         for (base, (_, pieces)) in seams {
@@ -1184,11 +1185,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         v: topo::VertexKey,
         line: impl IntoIterator<Item = &'e MemberEntity>,
         others: &BTreeSet<VarId>,
-        links: &Links<T>,
+        pair_senses: &PairSenses<T>,
     ) -> Result<Sense, NamingError> {
         let mut read = Vec::new();
         for e in line {
-            let (stored, reading) = self.sense_against(v, e, others, links)?;
+            let (stored, reading) = self.sense_against(v, e, others, pair_senses)?;
             read.push((e, stored, reading));
         }
         self.compose(v, read)
@@ -1234,7 +1235,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// ([`edge_reading`]): each side of `v` along the edge lies in them
     /// where any pairwise judgement of the edge's member with one of them
     /// classed a piece of the edge there in the other's closed body
-    /// ([`Links`]).
+    /// ([`PairSenses`]).
     ///
     /// # Errors
     ///
@@ -1249,7 +1250,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         v: topo::VertexKey,
         line: &MemberEntity,
         others: &BTreeSet<VarId>,
-        links: &Links<T>,
+        pair_senses: &PairSenses<T>,
     ) -> Result<(Sense, EdgeReading), NamingError> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
@@ -1298,7 +1299,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         };
         let mut sides: [Option<bool>; 2] = [None, None];
         let mut piece = BTreeSet::new();
-        for c in &links.classes {
+        for c in &pair_senses.classes {
             if !rows.contains_key(&c.edge) || !here(c.member, c.other, c.at)? {
                 continue;
             }
@@ -1310,7 +1311,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // member's edges there, by its own account: the crossing refuses
         // naming why, so no listed vertex reaches the missing-row bug.
         let unread = || -> Result<Option<NamingError>, NamingError> {
-            for u in &links.unread {
+            for u in &pair_senses.unread {
                 if here(u.member, u.other, u.at)? {
                     return Ok(Some(NamingError::PartnerUnread {
                         vertex: v,
@@ -1785,7 +1786,7 @@ fn cite_member_edges<T: geom_core::Decide>(
     vertex_rows: Vec<(StableName, Entry)>,
     body: &topo::Body<T>,
     (flush, fold): (&Flush<'_, T>, &Fold<'_>),
-    (lines, links): (&EdgeLines<'_>, &Links<T>),
+    (lines, pair_senses): (&EdgeLines<'_>, &PairSenses<T>),
     (parents, seam_heads): (&Parents, &BTreeMap<StableName, StableName>),
     rec: &mut Rederived,
 ) -> Result<NameTable, NamingError> {
@@ -1816,7 +1817,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             None => None,
         };
         let crossing = match (&member_vertex, at) {
-            (None, Some(v)) => flush.meeting(v, lines, links)?,
+            (None, Some(v)) => flush.meeting(v, lines, pair_senses)?,
             _ => None,
         };
         let cited = match (member_vertex, crossing) {
@@ -2052,12 +2053,12 @@ type MemberFace = (usize, topo::FaceKey);
 /// member edge piece each classified beside a point against the other
 /// member's closed body, and each member vertex one met the other member
 /// at and read no partner of (N2's senses).
-pub(crate) struct Links<T: geom_core::Real> {
+pub(crate) struct PairSenses<T: geom_core::Real> {
     classes: Vec<PairClass<T>>,
     unread: Vec<UnreadAt<T>>,
 }
 
-impl<T: geom_core::Real> Default for Links<T> {
+impl<T: geom_core::Real> Default for PairSenses<T> {
     fn default() -> Self {
         Self {
             classes: Vec::new(),
@@ -2093,7 +2094,7 @@ struct UnreadAt<T: geom_core::Real> {
     record: topo::UnreadPartner,
 }
 
-impl<T: geom_core::Real> Links<T> {
+impl<T: geom_core::Real> PairSenses<T> {
     /// What one judgement recorded: members `a` (operand A) and `b`
     /// (operand B), the kernel's record `naming` of their union and its
     /// result `body`; `reads` are the members' reads and `b_body` is
@@ -2218,16 +2219,14 @@ impl<'l> Fold<'l> {
         holdings: &'l topo::Holdings,
     ) -> Result<(), NamingError> {
         self.obstacles
-            .record(naming, result, |row| match holdings.lost(row) {
-                Some(topo::Held::Faces(fs)) => Ok(fs.clone()),
-                Some(topo::Held::Refused(refusal)) => Err(NamingError::HoldingsUnread {
-                    face: None,
-                    refusal: refusal.clone(),
-                }),
-                None => unreachable!(
-                    "a union fold step's discard row {row} has no holdings: the n-ary door \
-                     reads one for every row of every step (`topo::NaryStep::holdings`)"
-                ),
+            .record(naming, result, |row| {
+                let Some(fs) = read_held(holdings.lost(row), None)? else {
+                    unreachable!(
+                        "a union fold step's discard row {row} has no holdings: the n-ary door \
+                         reads one for every row of every step (`topo::NaryStep::holdings`)"
+                    )
+                };
+                Ok(fs.clone())
             })?;
         self.holdings = Some(holdings);
         Ok(())
@@ -2291,15 +2290,9 @@ impl Parents {
         // Member faces → the finished faces holding exactly them.
         let mut sets: BTreeMap<&BTreeSet<MemberFace>, Vec<topo::FaceKey>> = BTreeMap::new();
         for (f, _) in body.faces() {
-            match holdings.of(f) {
-                Some(topo::Held::Faces(held)) if !held.is_empty() => {
+            match read_held(holdings.of(f), Some(f))? {
+                Some(held) if !held.is_empty() => {
                     sets.entry(held).or_default().push(f);
-                }
-                Some(topo::Held::Refused(refusal)) => {
-                    return Err(NamingError::HoldingsUnread {
-                        face: Some(f),
-                        refusal: refusal.clone(),
-                    });
                 }
                 held => unreachable!(
                     "finished face {f:?} of union {union:?} has holdings {held:?}: the n-ary \
@@ -2397,8 +2390,9 @@ impl Parents {
     /// `None` for a name that is not a member face, a merge of member
     /// faces or a piece of either.
     ///
-    /// A name whose member faces several such parents hold cites no one
-    /// face of the finished body, and refuses.
+    /// A name whose member faces several such parents hold, or several
+    /// of which none lies around the entity, cites no one face of the
+    /// finished body, and refuses.
     fn cited(
         &self,
         union: RecipeNodeId,
@@ -2419,14 +2413,21 @@ impl Parents {
                 }
             }
         }
+        let several = cited.len() > 1;
         if let Some(around) = around
-            && cited.len() > 1
+            && several
         {
             cited.retain(|p| around.contains(p));
         }
         let mut cited = cited.into_iter();
         let Some(first) = cited.next() else {
-            return Ok(None);
+            if !several {
+                return Ok(None);
+            }
+            return Err(NamingError::UnsupportedUnionName {
+                name: Box::new(n.clone()),
+                shape: UnionNameShape::SeveralParents,
+            });
         };
         if cited.next().is_some() {
             return Err(NamingError::UnsupportedUnionName {
@@ -2460,22 +2461,7 @@ struct ByParents {
 /// flat (N3): a member face that is itself a merged face, a nested
 /// union's, stands for its constituents, each keyed by its member.
 fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName {
-    match from.iter().collect::<Vec<_>>().as_slice() {
-        [one] => entity_name(union, one),
-        many => canonical::form(StableName {
-            kind: EntityKind::Face,
-            node: union,
-            path: vec![RoleSeg::Merged(
-                many.iter()
-                    .flat_map(|m| {
-                        let n = entity_name(union, m);
-                        crate::names::merged::constituents_through_wrappers(&n)
-                            .unwrap_or_else(|| vec![n])
-                    })
-                    .collect(),
-            )],
-        }),
-    }
+    held_base(union, from.iter().map(|m| entity_name(union, m)).collect())
 }
 
 /// **A union's faces and seam edges are named for parents, read off the
@@ -2569,9 +2555,10 @@ fn name_by_parents<T: geom_core::Decide>(
                 shape: SeamSidesShape::NotTwoFaces,
             });
         };
-        // Member faces a judgement linked are one parent, and the fold
-        // can still hold two of them as two faces meeting here, off every
-        // member edge; no rule names an edge inside one parent.
+        // Two faces holding exactly the same member faces are one
+        // parent, which the fold can still hold as two faces meeting
+        // here, off every member edge; no rule names an edge inside one
+        // parent.
         if parents.of_face.get(f0) == parents.of_face.get(f1) {
             return Err(NamingError::UnsupportedSeamSides {
                 edge: k,
@@ -3788,7 +3775,7 @@ mod tests {
                 rows,
                 &self.body,
                 (&flush, &Fold::new()),
-                (&lines, &Links::default()),
+                (&lines, &PairSenses::default()),
                 (&Parents::empty(), &BTreeMap::new()),
                 &mut Rederived::default(),
             )
@@ -3832,7 +3819,7 @@ mod tests {
                 predicate: None,
             },
         };
-        let links = Links {
+        let pair_senses = PairSenses {
             classes: Vec::new(),
             unread: vec![UnreadAt {
                 member: 0,
@@ -3847,18 +3834,18 @@ mod tests {
         let line = (members[0].read, NameRef::new((**of).clone()));
         let others = BTreeSet::from([members[1].read]);
         assert!(matches!(
-            flush.sense_against(listed, &line, &others, &links),
+            flush.sense_against(listed, &line, &others, &pair_senses),
             Err(NamingError::PartnerUnread { vertex, partner, unread })
                 if vertex == listed && partner == record.partner && unread == record
         ));
         // Judged against a member the name does not cite, the record
         // says nothing of this crossing.
         assert!(matches!(
-            flush.sense_against(listed, &line, &BTreeSet::from([members[0].read]), &links),
+            flush.sense_against(listed, &line, &BTreeSet::from([members[0].read]), &pair_senses),
             Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
         ));
         assert!(matches!(
-            flush.sense_against(other, &line, &others, &links),
+            flush.sense_against(other, &line, &others, &pair_senses),
             Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
         ));
     }
@@ -4416,7 +4403,7 @@ mod tests {
             Vec::new(),
             &m.body,
             (&flush, &Fold::new()),
-            (&lines, &Links::default()),
+            (&lines, &PairSenses::default()),
             (&Parents::empty(), &BTreeMap::new()),
             &mut Rederived::default(),
         )
@@ -4512,7 +4499,7 @@ mod tests {
             Vec::new(),
             &tied.body,
             (&flush, &Fold::new()),
-            (&lines, &Links::default()),
+            (&lines, &PairSenses::default()),
             (&Parents::empty(), &BTreeMap::new()),
             &mut Rederived::default(),
         )
