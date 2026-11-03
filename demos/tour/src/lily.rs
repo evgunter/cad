@@ -1752,8 +1752,9 @@ pub fn stem_frontier(tol: Tol) -> Option<String> {
                 "DECLARED FRONTIER at eps = {:e}: the lower stem (a {STEM_RING} m ring at a \
              {STEM_TUBE} m pipe, ring/pipe ~ 83) refuses as limb 2's kernel approximation \
              limit — a thin torus, the class ruled a kernel limit at this row — so the \
-             plant, its stop and its wall probes stand down here: {e}",
-                tol.eps()
+             plant, its stop and its wall probes stand down here: {}",
+                tol.eps(),
+                e.render(pncad::geom_brep::recourse::Reading::Build)
             ))
         }
         (true, Ok(_)) => panic!(

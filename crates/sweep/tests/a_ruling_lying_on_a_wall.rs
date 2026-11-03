@@ -741,8 +741,12 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
         };
         for d in [0.05, -0.05] {
             let mut moved = bb.body.clone().into_body();
-            topo::replace_face_offset(&mut moved, flat, d, tol)
-                .unwrap_or_else(|e| panic!("{op}, d = {d}: the flat face moves: {e}"));
+            topo::replace_face_offset(&mut moved, flat, d, tol).unwrap_or_else(|e| {
+                panic!(
+                    "{op}, d = {d}: the flat face moves: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let moved = AtRestBody::validate(moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
@@ -866,7 +870,7 @@ fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
                     };
                     assert_eq!(*decision, BooleanDecision::CurveMeeting, "{label}");
                     assert_eq!(diag.predicate, Some(predicate), "{label}");
-                    let text = e.to_string();
+                    let text = e.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         text.contains("meets a curve of that face's boundary is undecided")
                             && text
@@ -1016,7 +1020,10 @@ fn review_r1_two_rims_escalation_text() {
         );
         for (op, res) in six(&a, &b) {
             match res {
-                Err(e) => println!("k={k} {op}: {e:?}\n   TEXT: {e}"),
+                Err(e) => println!(
+                    "k={k} {op}: {e:?}\n   TEXT: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
                 Ok(_) => println!("k={k} {op}: built"),
             }
         }

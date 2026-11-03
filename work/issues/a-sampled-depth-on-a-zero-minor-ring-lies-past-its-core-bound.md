@@ -2,8 +2,9 @@
 id: a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound
 kind: issue
 title: census depth_gap_fuzz: a sample on a ring of minor radius 0 lies 7.3e-14 deeper than its f64 upper bound on a Core, past REL·scale (varying-seed red, seed 0xf23e6cc2b421332e)
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-03
 ---
 
 
@@ -28,3 +29,7 @@ The row's tolerance is `REL = 1e-14` relative to the draw's scale, and its doc s
 - Not bisected.
 - The owning program is not obvious from `work.py territory`.
 - The row's last change was `f097a63b84` ("topo: the edge doors read the edge's cover").
+
+## Closed 2026-11-03: a duplicate of restread's row
+
+This is the same zero-minor-ring class as `work/restread/the-depth-gap-fuzz-finds-a-ring-point-shallower-than-its-bound.md` (P2, open since 2026-10-21), seen from the deeper side. That row now carries this seed. It reproduced on main locally at the default ε with `CAD_FUZZ_SEED=0xf23e6cc2b421332e CAD_FUZZ_EFFORT=1` (draw 350, the same miss). The fix is that row's.

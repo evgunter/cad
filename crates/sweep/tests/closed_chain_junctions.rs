@@ -139,7 +139,12 @@ fn carve_and_check(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) 
     let v0 = volume(body, what);
     let c0 = census(body);
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
-        .unwrap_or_else(|e| panic!("{what}: the whole rim carves, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: the whole rim carves, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert_eq!(out.band_faces.len(), 1, "{what}: one band");
     assert!(
         out.blend_faces.is_empty() && out.corner_faces.is_empty(),
