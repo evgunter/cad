@@ -67,7 +67,7 @@ crate-visible               2  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
 crate-visible              24  boolean/refusal_routes.rs
-crate-visible              61  boolean/region.rs
+crate-visible              58  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
