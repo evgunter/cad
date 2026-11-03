@@ -2083,23 +2083,24 @@ impl<T: Real> GluedPairs<T> {
 
 /// Every structural tangency of `body`, as `(face, its kind, other
 /// face, its kind)` both ways: the two faces across an edge described
-/// `TangentIntersection` of exactly their two surfaces.
+/// `TangentIntersection` that the at-rest adjacency reading accepts.
 fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
     for (ek, edge) in body.edges() {
         let sides = crate::readback::edge_sides_of(body, ek, edge);
-        let ((f1, f2), (s1, s2)) = (sides.faces(), sides.surfaces());
+        let (f1, f2) = sides.faces();
         let Some(curve) = body
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
         else {
             continue;
         };
-        if let geom_brep::EdgeDescription::TangentIntersection { pair, .. } = curve.description()
-            && f1 != f2
-            && *pair == geom_brep::SurfacePair::new(s1, s2)
+        if matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::TangentIntersection { .. }
+        ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
             let kind = |f| body.proven_face_surface(f).kind();
             let (k1, k2) = (kind(f1), kind(f2));
@@ -3686,11 +3687,12 @@ pub enum BooleanError {
     /// - **Cone**: not gated up front, as the torus. The germ-pair JOIN
     ///   dispatch — `join::bool_connect`'s match on the two germ faces'
     ///   surfaces — wires only the pairs `meeting_recourse` names: a
-    ///   plane against a plane, cylinder, sphere or cone, a sphere pair
-    ///   (on its radical plane) and a cylinder pair with parallel offset
-    ///   axes (on its rulings). Its catch-all raises
+    ///   plane against a plane, cylinder, sphere or cone, and a sphere
+    ///   pair (on its radical plane); a pair the section table carries
+    ///   (two cylinders, a cylinder and a sphere) rides its carried
+    ///   components. Its catch-all raises
     ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
-    ///   and a torus or `(Cylinder, Sphere)` germ lands there too; a
+    ///   and a torus germ the table does not carry lands there too; a
     ///   cone against a curved face refuses one door earlier, at its
     ///   germ frame ([`BooleanError::GermFrameUnsupported`]).
     ///

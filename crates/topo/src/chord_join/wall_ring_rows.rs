@@ -585,3 +585,280 @@ fn a_spline_bounded_wall_island_re_homes_its_bystanders_as_the_ball_says() {
         fuzz::replay()
     );
 }
+
+/// **A cylinder island closed by a ruling winds without a chart**
+/// ([`path_island_winding`]): the run round the island
+/// `[0.5, 1] × [0.3, 0.7]` less its ruling at 0.5, closed by that
+/// ruling as a carried chord closes it (a `Line` carrier, no spline
+/// arc), winds counterclockwise about the outward normal on a wall whose
+/// sense is outward and clockwise on the reversed wall, the ruling read
+/// up the wall or down it; the run that leaves the island the other way
+/// round winds the other way.
+#[test]
+fn a_cylinder_island_closed_by_a_ruling_winds_by_a_path() {
+    for sense in [true, false] {
+        for reverse in [false, true] {
+            let mut body = Body::<f64>::new();
+            let face = cyl_wall_sheet(
+                &mut body,
+                CylFrame::canonical(1.0),
+                (0.2, 1.4),
+                (0.0, 1.0),
+                tol(),
+            );
+            if !sense {
+                let s = body.get_face(face).unwrap().sense;
+                body.set_face_sense(face, !s).unwrap();
+            }
+            let outward = body.get_face(face).unwrap().sense;
+            let cyl = body.get_face(face).unwrap().surface;
+            // CCW in (u, v), whose ∂u × ∂v is the radial: the island
+            // lies on the run's left about the radial.
+            let mut corners = vec![at(0.5, 0.3), at(1.0, 0.3), at(1.0, 0.7), at(0.5, 0.7)];
+            if reverse {
+                corners = vec![at(0.5, 0.7), at(1.0, 0.7), at(1.0, 0.3), at(0.5, 0.3)];
+            }
+            let island = ring_at(&mut body, face, corners[0], &[]);
+            let (v0, v1) = if reverse { (0.7, 0.3) } else { (0.3, 0.7) };
+            let first = rim_arc(&mut body, cyl, v0, (0.5, 1.0));
+            let e0 = body
+                .mev(MevSite::Lone { r#loop: island }, corners[1], first, tol())
+                .unwrap();
+            let fan = |he| MevSite::Fan { he1: he, he2: he };
+            let e1 = body.mev_line(fan(e0.he_minus), corners[2], tol()).unwrap();
+            let last = rim_arc(&mut body, cyl, v1, (1.0, 0.5));
+            let e2 = body.mev(fan(e1.he_minus), corners[3], last, tol()).unwrap();
+            let run = (e0.he_plus, e2.he_plus);
+            let radial_ccw = !reverse;
+            let want = if radial_ccw == outward {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            };
+            let spec = EdgeCurveSpec::line_between(corners[3], corners[0]);
+            let got = path_island_winding(&body, face, run, Some(&spec), band())
+                .unwrap()
+                .unwrap();
+            assert_eq!(got, want, "sense {sense}, reverse {reverse}");
+        }
+    }
+}
+
+/// The vertex of `body` at `p`.
+fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> VertexKey {
+    let near: Vec<VertexKey> = body
+        .vertices()
+        .filter(|&(k, _)| (vertex_point(body, k) - p).norm() < 1e-12)
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(near.len(), 1, "one vertex at {p:?}");
+    near[0]
+}
+
+/// [`carried_chord_spec`] of the closed-form `component` on the unit
+/// wall `[0.1, 6.0] × [0, 1]`, from a vertex at `from` to one at `to`,
+/// leaving along `dir`, against `partner`.
+fn closed_form_chord(
+    component: geom_brep::CarriedComponent<f64>,
+    partner: geom::Surface<f64>,
+    (from, to): (Point3<f64>, Point3<f64>),
+    dir: Vec3<f64>,
+) -> (
+    Result<SectionChord<f64>, SplitJoinError>,
+    geom_brep::SurfacePair,
+) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        (0.1, 6.0),
+        (0.0, 1.0),
+        tol(),
+    );
+    let own = body.get_face(face).unwrap().surface;
+    ring_at(&mut body, face, from, &[to]);
+    let (u1, u2) = (vertex_at(&body, from), vertex_at(&body, to));
+    let mut ctx = CarriedCtx {
+        component,
+        partner,
+        partner_key: None,
+        // The unit wall's radius, the scale its sections turn on.
+        lever: geom_core::Lever::curvature_radius(1.0),
+    };
+    let leave = Departure {
+        dir,
+        datum: Datum::Germ,
+    };
+    let got = carried_chord_spec(&mut body, band(), face, &mut ctx, (u1, u2), leave);
+    let partner = ctx.partner_key.unwrap_or(own);
+    (got, geom_brep::SurfacePair::new(own, partner))
+}
+
+/// A closed-form component on `carrier` over `span`.
+fn closed_form(
+    carrier: geom::Curve3<f64>,
+    span: (f64, f64),
+    shape: geom_brep::ComponentShape,
+) -> geom_brep::CarriedComponent<f64> {
+    geom_brep::CarriedComponent {
+        witness: carrier.mid_point(span.0, span.1),
+        carrier,
+        span,
+        shape,
+        certificate: None,
+        winds: [false, false],
+        pad: 0.0,
+        reach: 0.0,
+    }
+}
+
+/// The chord's carrier runs from `from` at its start parameter to `to`
+/// at its end, forward in parameter, with no spline arc, described as
+/// `described`, the divided face's surface against the partner's copy.
+fn runs_between(
+    chord: &SectionChord<f64>,
+    described: geom_brep::SurfacePair,
+    (from, to): (Point3<f64>, Point3<f64>),
+    what: &str,
+) {
+    let spec = &chord.spec;
+    assert!(
+        spec.param_start < spec.param_end,
+        "{what}: forward in parameter"
+    );
+    assert!(
+        (spec.carrier.eval(spec.param_start) - from).norm() < 1e-12,
+        "{what}: starts at its start"
+    );
+    assert!(
+        (spec.carrier.eval(spec.param_end) - to).norm() < 1e-12,
+        "{what}: ends at its end"
+    );
+    assert!(
+        chord.arc.is_none() && chord.ends.is_none(),
+        "{what}: a closed form's own evidence"
+    );
+    let geom_brep::EdgeDescriptionSpec::Intersection { pair, .. } = &spec.description else {
+        panic!("{what}: an intersection, not {:?}", spec.description);
+    };
+    assert_eq!(
+        *pair, described,
+        "{what}: the divided face's surface against the partner's copy"
+    );
+}
+
+/// **A carried chord on a ruling runs the ruling, back where it leaves
+/// back**: a parallel pair's ruling at azimuth 0.8, cut by the region
+/// to heights `[0.1, 0.9]`, chorded from height 0.3 up to 0.7 is the
+/// line itself over `[0.3, 0.7]`, and from 0.7 down to 0.3 the line run
+/// back (`−ẑ`) over `[−0.7, −0.3]`. A chord leaving down from 0.3
+/// toward 0.7 would run away from its end, and refuses.
+#[test]
+fn a_carried_ruling_chord_runs_back_where_it_leaves_back() {
+    let line = geom::Curve3::line(at(0.8, 0.0), Vec3::unit_z());
+    let open = geom_brep::ComponentShape::Open {
+        ends: geom_brep::ComponentEnds::cut(),
+    };
+    // A parallel wall of radius 0.8 holding the ruling: its axis 0.8
+    // along `x` from the ruling.
+    let partner = geom::Surface::Cylinder {
+        origin: at(0.8, 0.0) + Vec3::new(0.8, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 0.8,
+        u_ref: Vec3::unit_x(),
+    };
+    assert!(
+        geom_brep::implicit_residual(&partner, at(0.8, 0.5)).abs() < 1e-12,
+        "the partner wall holds the ruling"
+    );
+    let (lo, hi) = (at(0.8, 0.3), at(0.8, 0.7));
+    for (what, ends, dir, back) in [
+        ("up", (lo, hi), Vec3::unit_z(), false),
+        ("down", (hi, lo), -Vec3::unit_z(), true),
+    ] {
+        let comp = closed_form(line.clone(), (0.1, 0.9), open);
+        let (got, described) = closed_form_chord(comp, partner.clone(), ends, dir);
+        let chord = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        runs_between(&chord, described, ends, what);
+        let geom::Curve3::Line(geom::Line { dir: d, .. }) = chord.spec.carrier else {
+            panic!("{what}: a line");
+        };
+        assert_eq!(d.z < 0.0, back, "{what}: run back where it leaves back");
+    }
+    let comp = closed_form(line, (0.1, 0.9), open);
+    let (got, _) = closed_form_chord(comp, partner, (lo, hi), -Vec3::unit_z());
+    assert!(
+        matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+        "a chord leaving away from its end refuses: {:?}",
+        got.err()
+    );
+}
+
+/// **A carried chord on a closed circle runs the circle, back where it
+/// leaves back, in the turn its seat starts**: the unit circle at
+/// height 0.5 (a coaxial ball's), seated at angle 3 (its span
+/// `[3, 3 + τ]`). From angle 4 forward to angle 0.5 it is the circle
+/// over `[4, 0.5 + τ]`, the end's foot read in the seat's turn, not at
+/// 0.5; from 0.5 back to 4 it is the circle run back over
+/// `[−0.5 − τ, −4]`; from angle 1 back to 0.6, the circle run back over
+/// `[−1 − τ, −0.6 − τ]`; and from angle 2.5, just before the seat,
+/// whose foot the carrier reads at 2.5 and the turn at `2.5 + τ`, back to
+/// 1, over `[−2.5 − τ, −1 − τ]`.
+#[test]
+fn a_carried_circle_chord_runs_back_where_it_leaves_back() {
+    use core::f64::consts::TAU;
+    let circle = geom::Curve3::circle(
+        Point3::new(0.0, 0.0, 0.5),
+        Vec3::unit_z(),
+        1.0,
+        Vec3::unit_x(),
+    );
+    let partner = geom::Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.25_f64.sqrt(),
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let tangent = |u: f64| Vec3::new(-u.sin(), u.cos(), 0.0);
+    for (what, (a, b), dir, want) in [
+        (
+            "forward round the seat's turn",
+            (4.0, 0.5),
+            tangent(4.0),
+            (4.0, 0.5 + TAU),
+        ),
+        (
+            "back round it",
+            (0.5, 4.0),
+            -tangent(0.5),
+            (-0.5 - TAU, -4.0),
+        ),
+        (
+            "back within it",
+            (1.0, 0.6),
+            -tangent(1.0),
+            (-1.0 - TAU, -0.6 - TAU),
+        ),
+        (
+            "back from just before the seat",
+            (2.5, 1.0),
+            -tangent(2.5),
+            (-2.5 - TAU, -1.0 - TAU),
+        ),
+    ] {
+        let comp = closed_form(
+            circle.clone(),
+            (3.0, 3.0 + TAU),
+            geom_brep::ComponentShape::Loop,
+        );
+        let ends = (at(a, 0.5), at(b, 0.5));
+        let (got, described) = closed_form_chord(comp, partner.clone(), ends, dir);
+        let chord = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        runs_between(&chord, described, ends, what);
+        let (t0, t1) = (chord.spec.param_start, chord.spec.param_end);
+        assert!(
+            (t0 - want.0).abs() < 1e-12 && (t1 - want.1).abs() < 1e-12,
+            "{what}: over [{t0}, {t1}], not {want:?}"
+        );
+    }
+}

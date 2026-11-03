@@ -756,26 +756,6 @@ fn certifier() -> Result<Box<dyn crate::evalseam::CertifyService>, StartupError>
     }
 }
 
-/// The staged seam: [`prover`]'s shape over a staged operation's run.
-///
-/// # Errors
-///
-/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
-/// is infallible. Every staged verdict would otherwise read checking
-/// forever.
-fn stager() -> Result<Box<dyn crate::evalseam::StagedService>, StartupError> {
-    #[cfg(not(target_family = "wasm"))]
-    {
-        Ok(Box::new(
-            crate::evalseam::ThreadStager::spawn().map_err(StartupError::Worker)?,
-        ))
-    }
-    #[cfg(target_family = "wasm")]
-    {
-        Ok(Box::new(crate::evalseam::InlineStager::new()))
-    }
-}
-
 /// **What the viewer owes the document under the session when its
 /// first scene lands, and what the budget said about it.**
 ///
@@ -986,8 +966,7 @@ impl ViewerApp {
 
         let mut session = DocSession::new(document, tol, evaluator()?)
             .with_door(prover()?)
-            .with_certifier(certifier()?)
-            .with_stager(stager()?);
+            .with_certifier(certifier()?);
         session.set_notation(notation);
 
         Ok(Self {
@@ -2355,9 +2334,6 @@ impl eframe::App for ViewerApp {
         // already stands on — so the chrome follows [`Polarity`]
         // through the toolkit's visuals, exactly as
         // [`apply_polarity`] intends, instead of one panel escaping it.
-        // The split tool's held target as the viewport will draw its
-        // plane under it, for the repaint request after the picks are fed.
-        let split_held = self.tools.split().map(|tool| tool.seats().clone());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
             .show(ui, |ui| {
@@ -2450,12 +2426,6 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
-        // A split target picked or cleared after the viewport drew
-        // this frame's plane (`splitplane::push_split_plane`) asks for
-        // the next.
-        if self.tools.split().map(|tool| tool.seats().clone()) != split_held {
-            ui.ctx().request_repaint();
-        }
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -4400,7 +4370,7 @@ mod properties_pane_tests {
         });
         // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
-            "split target: Extrude {}",
+            "split target: Extrude {}; split plane: none picked",
             test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -6317,9 +6287,9 @@ mod properties_pane_tests {
         made
     }
 
-    /// **The least and greatest corner of `node`'s landed body**, in its
-    /// own space ([`crate::splitplane::extent`]); it panics on a node
-    /// with no body, naming its standing.
+    /// **The least and greatest corner of `node`'s landed body**, in the
+    /// coordinates of the space it is built in; it panics on a node with
+    /// no body, naming its standing.
     fn body_extent(driven: &Driven, node: RecipeNodeId) -> [[f64; 3]; 2] {
         let evaluation = driven.app.session.evaluation().expect("a landed run");
         let value = evaluation
@@ -6328,8 +6298,20 @@ mod properties_pane_tests {
         let pncad::document::ValuePayload::Body(body) = &value.payload else {
             panic!("{node:?} is a body: {:?}", value.payload)
         };
-        let (lo, hi) = crate::splitplane::extent(body).expect("the body has corners");
-        [[lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]]
+        let into_space = pncad::document::in_space(body);
+        body.body()
+            .vertex_points()
+            .map(|(_, p)| into_space.map_or(p, |map| map.transform_point(p)))
+            .fold(None, |extent: Option<[[f64; 3]; 2]>, p| {
+                let p = [p.x, p.y, p.z];
+                Some(extent.map_or([p, p], |[lo, hi]| {
+                    [
+                        std::array::from_fn(|i| lo[i].min(p[i])),
+                        std::array::from_fn(|i| hi[i].max(p[i])),
+                    ]
+                }))
+            })
+            .expect("the body has corners")
     }
 
     /// `node`'s landed body's volume.
@@ -12165,6 +12147,293 @@ mod properties_pane_tests {
             driven.settle();
             assert_eq!(count(&driven), "4", "dragged on the index's field");
             assert_eq!(members(&driven, row), 4, "the family follows");
+        }
+
+        /// **The split's button waits for its plane, and names it**: with
+        /// a target and no plane the commit is withheld, its hover the
+        /// missing pick, and a click inserts nothing. Picking the plate's
+        /// cap as the plane lets it commit, and the insert selects the
+        /// split its noun names.
+        ///
+        /// Red if the button commits without a plane, or the insert
+        /// leaves the selection off the split.
+        #[test]
+        fn the_split_button_waits_for_its_plane_and_the_insert_selects_the_split() {
+            use crate::tools::ToolKind;
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            driven.app.tools.open(ToolKind::Split);
+            driven.click_through(vec![Selection::Node(extrude())]);
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            let commit = ToolKind::Split.commit();
+            let gained = driven.gained_hovering(&commit);
+            assert!(
+                gained.iter().any(|run| run == "no split plane picked yet"),
+                "the withheld button names the missing pick: {gained:?}"
+            );
+            let splits = |driven: &Driven| -> Vec<RecipeNodeId> {
+                let doc = driven.app.session.committed_doc();
+                doc.ids()
+                    .iter()
+                    .copied()
+                    .filter(|&id| matches!(doc.node(id), Some(Node::Split { .. })))
+                    .collect()
+            };
+            driven.click(&commit);
+            driven.settle();
+            assert!(
+                splits(&driven).is_empty(),
+                "a withheld click inserts nothing"
+            );
+
+            let cap = crate::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: extrude(),
+                    path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                },
+                node: placement(),
+                body: 0,
+            };
+            driven.click_through(vec![Selection::Face(cap)]);
+            driven.click(&commit);
+            driven.settle();
+            let [split] = splits(&driven)[..] else {
+                panic!("the commit inserts one split: {:?}", splits(&driven))
+            };
+            assert_eq!(
+                driven.app.session.selection(),
+                &Selection::Node(split),
+                "the split is selected"
+            );
+        }
+
+        /// The pattern tool opened on the startup extrude with `rule`,
+        /// its form painted, committed as it stands, and settled:
+        /// answers what the form painted and the spacing a row clears
+        /// the body by.
+        fn pattern_inserted(
+            driven: &mut Driven,
+            rule: crate::forms::PatternLayoutChoice,
+        ) -> (Vec<String>, f64) {
+            use crate::tools::ToolKind;
+            driven.app.tools.open(ToolKind::Pattern);
+            driven.app.drafts.pattern_kind = rule;
+            driven.click_through(vec![Selection::Node(extrude())]);
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            let painted = driven.quiet().into_iter().map(|(run, _)| run).collect();
+            let clears = driven
+                .app
+                .session
+                .clearing_step(&extrude().into())
+                .expect("the plate is measured");
+            driven.click(&ToolKind::Pattern.commit());
+            driven.settle();
+            // Folded again, so the Properties pane has the room.
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            driven.settle();
+            (painted, clears)
+        }
+
+        /// **`text` typed on `coord`'s value row of the placement editor
+        /// opened on `row`**, and its Apply performed.
+        fn typed_on_row(
+            driven: &mut Driven,
+            row: RecipeNodeId,
+            coord: pncad::document::Coord<pncad::document::Operand>,
+            text: &str,
+        ) {
+            let session = &driven.app.session;
+            let (doc, eval) = session.landed_pair().expect("landed");
+            let mut editor = crate::matetool::MateTool::edit(doc, row)
+                .expect("the placement editor opens on the pattern");
+            let by = crate::matetool::typed_value(doc, coord.clone(), text)
+                .unwrap_or_else(|error| panic!("{text:?} is a value: {error}"));
+            editor.type_value(coord, by);
+            let op = editor
+                .proposal(doc, eval, session.tol())
+                .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+                .op();
+            driven.app.perform_batch(vec![op]);
+            driven.settle();
+        }
+
+        /// The pattern's index and its row: the placement that is a
+        /// pattern (`pncad::pattern::recognise`), not the copy of the
+        /// body that reads its family.
+        fn pattern_row(driven: &Driven) -> (VarId, RecipeNodeId) {
+            let (index, _) = pattern(driven);
+            let doc = driven.app.session.committed_doc();
+            let row = *doc
+                .ids()
+                .iter()
+                .find(|&&id| pncad::pattern::recognise(doc, id).is_some())
+                .expect("the pattern's placement");
+            (index, row)
+        }
+
+        /// What the pattern `row` is, read back (`pncad::pattern::recognise`).
+        fn recognised(driven: &Driven, row: RecipeNodeId) -> pncad::pattern::Recognised {
+            let doc = driven.app.session.committed_doc();
+            pncad::pattern::recognise(doc, row).unwrap_or_else(|| {
+                panic!(
+                    "the placement is a pattern: {:?} reaching {:?}",
+                    doc.node(row),
+                    doc.node_reach(row)
+                )
+            })
+        }
+
+        /// **The pattern form takes no values, and each default it
+        /// inserts with edits on the pattern's rows** (`crates/viewer/
+        /// README.md`, "The seated tools whose values have a home"). The
+        /// form paints no count, direction, spacing, axis or step field;
+        /// the row inserts `PATTERN_COUNT` copies along the target's `x`,
+        /// spaced so they clear the body. The count edits on the count
+        /// row, and the spacing on the placement editor's slide row, as
+        /// a formula over a variable.
+        ///
+        /// Red if the form paints a value field, the insert writes
+        /// another rule or count, or a default does not edit on its row.
+        #[test]
+        fn the_pattern_form_takes_no_values_and_a_rows_defaults_edit_on_its_rows() {
+            use pncad::document::{Coord, Dimension, FreeVar, TargetAxis, VarName};
+            use pncad::pattern::{Recognised, RowDirection};
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            let (painted, clears) =
+                pattern_inserted(&mut driven, crate::forms::PatternLayoutChoice::Linear);
+            for field in ["count", "direction", "spacing", "axis", "step"] {
+                assert!(
+                    !painted.iter().any(|run| run == field),
+                    "the form paints no {field} field: {painted:?}"
+                );
+            }
+            let (index, row) = pattern_row(&driven);
+            let count = |driven: &Driven| {
+                crate::props::index_count_row(driven.app.session.committed_doc(), index)
+                    .expect("an index")
+                    .formula
+            };
+            assert_eq!(count(&driven), "4", "the default count");
+            assert_eq!(members(&driven, row), 4);
+            let Recognised::Linear { steps, .. } = recognised(&driven, row) else {
+                panic!("a row")
+            };
+            let [(RowDirection::Axis(TargetAxis::X), step)] = &steps[..] else {
+                panic!("one step along the target's x: {steps:?}")
+            };
+            let spacing = step.literal_value().expect("a written spacing");
+            let rounded = crate::combine::row_spacing(clears, driven.app.session.notation().length)
+                .expect("a finite step");
+            assert!(
+                spacing >= clears && rounded.literal_value() == Some(spacing),
+                "spaced so the copies clear, at a round figure: {spacing} against {clears}"
+            );
+
+            driven.select(Selection::Node(row));
+            type_count(&mut driven, "6");
+            assert_eq!(count(&driven), "6", "the count edits on its row");
+            assert_eq!(members(&driven, row), 6, "the family follows");
+
+            driven.app.perform_batch(vec![SessionOp::DeclareVar {
+                name: VarName::from_static("pitch"),
+                value: FreeVar::continuous(Dimension::Length, 0.3),
+            }]);
+            driven.settle();
+            let name = driven
+                .app
+                .session
+                .committed_doc()
+                .var_name(index)
+                .expect("the index is named")
+                .as_str()
+                .to_owned();
+            typed_on_row(
+                &mut driven,
+                row,
+                Coord::slide(TargetAxis::X),
+                &format!("scalar({name}) * pitch"),
+            );
+            let Recognised::Linear { steps, .. } = recognised(&driven, row) else {
+                panic!("still a row")
+            };
+            let doc = driven.app.session.committed_doc();
+            assert_eq!(
+                steps
+                    .iter()
+                    .map(|(along, step)| (along.clone(), doc.unparse(step)))
+                    .collect::<Vec<_>>(),
+                [(RowDirection::Axis(TargetAxis::X), "pitch".to_owned())],
+                "the spacing edits on its slide row, as a formula over a variable"
+            );
+            assert_eq!(members(&driven, row), 6, "the family stands");
+        }
+
+        /// **A ring's defaults edit on its rows**: the ring inserts
+        /// `PATTERN_COUNT` copies turned `RING_STEP` about the target's
+        /// `z`, and its step edits on the placement editor's spin row,
+        /// as a formula over a variable.
+        ///
+        /// Red if the insert writes another rule or step, or the step
+        /// does not edit on its row.
+        #[test]
+        fn a_rings_defaults_edit_on_its_rows() {
+            use pncad::document::{Coord, Dimension, FreeVar, TargetAxis, VarName};
+            use pncad::pattern::Recognised;
+            let mut driven = Driven::with(Vec::new());
+            driven.settle();
+            pattern_inserted(&mut driven, crate::forms::PatternLayoutChoice::Circular);
+            let (index, row) = pattern_row(&driven);
+            let Recognised::Circular { step, .. } = recognised(&driven, row) else {
+                panic!("a ring")
+            };
+            assert!(
+                (step.literal_value().expect("a written step") - core::f64::consts::FRAC_PI_2)
+                    .abs()
+                    < 1e-12,
+                "the default step is a quarter turn: {step:?}"
+            );
+            let placement_spins_z = |driven: &Driven| {
+                let doc = driven.app.session.committed_doc();
+                let Some(Node::Place { constraints, .. }) = doc.node(row) else {
+                    panic!("the pattern is a placement")
+                };
+                constraints
+                    .iter()
+                    .filter_map(|c| c.value())
+                    .any(|value| value.coord == Coord::spin(TargetAxis::Z))
+            };
+            assert!(placement_spins_z(&driven), "turned about the target's z");
+
+            driven.app.perform_batch(vec![SessionOp::DeclareVar {
+                name: VarName::from_static("tilt"),
+                value: FreeVar::continuous(Dimension::Angle, core::f64::consts::FRAC_PI_3),
+            }]);
+            driven.settle();
+            let name = driven
+                .app
+                .session
+                .committed_doc()
+                .var_name(index)
+                .expect("the index is named")
+                .as_str()
+                .to_owned();
+            typed_on_row(
+                &mut driven,
+                row,
+                Coord::spin(TargetAxis::Z),
+                &format!("scalar({name}) * tilt"),
+            );
+            let Recognised::Circular { step, .. } = recognised(&driven, row) else {
+                panic!("still a ring")
+            };
+            assert_eq!(
+                driven.app.session.committed_doc().unparse(&step),
+                "tilt",
+                "the step edits on its spin row, as a formula over a variable"
+            );
+            assert!(placement_spins_z(&driven), "still about the target's z");
         }
 
         /// **The mirror tool holds no label field, and its insert labels

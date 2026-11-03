@@ -5749,12 +5749,9 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    fixed schedule, transversality for `Intersection` — with the same
 ///    deterministic sampling as at attachment
 ///    ([`ValidationError::EdgeCertification`]); then the
-///    **description-adjacency coherence** check: a two-surface
-///    description's surfaces (`Intersection`, `TangentIntersection`,
-///    `OnPair`) must be exactly the edge's two faces' surfaces, a chart
-///    image must name one of them, and an edge's two
-///    halves bound one face exactly when it is a wrap edge
-///    ([`ValidationError::DescriptionNotAdjacent`]).
+///    **description-adjacency coherence** check, the at-rest reading
+///    (`Named::adjacent_at_rest` in `crate::attach`, which states the
+///    rule) ([`ValidationError::DescriptionNotAdjacent`]).
 /// 3. **Planar-face corners** (faces, arena order; per face the outer
 ///    loop then rings in list order, vertices in cycle order): every
 ///    vertex of a face whose surface is a plane is read on that plane by
@@ -7782,7 +7779,6 @@ pub(crate) fn tier3_local_checks_marked<
                 error,
             });
         }
-        let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
         // scaffolding door is for edges whose surfaces do not exist
         // yet. This edge has two faces — the lookup above answered —
@@ -7791,34 +7787,7 @@ pub(crate) fn tier3_local_checks_marked<
         if curve.description().is_scaffold() {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
-        let (f_plus, f_minus) = sides.faces();
-        let one_face = f_plus == f_minus;
-        let adjacent = match curve.description() {
-            geom_brep::EdgeDescription::Intersection { pair, .. }
-            | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
-            | geom_brep::EdgeDescription::OnPair { pair } => {
-                !one_face && *pair == geom_brep::SurfacePair::new(fs_plus, fs_minus)
-            }
-            // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
-            // described chart is ONE of the edge's two adjacent faces'
-            // surfaces — a wall–wall seam is the u-boundary iso of
-            // either wall, and the minted convention names one. The
-            // wrap flag and the face count agree both ways (D1): a wrap
-            // edge's halves bound ONE face, the face whose chart closes
-            // across it, and an edge whose halves bound one face is
-            // that face's wrap edge. Nothing at rest is a slit: a
-            // bridge between a face's loops is construction scaffolding
-            // that `kemr` retires before the op returns.
-            geom_brep::EdgeDescription::Chart(c) if c.wrap => c.surface == fs_plus && one_face,
-            geom_brep::EdgeDescription::Chart(c) => {
-                !one_face && (c.surface == fs_plus || c.surface == fs_minus)
-            }
-            // A scaffold names no surface; the fence above is the
-            // complaint it earns, and stacking a second one on the
-            // same edge would report one fault twice.
-            geom_brep::EdgeDescription::Scaffold(_) => true,
-        };
-        if !adjacent {
+        if !Named::of_description(curve.description()).adjacent_at_rest(sides) {
             errors.push(ValidationError::DescriptionNotAdjacent { edge: edge_key });
         }
     }

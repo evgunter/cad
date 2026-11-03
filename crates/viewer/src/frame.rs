@@ -761,8 +761,7 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
     match op {
-        // A draft's question, asked on every frame its draft moves.
-        SessionOp::Hover(_) | SessionOp::Stage { .. } => false,
+        SessionOp::Hover(_) => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
@@ -2189,6 +2188,7 @@ pub fn tool_notice(
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
+        | ToolNotice::Split(_)
         | ToolNotice::Clearance(_)
         | ToolNotice::Seated { .. } => Subject::Document,
     };
@@ -2202,7 +2202,14 @@ pub fn tool_notice(
             | MateToolEvent::HalfUnchosen { .. }
             | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
-        ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
+        ToolNotice::Mirror(
+            crate::combine::PlaneEvent::PlaneLost { .. }
+            | crate::combine::PlaneEvent::DefinedLost { .. },
+        )
+        | ToolNotice::Split(
+            crate::combine::PlaneEvent::PlaneLost { .. }
+            | crate::combine::PlaneEvent::DefinedLost { .. },
+        ) => Retold::Never,
         ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
         // A declined pick: the same pick says it again.
         ToolNotice::Clearance(crate::combine::ClearanceEvent::SeveralCopies { .. }) => {

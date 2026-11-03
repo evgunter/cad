@@ -2667,7 +2667,7 @@ impl NodeError {
     /// node as `this <noun>` where the prose names one of its seats.
     /// What a consumer that names the node itself quotes as the cause,
     /// in place of the kind's documentless `Display`, which writes a
-    /// reader `#<16 hex>`.
+    /// reader `#<ordinal>:<hex>`.
     #[must_use]
     pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc).about(self.node))
