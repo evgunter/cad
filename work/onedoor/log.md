@@ -120,3 +120,10 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     - `boolean/boxes.rs`'s `PINNED` census and this allowlist must move together when `boxes` leaves `boolean/`.
   - (ONEDOOR orchestrator)
 - 2026-11-03 — **The gate caught its first arrival before it merged.** PR 6458's CI tests the merge with main, and main had gained two `boolean → splitting` names in `boolean/reduce.rs` from SPLICE's PR 6441. That work landed before the gate existed, so the baseline was re-taken (21 → 23) after merging main (`f39c412d`). Until the gate merges, each main merge can drift the baseline, so it merges as soon as its re-review clears. (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6458](https://github.com/evgunter/cad/pull/6458)'s re-review**: NOT-MERGEABLE-AS-IS, shown by execution.
+  - **Every defeat is one class:** a new name bound to an engine item stops being counted after its first spelling. The forms found: `use crate as C` with a capital, `extern crate self`, a renaming root `pub use`, `type Q = …`, an `as` rename, a macro hub.
+  - **Ruling:** name-counting is sound only if every engine item is referred to by its own name, so the gate refuses the binding constructs outright, instead of counting them.
+  - **Also wrong on the live tree:** about 53 uses of ambiguous engine names reached through `lib.rs` re-exports went uncounted; they are resolved through the re-export table.
+  - **The self-test** must go red for each mechanism it relies on. The reviewer broke 10 mechanisms one line at a time, and 8 stayed green.
+  - **The pattern again (the fifth, still open):** every guard so far closed the spellings it was shown, so this time the gate removes the means of making a new spelling.
+  - (ONEDOOR orchestrator)
