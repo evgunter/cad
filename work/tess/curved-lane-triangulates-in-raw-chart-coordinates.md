@@ -54,7 +54,7 @@ measurement.
 So the lane's boundary points are rim chords on iso lines and meridian
 chords on the rectangle's sides, and there is no trim point inside the
 lattice to fan from. An obliquely cut cone or torus is a trimmed-lane
-question, refused today (`work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+question, refused today (`work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
 
 **Measured anyway**, full revolves at the review's twenty δ, all
 watertight, with no refusal:

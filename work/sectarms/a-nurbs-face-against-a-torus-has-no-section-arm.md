@@ -56,4 +56,4 @@ On main `72c637c`, lily wall 8 no longer stops at SPLICE's spline-span dispatch.
 
 ## Re-banded P0 (2026-11-03)
 
-Lily wall 8's stop once `c5-plane-torus-cone-cylinder-arms` (re-banded P0 today) clears, and its arm is the torus partner of the P0 NURBS × implicit arm, which Ev's ruling on PR 6121 builds curved partners first. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/issues/curved-demo-joins-build.md`.
+Lily wall 8's stop once `c5-plane-torus-cone-cylinder-arms` (re-banded P0 today) clears, and its arm is the torus partner of the P0 NURBS × implicit arm, which Ev's ruling on PR 6121 builds curved partners first. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/splice/curved-demo-joins-build.md`.

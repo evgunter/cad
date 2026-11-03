@@ -12,7 +12,7 @@ refs: [cone-torus-rung-three-arm-waits-on-the-cone, a-nurbs-face-against-a-cone-
 
 
 Filed 2026-11-03 from the curved-boolean bookkeeping pass
-(`work/issues/curved-demo-joins-build.md`). Several rows name this gap as
+(`work/splice/curved-demo-joins-build.md`). Several rows name this gap as
 "the cone's own unit" or "SECTRUNG's cone unit", and no row owned it.
 
 ## What

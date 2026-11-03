@@ -12,7 +12,7 @@ branch: splice/nurbs-revert-roster
 
 
 Filed 2026-11-03 from the curved-boolean bookkeeping pass
-(`work/issues/curved-demo-joins-build.md`). Klein wall 4 has pinned this
+(`work/splice/curved-demo-joins-build.md`). Klein wall 4 has pinned this
 refusal for weeks, and no row owned it.
 
 ## What

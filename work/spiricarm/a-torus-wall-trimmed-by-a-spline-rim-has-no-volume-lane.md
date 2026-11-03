@@ -57,4 +57,4 @@ wall has to read that wall's rings too.
 
 ## Re-banded P0 (2026-11-03)
 
-Teapot wall 2's next stop. The handle's torus face is trimmed by the sphere × torus section's fitted chord, and `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` (P0, the sphere's arm, teapot wall 2's current stop) hands a conic trim on a torus face to this row. The donut ∩ rod above reaches it too. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/issues/curved-demo-joins-build.md`.
+Teapot wall 2's next stop. The handle's torus face is trimmed by the sphere × torus section's fitted chord, and `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane` (P0, the sphere's arm, teapot wall 2's current stop) hands a conic trim on a torus face to this row. The donut ∩ rod above reaches it too. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/splice/curved-demo-joins-build.md`.

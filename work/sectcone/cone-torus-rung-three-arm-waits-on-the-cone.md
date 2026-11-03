@@ -49,7 +49,7 @@ certificate cannot clear the neck cone against the arch's torus wall,
 which is not coaxial with it, and this row's `route(Cone, Torus)` arm
 is what it lacks. Welding a cone onto a curved tube is a union on
 everyday geometry, so the join is P0 with the other demo joins
-(`work/issues/curved-demo-joins-build.md`), and this row inherits the
+(`work/splice/curved-demo-joins-build.md`), and this row inherits the
 band. "The cone's own unit first" is now its own row,
 `the-cone-has-no-implicit-enclosure-or-metres-conversion`, and this row
 is parked on it.

@@ -20,7 +20,7 @@ The wrap tip is the one edge the kernel adds to a chart singularity that no writ
 
 ## Why this is its own row
 
-Ev approved the wrap tip "if the complexity it adds is tolerable" and asked that the shared loop walk land first (`work/issues/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`, first in the wrap-tip sequence). Until then each loop reader (props' sphere and cone loops, which check 6 reads through, the mesh walk, and the boolean sectors) reads a tip on its own. FOREIGN's probe measured a hand-written reading at 22.81 against a true 23.86, and it passed tier 3.
+Ev approved the wrap tip "if the complexity it adds is tolerable" and asked that the shared loop walk land first (`work/restfront/loop-readers-each-derive-a-corners-turn-with-no-shared-loop-walk.md`, first in the wrap-tip sequence). Until then each loop reader (props' sphere and cone loops, which check 6 reads through, the mesh walk, and the boolean sectors) reads a tip on its own. FOREIGN's probe measured a hand-written reading at 22.81 against a true 23.86, and it passed tier 3.
 
 Admitting the tip at tier 2 before that walk exists would let such a body through. The other half of the row, "every chart singularity in a face's closure is a vertex of it", needs no tip and lands now.
 

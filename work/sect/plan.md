@@ -119,7 +119,7 @@ and 16 points, 30 against 30 together, and the three merged back by
    edge of one operand.
 2. **The C5 residue**, first now that it is P0 (2026-11-03): its general
    plane × torus rung is lily wall 8's stop
-   (`work/issues/curved-demo-joins-build.md`). The D10 hold on its
+   (`work/splice/curved-demo-joins-build.md`). The D10 hold on its
    touching poses (U-H1) lifted when INTENT closed on 2026-10-30
    (#6103). Its design flag is read again at dispatch.
 
