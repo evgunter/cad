@@ -7094,17 +7094,6 @@ pub(crate) fn face_reach_in<T: Decide>(
         crate::boolean::boxes::FaceBoxRule::SphereWindow { .. } => {
             Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
         }
-        crate::boolean::boxes::FaceBoxRule::SheetTube {
-            center,
-            axis,
-            spine,
-            minor_radius,
-        } => Some(span_pts(crate::boolean::boxes::torus_extent(
-            &crate::boolean::boxes::SpanBox::point(frame.point(center)),
-            &crate::boolean::boxes::SpanBox::vector(frame.vector(axis)),
-            spine,
-            minor_radius,
-        ))),
         crate::boolean::boxes::FaceBoxRule::TorusWindow {
             center,
             axis,

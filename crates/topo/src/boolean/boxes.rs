@@ -1267,19 +1267,6 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
         /// rather than re-deriving a basis of its own.
         u_ref: Vec3<T>,
     },
-    /// A spindle sheet's whole revolved circle: the tube about the
-    /// circle of radius `|R|`, which holds both sheets of the circle's
-    /// revolution and so the face. No window is read yet.
-    SheetTube {
-        /// The sheet's centre.
-        center: Point3<T>,
-        /// The unit axis direction.
-        axis: Vec3<T>,
-        /// The spine's radius `|R|`.
-        spine: T,
-        /// The minor radius `r`.
-        minor_radius: T,
-    },
     /// The control net's hull — see the type docs.
     ControlNet(&'a NurbsSurface<T>),
 }
@@ -1386,17 +1373,24 @@ pub(crate) fn face_box_rule<T: Decide>(
             minor_radius: *minor_radius,
             u_ref: *u_ref,
         },
+        // A sheet lies on its whole revolved circle, the tube about the
+        // circle of radius `|R|`: read as a torus off its ring, whose
+        // window is the whole tube. The tube radius is at least `|R|`,
+        // so no sheet reads as a ring, a stored one outside its range
+        // included, and the extent holds the tube about `|R|` of radius
+        // `r`.
         Surface::Spindle {
             center,
             axis,
             major_radius,
             minor_radius,
-            ..
-        } => FaceBoxRule::SheetTube {
+            u_ref,
+        } => FaceBoxRule::TorusWindow {
             center: *center,
             axis: *axis,
-            spine: major_radius.abs(),
-            minor_radius: *minor_radius,
+            major_radius: major_radius.abs(),
+            minor_radius: minor_radius.max(major_radius.abs()),
+            u_ref: *u_ref,
         },
     })
 }
@@ -1894,17 +1888,6 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                 )),
             }
         }
-        FaceBoxRule::SheetTube {
-            center,
-            axis,
-            spine,
-            minor_radius,
-        } => aabb_of(torus_extent(
-            &bracket_point(center),
-            &bracket_vector(axis),
-            spine.hi(),
-            minor_radius.hi(),
-        )),
         FaceBoxRule::CylinderSlab {
             origin,
             axis,
