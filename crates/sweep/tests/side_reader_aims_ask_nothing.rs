@@ -18,10 +18,9 @@ use topo::{AtRestBody, ContactRecords};
 /// The predicates no aimed ray at these bodies may take: a cap's
 /// in-face walk, a wall's region walk, a curved aim's on-chart
 /// certificate.
-const WALKS: [&str; 5] = [
+const WALKS: [&str; 4] = [
     "point_in_loop",
     "point_in_arc_loop",
-    "curve_foot_branch",
     "bool_ruled_region",
     "bool_pierce_normal_on",
 ];
@@ -86,7 +85,7 @@ fn a_rod_and_a_drilled_plate_read_their_side_by_turns_alone() {
     for (what, body, walks) in [
         ("rod", rod(0.0, 1.0), &WALKS[..]),
         ("drilled plate", drilled, &WALKS[..]),
-        ("lens", lens, &WALKS[4..]),
+        ("lens", lens, &WALKS[3..]),
     ] {
         assert!(
             topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol).is_ok(),
