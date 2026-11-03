@@ -274,10 +274,12 @@ of them is a defect.
 | Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
+| Re-describing an existing edge after a door changes its faces, span or surfaces | one door: the form read off its sides by key, the old description's data carried to the new span, the selector certified at the one write gate; no door states a description for an existing edge, only a mint does | [edges] |
 | Dependency | reading a variable | [operations] |
 | Location | a placement | [placement] |
 | A pose's symmetry and a mate's fold | one `Subgroup` type | [variables.poses] |
 | A coincidence decided from values | recorded at the one coincidence door | [coincidence] |
+| Whether two surface records are one surface | the act that decided their coincidence, which leaves their faces on one record | [coincidence.door] |
 | Whether a coincidence is structural | that door, and nowhere else | [coincidence.structural] |
 | A value authored several ways | a family of forms lowering through one reading | [recipe.forms] |
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
@@ -1695,7 +1697,10 @@ forms is only ever a cache generated from the symbolic evaluation and
 checked against it, never written by hand. A reading that only chooses
 a cell's form (a lane choice, [verdicts.consumers]) infers no
 coincidence and records nothing; a door that makes cells one on a
-class it read (the boolean's edge join) records it.
+class it read (the boolean's edge join) records it. A verdict that two surface records are one
+carrier ends in one surface record: the act that decided it leaves every
+face on the other record re-pointed onto the kept one, and the row
+records why. Two distinct records at rest are two surfaces.
 
 **Booleans.** `[coincidence.booleans]` The booleans are the four
 operators ([operations.operators]), and a boolean's operands must
