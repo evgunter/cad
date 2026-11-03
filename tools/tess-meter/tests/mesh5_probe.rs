@@ -137,7 +137,7 @@ fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             let rho = (w - axis * h).norm();
             (((rho - major_radius).powi(2) + h * h).sqrt() - minor_radius).abs()
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }
 }
 

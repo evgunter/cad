@@ -48,3 +48,5 @@ question on the flux lane (`props_meridian_pole`): it has the sign of
 the cosine test and the size of the point deviation. Pin it with a
 narrow meridian edge through a pole, probed at a point of the face
 nearer the pole than its ends.
+
+**Re-cited (onedoor/carrier-and-window, 2026-11-03).** `chord_join::face_azimuth_window` is now `topo::chart_window::face_azimuth_window`.

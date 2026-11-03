@@ -304,6 +304,71 @@ pub struct Face {
     pub shell: ShellKey,
 }
 
+impl Face {
+    /// **The face's loops, in the one order every walk of its boundary
+    /// takes**, each with its role: the outer loop, then the rings in
+    /// order.
+    ///
+    /// The keys as the record holds them, unresolved. A walk of a body
+    /// in this crate resolves them through `Body::face_loops_linked`,
+    /// whose every hop is a link that panics on a miss; this is the
+    /// reader for a walk that reports a miss itself (the validators), or
+    /// that hands each loop to a door that resolves it and answers its
+    /// miss.
+    pub(crate) fn loop_roles(&self) -> impl Iterator<Item = (LoopRole, LoopKey)> + '_ {
+        core::iter::once((LoopRole::Outer, self.outer)).chain(
+            self.rings
+                .iter()
+                .enumerate()
+                .map(|(i, &ring)| (LoopRole::Ring(i), ring)),
+        )
+    }
+
+    /// [`Face::loop_roles`]' keys alone.
+    pub(crate) fn loop_keys(&self) -> impl Iterator<Item = LoopKey> + '_ {
+        self.loop_roles().map(|(_, lk)| lk)
+    }
+
+    /// Whether `r#loop` is one of the face's loops ([`Face::loop_keys`]).
+    pub(crate) fn holds_loop(&self, r#loop: LoopKey) -> bool {
+        self.loop_keys().any(|lk| lk == r#loop)
+    }
+}
+
+/// **A loop's place on its face** ([`Face::loop_roles`]): the outer loop,
+/// or the ring at this index of [`Face::rings`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LoopRole {
+    /// [`Face::outer`].
+    Outer,
+    /// `Face::rings[i]`.
+    Ring(usize),
+}
+
+impl LoopRole {
+    /// The [`Face`] field that holds a loop in this role: the label a
+    /// miss of it names.
+    pub(crate) const fn field(self) -> &'static str {
+        match self {
+            Self::Outer => "outer",
+            Self::Ring(_) => "rings",
+        }
+    }
+
+    /// Whether this is the outer loop.
+    pub(crate) const fn is_outer(self) -> bool {
+        matches!(self, Self::Outer)
+    }
+
+    /// The ring's index in [`Face::rings`]; none for the outer loop.
+    pub(crate) const fn ring(self) -> Option<usize> {
+        match self {
+            Self::Outer => None,
+            Self::Ring(i) => Some(i),
+        }
+    }
+}
+
 /// The boundary state of a loop: a genuine cycle of half-edges, or the
 /// *empty loop* degenerate state — a lone vertex, no edges at all.
 ///

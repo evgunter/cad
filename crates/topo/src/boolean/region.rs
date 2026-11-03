@@ -11,7 +11,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, FaceKey, LoopKey};
+use crate::live::BoundaryMember;
+use crate::null::Scaffolding;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::{PointInLoopError, Uncrossable};
@@ -258,16 +260,6 @@ impl<T: Decide> RegionEdge<T> {
     }
 }
 
-/// What a gather makes of null scaffolding: an edge with no certified
-/// curve whose two ends are one point, a zero-length copy of a vertex.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Scaffolding {
-    /// Left out: it bounds nothing.
-    Skipped,
-    /// No region, as for any edge with no certified curve.
-    Refused,
-}
-
 /// **`face`'s boundary**: its surface boundary
 /// ([`crate::surface_boundary::surface_cycles`]), each edge on its
 /// certified carrier, cycle by cycle in walk order, each edge naming its
@@ -298,29 +290,24 @@ pub(crate) fn boundary<T: Decide>(
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
-    for (i, &lk) in core::iter::once(&f.outer).chain(&f.rings).enumerate() {
-        let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
-            LoopBoundary::Cycle { first } => first,
+    for (_, members, role) in body.face_boundary_by_loop(face, f) {
+        for member in members {
             // A lone ring vertex bounds no area; an outer loop must.
-            LoopBoundary::Empty { .. } if i > 0 => continue,
-            LoopBoundary::Empty { .. } => return Err(corrupt()),
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
+            if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {
+                return Err(corrupt());
+            }
+            let BoundaryMember::Edge {
+                ek: edge_key, edge, ..
+            } = member
+            else {
+                continue;
+            };
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
-                if let Scaffolding::Skipped = scaffolding {
-                    let point = |h| {
-                        body.get_half_edge(h)
-                            .and_then(|h| body.get_vertex(h.start))
-                            .map(|v| v.point)
-                    };
-                    if point(edge.he_plus).ok_or_else(corrupt)?
-                        == point(edge.he_minus).ok_or_else(corrupt)?
-                    {
-                        null.push(edge_key);
-                        continue;
-                    }
+                if scaffolding == Scaffolding::Skipped
+                    && crate::null::is_placeholder(body, edge_key)
+                {
+                    null.push(edge_key);
+                    continue;
                 }
                 return Ok(None);
             };
@@ -867,7 +854,8 @@ pub(crate) fn parallel<T: Decide>(
 #[allow(clippy::unwrap_used)]
 pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
     let outer = body.get_face(face).unwrap().outer;
-    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+    let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+    else {
         unreachable!("the fixture's outer loop is a cycle")
     };
     body.mev_null(

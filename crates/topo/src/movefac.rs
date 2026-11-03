@@ -96,7 +96,7 @@ impl<T: Decide> Body<T> {
                      directions: on a tier-1-valid body a face's shell lists it and an edge's \
                      two faces share a shell"
                 );
-                for (loop_key, loop_data) in self.face_loops_linked(face_key, &face) {
+                for (loop_key, loop_data, _) in self.face_loops_linked(face_key, &face) {
                     assert!(
                         loop_data.face == face_key,
                         "{face_key:?} lists loop {loop_key:?}, which names face {:?}: on a \

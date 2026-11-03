@@ -255,7 +255,10 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => true,
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => false,
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => false,
     }
 }
 

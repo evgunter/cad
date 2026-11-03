@@ -45,7 +45,7 @@
 //! (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use geom_core::Real;
 
 impl<T: Real> Body<T> {
@@ -123,8 +123,15 @@ pub fn tips<T: Real>(body: &Body<T>, hes: &[HalfEdgeKey]) -> Option<Vec<VertexKe
 ///
 /// # Errors
 ///
-/// Naming what failed, where a key on the walk does not resolve or a
-/// vertex's rotation does not close: tier 1 refuses such a body.
+/// Naming what failed, where `face` or a key on the walk past its loops
+/// does not resolve or a vertex's rotation does not close: tier 1
+/// refuses such a body.
+///
+/// # Panics
+///
+/// Where a record on the walk of `face`'s loops does not resolve, or a
+/// loop's walk does not close (D2 row 4): every public door keeps the
+/// body tier-1-valid.
 pub fn surface_cycles<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -161,15 +168,22 @@ pub fn surface_cycle_windings<T: Real>(
 ) -> Result<Vec<WoundCycle>, &'static str> {
     let unresolved = "a surface boundary walked a key that does not resolve";
     let f = body.get_face(face).ok_or(unresolved)?;
-    let mut members = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        if let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or(unresolved)?.boundary {
-            members.extend(body.loop_cycle(first).ok_or(unresolved)?);
-        }
-    }
-    let both_sides = |h: HalfEdgeKey| {
-        let edge = body.get_half_edge(h).ok_or(unresolved)?.edge;
-        Ok(body.both_sides_face(edge).ok_or(unresolved)?.is_some())
+    let members: Vec<HalfEdgeKey> = body
+        .face_boundary_linked(face, f)
+        .filter_map(|member| member.half_edge())
+        .collect();
+    // `h` is a member of the walk or a half-edge the walk turned to, so
+    // every hop from it is a link.
+    let both_sides = |h: HalfEdgeKey| -> Result<bool, &'static str> {
+        let edge = crate::live::proven(&body.half_edges, h, EntityId::HalfEdge).edge;
+        let e = crate::live::linked(
+            &body.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(h),
+            "edge",
+        );
+        Ok(body.face_of_linked(e.he_plus) == body.face_of_linked(e.he_minus))
     };
     let mut open = Vec::with_capacity(members.len());
     for &h in &members {
