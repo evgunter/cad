@@ -2,8 +2,11 @@
 id: interval-safe-point-angle-read-two-ways
 kind: issue
 title: The interval-safe angle of a point about a conic is spelled twice: on_carrier's angle_near and curve_pair::pose's angle
-status: open
+status: dispatched
 opened: 2026-11-02
+priority: P1
+cost: M
+branch: onecopy/foot-and-angle
 ---
 
 
@@ -30,3 +33,8 @@ unit kept both. `geom::Conic::angle_of` is the principal value, which
 neither can use at `Interval`. The question for this row: is there one
 interval-safe angle reading (in `geom`, beside `on_span_branch`) that both
 call, and which anchor does it take?
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.
+- Band P1: two implementations of one reading, the class `work/README.md` Priority bands P1. Priced `M`: the two helpers differ in their anchor, so the row first decides which anchor the one reading takes.

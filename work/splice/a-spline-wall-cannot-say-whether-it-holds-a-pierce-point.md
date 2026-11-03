@@ -132,12 +132,24 @@ open. Each has its joint element, and both its ends are one point.
 
 The analytic reader already treats this edge: `region::boundary` with
 `Scaffolding::Skipped` leaves out a null edge whose two ends are one
-point. A scratch spline trim lift that leaves such halves out (their
-elements still summed along the loop, so the decks of the halves
-around them are unchanged) gets the wavy loft past this site: the
+point. A scratch spline trim lift that leaves such halves out (the
+joints into them are the identity, so the decks of the halves around
+them are unchanged) gets the wavy loft past this site: the
 wall reads `OffCarrier` at both pierce points `(1, ∓1, 3)` (it is the
 loft's right wall, 0.3 off them), `held_reads` passes, and the union
 refuses one site on in the join: `GermFrameUnsupported { a_face:
 4v1, a_kind: Nurbs, b_face: 6v1, b_kind: Plane }`
 (`boolean::join::pair_section_frame_at`'s `NoArm`). The second half
 (`placed: true`) is not reached by the wavy loft.
+
+## Teapot wall 3 reaches this site (2026-11-03)
+
+Measured by the split-parameter lane (`splice/split-parameter`). With
+a boundary meeting's parameter carried to the seam split
+(`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`), teapot
+wall 3 (`demos/tour/src/teapot.rs`, `wall_probes`) stops here at the
+default and 1e-12 rows: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
+pierced_kind: Sphere, placed: false }`. The face is the spout's outer
+wall and the pierced face the belly's sphere, both pinned by geometry in
+`teapot::wall3_pinned`. At 1e-6 the join stops one wall earlier
+(`teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).

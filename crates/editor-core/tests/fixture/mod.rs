@@ -591,7 +591,7 @@ pub fn space(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
 /// here levers nothing: every mate on a part faults in the resolver's
 /// voice, which is the kernel's answer and not a fixture default.
 pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
-    solve_document(doc, o, tol)
+    solve_document(doc, o, &editor_core::CancelToken::new(), tol)
 }
 
 /// **Every mate-placed copy pinned to the world where its mates solve
@@ -714,7 +714,8 @@ where
         unused: editor_core::Advisory::Off,
         ..editor_core::ChecksConfig::default()
     };
-    editor_core::run_checks(doc, ev, &cfg, Tol::witness()).map(|report| report.findings)
+    editor_core::run_checks(doc, ev, &cfg, &editor_core::Stop::default(), Tol::witness())
+        .map(|report| report.findings)
 }
 
 /// **Whether the at-rest check could look at every pair**, as a mate
@@ -1779,7 +1780,14 @@ pub fn split_world(
     tol: Tol,
     resolver: Option<&std::sync::Arc<dyn editor_core::PartResolver>>,
 ) -> Result<editor_core::SplitOutcome, editor_core::SplitError> {
-    editor_core::split(doc, &with_placements(doc, cut), part_id, tol, resolver)
+    editor_core::split(
+        doc,
+        &with_placements(doc, cut),
+        part_id,
+        tol,
+        resolver,
+        &editor_core::Stop::default(),
+    )
 }
 
 /// **A world the gather refuses while every copy evaluates**: one
@@ -4060,6 +4068,15 @@ pub fn product_in_world(
     })
 }
 
+/// **The stop a query helper that answers `'static` holds**: a token
+/// nobody holds, at the default member budget ([`editor_core::Stop`]'s
+/// default), shared by every caller.
+pub fn no_stop() -> &'static editor_core::Stop {
+    static STOP: std::sync::LazyLock<editor_core::Stop> =
+        std::sync::LazyLock::new(editor_core::Stop::default);
+    &STOP
+}
+
 /// **The section ids of the loft `loft`**, first to last, as the
 /// document holds them.
 #[must_use]
@@ -4125,8 +4142,11 @@ pub fn clearance_within(
         id,
         leaf,
         editor_core::drive::SymbolicDials::default(),
+        &editor_core::Stop::default(),
         tol,
-    ) {
+    )
+    .expect("the replay is not stopped")
+    {
         Some(editor_core::AssertionVerdict::Clearance(report)) => Ok(*report),
         other => panic!("a clearance's verdict over the leaf: {other:?}"),
     }
@@ -4155,7 +4175,7 @@ pub fn dials_clearance(
         leaf,
         a,
         b,
-        &ClearanceQuery::at_dials(bound, tol),
+        &ClearanceQuery::at_dials(bound, no_stop(), tol),
     )
 }
 

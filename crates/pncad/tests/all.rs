@@ -4156,7 +4156,12 @@ fn asm_r2a_child_mated_probe() {
         resolver: Some(std::sync::Arc::new(ws.clone())),
         ..pncad::document::EvalOptions::default()
     };
-    let poses = pncad::document::solve_document(&doc, &opts, Tol::witness());
+    let poses = pncad::document::solve_document(
+        &doc,
+        &opts,
+        &pncad::document::CancelToken::new(),
+        Tol::witness(),
+    );
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
@@ -4257,6 +4262,7 @@ fn asm_r2b_child_crossing_probe() {
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("a whole-group cut splits");
     let text =
@@ -4605,6 +4611,7 @@ fn asm4_split_and_inline_through_the_real_store() {
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     ws_mut
@@ -4678,6 +4685,7 @@ fn asm4_child_split_probe() {
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     let text = format!(
@@ -7779,8 +7787,8 @@ fn a_clearance_refusal_names_each_side_as_the_document_says_it() {
 /// the third state), drops an assertion, or ignores the token.
 #[test]
 fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
-    use pncad::analysis::{Canceled, ClearanceOutcome, clearances_at_nominal};
-    use pncad::document::{ClearanceBounds, Node, Operand};
+    use pncad::analysis::{ClearanceOutcome, clearances_at_nominal};
+    use pncad::document::{ClearanceBounds, Node, Operand, Stop, Stopped};
     let (doc, solid) = plate_param_facade_only();
     let (doc, below) = insert(
         doc,
@@ -7798,7 +7806,7 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
             ClearanceBounds::AtMost(len(0.001)),
         ),
     );
-    let answers = clearances_at_nominal(&doc, None, &CancelToken::new(), Tol::witness())
+    let answers = clearances_at_nominal(&doc, None, &Stop::default(), Tol::witness())
         .expect("an uncanceled run answers");
     let ids: Vec<_> = answers.iter().map(|a| a.assertion).collect();
     assert_eq!(
@@ -7818,7 +7826,41 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        clearances_at_nominal(&doc, None, &cancel, Tol::witness()),
-        Err(Canceled)
+        clearances_at_nominal(&doc, None, &Stop::canceled_by(&cancel), Tol::witness()),
+        Err(Stopped::Canceled)
+    );
+    // A four-member row beside the clearances, under a budget of 2: the
+    // door refuses as out of the caller's budget, not with answers read
+    // off a prefix.
+    let doc = applied(
+        &doc,
+        pncad::pattern::index_decl(
+            pncad::document::VarName::from_static("k"),
+            Formula::count(4),
+            None,
+        ),
+    )
+    .doc;
+    let space = Operand::Var(doc.node_space(solid).expect("the plate stands in a space"));
+    let row = pncad::pattern::linear_pattern(
+        &pncad::document::VarName::from_static("k"),
+        pncad::document::BodyRead::plain(Operand::Node(solid)),
+        space,
+        &[(
+            pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+            len(3.0),
+        )],
+        None,
+    )
+    .expect("a length pitch");
+    let (doc, _row) = insert(doc, row);
+    let lowered = Stop {
+        member_budget: 2,
+        ..Stop::default()
+    };
+    assert_eq!(
+        clearances_at_nominal(&doc, None, &lowered, Tol::witness()),
+        Err(Stopped::Exhausted { budget: 2 }),
+        "a run out of the caller's budget answers no clearance"
     );
 }

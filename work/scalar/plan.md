@@ -37,10 +37,9 @@ and `the-samplers-own-error…` are homes for a shared helper. Each
 says where the copies are; a lane re-measures them. `brk-has-no-certified-door`
 and `invalid-margin-recourse…` carry design questions for a designer
 pair. The drive rows (`a-gate-rejection…`, `analysis-boxes…`,
-`the-race-rows…`) were checked against the D10 hold at the cut and
-are not on its ground. Stage 1 is built, and no later stage rewrites
-`ParamBox`'s order or the drive's leaf reading. Re-check that at
-dispatch.
+`the-race-rows…`) were not on the D10 hold's ground at the cut, and
+the hold lifted when INTENT closed (2026-10-30, #6103), so nothing
+gates them.
 
 ## Review posture
 

@@ -221,7 +221,14 @@ fn run_doc(doc: &ProfileDoc) -> Population {
 fn run_doc_with(doc: &editor_core::ProfileDoc, config: &DriveConfig) -> Population {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     k_stats::start_recording();
-    let v = drive(doc, &analyzed, config, Tol::witness()).expect("the fixture's nominal builds");
+    let v = drive(
+        doc,
+        &analyzed,
+        config,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the fixture's nominal builds");
     Population {
         samples: k_stats::take_samples(),
         certified: v.certified().len(),
@@ -283,6 +290,7 @@ fn the_dial_puts_driver_path_margins_in_the_funnel_and_nothing_else_does() {
             k_probe: KProbe::Off,
             ..probing()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();

@@ -610,10 +610,10 @@ impl crate::spoken::Say for NodeStanding {
                 "{} has no result in this evaluation: the run stopped before it reached \
                  the node, canceled or out of its member budget. {}",
                 by.node(node),
-                Recourse(
-                    "re-evaluate the document to completion, under a member budget that \
-                     admits its families"
-                )
+                Recourse(format_args!(
+                    "re-evaluate the document to completion; where it ran out, {}",
+                    crate::sentence::RAISE_THE_MEMBER_BUDGET
+                ))
             ),
             Self::NotInDocument { node } => write!(
                 f,
@@ -2838,16 +2838,13 @@ pub(crate) mod leaf {
             doc: &crate::doc::Doc<crate::program::ProfileProgram>,
             opts: &EvalOptions,
             lane: LeafLane,
+            cancel: &CancelToken,
             tol: geom_core::Tol,
         ) -> Self {
             match lane {
-                LeafLane::Numeric => Self::Numeric(Box::new(evaluate(
-                    doc,
-                    None,
-                    &CancelToken::new(),
-                    opts,
-                    tol,
-                ))),
+                LeafLane::Numeric => {
+                    Self::Numeric(Box::new(evaluate(doc, None, cancel, opts, tol)))
+                }
                 LeafLane::Symbolic(..) => Self::None,
             }
         }
@@ -2888,6 +2885,9 @@ pub(crate) mod leaf {
         pub measure_bracket: Option<(f64, f64)>,
         /// The assertion node's verdict, projected onto the numeric channel.
         pub assertion: Option<crate::measure::AssertionVerdict<geom_core::Interval>>,
+        /// How the replay stopped short, where it did: what it read is
+        /// then of a prefix, and a consumer refuses rather than read it.
+        pub stopped: Option<super::Stopped>,
     }
 
     /// **Replays one leaf on `lane` and reads back what `want` asks for** —
@@ -2906,6 +2906,7 @@ pub(crate) mod leaf {
         opts: &EvalOptions,
         lane: LeafLane,
         prior: &LeafPrior,
+        cancel: &CancelToken,
         want: LeafRequest,
         tol: geom_core::Tol,
     ) -> LeafReadback {
@@ -2915,14 +2916,13 @@ pub(crate) mod leaf {
                     LeafPrior::Numeric(p) => Some(&**p),
                     LeafPrior::None => None,
                 };
-                let ev: Evaluation<geom_core::Interval> =
-                    evaluate(doc, prior, &CancelToken::new(), opts, tol);
+                let ev: Evaluation<geom_core::Interval> = evaluate(doc, prior, cancel, opts, tol);
                 read_leaf(doc, &ev, want, |v| v)
             }
             LeafLane::Symbolic(budget, rules, retry) => {
                 let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
-                        evaluate(doc, None, &CancelToken::new(), opts, tol);
+                        evaluate(doc, None, cancel, opts, tol);
                     read_leaf(doc, &ev, want, |v: geom_core::Sym<geom_core::Interval>| {
                         v.value
                     })
@@ -2952,24 +2952,34 @@ pub(crate) mod leaf {
     /// **Replays one leaf on `lane` and hands the replay to `read`**:
     /// [`replay_leaf`]'s two arms, with no prior, for a read that has to
     /// run inside the symbolic session the replay ran in.
+    ///
+    /// # Errors
+    ///
+    /// How the replay stopped short, where it did: `read` is not asked.
     pub(crate) fn read_leaf_with<A: AtLeaf>(
         doc: &crate::doc::Doc<crate::program::ProfileProgram>,
         opts: &EvalOptions,
         lane: LeafLane,
+        cancel: &CancelToken,
         tol: geom_core::Tol,
         read: A,
-    ) -> A::Out {
+    ) -> Result<A::Out, super::Stopped> {
         match lane {
             LeafLane::Numeric => {
-                let ev: Evaluation<geom_core::Interval> =
-                    evaluate(doc, None, &CancelToken::new(), opts, tol);
-                read.at(&ev, topo::ClearanceLane::certified())
+                let ev: Evaluation<geom_core::Interval> = evaluate(doc, None, cancel, opts, tol);
+                match super::Stopped::of(ev.outcome) {
+                    Some(stopped) => Err(stopped),
+                    None => Ok(read.at(&ev, topo::ClearanceLane::certified())),
+                }
             }
             LeafLane::Symbolic(budget, rules, retry) => {
                 let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
-                        evaluate(doc, None, &CancelToken::new(), opts, tol);
-                    read.at(&ev, topo::ClearanceLane::certified())
+                        evaluate(doc, None, cancel, opts, tol);
+                    match super::Stopped::of(ev.outcome) {
+                        Some(stopped) => Err(stopped),
+                        None => Ok(read.at(&ev, topo::ClearanceLane::certified())),
+                    }
                 });
                 out
             }
@@ -2985,7 +2995,10 @@ pub(crate) mod leaf {
         want: LeafRequest,
         project: impl Fn(T) -> geom_core::Interval,
     ) -> LeafReadback {
-        let mut out = LeafReadback::default();
+        let mut out = LeafReadback {
+            stopped: super::Stopped::of(ev.outcome),
+            ..LeafReadback::default()
+        };
         if want.keys {
             out.keys = ev
                 .order
@@ -3120,6 +3133,108 @@ pub struct EvalOptions {
 /// well within a desktop's memory, and short enough that a run nobody
 /// can cancel answers in about a minute.
 pub const DEFAULT_MEMBER_BUDGET: u64 = 65_536;
+
+/// **What stops a run the kernel starts on its caller's behalf**: the
+/// caller's cancel token and member budget together
+/// ([`EvalOptions::member_budget`]). A door that builds the options of
+/// the evaluations it runs (a drive's leaves, a stackup's passes, a
+/// clearance replay) takes one from its caller, so a cancel or a budget
+/// the caller set reaches every evaluation inside it. A door handed
+/// whole [`EvalOptions`] takes the token alone: its options carry the
+/// budget.
+#[derive(Debug, Clone)]
+pub struct Stop {
+    /// The caller's token: canceling it cancels every evaluation the
+    /// door runs.
+    pub cancel: CancelToken,
+    /// The member budget each evaluation the door runs is held to.
+    pub member_budget: u64,
+}
+
+impl Default for Stop {
+    /// A token nobody else holds, and [`DEFAULT_MEMBER_BUDGET`]: a run
+    /// whose caller states neither.
+    fn default() -> Self {
+        Self {
+            cancel: CancelToken::new(),
+            member_budget: DEFAULT_MEMBER_BUDGET,
+        }
+    }
+}
+
+impl Stop {
+    /// `cancel`, at the one default budget ([`DEFAULT_MEMBER_BUDGET`]).
+    #[must_use]
+    pub fn canceled_by(cancel: &CancelToken) -> Self {
+        Self {
+            cancel: cancel.clone(),
+            member_budget: DEFAULT_MEMBER_BUDGET,
+        }
+    }
+
+    /// The stop of a caller that evaluates under `opts` with `cancel`.
+    #[must_use]
+    pub fn of(cancel: &CancelToken, opts: &EvalOptions) -> Self {
+        Self {
+            cancel: cancel.clone(),
+            member_budget: opts.member_budget,
+        }
+    }
+
+    /// `opts`, held to this stop's budget.
+    #[must_use]
+    pub fn options(&self, opts: EvalOptions) -> EvalOptions {
+        EvalOptions {
+            member_budget: self.member_budget,
+            ..opts
+        }
+    }
+}
+
+/// **An evaluation a door ran stopped short of its schedule**: canceled
+/// by its caller, or out of its member budget. The door refuses with it
+/// rather than read a prefix as an answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stopped {
+    /// The caller's token was canceled.
+    Canceled,
+    /// An evaluation ran out of its member budget.
+    Exhausted {
+        /// The budget it ran out of.
+        budget: u64,
+    },
+}
+
+impl Stopped {
+    /// How a run with `outcome` stopped, `None` where it completed.
+    #[must_use]
+    pub fn of(outcome: EvalOutcome) -> Option<Self> {
+        match outcome {
+            EvalOutcome::Completed => None,
+            EvalOutcome::Canceled => Some(Self::Canceled),
+            EvalOutcome::Exhausted { budget, .. } => Some(Self::Exhausted { budget }),
+        }
+    }
+}
+
+impl core::fmt::Display for Stopped {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Canceled => write!(
+                f,
+                "it was canceled before it finished. {}",
+                crate::sentence::Recourse("ask again, and let it finish")
+            ),
+            Self::Exhausted { budget } => write!(
+                f,
+                "an evaluation inside it ran out of its member budget of {budget} listing steps. {}",
+                crate::sentence::Recourse(crate::sentence::RAISE_THE_MEMBER_BUDGET)
+            ),
+        }
+    }
+}
+
+impl core::error::Error for Stopped {}
 
 /// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
 /// ([`EvalOptions::computing_twist`]): a turn of `angle` radians about
@@ -3546,17 +3661,18 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box
 /// run's poses enclosing each copy's over the box, a seed run's
 /// carrying their tangents — under `opts`, whose box or seed the run
-/// reads. Here, at the evaluation seam, because it reads an evaluation
-/// at a run's scalar.
+/// reads, and `cancel` cancels. Here, at the evaluation seam, because
+/// it reads an evaluation at a run's scalar.
 pub fn solve_document_at<T>(
     doc: &Doc<ProfileProgram>,
     opts: &EvalOptions,
+    cancel: &CancelToken,
     tol: Tol,
 ) -> crate::mate::SolvedPoses<T>
 where
     T: crate::mate::SolveScalar + EvalScalar,
 {
-    let evaluation = evaluate::<T>(doc, None, &crate::CancelToken::new(), opts, tol);
+    let evaluation = evaluate::<T>(doc, None, cancel, opts, tol);
     crate::mate::SolvedPoses::of(doc, &evaluation)
 }
 
