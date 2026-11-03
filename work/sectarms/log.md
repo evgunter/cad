@@ -374,3 +374,11 @@ and bodies unchanged. No orchestrator yet.
     - the designer-found defects: nodes listed when their arcs are dropped, and the 3b row's "branch names the arc" line;
     - the scope boundary with NURBS 3b.
   - **Blind coding for PR 6412 done:** tally 0 (byte 221, A = R2). The row is drafted and goes in after the fix pass.
+
+- 2026-11-03 — **Cylinder 3b-ii plan accepted.** Each node stores two lines plus one side bit. The cylinder's lines are closed form, so storing Q would read them a second time. Rulings on the named items:
+  - **D1 (pinch node):** stays unlisted while its lobes are unminted; P2 filed.
+  - **D2 (arc with both ends at one node):** desyncs for now; spline 3b names the end.
+  - **D3 (bisector planes):** kept only as construction for the sweep's factoring. If they decide which ellipse a pierce lies on, that read goes through `site()`; otherwise P2.
+  - **D4 (escalation diagnostic):** reported on the node-distance margin.
+  - **D5 (span membership):** a new metered predicate, with an audit row.
+  - **D6 (held nodes):** Straddles counts as held; `n̂` is the outward radial.
