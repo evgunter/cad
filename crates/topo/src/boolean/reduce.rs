@@ -9342,3 +9342,144 @@ mod review_5993_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod probe_b2_line_cone {
+    //! Reviewer probe (PR 6424): `line_cone_roots` against lines through,
+    //! ending at, and passing near the apex, at three bands, held to the
+    //! exact quadratic.
+    use super::*;
+    use crate::boolean::circle_roots::CircleRoots;
+    use geom_core::Vec3;
+
+    fn lcg(seed: &mut u64) -> f64 {
+        *seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((*seed >> 11) as f64) / ((1u64 << 53) as f64)
+    }
+
+    fn unit(seed: &mut u64) -> Vec3<f64> {
+        loop {
+            let v = Vec3::new(
+                lcg(seed) * 2.0 - 1.0,
+                lcg(seed) * 2.0 - 1.0,
+                lcg(seed) * 2.0 - 1.0,
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v / v.norm();
+            }
+        }
+    }
+
+    #[test]
+    fn probe() {
+        let mut tally = std::collections::BTreeMap::<String, usize>::new();
+        let mut wrong = Vec::new();
+        let mut seed = 7u64;
+        for eps in [1e-6, 1e-9, 1e-12] {
+            let band = Band::new(eps, 10.0 * eps).unwrap();
+            for half in [0.2f64, 0.5, 0.9, 1.3] {
+                let apex = Point3::new(0.3, -0.2, 0.7);
+                let axis = unit(&mut seed);
+                for _ in 0..400 {
+                    let dir = unit(&mut seed) * (0.5 + lcg(&mut seed));
+                    // offset perpendicular to dir, k·ε.
+                    let k = [0.0, 0.01, 0.1, 0.5, 2.0, 20.0, 300.0][(lcg(&mut seed) * 7.0) as usize];
+                    let mut perp = unit(&mut seed);
+                    perp = perp - dir * (perp.dot(dir) / dir.norm_squared());
+                    perp = perp / perp.norm();
+                    let tf = lcg(&mut seed) * 2.0 - 1.0; // param of foot
+                    let origin = apex + perp * (k * eps) - dir * tf;
+                    // spans: through (foot inside), ending at foot ± j·ε.
+                    let j = [0.0, 0.3, 3.0][(lcg(&mut seed) * 3.0) as usize] * eps / dir.norm();
+                    let spans = [
+                        ("through", (tf - 0.7, tf + 0.9)),
+                        ("ends", (tf - 1.1, tf + j)),
+                        ("starts", (tf - j, tf + 0.8)),
+                    ];
+                    for (kind, span) in spans {
+                        let got = line_cone_roots(origin, dir, (apex, axis, half), span, band);
+                        // exact-ish quadratic about the foot: Q(e + τ d)
+                        let e = origin + dir * tf - apex;
+                        let (s, c) = half.sin_cos();
+                        let q = |x: Vec3<f64>, y: Vec3<f64>| {
+                            let (xa, ya) = (x.dot(axis), y.dot(axis));
+                            c * c * (x.dot(y) - xa * ya) - s * s * xa * ya
+                        };
+                        let (a, b, cc) = (q(dir, dir), q(e, dir), q(e, e));
+                        let disc = b * b - a * cc;
+                        let key = match &got {
+                            Ok(Ok(CircleRoots::Certified(f))) => {
+                                let r = f.roots();
+                                let dbl = r.len() == 2 && r[0] == r[1];
+                                if dbl {
+                                    // true roots (or closest approach) within ~band of r[0]
+                                    let tau = if disc >= 0.0 {
+                                        let rt = disc.sqrt();
+                                        ((-b + rt) / a - (r[0] - tf)).abs().max(((-b - rt) / a - (r[0] - tf)).abs())
+                                    } else {
+                                        (b / a + (r[0] - tf)).abs()
+                                    } * dir.norm();
+                                    if tau > 10.0 * eps {
+                                        wrong.push(format!("eps {eps} half {half} k {k} {kind}: double root at {} but roots spread {tau:e}", r[0]));
+                                    }
+                                    "double"
+                                } else {
+                                    for &t in r {
+                                        let tau = t - tf;
+                                        let g = a * tau * tau + 2.0 * b * tau + cc;
+                                        let slope = (2.0 * (a * tau + b)).abs() * dir.norm();
+                                        if g.abs() / slope.max(1e-300) > 10.0 * eps {
+                                            wrong.push(format!("eps {eps} half {half} k {k} {kind}: root {t} off by {:e}", g.abs() / slope));
+                                        }
+                                    }
+                                    "two"
+                                }
+                            }
+                            Ok(Ok(CircleRoots::Miss)) => {
+                                // a miss must not hide real roots in span
+                                if disc > 0.0 {
+                                    let rt = disc.sqrt();
+                                    for tau in [(-b + rt) / a, (-b - rt) / a] {
+                                        let t = tf + tau;
+                                        let (lo, hi) = (span.0.min(span.1), span.0.max(span.1));
+                                        if t > lo + 1e-3 && t < hi - 1e-3 {
+                                            wrong.push(format!("eps {eps} half {half} k {k} {kind}: miss but root at {t}"));
+                                        }
+                                    }
+                                }
+                                "miss"
+                            }
+                            Ok(Ok(CircleRoots::On(_))) => "on",
+                            Ok(Err(u)) => match u {
+                                Unsettled::AtApex => "AtApex",
+                                Unsettled::Degenerate => "Degenerate",
+                                Unsettled::Tangency => "Tangency",
+                                Unsettled::Meter => "Meter",
+                                _ => "other-unsettled",
+                            },
+                            Err(BooleanError::Escalated { diag, .. }) => {
+                                *tally.entry(format!("esc {:?}", diag.predicate)).or_default() += 1;
+                                "escalated"
+                            }
+                            Err(e) => {
+                                wrong.push(format!("untyped {e:?}"));
+                                "err"
+                            }
+                        };
+                        *tally.entry(format!("{kind} k{k} {key}")).or_default() += 1;
+                    }
+                }
+            }
+        }
+        for (k, v) in &tally {
+            eprintln!("TALLY {k}: {v}");
+        }
+        for w in wrong.iter().take(40) {
+            eprintln!("WRONG {w}");
+        }
+        assert!(wrong.is_empty(), "{} wrong", wrong.len());
+    }
+}
