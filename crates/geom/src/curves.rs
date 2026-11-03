@@ -533,6 +533,15 @@ impl<T: Real> Line<T> {
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
         self.origin + self.dir * self.param(p)
     }
+
+    /// **`p`'s offset from its foot**, square to the line:
+    /// `(p − origin) − dir·((p − origin)·dir / (dir·dir))`, whose norm is
+    /// `p`'s distance from the line.
+    #[must_use]
+    pub fn offset(&self, p: Point3<T>) -> Vec3<T> {
+        let w = p - self.origin;
+        w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
+    }
 }
 
 impl<T: Real> Curve3<T> {

@@ -356,12 +356,18 @@ mod tests {
             let (s, c) = Real::sin_cos(u);
             let v_ref = axis.cross(u_ref);
 
-            let ((bs, bc), bv) = basis(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), u);
+            let ((bs, bc), bv) = basis(
+                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+                u,
+            );
             assert_eq!(bs.to_bits(), s.to_bits(), "basis sin at {u}");
             assert_eq!(bc.to_bits(), c.to_bits(), "basis cos at {u}");
             assert_eq!(bits(bv), bits(v_ref), "basis v_ref at {u}");
 
-            let f = frame(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), u);
+            let f = frame(
+                &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+                u,
+            );
             assert_eq!(
                 bits(f.radial.0),
                 bits(u_ref * c + v_ref * s),
@@ -391,11 +397,17 @@ mod tests {
     fn probe_the_renaming_destructure_is_the_residue_the_types_do_not_close() {
         let axis = Vec3::new(0.0, 0.0, 1.0);
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
-        let f = frame(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), 0.3f64);
+        let f = frame(
+            &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+            0.3f64,
+        );
         let AzimuthFrame {
             radial: tangential,
             tangential: radial,
-        } = frame(&crate::Frame::new(geom_core::Point3::origin(), axis, u_ref), 0.3f64);
+        } = frame(
+            &crate::Frame::new(geom_core::Point3::origin(), axis, u_ref),
+            0.3f64,
+        );
         assert_eq!(radial.0.x, f.tangential.0.x);
         assert_eq!(tangential.0.x, f.radial.0.x);
     }

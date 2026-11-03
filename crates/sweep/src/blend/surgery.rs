@@ -205,9 +205,9 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use topo::construction::Construct;
 
-use geom::Curve3;
 use geom::Surface;
 use geom::cover::{Cover, ParamWindow, Site};
+use geom::{Conic as _, Curve3};
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, SmoothJoin, SurfacePair, must_carry_description,
 };
@@ -2549,7 +2549,7 @@ pub(super) fn stored_piece<T: Real>(
 ///
 /// On a LINE the distance is convex, so `far` is the larger end and
 /// `near` the distance to `c`'s foot clamped into the segment. On a
-/// CIRCLE it is [`CircleFrame::distance`]. On an ELLIPSE it is a bound,
+/// CIRCLE it is [`ArcReads::arc_distance`]. On an ELLIPSE it is a bound,
 /// not the extremes: every point lies within the semi-major axis of
 /// the centre, so within that of the centre's distance to `c`.
 pub(super) fn piece_distance<T: Bounds>(
@@ -2571,7 +2571,7 @@ pub(super) fn piece_distance<T: Bounds>(
             let (d, major) = ((e.frame.origin - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
-        _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
+        _ => carrier.as_circle().map(|k| k.arc_distance((ta, tb), c)),
     }
 }
 
@@ -2580,7 +2580,7 @@ pub(super) fn piece_distance<T: Bounds>(
 /// every point `p` of `carrier` over the window `(ta, tb)`, in closed
 /// form; `None` for a carrier with no closed form here. A linear
 /// function is extreme at a segment's ends; on a CIRCLE it is
-/// [`CircleFrame::along`], and on an ELLIPSE the same over the unit
+/// [`ArcReads::arc_along`], and on an ELLIPSE the same over the unit
 /// circle of its frame, whose image it is: `(p − center)·u` at `t` is
 /// the unit circle's height at `t` along
 /// `major·(u_ref·u)·u_ref + minor·(v·u)·v`.
@@ -2600,78 +2600,38 @@ pub(super) fn piece_along<T: Bounds>(
         }
         Curve3::Ellipse(ref e) => {
             let f = e.frame;
-            let unit = CircleFrame {
-                center: f.origin,
-                axis: f.axis,
-                radius: T::one(),
-                u_ref: f.u_ref,
-            };
+            let unit = geom::Circle::new(f, T::one());
             let (p, q) = geom::Conic::along(e, u);
             let lifted = f.u_ref * p + f.v_ref() * q;
-            let (low, high) = unit.along((ta, tb), f.origin, lifted);
+            let (low, high) = unit.arc_along((ta, tb), f.origin, lifted);
             let mid = (f.origin - c).dot(u);
             Some((mid + low, mid + high))
         }
-        _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
+        _ => carrier.as_circle().map(|k| k.arc_along((ta, tb), c, u)),
     }
 }
 
-/// **A circle carrier's frame**, destructured once, so that every
-/// closed form over an arc of it is total: the piece meters above
-/// reach it through [`Self::of`], and their ellipse arm builds the unit
-/// circle of the ellipse's frame outright.
-#[derive(Clone, Copy)]
-struct CircleFrame<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-}
-
-impl<T: Real> CircleFrame<T> {
-    /// The frame of a `Circle` carrier; `None` for any other.
-    fn of(carrier: &Curve3<T>) -> Option<Self> {
-        match *carrier {
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => Some(Self {
-                center,
-                axis,
-                radius,
-                u_ref,
-            }),
-            _ => None,
-        }
-    }
-
-    /// The point at `t`, through [`Curve3::circle_at`] — the circle
-    /// arm of `Curve3::eval`.
-    fn at(self, t: T) -> Point3<T> {
-        Curve3::circle_at(
-            &geom::Frame::new(self.center, self.axis, self.u_ref),
-            self.radius,
-            t,
-        )
-    }
-
+/// **An arc's closed forms over a [`geom::Circle`]**: the piece meters
+/// above read a circle carrier's own circle ([`Curve3::as_circle`]), and
+/// their ellipse arm the unit circle of the ellipse's frame.
+trait ArcReads<T: Real> {
     /// **The angle of the circle point `q` past parameter `t`**, read
     /// in `(0, τ]` — the branch `Curve3::param_near` takes anchored
     /// half a turn past `t`, where a full turn is `q` at `t` itself.
-    fn past(self, t: T, q: Point3<T>) -> T {
-        let (w, radial) = (q - self.center, self.at(t + T::pi()) - self.center);
-        T::pi() + w.dot(self.axis.cross(radial)).atan2(w.dot(radial))
-    }
+    fn arc_past(&self, t: T, q: Point3<T>) -> T;
+    /// Whether the arc over `(ta, tb)` certainly misses the circle point
+    /// `q` (its impl's docs).
+    fn arc_misses(&self, window: (T, T), q: Point3<T>) -> bool;
+    /// How near and how far the arc over `(ta, tb)` comes to `c`.
+    fn arc_distance(&self, window: (T, T), c: Point3<T>) -> (T, T);
+    /// How low and how high the arc over `(ta, tb)` reaches along `u`
+    /// from `c`.
+    fn arc_along(&self, window: (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T);
 }
 
-impl<T: Bounds> CircleFrame<T> {
+impl<T: Bounds> ArcReads<T> for geom::Circle<T> {
     /// **Whether the arc over `(ta, tb)` certainly misses the circle
-    /// point `q`**: `q`'s angle past `ta` ([`Self::past`], read in
+    /// point `q`**: `q`'s angle past `ta` ([`ArcReads::arc_past`], read in
     /// `(0, τ]` with its branch cut on the window's start) certainly
     /// lies outside the window `[0, tb − ta]` relative to that start —
     /// asked of [`geom::periodic_window_may_hold`]. In that frame the
@@ -2705,23 +2665,14 @@ impl<T: Bounds> CircleFrame<T> {
     ///   The branch is locally constant everywhere off the switch, and
     ///   on it the choice moves no tangent — what the locally-constant
     ///   condition of DL5(b) exists to guarantee.
-    fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
-        Self::past_misses(self.past(ta, q), (ta, tb))
+    fn arc_misses(&self, (ta, tb): (T, T), q: Point3<T>) -> bool {
+        past_misses(self.arc_past(ta, q), (ta, tb))
     }
 
-    /// [`Self::misses`] on the angle `past` already read: whether it
-    /// certainly lies outside `[0, tb − ta]` and short of a whole turn,
-    /// for a `past` bracket within `[0, τ]` — the range [`Self::past`]
-    /// reads, up to its own rounding at either end. On that domain the
-    /// home's first translate is `past` itself, and the answer is
-    /// exactly `past.lo > (tb − ta).hi` and `past.hi < τ`; outside it
-    /// a further translate is tried, which is no reading `past` gives.
-    fn past_misses(past: T, (ta, tb): (T, T)) -> bool {
-        !geom::periodic_window_may_hold(
-            (past.lo(), past.hi()),
-            (0.0, (tb - ta).hi()),
-            core::f64::consts::TAU,
-        )
+    fn arc_past(&self, t: T, q: Point3<T>) -> T {
+        let o = self.frame.origin;
+        let (w, radial) = (q - o, self.point_at(t + T::pi()) - o);
+        T::pi() + w.dot(self.frame.axis.cross(radial)).atan2(w.dot(radial))
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
@@ -2729,21 +2680,23 @@ impl<T: Bounds> CircleFrame<T> {
     /// nearest `c` alone, growing monotonically to that point's
     /// antipode, so each extreme is at an end unless the arc holds the
     /// point that realises it, where it is the whole circle's —
-    /// [`Self::misses`]' selection.
+    /// [`Self::arc_misses`]' selection.
     ///
     /// With `c` on the axis every point of the circle is both nearest
     /// and farthest, and the whole circle's values are the answer. That
     /// bracket read guards the division by `ρ` below, and what it
     /// selects is the whole circle's pair, which bounds the arc's
-    /// wherever `c` is — the side [`Self::misses`] falls back to. A
+    /// wherever `c` is — the side [`Self::arc_misses`] falls back to. A
     /// point scalar takes it only at `ρ` exactly zero, where the ends'
     /// values equal the whole circle's.
-    fn distance(self, (ta, tb): (T, T), c: Point3<T>) -> (T, T) {
-        let (da, db) = ((self.at(ta) - c).norm(), (self.at(tb) - c).norm());
-        let (o, radius) = (self.center, self.radius);
-        let w = c - o;
-        let h = w.dot(self.axis);
-        let plane = w - self.axis * h;
+    fn arc_distance(&self, (ta, tb): (T, T), c: Point3<T>) -> (T, T) {
+        let (da, db) = (
+            (self.point_at(ta) - c).norm(),
+            (self.point_at(tb) - c).norm(),
+        );
+        let (o, radius) = (self.frame.origin, self.radius);
+        let h = self.frame.height(c);
+        let plane = self.frame.axis_line().offset(c);
         let rho = plane.norm();
         let whole_near = (h.powi(2) + (rho - radius).powi(2)).sqrt();
         let whole_far = (h.powi(2) + (rho + radius).powi(2)).sqrt();
@@ -2751,12 +2704,12 @@ impl<T: Bounds> CircleFrame<T> {
             return (whole_near, whole_far);
         }
         let toward = plane * (radius / rho);
-        let near = if self.misses((ta, tb), o + toward) {
+        let near = if self.arc_misses((ta, tb), o + toward) {
             da.min(db)
         } else {
             whole_near
         };
-        let far = if self.misses((ta, tb), o - toward) {
+        let far = if self.arc_misses((ta, tb), o - toward) {
             da.max(db)
         } else {
             whole_far
@@ -2768,35 +2721,53 @@ impl<T: Bounds> CircleFrame<T> {
     /// the unit direction `u` from `c`**. The linear function is one of
     /// the angle from the point farthest along `u` alone, so each
     /// extreme is at an end unless the arc holds that point (for
-    /// `high`) or its antipode (for `low`) — [`Self::misses`]'
+    /// `high`) or its antipode (for `low`) — [`Self::arc_misses`]'
     /// selection. With `u` along the axis the function is constant on
     /// the circle, and the whole circle's pair is the answer: the same
-    /// guard as [`Self::distance`]'s on-axis read, selecting the pair
+    /// guard as [`Self::arc_distance`]'s on-axis read, selecting the pair
     /// that bounds the arc's wherever `u` points, and taken by a point
     /// scalar only where the two pairs are equal.
-    pub(super) fn along(self, (ta, tb): (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T) {
-        let (la, lb) = ((self.at(ta) - c).dot(u), (self.at(tb) - c).dot(u));
-        let (o, radius) = (self.center, self.radius);
+    fn arc_along(&self, (ta, tb): (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T) {
+        let (la, lb) = (
+            (self.point_at(ta) - c).dot(u),
+            (self.point_at(tb) - c).dot(u),
+        );
+        let (o, radius) = (self.frame.origin, self.radius);
         let mid = (o - c).dot(u);
-        let plane = u - self.axis * u.dot(self.axis);
+        let plane = u - self.frame.axis * u.dot(self.frame.axis);
         let nu = plane.norm();
         let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
         if nu.lo() <= 0.0 {
             return (whole_low, whole_high);
         }
         let toward = plane * (radius / nu);
-        let low = if self.misses((ta, tb), o - toward) {
+        let low = if self.arc_misses((ta, tb), o - toward) {
             la.min(lb)
         } else {
             whole_low
         };
-        let high = if self.misses((ta, tb), o + toward) {
+        let high = if self.arc_misses((ta, tb), o + toward) {
             la.max(lb)
         } else {
             whole_high
         };
         (low, high)
     }
+}
+
+/// [`ArcReads::arc_misses`] on the angle `past` already read: whether it
+/// certainly lies outside `[0, tb − ta]` and short of a whole turn,
+/// for a `past` bracket within `[0, τ]` — the range [`ArcReads::arc_past`]
+/// reads, up to its own rounding at either end. On that domain the
+/// home's first translate is `past` itself, and the answer is
+/// exactly `past.lo > (tb − ta).hi` and `past.hi < τ`; outside it
+/// a further translate is tried, which is no reading `past` gives.
+fn past_misses<T: Bounds>(past: T, (ta, tb): (T, T)) -> bool {
+    !geom::periodic_window_may_hold(
+        (past.lo(), past.hi()),
+        (0.0, (tb - ta).hi()),
+        core::f64::consts::TAU,
+    )
 }
 
 /// The test-support door to [`ring_clearance`]: the same function, made
@@ -3250,7 +3221,7 @@ fn strip_clearance<T: Decide + Bounds>(
 /// reading brackets only where [`ring_clearance`] and the piece meters
 /// already do, plus one selection — which side of the trim the rim
 /// lies on — that is definite by a setback (DL5(b), as
-/// [`CircleFrame::misses`]' selection).
+/// [`ArcReads::arc_misses`]' selection).
 fn support_boundary_clearance<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
@@ -3275,7 +3246,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         seen.push(face);
         let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
         let (rim_carrier, _) = stored_piece(body, l.edge)?;
-        let Some(rim_frame) = CircleFrame::of(rim_carrier) else {
+        let Some(rim_circle) = rim_carrier.as_circle() else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(l.edge),
                 "a closed rim's arc is not a circle",
@@ -3289,7 +3260,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         let direction = match body.get_surface(fd.surface) {
             Some(Surface::Plane { .. }) => None,
             Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
-                Some(rim_frame.axis)
+                Some(rim_circle.frame.axis)
             }
             Some(_) => {
                 return Err(unbuilt_geometry(
@@ -3316,8 +3287,8 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         // The rim's own value: its radius on a plane (coplanar and
         // coaxial with the trim), its height along the axis on a wall.
         let (at_trim, rim_at) = match direction {
-            None => (si, rim_frame.radius),
-            Some(u) => (T::zero(), (rim_frame.center - ci).dot(u)),
+            None => (si, rim_circle.radius),
+            Some(u) => (T::zero(), (rim_circle.frame.origin - ci).dot(u)),
         };
         // The rim lies one setback off the trim, so this bracket read is
         // definite wherever the trim exists; it selects which end of an
@@ -6162,7 +6133,7 @@ mod tests {
         );
     }
 
-    /// **`CircleFrame::misses` is the bracket read it always was**: the
+    /// **`ArcReads::arc_misses` is the bracket read it always was**: the
     /// window's start enters only through the window's width, so the
     /// answer is exactly `(past − (tb − ta)).lo() > 0` and
     /// `(τ − past).lo() > 0`, at `f64` and at the interval scalar —
@@ -6172,7 +6143,7 @@ mod tests {
     /// angle).
     #[test]
     fn misses_is_the_relative_bracket_read() {
-        use super::CircleFrame;
+        use super::past_misses;
         use geom_core::{Bounds, Interval, Real};
         // The former predicate, the oracle every assertion below reads.
         fn old_misses<T: Bounds>(past: T, (ta, tb): (T, T)) -> bool {
@@ -6182,17 +6153,17 @@ mod tests {
         // The far window start with the point at it: `past` a whole
         // turn, which the arc holds.
         let (ta, tb) = (1e6, 1e6 + 2.0);
-        assert!(!CircleFrame::<f64>::past_misses(tau, (ta, tb)));
+        assert!(!past_misses::<f64>(tau, (ta, tb)));
         assert!(!old_misses(tau, (ta, tb)));
         let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
-        assert!(!CircleFrame::past_misses(Interval::tau(), (tai, tbi)));
+        assert!(!past_misses(Interval::tau(), (tai, tbi)));
         // The domain's ends, sharp and bracketed, against the oracle: a
         // whole turn, a hair short of it, zero and a hair past it.
         for w in [0.0, 1e-300, 2.0, tau.next_down(), tau] {
             let (ta, tb) = (1e6, 1e6 + w);
             for past in [0.0, 1e-300, tau.next_down(), tau] {
                 assert_eq!(
-                    CircleFrame::<f64>::past_misses(past, (ta, tb)),
+                    past_misses::<f64>(past, (ta, tb)),
                     old_misses(past, (ta, tb)),
                     "width {w}, past {past}"
                 );
@@ -6205,7 +6176,7 @@ mod tests {
                 Interval::tau(),
             ] {
                 assert_eq!(
-                    CircleFrame::past_misses(pi, (tai, tbi)),
+                    past_misses(pi, (tai, tbi)),
                     old_misses(pi, (tai, tbi)),
                     "width {w}, past {pi:?}"
                 );
@@ -6229,7 +6200,7 @@ mod tests {
             };
             let tb = ta + w;
             assert_eq!(
-                CircleFrame::<f64>::past_misses(past, (ta, tb)),
+                past_misses::<f64>(past, (ta, tb)),
                 old_misses(past, (ta, tb)),
                 "ta {ta}, tb {tb}, past {past}"
             );
@@ -6238,7 +6209,7 @@ mod tests {
             let tbi = tai + Interval::from_f64(w);
             let pi = Interval::from_bounds(past, past + next() * 1e-3);
             assert_eq!(
-                CircleFrame::past_misses(pi, (tai, tbi)),
+                past_misses(pi, (tai, tbi)),
                 old_misses(pi, (tai, tbi)),
                 "ta {ta} ±{wide}, width {w}, past {past}"
             );
