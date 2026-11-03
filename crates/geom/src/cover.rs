@@ -622,6 +622,59 @@ impl<T: Real> Cover<T> {
     pub fn ball(&self) -> (Point3<T>, T) {
         self.0.ball()
     }
+
+    /// **The nearest and farthest the region stands from a circle**: the
+    /// circle of radius `radius` about `center` in the plane normal to
+    /// `axis`, which need not be unit. A point `ρ` from the axis line and
+    /// `t` along it stands `√((ρ − R)² + t²)` from the circle, so any
+    /// region is bounded through its distance range from the axis line
+    /// and its support along the axis; a tube about a spine is bounded
+    /// through its spine's, within its minor radius.
+    pub fn circle_range(&self, center: Point3<T>, axis: Vec3<T>, radius: T) -> (T, T) {
+        self.0.circle_range(&Core {
+            center,
+            axis,
+            radius,
+        })
+    }
+}
+
+/// A circle a distance is read from ([`Cover::circle_range`]).
+struct Core<T: Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+}
+
+impl<T: Real> Core<T> {
+    /// The circle's distance range over a region read through its range
+    /// from the axis line (`line`) and its support (`support`).
+    fn through(&self, line: impl Fn(&Site<T>) -> (T, T), support: impl Fn(Vec3<T>) -> T) -> (T, T) {
+        let (near, far) = line(&Site::Line(Line {
+            origin: self.center,
+            dir: self.axis,
+        }));
+        let a = self.axis / self.axis.norm();
+        let base = vec_of(self.center).dot(a);
+        let (below, above) = (T::zero() - support(-a) - base, support(a) - base);
+        let r = self.radius;
+        let outside = |x: T, lo: T, hi: T| (lo - x).max(x - hi).max(T::zero());
+        let radial = (near - r).abs().max((far - r).abs());
+        let height = below.abs().max(above.abs());
+        (
+            (outside(r, near, far).powi(2) + outside(T::zero(), below, above).powi(2)).sqrt(),
+            (radial.powi(2) + height.powi(2)).sqrt(),
+        )
+    }
+
+    /// The exact distance of a point from the circle.
+    fn offset(&self, p: Point3<T>) -> T {
+        let a = self.axis / self.axis.norm();
+        let w = p - self.center;
+        let t = w.dot(a);
+        let rho = off_line(w, a).norm();
+        ((rho - self.radius).powi(2) + t.powi(2)).sqrt()
+    }
 }
 
 impl<T: Bounds> Cover<T> {
@@ -707,6 +760,25 @@ impl<T: Real> Node<T> {
     }
 }
 
+impl<T: Real> Node<T> {
+    fn circle_range(&self, core: &Core<T>) -> (T, T) {
+        match self {
+            Node::Piece(p) => p.circle_range(core),
+            Node::Meet(both) => {
+                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
+                (n0.max(n1), f0.min(f1))
+            }
+            Node::Hull(both) => {
+                let ((n0, f0), (n1, f1)) = (both[0].circle_range(core), both[1].circle_range(core));
+                (n0.min(n1), f0.max(f1))
+            }
+            // A circle's distance is not convex, so the hull is read
+            // whole.
+            Node::Convex(_) => core.through(|site| self.distance_range(site), |e| self.support(e)),
+        }
+    }
+}
+
 impl<T: Real> Tube<T> {
     fn new(center: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>, major: T, minor: T) -> Option<Self> {
         (finite_point(center) && finite_vec(axis) && finite_vec(u_ref) && finite(&[major, minor]))
@@ -756,18 +828,31 @@ impl<T: Real> Tube<T> {
         (self.center, r)
     }
 
-    /// The spine circle's range ([`Arc::range`], which holds any frame),
-    /// less and plus the longest tube offset.
-    fn range(&self, site: &Site<T>) -> (T, T) {
-        let spine = Arc {
+    /// The spine circle's range from a circle, read through the spine
+    /// alone ([`Core::through`]), less and plus the longest tube offset.
+    fn circle_range(&self, core: &Core<T>) -> (T, T) {
+        let spine = self.spine();
+        let (near, far) = core.through(|site| spine.range(site), |e| spine.support(e));
+        let tube = self.minor * self.reaches().1;
+        ((near - tube).max(T::zero()), far + tube)
+    }
+
+    /// The spine circle, whole.
+    fn spine(&self) -> Arc<T> {
+        Arc {
             center: self.center,
             u_ref: self.u_ref,
             v_ref: self.v_ref,
             semi_u: self.major,
             semi_v: self.major,
             window: ParamWindow::new(T::zero(), T::tau()),
-        };
-        let (near, far) = spine.range(site);
+        }
+    }
+
+    /// The spine circle's range ([`Arc::range`], which holds any frame),
+    /// less and plus the longest tube offset.
+    fn range(&self, site: &Site<T>) -> (T, T) {
+        let (near, far) = self.spine().range(site);
         let tube = self.minor * self.reaches().1;
         ((near - tube).max(T::zero()), far + tube)
     }
@@ -1048,6 +1133,25 @@ impl<T: Real> Piece<T> {
                 };
                 (near, far)
             }
+        }
+    }
+
+    fn circle_range(&self, core: &Core<T>) -> (T, T) {
+        let whole = || core.through(|site| self.distance_range(site), |e| self.support(e));
+        match self {
+            Piece::Points(points) => {
+                let d0 = core.offset(points[0]);
+                points[1..].iter().fold((d0, d0), |(near, far), &p| {
+                    let d = core.offset(p);
+                    (near.min(d), far.max(d))
+                })
+            }
+            Piece::Tube(tube) => tube.circle_range(core),
+            Piece::Patch(patch) => {
+                let ((n0, f0), (n1, f1)) = (patch.tube.circle_range(core), whole());
+                (n0.max(n1), f0.min(f1))
+            }
+            _ => whole(),
         }
     }
 
