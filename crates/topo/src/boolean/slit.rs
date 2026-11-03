@@ -1391,7 +1391,7 @@ mod torus_rows {
     ) -> geom::Curve3<f64> {
         geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

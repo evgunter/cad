@@ -243,7 +243,7 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
     assert!((minor_radius - r).abs() < 1e-15);
     assert!((b.spine_curvature - 1.0 / s).abs() < 1e-12);
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: ca, .. },
+        frame: geom::Frame { origin: ca, .. },
         radius: ra,
     }) = b.trim_a.0
     else {
@@ -255,7 +255,7 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         "the plane-side setback is s − a"
     );
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: cb, .. },
+        frame: geom::Frame { origin: cb, .. },
         radius: rb,
     }) = b.trim_b.0
     else {
@@ -312,7 +312,7 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         "the spine is a ring torus, which is what #889's net also checks at rest"
     );
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: ca, .. },
+        frame: geom::Frame { origin: ca, .. },
         radius: ra,
     }) = b.trim_a.0
     else {
@@ -324,7 +324,7 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         "the plane-side setback is a − s: the flat face SHRINKS"
     );
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: cb, .. },
+        frame: geom::Frame { origin: cb, .. },
         radius: rb,
     }) = b.trim_b.0
     else {

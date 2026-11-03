@@ -743,7 +743,7 @@ fn m10_9_what_the_registry_buys() {
 /// 3294 → 3453; the fidelity channels' norm and the retired `Tilt` and
 /// `Orientation` slots move nothing here, and every decision column
 /// holds. The pcurve envelope's orthonormal chart squaring its frame by
-/// cross products (`geom::square_frame`) builds its frame terms in
+/// cross products (`geom::Frame::square`) builds its frame terms in
 /// another form: frozen 3453 → 3426, every decision column held.
 /// An edge's wedge levered at its faces' extent (`topo::wedge_reach`)
 /// where it was levered at the edge's own chord reads each certified

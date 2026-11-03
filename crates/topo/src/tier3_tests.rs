@@ -1036,7 +1036,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let circle = |center, axis, radius, u_ref| {
         Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },
@@ -2080,7 +2080,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
             (
                 geom::Curve3::Circle(geom::Circle {
                     frame: geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },

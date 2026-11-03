@@ -704,7 +704,7 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
         Curve3::Line(_) => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         // The reach is the larger semi-axis, whichever is stored first.
         Curve3::Circle(_) | Curve3::Ellipse(_) => {
-            c.conic().map(|k| from(k.frame().center) + k.speed_hi())
+            c.conic().map(|k| from(k.frame().origin) + k.speed_hi())
         }
         // Every point of the spiric lies on its torus, within `R + r` of
         // the torus centre.

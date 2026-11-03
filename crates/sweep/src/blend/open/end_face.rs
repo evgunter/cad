@@ -401,7 +401,7 @@ impl<T: Bounds> SectionFrame<T> {
                 .scaled(origin + dir * ta - center)
                 .max(self.scaled(origin + dir * tb - center)),
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                Some(k) => self.scaled(k.frame().center - center) + k.speed_hi() / self.minor(),
+                Some(k) => self.scaled(k.frame().origin - center) + k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
@@ -429,7 +429,7 @@ impl<T: Bounds> SectionFrame<T> {
                 ((a.0 + ex * s).powi(2) + (a.1 + ey * s).powi(2)).sqrt()
             }
             Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                Some(k) => self.scaled(k.frame().center - center) - k.speed_hi() / self.minor(),
+                Some(k) => self.scaled(k.frame().origin - center) - k.speed_hi() / self.minor(),
                 None => unreachable!("a circle or an ellipse is a conic"),
             },
             Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
@@ -612,7 +612,7 @@ impl<T: Bounds> CapSliver<T> {
 fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
-            .map(|k| (k.frame().center, k.speed_hi(), k.speed_lo()))
+            .map(|k| (k.frame().origin, k.speed_hi(), k.speed_lo()))
     };
     let about = |(o, outer, inner): (Point3<T>, T, T), (carrier, window): Piece<'_, T>| {
         let (near, far) = piece_distance(carrier, window, o)?;
@@ -844,14 +844,14 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     Curve3::Circle(geom::Circle {
                         frame:
                             geom::Frame {
-                                center,
+                                origin: center,
                                 axis,
                                 u_ref,
                             },
                         radius,
                     }) => (center, axis, radius, radius, u_ref),
                     ref ellipse @ Curve3::Ellipse(geom::Ellipse {
-                        frame: geom::Frame { center, axis, .. },
+                        frame: geom::Frame { origin: center, axis, .. },
                         ..
                     }) => {
                         let Some(f) = ellipse.major_frame() else {

@@ -491,7 +491,7 @@ fn map_carrier<T: Real>(
 ) -> Result<Curve3<T>, TransformError> {
     let frame = |f: &geom::Frame<T>| {
         geom::Frame::new(
-            map.transform_point(f.center),
+            map.transform_point(f.origin),
             hand.axial(map, f.axis),
             map_vec(map, f.u_ref),
         )

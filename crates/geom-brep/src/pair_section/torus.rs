@@ -331,7 +331,7 @@ impl<T: Real> Ring<T> {
             self.center + self.axis * z,
             self.axis,
             rho,
-            geom::square_frame(self.axis, self.u_ref).u_ref,
+            geom::Frame::new(self.center, self.axis, self.u_ref).square().u_ref,
         )
     }
 }

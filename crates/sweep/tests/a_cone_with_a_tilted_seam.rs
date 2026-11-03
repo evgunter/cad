@@ -2,7 +2,7 @@
 //! booleans.** Nothing margins a cone's frame at rest
 //! (`Surface::representability_margins`), so a cone face may carry a
 //! `u_ref` tilted `τ` off square to its axis. The section arms square
-//! the seam (`geom::square_frame`), so their circles and lines lie on
+//! the seam (`geom::Frame::square`), so their circles and lines lie on
 //! the implicit cone and its partner; the face's own chart
 //! (`Surface::eval`) reads the seam as stored and stands up to `R·τ`
 //! off both. Each pose either builds the true body (tier 3 and the

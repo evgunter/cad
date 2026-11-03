@@ -30,8 +30,9 @@ pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
     pub margin: T,
 }
 
-/// **A stored frame squared**: the unit axis along a stored `axis` of
-/// any length, and the unit seam square to it toward a stored `u_ref`.
+/// **A stored frame squared** ([`crate::Frame::square`]): the unit axis
+/// along a stored `axis` of any length, and the unit seam square to it
+/// toward a stored `u_ref`.
 /// The one home for a reader that needs the orthonormal frame a datum
 /// is only by convention (nothing margins a cone's frame at rest).
 ///
@@ -62,19 +63,6 @@ pub struct SquareFrame<T: Real> {
     pub u_ref: Vec3<T>,
     /// The sine of the stored seam's angle off the axis.
     pub width: T,
-}
-
-/// [`SquareFrame`] of a stored `axis` and `u_ref`.
-#[must_use]
-pub fn square_frame<T: Real>(axis: Vec3<T>, u_ref: Vec3<T>) -> SquareFrame<T> {
-    let axis = axis / axis.norm();
-    let across = axis.cross(u_ref.cross(axis));
-    let len = across.norm();
-    SquareFrame {
-        axis,
-        u_ref: across / len,
-        width: len / u_ref.norm(),
-    }
 }
 
 /// Which quantity of a datum a convention constrains — the refusal's

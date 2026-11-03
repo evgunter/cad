@@ -169,7 +169,7 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         .clone();
     let Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

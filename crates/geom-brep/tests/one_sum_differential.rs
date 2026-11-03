@@ -92,7 +92,7 @@ fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

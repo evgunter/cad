@@ -1119,7 +1119,7 @@ impl<T: Decide> Sweep<T> {
             let Some(conic) = curve.carrier().conic() else {
                 continue;
             };
-            let (c_e, axis_e) = (conic.frame().center, conic.frame().axis);
+            let (c_e, axis_e) = (conic.frame().origin, conic.frame().axis);
             let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;

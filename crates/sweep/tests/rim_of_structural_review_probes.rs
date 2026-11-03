@@ -69,7 +69,7 @@ fn circle(body: &Body<f64>, k: EdgeKey) -> Option<(Vec3<f64>, f64, Vec3<f64>)> {
     let e = body.get_edge(k)?;
     match body.get_curve_geom(e.curve)?.certified()?.carrier() {
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame: geom::Frame { origin: center, axis, .. },
             radius,
         }) => Some((
             Vec3::new(center.x, center.y, center.z),

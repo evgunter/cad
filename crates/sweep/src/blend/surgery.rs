@@ -2333,7 +2333,7 @@ fn rim_trim_circles<T: Real>(
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
     let ((first_trim, _), (other_trim, _)) = blend.trims(first_is_a);
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: pc, .. },
+        frame: geom::Frame { origin: pc, .. },
         radius: pr,
     }) = *first_trim
     else {
@@ -2343,7 +2343,7 @@ fn rim_trim_circles<T: Real>(
         ));
     };
     let Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: sc, .. },
+        frame: geom::Frame { origin: sc, .. },
         radius: sr,
     }) = *other_trim
     else {
@@ -2568,7 +2568,7 @@ pub(super) fn piece_distance<T: Bounds>(
             ))
         }
         Curve3::Ellipse(ref e) => {
-            let (d, major) = ((e.frame.center - c).norm(), geom::Conic::speed_hi(e));
+            let (d, major) = ((e.frame.origin - c).norm(), geom::Conic::speed_hi(e));
             Some(((d - major).max(T::zero()), d + major))
         }
         _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
@@ -2601,15 +2601,15 @@ pub(super) fn piece_along<T: Bounds>(
         Curve3::Ellipse(ref e) => {
             let f = e.frame;
             let unit = CircleFrame {
-                center: f.center,
+                center: f.origin,
                 axis: f.axis,
                 radius: T::one(),
                 u_ref: f.u_ref,
             };
             let (p, q) = geom::Conic::along(e, u);
             let lifted = f.u_ref * p + f.v_ref() * q;
-            let (low, high) = unit.along((ta, tb), f.center, lifted);
-            let mid = (f.center - c).dot(u);
+            let (low, high) = unit.along((ta, tb), f.origin, lifted);
+            let mid = (f.origin - c).dot(u);
             Some((mid + low, mid + high))
         }
         _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
@@ -2635,7 +2635,7 @@ impl<T: Real> CircleFrame<T> {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },

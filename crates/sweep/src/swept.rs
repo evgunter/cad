@@ -657,7 +657,7 @@ fn register_placed_carrier_end<T: Real>(
 ) {
     let Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -1712,7 +1712,7 @@ mod tests {
             let Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },

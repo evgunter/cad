@@ -2366,7 +2366,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2375,7 +2375,7 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -4565,11 +4565,11 @@ fn plane_through(
     if let [(i, _)] = near.edges.as_slice()
         && let Some((
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame: geom::Frame { origin: center, axis, .. },
                 ..
             })
             | Curve3::Ellipse(geom::Ellipse {
-                frame: geom::Frame { center, axis, .. },
+                frame: geom::Frame { origin: center, axis, .. },
                 ..
             }),
             _,

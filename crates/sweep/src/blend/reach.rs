@@ -834,7 +834,7 @@ fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match *curve {
         Curve3::Line(line) => Some(line.foot(p)),
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame: geom::Frame { origin: center, axis, .. },
             radius,
         }) => {
             let a = axis.normalize();
@@ -1804,7 +1804,7 @@ fn sheet_clip<T: Decide + Bounds>(
                 .max((z1 - zc).abs());
             let (d_theta, e_theta, e_j, z_e) = match *carrier {
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
+                    frame: geom::Frame { origin: center, axis, .. },
                     radius,
                 }) => {
                     let ax = axis.normalize();

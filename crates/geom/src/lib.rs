@@ -149,6 +149,7 @@ mod convention;
 pub mod cover;
 pub mod curves;
 mod datum;
+mod frame;
 mod memo;
 mod net;
 mod param;
@@ -166,19 +167,20 @@ pub mod test_support;
 pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Window};
 pub use chart_point::{ChartArm, ChartInverse, ChartPoint, NoClosedInverse};
 pub use convention::{
-    ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame, square_frame,
+    ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame,
 };
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3, CurveData,
     CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid, FIT_REMOVAL_BUDGET,
-    FitError, FitOutcome, Foot, Frame, Line, MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier,
+    FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier,
     PieceRead, PieceStep, Projection2, Projection3, ProjectionInconclusive, RefitSkip, SeamSide,
     SpiricInvalid, compose_chain, ellipse_level_clearance, on_span_branch, spiric_curvature_sup,
     spiric_f_range, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds,
     spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
+pub use frame::Frame;
 pub use param::mid_param;
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for

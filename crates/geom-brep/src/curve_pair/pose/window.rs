@@ -485,14 +485,14 @@ mod rows {
         let lever = ka.speed_hi().max(kb.speed_hi());
         let o = Point3::origin();
         let noise = geom_core::rounding_charge(
-            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
+            (ka.frame().origin - o).norm() + (kb.frame().origin - o).norm() + lever + lever,
         );
         let w = Window {
             a: &ka,
             span_a,
             b: &kb,
             carrier_b: b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             noise,
         };
         let j = Joint {
@@ -706,7 +706,7 @@ mod rows {
             span_a: (-1.0, 1.0),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             noise: 0.0,
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
@@ -850,14 +850,14 @@ mod rows {
         let lever = ka.speed_hi().max(kb.speed_hi());
         let o = Point3::origin();
         let noise = geom_core::rounding_charge(
-            (ka.frame().center - o).norm() + (kb.frame().center - o).norm() + lever + lever,
+            (ka.frame().origin - o).norm() + (kb.frame().origin - o).norm() + lever + lever,
         );
         let w = Window {
             a: &ka,
             span_a: (-0.5, 0.5),
             b: &kb,
             carrier_b: b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             noise,
         };
         let j = Joint {
@@ -917,7 +917,7 @@ mod rows {
             span_a: (-0.5, 0.5),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             noise: 0.0,
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
@@ -974,7 +974,7 @@ mod rows {
             span_a: (399.0, 401.0),
             b: &kb,
             carrier_b: &b,
-            height: super::super::height(&ka, kb.frame().center, kb.frame().axis),
+            height: super::super::height(&ka, kb.frame().origin, kb.frame().axis),
             noise: 0.0,
         };
         let mut l = 400.0_f64;

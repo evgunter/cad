@@ -176,7 +176,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .expect("a certified arc");
             let Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center, axis: ax, ..
+                    origin: center, axis: ax, ..
                 },
                 radius: rr,
             }) = *c.carrier()
@@ -514,7 +514,7 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                     .expect("a certified end curve");
                 match *c.carrier() {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     }) => {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
@@ -661,7 +661,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .clone();
     let Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

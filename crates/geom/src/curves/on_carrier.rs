@@ -394,13 +394,13 @@ impl<T: Decide> Curve3<T> {
                 (w - u * w.dot(u)).norm()
             }
             Self::Circle(c) => {
-                let (h, rho) = height_and_radius(q - c.frame.center, c.frame.axis);
+                let (h, rho) = height_and_radius(q - c.frame.origin, c.frame.axis);
                 (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
                 let lower =
                     ellipse_level_clearance(e.frame.in_plane(q), (e.semi_u, e.semi_v)).abs();
-                (lower.powi(2) + (q - e.frame.center).dot(e.frame.axis).powi(2)).sqrt()
+                (lower.powi(2) + (q - e.frame.origin).dot(e.frame.axis).powi(2)).sqrt()
             }
             Self::Spiric {
                 center,

@@ -1566,7 +1566,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 unreachable!("a circle or an ellipse")
             };
             let (major, minor) = (conic.speed_hi(), conic.speed_lo());
-            let geom::Frame { center, axis, .. } = *conic.frame();
+            let geom::Frame { origin: center, axis, .. } = *conic.frame();
             let n = axis / axis.norm();
             let w = q - center;
             let height = w.dot(n);
@@ -1927,7 +1927,7 @@ fn certify_plane<T: Decide>(
             None | Some(geom::Curve3::Line(_)) => {}
             Some(conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
                 if let (Some(k), Some(ball)) = (conic.conic(), ExtentBall::of_conic(conic)) {
-                    margins.extend([off(k.frame().center), tilt(k.frame().axis, ball.lever())]);
+                    margins.extend([off(k.frame().origin), tilt(k.frame().axis, ball.lever())]);
                 }
             }
             Some(&geom::Curve3::Spiric {
@@ -2440,7 +2440,7 @@ mod tests {
         // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center: Point3::new(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },

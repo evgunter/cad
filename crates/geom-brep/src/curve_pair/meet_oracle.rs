@@ -356,7 +356,7 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

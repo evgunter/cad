@@ -5980,7 +5980,7 @@ pub(crate) mod tests {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -5989,7 +5989,7 @@ pub(crate) mod tests {
             Curve3::Ellipse(geom::Ellipse {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -6695,7 +6695,7 @@ pub(crate) mod sphere_rect_rows {
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
             let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, axis, .. },
+                frame: geom::Frame { origin: center, axis, .. },
                 ..
             }) = carrier
             else {
@@ -6943,7 +6943,7 @@ pub(crate) mod sphere_rect_rows {
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
                 let Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, axis, .. },
+                    frame: geom::Frame { origin: center, axis, .. },
                     ..
                 }) = carrier
                 else {

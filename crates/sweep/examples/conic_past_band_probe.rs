@@ -175,7 +175,7 @@ fn arcs(e: &Curve3<f64>, coord: impl Fn(Point3<f64>) -> f64, lo: f64, hi: f64) -
     let tau = core::f64::consts::TAU;
     let Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -292,7 +292,7 @@ fn read(
         },
         &Curve3::Ellipse(geom::Ellipse {
             frame: geom::Frame {
-                u_ref: e_u, center, ..
+                u_ref: e_u, origin: center, ..
             },
             semi_u,
             ..

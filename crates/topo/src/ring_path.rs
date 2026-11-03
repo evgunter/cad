@@ -803,7 +803,7 @@ impl<T: Decide> LoopArc<T> {
     fn plane(&self) -> Option<SectionArc<T>> {
         match self {
             Self::Conic(c) => Some(SectionArc {
-                origin: c.conic().frame().center,
+                origin: c.conic().frame().origin,
                 normal: c.conic().frame().axis,
                 span: c.span,
                 speed: c.conic().speed_lo(),
@@ -950,7 +950,7 @@ impl<T: Real> LoopSplit<T> {
             geom_brep::PlaneTorusSection::MeridianCircles {
                 c1:
                     geom::Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         ..
                     }),
                 ..
@@ -1077,7 +1077,7 @@ impl<T: Decide> Quadric<T> {
             },
             geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center: k, axis: n, ..
+                    origin: k, axis: n, ..
                 },
                 radius,
             }),
@@ -1091,7 +1091,7 @@ impl<T: Decide> Quadric<T> {
         };
         let (
             geom::Frame {
-                center: c,
+                origin: c,
                 axis: a,
                 u_ref,
             },
@@ -1634,7 +1634,7 @@ impl<T: Decide> ConicArc<T> {
         let s = geom::on_span_branch(wv.atan2(wu), self.span);
         let s = s.max(self.span.0).min(self.span.1);
         let (sn, cs) = s.sin_cos();
-        let nearest = f.center + (f.u_ref * cs + f.v_ref() * sn) * b;
+        let nearest = f.origin + (f.u_ref * cs + f.v_ref() * sn) * b;
         (x - nearest).norm() - (a - b).abs()
     }
 }
@@ -1706,8 +1706,8 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     }
     for arc in arcs {
         match arc {
-            LoopArc::Conic(c) => points.push(c.conic().frame().center),
-            LoopArc::Crest { circle, .. } => points.push(circle.frame.center),
+            LoopArc::Conic(c) => points.push(c.conic().frame().origin),
+            LoopArc::Crest { circle, .. } => points.push(circle.frame.origin),
             LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
             LoopArc::Line { origin, .. } => points.push(*origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
@@ -1769,7 +1769,7 @@ fn misses_in_plane<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     let conic = arc.conic();
     let (a, b) = conic.semi_axes();
-    let apart = (p.centre - conic.frame().center).norm();
+    let apart = (p.centre - conic.frame().origin).norm();
     let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
     let gap = (apart - p.radius - outer)
         .max(inner - p.radius - apart)
@@ -2499,7 +2499,7 @@ mod tests {
                 panic!("a meridian is a conic");
             };
             let geom::Frame {
-                center: centre,
+                origin: centre,
                 axis,
                 u_ref,
                 ..
@@ -2548,7 +2548,7 @@ mod tests {
                     misses_in_plane(
                         &piece,
                         &conic,
-                        resolution(&[piece.centre, conic.conic().frame().center]),
+                        resolution(&[piece.centre, conic.conic().frame().origin]),
                         band()
                     )
                     .unwrap(),
@@ -2594,7 +2594,7 @@ mod tests {
                 0.0,
             );
             assert!(
-                ((x - conic.conic().frame().center).norm() - f.s).abs() < 1e-6 * f.s
+                ((x - conic.conic().frame().origin).norm() - f.s).abs() < 1e-6 * f.s
                     && ((x - piece.centre).norm() - 2.0 * f.s).abs() < 1e-6 * f.s,
                 "the crossing lies on both circles"
             );
@@ -2607,7 +2607,7 @@ mod tests {
                 !misses_in_plane(
                     &piece,
                     &conic,
-                    resolution(&[piece.centre, conic.conic().frame().center]),
+                    resolution(&[piece.centre, conic.conic().frame().origin]),
                     band()
                 )
                 .unwrap(),
@@ -2683,8 +2683,8 @@ mod tests {
             let tall = conic(0.5, 1.5, (1.0, 2.2));
             let radial = |c: &ConicArc<f64>, s: f64, k: f64| {
                 let p = c.conic().point_at(s);
-                p + (p - c.conic().frame().center)
-                    * (k * f.s / (p - c.conic().frame().center).norm())
+                p + (p - c.conic().frame().origin)
+                    * (k * f.s / (p - c.conic().frame().origin).norm())
             };
             for (what, c, ends, misses) in [
                 (
@@ -2734,7 +2734,7 @@ mod tests {
                     segment_misses(
                         ends,
                         c,
-                        resolution(&[ends.0, ends.1, c.conic().frame().center]),
+                        resolution(&[ends.0, ends.1, c.conic().frame().origin]),
                         band()
                     )
                     .unwrap(),
@@ -2764,7 +2764,7 @@ mod tests {
                             let Ok(true) = segment_misses(
                                 (from, to),
                                 c,
-                                resolution(&[from, to, c.conic().frame().center]),
+                                resolution(&[from, to, c.conic().frame().origin]),
                                 band(),
                             ) else {
                                 continue;
@@ -2822,13 +2822,13 @@ mod tests {
                 misses_in_plane(
                     &piece,
                     &conic,
-                    resolution(&[piece.centre, conic.conic().frame().center]),
+                    resolution(&[piece.centre, conic.conic().frame().origin]),
                     band(),
                 ),
                 segment_misses(
                     lead,
                     &conic,
-                    resolution(&[lead.0, lead.1, conic.conic().frame().center]),
+                    resolution(&[lead.0, lead.1, conic.conic().frame().origin]),
                     band(),
                 ),
             );

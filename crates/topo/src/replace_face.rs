@@ -1105,7 +1105,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: ca,
                         u_ref,
                     },
@@ -1144,7 +1144,7 @@ fn transport_curve<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis: ca,
                             u_ref,
                         },
@@ -1185,7 +1185,7 @@ fn transport_curve<T: Decide>(
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c,
+                        origin: c,
                         axis: ca,
                         u_ref,
                     },
@@ -1271,7 +1271,7 @@ pub(crate) fn translate_curve<T: Real>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -1280,7 +1280,7 @@ pub(crate) fn translate_curve<T: Real>(
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -1324,7 +1324,7 @@ fn homothety<T: Real>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2348,7 +2348,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },
@@ -2364,7 +2364,7 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis: ca,
                     u_ref,
                 },

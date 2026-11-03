@@ -65,7 +65,7 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
 fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
     let &Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -88,7 +88,7 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
 fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
     let &Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -106,7 +106,7 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
     };
     Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -355,7 +355,7 @@ fn read_off_the_sum(
         &Pcurve::FocalSection(focal),
         &Curve3::Ellipse(geom::Ellipse {
             frame: geom::Frame {
-                center, u_ref: e_u, ..
+                origin: center, u_ref: e_u, ..
             },
             semi_u,
             ..
@@ -819,7 +819,7 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     };
     let Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
@@ -887,7 +887,7 @@ fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
         let Curve3::Ellipse(e) = carrier else {
             unreachable!("skew_section answers an ellipse")
         };
-        let center = e.frame.center;
+        let center = e.frame.origin;
         let Surface::Cone { apex, .. } = surface else {
             unreachable!("skew_section answers a cone")
         };

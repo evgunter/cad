@@ -67,6 +67,7 @@ use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
 use crate::datum::{AnalyticData, DatumValue};
+use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -322,6 +323,47 @@ impl<T: Real> Surface<T> {
             Self::Torus { .. } => SurfaceKind::Torus,
             Self::Nurbs(_) => SurfaceKind::Nurbs,
             Self::Approx(_) => SurfaceKind::Approx,
+        }
+    }
+
+    /// **The placement of an analytic surface**: a plane's origin,
+    /// normal and `u` axis, a cylinder's axis point, a cone's apex, a
+    /// sphere's or a torus's centre, each with its axis and seam `u_ref`
+    /// (each variant's docs say what they place). `None` for a net.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match *self {
+            Self::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => Some(Frame::new(origin, normal, u_ref)),
+            Self::Cylinder {
+                origin,
+                axis,
+                u_ref,
+                radius: _,
+            } => Some(Frame::new(origin, axis, u_ref)),
+            Self::Cone {
+                apex,
+                axis,
+                u_ref,
+                half_angle: _,
+            } => Some(Frame::new(apex, axis, u_ref)),
+            Self::Sphere {
+                center,
+                axis,
+                u_ref,
+                radius: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Torus {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Nurbs(_) | Self::Approx(_) => None,
         }
     }
 }

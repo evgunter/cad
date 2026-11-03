@@ -418,7 +418,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -607,7 +607,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 &geom::Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -638,7 +638,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
             }
             (
                 &geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, .. },
+                    frame: geom::Frame { origin: center, .. },
                     radius,
                 }),
                 LegKind::Meridian { radial },
@@ -678,7 +678,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 &geom::Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center,
+                            origin: center,
                             axis,
                             u_ref,
                         },
@@ -1163,7 +1163,7 @@ mod tests {
             cycle: 0,
             carrier: geom::Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

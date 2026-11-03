@@ -137,7 +137,7 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
             let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
                 return false;
             };
-            matches!(c.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z.abs() < 1e-12)
+            matches!(c.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z.abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect();

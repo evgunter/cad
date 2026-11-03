@@ -346,7 +346,7 @@ fn probe_plane_sphere_section_dense_residual() {
     let geom::Curve3::Circle(geom::Circle {
         frame:
             geom::Frame {
-                center: cc,
+                origin: cc,
                 axis: ca,
                 u_ref: cu,
             },

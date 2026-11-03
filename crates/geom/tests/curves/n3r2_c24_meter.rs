@@ -25,7 +25,7 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -34,7 +34,7 @@ fn bench(carrier: &Curve3<f64>, n: u32) -> (f64, f64) {
         Curve3::Ellipse(geom::Ellipse {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

@@ -1872,7 +1872,7 @@ pub fn arc_cap<T: geom_core::Decide + crate::props::AtRestPolicy>(
 ) -> (Body<T>, FaceKey) {
     let Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

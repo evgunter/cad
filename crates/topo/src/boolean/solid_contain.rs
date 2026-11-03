@@ -1407,7 +1407,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     u_ref: u_c,
                 },
@@ -3584,7 +3584,7 @@ fn wall_crosses_by_turn<T: Decide>(
             geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis: normal,
                         ..
                     },

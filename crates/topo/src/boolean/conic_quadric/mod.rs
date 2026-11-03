@@ -213,7 +213,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
             &geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },

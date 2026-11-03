@@ -292,7 +292,7 @@ fn m10r2_set_edge_curve_on_a_split_child() {
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

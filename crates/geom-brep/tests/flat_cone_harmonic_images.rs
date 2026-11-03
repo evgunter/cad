@@ -86,7 +86,7 @@ fn size(carrier: &Curve3<f64>, t1: f64) -> f64 {
     match carrier {
         Curve3::Line(geom::Line { origin, dir }) => (*origin + *dir * t1 - Point3::origin()).norm(),
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             radius,
         }) => (*center - Point3::origin()).norm() + radius,
         _ => unreachable!(),

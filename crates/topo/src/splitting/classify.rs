@@ -503,7 +503,7 @@ pub(crate) fn conic_plane_candidates<T: Decide>(
     band: Band,
 ) -> Result<[Option<T>; 2], ConicPlaneMeet<T>> {
     let geom::Frame {
-        center,
+        origin: center,
         axis,
         u_ref,
     } = *conic.frame();

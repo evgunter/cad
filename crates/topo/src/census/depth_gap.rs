@@ -182,7 +182,7 @@ fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
 /// semi-axes' difference of its major circle, in its plane.
 pub(super) fn conic_ring<T: Decide>(k: &dyn geom::Conic<T>) -> Ring<T> {
     Ring {
-        center: k.frame().center,
+        center: k.frame().origin,
         normal: k.frame().axis,
         major: k.speed_hi(),
         minor: k.speed_hi() - k.speed_lo(),
@@ -282,7 +282,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                         };
                         depths.push(Proposed {
                             depth: Depth::Axis {
-                                origin: conic.frame().center,
+                                origin: conic.frame().origin,
                                 axis: conic.frame().axis,
                             },
                             level: None,

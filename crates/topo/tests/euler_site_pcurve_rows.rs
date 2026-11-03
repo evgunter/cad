@@ -720,7 +720,7 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
             let geom::Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -960,7 +960,7 @@ fn a_carrier_that_keeps_its_ends_but_not_its_trace_re_mints_the_face() {
     let arc = |axis: geom_core::Vec3<f64>| {
         geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

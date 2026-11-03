@@ -305,7 +305,7 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
     let Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

@@ -794,7 +794,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::circle_off_plane(
                         (round.center, round.normal, round.radius, round.e1),
-                        (conic.frame().center, conic.frame().axis),
+                        (conic.frame().origin, conic.frame().axis),
                     ),
                     round.radius,
                     T::zero(),
@@ -822,7 +822,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::conic_off_plane(
-                        (f.center, f.axis, conic.semi_axes(), f.u_ref),
+                        (f.origin, f.axis, conic.semi_axes(), f.u_ref),
                         (base, normal),
                     ),
                     conic.speed_hi(),

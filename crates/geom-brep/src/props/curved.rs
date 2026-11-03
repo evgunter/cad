@@ -598,7 +598,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 let Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: c_c,
+                            origin: c_c,
                             axis: n_c,
                             ..
                         },
@@ -1460,7 +1460,7 @@ fn cylinder_windings<T: Decide>(
                     let arms = turn_arms(axis, a - origin, b - origin);
                     let sweep = match e.carrier {
                         Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { center, .. },
+                            frame: geom::Frame { origin: center, .. },
                             ..
                         }) => {
                             let du = rim_turns.next().ok_or(PropsError::NotIsoRectangle {
@@ -1843,7 +1843,7 @@ fn cylinder_boundary<T: Decide>(
             }
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center, axis: n_c, ..
+                    origin: center, axis: n_c, ..
                 },
                 radius: r_c,
             }) => {
@@ -2265,7 +2265,7 @@ fn require_on_cone<T: Decide>(
         }
         Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center, axis: n_c, ..
+                origin: center, axis: n_c, ..
             },
             radius: r_c,
         }) => require_cone_circle(apex, axis, sin_a, cos_a, center, n_c, r_c, band).map(|_| ()),
@@ -2383,7 +2383,7 @@ fn require_cone_ellipse<T: Decide>(
 ) -> Result<(), PropsError> {
     let Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis: n,
             u_ref,
         },
@@ -2936,7 +2936,7 @@ fn cone_loop_winding<T: Decide>(
             // axis at each end.
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    axis: n, center, ..
+                    axis: n, origin: center, ..
                 },
                 ..
             }) => {
@@ -2984,7 +2984,7 @@ fn cone_loop_winding<T: Decide>(
         // what its own turn misses them about its centre.
         pieces.push([match e.carrier {
             Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 ..
             }) => {
                 let (ca, cb) = e.traversal_ends();
@@ -3065,7 +3065,7 @@ fn cone_boundary<T: Decide>(
             }
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center, axis: n_c, ..
+                    origin: center, axis: n_c, ..
                 },
                 radius: r_c,
             }) => {
@@ -3646,7 +3646,7 @@ fn sphere_loop<T: Decide>(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     ..
                 },
@@ -4821,7 +4821,7 @@ fn sphere_boundary<T: Decide>(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     ..
                 },
@@ -5367,7 +5367,7 @@ fn torus_chart_loop<T: Decide>(
     let turns = pieces.iter().map(|p| {
         let (a, b) = p.edge.traversal_ends();
         let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center: centre, .. },
+            frame: geom::Frame { origin: centre, .. },
             radius: r_c,
         }) = p.edge.carrier
         else {
@@ -5528,7 +5528,7 @@ fn torus_classify<'a, T: Decide>(
         let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: c_c,
+                    origin: c_c,
                     axis: n_c,
                     ..
                 },

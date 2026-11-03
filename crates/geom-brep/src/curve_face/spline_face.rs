@@ -298,7 +298,7 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
                 let conic = lifted.conic()?;
                 let (e1, e2) = conic.semi_axis_vectors();
                 let at = |v: Vec3<Interval>| [v.x, v.y, v.z];
-                let c = conic.frame().center;
+                let c = conic.frame().origin;
                 Self::Conic {
                     c: [c.x, c.y, c.z],
                     e1: at(e1),

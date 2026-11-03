@@ -261,7 +261,7 @@ fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
 fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64> {
     let Curve3::Ellipse(geom::Ellipse {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },

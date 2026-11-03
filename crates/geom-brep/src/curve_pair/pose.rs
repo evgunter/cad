@@ -909,7 +909,7 @@ fn line_conic<T: Decide>(
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let c = (k.frame().center - o).dot(u);
+    let c = (k.frame().origin - o).dot(u);
     let lever = reach(a).max(k.speed_hi());
     // Unsourced lever: the line's span metered through its sup speed
     // (`reach`), folded with the conic's size; the span's part fits no
@@ -917,7 +917,7 @@ fn line_conic<T: Decide>(
     let arm = geom_core::Lever::unsourced(lever);
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (o - origin).norm() + (k.frame().center - origin).norm() + lever + k.speed_hi(),
+        (o - origin).norm() + (k.frame().origin - origin).norm() + lever + k.speed_hi(),
     );
     let screened = noise + geom_core::rounding_charge(ends(a));
     // A conic's extent is no second span: its projection is read from the
@@ -930,7 +930,7 @@ fn line_conic<T: Decide>(
         (c - k.speed_hi(), c + k.speed_hi()),
         screened,
     );
-    let height = (o + u * at.mid() - k.frame().center).dot(n);
+    let height = (o + u * at.mid() - k.frame().origin).dot(n);
     match route(den, den.abs(), height.abs(), at, (arm, screened), band)? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
@@ -938,7 +938,7 @@ fn line_conic<T: Decide>(
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so it is within the band's escalation `e/|d̂·n̂|` either side
             // of the crossing.
-            let point = o + u * ((k.frame().center - o).dot(n) / den);
+            let point = o + u * ((k.frame().origin - o).dot(n) / den);
             let e = T::from_f64(band.escalate()) + noise;
             let polish = Polish {
                 a: Side::Line(line),
@@ -955,7 +955,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = unit(n.cross(u));
-    let c0 = (k.frame().center - o).dot(m);
+    let c0 = (k.frame().origin - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite(row::SWING, Margin::of(swing), band)? {
@@ -996,7 +996,7 @@ enum Coplanar {
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
 pub(super) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
-    ((k.frame().center - on).dot(n), cp, sp)
+    ((k.frame().origin - on).dot(n), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
@@ -1013,10 +1013,10 @@ fn conic_conic<T: Decide>(
     let lever = arm.length();
     let origin = Point3::origin();
     let noise = geom_core::rounding_charge(
-        (ka.frame().center - origin).norm() + (kb.frame().center - origin).norm() + lever + lever,
+        (ka.frame().origin - origin).norm() + (kb.frame().origin - origin).norm() + lever + lever,
     );
-    let ha = height(&ka, kb.frame().center, kb.frame().axis);
-    let hb = height(&kb, ka.frame().center, ka.frame().axis);
+    let ha = height(&ka, kb.frame().origin, kb.frame().axis);
+    let hb = height(&kb, ka.frame().origin, ka.frame().axis);
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     // A conic whose height above the other's plane is constant within
@@ -1099,7 +1099,7 @@ pub(super) fn one_curve<T: Decide>(
 /// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
-    let gap = (e.frame().center - f.frame().center).norm() + frame_gap(e, f).max(frame_gap(f, e));
+    let gap = (e.frame().origin - f.frame().origin).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
@@ -1220,7 +1220,7 @@ fn coplanar_circles<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
-    let w = ka.frame().center - kb.frame().center;
+    let w = ka.frame().origin - kb.frame().origin;
     let w = w - ka.frame().axis * w.dot(ka.frame().axis);
     let d = w.norm();
     if !definite(row::CENTRES, Margin::norm3(w), band)? {
@@ -1269,7 +1269,7 @@ fn coplanar_ellipse_circle<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let r = kc.speed_hi();
-    let w = ke.frame().center - kc.frame().center;
+    let w = ke.frame().origin - kc.frame().origin;
     let (a, b) = ke.semi_axes();
     let two = T::from_f64(2.0);
     // `|E(θ) − c|² − r²` in the ellipse's angle.
@@ -1296,7 +1296,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         residual_reach: Some(r),
         jet: None,
     };
-    let residual = |theta: T| (ke.point_at(theta) - kc.frame().center).norm() - r;
+    let residual = |theta: T| (ke.point_at(theta) - kc.frame().origin).norm() - r;
     subdivided(&poly, &residual, &frame, place, band)
 }
 
@@ -1378,7 +1378,7 @@ fn coplanar_ellipses<T: Decide>(
         jet: None,
     };
     let residual = |theta: T| {
-        let d = ka.point_at(theta) - kb.frame().center;
+        let d = ka.point_at(theta) - kb.frame().origin;
         geom::ellipse_level_clearance((d.dot(ub), d.dot(vb)), (big_a, big_b))
     };
     subdivided(&poly, &residual, &frame, place, band)
@@ -1399,7 +1399,7 @@ pub(super) fn level_on<T: Decide>(
         ka.frame().u_ref * ka.semi_axes().0,
         ka.frame().v_ref() * ka.semi_axes().1,
     );
-    let w = ka.frame().center - kb.frame().center;
+    let w = ka.frame().origin - kb.frame().origin;
     // `X = x₀ + p cos θ + q sin θ`, `Y = y₀ + r cos θ + t sin θ`.
     let (x0, p, q) = (w.dot(ub), ua.dot(ub), va.dot(ub));
     let (y0, r, t) = (w.dot(vb), ua.dot(vb), va.dot(vb));

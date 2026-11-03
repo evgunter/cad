@@ -60,12 +60,13 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, Frame, MajorFrame, on_span_branch};
+pub use conic::{Circle, Conic, Ellipse, MajorFrame, on_span_branch};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth;
+use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep, ellipse_level_clearance,
@@ -588,7 +589,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Circle(Circle {
                 frame:
                     Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -602,7 +603,7 @@ impl<T: Real> Curve3<T> {
             Curve3::Ellipse(Ellipse {
                 frame:
                     Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -1612,7 +1613,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1628,7 +1629,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(crate::Circle { frame: crate::Frame { center, axis, .. }, radius }) => (center, axis, radius),
+                Curve3::Circle(crate::Circle { frame: crate::Frame { origin: center, axis, .. }, radius }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -1972,7 +1973,7 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, u_ref }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, u_ref }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let v_ref = axis.cross(u_ref);
@@ -1990,7 +1991,7 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { center, axis, .. }, semi_u, semi_v }) = e else {
+            let Curve3::Ellipse(crate::Ellipse { frame: crate::Frame { origin: center, axis, .. }, semi_u, semi_v }) = e else {
                 panic!("fixture is an ellipse");
             };
             let p = e.eval(theta);
@@ -2459,7 +2460,7 @@ mod tests {
             let Curve3::Ellipse(crate::Ellipse {
                 frame:
                     crate::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },
@@ -2833,7 +2834,7 @@ mod tests {
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle(crate::Circle {
-                    frame: crate::Frame { center, axis, .. },
+                    frame: crate::Frame { origin: center, axis, .. },
                     radius,
                 }) => (center, axis, radius),
                 _ => panic!("fixture is a circle"),

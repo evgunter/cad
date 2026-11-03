@@ -6619,7 +6619,7 @@ fn sphere_pair_cut<T: Decide>(
         Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: foot,
+                    origin: foot,
                     axis: normal,
                     u_ref,
                 },
@@ -7230,7 +7230,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 let geom::Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis: ca,
                             u_ref: cu,
                         },

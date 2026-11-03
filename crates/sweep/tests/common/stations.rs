@@ -36,7 +36,7 @@ pub fn cut_stations(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -101,7 +101,7 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c1,
+                        origin: c1,
                         axis: a1,
                         ..
                     },
@@ -110,7 +110,7 @@ pub fn station_vertices(body: &Body<f64>) -> Vec<VertexKey> {
             Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c2,
+                        origin: c2,
                         axis: a2,
                         ..
                     },

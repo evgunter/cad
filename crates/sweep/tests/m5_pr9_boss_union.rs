@@ -49,7 +49,7 @@ fn the_boss_union_lands_end_to_end() {
             continue;
         };
         if let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             radius,
         }) = *c.carrier()
             && (center.z - 1.0).abs() < 1e-9

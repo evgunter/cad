@@ -2117,7 +2117,7 @@ fn mint_carrier<T: Decide>(
         if let Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center: cc,
+                    origin: cc,
                     axis,
                     u_ref,
                 },
@@ -2163,7 +2163,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis,
                             u_ref,
                         },
@@ -2197,7 +2197,7 @@ fn mint_carrier<T: Decide>(
                 Curve3::Circle(geom::Circle {
                     frame:
                         geom::Frame {
-                            center: cc,
+                            origin: cc,
                             axis,
                             u_ref,
                         },
@@ -2469,7 +2469,7 @@ fn mint_carrier<T: Decide>(
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -2765,7 +2765,7 @@ fn param_on<T: Decide>(
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame: geom::Frame { origin: center, axis, .. },
             ..
         }) => {
             let n = axis.normalize();
@@ -3002,7 +3002,7 @@ fn reauthor<T: Decide>(
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
                         let Curve3::Circle(geom::Circle {
-                            frame: geom::Frame { center, .. },
+                            frame: geom::Frame { origin: center, .. },
                             radius,
                         }) = carrier
                         else {

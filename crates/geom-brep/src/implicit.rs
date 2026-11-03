@@ -683,8 +683,8 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();
-    let at = (conic.frame().center - Point3::origin()).norm() + a;
-    let offset = |o: Point3<T>| (conic.frame().center - o).norm() + a;
+    let at = (conic.frame().origin - Point3::origin()).norm() + a;
+    let offset = |o: Point3<T>| (conic.frame().origin - o).norm() + a;
     Some(match *s {
         Surface::Plane { origin, .. } => rounding_charge(at + offset(origin)),
         Surface::Sphere { center, radius, .. } => {
@@ -1086,7 +1086,7 @@ fn quadric_harmonics<T: Real>(
     let two = T::from_f64(2.0);
     let half = T::from_f64(0.5);
     let (a, b) = conic.semi_axes();
-    let d = conic.frame().center - origin;
+    let d = conic.frame().origin - origin;
     let e = perp(d);
     let (up, vp) = (perp(conic.frame().u_ref), perp(conic.frame().v_ref()));
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
@@ -1164,7 +1164,7 @@ pub fn conic_cone_harmonics<T: Real>(
     let (cc, ss) = (cos_a.powi(2), sin_a.powi(2));
     let (a, b) = conic.semi_axes();
     let (u, v) = (conic.frame().u_ref, conic.frame().v_ref());
-    let d = conic.frame().center - apex;
+    let d = conic.frame().origin - apex;
     let perp = |x: Vec3<T>| {
         let along = c_axis.dot(x);
         x - c_axis * along
@@ -1353,7 +1353,7 @@ pub fn conic_torus_harmonics<T: Real>(
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
     let (a, b) = conic.semi_axes();
     let (u, v) = (conic.frame().u_ref, conic.frame().v_ref());
-    let w = conic.frame().center - t_center;
+    let w = conic.frame().origin - t_center;
     let (aa, bb) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
     let rr = major_radius.powi(2);
     let k = rr - minor_radius.powi(2);
@@ -1506,9 +1506,9 @@ pub fn conic_torus_jet<T: Real>(
     );
     let v = cross(n, u);
     let c = exact_vec(Vec3::new(
-        conic.frame().center.x,
-        conic.frame().center.y,
-        conic.frame().center.z,
+        conic.frame().origin.x,
+        conic.frame().origin.y,
+        conic.frame().origin.z,
     ));
     let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
     let (ac, bs, as_, bc) = (a * cos, b * sin, a * sin, b * cos);
@@ -1731,7 +1731,7 @@ fn conic_residual_harmonics<T: Real>(
     let amp = |a: T, b: T| (a.powi(2) + b.powi(2)).sqrt();
     let (h, r) = match *s {
         Surface::Plane { origin, normal, .. } => {
-            let d = conic.frame().center - origin;
+            let d = conic.frame().origin - origin;
             return Some(ResidualHarmonics {
                 c0: d.dot(normal),
                 a1: {
@@ -3147,7 +3147,7 @@ mod conic_tests {
         let q_max = (0..4000)
             .map(|j| q_at(conic.point_at(TAU * f64::from(j) / 4000.0)))
             .fold(0.0, f64::max);
-        let stated = (conic.frame().center - c).norm() + conic.speed_hi() + big;
+        let stated = (conic.frame().origin - c).norm() + conic.speed_hi() + big;
         assert!(
             2.0 * small * q_max > 1.5 * 2.0 * small * stated.powi(2),
             "the pose reaches past the semi-axes' reach: Q {q_max} against {}",

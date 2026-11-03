@@ -396,7 +396,7 @@ fn a_root_the_slack_meter_cannot_place_refuses() {
     for d in [1e-6, 1e-5] {
         let e = crossing(d);
         let geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             ..
         }) = e
         else {

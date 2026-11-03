@@ -920,7 +920,7 @@ fn survives_cosurface_bitwise_center_agreement() {
     let mut top_rims = 0;
     for (_, c) in t.body.curves() {
         if let Some(geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             ..
         })) = c.certified().map(|c| c.carrier().clone())
         {

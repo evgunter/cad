@@ -5173,7 +5173,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Circle(geom::Circle {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },
@@ -5182,7 +5182,7 @@ fn moved_walls<T: Decide>(
                             geom::Curve3::Ellipse(geom::Ellipse {
                                 frame:
                                     geom::Frame {
-                                        center,
+                                        origin: center,
                                         ref axis,
                                         u_ref,
                                     },

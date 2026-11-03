@@ -5,15 +5,10 @@
 //! not a circle with a stretch. What the two share is named once and
 //! held by each:
 //!
-//! - **The placement**, [`Frame`] (a rigid placement, not a conic's
-//!   alone): a centre and an oriented
-//!   orthonormal basis `(u_ref, v_ref, axis)`, `v_ref = axis × u_ref`
-//!   (computed, never stored, so the frame is right-handed by
-//!   construction). `axis` is the unit plane normal and `u_ref` the unit
-//!   reference direction, `u_ref ⊥ axis`: conventional data, unchecked
-//!   here, certified at rest by tier 3. `u_ref` carries the seam: `θ = 0`
-//!   lives on it. A reading of the placement alone (a point's in-plane
-//!   components, the frame reversed or moved) takes a `&Frame`.
+//! - **The placement**, [`Frame`]: centred on the conic, `axis` the
+//!   unit plane normal and `u_ref` the unit seam, `θ = 0` on it. A
+//!   reading of the placement alone (a point's in-plane components, the
+//!   frame reversed or moved) is [`Frame`]'s.
 //! - **The readings either kind answers**, the [`Conic`] trait: the point
 //!   and the derivatives at `θ`, the angle of a point and its parameter on
 //!   a branch, the speed bounds, the major frame. A reader that treats the
@@ -67,96 +62,26 @@ use geom_core::{Point3, Real, Rounded, Vec3};
 
 use crate::azimuth;
 use crate::curves::Curve3;
+use crate::frame::Frame;
 
-/// **A rigid placement**: a point and an oriented orthonormal basis
-/// `(u_ref, v_ref, axis)`, `v_ref = axis × u_ref` (computed, never
-/// stored). `axis` and `u_ref` are unit and orthogonal by convention,
-/// unchecked here and certified at rest. A circle and an ellipse each hold
-/// one, centred on the conic and seamed at `u_ref` (the
-/// [module docs](self)); the same triple places the plane, cylinder and
-/// cone surfaces, which do not hold it yet.
-#[derive(Clone, Copy, Debug)]
-pub struct Frame<T: Real> {
-    /// The centre.
-    pub center: Point3<T>,
-    /// The unit normal of the plane (right-hand winding rule;
-    /// conventional, unchecked).
-    pub axis: Vec3<T>,
-    /// The unit reference direction ⊥ `axis` where `θ = 0` lives — the
-    /// seam, carried as conventional data per D2.
-    pub u_ref: Vec3<T>,
-}
-
-impl<T: Real> Frame<T> {
-    /// The frame at `center` with normal `axis` and seam `u_ref`.
-    #[must_use]
-    pub fn new(center: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>) -> Self {
-        Self {
-            center,
-            axis,
-            u_ref,
-        }
-    }
-
-    /// `axis × u_ref`, the direction `θ = π/2` points along.
-    #[must_use]
-    pub fn v_ref(&self) -> Vec3<T> {
-        self.axis.cross(self.u_ref)
-    }
-
-    /// The components of `p − center` along `u_ref` and `v_ref`.
-    #[must_use]
-    pub fn in_plane(&self, p: Point3<T>) -> (T, T) {
-        let w = p - self.center;
-        (w.dot(self.u_ref), w.dot(self.v_ref()))
-    }
-
-    /// The same placement run back: the axis flipped, the seam kept, so
-    /// `θ ↦ −θ` names the same point.
-    #[must_use]
-    pub fn reversed(&self) -> Self {
-        Self {
-            axis: -self.axis,
-            ..*self
-        }
-    }
-
-    /// The same placement with every scalar mapped by `f`.
-    #[must_use]
-    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Frame<U> {
-        Frame {
-            center: self.center.map(&f),
-            axis: self.axis.map(&f),
-            u_ref: self.u_ref.map(&f),
-        }
-    }
-
-    /// The same placement moved by `by`.
-    #[must_use]
-    pub fn translated(&self, by: Vec3<T>) -> Self {
-        Self {
-            center: self.center + by,
-            ..*self
-        }
-    }
-}
-
-/// **A full circle**, `P(θ) = center + (u_ref·cos θ + v_ref·sin θ)·radius`.
+/// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
-    /// The placement.
+    /// The placement: `origin` the centre, `axis` the unit plane normal
+    /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives.
     pub frame: Frame<T>,
     /// The radius in metres (positive).
     pub radius: T,
 }
 
 /// **A full ellipse**,
-/// `P(θ) = center + u_ref·(semi_u·cos θ) + v_ref·(semi_v·sin θ)`, `u_ref`
+/// `P(θ) = origin + u_ref·(semi_u·cos θ) + v_ref·(semi_v·sin θ)`, `u_ref`
 /// a principal direction.
 #[derive(Clone, Copy, Debug)]
 pub struct Ellipse<T: Real> {
-    /// The placement; `u_ref` is a principal direction, along either
-    /// semi-axis.
+    /// The placement: `origin` the centre, `axis` the unit plane normal
+    /// (right-hand winding), `u_ref` the seam, where `θ = 0` lives, and
+    /// a principal direction along either semi-axis.
     pub frame: Frame<T>,
     /// The semi-axis along `u_ref`, in metres (positive).
     pub semi_u: T,
@@ -287,7 +212,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// over the semi-axes, `((p − c)·u_ref/a, (p − c)·v_ref/b)`, in which
     /// the conic is the unit circle and its parameter the polar angle.
     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
-        self.unit_of(p - self.frame().center)
+        self.unit_of(p - self.frame().origin)
     }
 
     /// **The vector `w` in the conic's unit coordinates**:
@@ -413,7 +338,7 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
 fn running_frame<T: Real>(f: &Frame<T>) -> RunningFrame<T> {
     use geom_core::running::{cross, exact_vec};
     let (n, u) = (exact_vec(f.axis), exact_vec(f.u_ref));
-    let c = exact_vec(Vec3::new(f.center.x, f.center.y, f.center.z));
+    let c = exact_vec(Vec3::new(f.origin.x, f.origin.y, f.origin.z));
     (c, u, cross(n, u))
 }
 
@@ -432,7 +357,7 @@ impl<T: Real> Circle<T> {
     /// spelling of a circle's point, which [`Curve3::circle_at`] and
     /// [`Conic::jet_at`] both reach.
     pub(crate) fn point_on(&self, at: &azimuth::AzimuthFrame<T>) -> Point3<T> {
-        self.frame.center + at.radial.0 * self.radius
+        self.frame.origin + at.radial.0 * self.radius
     }
 
     fn azimuth(&self, theta: T) -> azimuth::AzimuthFrame<T> {
@@ -473,9 +398,9 @@ impl<T: Real> Conic<T> for Circle<T> {
     }
 
     fn param_near(&self, p: Point3<T>, near: T) -> T {
-        let w = p - self.frame.center;
+        let w = p - self.frame.origin;
         let (p_near, tau_near) = self.jet_at(near);
-        let r_near = p_near - self.frame.center;
+        let r_near = p_near - self.frame.origin;
         near + w.dot(tau_near).atan2(w.dot(r_near))
     }
 
@@ -620,7 +545,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn point_at(&self, theta: T) -> Point3<T> {
         let ((s, c), v_ref) = self.basis(theta);
-        self.frame.center + (self.frame.u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s))
+        self.frame.origin + (self.frame.u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s))
     }
 
     fn derivative_at(&self, theta: T) -> Vec3<T> {
@@ -632,7 +557,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         let ((s, c), v_ref) = self.basis(theta);
         let u_ref = self.frame.u_ref;
         (
-            self.frame.center + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
+            self.frame.origin + (u_ref * (self.semi_u * c) + v_ref * (self.semi_v * s)),
             u_ref * (-(self.semi_u * s)) + v_ref * (self.semi_v * c),
         )
     }
@@ -702,6 +627,37 @@ impl<T: Real> Curve3<T> {
             Self::Line(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
         }
     }
+
+    /// **The carrier read as a circle**: its own [`Circle`] (the sibling of
+    /// [`Self::as_line`]), `None` for
+    /// every other kind.
+    #[must_use]
+    pub fn as_circle(&self) -> Option<&Circle<T>> {
+        match self {
+            Self::Circle(c) => Some(c),
+            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The carrier's placement**: a conic's own [`Frame`], and a
+    /// spiric's torus's (centre, axis and seam). `None` for a line and a
+    /// spline.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match *self {
+            Self::Circle(c) => Some(c.frame),
+            Self::Ellipse(e) => Some(e.frame),
+            Self::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+                offset: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Line(_) | Self::Nurbs(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -736,7 +692,7 @@ mod tests {
                 let (u, r) = (k.frame.u_ref, k.radius);
                 let v = k.frame.axis.cross(u);
                 [
-                    (k.frame.center + (u * c + v * s) * r) - o,
+                    (k.frame.origin + (u * c + v * s) * r) - o,
                     (u * (-s) + v * c) * r,
                     (u * (-c) + v * (-s)) * r,
                 ]
@@ -745,7 +701,7 @@ mod tests {
                 let (u, a, b) = (k.frame.u_ref, k.semi_u, k.semi_v);
                 let v = k.frame.axis.cross(u);
                 [
-                    (k.frame.center + (u * (a * c) + v * (b * s))) - o,
+                    (k.frame.origin + (u * (a * c) + v * (b * s))) - o,
                     u * (-(a * s)) + v * (b * c),
                     u * (-(a * c)) + v * (-(b * s)),
                 ]

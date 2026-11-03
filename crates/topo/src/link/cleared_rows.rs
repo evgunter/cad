@@ -223,7 +223,7 @@ fn a_curves_clearance_is_a_lower_bound_on_its_carriers_distance() {
     for (semi_u, semi_v) in [(2.0, 0.7), (0.5, 1.6)] {
         let e = Curve3::Ellipse(geom::Ellipse {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

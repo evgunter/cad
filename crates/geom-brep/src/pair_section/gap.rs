@@ -137,7 +137,7 @@ pub(crate) struct Core<T: Real> {
 impl<T: Real> Core<T> {
     /// The core of the torus `(center, axis, R)` whose seam is `u_ref`.
     pub(crate) fn of(center: Point3<T>, axis: Vec3<T>, u_ref: Vec3<T>, radius: T) -> Self {
-        let frame = geom::square_frame(axis, u_ref);
+        let frame = geom::Frame::new(center, axis, u_ref).square();
         Self {
             center,
             u: frame.u_ref,

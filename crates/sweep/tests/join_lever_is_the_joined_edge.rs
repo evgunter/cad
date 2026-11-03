@@ -109,7 +109,7 @@ fn arc_station(s: f64) -> Result<Body<f64>, topo::EulerOpError> {
         .find_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
             let Curve3::Circle(geom::Circle {
-                frame: geom::Frame { center, .. },
+                frame: geom::Frame { origin: center, .. },
                 ..
             }) = *c.carrier()
             else {

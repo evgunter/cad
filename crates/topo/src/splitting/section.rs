@@ -353,7 +353,7 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     let conic = carrier
                         .conic()
                         .unwrap_or_else(|| unreachable!("a conic half's carrier is a conic"));
-                    let c = chart(conic.frame().center - plane.origin);
+                    let c = chart(conic.frame().origin - plane.origin);
                     let (a, b) = conic.semi_axis_vectors();
                     SectionEdge::Arc {
                         center: Point2::new(c.x, c.y),

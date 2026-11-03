@@ -294,7 +294,7 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             let Curve3::Ellipse(geom::Ellipse {
                 frame:
                     geom::Frame {
-                        center,
+                        origin: center,
                         axis,
                         u_ref,
                     },

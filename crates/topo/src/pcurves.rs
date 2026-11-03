@@ -7994,7 +7994,7 @@ pub(crate) mod pole_slit_tests {
         let circle = |center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>| {
             Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -8273,7 +8273,7 @@ pub(crate) mod pole_slit_tests {
                         let he = body.get_edge(e).unwrap().he_plus;
                         matches!(
                             super::half_edge_carrier(&body, he),
-                            Ok((Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }), _, _)) if center.z == 0.0
+                            Ok((Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }), _, _)) if center.z == 0.0
                         )
                     })
                     .expect("the bottom arc");

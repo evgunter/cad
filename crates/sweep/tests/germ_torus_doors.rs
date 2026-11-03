@@ -238,7 +238,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         let geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

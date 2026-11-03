@@ -1173,7 +1173,7 @@ struct Cone<T: Real> {
 
 impl<T: geom_core::spline::SpanLocate> Cone<T> {
     fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
-        let frame = geom::square_frame(axis, u_ref);
+        let frame = geom::Frame::new(apex, axis, u_ref).square();
         Self {
             apex,
             a: frame.axis,

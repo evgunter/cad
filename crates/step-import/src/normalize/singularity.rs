@@ -773,7 +773,7 @@ fn crossings(
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: c,
+                        origin: c,
                         axis: n,
                         u_ref: u,
                     },
@@ -782,7 +782,7 @@ fn crossings(
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: ce,
+                        origin: ce,
                         axis: ne,
                         ..
                     },
@@ -816,7 +816,7 @@ fn crossings(
             &Curve3::Circle(geom::Circle {
                 frame:
                     geom::Frame {
-                        center: ce,
+                        origin: ce,
                         axis: ne,
                         ..
                     },
@@ -862,7 +862,7 @@ fn crossings(
         (
             &Curve3::Circle(geom::Circle {
                 frame: geom::Frame {
-                    center: c, axis: n, ..
+                    origin: c, axis: n, ..
                 },
                 radius: r,
             }),

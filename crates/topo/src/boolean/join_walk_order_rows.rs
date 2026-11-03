@@ -49,11 +49,11 @@ type Site = (Point3<f64>, Vec3<f64>);
 fn frame(conic: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>) {
     match *conic {
         Curve3::Ellipse(geom::Ellipse {
-            frame: geom::Frame { center, axis, .. },
+            frame: geom::Frame { origin: center, axis, .. },
             ..
         })
         | Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
+            frame: geom::Frame { origin: center, axis, .. },
             ..
         }) => (center, axis),
         _ => panic!("not a conic: {conic:?}"),

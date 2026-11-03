@@ -325,7 +325,7 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
             ] {
                 let q = match trim.0 {
                     Curve3::Circle(geom::Circle {
-                        frame: geom::Frame { center, .. },
+                        frame: geom::Frame { origin: center, .. },
                         radius,
                     }) => center + radial * radius,
                     Curve3::Line(geom::Line { origin, .. }) => origin,
@@ -522,11 +522,11 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         for (o, w) in [(&old.trim_a, &new.trim_a), (&old.trim_b, &new.trim_b)] {
             let (
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center: a, .. },
+                    frame: geom::Frame { origin: a, .. },
                     radius: ra,
                 }),
                 Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center: b, .. },
+                    frame: geom::Frame { origin: b, .. },
                     radius: rb,
                 }),
             ) = (o.0.clone(), w.0.clone())

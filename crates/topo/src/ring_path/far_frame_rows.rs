@@ -586,7 +586,7 @@ fn minted_kind(
         Err(_) => ("refused", vec![]),
     };
     let geom::Curve3::Circle(geom::Circle {
-        frame: geom::Frame { center: k, .. },
+        frame: geom::Frame { origin: k, .. },
         radius: rho,
     }) = edge.carrier
     else {
@@ -594,7 +594,7 @@ fn minted_kind(
     };
     let off = |c: &geom::Curve3<f64>| match c {
         geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             radius,
         }) => (*center - k).norm() + (radius - rho).abs(),
         _ => f64::INFINITY,

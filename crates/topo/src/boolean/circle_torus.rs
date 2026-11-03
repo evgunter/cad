@@ -218,7 +218,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
         &geom::Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },
@@ -712,7 +712,7 @@ mod tests {
     ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
         let carrier = geom::Curve3::Circle(geom::Circle {
             frame: geom::Frame {
-                center,
+                origin: center,
                 axis,
                 u_ref,
             },

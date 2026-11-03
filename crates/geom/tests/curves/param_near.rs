@@ -62,7 +62,7 @@ fn wound_negative() -> Curve3<f64> {
 fn center_of(c: &Curve3<f64>) -> Point3<f64> {
     match c {
         Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, .. },
+            frame: geom::Frame { origin: center, .. },
             ..
         }) => *center,
         _ => panic!("a circle fixture"),
@@ -319,7 +319,7 @@ fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f6
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
-                    center,
+                    origin: center,
                     axis,
                     u_ref,
                 },

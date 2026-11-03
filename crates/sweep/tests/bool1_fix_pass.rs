@@ -159,7 +159,7 @@ fn a_split_at_an_annulus_plane_merges_it_keeping_its_rims_carrier_bits() {
             .filter_map(|(_, e)| {
                 let c = b.get_curve_geom(e.curve)?.certified()?;
                 let geom::Curve3::Circle(geom::Circle {
-                    frame: geom::Frame { center, .. },
+                    frame: geom::Frame { origin: center, .. },
                     radius,
                 }) = *c.carrier()
                 else {

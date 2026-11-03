@@ -122,7 +122,7 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> O
             let lifted = carrier.map_scalar(i);
             let (u, v) = lifted.conic()?.semi_axis_vectors();
             Some(Harmonic {
-                p0: pt(carrier.conic()?.frame().center),
+                p0: pt(carrier.conic()?.frame().origin),
                 u: vc(u),
                 v: vc(v),
                 alpha: Alpha::Cos,

@@ -574,7 +574,7 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
     let geom::Curve3::Circle(geom::Circle {
         frame: geom::Frame {
-            center,
+            origin: center,
             axis,
             u_ref,
         },
