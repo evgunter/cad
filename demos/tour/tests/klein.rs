@@ -147,7 +147,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 4: {trimmed:?}");
         assert!(
             wall4_pinned(&trimmed, &bulb_body, &top),
-            "wall 4 must refuse wall 3's edge of the bulb on a crease of the loop's NURBS wall: \
+            "wall 4 must refuse wall 3's rim arc of the loop on the bulb's neck cylinder: \
              {trimmed:?}"
         );
     }

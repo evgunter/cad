@@ -109,13 +109,12 @@
 //!    that corner does not classify (`UnsupportedCorner {
 //!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` and `subtract`
-//!    stop at one place, the sweep's read of the bulb's cone seam
-//!    against the loop's half-tube wall (`wall3_pinned`): the seam
-//!    crosses the wall on its arc joint, a crease by its knots, where
-//!    the spline-face arm cannot settle a meeting
-//!    (`SplineCrossingUnsettled { why: Crease }`). Every op reads the
-//!    pair through the same doors, so the subtract stops where the
-//!    union does. So the bottle cannot be one
+//!    stop at one place (`wall3_pinned`): half of the loop's start-cap
+//!    rim lies on the bulb's neck cylinder, and the curved pierce door
+//!    takes no conic lying on the face it is read against
+//!    (`CurvedPierceUnsupported`). Every op reads the pair through the
+//!    same doors, so the subtract stops where the union does. So the
+//!    bottle cannot be one
 //!    body, and the self-intersection — the neck piercing the bulb,
 //!    the one place a Klein bottle MUST cross itself in 3-space —
 //!    cannot be trimmed.
@@ -661,8 +660,8 @@ pub fn wall3_pinned<S: Scalar>(
 
 /// Wall 4's pinned refusal: wall 3's, by identity. The subtract reads
 /// the bulb and the loop through the doors the union does, so it stops
-/// at the same edge, the same face and the same crease, in the same
-/// operand order (`bulb ∖ top`, as `bulb ∪ top`).
+/// at the same edge and the same face, in the same operand order
+/// (`bulb ∖ top`, as `bulb ∪ top`).
 pub fn wall4_pinned<S: Scalar>(
     e: &BooleanError,
     bulb: &AtRestBody<S>,
@@ -931,9 +930,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                  full revolve of ONE meridian band; the loop over the top is ONE sweep \
                  of the annulus along its whole U-turn spine. The two MEET on annular \
                  faces, each cap flat on the bulb's rim, \
-                 and they cannot be joined: union and subtract both stop where the bulb's \
-                 cone seam crosses a NURBS wall of the loop on its arc joint, a crease. \
-                 The neck passes through the flare uncut for that reason";
+                 and they cannot be joined: union and subtract both stop where half of the \
+                 loop's start-cap rim lies on the bulb's neck cylinder, a circle the curved \
+                 pierce door does not take. The neck passes through the flare uncut for that \
+                 reason";
     vec![TourStop {
         name: "klein",
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
