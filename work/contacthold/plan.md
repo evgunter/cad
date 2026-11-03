@@ -29,8 +29,8 @@ row; this names the ones that set the order.
   and the at-rest κ_rel bridge row filed with PR 5395.
 - **Parked:** `a-rim-locus-tangency-through-two-faces-interiors-mints-no-face-face-row`
   behind TANG's `dev1-cylinder-sphere-circle-locus-arm` (no circle
-  witness locus exists); the D10-hold rows on
-  `d10-one-way-to-say-intent-is-unbuilt`.
+  witness locus exists). No row here waits on the D10 hold, which
+  lifted when INTENT closed (2026-10-30, #6103).
 
 ## Order
 
@@ -63,10 +63,7 @@ metred at an ellipse's minor semi-axis, DR-111). A brief for any unit
 that levers a `decide` asks, per verdict, which bound makes that
 verdict sound.
 
-A lane measures its row's repro on current main before it builds, and
-reads the row against the D10 hold (`work/intent/plan.md`): a row that
-turns out to need declared pairs or contact parks on its INTENT stage
-row and moves to CONTACTHOLD.
+A lane measures its row's repro on current main before it builds.
 
 ## Exit
 
