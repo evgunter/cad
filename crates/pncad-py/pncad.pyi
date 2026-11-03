@@ -706,7 +706,10 @@ class ProductError(PncadError):
     read: Optional[Var]
 
 class SplitError(PncadError):
-    """The `split` refactoring refused."""
+    """The `split` refactoring refused. `variant` is the stable tag;
+    `stopped` is the evaluation that reads the document's world stopping
+    short — it ran out of its member budget, the budget in the message —
+    so the cut was not tried and nothing was written."""
 
     variant: str
     node: Optional[NodeId]
@@ -1117,8 +1120,11 @@ class McRefusal(PncadError):
     nominal, so there is nothing to replay
     (`nominal_does_not_build`, with `node` and `cause`). Its message
     speaks that node as the document holds it, kind, label and tag;
-    `node` keeps the full id. Or an evaluation inside the run ran out of
-    its member budget (`stopped`, its budget in the message).
+    `node` keeps the full id. Or an evaluation the run made — its
+    nominal build or a sample — stopped short (`stopped`): this door
+    takes no `cancel=`, so it ran out of its member budget, the budget
+    in the message, and the first such evaluation in sample order is the
+    one reported.
 
     The band arm's `variant` is MeasureUnavailable's own word, because
     it carries that refusal: one fault, one word, whichever door
@@ -5580,7 +5586,11 @@ class Evaluation:
     def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
         decision order, each with what the coincidence door decided
-        about it. A node with no value raises as `value` does."""
+        about it. A node with no value raises as `value` does. The
+        door replays on the token the run was evaluated with
+        (`evaluate`'s `cancel=`): once that token is canceled, whether
+        before the run finished or after, it raises `ChecksError` with
+        `variant == "canceled"`, as `run_checks` does."""
 
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]:

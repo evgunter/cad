@@ -106,6 +106,7 @@ fn on_lane(
         &editor_core::Stop::default(),
         Tol::witness(),
     )
+    .expect("the replay is not stopped")
     .expect("an assertion node has a verdict over a certified leaf")
 }
 

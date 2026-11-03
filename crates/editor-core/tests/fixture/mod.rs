@@ -4144,7 +4144,9 @@ pub fn clearance_within(
         editor_core::drive::SymbolicDials::default(),
         &editor_core::Stop::default(),
         tol,
-    ) {
+    )
+    .expect("the replay is not stopped")
+    {
         Some(editor_core::AssertionVerdict::Clearance(report)) => Ok(*report),
         other => panic!("a clearance's verdict over the leaf: {other:?}"),
     }

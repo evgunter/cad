@@ -95,7 +95,8 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
             )
             .expect("the nominal builds");
             let (decided, masses) =
-                requirement_over_leaves(&p.doc, &analyzed, &verdict, p.assertion, tol);
+                requirement_over_leaves(&p.doc, &analyzed, &verdict, p.assertion, tol)
+                    .expect("the replays run to completion at the default member budget");
             line.push_str(&format!(
                 "; leaves {} holds {:016x} violated {:016x} unevaluated {:016x}",
                 describe(&decided),

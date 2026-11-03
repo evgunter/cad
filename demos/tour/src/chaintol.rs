@@ -555,6 +555,7 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
                     &pncad::document::Stop::default(),
                     tol,
                 )
+                .expect("the replay runs to completion at the default member budget")
                 .and_then(|v| v.holds())
                 {
                     Some(true) => holds += 1,

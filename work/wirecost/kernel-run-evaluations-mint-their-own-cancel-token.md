@@ -31,7 +31,7 @@ A caller cancelling an edit, a drive, a clearance or a stackup run cannot stop t
 
 The stop condition is one type, `editor_core::Stop { cancel, member_budget }` (`eval/mod.rs`), with `Stopped` (canceled, or exhausted with its budget) as what a door refuses with. A door that builds the options of the evaluations it runs takes a `&Stop`; a door handed whole `EvalOptions` takes the `&CancelToken` alone, its options carrying the budget. Sites, re-grepped at the merge base:
 - `drive.rs` (`drive`'s witness, `classify`'s two lanes, `probe_midpoint`, `assertion_at`; `witness_options`/`lane_opts` take the stop): the caller's `&Stop` at `drive`; `DriveRefusal::Stopped`. `range::certified_range` passes its own.
-- `clearance.rs` (`verify_witness`, the leaf replay through `read_leaf_with`): `ClearanceQuery::stop`, set by `at_least`/`strictly_positive`; `ClearanceRefusal::Stopped`.
+- `clearance.rs` (`verify_witness`, the leaf replay through `read_leaf_with`): `ClearanceQuery::stop`, set by `at_dials`; `ClearanceRefusal::Stopped`.
 - `stackup.rs` (record, base, passes, `bind_verdict`, `worst_case`'s prior and leaves): `sensitivities`/`stackup` take `&Stop`; a stopped run is `BindingViolation::{Incomplete, Exhausted}`.
 - `mc.rs` (nominal, each sample): `monte_carlo` takes `&Stop`; `McRefusal::Stopped`, the first in sample order.
 - `report.rs` (`leaf_histogram`): takes `&Stop`, answers `Result<_, Stopped>`.
@@ -62,3 +62,12 @@ Re-grepped after merging main at `d1ac6881d4` (PR 6305's final `PartStore`: the 
 `Stopped`'s Display states a recourse in both arms now ("ask again, and let it finish"; "raise the member budget, or lower a count"), so every refusal that wraps it (`SplitError`, `DriveRefusal`, `McRefusal`, `ClearanceRefusal`) states one.
 
 Finding, not fixed here: the viewer's `DocSession` settles a certify job only on `Ok`, so an `Exhausted` certify run leaves the landing's clearances `Certifying` with no job behind them (`session.rs`, `Owed::Certify`). It needs a landing whose `f64` run holds a clearance and whose interval run runs out; both share the default budget, so the `f64` landing runs out at the same node first.
+
+## Review pass (2026-11-03, lane wire-stop)
+
+- pncad-py `Evaluation.coincidences` read `prove`'s `Err(Canceled)` as no coincidences. It now raises `ChecksError` `canceled`, as `run_checks` does.
+- `drive::assertion_at` (and `pncad::analysis::assertion_at`) read a stopped replay as "no verdict". It now answers `Result<Option<_>, Stopped>`; the tour's `requirement_over_leaves` propagates the refusal.
+- A clearance witness rebuild that the stop stopped is now `ClearanceRefusal::Stopped`, not `WitnessUnverified`. A cancel refuses `clearance_over_at_dials` whole. An exhausted leaf stays that leaf's refusal, because each leaf replays as its own run under the whole budget.
+- A stopped stackup leaf replay is `SensitivityRefusal::LeafStopped`. It no longer reads as a fault in the build of record.
+- The viewer settles a certify job's `Err` explicitly: `Exhausted` lands as `Clearances::OutOfBudget` with its sentence, and `Canceled` lands as `Stopped` (superseded).
+- Running out has one recourse, `sentence::RAISE_THE_MEMBER_BUDGET`. It is used by `Stopped`, `NodeStanding::NotEvaluated`, `BindingViolation::Exhausted`, the viewer's `OutOfBudget::said` and its certify row. `coincide::Recourse::MemberBudget` keeps its own `const fn` literal: it is assembled with `concat!`, which cannot read a `const`.

@@ -560,7 +560,8 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
                     verdict.symbolic(),
                     &editor_core::Stop::default(),
                     Tol::witness(),
-                ) else {
+                )
+                .expect("the replay is not stopped") else {
                     panic!(
                         "{}: assertion node {} did not evaluate over a certified leaf",
                         entry.name, node.0

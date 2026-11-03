@@ -481,7 +481,9 @@ fn the_drive_answers_each_certified_leaf_through_the_assertion() {
             verdict.symbolic(),
             &editor_core::Stop::default(),
             Tol::witness(),
-        ) {
+        )
+        .expect("the replay is not stopped")
+        {
             Some(AssertionVerdict::Clearance(report)) => *report,
             other => panic!("a clearance's verdict over a leaf: {other:?}"),
         };
@@ -556,7 +558,9 @@ fn an_upper_bound_over_a_box_is_proved_at_every_point_or_not_at_all() {
             editor_core::drive::SymbolicDials::default(),
             &editor_core::Stop::default(),
             Tol::witness(),
-        ) {
+        )
+        .expect("the replay is not stopped")
+        {
             Some(AssertionVerdict::Clearance(report)) => *report,
             other => panic!("a clearance's verdict over the box: {other:?}"),
         }
@@ -851,7 +855,9 @@ fn scopes_that_meet_are_within_any_upper_bound_over_a_box() {
                     editor_core::drive::SymbolicDials::default(),
                     &editor_core::Stop::default(),
                     Tol::witness(),
-                ) {
+                )
+                .expect("the replay is not stopped")
+                {
                     Some(AssertionVerdict::Clearance(report)) => *report,
                     other => panic!("a clearance's verdict over the box: {other:?}"),
                 }

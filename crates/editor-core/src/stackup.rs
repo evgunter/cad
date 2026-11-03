@@ -326,8 +326,8 @@ impl core::fmt::Display for BindingViolation {
             Self::Exhausted { budget } => write!(
                 f,
                 "the f64 build of record ran out of its member budget of {budget} listing steps \
-                 — a prefix validates nothing; raise `EvalOptions::member_budget` or lower a \
-                 count",
+                 — a prefix validates nothing; {}",
+                crate::sentence::RAISE_THE_MEMBER_BUDGET
             ),
             Self::NotABuild => f.write_str(
                 "the f64 build of record refused every node before building anything (a \
@@ -417,6 +417,10 @@ pub enum SensitivityRefusal {
     /// The binding fired (module docs): no sensitivity of an
     /// unvalidated build.
     Binding(BindingViolation),
+    /// A certified leaf's replay stopped short: the caller canceled, or
+    /// it ran out of its member budget ([`crate::Stop`]). The build of
+    /// record is not in question; the leaf has no reading.
+    LeafStopped(crate::Stopped),
     /// A pass's measured value is not the `f64` evaluation's, bit for
     /// bit, over inputs the binding found equal — a D9 break between
     /// the scalars (module docs).
@@ -483,6 +487,7 @@ impl core::fmt::Display for SensitivityRefusal {
                  drive, or the verdict is another document's; drive again"
             ),
             Self::Binding(v) => write!(f, "binding violation: {v}"),
+            Self::LeafStopped(stopped) => write!(f, "a certified leaf's replay stopped: {stopped}"),
             Self::MeasuredValueDrift { param, pass, base } => write!(
                 f,
                 "the sensitivity pass for {param} measured {pass:e} where {base} — the \
@@ -1044,7 +1049,7 @@ fn bind_verdict(
         tol,
     );
     if let Some(stopped) = readback.stopped {
-        return Err(SensitivityRefusal::Binding(stopped.into()));
+        return Err(SensitivityRefusal::LeafStopped(stopped));
     }
     tie(doc, tied, &readback.keys)?;
     Ok(
@@ -1962,9 +1967,9 @@ fn worst_case(
             tol,
         );
         if let Some(stopped) = readback.stopped {
-            return Err(StackupRefusal::Sensitivity(SensitivityRefusal::Binding(
-                stopped.into(),
-            )));
+            return Err(StackupRefusal::Sensitivity(
+                SensitivityRefusal::LeafStopped(stopped),
+            ));
         }
         tie(doc, leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
         readback

@@ -312,7 +312,8 @@ fn r1_split_bore_disc_end_to_end() {
                         dials(r),
                         &editor_core::Stop::default(),
                         tol,
-                    );
+                    )
+                    .expect("the replay is not stopped");
                     println!("      assertion {a:?}");
                 }
             }

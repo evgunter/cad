@@ -753,6 +753,9 @@ enum Clearances {
     /// The next request stopped the certify job before it answered: the
     /// landing stands, and nothing is certifying it.
     Stopped,
+    /// The certify job ran out of its member budget before it answered:
+    /// the row's sentence, with the recourse.
+    OutOfBudget(String),
     /// The certifying scalar's answer, one per clearance assertion, in
     /// document order.
     Settled(Vec<pncad::analysis::ClearanceAnswer>),
@@ -936,16 +939,16 @@ pub struct OutOfBudget {
 
 impl OutOfBudget {
     /// **What a run that ran out says**, `at` the node it ran out at,
-    /// as `doc` speaks it: where, how much was held, and the recourse,
-    /// a smaller count in the document or a part it instances.
+    /// as `doc` speaks it: where, how much was held, and the one recourse
+    /// of a run that ran out (`pncad::document::RAISE_THE_MEMBER_BUDGET`).
     #[must_use]
     pub fn said(&self, doc: &Doc<ProfileProgram>) -> String {
         format!(
-            "ran out of the member budget at {} ({} of {} listing steps held before it); \
-             lower a count it reaches, here or in a part it instances",
+            "ran out of the member budget at {} ({} of {} listing steps held before it); {}",
             doc.spoken(self.at),
             self.held,
-            self.budget
+            self.budget,
+            pncad::document::RAISE_THE_MEMBER_BUDGET
         )
     }
 }
@@ -1659,6 +1662,11 @@ impl DocSession {
                         Clearances::None => {}
                         Clearances::Certifying => cleared.answer = tree::Certified::Certifying,
                         Clearances::Stopped => cleared.answer = tree::Certified::Stopped,
+                        Clearances::OutOfBudget(sentence) => {
+                            cleared.answer = tree::Certified::OutOfBudget {
+                                sentence: sentence.clone(),
+                            };
+                        }
                         Clearances::Settled(answers) => {
                             if let Some(answer) = answers.iter().find(|a| a.assertion == row.id) {
                                 cleared.answer = tree::Certified::Answered(answer.answer.clone());
@@ -1763,8 +1771,20 @@ impl DocSession {
                 }
             }
             Owed::Certify(done) => {
-                if let (Clearances::Certifying, Ok(answers)) = (&run.clearances, done.answers) {
-                    run.clearances = Clearances::Settled(answers);
+                if matches!(run.clearances, Clearances::Certifying) {
+                    run.clearances = match done.answers {
+                        Ok(answers) => Clearances::Settled(answers),
+                        Err(pncad::document::Stopped::Exhausted { budget }) => {
+                            Clearances::OutOfBudget(format!(
+                                "certifying ran out of the member budget of {budget} listing \
+                                 steps before it answered. {}",
+                                pncad::document::Recourse(pncad::document::RAISE_THE_MEMBER_BUDGET)
+                            ))
+                        }
+                        // A canceled job was superseded: the request that
+                        // canceled it makes this landing stale.
+                        Err(pncad::document::Stopped::Canceled) => Clearances::Stopped,
+                    };
                 }
             }
         }

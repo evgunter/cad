@@ -239,7 +239,8 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     dials(rules),
                     &editor_core::Stop::default(),
                     tol,
-                );
+                )
+                .expect("the replay is not stopped");
                 println!("   assertion at the root box: {a:?}");
                 let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
                 println!("   whole-study replay stops at {refusal:?}");

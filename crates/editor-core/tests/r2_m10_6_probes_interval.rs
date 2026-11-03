@@ -265,6 +265,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
             &editor_core::Stop::default(),
             Tol::witness(),
         )
+        .expect("the replay is not stopped")
         .expect("the assertion node evaluated over a certified leaf, on its lane");
         if matches!(av, AssertionVerdict::Unevaluated { .. }) {
             straddled += 1;

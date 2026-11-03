@@ -53,7 +53,8 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
         SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
-        NameOnDroppedSection, BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit, Stopped,
+        NameOnDroppedSection, BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit,
+        RemainderEdit, Stopped,
     ];
 }
 

@@ -399,7 +399,8 @@ fn r1_annulus_end_to_end() {
                         d,
                         &editor_core::Stop::default(),
                         tol,
-                    );
+                    )
+                    .expect("the replay is not stopped");
                     println!("   assertion at the root box: {a:?}");
                 }
             }

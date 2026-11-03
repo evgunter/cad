@@ -2051,9 +2051,13 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
 /// the leaf's box, each pair verified at the box's midpoint
 /// ([`AssertionVerdict::Clearance`](crate::AssertionVerdict::Clearance)).
 ///
-/// `None` when `assertion` is not an `Assertion` node, or the
-/// evaluation over `box_` did not produce a verdict for it, a run
-/// `stop` stopped among them.
+/// `Ok(None)` when `assertion` is not an `Assertion` node, or the
+/// evaluation over `box_` did not produce a verdict for it.
+///
+/// # Errors
+///
+/// [`crate::Stopped`] when `stop` stopped the replay: its token was
+/// canceled, or the run ran out of its member budget.
 ///
 /// The scalar is the interval one, not a choice: a verdict over a BOX
 /// is only meaningful from an enclosure, and the point scalars cannot
@@ -2065,12 +2069,12 @@ pub fn assertion_at(
     symbolic: SymbolicDials,
     stop: &crate::Stop,
     tol: Tol,
-) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
+) -> Result<Option<crate::measure::AssertionVerdict<geom_core::Interval>>, crate::Stopped> {
     if !matches!(doc.node(assertion), Some(Node::Assertion(_))) {
-        return None;
+        return Ok(None);
     }
     // The SAME LANE the leaf was certified on ([`ParamBoxVerdict::symbolic`]).
-    crate::eval::replay_leaf(
+    let readback = crate::eval::replay_leaf(
         doc,
         &EvalOptions {
             param_box: Some(Arc::new(box_.clone())),
@@ -2084,8 +2088,11 @@ pub fn assertion_at(
             ..crate::eval::LeafRequest::default()
         },
         tol,
-    )
-    .assertion
+    );
+    match readback.stopped {
+        Some(stopped) => Err(stopped),
+        None => Ok(readback.assertion),
+    }
 }
 
 #[cfg(test)]

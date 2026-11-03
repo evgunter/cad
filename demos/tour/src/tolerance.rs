@@ -388,7 +388,8 @@ fn real_study(tol: Tol) {
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
-    let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
+    let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol)
+        .expect("the replays run to completion at the default member budget");
     match stackup(
         &doc,
         web,
@@ -654,7 +655,9 @@ fn certified_study(tol: Tol) {
     // numbers that differ by less than the run's own coincidence
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
-    let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
+    let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol)
+        .expect("the replays run to completion at the default member budget")
+        .0;
     let report = match stackup(
         &doc,
         web,
@@ -819,14 +822,15 @@ pub struct RequirementMasses {
 /// per leaf — on the lane the drive certified the leaf on, which the
 /// verdict carries, so a consumer never has to know which — and that
 /// call is the whole cost (stop 1 has hundreds of certified leaves,
-/// each a replay), so it is taken once and read twice.
+/// each a replay), so it is taken once and read twice. A replay that
+/// stopped is the door's refusal, not a leaf with no verdict.
 pub fn requirement_over_leaves(
     doc: &ProfileDoc,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
     assertion: RecipeNodeId,
     tol: Tol,
-) -> (Decided, RequirementMasses) {
+) -> Result<(Decided, RequirementMasses), pncad::document::Stopped> {
     let mut seen: Option<Decided> = None;
     let mut masses = RequirementMasses {
         holds: 0.0,
@@ -841,7 +845,7 @@ pub fn requirement_over_leaves(
             verdict.symbolic(),
             &pncad::document::Stop::default(),
             tol,
-        );
+        )?;
         let holds = reading.as_ref().and_then(|v| v.holds());
         let mass = leaf_mass(analyzed, &leaf.box_);
         match holds {
@@ -861,7 +865,7 @@ pub fn requirement_over_leaves(
             Some(_) => Decided::Mixed,
         });
     }
-    (seen.unwrap_or(Decided::Nothing), masses)
+    Ok((seen.unwrap_or(Decided::Nothing), masses))
 }
 
 /// One leaf's mass under the study's distributions: the product over

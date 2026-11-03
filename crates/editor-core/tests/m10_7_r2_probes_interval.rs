@@ -272,7 +272,8 @@ fn r2_end_to_end_bracket_study() {
                         dials,
                         &editor_core::Stop::default(),
                         tol,
-                    );
+                    )
+                    .expect("the replay is not stopped");
                     println!("   assertion at the root box: {a:?}");
                 }
             }
@@ -464,6 +465,7 @@ fn r2_what_a_real_study_gets_today() {
                         &editor_core::Stop::default(),
                         tol
                     )
+                    .expect("the replay is not stopped")
                 );
             }
         }

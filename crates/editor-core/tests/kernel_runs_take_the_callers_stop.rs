@@ -189,3 +189,64 @@ fn a_stopped_refusal_states_one_recourse() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// A document whose one toleranced length `w` is asserted `w ≥ 0`, with
+/// a three-member family beside it, and the assertion.
+fn asserted_beside_a_family() -> (ProfileDoc, editor_core::RecipeNodeId) {
+    let doc = crate::intent_s5_a_relation::toleranced("stop-assert", &[("w", 0.005)]);
+    let w = Formula::named(
+        editor_core::VarName::from_static("w"),
+        editor_core::Dimension::Length,
+    );
+    let (doc, assertion) = crate::intent_s5_a_relation::assert_on(
+        doc,
+        w,
+        editor_core::AssertionRelation::AtLeast,
+        fixture::len(0.0),
+    );
+    let (doc, i) = fixture::index(doc, "i", 3);
+    let (doc, cell) = block(doc, (5.0, 5.5), (0.0, 0.5), 0.5);
+    let slide = Formula::mul(fixture::scalar_of(i), fixture::len(1.0)).unwrap();
+    let (doc, _family) = fixture::family_of(doc, cell, vec![(Coord::slide(TargetAxis::X), slide)]);
+    (doc, assertion)
+}
+
+/// **A stopped replay is `assertion_at`'s refusal, not "no verdict"**:
+/// over the same box, a live stop answers the assertion, a canceled one
+/// refuses `Canceled`, and a budget of 2 refuses `Exhausted`. Red if the
+/// door reads a stopped replay as an assertion with no verdict
+/// (`Ok(None)`).
+#[test]
+fn a_stopped_replay_is_assertion_ats_refusal() {
+    let (doc, assertion) = asserted_beside_a_family();
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let box_ = editor_core::analysis::ParamBox::of(&analyzed);
+    let at = |stop: &Stop| {
+        editor_core::drive::assertion_at(
+            &doc,
+            assertion,
+            &box_,
+            editor_core::drive::SymbolicDials::default(),
+            stop,
+            Tol::witness(),
+        )
+    };
+    assert!(
+        matches!(at(&Stop::default()), Ok(Some(_))),
+        "a live stop answers the assertion"
+    );
+    assert_eq!(
+        at(&canceled()).err(),
+        Some(Stopped::Canceled),
+        "a canceled replay refuses"
+    );
+    assert_eq!(
+        at(&Stop {
+            member_budget: 2,
+            ..Stop::default()
+        })
+        .err(),
+        Some(Stopped::Exhausted { budget: 2 }),
+        "a replay out of the caller's budget refuses"
+    );
+}

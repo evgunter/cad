@@ -7829,4 +7829,38 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
         clearances_at_nominal(&doc, None, &Stop::canceled_by(&cancel), Tol::witness()),
         Err(Stopped::Canceled)
     );
+    // A four-member row beside the clearances, under a budget of 2: the
+    // door refuses as out of the caller's budget, not with answers read
+    // off a prefix.
+    let doc = applied(
+        &doc,
+        pncad::pattern::index_decl(
+            pncad::document::VarName::from_static("k"),
+            Formula::count(4),
+            None,
+        ),
+    )
+    .doc;
+    let space = Operand::Var(doc.node_space(solid).expect("the plate stands in a space"));
+    let row = pncad::pattern::linear_pattern(
+        &pncad::document::VarName::from_static("k"),
+        pncad::document::BodyRead::plain(Operand::Node(solid)),
+        space,
+        &[(
+            pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+            len(3.0),
+        )],
+        None,
+    )
+    .expect("a length pitch");
+    let (doc, _row) = insert(doc, row);
+    let lowered = Stop {
+        member_budget: 2,
+        ..Stop::default()
+    };
+    assert_eq!(
+        clearances_at_nominal(&doc, None, &lowered, Tol::witness()),
+        Err(Stopped::Exhausted { budget: 2 }),
+        "a run out of the caller's budget answers no clearance"
+    );
 }

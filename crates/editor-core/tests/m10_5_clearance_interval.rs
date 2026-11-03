@@ -1162,6 +1162,25 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         ClearanceVerdict::Holds,
         "the numeric replay of a symbolic-tier leaf is not the build it certified"
     );
+    // The same fold under a canceled stop refuses as canceled, and
+    // prices no leaf: the cancel stopped it before its one leaf's answer.
+    let cancel = editor_core::CancelToken::new();
+    cancel.cancel();
+    let canceled = editor_core::Stop::canceled_by(&cancel);
+    let stopped = clearance_over_at_dials(
+        &plate.doc,
+        &analyzed,
+        &verdict,
+        &a,
+        &b,
+        &ClearanceQuery::at_dials(ClearanceBound::at_least(0.3e-3), &canceled, tol),
+    );
+    assert_eq!(
+        stopped.verdict,
+        ClearanceVerdict::Refused(ClearanceRefusal::Stopped(editor_core::Stopped::Canceled)),
+        "a canceled fold refuses as canceled"
+    );
+    assert!(stopped.leaves.is_empty(), "and answers no leaf");
 }
 
 // --------------------------------------------------- the honest limit

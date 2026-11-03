@@ -14,3 +14,7 @@ Found building `kernel-run-evaluations-mint-their-own-cancel-token` (PR 2 of WIR
 - `mate/corner.rs` `corner_frame`: refuses through the node's standing (`NotEvaluated`), which names both stops — typed, but as a pin refusal rather than as the run stopping.
 
 The fix is a typed refusal (an `EditError` arm carrying `crate::Stopped`) where an edit's inner run stopped, so a canceled gesture commits nothing.
+
+## Probe (review of PR 6436, 2026-11-03)
+
+The PR 6436 review demonstrated it: `Recording::sketch_on_face` with no `orient`, handed a token canceled before the call, returned `Ok` and committed the sketch. The orientation was the identity fallback, not the face's frame. Today no production caller hands these doors a live token: pncad-py and the viewer's UI thread pass a fresh one. So the defect is reachable only through the Rust API until a door grows a `cancel=`. That is still the reason to fix it before one does.

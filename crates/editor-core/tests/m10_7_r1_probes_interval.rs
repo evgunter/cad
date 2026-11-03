@@ -481,6 +481,7 @@ fn r1_e2e_bracket_study() {
                     &editor_core::Stop::default(),
                     tol,
                 )
+                .expect("the replay is not stopped")
                 .and_then(|a| a.holds())
                 {
                     Some(true) => holds.0 += 1,

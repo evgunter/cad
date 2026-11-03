@@ -610,10 +610,10 @@ impl crate::spoken::Say for NodeStanding {
                 "{} has no result in this evaluation: the run stopped before it reached \
                  the node, canceled or out of its member budget. {}",
                 by.node(node),
-                Recourse(
-                    "re-evaluate the document to completion, under a member budget that \
-                     admits its families"
-                )
+                Recourse(format_args!(
+                    "re-evaluate the document to completion; where it ran out, {}",
+                    crate::sentence::RAISE_THE_MEMBER_BUDGET
+                ))
             ),
             Self::NotInDocument { node } => write!(
                 f,
@@ -3173,13 +3173,15 @@ impl Stopped {
 impl core::fmt::Display for Stopped {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Canceled => f.write_str(
-                "it was canceled before it finished. Recourse: ask again, and let it finish",
+            Self::Canceled => write!(
+                f,
+                "it was canceled before it finished. {}",
+                crate::sentence::Recourse("ask again, and let it finish")
             ),
             Self::Exhausted { budget } => write!(
                 f,
-                "an evaluation inside it ran out of its member budget of {budget} listing steps. \
-                 Recourse: raise the member budget, or lower a count"
+                "an evaluation inside it ran out of its member budget of {budget} listing steps. {}",
+                crate::sentence::Recourse(crate::sentence::RAISE_THE_MEMBER_BUDGET)
             ),
         }
     }

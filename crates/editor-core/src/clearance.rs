@@ -1417,6 +1417,9 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             band,
             budgets: query.config.budgets,
         };
+        // A witness rebuild the caller's stop stopped is the query's
+        // refusal, not an unverified witness: the first one stops it.
+        let stopped = std::sync::OnceLock::new();
         let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
             let faces = candidate.faces();
             let ask = candidate.ask();
@@ -1427,10 +1430,13 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 (a, b),
                 (faces, || engine.on_face_stations(candidate)),
                 (ask, band, &over),
-                (query.resolver, query.stop),
+                (query.resolver, query.stop, &stopped),
                 query.tol,
             )
         });
+        if let Some(&stopped) = stopped.get() {
+            return ClearanceReport::refused(ClearanceRefusal::Stopped(stopped));
+        }
         let verdict = verdict_of(
             report.verdict,
             || witness_point(queried),
@@ -1470,6 +1476,11 @@ impl crate::eval::AtLeaf for Replayed<'_> {
 /// not. [`ClearanceMass`] moves it out, by class, so the sentence a
 /// report writes has an honest denominator.
 ///
+/// **A cancel refuses the fold** ([`ClearanceRefusal::Stopped`]): it
+/// stops at the leaf the cancel reached, and its mass columns price
+/// only the leaves before it. A leaf that ran out of its member budget
+/// is that leaf's refusal: each leaf replays as its own run.
+///
 /// # Errors
 ///
 /// Nothing: the refusals are verdicts, not errors. The mass columns
@@ -1503,6 +1514,17 @@ pub fn clearance_over_at_dials(
     for leaf in verdict.certified() {
         let CertifiedLeaf { box_, .. } = leaf;
         let report = clearance_on(doc, box_, a, b, query, lane);
+        // A cancel stops the fold: the leaves after it were never asked,
+        // so no mass column can be written. Running out is the leaf's
+        // own: each leaf is replayed as its own run, under the whole
+        // member budget, so an exhausted leaf is a refused leaf priced
+        // as one, beside the leaves that fit.
+        if let ClearanceVerdict::Refused(ClearanceRefusal::Stopped(crate::Stopped::Canceled)) =
+            report.verdict
+        {
+            fold.verdict = report.verdict;
+            return fold;
+        }
         let mass = box_.mass(analyzed);
         fold.mass.price(&report.verdict, mass);
         fold.receipt = fold.receipt.plus(report.receipt);
@@ -1939,14 +1961,20 @@ pub(crate) fn midpoint_of(leaf: &ParamBox) -> ParamBox {
 ///
 /// # Errors
 ///
-/// The prose of what the rebuild could not confirm.
+/// The prose of what the rebuild could not confirm. A rebuild `stop`
+/// stopped is recorded in `stopped` as well, and the query refuses
+/// [`ClearanceRefusal::Stopped`] rather than read it as unverified.
 fn verify_witness(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
     ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
     (ask, band, over): (Ask, Band, &topo::clearance::Enclosure<'_>),
-    (resolver, stop): (Option<&Arc<dyn crate::part::PartResolver>>, &crate::Stop),
+    (resolver, stop, stopped): (
+        Option<&Arc<dyn crate::part::PartResolver>>,
+        &crate::Stop,
+        &std::sync::OnceLock<crate::Stopped>,
+    ),
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let opts = EvalOptions {
@@ -1955,8 +1983,11 @@ fn verify_witness(
         ..lane_opts(stop)
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &stop.cancel, &opts, tol);
-    if let Some(stopped) = crate::Stopped::of(ev.outcome) {
-        return Err(format!("the f64 rebuild stopped: {stopped}"));
+    if let Some(stop) = crate::Stopped::of(ev.outcome) {
+        // Recorded for the query to refuse with; the engine's reading of
+        // this `Err` is never reported.
+        let _ = stopped.set(stop);
+        return Err(format!("the f64 rebuild stopped: {stop}"));
     }
     // The SAME chart the interval pass subdivided in: the stored one.
     // A witness's `(u, v)` are coordinates in that chart, and the `f64`

@@ -1523,22 +1523,22 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it. A node with no value raises as [`Self::value`] does.
+    /// about it. A node with no value raises as [`Self::value`] does;
+    /// a door the run's `cancel=` token stopped raises `ChecksError`
+    /// `canceled`, as `run_checks` does.
     fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let Ok(proofs) = d::coincide::prove(
+        let proofs = d::coincide::prove(
             &self.doc,
             &[(node.0, &*value.coincidences)],
             self.inner.resolver(),
             Tol::witness(),
             &self.stop,
-        ) else {
-            // The run's `cancel=` token, canceled: no row is decided.
-            return Ok(Vec::new());
-        };
+        )
+        .map_err(|canceled| super::checks::checks_err(py, &d::ChecksError::Canceled(canceled)))?;
         value
             .coincidences
             .iter()
