@@ -686,12 +686,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
-            "tree.rs",
-            ".usable(",
-            "`split_reading` reads a staged split, which has no row: the split panel's verdict \
-             before commit, said in the panel and nowhere the tree draws",
-        ),
-        (
             "matetool.rs",
             "face_carrier_kind(",
             "`MateReading::at_site` asks only whether a picked face's carrier is no plane, to \
