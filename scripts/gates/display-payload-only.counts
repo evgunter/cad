@@ -5,7 +5,8 @@ crates/editor-core/src/checks.rs build 1
 crates/editor-core/src/checks/at_rest.rs at_rest 1
 crates/editor-core/src/checks/at_rest.rs build 3
 crates/editor-core/src/eval/mod.rs at_rest 1
-crates/editor-core/src/eval/mod.rs build 10
+crates/editor-core/src/eval/mod.rs build 11
+crates/editor-core/src/names/emit.rs build 1
 crates/editor-core/src/product.rs at_rest 3
 crates/editor-core/src/product.rs build 1
 crates/geom-brep/src/certify.rs import 1
