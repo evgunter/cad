@@ -152,7 +152,12 @@ fn rim_net(chart: Chart, vc: f64, (ua, ub): (f64, f64), segments: usize) -> Nurb
 /// The rectangle `[u0, u1] × [v0, v1]` counterclockwise in the chart
 /// (bottom, right, top, left), with the edges `swap` names rewritten:
 /// `0`/`2` the bottom/top rims, `1`/`3` the right/left rulings.
-fn rectangle(chart: Chart, (u0, u1): (f64, f64), (v0, v1): (f64, f64), swap: &[usize]) -> Vec<Edge> {
+fn rectangle(
+    chart: Chart,
+    (u0, u1): (f64, f64),
+    (v0, v1): (f64, f64),
+    swap: &[usize],
+) -> Vec<Edge> {
     let segments = if u1 - u0 > 2.0 { 2 } else { 1 };
     let edges = [
         (
@@ -263,8 +268,14 @@ fn face(
             };
             let projected = image.projected().unwrap();
             out.push(EdgeTermQ::Projected(
-                ProjectedEdgeQ::of_image(&image, projected, (0.0, 1.0), e.harmonic.forward, pt(env))
-                    .unwrap(),
+                ProjectedEdgeQ::of_image(
+                    &image,
+                    projected,
+                    (0.0, 1.0),
+                    e.harmonic.forward,
+                    pt(env),
+                )
+                .unwrap(),
             ));
             rationals.push(carrier_term(chart, n, e.harmonic.forward));
         }
@@ -278,7 +289,9 @@ fn face(
     });
     let whole = dot(lever, vector_area);
     let closed = whole - (0..3).fold(Interval::zero(), |a, k| a + lever[k] * swapped_va[k]);
-    let cylinder = RotationalChartQ::Cylinder { radius: pt(chart.r) };
+    let cylinder = RotationalChartQ::Cylinder {
+        radius: pt(chart.r),
+    };
     let harmonic = RotationalFaceQ {
         chart: cylinder,
         chart_term: ChartTermQ {
@@ -309,7 +322,12 @@ fn face(
 }
 
 /// Both faces' enclosures hold the closed forms `flux`, `area`.
-fn holds(label: &str, (harmonic, swapped): &(RotationalFaceQ, RotationalFaceQ), flux: f64, area: f64) {
+fn holds(
+    label: &str,
+    (harmonic, swapped): &(RotationalFaceQ, RotationalFaceQ),
+    flux: f64,
+    area: f64,
+) {
     let band = Band::linear(Tol::witness()).unwrap();
     for (which, face) in [("harmonic", harmonic), ("swapped", swapped)] {
         let got = met(rotational_cut_face_rounds::<f64>(
@@ -326,10 +344,20 @@ fn holds(label: &str, (harmonic, swapped): &(RotationalFaceQ, RotationalFaceQ), 
 
 /// The closed forms of the rectangle `[u0, u1] × [v0, v1]` about
 /// `about`: `r²·A + (o − about)·A⃗` and `r·|A|`, `A` signed by `sign`.
-fn rectangle_truth(chart: Chart, us: (f64, f64), vs: (f64, f64), about: Point3<f64>, sign: f64) -> (f64, f64, Vec3<f64>) {
+fn rectangle_truth(
+    chart: Chart,
+    us: (f64, f64),
+    vs: (f64, f64),
+    about: Point3<f64>,
+    sign: f64,
+) -> (f64, f64, Vec3<f64>) {
     let a = (us.1 - us.0) * (vs.1 - vs.0) * sign;
     let va = chart.vector_area(us, vs);
-    (chart.r * chart.r * a + (chart.o - about).dot(va), chart.r * a.abs(), va)
+    (
+        chart.r * chart.r * a + (chart.o - about).dot(va),
+        chart.r * a.abs(),
+        va,
+    )
 }
 
 /// **A swapped ruling, rim, seam-crossing rim, a rim past a quarter
@@ -343,12 +371,22 @@ fn a_swapped_edge_holds_the_closed_forms() {
         ("a ruling", (0.3, 1.4), (0.2, 1.1), vec![1]),
         ("a rim", (0.3, 1.4), (0.2, 1.1), vec![0]),
         ("a rim across the seam", (-0.5, 0.6), (0.2, 1.1), vec![2]),
-        ("a rim past a quarter turn", (0.2, 2.6), (-0.4, 0.7), vec![0, 2]),
+        (
+            "a rim past a quarter turn",
+            (0.2, 2.6),
+            (-0.4, 0.7),
+            vec![0, 2],
+        ),
         ("every edge", (0.3, 1.4), (0.2, 1.1), vec![0, 1, 2, 3]),
     ] {
         let (flux, area, va) = rectangle_truth(chart, us, vs, about, 1.0);
         let loops = [rectangle(chart, us, vs, &swap)];
-        holds(label, &face(chart, &loops, va, about, Deck::AsMinted), flux, area);
+        holds(
+            label,
+            &face(chart, &loops, va, about, Deck::AsMinted),
+            flux,
+            area,
+        );
     }
 }
 
@@ -444,7 +482,12 @@ fn a_far_face_holds_its_closed_form() {
     let (us, vs) = ((0.3, 1.4), (0.2, 1.1));
     let (flux, area, va) = rectangle_truth(chart, us, vs, about, 1.0);
     let loops = [rectangle(chart, us, vs, &[1, 2])];
-    holds("a thousand metres out", &face(chart, &loops, va, about, Deck::AsMinted), flux, area);
+    holds(
+        "a thousand metres out",
+        &face(chart, &loops, va, about, Deck::AsMinted),
+        flux,
+        area,
+    );
 }
 
 /// **A projected circle holds the closed form**: the rectangle's bottom

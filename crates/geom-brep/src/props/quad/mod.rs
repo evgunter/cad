@@ -59,24 +59,24 @@
 
 mod area;
 mod cells;
-mod rotational;
 mod green;
 mod net;
 mod patch;
 mod rational;
+mod rotational;
 mod run;
 mod trig;
 mod trimmed;
 
 pub use area::boundary_chord_perimeter_lo;
 
+pub use green::bspline_green_integral;
+pub use net::{PatchNet, RVec3};
+pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
 pub use rotational::{
     ChartTermQ, EdgeTermQ, FramedQ, HarmChan, ProjectedEdgeQ, RotationalChartQ, RotationalFaceQ,
     TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds, rotational_cut_face_rounds,
 };
-pub use green::bspline_green_integral;
-pub use net::{PatchNet, RVec3};
-pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
 #[cfg(any(test, feature = "test-support"))]
 pub use run::rounds_run_by;
 pub use run::{

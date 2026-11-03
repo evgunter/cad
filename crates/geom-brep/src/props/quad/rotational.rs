@@ -110,9 +110,9 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, SpanLocate};
 use super::RVec3;
 use super::run::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use super::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
+use crate::pcurve_cache::{FramedCarrier, Pcurve, ProjectedChart, ProjectedImage};
 use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, mid, pt};
-use crate::pcurve_cache::{FramedCarrier, Pcurve, ProjectedChart, ProjectedImage};
 use crate::props::rational_rim::{
     RationalEdgeQ, rational_edge_q_split, rational_integrals, rational_rate_bound,
     rational_vector_area_split,
@@ -882,11 +882,10 @@ pub fn rotational_cut_face_rounds<T: Decide>(
             .fold((term, Interval::zero()), |(f, a), l| (f + l[0], a + l[1]));
         let area = signed.abs_enclosure();
         let bounds = FaceCutBounds { flux, area };
-        let (stop, accepted) =
-            run.ask(round, bounds, removable + term_rem, accept, || {
-                let perim: f64 = entries.iter().flatten().map(|e| e.length).sum();
-                face_extent::<T>(area, perim, band)
-            })?;
+        let (stop, accepted) = run.ask(round, bounds, removable + term_rem, accept, || {
+            let perim: f64 = entries.iter().flatten().map(|e| e.length).sum();
+            face_extent::<T>(area, perim, band)
+        })?;
         if let Some(out) = run.ringed(round, stop, accepted, bounds, || {
             require_holes_wound_against(&entries, &per_loop, &winds, signed, band)
         })? {

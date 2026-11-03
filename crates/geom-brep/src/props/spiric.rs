@@ -85,7 +85,9 @@ use geom_core::{Band, Bounds, Decide};
 use super::PropsError;
 use super::bracket::{AbsEnclosure, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
-use super::quad::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent};
+use super::quad::{
+    Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent,
+};
 use super::taylor::{Jet, composite, node, trig_of, trig_range};
 
 /// **The one home of a spiric edge's rate bounds over a window `[lo, hi]`
