@@ -4,7 +4,7 @@ kind: issue
 title: Unions over a stepped plate or a flush engulf refuse 'a piece of a face held as several borders no recorded discard between them' in some member orders and publish in others
 status: open
 opened: 2026-10-19
-priority: P2
+priority: P1
 cost: M
 refs: [a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere, coincident-faces-are-not-imprinted-on-each-other-before-the-lump]
 ---
@@ -140,3 +140,7 @@ come from the record (the join's own row), which is this row's and
 `borders-records-a-join-twice-and-reads-lineage-three-ways`'s work; until
 then the 8 orders publish a table that differs from the other 16, a
 known order dependence and a P2 here.
+
+## Re-banded P1 (REFS orchestrator, 2026-11-03, at PR 6381's merge)
+
+Since PR 6381 (per-face naming), `emit_union_borders::a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider` publishes, in 8 of 24 member orders, a table that drops the diamond's walls from the right piece. Main refused those orders. That is a silently wrong name that depends on member order, against N2's "every member order names alike". A refusal keyed on what the naming can see over-refused: all 24 orders of both halves, plus two other rows. So the fix has to come from the join's record of which half of a joined edge a corner lies on (see `borders-records-a-join-twice-and-reads-lineage-three-ways`). Band P1, per the PR 6381 review.
