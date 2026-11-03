@@ -315,3 +315,10 @@ and bodies unchanged. No orchestrator yet.
   - **Moved outcomes:** coaxial cylinder × sphere builds every op at exact volumes, and INTENT's shaft-and-ball union is green at f64.
   - **Filed:** torus closed forms are held off the carried lane (P2).
   - **Review:** the dual review is dispatched to two cloud sessions.
+
+- 2026-11-03 01:15 — **NURBS stage 3a is up as PR 6412.** It adds the 1×2 lane `ImplicitChartR2`, the `ImplicitSection` handle, partner-excluding seeding and accounting, limb 3 under one home via `ChartPhi`, and the curved whole reading; `curved::unbuilt` retires.
+  - **Pcurves:** the implicit side has none. This follows the ℝ³ precedent: `feet` returns `[Option; 2]`, and the 1×2 lane uses `AtRest { pcurve_a: None }`.
+  - **Behaviour preserved:** plane and pair outcomes are bit-identical.
+  - **Surviving mutants, with reasons:** raw-form exclusion, farthest pairing, bracket direction, `rhs3`.
+  - **Unexercised:** no row drives the side arm on a curved partner.
+  - **Review:** dual review in two cloud sessions, R1 `session_01VyvYnKsU2n2aiHaMZV4QrF` and R2 `session_01VyvYnLgYEj8KXLh8v6yu18`.
