@@ -2785,3 +2785,125 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
+
+/// Review probe (PR 6486, r2): fuzz `Meters::Spindle::over` against the
+/// exact distance from THIS sheet, at points and small boxes near this
+/// sheet, the other sheet, the apexes and the axis.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::many_single_char_names)]
+mod r2_spindle_meters_probe {
+    use super::Meters;
+
+    struct Rng(u64);
+    impl Rng {
+        fn unit(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn range(&mut self, a: f64, b: f64) -> f64 {
+            a + (b - a) * self.unit()
+        }
+    }
+
+    fn f(big: f64, r: f64, rho: f64, z: f64) -> f64 {
+        ((rho - big).powi(2) + z * z - r * r) * ((rho + big).powi(2) + z * z - r * r)
+    }
+
+    /// Exact distance in the meridian half-plane from `(rho, z)` to the
+    /// sheet `{(R + r cos v, r sin v) : R + r cos v ≥ 0}`.
+    fn dist(big: f64, r: f64, rho: f64, z: f64) -> f64 {
+        let m = ((rho - big).powi(2) + z * z).sqrt();
+        let near_rho = big + r * (rho - big) / m;
+        if near_rho >= 0.0 {
+            (m - r).abs()
+        } else {
+            let h = (r * r - big * big).sqrt();
+            let a = (rho * rho + (z - h).powi(2)).sqrt();
+            let b = (rho * rho + (z + h).powi(2)).sqrt();
+            a.min(b)
+        }
+    }
+
+    #[test]
+    fn spindle_over_bounds_the_distance_from_this_sheet() {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+        let mut certified = 0usize;
+        let mut worst = 0.0f64;
+        for i in 0..400_000 {
+            let r = rng.range(0.2, 2.0);
+            let mut u = rng.range(-0.98, 0.98);
+            if u.abs() < 0.02 {
+                u = 0.5;
+            }
+            let big = r * u;
+            let h = (r * r - big * big).sqrt();
+            // A seed point: on this sheet, on the other sheet, at an
+            // apex, on the axis, or anywhere near.
+            let (rho0, z0) = match i % 5 {
+                0 | 1 => {
+                    let vs = (-big / r).acos();
+                    let v = rng.range(-vs, vs);
+                    (big + r * v.cos(), r * v.sin())
+                }
+                2 => {
+                    let vs = (big / r).acos();
+                    let v = rng.range(-vs, vs);
+                    (-big + r * v.cos(), r * v.sin())
+                }
+                3 => (0.0, if rng.unit() < 0.5 { h } else { -h }),
+                _ => (rng.range(0.0, 2.0 * r), rng.range(-2.0 * r, 2.0 * r)),
+            };
+            let scale = 10f64.powf(rng.range(-9.0, -1.0));
+            let rho_c = (rho0 + scale * rng.range(-1.0, 1.0)).max(0.0);
+            let z_c = z0 + scale * rng.range(-1.0, 1.0);
+            let point = rng.unit() < 0.3;
+            let (dr, dz) = if point {
+                (0.0, 0.0)
+            } else {
+                (scale * rng.unit(), scale * rng.unit())
+            };
+            let rho_lo = (rho_c - dr).max(0.0);
+            let rho_hi = rho_c + dr;
+            let (z_lo, z_hi) = (z_c - dz, z_c + dz);
+            let n = if point { 0 } else { 12 };
+            let mut fsup = 0.0f64;
+            let mut dmax = 0.0f64;
+            for a in 0..=n {
+                for b in 0..=n {
+                    let (ta, tb) = if n == 0 {
+                        (0.0, 0.0)
+                    } else {
+                        (f64::from(a) / f64::from(n), f64::from(b) / f64::from(n))
+                    };
+                    let rho = rho_lo + (rho_hi - rho_lo) * ta;
+                    let z = z_lo + (z_hi - z_lo) * tb;
+                    fsup = fsup.max(f(big, r, rho, z).abs());
+                    dmax = dmax.max(dist(big, r, rho, z));
+                }
+            }
+            // Grid sup of |f| only under-reads the true sup, which can
+            // only make the bound smaller: inflate it generously so a
+            // miss is the formula's, not the sampling's.
+            let fsup = fsup * 2.0 + 1e-300;
+            let positive = |x: f64| if x > 0.0 { Ok(x) } else { Err(()) };
+            let got = Meters::Spindle {
+                major: big,
+                minor: r,
+            }
+            .over(fsup, (rho_lo, rho_hi), (z_lo, z_hi), positive);
+            if let Ok(bound) = got {
+                certified += 1;
+                worst = worst.max(dmax / bound);
+                assert!(
+                    dmax <= bound * (1.0 + 1e-9) + 1e-15,
+                    "i {i}: R {big} r {r} box rho [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
+                     distance {dmax} from the sheet exceeds the bound {bound}"
+                );
+            }
+        }
+        eprintln!("certified {certified}, worst ratio dist/bound {worst}");
+        assert!(certified > 10_000, "the lever certified only {certified}");
+    }
+}
