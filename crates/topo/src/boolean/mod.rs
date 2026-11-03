@@ -98,6 +98,7 @@ mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
+mod fan;
 mod fate;
 mod finish;
 mod fragments;
@@ -206,8 +207,6 @@ pub use edge_join::{
 };
 pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
-#[doc(hidden)]
-pub use nary::MemberLineage;
 pub use nary::{
     Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
     NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
@@ -298,6 +297,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
+        | "bool_fan_side"
+        | "bool_fan_nappe"
+        | "bool_fans_coaxial"
+        | "bool_fans_one_cone"
+        | "bool_fans_meet"
+        | "bool_fans_meet_conditioning"
+        | "bool_fan_bounds_along"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
@@ -3058,14 +3064,17 @@ pub enum BooleanError {
         band: Band,
     },
     /// A vertex the boolean classifies is the apex of a cone face of
-    /// `operand` and pairs with a vertex of the other operand. A sector
-    /// there is a fan of the cone's rulings, and the vertex–vertex pair
-    /// algebra over a fan is unbuilt. Only an apex against an apex
-    /// reaches it: a corner or an edge of the other operand at the apex
-    /// has an edge through the apex, which refuses
-    /// [`BooleanError::CrossingAtConeApex`] first
-    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`);
-    /// a pierce of the other operand's face at the apex reads.
+    /// `operand` and pairs with a vertex of the other operand, and a
+    /// reading of the pair has no arm for a fan of the cone's rulings.
+    /// The vertex–vertex lane reads a fan's side, membership and meeting
+    /// against a plane or another fan (`boolean::fan`); what refuses here
+    /// is a reader still built on a sector's plane
+    /// (`boolean::sectors::BoolSector::plane`: the reclassification of a
+    /// crossing record that a fan bounds), a fan's bound the edge rules
+    /// leave `On` the partner's face (`boolean::recl::recl_edges`), and a
+    /// whole-turn cone vertex whose partner is anything but the fans of one
+    /// cone, on one nappe (`boolean::fan::nappe_classes`)
+    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
     VertexPairAtConeApex {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -4851,9 +4860,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::VertexPairAtConeApex { operand, .. } => write!(
                 f,
-                "the tip of a cone face of the {} operand meets the tip of a cone face of \
-                 the other part, and two cone tips meeting is not yet supported. \
-                 Recourse: move the parts so the two tips are apart",
+                "the tip of a cone face of the {} operand meets a vertex of the other part \
+                 (a corner, a wedge's edge or another cone's tip) in a way the kernel cannot \
+                 yet read around the tip. Recourse: move the parts so the tip is clear of it",
                 operand_word(*operand),
             ),
             Self::ApexSection { reading, .. } => write!(
@@ -6354,23 +6363,24 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(
-            &a,
-            Operand::A,
-            c.a,
-            &tips[0],
-            sectors::ApexPlane::None,
-            band,
-        )?;
-        let b_sectors = sectors::build_sectors(
-            &b,
-            Operand::B,
-            c.b,
-            &tips[1],
-            sectors::ApexPlane::None,
-            band,
-        )?;
-        sectors::apex_pair_refusal([(Operand::A, &a_sectors), (Operand::B, &b_sectors)])?;
+        // Each vertex's sectors, cut where the other's faces turn their
+        // side along them ([`sectors::Partners::Faces`]), which only a
+        // cone's apex on either side can do: what those faces are at the
+        // vertex is read off an uncut walk first.
+        let none = sectors::Partners::None;
+        let a_plain = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &none, band)?;
+        let b_plain = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &none, band)?;
+        let (a_sectors, b_sectors) = if a_plain.iter().chain(&b_plain).any(|s| s.apex().is_some()) {
+            let faces = |plain: &[sectors::BoolSector<T>]| {
+                sectors::Partners::Faces(plain.iter().map(|s| s.at_vertex).collect())
+            };
+            (
+                sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &faces(&b_plain), band)?,
+                sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &faces(&a_plain), band)?,
+            )
+        } else {
+            (a_plain, b_plain)
+        };
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
@@ -6423,8 +6433,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let mut records =
-            sectors::pair_search([&a, &b], [&a_sectors, &b_sectors], &contacts, band)?;
+        let mut records = sectors::pair_search(
+            ([&a, &b], [c.a, c.b]),
+            [&a_sectors, &b_sectors],
+            &contacts,
+            band,
+        )?;
         // A partner along the touched face, its side unread, refuses
         // where a sector pair lies on one plane, before `recl_sectors`
         // reads one.
@@ -6482,7 +6496,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own_point(operand, vertex),
             own,
             &edges,
-            &touch.pairs,
+            (operand.other(), &touch.pairs),
             Some((touch.face, touch.datum.normal, &touch.read_against)),
             band,
         )?
@@ -6499,8 +6513,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     }
     for (&(operand, vertex), (own, pairs)) in &paired {
         let edges: Vec<_> = own.iter().filter(|s| s.end_edge()).map(|s| s.he).collect();
-        let classes =
-            vtxfac::cone_classes(own_point(operand, vertex), own, &edges, pairs, None, band)?;
+        let classes = vtxfac::cone_classes(
+            own_point(operand, vertex),
+            own,
+            &edges,
+            (operand.other(), pairs),
+            None,
+            band,
+        )?;
         let classes = match (classes, pairs.as_slice()) {
             (Ok(classes), _) => classes,
             (Err(in_band), [one]) => {

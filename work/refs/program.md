@@ -2,7 +2,7 @@
 id: refs
 kind: program
 title: REFS — references and reads: a name scoped by its read, indexed reads, and the façade's slot words
-status: active
+status: ready
 opened: 2026-10-11
 group: api/names
 prefix: reads/

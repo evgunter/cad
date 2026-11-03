@@ -2031,18 +2031,23 @@ A create gesture asks for two things and nothing else:
 - **which kind of node.** The button pressed says it. A choice that
   decides the node's kind, or which nodes exist, is a button and not a
   field: union, intersect or subtract; fillet or chamfer; a pattern's
-  rule and whether its copies are fused; a clearance bound's shape.
+  rule and whether its copies are fused. A clearance bound's shape
+  (at least, at most, exactly, between) is not one: it decides neither
+  the node's kind nor which nodes exist, so it is a row on the
+  requirement, and the create gesture inserts at least.
 - **what the node reads**: the selection, or the tool's picks. These
   are the profile an extrude or revolve sweeps, a boolean's members, a
-  split's target, a blend's edge set, and the face a profile is drawn
-  on. A live node's reads change only by the slot door or
+  split's target and the plane it cuts along (any plane the document
+  can read: a planar face, or a plane already defined), a blend's edge
+  set, and the face a profile is drawn on. A live node's reads change only by the slot door or
   `SetMembers` (DM6, `crates/editor-core/REFERENCES.md`), so they are
   stated at insert.
 
 It inserts the node with default values and selects the node its noun
 names (the pattern, not the pattern's placement). A default is worked
-out from the reads where it can be: the split plane through the
-target's centre, a revolve's axis off its profile's extent.
+out from the reads where it can be: a revolve's axis lies off its
+profile's extent. A pattern inserts with default values, which its
+placement and count rows edit.
 
 Every value is edited afterwards on the node's one edit surface: its
 Properties slot rows, the profile editor, or the placement editor.

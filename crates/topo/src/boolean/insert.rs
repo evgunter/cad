@@ -501,8 +501,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
             (super::Locus::OnEdge(_), _) => Ok(on_bound(&a_sectors[r.a], raw[i].sa)),
             (_, super::Locus::OnEdge(_)) => Ok(on_bound(&b_sectors[r.b], raw[i].sb)),
             _ => record_germ_dir(
-                a_body,
-                b_body,
+                (a_body, contact.a),
+                (b_body, contact.b),
                 &a_sectors[r.a],
                 &b_sectors[r.b],
                 declared,
@@ -1675,7 +1675,10 @@ fn beside_order<T: Decide>(
     let Some([bp, bq]) = p.tie_flankers(q) else {
         return Ok(Sign::Zero);
     };
-    let n = s.tangent().vec();
+    // A fan has no plane for an edge's flanker to lie flush with.
+    let Some(n) = s.apex().is_none().then(|| s.tangent().vec()) else {
+        return Ok(Sign::Zero);
+    };
     let off = |x: Vec3<T>| {
         crate::validate::decide("bool_beside_flush", Margin::levered(n.dot(x), s.arm), band)
             .map_err(|diag| {
@@ -1730,10 +1733,35 @@ fn walks_after<T: Decide>(
     y: Leaned<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let lever = leaned_lever(s.arm, (x.lean, y.lean));
-    let m = Margin::levered(x.dir.cross(y.dir).dot(s.tangent().vec()), lever);
+    // At a cone's apex the sector is a fan, whose sweep runs from its
+    // start bound to its end bound as a planar sector's turn about its
+    // normal does: `y` after `x` is the face's turn from `x`'s ruling to
+    // `y`'s ([`crate::sector_face::ConeApex::turn`]).
+    let m = match s.apex() {
+        Some(apex) => fan_turn(s, apex, x, y),
+        None => Margin::levered(
+            x.dir.cross(y.dir).dot(s.tangent().vec()),
+            leaned_lever(s.arm, (x.lean, y.lean)),
+        ),
+    };
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
+}
+
+/// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's
+/// sides are ([`leaned_lever`]): the one margin [`walks_after`] and
+/// [`walk_faces_first`] read a fan's order by
+/// ([`crate::sector_face::ConeApex::turn`]).
+fn fan_turn<T: Decide>(
+    s: &BoolSector<T>,
+    apex: &crate::sector_face::ConeApex<T>,
+    x: Leaned<T>,
+    y: Leaned<T>,
+) -> Margin<T> {
+    Margin::levered(
+        apex.turn(x.dir, y.dir),
+        leaned_lever(s.arm, (x.lean, y.lean)),
+    )
 }
 
 /// A germ in one solid.
@@ -2308,6 +2336,22 @@ fn walk_faces_first<T: Decide>(
         return Ok(before);
     }
     let s = &sectors[first.entry];
+    // A fan's germs are rulings: the strut order agrees with the walk
+    // within an entry (`the_strut_order_agrees_with_the_walk_within_an_entry`),
+    // the first germ met first where the walk reads the second before
+    // it, and a tie refuses as the coincidence it is.
+    // The margin is [`walks_after`]'s ([`fan_turn`]); the decision is not:
+    // there a tie is a shared cut its callers read, here two distinct
+    // germs of one entry, where a tie is a coincidence and refuses.
+    if let Some(apex) = s.apex() {
+        return crate::validate::decide_nonzero(
+            "bool_shared_cut_order",
+            fan_turn(s, apex, first.line, second.line),
+            band,
+        )
+        .map(|sign| sign == geom_core::k_stats::NonzeroSign::Negative)
+        .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag));
+    }
     // The germs are read from the corner's arrival bound: the arrival
     // edge's departure from the vertex, which a germ leaving along a
     // curved edge's tangent lies on.
@@ -2402,8 +2446,8 @@ pub(super) fn strut_order<T: Decide>(
 /// derived), signed into the sector pair by the same membership test;
 /// every other pair takes the transverse normal cross ([`germ_dir`]).
 fn record_germ_dir<T: Decide>(
-    a_body: &Body<T>,
-    b_body: &Body<T>,
+    (a_body, a_vertex): (&Body<T>, VertexKey),
+    (b_body, b_vertex): (&Body<T>, VertexKey),
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
     declared: &super::GluedPairs<T>,
@@ -2417,6 +2461,9 @@ fn record_germ_dir<T: Decide>(
         &[],
     );
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
+        if sa.apex().is_some() || sb.apex().is_some() {
+            return fan_germ_dir((a_body, a_vertex, sa), (b_body, b_vertex, sb), read, band);
+        }
         return germ_dir(sa, sb, read, band);
     }
     let s_a = a_body.proven_face_surface(sa.face).clone();
@@ -2504,6 +2551,47 @@ fn germ_dir<T: Decide>(
             what: "germ direction not uniquely within its sector pair",
         }),
     }
+}
+
+/// **The germ's direction where a sector of the pair is a fan of a cone's
+/// apex**: the ray of the faces' meeting at the vertex
+/// ([`super::fan::meeting`], the one the pair search read the record
+/// on) that lies within both sectors (`sectors::rays_within`), upright:
+/// a ruling is a ray of its own, with no line's lean to carry.
+///
+/// # Errors
+///
+/// The meeting's refusals; [`BooleanError::ClassificationInvariant`]
+/// where the record's faces are one carrier, or no ray, or more than
+/// one, lies within both sectors.
+fn fan_germ_dir<T: Decide>(
+    (a_body, a_vertex, sa): (&Body<T>, VertexKey, &BoolSector<T>),
+    (b_body, b_vertex, sb): (&Body<T>, VertexKey, &BoolSector<T>),
+    read: DeclarationRead,
+    band: Band,
+) -> Result<Leaned<T>, BooleanError> {
+    let invariant = |what| BooleanError::ClassificationInvariant { what };
+    let super::fan::Meeting::Rays(rays) = super::fan::meeting(
+        (super::Operand::A, Some((a_body, a_vertex)), sa),
+        (super::Operand::B, Some((b_body, b_vertex)), sb),
+        band,
+    )?
+    else {
+        return Err(invariant(
+            "surviving crossing record on sector faces of one carrier",
+        ));
+    };
+    let mut within = None;
+    for ray in rays {
+        let line = Leaned::upright(ray.normalize());
+        if super::sectors::rays_within(line, &[sa, sb], read, band)?.0 {
+            if within.is_some() {
+                return Err(invariant("two germ rays within one sector pair at an apex"));
+            }
+            within = Some(line);
+        }
+    }
+    within.ok_or(invariant("no germ ray within its sector pair at an apex"))
 }
 
 /// **Whether the forward run `from → to` is spelled the other way

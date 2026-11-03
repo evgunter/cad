@@ -2,7 +2,7 @@
 id: splice
 kind: program
 title: SPLICE — a body built by loft or sweep enters every boolean: the spline-edged operand, its carrier's parameter inverse, the spline face read on its own sheet, and the seam and kind-based readings between spline walls
-status: ready
+status: active
 opened: 2026-10-25
 group: kernel/boolean/join
 prefix: splice/

@@ -223,6 +223,10 @@ enum GermLane<T: geom_core::Real> {
     WallPlane((Point3<T>, UnitVec3<T>)),
     /// A sphere pair: both sides' chords lie in the radical plane.
     Radical((Point3<T>, UnitVec3<T>)),
+    /// Two cones through one apex: both common rulings lie in the plane
+    /// they span ([`cone_apex_plane`]), and each side's chord is its own
+    /// wall's ruling in it.
+    Rulings((Point3<T>, UnitVec3<T>)),
     /// An equal cylinder pair with intersecting axes: the segment rides
     /// the ellipse of its germ's branch, which lies in that branch's
     /// bisector plane, and each side's chord is its own wall cut by
@@ -252,7 +256,7 @@ impl<T: geom_core::Real> GermLane<T> {
             Self::Carried(_) => (RingClosure::Chord, RingClosure::Chord),
             Self::PlaneWall(plane) => (RingClosure::Planar, RingClosure::Wall(plane)),
             Self::WallPlane(plane) => (RingClosure::Wall(plane), RingClosure::Planar),
-            Self::Radical(plane) | Self::Bisector(plane) => {
+            Self::Radical(plane) | Self::Rulings(plane) | Self::Bisector(plane) => {
                 (RingClosure::Wall(plane), RingClosure::Wall(plane))
             }
             Self::EdgePlane {
@@ -285,6 +289,9 @@ enum KindArm {
     /// bisector-plane ellipses, a germ inside a face of each operand
     /// ([`segment_arm`]).
     Bisector,
+    /// [`GermLane::Rulings`]: a cone pair through one apex, which meet in
+    /// rulings through it ([`segment_arm`], [`cone_apex_plane`]).
+    Apex,
     /// No face-pair arm: the edge-plane lane, where the germ runs along
     /// a conic edge of one solid in a curved face of the other, takes
     /// it, and only here, or it refuses.
@@ -371,7 +378,7 @@ impl<T: Decide> SegmentPair<T> {
         };
         let arm = match (seg.lane, carried) {
             (SegmentLane::AlongEdge, _) | (SegmentLane::Section, Some(_)) => None,
-            (SegmentLane::Section, None) => Some(segment_arm(red, germ, (&a.1, &b.1))?),
+            (SegmentLane::Section, None) => Some(segment_arm(red, germ, (&a.1, &b.1), band)?),
         };
         let [(entry, _), (cand, _)] = seg.ends;
         let site_loop = if entry == cand && carried.is_none() {
@@ -418,8 +425,18 @@ fn segment_arm<T: Decide>(
     red: &BooleanReduction<T>,
     germ: &HalfGerm<T>,
     (sa, sb): (&geom::Surface<T>, &geom::Surface<T>),
+    band: Band,
 ) -> Result<KindArm, BooleanError> {
     use geom::SurfaceKind::Cylinder;
+    // Two cones through one apex meet in rulings through it, the plane
+    // they span their straight lane's.
+    if let (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) = (sa, sb)
+        && super::fan::cones_share_apex(*p1, *p2, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag)
+        })?
+    {
+        return Ok(KindArm::Apex);
+    }
     if (sa.kind(), sb.kind()) != (Cylinder, Cylinder) {
         return Ok(kind_arm(sa.kind(), sb.kind()));
     }
@@ -508,8 +525,9 @@ enum AuxDatum {
     /// A copy of the OTHER body's germ face's surface (a partner plane
     /// for a wall-side chord, a partner wall for a planar-side one).
     Partner(FaceKey),
-    /// The radical plane of a sphere pair: this body's surface and the
-    /// other body's.
+    /// The radical plane of a sphere pair, or the plane two cones
+    /// through one apex cross in: this body's surface and the other
+    /// body's.
     Radical {
         own: crate::geometry::SurfaceKey,
         partner: crate::geometry::SurfaceKey,
@@ -1531,6 +1549,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         germ_normal(germ_reach(&red.a)?, lp.center, lp.axis)?,
                     ))
                 }
+                KindArm::Apex => GermLane::Rulings(cone_apex_plane(
+                    (germ.a_face, &ga),
+                    (germ.b_face, &gb),
+                    germ.dir,
+                    germ_reach(&red.a)?,
+                    band,
+                )?),
                 arm @ KindArm::None => edge_lane(arm)?,
             })
         } else {
@@ -1720,6 +1745,38 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                         leave_b,
                     )?,
                 )
+            }
+            // Two cones through one apex ([`cone_apex_plane`]): each
+            // wall's own section table decides its rulings against the
+            // plane ([`rulings_are_straight`]). Its refusals
+            // come after both split lanes have run, which may have minted
+            // an aux plane into either body: a refusal ends the operation
+            // and the reduction is dropped, so nothing reads them.
+            Some(GermLane::Rulings(radical)) => {
+                let datum = |own, partner| AuxDatum::Radical { own, partner };
+                let curves = (
+                    sa.split_curve(
+                        &mut red.a,
+                        &plan_a,
+                        radical,
+                        datum(ka, kb),
+                        germ.branch,
+                        leave_a,
+                    )?,
+                    sb.split_curve(
+                        &mut red.b,
+                        &plan_b,
+                        radical,
+                        datum(kb, ka),
+                        germ.branch,
+                        leave_b,
+                    )?,
+                );
+                rulings_are_straight([
+                    (&curves.0, Operand::A, germ.a_face, ga.kind()),
+                    (&curves.1, Operand::B, germ.b_face, gb.kind()),
+                ])?;
+                curves
             }
             Some(GermLane::Bisector(plane)) => {
                 let datum = |own, partner| AuxDatum::Bisector {
@@ -2530,7 +2587,22 @@ fn partners<T: Decide>(
         )?,
         None => {
             let loops = germ_loops(red, &rga, band)?;
-            facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?
+            match facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)? {
+                // Two cones through one apex meet along two rulings, not
+                // one line: a straight partner must lie on the germ's own
+                // ruling, or the chord test pairs the two rulings' rim
+                // germs across the apex.
+                Faced::Straight if two_rulings(red, &rga, band)? => {
+                    let off = rga.dir.cross(p_e - p_c).norm();
+                    match decide("bool_join_on_ruling", Margin::of(off), band)
+                        .map_err(join_escalate)?
+                    {
+                        Sign::Zero => Faced::Straight,
+                        Sign::Positive | Sign::Negative => Faced::Apart,
+                    }
+                }
+                faced => faced,
+            }
         }
     };
     if let Faced::Apart = faced {
@@ -2561,6 +2633,24 @@ fn partners<T: Decide>(
         turn,
         along,
     }))
+}
+
+/// **Whether `germ`'s face pair is two cones through one apex**
+/// ([`KindArm::Apex`]): their section is two rulings through it, each a
+/// straight line of its own ([`partners`]).
+fn two_rulings<T: Decide>(
+    red: &BooleanReduction<T>,
+    germ: &HalfGerm<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (_, sa) = face_surface(&red.a, germ.a_face)?;
+    let (_, sb) = face_surface(&red.b, germ.b_face)?;
+    Ok(match (sa, sb) {
+        (geom::Surface::Cone { apex: p1, .. }, geom::Surface::Cone { apex: p2, .. }) => {
+            super::fan::cones_share_apex(*p1, *p2, band).map_err(join_escalate)?
+        }
+        _ => false,
+    })
 }
 
 /// An `OnEdge` germ's edge runs from the germ's site: one of its ends
@@ -3014,6 +3104,111 @@ fn face_reach<T: Decide>(
     crate::splitting::rules::face_reach_from(body, face, at)
         .map(FrameExtent::Reach)
         .map_err(|_| LONE_WALL)
+}
+
+/// **The rulings lane's chords are rulings**: each wall's split lane,
+/// run against the plane two cones through one apex cross in
+/// ([`cone_apex_plane`]), minted the straight chord. (A parallel
+/// cylinder pair rode this lane on its radical plane until it came to
+/// ride its carried rulings.)
+///
+/// A wall the plane only touches has a tangent chord, a line on the
+/// ruling whatever description the must-carry rule gave it: the walls
+/// touch along one ruling, undeclared contact that no arm here takes,
+/// refused `CurvedBooleanUnsupported` naming that wall. Any other curve
+/// is a conic, which a plane through both cones' common rulings cuts in
+/// no wall, a desync.
+///
+/// The rows in `rulings_lane_rows` hand it the curves directly.
+fn rulings_are_straight<T: geom_core::Real>(
+    sides: [(&SegmentCurve<T>, Operand, FaceKey, geom::SurfaceKind); 2],
+) -> Result<(), BooleanError> {
+    for (curve, operand, face, kind) in sides {
+        match curve.spec().map(|spec| &spec.carrier) {
+            None => {}
+            Some(carrier) if !carrier.is_curved() => {
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind,
+                });
+            }
+            Some(_) => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a rulings lane's plane cut a wall in a conic",
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **The plane two cones through one apex cross in**, as a germ along one
+/// of their common rulings rides it ([`KindArm::Apex`]): the plane
+/// through the apex spanned by the rulings both cones' nappes hold, each
+/// nappe the one the germ's ruling `g` leaves the apex along. With each
+/// axis turned onto that nappe, the rulings are `base ± across·t`
+/// ([`geom_brep::cone_cone_apex_meeting`]), so the plane's normal is
+/// `base × across`, which cuts each cone in exactly those two rulings: each
+/// side's chord is the plane × cone apex lane's straight chord on its
+/// own wall, as a parallel cylinder pair's is on its radical plane.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] for a pair that is not two cones, or a
+/// normal with no decided length, levered at the germ's reach (the
+/// germ's ruling then meets the other cone along a touching).
+fn cone_apex_plane<T: Decide>(
+    (one_face, one): (FaceKey, &geom::Surface<T>),
+    (two_face, two): (FaceKey, &geom::Surface<T>),
+    g: Vec3<T>,
+    reach: geom_brep::ExtentBall<T>,
+    band: Band,
+) -> Result<(Point3<T>, UnitVec3<T>), BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let (
+        &geom::Surface::Cone {
+            apex,
+            axis: a1,
+            half_angle: h1,
+            ..
+        },
+        &geom::Surface::Cone {
+            axis: a2,
+            half_angle: h2,
+            ..
+        },
+    ) = (one, two)
+    else {
+        return Err(desync(
+            "a cone pair's apex plane asked of a pair that is not two cones",
+        ));
+    };
+    let onto = |a: Vec3<T>| a * T::one().copysign(g.dot(a));
+    let (b1, b2) = (onto(a1), onto(a2));
+    // Nearly coaxial past what the axes can place the rulings to
+    // (`fan::conditioned`): no frame is read.
+    match super::fan::conditioned(b1.cross(b2).norm(), reach.lever_from(apex), band)
+        .map_err(|diag| BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag))?
+    {
+        super::fan::Conditioned::Read => {}
+        super::fan::Conditioned::Unread => {
+            return Err(frame_refusal(
+                FrameError::NoArm,
+                (one_face, one),
+                (two_face, two),
+            ));
+        }
+    }
+    let m = geom_brep::cone_cone_apex_meeting((b1, h1.cos()), (b2, h2.cos()));
+    UnitVec3::levered(
+        m.base.cross(m.across),
+        "bool_join_cone_apex_plane",
+        band,
+        reach.lever_from(apex),
+    )
+    .map(|n| (apex, n))
+    .map_err(|_| desync("two cones' common rulings span no plane through their apex"))
 }
 
 /// The Boolean's refusal for a germ pair's frame refusal, the pair
@@ -3887,6 +4082,14 @@ pub(super) fn pair_section_frame_at<T: Decide>(
 ) -> Result<Option<SectionLoops<T>>, FrameError> {
     use geom::Surface as Sf;
     match (sa, sb) {
+        // Two cones through one apex: both forms are homogeneous about it,
+        // so they meet in rulings through it, straight
+        // (`fan::cones_share_apex`).
+        (Sf::Cone { apex: p1, .. }, Sf::Cone { apex: p2, .. })
+            if super::fan::cones_share_apex(*p1, *p2, band).map_err(FrameError::section)? =>
+        {
+            Ok(None)
+        }
         (Sf::Plane { .. }, Sf::Torus { .. }) => pt_germ_frame(sa, sb, extent, band),
         (Sf::Torus { .. }, Sf::Plane { .. }) => pt_germ_frame(sb, sa, extent, band),
         // Two cylinders are read on the section value ([`cylinder_read`]).
@@ -7266,6 +7469,102 @@ mod frame_dispatch_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rulings_lane_rows {
+    use super::*;
+
+    /// **The rulings lane refuses any chord that is not a ruling, naming
+    /// the wall it came from.** A tangent chord on either side is the
+    /// walls touching, refused naming that side's wall; a conic is a
+    /// desync; two straight chords pass.
+    #[test]
+    fn a_chord_that_is_not_a_ruling_refuses_naming_its_wall() {
+        use crate::chord_join::SegmentCurve;
+        use slotmap::KeyData;
+        let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
+        let face = |n: u64| FaceKey::from(KeyData::from_ffi(n));
+        let (fa, fb) = (face(3), face(7));
+        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (s1, s2) = Default::default();
+        let witness = Point3::new(0.0, 0.0, 0.5);
+        let spec = |description, carrier: &geom::Curve3<f64>| geom_brep::EdgeCurveSpec {
+            description,
+            carrier: carrier.clone(),
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let curve = |spec| SegmentCurve::of((he(1), he(2)), spec);
+        let straight = curve(None);
+        let ask = |a: &SegmentCurve<f64>, b: &SegmentCurve<f64>| {
+            rulings_are_straight([
+                (a, Operand::A, fa, geom::SurfaceKind::Cylinder),
+                (b, Operand::B, fb, geom::SurfaceKind::Cylinder),
+            ])
+        };
+        assert!(ask(&straight, &straight).is_ok(), "two rulings pass");
+        // The tangent chord is the ruling under either description the
+        // must-carry rule can give it.
+        let intrinsic = curve(Some(spec(
+            geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                witness,
+            },
+            &line,
+        )));
+        let conventional = curve(Some(spec(geom_brep::EdgeDescriptionSpec::chart(s2), &line)));
+        for (label, got, operand, wall) in [
+            ("A touches", ask(&intrinsic, &straight), Operand::A, fa),
+            ("B touches", ask(&straight, &intrinsic), Operand::B, fb),
+            (
+                "A touches, conventional",
+                ask(&conventional, &straight),
+                Operand::A,
+                fa,
+            ),
+            (
+                "B touches, conventional",
+                ask(&straight, &conventional),
+                Operand::B,
+                fb,
+            ),
+        ] {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::CurvedBooleanUnsupported {
+                        operand: o,
+                        face: f,
+                        kind: geom::SurfaceKind::Cylinder,
+                    }) if o == operand && f == wall
+                ),
+                "{label}: {got:?}"
+            );
+        }
+        let conic = curve(Some(spec(
+            geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                selector: geom_brep::CurveSelector::Witness(witness),
+            },
+            &circle,
+        )));
+        assert!(
+            matches!(
+                ask(&straight, &conic),
+                Err(BooleanError::JoinDesync {
+                    what: "a rulings lane's plane cut a wall in a conic"
+                })
+            ),
+            "a conic is a desync"
+        );
+    }
+}
+
 mod tests {
     use super::*;
 
@@ -7729,3 +8028,41 @@ mod join_carrier_site_rows;
 #[cfg(test)]
 #[path = "join_walk_order_rows.rs"]
 mod join_walk_order_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod apex_plane_rows {
+    use super::*;
+
+    fn cone(axis: Vec3<f64>) -> geom::Surface<f64> {
+        geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis,
+            half_angle: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// **The plane two cones through one apex cross in is read only where
+    /// their axes place their rulings** ([`cone_apex_plane`], through
+    /// `fan::conditioned`): the 0.5 rad cone against itself tilted `1e-3`
+    /// spans its rulings' plane; tilted `2e-8`, past what `arm·4u/s` reads
+    /// to a fixed 1e-9 band (pinned, so the row reads alike at every ε), it refuses the frame by name
+    /// (`GermFrameUnsupported`).
+    #[test]
+    fn two_cones_rulings_plane_is_read_only_where_their_axes_place_it() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        let tilted = |t: f64| Vec3::new(t.sin(), t.cos(), 0.0);
+        let g = Vec3::new(0.0, -(0.5f64.cos()), 0.5f64.sin());
+        // Unsourced lever: a fixture's unit ball about the apex, no extent to read it off.
+        let reach = geom_brep::ExtentBall::unsourced(Point3::origin(), 1.0);
+        let (fa, fb) = (FaceKey::default(), FaceKey::default());
+        let (one, near, nearer) = (cone(up), cone(tilted(1e-3)), cone(tilted(2e-8)));
+        assert!(cone_apex_plane((fa, &one), (fb, &near), g, reach, band).is_ok());
+        assert!(matches!(
+            cone_apex_plane((fa, &one), (fb, &nearer), g, reach, band),
+            Err(BooleanError::GermFrameUnsupported { .. })
+        ));
+    }
+}

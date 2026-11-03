@@ -745,7 +745,14 @@ fn read_edge(
     });
     let against: Vec<_> = datum.into_iter().map(|d| (he, d)).collect();
     let touched = datum.map(|d| (crate::entity::FaceKey::default(), d.normal, &against[..]));
-    let published = match cone_classes(o, &[probe], &[he], &partners, touched, band) {
+    let published = match cone_classes(
+        o,
+        &[probe],
+        &[he],
+        (crate::boolean::Operand::B, &partners),
+        touched,
+        band,
+    ) {
         Ok(Ok(rows)) => match rows.as_slice() {
             &[(h, class)] if h == he => Ok(Some(class)),
             _ => Err(format!("rows {rows:?}, not the probe edge's one")),
