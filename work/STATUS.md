@@ -3947,6 +3947,7 @@ Blocked: no orchestrator, and no row that can be picked up.
 | `seat7-sweep-digest-drifted-on-main` | 2026-11-01 | seat7_sweep_lowering's committed corner_table digest no longer matches on main |
 | `intent-retired-machinery-is-still-described-as-live` | 2026-11-02 | prose and one Python surface still describe INTENT-retired machinery as live (literal Frame, PlacedUnion, Datum, world pin) |
 | `a-sketch-frame-reads-a-space-axis-the-spaces-clause-forbids` | 2026-11-03 | The bare-disc sketch frame (#6298) reads a space's x, which [variables.kinds] says only placement values do |
+| `a-square-wire-spring-whose-wire-keeps-a-face-to-its-axis-cannot-be-written` | 2026-11-03 | a square-wire spring whose wire keeps a face toward its axis cannot be written: every sweep carries the rotation-minimizing frame |
 | `an-index-count-of-zero-or-less-passes-the-define-door` | 2026-11-03 | An index's count of 0 or a negative count passes the define door |
 | `curved-demo-joins-build` | 2026-11-03 | The curved demo joins build: klein walls 3 and 4, teapot walls 2 and 3, lily walls 2 and 8, each tracked at the stop it reaches today |
 | `main-red-two-slow-digest-rows-at-8ae2b9b` | 2026-11-03 | main is red on two slow-set digest rows at 8ae2b9b: seat7_sweep_lowering (corner_table) and m10_sym_profile_interval (plate) |
