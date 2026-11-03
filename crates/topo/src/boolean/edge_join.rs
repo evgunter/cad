@@ -1509,7 +1509,7 @@ mod join_door {
             .map(|(f, _)| f)
             .find(|&f| {
                 body.face_loops_linked(f, body.get_face(f).unwrap())
-                    .all(|(_, l)| match l.boundary {
+                    .all(|(_, l, _)| match l.boundary {
                         crate::LoopBoundary::Cycle { first } => body
                             .loop_cycle(first)
                             .unwrap()
