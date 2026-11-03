@@ -49,3 +49,7 @@ Moved from SPLICECARRIER to SPLICE on 2026-11-02, by `git mv`, when SPLICECARRIE
 ## Re-banded P0 (2026-11-03)
 
 This row is teapot wall 3's current stop: `demos/tour/src/teapot.rs` `wall_probes` pins `PointSplitCarrierUnsupported { operand: B }` on the spout. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/issues/curved-demo-joins-build.md`).
+
+## A second witness: klein wall 3 (FRAME, 2026-11-03)
+
+From `frame/turned-onto` (the sweep start frame becomes the world frame turned onto the start tangent by the least turn). The klein loop's start tangent is exactly `+z`, so its start frame is now the world frame, and its circle sections start on `+x`, in the bottle's plane of symmetry `y = 0`, where the old frame started them on `−y`. The loop's NURBS seam edge now runs in that plane from `(0.275, 0, 3)` to `(−0.275, 0, 0.6)`, the same line the old frame's half-tube arc joint ran on. Klein wall 3's union (`demos/tour/src/klein.rs` `wall3_pinned`) now meets that seam edge and refuses `PointSplitCarrierUnsupported { operand: B, edge }` on it, where it used to refuse `SplineCrossingUnsettled { why: Crease }` on the arc joint. The body is the same: the section is two centred circles, so only the seam moved. The fix this row names would carry klein wall 3 past this stop, and the pin then moves again.
