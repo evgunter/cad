@@ -2,11 +2,12 @@
 id: an-unread-rider-related-only-by-its-own-vertices-refuses
 kind: issue
 title: An unread carrier related to a face only by vertices the two share in one operand refuses as a rider: the lofted cylinder's unions and the tilted rod's other spins stop there
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P0
 cost: M
 refs: [a-spline-rider-reads-as-lying-in-no-plane-face, check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges]
+branch: splice/same-operand-rider
 ---
 
 Filed by SPLICE's `splice/kind-reads` lane (PR 6437), at the orchestrator's
