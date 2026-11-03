@@ -2,11 +2,12 @@
 id: boundary-cuts-reads-line-against-conics-through-their-planes
 kind: issue
 title: boolean::boundary_cuts reads a line against boundary conics and lines by plane crossings and end offsets, a proxy of the curve-pair meeting question beside meet's LineConic and LineLine arms
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6327]
+branch: onecopy/curve-pair-reads
 ---
 
 Found in the review of ONEHOME's PR 6327, which moved `reduce::boundary_meets_circle_only_at` off the same kind of proxy and onto the boundary pass (`geom_brep::curve_face::read`).
