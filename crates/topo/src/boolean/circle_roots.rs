@@ -216,11 +216,8 @@ impl<T: Decide> FirstHarmonic<T> {
     /// spelling of a circle against a plane: an edge against a ray's or a
     /// leg's plane, a leg against an edge's, a sphere face's arc against a
     /// cut.
-    pub(super) fn circle_off_plane(
-        (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
-        plane: (Point3<T>, Vec3<T>),
-    ) -> Self {
-        Self::conic_off_plane((center, axis, (radius, radius), u_ref), plane)
+    pub(super) fn circle_off_plane(circle: &geom::Circle<T>, plane: (Point3<T>, Vec3<T>)) -> Self {
+        Self::conic_off_plane(circle, plane)
     }
 
     /// **A conic's signed distance off a plane**: the ellipse
@@ -230,12 +227,13 @@ impl<T: Decide> FirstHarmonic<T> {
     /// as [`Self::circle_off_plane`] charges a circle, at the larger
     /// semi-axis.
     pub(super) fn conic_off_plane(
-        (center, axis, (a, b), u_ref): (Point3<T>, Vec3<T>, (T, T), Vec3<T>),
+        conic: &dyn geom::Conic<T>,
         (on, n): (Point3<T>, Vec3<T>),
     ) -> Self {
-        let offset = center - on;
+        let (f, (a, b)) = (conic.frame(), conic.semi_axes());
+        let offset = f.origin - on;
         let d = n.dot(offset);
-        let (cos_part, sin_part) = (a * n.dot(u_ref), b * n.dot(axis.cross(u_ref)));
+        let (cos_part, sin_part) = (a * n.dot(f.u_ref), b * n.dot(f.v_ref()));
         let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
         let noise = geom_core::rounding_charge(offset.norm() + a.max(b));
         Self {

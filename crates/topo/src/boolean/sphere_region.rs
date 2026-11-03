@@ -372,13 +372,7 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        Leg::whole(Round {
-            center: self.center,
-            normal: a.cross(t),
-            radius: self.radius,
-            e1: a,
-            e2: t,
-        })
+        Leg::whole(Round::new(self.center, a.cross(t), self.radius, a))
     }
 }
 
@@ -499,22 +493,24 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         ray: &Leg<T, Round<T>>,
         band: Band,
     ) -> Result<Vec<Landing<T>>, Fault> {
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = arc.carrier
+        let geom::Curve3::Circle(
+            arc_circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                radius,
+            },
+        ) = arc.carrier
         else {
             unreachable!("sphere_face_region admits circles only")
         };
         let roots = first_harmonic_root_directions(
             &FirstHarmonic::circle_off_plane(
-                (center, axis, radius, u_ref),
-                (ray.course.center, ray.course.normal),
+                &arc_circle,
+                (ray.course.circle.frame.origin, ray.course.circle.frame.axis),
             ),
             radius,
             &ROOT_ROWS,

@@ -358,13 +358,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let normal = if forward { normal } else { -normal };
         Leg::whole(TorusCircle {
             kind: LegKind::Meridian { radial },
-            round: Round {
-                center,
-                normal,
-                radius: self.minor,
-                e1,
-                e2: normal.cross(e1),
-            },
+            round: Round::new(center, normal, self.minor, e1),
         })
     }
 
@@ -415,22 +409,16 @@ impl<T: Decide> TorusFaceRegion<T> {
         leg: &Leg<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        let geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }) = edge.carrier
-        else {
+        let geom::Curve3::Circle(circle @ geom::Circle { radius, .. }) = edge.carrier else {
             return Ok(Roots::Miss);
         };
         first_harmonic_roots_in_band(
             &FirstHarmonic::circle_off_plane(
-                (center, axis, radius, u_ref),
-                (leg.course.round.center, leg.course.round.normal),
+                &circle,
+                (
+                    leg.course.round.circle.frame.origin,
+                    leg.course.round.circle.frame.axis,
+                ),
             ),
             radius,
             edge.t0,
@@ -453,16 +441,8 @@ impl<T: Decide> TorusFaceRegion<T> {
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
         first_harmonic_leg_roots(
-            &FirstHarmonic::circle_off_plane(
-                (
-                    leg.course.round.center,
-                    leg.course.round.normal,
-                    leg.course.round.radius,
-                    leg.course.round.e1,
-                ),
-                (on, n),
-            ),
-            leg.course.round.radius,
+            &FirstHarmonic::circle_off_plane(&leg.course.round.circle, (on, n)),
+            leg.course.round.circle.radius,
             &ROOT_ROWS,
             band,
         )
@@ -694,7 +674,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     Ok(Roots::On(_)) => {
                         if row(
                             "bool_torus_region_component",
-                            radius - leg.course.round.radius,
+                            radius - leg.course.round.circle.radius,
                         )? == Sign::Zero
                         {
                             leg.along(edge, Self::AT, band)?;

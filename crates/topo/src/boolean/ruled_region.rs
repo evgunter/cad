@@ -762,7 +762,13 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
         match (&edge.carrier, leg.course) {
             (
                 &geom::Curve3::Line(geom::Line { origin, dir }),
-                LegShape::Parallel(Round { center, .. }),
+                LegShape::Parallel(Round {
+                    circle:
+                        geom::Circle {
+                            frame: geom::Frame { origin: center, .. },
+                            ..
+                        },
+                }),
             ) => {
                 // A ruling crosses the parallel's plane once, at the
                 // parallel's one point on it.
@@ -793,10 +799,10 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                 let conic = conic_of(conic);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::circle_off_plane(
-                        (round.center, round.normal, round.radius, round.e1),
+                        &round.circle,
                         (conic.frame().origin, conic.frame().axis),
                     ),
-                    round.radius,
+                    round.circle.radius,
                     T::zero(),
                     T::tau(),
                     &ROOT_ROWS,
@@ -818,13 +824,9 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
             }
             (conic, LegShape::Ruling { radial, nappe, .. }) => {
                 let conic = conic_of(conic);
-                let f = conic.frame();
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
-                    &FirstHarmonic::conic_off_plane(
-                        (f.origin, f.axis, conic.semi_axes(), f.u_ref),
-                        (base, normal),
-                    ),
+                    &FirstHarmonic::conic_off_plane(conic, (base, normal)),
                     conic.speed_hi(),
                     edge.t0,
                     edge.t1,

@@ -215,15 +215,17 @@ pub(super) fn circle_torus_roots<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let (
-        &geom::Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    u_ref,
-                },
-            radius,
-        }),
+        &geom::Curve3::Circle(
+            circle @ geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        axis,
+                        u_ref,
+                    },
+                radius,
+            },
+        ),
         &geom::Surface::Torus {
             center: t_center,
             axis: t_axis,
@@ -295,10 +297,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             Ok(Sign::Positive) => door_refusal(
                 parallel_axes_roots(
                     &ParallelPose {
-                        center,
-                        radius,
-                        u_ref,
-                        v_ref,
+                        circle,
                         w_perp,
                         offset,
                         h0,
@@ -480,10 +479,8 @@ fn meridian_deviation<T: geom_core::Real>(
 
 /// The parallel-axes pose's data ([`parallel_axes_roots`]).
 struct ParallelPose<T: geom_core::Real> {
-    center: Point3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    /// The carrier.
+    circle: geom::Circle<T>,
     /// The carrier centre's offset from the torus axis, perpendicular
     /// to it, and its length.
     w_perp: Vec3<T>,
@@ -552,10 +549,16 @@ fn parallel_axes_roots<T: Decide>(
     band: Band,
 ) -> Result<CircleRoots<T>, RootRefusal> {
     let &ParallelPose {
-        center,
-        radius,
-        u_ref,
-        v_ref,
+        circle:
+            geom::Circle {
+                frame:
+                    geom::Frame {
+                        origin: center,
+                        u_ref,
+                        ..
+                    },
+                radius,
+            },
         w_perp,
         offset,
         h0,
@@ -563,6 +566,7 @@ fn parallel_axes_roots<T: Decide>(
         t0,
         t1,
     } = pose;
+    let v_ref = pose.circle.frame.v_ref();
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
