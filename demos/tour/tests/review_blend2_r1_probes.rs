@@ -402,7 +402,12 @@ fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
             }
         }
         if one.is_err() && first_one.is_none() {
-            first_one = Some((r, format!("{}", one.as_ref().expect_err("err"))));
+            first_one = Some((
+                r,
+                one.as_ref()
+                    .expect_err("err")
+                    .render(pncad::geom_brep::recourse::Reading::Build),
+            ));
         }
         if !seq_ok && first_seq.is_none() {
             first_seq = Some(r);
