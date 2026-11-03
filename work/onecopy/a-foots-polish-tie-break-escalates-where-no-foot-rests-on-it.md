@@ -2,12 +2,12 @@
 id: a-foots-polish-tie-break-escalates-where-no-foot-rests-on-it
 kind: issue
 title: on_carrier's smaller (curve_foot_polish) decides a polish tie-break at the least band and still records an escalation when an Interval enclosure straddles zero, though no foot rests on it
-status: dispatched
+status: open
 opened: 2026-11-03
 priority: P3
 cost: E
 refs: [6449]
-branch: onecopy/small-reads
+rides_with: a-foot-has-no-bare-parameter
 ---
 
 
