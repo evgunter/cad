@@ -59,3 +59,17 @@
   - **The oracle** has four bands, each checked against exact `∮πρ²dz` and `∮2πρ ds` with a wrong-sheet row; the lemon also passes admesh.
   - **Residue:** the tour stop was withdrawn and filed (`the-conical-ended-football-has-no-tour-stop`, P3). The lane closed LATHE's `revolve-axis-clearance-is-the-torus-convention-under-another-name` as retired by the change (the reviewers are asked to check that closure). The wide apple now builds and measures, but its tessellation refuses (evidence added to its row).
   - **Dual dispatched** as two cloud sessions on `49d88cc0f1`, with identical briefs (`spiricarm/review-6486-brief`, sha256 `d69e6f32…`).
+- 2026-11-03 — **PR 6478's dual is delivered.** Both reviewers returned APPROVE-WITH-FIXES on `e12e3c8d00` and both executed their findings, so the pair is fair.
+  - **Bilateral MAJOR, executed by both:** the chart term `o·A⃗` reads the carriers' vector area while `−∮F du` reads the images' region, and the ribbon between them (|lever|·length·env) is uncontained. R1 measured a 1e-3 miss at ε 1e-6 with L = 1e3; R2 measured a 7.7e-8 miss 1000 m out. The PR had disclosed it as "Unproven" but filed nothing.
+  - **Bilateral MINORs:**
+    - the swap rows' chart term is circular (the expected value is built with the function under test, so mutant M12 survives);
+    - `branch_turns` is never nonzero;
+    - the residual pad is unwitnessed;
+    - the merged pins assert a chart kind only in prose;
+    - the cut-loop accumulator has about five copies, a fresh duplication inside a unit that closes one.
+  - **Unilateral, R1:** the `v_off` and `Line u′` mutants survive; rows behind `resolution_pad` pin far less than they measure.
+  - **Unilateral, R2:** a `taylor` ↔ `quad` dependency cycle; sector breaks unwitnessed; the `exact` closure written four times; the old "conic trim" vocabulary left in pins.
+  - **Tally candidates:** none (the only MAJOR is bilateral).
+  - **Fix pass:** the union, sent to the implementer, resumed.
+  - **Class (logged at adjudication):** a fixture whose expected value is computed with the function under test cancels that function's errors, so every row agrees with itself. Expected values come from an independent formula or computation.
+  - **Class:** a "disclosed, unproven" gap left only in a PR body has no durable home. Implementer briefs already say a PR body is not a slate; this lane did it anyway, on a gap a reviewer then showed to be a soundness hole.
