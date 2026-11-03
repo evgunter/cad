@@ -281,13 +281,9 @@ fn review_skin_on_refuses_unclamped_params() {
     ));
 }
 
-/// The frame `path_start_frame` mints at `path`'s start.
+/// The world frame at `path`'s start turned onto its start tangent.
 fn start_plane(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
-    let (lo, _) = path.domain();
-    let (p, d) = path.ders1(lo);
-    SketchPlane::from_frame(
-        geom_core::linalg::frame::path_start_frame(p, d, Tol::witness()).expect("a start frame"),
-    )
+    crate::common::normal_start_place(path)
 }
 
 fn small_rectangle() -> sweep::Section {

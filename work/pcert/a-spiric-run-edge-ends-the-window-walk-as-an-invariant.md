@@ -4,6 +4,8 @@ kind: issue
 title: A spiric run edge ends the window walk as SectionInvariant, though it is the torus's own curve and only the walk's lane for it is unwritten
 status: open
 opened: 2026-10-25
+priority: P2
+cost: M
 ---
 
 
