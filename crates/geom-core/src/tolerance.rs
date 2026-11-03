@@ -104,16 +104,17 @@ pub const SESSION_BOX_EXTENT: f64 = 1e3;
 /// site charges it.
 pub const ADMISSION_FLOOR: f64 = SHORT_CHAIN_ULPS * UNIT_ROUNDOFF * SESSION_BOX_EXTENT;
 
-/// **The finest length a coordinate at the box's edge holds**: one unit
-/// roundoff of the [session box](SESSION_BOX_EXTENT) (≈ 1.1e-13 m). No ε
-/// is finer, whatever K: a distance below it is not one any in-box
-/// coordinate can state.
+/// **A coordinate's spacing at the box's edge**: one unit roundoff of
+/// the [session box](SESSION_BOX_EXTENT) (≈ 1.1e-13 m), the least
+/// [`eps_min`] takes, whatever K: a distance below it is not one any
+/// in-box coordinate can state.
 pub const COORDINATE_FLOOR: f64 = UNIT_ROUNDOFF * SESSION_BOX_EXTENT;
 
-/// **The least ε a run at multiplier `k` admits**: the
-/// [`ADMISSION_FLOOR`] over the headroom factor `k − 1`, and never below
-/// the [`COORDINATE_FLOOR`]. A smaller K costs a larger least ε, and
-/// K < 2 is allowed at that price.
+/// **ε_min, the least ε a run at multiplier `k` admits**: the larger of
+/// the [`ADMISSION_FLOOR`] over the headroom factor `k − 1` and a
+/// coordinate's spacing at the box edge ([`COORDINATE_FLOOR`]). A smaller
+/// K costs a larger least ε, and K < 2 is allowed at that price; past
+/// K ≈ 17 the coordinate spacing binds and ε_min stops shrinking.
 #[must_use]
 pub fn eps_min(k: f64) -> f64 {
     (ADMISSION_FLOOR / (k - 1.0)).max(COORDINATE_FLOOR)
@@ -124,10 +125,10 @@ pub fn eps_min(k: f64) -> f64 {
 /// reads [`eps_min`] of its own.
 pub const EPS_MIN: f64 = ADMISSION_FLOOR / (DEFAULT_K - 1.0);
 
-/// **Whether `(eps, k)` may be a run's tolerance**: ε finite and
-/// positive, K finite and above 1, the headroom `(k − 1)·eps` covering
-/// the [`ADMISSION_FLOOR`], and ε no finer than the
-/// [`COORDINATE_FLOOR`] ([`eps_min`]). The one admission rule, asked by
+/// **Whether `(eps, k)` may be a run's tolerance**: ε finite, K finite
+/// and above 1, and `eps ≥ eps_min(k)` ([`eps_min`]), so ε is positive
+/// and its headroom `(k − 1)·eps` covers the [`ADMISSION_FLOOR`]. The
+/// one admission rule, asked by
 /// every door that commits or records a tolerance, at the K in force
 /// ([`k_admitted`]).
 #[must_use]
@@ -180,9 +181,9 @@ impl fmt::Display for EpsFloor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "a tolerance is a finite length of at least {:.2e} m at K = {}, so that its \
-             headroom (K - 1)·eps covers rounding at the edge of the {SESSION_BOX_EXTENT:e} m \
-             session box (D4 ¶4)",
+            "a tolerance is a finite length of at least {:.2e} m at K = {}: the larger of \
+             the rounding at the edge of the {SESSION_BOX_EXTENT:e} m session box over the \
+             headroom (K - 1) and a coordinate's spacing there (D4 ¶4)",
             eps_min(self.k),
             self.k
         )
@@ -678,10 +679,8 @@ impl Tolerance {
 
     /// Validates the run's admission rule ([`admissible`]): `eps` finite
     /// and strictly positive, else [`ToleranceError::InvalidValue`]; `k`
-    /// finite and above 1, else [`ToleranceError::InvalidK`]; and the
-    /// headroom `(k − 1)·eps` covering the [`ADMISSION_FLOOR`] and `eps`
-    /// no finer than the [`COORDINATE_FLOOR`] ([`eps_min`]), else
-    /// [`ToleranceError::BelowFloor`].
+    /// finite and above 1, else [`ToleranceError::InvalidK`]; and `eps`
+    /// at least [`eps_min`] of `k`, else [`ToleranceError::BelowFloor`].
     fn validate(self) -> Result<(), ToleranceError> {
         let value = self.eps;
         if !(value.is_finite() && value > 0.0) {
@@ -1098,6 +1097,17 @@ mod tests {
                 "at the default K the headroom binds first"
             );
         }
+    }
+
+    /// **At the default K, ε_min is the admission floor over its headroom,
+    /// unchanged by the coordinate spacing**: `eps_min(10)` is
+    /// [`EPS_MIN`], `ADMISSION_FLOOR / 9` ≈ 1.97e-13 m, admitted, and the
+    /// next ε below it refused.
+    #[test]
+    fn the_default_ks_least_eps_is_the_floor_over_its_headroom() {
+        assert_eq!(eps_min(DEFAULT_K), EPS_MIN);
+        assert_eq!(EPS_MIN, ADMISSION_FLOOR / (DEFAULT_K - 1.0));
+        assert!(admissible(EPS_MIN, DEFAULT_K) && !admissible(EPS_MIN.next_down(), DEFAULT_K));
     }
 
     /// **A refusal names the K it was asked at, and that K's least ε**: at

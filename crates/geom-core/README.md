@@ -300,15 +300,17 @@ DESIGN `[simple.conditioned]`: every computation is posed well-conditioned
 where its result is decided, and at `f64` is then computed as if exact.
 This section is where that rule's parts live.
 
-- **The run's admission rule** (`Tolerance`). The *floor* is the
-  rounding of a short, division-free chain of operations on in-box
-  coordinates: a fixed count of unit roundoffs times the session box.
-  The *headroom* is `(K − 1)·ε`, the room between "the same point"
-  (within ε) and "definitely apart" (beyond Kε). A run is admitted only
-  where the headroom covers the floor, and no ε is finer than one unit
-  roundoff of the session box, whatever K. The check is a comparison
-  against a constant, so the least admissible ε follows from K, and
-  K < 2 is allowed at the price of a larger least ε. This is the one
+- **The run's admission rule** (`Tolerance`). The *admission floor*
+  (`ADMISSION_FLOOR`, `SHORT_CHAIN_ULPS · u · box`) is the rounding of a
+  short, division-free chain of operations on in-box coordinates: a
+  fixed count of unit roundoffs times the session box. The *headroom* is
+  `(K − 1)·ε`, the room between "the same point" (within ε) and
+  "definitely apart" (beyond Kε). A run is admitted only where ε is at
+  least ε_min(K), the larger of the admission floor over K's headroom,
+  `ADMISSION_FLOOR / (K − 1)`, and a coordinate's spacing at the box
+  edge, `u · box`. The check is a comparison against a constant, so the
+  least admissible ε follows from K, and K < 2 is allowed at the price
+  of a larger least ε. This is the one
   statement about rounding, and no site charges it.
 - **Re-posing, never charging.** A quantity a formula would divide by
   that can vanish (a sine, a radius, a determinant) is a pose decided

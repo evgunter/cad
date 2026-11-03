@@ -490,9 +490,9 @@ impl Band {
     ///   ε ≤ 2⁻¹⁰²³, since above that even the least admissible
     ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
     ///   collapses at any admitted K**, so no run's ε does (every
-    ///   admitted ε is at least the
-    ///   [`COORDINATE_FLOOR`](crate::tolerance::COORDINATE_FLOOR), which is
-    ///   normal): this arm is reached only through
+    ///   admitted ε is at least its K's
+    ///   [`eps_min`](crate::tolerance::eps_min), never below a coordinate's
+    ///   spacing at the box edge, which is normal): this arm is reached only through
     ///   [`Band::linear_at`], at a scale the caller names: a K near 1 is
     ///   admitted only with an ε whose angle over any finite arm is
     ///   normal, so [`Band::angular_at`] never reaches it at an admitted
@@ -596,8 +596,9 @@ impl Band {
     ///     infinity, at a `lever_arm` below ε/`f64::MAX`. The repair is
     ///     the arm, not ε. θ never rounds to 0 at a run's ε: that needs
     ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε a run
-    ///     admits, each at least the
-    ///     [`COORDINATE_FLOOR`](crate::tolerance::COORDINATE_FLOOR).
+    ///     admits, each at least its K's
+    ///     [`eps_min`](crate::tolerance::eps_min), never below a
+    ///     coordinate's spacing at the box edge.
     ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
     ///     K·θ overflows — the same overflow residue [`Band::linear`]
     ///     documents, reached here through a tiny arm rather than a huge ε.
