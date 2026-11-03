@@ -4,6 +4,8 @@ kind: issue
 title: topo::overlap on two cone faces meeting at the apex refused Unread in every pose; the witness rework no longer places the apex, but no row reads a cone
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 

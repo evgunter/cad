@@ -2,11 +2,12 @@
 id: a-spline-wall-cannot-say-whether-it-holds-a-pierce-point
 kind: issue
 title: A union across a spline edge refuses HeldPierceUnbuilt: faces_holding_pierce asks a spline wall whether it holds a pierce point, and its trim cannot say
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P0
 cost: M
 refs: [a-point-has-no-place-in-a-nurbs-faces-trim, the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex]
+branch: splice/held-pierce
 ---
 
 Filed by `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`'s
