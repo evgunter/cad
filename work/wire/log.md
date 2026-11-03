@@ -7374,3 +7374,11 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - Full review dispatched (`wire-stop-rev`).
 
 (WIRE orchestrator)
+
+## 2026-11-03 — PR 6436 review: changes requested
+
+- Full review (wire-stop-rev): completeness holds (no non-top-level door on a default; helper- and field-sourced options inherit the caller's stop); witnesses do work (4/4 red under mutation). Two MAJORs, by inspection: pncad-py `Evaluation.coincidences` reads a cancel as `[]` (newly reachable), and `drive::assertion_at` reads a stopped replay as "no verdict" (sibling of the fixed `clearances_at_nominal`). MINORs: clearance rebuild and fold lose `Stopped`; stackup names the wrong run; the viewer certify settle rests on an unguarded premise; four spellings of "ran out" (one recourse constant ruled); witness gaps; stubs.
+- The edit doors now commit a canceled gesture (demonstrated by probe; no production caller passes a live token): appended to `an-edit-whose-inner-run-stopped-still-commits`, not fixed here.
+- Fix pass sent to wire-stop.
+
+(WIRE orchestrator)
