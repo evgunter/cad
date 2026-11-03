@@ -448,6 +448,12 @@ impl StepImportError {
     /// refusal ended at the import door, by the file's declared
     /// coincidence distance its variant carries. Its `Display` is the
     /// payload alone.
+    ///
+    /// It takes no reading and is not `geom_brep::recourse::Ended`: the
+    /// import door is the only door it is read at, and that door's
+    /// reading (`ReadAt::File` at the file's ε_in) is part of each
+    /// variant's payload, so a caller has no reading to pass, and an
+    /// `ended(at)` would have to ignore its argument.
     #[must_use]
     pub fn render(&self) -> String {
         fmt::from_fn(|f| self.write(f, true)).to_string()

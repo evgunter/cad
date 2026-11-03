@@ -589,22 +589,14 @@ impl PcurveMintError {
         }
     }
 
-    /// This refusal's text read at `at`: a certification refusal nested
-    /// whole renders at that door ([`PcurveCertifyError::render`]).
-    #[must_use]
-    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
-        match self {
-            Self::Certify { half_edge, error } => format!(
-                "the pcurve of half-edge {half_edge:?} failed certification: {}",
-                error.render(at)
-            ),
-            _ => self.to_string(),
-        }
-    }
-
-    /// Every arm's text but a nested certification refusal's, which no
-    /// door reads differently.
-    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    /// This refusal's text, a nested certification refusal ended at `at`
+    /// ([`PcurveCertifyError::render`]) and its payload alone where `at`
+    /// is `None`. Every other arm reads alike at every door.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Stale { role, key } => write!(
                 f,
@@ -618,7 +610,8 @@ impl PcurveMintError {
             ),
             Self::Certify { half_edge, error } => write!(
                 f,
-                "the pcurve of half-edge {half_edge:?} failed certification: {error}"
+                "the pcurve of half-edge {half_edge:?} failed certification: {}",
+                geom_brep::recourse::read_at(error, at)
             ),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
@@ -682,19 +675,7 @@ impl PcurveMintError {
     }
 }
 
-/// The payload alone: the ending is read at the door that reports the
-/// refusal ([`PcurveMintError::render`]).
-impl core::fmt::Display for PcurveMintError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.write_payload(f)
-    }
-}
-
-impl geom_brep::recourse::Ended for PcurveMintError {
-    fn ended(&self, at: geom_brep::recourse::ReadAt) -> String {
-        self.render(at)
-    }
-}
+geom_brep::ended_by_write!(PcurveMintError);
 
 impl std::error::Error for PcurveMintError {}
 

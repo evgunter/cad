@@ -93,10 +93,17 @@ impl Reading {
 /// **A refusal whose ending is read at a door** (D4 ¶1): its `Display`
 /// is its payload alone, and its ending exists only through
 /// [`Ended::ended`] at the door that reads it, so no `Display` answers
-/// one door's question for another. Each implementor's inherent
-/// `render(at)` is the same text.
+/// one door's question for another.
+///
+/// Each implementor's inherent `render(at)` is the same function: a door
+/// calls `render` with the reading it holds (a [`Reading`] or a
+/// [`ReadAt`] converts); a holder generic over its nested refusals calls
+/// `ended` through [`read_at`]. The trait exists for that generic half.
 pub trait Ended: core::fmt::Display {
-    /// This refusal's text ended at `at`.
+    /// This refusal's payload, followed by the ending, if any, that the
+    /// door `at` gives it. A refusal no decision ends at that door (a
+    /// decided arm whose ending its holder states, a structural refusal
+    /// carrying its own recourse) is its payload alone.
     fn ended(&self, at: ReadAt) -> String;
 }
 
@@ -155,9 +162,11 @@ pub fn at_rest(at: Option<ReadAt>) -> Option<ReadAt> {
 /// It is a macro, not a blanket impl or a default method, because
 /// `Display` is a foreign trait: coherence refuses
 /// `impl<T: …> Display for T`, so every refusal must state its own
-/// `Display`. Without this, each of the some forty refusals written
-/// this way would repeat the same three items by hand, and its
-/// `Display` could drift from its `render`.
+/// `Display`. Without this, each of the 46 refusals written this way
+/// would repeat the same three items by hand. It ties `Display` to
+/// `write(f, None)` and `render` to `write(f, Some(at))`; it does not
+/// stop a `write` from writing an ending when `at` is `None`, which
+/// `scripts/gates/display-payload-only.sh` and the payload rows hold.
 #[macro_export]
 macro_rules! ended_by_write {
     ([$($gen:tt)*] $ty:ty) => {
