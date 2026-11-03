@@ -32,3 +32,7 @@ The sites already disagree on what the walk arms are:
 Some of that may be legitimate per caller. Whether a refusal is an escalation or a walk that could not run is one fact about the refusal, though, so it belongs on the type as a method: `CarrierRefusal::escalation() -> Option<Indeterminate>` or a two-variant split. With that, no consumer re-spells the four-arm match.
 
 Sweep the class first: `CarrierRefusal::(Exhausted|Unbounded)` across `crates/`. The row's list is from that grep at `b84804fa`.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

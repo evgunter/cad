@@ -15,3 +15,7 @@ From the delta review of PR 6362 (`boolean-walks-face-to-surface-inline-at-two-d
 2. **No pin covers a stale *face key* reaching `proven`** (the conversion behind ~37 sites); a row asserting `unproven`'s message ("which this call resolved or read out of a record") covers the class. `proven_face_edges_panics_on_a_torn_mate` matches a substring every `dangling_link` panic shares; match the mate field (`claim.mate_field()`) so it pins the hop it names.
 3. **Dead hops:** `side_reader::loop_aim` keeps `get_face(face)?` and `get_half_edge(first.half)?` after `proven_face_edges`, and their `None` can no longer fire.
 4. **Docs:** `SolidFaces`' `# Panics` should say a selection minted for another body now panics in `point_in_solid_faces` (formerly `CorruptFace`), a foreign-key misuse of the Rust API.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.
