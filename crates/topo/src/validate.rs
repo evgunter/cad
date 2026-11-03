@@ -3093,11 +3093,9 @@ const SEPARATION: SizedDecision = SizedDecision {
 /// is the shared ending that names the file too.
 const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
-/// The recourse for a tolerance that forms no usable band. A run's ε
-/// is finite and at least `EPS_MIN` (D4 ¶4), so the one way it fails to
-/// form a band is K·ε overflowing: the repair is a smaller ε.
-pub(crate) const TOLERANCE: &str = "Recourse: set a smaller tolerance, so that K times it stays finite; a \
-                         run admits none below the floor its session box sets";
+/// The recourse for a tolerance that forms no usable band
+/// ([`geom_brep::recourse::BAND_TOLERANCE_RECOURSE`]).
+pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
 /// The recourse for a curve whose parameter range its image on a
 /// spline face cannot be expressed on — the lane's own.
@@ -3898,6 +3896,7 @@ fn off_face_ending(
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
+    use geom_brep::pcurve_cache::FittedEnding;
     const BOUND: &str = bound_reason!("the stored boundary strays from the face");
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     let (why, recourse) = match e {
@@ -3937,66 +3936,58 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             if let Some(ending) = off_face_ending(error) {
                 return ending;
             }
-            // A decision's refused arm ends as its check's routing gives
-            // it at rest (`PcurveCertifyError::ending`); a refusal no
-            // decision owns ends in its own.
-            let (why, own) = match error {
+            // Why it refused, worded for a body at rest; its ending is the
+            // refusal's own at rest (`PcurveCertifyError::ending`).
+            let why = match error {
                 C::UnsupportedChart { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
-                | C::NoGeneralLane { .. } => (KIND, Some(NOT_YET_ENDING)),
-                C::PlaceholderChart => (
-                    geom::PLACEHOLDER_SURFACE,
-                    Some(crate::pcurves::PLACEHOLDER_RECOURSE),
-                ),
-                C::SectorRefused { .. } => (
-                    "a boundary curve runs into its chart's singular set (a pole, the apex or \
-                     the tube's core), where its image has no one branch",
-                    Some(
-                        "Recourse: re-aim the chart's axis away from the curve, or split the \
-                         edge there",
-                    ),
-                ),
-                C::FittedLaneUnsupported { .. } => (
-                    "this scalar cannot certify a fitted boundary",
-                    Some("Recourse: check the body at a certifying scalar"),
-                ),
-                C::CarrierDomain(_) => (
-                    "a boundary curve's parameter range cannot carry its image on the face",
-                    Some(REPARAMETERIZE),
-                ),
-                C::PlacementTurnsExceeded => (
+                | C::NoGeneralLane { .. } => KIND,
+                C::PlaceholderChart => geom::PLACEHOLDER_SURFACE,
+                C::SectorRefused { .. } => {
+                    "a stored boundary image runs into its chart's singular set (a pole, the \
+                     apex or the tube's core), where it has no one branch"
+                }
+                C::FittedLaneUnsupported { .. } => "this scalar cannot certify a fitted boundary",
+                C::CarrierDomain(_) => {
+                    "a boundary curve's parameter range cannot carry its image on the face"
+                }
+                C::PlacementTurnsExceeded => {
                     "a boundary curve's parameter range sits too many turns out for its image \
-                     to be stored",
-                    Some(REPARAMETERIZE),
-                ),
-                C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
+                     to be stored"
+                }
+                C::CarrierEnclosure(_) => CARRIER_ENCLOSURE,
                 C::CarrierOffChart { .. } => unreachable!("`off_face_ending` ends it"),
+                // Its reason follows the decision it ends by.
+                C::FittedCertificate { ending, .. } => match ending {
+                    FittedEnding::NotYet => KIND,
+                    FittedEnding::FootUnsettled => {
+                        "a boundary curve's foot on its face could not be settled, so where its \
+                         image sits cannot be measured"
+                    }
+                    FittedEnding::Defect => WRONG,
+                },
+                C::FittedGradeAtClosedFormDoor { .. } => {
+                    "a fitted-grade boundary image was read at the closed-form check"
+                }
                 C::ChartRow { .. }
                 | C::ImageMismatch { .. }
                 | C::ChannelKindMismatch { .. }
                 | C::WindingMismatch { .. }
-                | C::FittedCertificate { .. } => (WRONG, Some(DEFECT)),
+                | C::IntervalNotForward
+                | C::AzimuthPeriodExceeded
+                | C::TubePeriodExceeded => WRONG,
                 C::ResidualExceeded { .. } | C::FittedLimb { .. } => {
-                    let why = if error.refuses_on_a_bound() {
+                    if error.refuses_on_a_bound() {
                         BOUND
                     } else {
                         WRONG
-                    };
-                    (why, None)
+                    }
                 }
-                C::IntervalNotForward | C::AzimuthPeriodExceeded | C::TubePeriodExceeded => {
-                    (WRONG, None)
-                }
-                C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, None),
-                C::Band(b) => (classify_band(b), Some(TOLERANCE)),
+                C::FittedEscalated { .. } | C::Escalated { .. } => CLOSE,
+                C::Band(b) => classify_band(b),
             };
-            let recourse = match (error.ending(Reading::AtRest), own) {
-                (Some(ending), _) => Cow::Owned(ending),
-                (None, Some(own)) => Cow::Borrowed(own),
-                (None, None) => unreachable!("a decision's refused arm always has its ending"),
-            };
-            return (why, recourse);
+            return (why, error.ending(Reading::AtRest).into());
         }
     };
     (why, recourse.into())
@@ -13170,6 +13161,37 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A fitted certificate's reason at rest follows the decision it
+    /// ends by**: a class no enclosure is written for is the kernel's
+    /// "cannot yet", never a boundary that does not match its face; the
+    /// image producer's own defect is.
+    #[test]
+    fn a_fitted_certificates_reason_at_rest_follows_its_ending() {
+        use geom_brep::pcurve_cache::FittedEnding;
+        let reason = |ending| {
+            classify_pcurve(&crate::pcurves::PcurveMintError::Certify {
+                half_edge: crate::entity::HalfEdgeKey::default(),
+                error: geom_brep::PcurveCertifyError::FittedCertificate {
+                    limb: None,
+                    what: "probe",
+                    magnitude: None,
+                    ending,
+                },
+            })
+        };
+        let (why, recourse) = reason(FittedEnding::NotYet);
+        assert_eq!(why, "the kernel cannot yet map a boundary of this kind");
+        assert!(
+            recourse.starts_with(geom_core::NOT_YET_ENDING),
+            "{recourse}"
+        );
+        let (why, recourse) = reason(FittedEnding::Defect);
+        assert_eq!(why, WRONG);
+        assert_eq!(recourse, DEFECT);
+        let (why, _) = reason(FittedEnding::FootUnsettled);
+        assert!(why.contains("foot") && why != WRONG, "{why}");
     }
 
     /// **An edge certificate's incidence refusal at rest takes the reason
