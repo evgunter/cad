@@ -10,9 +10,11 @@
 //!   `V(O)` and `V(B)` where the placement has one, and otherwise
 //!   inclusion–exclusion, every op that builds implying one shared
 //!   `V(O ∩ B)`. `V(O)` is the operand's closed form where it has one
-//!   (its measure holds it), and otherwise its measure. Each reading is
-//!   held to its oracle within the certified brackets on both sides;
-////! - a placement marked to build builds every op;
+//!   (its measure holds it), and otherwise its measure. Every body is
+//!   measured at [`RESOLUTION`], its bracket held within the band, and
+//!   each reading is held to its oracle within the band beyond the
+//!   brackets on both sides;
+//! - a placement marked to build builds every op;
 //! - an `Err` is a typed refusal, never a kernel invariant, and a
 //!   refusal naming a face names one of the operand its site says owns
 //!   it, of the kind it states. The bricks are
@@ -213,15 +215,35 @@ type Run<'a> = (
     fn(f64, f64, f64) -> f64,
 );
 
+/// The resolution (mean boundary displacement, m) every body here is
+/// measured at: the width at which a reading's bracket lies within
+/// [`band`] of the volumes here, at every ε row. It is no finer than the
+/// coarsest row's ε, 1e-6.
+const RESOLUTION: f64 = 1e-6;
+
+/// How far a volume `v` may read from its oracle beyond the brackets.
+fn band(v: f64) -> f64 {
+    1e-6 * v.abs().max(1.0)
+}
+
+/// `body`'s volume at [`RESOLUTION`] and its bracket's half-width, which
+/// lies within [`band`].
+fn measure(what: &str, body: &AtRestBody<f64>) -> (f64, f64) {
+    let m = topo::test_support::volume_at(what, body, Tol::witness(), RESOLUTION);
+    assert!(
+        m.volume_pad <= band(m.volume),
+        "{what}: V = {} ± {:e}, a bracket wider than its band {:e}",
+        m.volume,
+        m.volume_pad,
+        band(m.volume)
+    );
+    (m.volume, m.volume_pad)
+}
+
 /// Runs the four ops in both orders against each placement and holds
 /// each outcome to its oracle; returns the census lines. `V(O)` is the
-/// operand's closed form where it has one, which its measure holds
-/// within the measure's certified bracket, and otherwise its measure.
-/// Every volume read is held to its oracle within the brackets of the
-/// readings on both sides: at the suites' pinned resolution a quadrature
-/// face's bracket is wider than the band (2.8e-3 m³ on the lofted
-/// cylinder at ε = 1e-6), and a reading off by less than its bracket is
-/// no wrong body.
+/// operand's closed form where it has one, which its measure holds, and
+/// otherwise its measure.
 fn census(
     name: &str,
     operand: &AtRestBody<f64>,
@@ -229,19 +251,20 @@ fn census(
     placements: &[Placement],
 ) -> Vec<String> {
     let tol = Tol::witness();
-    let measured = topo::test_support::pinned_volume("the operand measures", operand, tol);
+    let (measured, measured_pad) = measure(&format!("{name}: the operand"), operand);
     // `V(O)` and its bracket's half-width.
     let (v, v_pad) = match closed_form {
         Some(want) => {
-            assert!(
-                (measured.volume - want).abs() <= measured.volume_pad + 1e-9 * want,
-                "{name}: measures V = {} ± {}, the closed form gives {want}",
-                measured.volume,
-                measured.volume_pad
+            topo::test_support::assert_volume_near(
+                &format!("{name}: the operand against its closed form"),
+                measured,
+                measured_pad,
+                want,
+                band(want),
             );
             (want, 0.0)
         }
-        None => (measured.volume, measured.volume_pad),
+        None => (measured, measured_pad),
     };
     let mut lines = Vec::new();
     for p in placements {
@@ -316,25 +339,22 @@ fn census(
                 Ok(result) => {
                     let (got, got_pad) = match &result {
                         BooleanResult::Empty => (0.0, 0.0),
-                        BooleanResult::Body(b) => {
-                            let m = topo::test_support::pinned_volume(
-                                "the measured body",
-                                &b.body,
-                                tol,
-                            );
-                            (m.volume, m.volume_pad)
-                        }
+                        BooleanResult::Body(b) => measure(&format!("{line}the result"), &b.body),
                     };
-                    let pad = got_pad + v_pad;
                     match p.oracle {
                         Oracle::Known(of) => {
                             let want = of(v, vb)[slot];
-                            assert!(
-                                (got - want).abs() <= 1e-6 * want.max(1.0) + pad,
-                                "{line}builds V = {got} ± {got_pad}, the closed form gives {want} ± {v_pad}"
+                            topo::test_support::assert_volume_near(
+                                &format!("{line}against the closed form"),
+                                got,
+                                got_pad + v_pad,
+                                want,
+                                band(want),
                             );
                         }
-                        Oracle::Cut => implied.push((op, meet(v, vb, got), pad)),
+                        // `V(O)` enters every op's implied `V(O ∩ B)` alike,
+                        // so their agreement reads only the results' brackets.
+                        Oracle::Cut => implied.push((op, meet(v, vb, got), got_pad)),
                     }
                     lines.push(format!("{line}builds V = {got}"));
                 }
@@ -342,16 +362,17 @@ fn census(
         }
         if let Some(&(_, first, first_pad)) = implied.first() {
             let scale = v.max(vb);
-            let slack = 1e-9 * scale + first_pad;
+            let slack = 1e-9 * scale + first_pad + v_pad;
             assert!(
                 (-slack..=v.min(vb) + slack).contains(&first),
-                "{name} / {}: V(O ∩ B) = {first} ± {first_pad} lies outside [0, min(V(O), V(B))]",
-                p.name
+                "{name} / {}: V(O ∩ B) = {first} ± {:e} lies outside [0, min(V(O), V(B))]",
+                p.name,
+                first_pad + v_pad
             );
             for &(op, meet, pad) in &implied {
                 assert!(
                     (meet - first).abs() <= 1e-9 * scale + pad + first_pad,
-                    "{name} / {}: {op} implies V(O ∩ B) = {meet} ± {pad}, the others {first} ± {first_pad}",
+                    "{name} / {}: {op} implies V(O ∩ B) = {meet} ± {pad:e}, the others {first} ± {first_pad:e}",
                     p.name
                 );
             }
