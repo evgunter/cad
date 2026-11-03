@@ -2,13 +2,11 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: review
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
-branch: restread/self-touch-second-order
-pr: 6422
 ---
 
 
@@ -169,3 +167,11 @@ variant never committed) turns 7 sweep rows red: 6 of the 13 above
 added since. All five `a_split_through_a_wrap_edges_vertex` rows and
 both `split_across_a_revolve_seam` rows read whole and stay green.
 Whether the remainder refuses is still Ev's call.
+
+## After PR 6422
+
+PR 6422 (`restread/self-touch-second-order`) merged on 2026-11-03 with
+the reading above, so this row is open again for the 55 triples still
+skipped. The two biggest classes are the slits (30) and
+`bisector_nodes`' equal cylinders (14). Whether the remainder refuses
+in the meantime is still Ev's call.
