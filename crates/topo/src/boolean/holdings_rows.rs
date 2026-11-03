@@ -570,8 +570,16 @@ fn coplanar((body, f): (&Body<f64>, FaceKey), (member, m): (&Body<f64>, FaceKey)
 #[test]
 fn every_brick_booleans_face_holds_only_member_faces_on_its_plane() {
     let t = tol();
-    let plate = finished("plate", brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t), t);
-    let slot = finished("slot", brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), t), t);
+    let plate = finished(
+        "plate",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t),
+        t,
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), t),
+        t,
+    );
     let Ok(BooleanResult::Body(cut)) = super::subtract(&plate, &slot, t) else {
         panic!("the slot cuts the plate");
     };
@@ -624,7 +632,12 @@ fn every_brick_booleans_face_holds_only_member_faces_on_its_plane() {
             }
         }
     }
-    assert!(wrong.is_empty(), "{} faces misread:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} faces misread:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
     assert!(read > 6_000, "the sweep reads the holdings of {read} faces");
 }
 

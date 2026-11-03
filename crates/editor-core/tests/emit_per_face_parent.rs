@@ -275,9 +275,9 @@ fn a_flush_tile_beside_t1_renames_only_the_faces_gaining_its_area() {
     let t0_read = after.read(t0);
     let moved = |name: &StableName| {
         let walls_moved = match name.path.last() {
-            Some(RoleSeg::Fragment(Qualifier::Borders(walls))) => walls
-                .iter()
-                .any(|w| cited_members(w).contains(&t0_read)),
+            Some(RoleSeg::Fragment(Qualifier::Borders(walls))) => {
+                walls.iter().any(|w| cited_members(w).contains(&t0_read))
+            }
             _ => false,
         };
         cited_members(name).contains(&t0_read) || walls_moved
@@ -290,7 +290,10 @@ fn a_flush_tile_beside_t1_renames_only_the_faces_gaining_its_area() {
         );
     }
     let body0 = body_of(&ev0, u0);
-    for (said, name) in faces0.iter().filter(|(said, _)| !faces1.contains_key(*said)) {
+    for (said, name) in faces0
+        .iter()
+        .filter(|(said, _)| !faces1.contains_key(*said))
+    {
         let mut kept = cited_members(name);
         kept.sort();
         let mut was = kept.clone();
@@ -527,5 +530,8 @@ fn a_unions_wrap_edge_is_a_piece_of_its_fold_rows_member_edge() {
             "a wrap edge is a piece of a member's edge: {name}"
         );
     }
-    assert!(wraps >= 2, "the glued bore and wall each hold a wrap edge: {wraps}");
+    assert!(
+        wraps >= 2,
+        "the glued bore and wall each hold a wrap edge: {wraps}"
+    );
 }

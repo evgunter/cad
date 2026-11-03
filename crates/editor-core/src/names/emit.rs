@@ -621,9 +621,8 @@ shapes! {
     /// What a name a union publishes met
     /// ([`NamingError::UnsupportedUnionName`]).
     UnionNameShape {
-        /// It cites member faces several parents hold, and the faces
-        /// around the entity it names do not single one out (a tied
-        /// member face is keyed to each candidate's parent too).
+        /// It cites member faces several parents hold (a tied member
+        /// face is keyed to each candidate's parent too).
         SeveralParents => "cites faces of several parents, so it names no one face",
         /// Two lines of a seam junction, met at different steps, collapse
         /// to one member-space line.

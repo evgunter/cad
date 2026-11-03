@@ -120,8 +120,7 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{
     CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, HeldFace, Lone, ParentEntities,
-    held_base,
-    UNSIDED, edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
+    UNSIDED, edge_reading, edges_holding, held_base, is_straight, joined_along, joined_candidates,
     line_name as line_name_of, name_corner_copies, name_edge_pieces, name_held_faces,
     sense_along_line, sets_per_line,
 };
@@ -1841,24 +1840,11 @@ fn cite_member_edges<T: geom_core::Decide>(
             }
             (None, None) => {
                 // A vertex's faces cited as parents, and the seams it
-                // cites by their heads: a face by the parent around the
-                // vertex holding it.
-                let around = at.map(|v| {
-                    flush
-                        .inc
-                        .vertex_edges
-                        .get(&v)
-                        .into_iter()
-                        .flatten()
-                        .flat_map(|k| flush.inc.edge_faces.get(k).into_iter().flatten())
-                        .filter_map(|f| flush.face_names.get(f).cloned())
-                        .collect()
-                });
+                // cites by their heads.
                 let name = name.rewrite_path(&mut CiteParents {
                     union: flush.union,
                     parents,
                     seams: seam_heads,
-                    around,
                 })?;
                 let whole = name.clone().rewrite_path(&mut WholeMemberEdges {
                     union: name.node,
@@ -2218,16 +2204,15 @@ impl<'l> Fold<'l> {
         result: &topo::Body<T>,
         holdings: &'l topo::Holdings,
     ) -> Result<(), NamingError> {
-        self.obstacles
-            .record(naming, result, |row| {
-                let Some(fs) = read_held(holdings.lost(row), None)? else {
-                    unreachable!(
-                        "a union fold step's discard row {row} has no holdings: the n-ary door \
+        self.obstacles.record(naming, result, |row| {
+            let Some(fs) = read_held(holdings.lost(row), None)? else {
+                unreachable!(
+                    "a union fold step's discard row {row} has no holdings: the n-ary door \
                          reads one for every row of every step (`topo::NaryStep::holdings`)"
-                    )
-                };
-                Ok(fs.clone())
-            })?;
+                )
+            };
+            Ok(fs.clone())
+        })?;
         self.holdings = Some(holdings);
         Ok(())
     }
@@ -2385,19 +2370,16 @@ impl Parents {
     }
 
     /// The parent a face name some row embeds cites: the one parent
-    /// holding area of the member faces it lists, among the parents of
-    /// the faces `around` the entity the row names where that is known.
-    /// `None` for a name that is not a member face, a merge of member
-    /// faces or a piece of either.
+    /// holding area of the member faces it lists. `None` for a name that
+    /// is not a member face, a merge of member faces or a piece of
+    /// either.
     ///
-    /// A name whose member faces several such parents hold, or several
-    /// of which none lies around the entity, cites no one face of the
-    /// finished body, and refuses.
+    /// A name whose member faces several parents hold cites no one face
+    /// of the finished body, and refuses.
     fn cited(
         &self,
         union: RecipeNodeId,
         n: &StableName,
-        around: Option<&BTreeSet<StableName>>,
     ) -> Result<Option<StableName>, NamingError> {
         if n.kind != EntityKind::Face {
             return Ok(None);
@@ -2413,21 +2395,9 @@ impl Parents {
                 }
             }
         }
-        let several = cited.len() > 1;
-        if let Some(around) = around
-            && several
-        {
-            cited.retain(|p| around.contains(p));
-        }
         let mut cited = cited.into_iter();
         let Some(first) = cited.next() else {
-            if !several {
-                return Ok(None);
-            }
-            return Err(NamingError::UnsupportedUnionName {
-                name: Box::new(n.clone()),
-                shape: UnionNameShape::SeveralParents,
-            });
+            return Ok(None);
         };
         if cited.next().is_some() {
             return Err(NamingError::UnsupportedUnionName {
@@ -2664,9 +2634,6 @@ struct CiteParents<'p> {
     parents: &'p Parents,
     /// A unique seam row's collapsed spelling → its published head.
     seams: &'p BTreeMap<StableName, StableName>,
-    /// The parents of the faces around the vertex the row names, where
-    /// it names one.
-    around: Option<BTreeSet<StableName>>,
 }
 
 impl SegRewrite for CiteParents<'_> {
@@ -2681,7 +2648,7 @@ impl SegRewrite for CiteParents<'_> {
         if n.node != self.union {
             return Ok(Carry::Keep);
         }
-        if let Some(parent) = self.parents.cited(self.union, n, self.around.as_ref())? {
+        if let Some(parent) = self.parents.cited(self.union, n)? {
             return Ok(if parent == *n {
                 Carry::Keep
             } else {

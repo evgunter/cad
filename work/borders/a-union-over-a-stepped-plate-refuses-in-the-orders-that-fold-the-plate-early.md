@@ -122,3 +122,21 @@ of `tests/emit_union_borders.rs`:
   in shape; (plate, m, t) and (m, plate, t) still over-link.
 
 The flush engulf and the three-box reproducer were not re-measured.
+
+### The near half's 8 orders publish order-dependent walls (PR 6381 review)
+
+The review asked that the 8 near-half orders refuse again rather than
+publish walls that depend on member order. The naming cannot tell them
+apart from a right answer: in those orders the diamond's lost region
+meets the divider at one corner of the lower top, which is also exactly
+what the far half looks like in every order (whose right answer is "not
+cited"). A refusal keyed on that shape (an obstacle that divides nothing
+sharing a corner with a divider in one holder's boundary) was tried in
+`Obstacles::walls`: it refused all 24 orders of both the far and the
+near half, (0, 2, 1) of `a_divider_beside_a_joined_seam_does_not_reach_across_it`,
+and `split_join` of `an_earlier_seam_split_and_joined_away_in_one_step_names_alike`,
+so it was not kept. Which half of a joined edge a corner lies on has to
+come from the record (the join's own row), which is this row's and
+`borders-records-a-join-twice-and-reads-lineage-three-ways`'s work; until
+then the 8 orders publish a table that differs from the other 16, a
+known order dependence and a P2 here.

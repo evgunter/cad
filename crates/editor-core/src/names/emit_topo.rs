@@ -21,8 +21,8 @@ use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, ON_MEMBER_EDGE, band};
 use super::emit::{
     CrossingSensesShape, DisagreeShape, Incidence, JoinShape, NamingError, Rim, RimShare,
-    SeamSidesShape, SeamVertexShape, WayShape, edge_ends, ent, face_half_edges, name1, rim_between,
-    read_held, rims_between, vertex_point,
+    SeamSidesShape, SeamVertexShape, WayShape, edge_ends, ent, face_half_edges, name1, read_held,
+    rim_between, rims_between, vertex_point,
 };
 use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};

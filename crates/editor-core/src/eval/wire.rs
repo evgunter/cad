@@ -4186,9 +4186,16 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             table: &m.table,
         })
         .collect();
-    let (table, published_groups) =
-        names::name_union(id, acc_body, &acc_table, &member_views, &fold, &pair_senses, tol)
-            .map_err(NodeErrorKind::Naming)?;
+    let (table, published_groups) = names::name_union(
+        id,
+        acc_body,
+        &acc_table,
+        &member_views,
+        &fold,
+        &pair_senses,
+        tol,
+    )
+    .map_err(NodeErrorKind::Naming)?;
     let body = acc_body.clone().into_body();
     // The LAST step's records are the result's: every earlier step's
     // were carried into the step after it.
