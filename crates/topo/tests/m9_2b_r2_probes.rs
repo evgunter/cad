@@ -127,7 +127,7 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
 /// A 1 m patch about the origin: the extent these exact-axis fixtures'
 /// locus verdicts are consumed over (no row here turns on the lever).
 fn metre_patch() -> geom_brep::ExtentBall<f64> {
-    geom_brep::ExtentBall::new(Point3::origin(), 1.0)
+    geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0)
 }
 
 fn cyl_at(cy: f64, r: f64) -> Surface<f64> {

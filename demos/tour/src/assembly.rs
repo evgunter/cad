@@ -293,7 +293,7 @@ fn constrain(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
     mate: Mate<Formula>,
-    values: impl IntoIterator<Item = (Coord, Formula)>,
+    values: impl IntoIterator<Item = (Coord<Operand>, Formula)>,
     tol: Tol,
 ) -> MateRef {
     let placed = Placed {
@@ -320,10 +320,10 @@ fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<Profi
 
 /// A plane mate's three freedoms set: the slides along its chart's `x`
 /// and `y` and the spin about its normal.
-fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
+fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord<Operand>, Formula); 3] {
     [
-        (Coord::Slide(TargetAxis::X), x),
-        (Coord::Slide(TargetAxis::Y), y),
+        (Coord::slide(TargetAxis::X), x),
+        (Coord::slide(TargetAxis::Y), y),
         (Coord::SPIN, spin),
     ]
 }
@@ -333,7 +333,7 @@ fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
 fn place_in_world(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<Operand>, Formula)>,
     tol: Tol,
 ) {
     edit(doc, &Placed::unmated(values).write(placement), tol);
@@ -661,7 +661,11 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             &k,
             BodyRead::plain(Operand::Node(post_i)),
             Operand::Var(master_space),
-            &[(TargetAxis::Y, pe("200 mm", &scope))],
+            &[(
+                pncad::pattern::RowDirection::Axis(TargetAxis::Y),
+                pe("200 mm", &scope),
+            )],
+            None,
         )
         .expect("the pitch is a length"),
         tol,
@@ -763,9 +767,9 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
     let [x, y] = swung([spot[0], spot[1]], scope);
     Placed::unmated(vec![
         (Coord::Spin(Some(TargetAxis::Z)), pe("swing", scope)),
-        (Coord::Slide(TargetAxis::X), x),
-        (Coord::Slide(TargetAxis::Y), y),
-        (Coord::Slide(TargetAxis::Z), length(spot[2])),
+        (Coord::slide(TargetAxis::X), x),
+        (Coord::slide(TargetAxis::Y), y),
+        (Coord::slide(TargetAxis::Z), length(spot[2])),
     ])
 }
 

@@ -102,15 +102,12 @@ fn tori(e: f64, tilt: f64, m: f64, b: Band) -> (Section<f64>, (f64, f64)) {
     let donut = torus(p(0.0, 0.0, 0.0), 2.0, 0.5);
     // The classifier takes a reach for every pair; two tori read their
     // own ball and not this one, so it is the donut's, the rows' lever.
-    let reach = Reach {
-        centre: p(0.0, 0.0, 0.0),
-        radius: BALL,
-    };
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), BALL));
     (
         classify(
             &donut,
             &t2,
-            reach,
+            &reach,
             None,
             Some(geom_brep::SsiLane::marched()),
             b,
@@ -208,10 +205,7 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 2] {
     let z = zero();
     let gap = (k() + past) * z;
     let swing = 0.45 * z;
-    let one = |at: Point3<f64>| Reach {
-        centre: at,
-        radius: 1.0,
-    };
+    let one = |at: Point3<f64>| geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(at, 1.0));
     // A pin of radius 0.2 clear of the donut's outer equator by `gap`,
     // its tilt levered over the donut's ball from the pivot `(e, 0, 0)`.
     let e = 2.7 + gap;
@@ -223,7 +217,7 @@ fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 2] {
     let cone_wall = classify(
         &unit_cone(),
         &wall,
-        one(p(e, 0.0, 0.0)),
+        &one(p(e, 0.0, 0.0)),
         None,
         Some(geom_brep::SsiLane::marched()),
         band(),
@@ -286,11 +280,8 @@ fn wide_walls_tilted_in_the_band_read_crossing_over_a_region_on_the_wall() {
         let s = classify(
             &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r),
             &cylinder(p(0.0, 0.0, 0.0), tilted(0.45 * z), r + gap * z),
-            Reach {
-                centre: p(r, 0.0, 0.0),
-                radius: 1.0,
-            },
-            Some(geom_brep::ExtentBall::new(p(r, 0.0, 0.0), 1.0)),
+            &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(r, 0.0, 0.0), 1.0)),
+            Some(geom_brep::ExtentBall::of_sphere(p(r, 0.0, 0.0), 1.0)),
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
@@ -313,7 +304,10 @@ const TURN: f64 = 0.9;
 fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
     let z = zero();
     let radius = (0.5 * (TILT / 2.0).powi(2) * z / TURN).sqrt();
-    (Reach { centre: at, radius }, TILT * z / (2.0 * radius))
+    (
+        geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(at, radius)),
+        TILT * z / (2.0 * radius),
+    )
 }
 
 /// **The turn of a point read off the pivot counts.** A cone whose apex
@@ -342,7 +336,7 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         let s = classify(
             &torus(p(0.0, 0.0, rise), 2.0, 0.5),
             &cone,
-            reach,
+            &reach,
             None,
             Some(geom_brep::SsiLane::marched()),
             band(),
@@ -374,7 +368,7 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         let s = classify(
             &first,
             &apexes,
-            reach,
+            &reach,
             None,
             Some(geom_brep::SsiLane::marched()),
             band(),

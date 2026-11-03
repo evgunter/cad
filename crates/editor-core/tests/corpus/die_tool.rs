@@ -67,7 +67,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// fraction of a turn it is, then the slides to the pip's centre. Each
 /// carries the master ball's `+Z` pole onto the face normal it is cut
 /// by, so every chart stays polar to the plane that cuts it.
-fn placements() -> Vec<Vec<(Coord, Formula)>> {
+fn placements() -> Vec<Vec<(Coord<editor_core::Operand>, Formula)>> {
     let h = DIE_L / 2.0;
     let lo = DIE_L - PIP_C; // the −normal faces' centre coordinate
     [
@@ -88,7 +88,7 @@ fn placements() -> Vec<Vec<(Coord, Formula)>> {
         let slides = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
             .into_iter()
             .zip(t)
-            .map(|(along, by)| (Coord::Slide(along), len(by)));
+            .map(|(along, by)| (Coord::slide(along), len(by)));
         slides
             .chain((num != 0).then_some((Coord::Spin(Some(axis)), turn)))
             .collect()

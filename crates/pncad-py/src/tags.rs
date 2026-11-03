@@ -126,7 +126,7 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AtRestEvidence, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, DimensionError,
+    AtRestEvidence, AttrKind, Axis3, BoundEnd, CheckEvidence, ChecksError, Coord, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
@@ -518,6 +518,8 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::ValueSpin { .. } => "value_spin",
         SlotId::StationSlide { .. } => "station_slide",
         SlotId::StationSpin { .. } => "station_spin",
+        SlotId::ClearanceBound(BoundEnd::Low) => "clearance_low",
+        SlotId::ClearanceBound(BoundEnd::High) => "clearance_high",
     }
 }
 
@@ -555,6 +557,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Face => "face",
         S::Traced(_) => "traced",
         S::Side { .. } => "side",
+        S::Along { .. } => "along",
+        S::About { .. } => "about",
         S::Source => "source",
         S::Measured(..) => "measured",
         S::Cleared(_) => "cleared",
@@ -1253,7 +1257,6 @@ pub fn meta_version_error_tag(err: &MetaVersionError) -> &'static str {
 pub fn profile_error_tag(err: &ProfileError) -> &'static str {
     match err {
         ProfileError::Band(_) => "band",
-        ProfileError::EmptyProfile => "empty_profile",
         ProfileError::PlaneNotFinite => "plane_not_finite",
         ProfileError::EmptyLoop { .. } => "empty_loop",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
@@ -1308,6 +1311,7 @@ pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
 pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
     match err {
         ExtrudeError::Band(_) => "band",
+        ExtrudeError::EmptyProfile => "empty_profile",
         ExtrudeError::DegenerateExtrusion => "degenerate_extrusion",
         ExtrudeError::NegativeDepth { .. } => "negative_depth",
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
@@ -1329,6 +1333,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
 pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
     match err {
         RevolveError::Band(_) => "band",
+        RevolveError::EmptyProfile => "empty_profile",
         RevolveError::NonFiniteAxis => "non_finite_axis",
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
@@ -1590,6 +1595,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::TooFewSections { .. } => "too_few_sections",
         SkinError::SectionShapeMismatch { .. } => "section_shape_mismatch",
         SkinError::SectionProfile { .. } => "section_profile",
+        SkinError::EmptyProfile { .. } => "empty_profile",
         SkinError::DomainNotUnit { .. } => "domain_not_unit",
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
@@ -1900,12 +1906,17 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 }
 
 /// The stable tag for which freedom a value sets (`Coord`): a slide
-/// along, or a spin about, the chart's `x`, `y` or `z`.
-pub fn coord_tag(coord: Coord) -> &'static str {
+/// along, or a spin about, the chart's `x`, `y` or `z`; the slide along
+/// the mated direction; a slide along a read direction or a spin about
+/// a read axis.
+pub fn coord_tag(coord: &Coord<impl Sized>) -> &'static str {
     match coord {
-        Coord::Slide(TargetAxis::X) => "slide_x",
-        Coord::Slide(TargetAxis::Y) => "slide_y",
-        Coord::Slide(TargetAxis::Z) => "slide_z",
+        Coord::Slide(None) => "slide",
+        Coord::SlideAlong(_) => "slide_along",
+        Coord::SpinAbout(_) => "spin_about",
+        Coord::Slide(Some(TargetAxis::X)) => "slide_x",
+        Coord::Slide(Some(TargetAxis::Y)) => "slide_y",
+        Coord::Slide(Some(TargetAxis::Z)) => "slide_z",
         Coord::Spin(None) => "spin",
         Coord::Spin(Some(TargetAxis::X)) => "spin_x",
         Coord::Spin(Some(TargetAxis::Y)) => "spin_y",
@@ -1919,6 +1930,7 @@ pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
         NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
         NoChartWhy::SlidesDoNotSpan { .. } => "slides_do_not_span",
+        NoChartWhy::ReadSlidesDoNotSpan => "read_slides_do_not_span",
     }
 }
 

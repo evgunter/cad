@@ -276,7 +276,7 @@ pub fn body_of(doc: &ProfileDoc, node: RecipeNodeId) -> crate::Operand {
 /// exactly where the frame says, else by the angles `atan2` reads off
 /// its columns (`linear = Rz(γ)·Ry(β)·Rx(α)`), to their rounding. The
 /// constant `0` is left to [`crate::Placed::of`].
-pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
+pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord<crate::Operand>, Formula)> {
     use crate::{Coord, TargetAxis};
     let quarter = |k: i32| -> [[i32; 3]; 3] {
         // The turn by `k` quarters about z, in columns.
@@ -328,8 +328,8 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
         .into_iter()
         .zip(at.translation)
         .filter(|&(_, by)| by != 0.0)
-        .map(|(axis, by)| (Coord::Slide(axis), len(by)));
-    let spins: Vec<(Coord, Formula)> = match chain {
+        .map(|(axis, by)| (Coord::slide(axis), len(by)));
+    let spins: Vec<(Coord<crate::Operand>, Formula)> = match chain {
         Some(chain) => chain
             .into_iter()
             .filter(|&(_, k)| k != 0)
@@ -574,8 +574,8 @@ pub fn placed_against_in(
     crate::Placed {
         mates: vec![crate::Mate { on, to, orient }],
         values: vec![
-            (Coord::Slide(across[0]), slide(coordinate(across[0]))),
-            (Coord::Slide(across[1]), slide(coordinate(across[1]))),
+            (Coord::slide(across[0]), slide(coordinate(across[0]))),
+            (Coord::slide(across[1]), slide(coordinate(across[1]))),
             (Coord::SPIN, spin),
         ],
     }
@@ -1500,7 +1500,7 @@ mod tests {
     #[test]
     fn a_quarter_turn_is_read_about_its_own_axis() {
         let quarter = Formula::turn_over(4).expect("a quarter turn");
-        let spins = |at| -> Vec<(Coord, Formula)> {
+        let spins = |at| -> Vec<(Coord<crate::Operand>, Formula)> {
             moves_at(&at)
                 .into_iter()
                 .filter(|(c, _)| matches!(c, Coord::Spin(_)))

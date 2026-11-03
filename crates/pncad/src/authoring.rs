@@ -216,10 +216,10 @@ pub fn polygon<T: Decide>(
 /// let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
 /// assert_eq!(profile.loops().len(), 1);
 ///
-/// // Fail-loud: a degenerate profile refuses with a typed error
-/// // rather than panicking or silently repairing itself.
-/// let empty = validated(SketchPlane::<f64>::xy(), vec![], tol);
-/// assert!(empty.is_err());
+/// // No loops is the empty region: it validates, and what sweeps it
+/// // refuses with a typed error at its own door.
+/// let empty = validated(SketchPlane::<f64>::xy(), vec![], tol)?;
+/// assert!(empty.loops().is_empty());
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn validated<T: Decide>(

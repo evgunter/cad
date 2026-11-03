@@ -127,7 +127,7 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
     surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    reach: T,
+    reach: geom_core::Lever<T>,
     declared: impl FnOnce() -> Result<Option<MappedCurve<T>>, ReplaceFaceError<T>>,
     band: Band,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
@@ -156,7 +156,7 @@ pub(crate) fn re_ask_chart<T: Decide>(
     surfaces: [(SurfaceKey, &geom::Surface<T>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<Option<EdgeDescriptionSpec<T>>, ReplaceFaceError<T>> {
     geom_brep::reask_chart(surfaces, carrier, (t0, t1), reach, band)

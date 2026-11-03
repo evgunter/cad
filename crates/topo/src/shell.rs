@@ -4454,14 +4454,7 @@ fn footprint<T: Decide>(
             EntityId::HalfEdge(he),
             "edge",
         );
-        // Null scaffolding is a zero-length chord its vertex holds.
-        if let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() {
-            points.extend(
-                carrier_box(curve.carrier(), curve.params(), frame)
-                    .into_iter()
-                    .flatten(),
-            );
-        }
+        points.extend(edge_box_in(body, h.edge, edge, frame));
     }
     let poison = points
         .iter()
@@ -4479,23 +4472,38 @@ fn footprint<T: Decide>(
     )
 }
 
-/// The `(u, v)` box of `frame` holding `carrier`'s arc over `params`:
-/// the projection of [`carrier_ball`]'s ball, which holds the whole arc.
-/// `None` for a line, whose two vertices hold it.
-///
-/// [`carrier_ball`]: crate::splitting::containment::carrier_ball
-fn carrier_box<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    params: (T, T),
+/// The `(u, v)` box of `frame` holding `edge`: its cover's box in the
+/// frame's rows (`boolean::boxes::edge_cover_linked`), about the frame's
+/// origin. Nothing for null scaffolding, a zero-length chord its vertex
+/// holds. Both corners are poison, and so the footprint, where the edge
+/// has no cover: its spline net carries poison, a datum or a computed
+/// point of its carrier is not finite, or an end vertex is not a finite
+/// point. A certified spline's net has a point by construction, which
+/// the cover asserts.
+fn edge_box_in<T: Decide>(
+    body: &Body<T>,
+    key: crate::entity::EdgeKey,
+    edge: &crate::entity::Edge,
     frame: &InPlane<T>,
-) -> Option<[(T, T); 2]> {
-    if !carrier.is_curved() {
-        return None;
+) -> Vec<(T, T)> {
+    use crate::boolean::EdgeUncovered;
+    match crate::boolean::boxes::edge_cover_linked(body, key, edge) {
+        Ok(cover) => cover_box_in(&cover, frame).to_vec(),
+        Err(EdgeUncovered::Scaffold) => Vec::new(),
+        Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
+            let poison = geom_core::poison::<T>();
+            vec![(poison, poison); 2]
+        }
     }
-    let (center, radius) = crate::splitting::containment::carrier_ball(carrier, params)
-        .unwrap_or_else(|| unreachable!("a certified spline carrier has control points"));
-    let c = frame.point(center);
-    Some([(c.x - radius, c.y - radius), (c.x + radius, c.y + radius)])
+}
+
+/// The `(u, v)` box of `frame` holding `cover`: its box in the frame's
+/// rows, about the frame's origin.
+fn cover_box_in<T: Decide>(cover: &geom::cover::Cover<T>, frame: &InPlane<T>) -> [(T, T); 2] {
+    let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
+    let o = frame.origin - geom_core::Point3::origin();
+    let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
+    [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
 }
 
 /// Do the two footprints overlap when both are projected into `a`'s
@@ -4787,15 +4795,12 @@ enum EdgeArc<T: Real> {
 /// parameter, so it is the carrier's `(t₀, t₁)` reversed on a minus
 /// half-edge. A piece holds its arc, and so the region between the arc
 /// and its chord, in a ball about the window's midpoint point, radius a
-/// bound on the carrier's speed times the window's half-width: a
-/// spiric's [`carrier_ball`], or the spline's
-/// [`geom::NurbsCurve3::speed_upper_bound`] for a spline. A
-/// spline also lies in its control net's ball ([`carrier_ball`]'s),
-/// which is the smaller for a strongly rational or tightly knotted net,
-/// so a spline piece is read in the smaller of the two. A piece splits
-/// at its window's midpoint into two that do the same.
-///
-/// [`carrier_ball`]: crate::splitting::containment::carrier_ball
+/// bound on the carrier's speed times the window's half-width. It also
+/// lies in its cover's ball ([`geom::cover::Cover::ball`], a spline's
+/// control net's, a spiric's period's), which is the smaller for a
+/// strongly rational or tightly knotted net, so a piece is read in the
+/// smaller of the two. A piece splits at its window's midpoint into two
+/// that do the same.
 #[derive(Clone)]
 struct ArcPiece<T: Real> {
     carrier: geom::Curve3<T>,
@@ -5097,7 +5102,15 @@ fn moved_walls<T: Decide>(
                     "edge",
                 );
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
-                let curve = match cavity.edge_curve_linked(h.edge, edge).certified() {
+                let certified = cavity.edge_curve_linked(h.edge, edge).certified();
+                // The edge's cover (`boolean::boxes::edge_cover_linked`):
+                // `None` for null scaffolding, a chord the wall's own
+                // vertices below hold.
+                let cover = match crate::boolean::boxes::edge_cover_linked(cavity, h.edge, edge) {
+                    Err(crate::boolean::EdgeUncovered::Scaffold) => None,
+                    other => Some(other),
+                };
+                let curve = match certified {
                     None => EdgeArc::Line,
                     Some(curve) => {
                         // The carrier's parameter runs with the edge's
@@ -5141,38 +5154,36 @@ fn moved_walls<T: Decide>(
                                 semi_u,
                                 semi_v,
                             }) => conic(center, axis, u_ref, semi_u, semi_v),
-                            geom::Curve3::Spiric { .. } => EdgeArc::Arc(ArcPiece::along(
-                                curve.carrier(),
-                                geom::carrier_speed::speed_range(curve.carrier()).1,
-                                None,
-                                (t0, t1),
-                                edge.he_plus == he,
-                            )),
-                            geom::Curve3::Nurbs(_) => EdgeArc::Arc(ArcPiece::along(
-                                curve.carrier(),
-                                geom::carrier_speed::speed_range(curve.carrier()).1,
-                                crate::splitting::containment::carrier_ball(
+                            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                                EdgeArc::Arc(ArcPiece::along(
                                     curve.carrier(),
+                                    geom::carrier_speed::speed_range(curve.carrier()).1,
+                                    cover
+                                        .as_ref()
+                                        .and_then(|c| c.as_ref().ok())
+                                        .map(geom::cover::Cover::ball),
                                     (t0, t1),
-                                ),
-                                (t0, t1),
-                                edge.he_plus == he,
-                            )),
+                                    edge.he_plus == he,
+                                ))
+                            }
                         }
                     }
                 };
-                match curve {
-                    EdgeArc::Line => {}
-                    EdgeArc::Conic { center, ru, rv, .. } => {
-                        let r = ru.max(rv);
-                        let r = geom_core::Vec3::new(r, r, r);
-                        points.extend([center - r, center + r]);
-                    }
-                    EdgeArc::Arc(ref arc) => {
-                        let (c, rho) = arc.ball();
-                        let r = geom_core::Vec3::new(rho, rho, rho);
-                        points.extend([c - r, c + r]);
-                    }
+                if let Some(cover) = &cover {
+                    // An edge with no cover (its spline net carries poison,
+                    // a datum or a computed point of its carrier is not
+                    // finite, or an end vertex is not a finite point)
+                    // poisons the wall's box, which then overlaps every
+                    // other wall.
+                    let (lo, hi) = cover.as_ref().map_or_else(
+                        |_| {
+                            let poison = geom_core::poison::<T>();
+                            let p = geom_core::Point3::new(poison, poison, poison);
+                            (p, p)
+                        },
+                        |c| c.box_in(&geom::cover::Frame::World),
+                    );
+                    points.extend([lo, hi]);
                 }
                 points.push(start.1);
                 if !vertices.contains(&start.0) {
@@ -5720,8 +5731,10 @@ mod tests {
                     curve: EdgeArc::Arc(ArcPiece::along(
                         carrier,
                         geom::carrier_speed::speed_range(carrier).1,
-                        crate::splitting::containment::carrier_ball(carrier, params)
-                            .filter(|_| matches!(carrier, geom::Curve3::Nurbs(_))),
+                        carrier
+                            .cover_over(geom::cover::ParamWindow::new(params.0, params.1))
+                            .ok()
+                            .map(|c| c.ball()),
                         params,
                         plus,
                     )),
@@ -5799,7 +5812,10 @@ mod tests {
             unreachable!("built a spline")
         };
         let speed = spline.speed_upper_bound();
-        let hull = crate::splitting::containment::carrier_ball(&carrier, (0.0, 1.0));
+        let hull = carrier
+            .cover_over(geom::cover::ParamWindow::new(0.0, 1.0))
+            .ok()
+            .map(|c| c.ball());
         let piece = ArcPiece::along(&carrier, speed, hull, (0.0, 1.0), true);
         let (centre, radius) = piece.ball();
         assert!(

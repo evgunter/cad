@@ -77,3 +77,73 @@
     - The P2 `vtxfac-partner-side-…` row, claimed into the lane.
     - One pierce spelling, a carry-over from both reviews of PR 6378.
   - The lane reviews at the dual tier, letter M, so rule 1's draw happens at hand-back.
+
+- 2026-11-02: lane 2 stopped on its stop rule, at head `44a836a6`. Items 1 and 4 move built → refused in 13 tangent-kiss tests, all `LineMaterialUnread` (`NoReference`) at recl's edge-edge line cone. The mechanism is the same in every case:
+  - At a kiss, each solid's line cone of the other is one plane, and the cone reads the rim's ray Zero. The descent decides the side and hands it in.
+  - Under `## Decided` item 3, a sector read only by a given side is no parity base, so no reference remains.
+  - At `cone_classes`, 11 On(k) readings move to Out/In, by descent, in 4 tests (still green).
+
+  The lane offered three options: A (a given-taken sector may be a base where no decided one exists), C (hand descended sides only where the cone's reading isn't Zero), or B (re-baseline the 13 as refusals).
+  - Rejected: B (the 13 are correct builds), and C (it keeps the motivating witness split between the two sites).
+  - Directed: measure A in its narrowest form (a decided base is always preferred), with an exact-oracle row and fuzz for given bases. Re-take both diffs against main. Every one of the 13 must build the same body as main, and every moved reading must be shown right. Only then do I amend item 3 (orchestrator-decided, never Ev-ratified). Any wrong move goes to a design weighing.
+  - Accepted: the lane's `given_side` distinctions (Unresolved(band)/Slack/Undecided), and Undecided for a bound in band of a far partner plane.
+  - The touched face (the brief's item 2) has no exposure from the cone's tie: the vertex's own point is unmoved. It stays on the plain band, with its row inverted to pin that.
+
+- 2026-11-02 — Lane 2 measured A (head `4c38a9ad`). A given-taken sector serves as the parity base only where no decided sector exists.
+  - 12 of the 13 build exactly as main (kind, counts and vertex hash, every op). Nothing else moved in 9,339 tests.
+  - recl germs are unchanged. 187 readings moved On(k) → Out/In, each equal to main's tangent lump.
+  - `cone_classes`: 79 moved readings, 0 disagreements with `point_in_solid` at the edge's second-order point.
+  - Holdout: `review_4704_flush_round_oracle::a_same_side_tangent_touch_answers_every_op`. Every sector of the cone lies in q's plane, so no arc can be placed and parity cannot read it.
+  - Lane's candidate A′: q strictly inside one sector k's plane and sector, on no other sector, with k's side given and taken → the material is that side's. This is On(k) read to the orders read (item 4), and is sound by local geometry.
+  - Directed: prototype A′ without A, with exact-oracle rows and fuzz, and re-take both diffs. Take A′ alone if all 13 build as main. Otherwise measure A′+A and report.
+  - Once measured, I amend item 3 on this branch.
+
+- 2026-11-02 — Lane 2 measured A′ alone, with A reverted (head `3c0f0b5e`).
+  - All 13 kiss tests build exactly as main does, `review_4704` included. 0 ops moved across 9,339 tests.
+  - recl germs and memberships are unchanged; 26 readings moved On(k) → Out/In, and each followed main's tangent-lump membership.
+  - `cone_classes`: 59 moved readings, 0 disagreements with `point_in_solid`.
+  - Fuzz: 0 wrong at three ε.
+  - Taken: A′ alone. Item 3 of the line-cone side's `## Decided` is amended with the A′ clause; lane 1's "no parity base" rule stands.
+  - Lane 2 carries on: the slow-set three-ε diff, the `pick` germ, K-REPORT, item 4's re-wording, the sweep, then the PR.
+
+- 2026-11-02 — Lane 2 handed back PR 6407 (head `0bada6b2`, main `da054a46` merged in).
+  - **CI is red, but not ours.** `gate ok` fails only because main does not compile: `census.rs`:8942–8962, a semantic collision between #6391 (onehome's typed `Lever`) and #6350 (restread's tangent fan). Main's push CI on `e4beb85` is red the same way. The fix is another program's open PR 6408; not ours to touch.
+  - **Outcome diff against main:** 0 ops moved over the 9,339-test ci set and the 317-test tangent/vertex-pair suite, at three ε. 0 germ, membership or `partner_side` changes.
+  - **Decision diff:** the moved `cone_classes` readings (59 in ci, 160 per ε in the slow sets) agree with `point_in_solid`. At 1e-6 the oracle's sample is in its own band, so it gives no definite opposite.
+  - The P2 partner-side row is closed with the PR. New P3: `the-vertex-pair-sector-pass-reads-a-bounds-side-on-the-band-beside-its-tie`.
+  - The pick germ is covered by four existing body rows with closed-form volumes. No new body row was written.
+  - **Coupling:** TANGRIM 6385 adds `BoundSupport::Conic { arc }`.
+  - **Next:** once 6408 merges, the lane re-merges main and polls CI to green. Rule 1's draw (letter M) happens on that frozen head.
+
+- 2026-11-03: PR 6407 is green at `1482661a`.
+  - Main's second compile break (`overlap.rs` Lever) was fixed upstream.
+  - The lane made `a_partners_descended_bound_is_read_over_its_offset` ε-relative; it had failed at 1e-6/1e-12.
+  - Review tier: dual, letter M. Rule 1's draw gave byte 177 (mod 3 = 0), so this is a holdout: a concurrent pair reviewing the same frozen head. The blinded-coding byte was drawn and recorded.
+  - Two Opus reviews were dispatched with an identical brief, which includes a claim on the amended item 3 (A′).
+
+- 2026-11-03: both reviews of PR 6407 are in (concurrent pair, frozen head `1482661a`; coding recorded privately for the row).
+  - Verdicts: one APPROVE-WITH-FIXES (0/5/3), one NOT-MERGEABLE-AS-IS (1/2/2).
+  - **The MAJOR, found by both from different sides:** A′ certifies "on no other sector" only for sectors whose place was decided. A given sector in band of q, by plane or by place, is dropped, so A′ answers from one face where the cone without A′ refuses. Executed: a closed two-plane cone read In where parity reads Out; a fin a slack thin read In where main reads NoReference.
+  - **Also accepted:**
+    - A′ at a Bound turns main's In into Boundary, outside item 3.
+    - Four wirings are unpinned.
+    - Naming (`class != Out` in emit) was outside the outcome diff and must be measured.
+    - The K-REPORT addendum misses `link_wedge`/`link_ahead`.
+    - An oracle independent of the second-order model is wanted.
+    - The Ungiven mapping needs one home.
+    - Style fixes.
+  - The fix pass is sent to lane 2: re-take every diff, with the stop rule in force.
+  - **My earlier ruling was incomplete.** "The touched face has no exposure" covered only the partners' offset, not the vertex's own offset off the face. Filed `a-touched-faces-side-is-read-about-a-vertex-up-to-zero-off-the-face` (P3, E); it predates this PR in the pierce.
+  - The 1e-6 near-tangent main red is already filed (`work/issues/main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6.md`).
+  - CLEAVE's stale `pierce_side_reported` citation is noted on its log.
+
+- 2026-11-03: PR 6407 fix pass reported (`9927bbac`, green). Read and accepted:
+  - **The A′ certificate:** one strict Inside face, and every other sector either decided off its plane or placed Outside. Both reviews' probes are pinned, and the box corner reads In as on main.
+  - **Wirings:** each one goes red under its mutant.
+  - **The ungiven policy:** one home, `given_side(.., Unparted)`.
+  - **Naming:** 0 changes. No moved class reaches a naming test, which is stated in the body.
+  - **True-curve oracle:** 0 disagreements at default and 1e-12; unwitnessed at 1e-6.
+  - **Re-taken diffs:** 0 ops moved at three ε.
+
+  The row `PR-6407` (holdout pair, coding byte 192) is the PR's last commit (`24d9c28c`), with 0 tallied. The MAJOR was found by both reviews, one rating it a MINOR with a fix asked before merge, so this is no M-tier miss. The unit row and its spec row close with the PR.
+- 2026-11-03: **track handed back as `ready`.** No P0/P1 row remains, and the material-reader arc is done (PRs 6228, 6247, 6282, 6337, 6363, 6378 and 6407). Twelve rows remain, at P2 and below; the plan's slate lists them. The P2s are `recl-reads-one-wedge-pair-at-a-time-on-a-contact-line` and the census wall-tangent row. Every lane and reviewer session of this sitting is archived or finishing.

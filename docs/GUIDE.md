@@ -1913,7 +1913,7 @@ let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: 
 doc = next;
 // The one bundle constructor: the slide its author writes, and the
 // constant zero on every freedom left unnamed.
-let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
+let placed = Placed::unmated(vec![(Coord::slide(TargetAxis::Z), lit(0.125))]);
 let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
 let (next, tab_on_plate) = insert(
     &doc,

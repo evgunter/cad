@@ -29,7 +29,7 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{ang, body_volume, circle_at, len, len3, near, scl3, session_insert};
 use pncad::document::BooleanValue;
 use pncad::document::Speaker;
 use pncad::document::SplitSide;
@@ -48,8 +48,8 @@ use viewer::combine::{
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
-    DocSession, GestureFrameFault, NodeKindWanted, PartSelectSpec, PatternRuleSpec, ProfileShape,
-    Refusal, Selection, SessionOp,
+    DocSession, GestureFrameFault, NodeKindWanted, PartSelectSpec, PatternRuleSpec, Refusal,
+    Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
 
@@ -317,7 +317,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
     let [a_placement, _] = crate::common::drawn_copies(session.committed_doc())[..] else {
         panic!("two copies");
     };
-    let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
+    let slide_x = pncad::document::Coord::slide(pncad::document::TargetAxis::X);
     let moved = session.perform(SessionOp::SetSlot {
         node: a_placement,
         slot: SlotId::ValueSlide {
@@ -407,7 +407,7 @@ fn a_feature_re_points_each_placement_of_its_target() {
         input: body.into(),
         count: 2,
         rule: PatternRuleSpec::Linear {
-            direction: scl3([1.0, 0.0, 0.0]),
+            direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
             spacing: len(A[0] * 2.0),
         },
     };
@@ -498,10 +498,7 @@ fn the_boolean_door_refuses_a_non_body_operand_and_glues_a_repeated_body() {
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.01,
-            })],
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
         },
     );
     // A profile and an id the document never held are each "not a
@@ -567,10 +564,7 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.01,
-            })],
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
         },
     );
     let refused = session.perform(SessionOp::AddSplit {
@@ -732,15 +726,15 @@ fn the_transform_door_places_a_body_with_values() {
             Dimension::Angle,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::X),
             Dimension::Length,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Y),
             Dimension::Length,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Z),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Z),
             Dimension::Length,
         ),
     ] {
@@ -764,7 +758,7 @@ fn the_transform_door_places_a_body_with_values() {
     assert!(matches!(
         viewer::matetool::typed_value(
             session.committed_doc(),
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             "turn/4"
         ),
         Err(viewer::matetool::TypedValueError::Dimension {
@@ -866,7 +860,7 @@ fn the_transform_tool_refuses_what_is_no_body_and_asks_a_split_for_its_half() {
             input: patterned.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(B[0] * 2.0),
             },
         },
@@ -934,7 +928,7 @@ fn the_pattern_door_declares_an_index_of_its_count() {
             input: body.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -957,17 +951,16 @@ fn the_pattern_door_declares_an_index_of_its_count() {
     };
     assert_eq!(instances.len(), 3, "three members, unfused");
 
-    // The circular rule's axis is a point and a direction in the
-    // body's own coordinates, read off its geometry; one that names no
-    // direction refuses typed.
+    // The circular rule's axis is one of the space's axes, or picked
+    // geometry's; a flat face picked for a ring's axis has none, and
+    // refuses typed.
     let circular = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                through: len3([0.0; 3]),
-                direction: scl3([0.0, 0.0, 1.0]),
+                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
                 step: ang(core::f64::consts::FRAC_PI_2),
             },
         },
@@ -980,19 +973,32 @@ fn the_pattern_door_declares_an_index_of_its_count() {
         input: body.into(),
         count: 4,
         rule: PatternRuleSpec::Circular {
-            through: len3([0.0; 3]),
-            direction: scl3([0.0; 3]),
+            axis: viewer::PatternDirection::Face(end_cap(body)),
             step: ang(1.0),
         },
     });
     assert!(
         matches!(
             refused.refusal.as_ref(),
-            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::Direction { .. })
+            Some(Refusal::Frame(fault)) if matches!(**fault, GestureFrameFault::NoHeading { .. })
         ),
         "{:?}",
         refused.refusal
     );
+}
+
+/// The end cap of the extrude `body`, as a viewport pick on it selects
+/// it.
+fn end_cap(body: RecipeNodeId) -> viewer::session::FaceSelection {
+    viewer::session::FaceSelection {
+        name: pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node: body,
+            path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+        },
+        node: body,
+        body: 0,
+    }
 }
 
 /// Each member's offset from member 0 of the family `pattern`
@@ -1020,10 +1026,10 @@ fn member_offsets(session: &mut DocSession, pattern: RecipeNodeId) -> Vec<[f64; 
 }
 
 /// A row of `count` members of a fresh block, stepped `spacing` along
-/// the `typed` direction, and the session holding it; `declare` names a
-/// length variable declared first, at 50 mm, for `spacing` to read.
+/// the target axis `along`, and the session holding it; `declare` names
+/// a length variable declared first, at 50 mm, for `spacing` to read.
 fn a_row(
-    typed: [f64; 3],
+    along: pncad::document::TargetAxis,
     declare: Option<&str>,
     spacing: Formula,
     count: i64,
@@ -1043,7 +1049,7 @@ fn a_row(
             input: body.into(),
             count,
             rule: PatternRuleSpec::Linear {
-                direction: scl3(typed),
+                direction: viewer::PatternDirection::Axis(along),
                 spacing,
             },
         },
@@ -1070,13 +1076,14 @@ fn stepped(session: &mut DocSession, row: RecipeNodeId, typed: [f64; 3], pitch: 
 /// and still does after `pitch` is set again.
 #[test]
 fn a_row_along_an_axis_steps_its_spacing_and_reads_its_variable() {
-    let (mut session, row) = a_row([1.0, 0.0, 0.0], None, len(0.05), 3);
+    use pncad::document::TargetAxis;
+    let (mut session, row) = a_row(TargetAxis::X, None, len(0.05), 3);
     assert_eq!(member_offsets(&mut session, row).len(), 3, "three members");
     stepped(&mut session, row, [1.0, 0.0, 0.0], 0.05);
 
     let pitch_name = pncad::document::VarName::new("pitch").expect("a name");
     let (mut session, row) = a_row(
-        [1.0, 0.0, 0.0],
+        TargetAxis::X,
         Some("pitch"),
         Formula::named(pitch_name, Dimension::Length),
         2,
@@ -1092,16 +1099,532 @@ fn a_row_along_an_axis_steps_its_spacing_and_reads_its_variable() {
     }
 }
 
+/// A session over a prism `HEIGHT` tall on the parallelogram with a side
+/// along `x` and a side along `(lean, 1)`, with `lean` a free length
+/// variable in millimetres-per-millimetre (the side's top corner is
+/// `lean` along `x` per unit up `y`), and the prism.
+fn slanted_prism(lean: f64) -> (DocSession, RecipeNodeId) {
+    use pncad::document::{Formula, LoopProgram, ProgramStep, ProgramTarget};
+    const SIDE: f64 = 0.01;
+    const HEIGHT: f64 = 0.004;
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::new("lean").expect("a name"),
+        value: pncad::document::FreeVar::continuous(Dimension::Length, lean * SIDE),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let lean_by = || {
+        Formula::named(
+            pncad::document::VarName::new("lean").expect("a name"),
+            Dimension::Length,
+        )
+    };
+    let at = |x: Formula, y: f64| ProgramTarget::Point([x, len(y)]);
+    let plus = |a: f64| Formula::add(len(a), lean_by()).expect("two lengths");
+    let outline = LoopProgram::Chain(vec![
+        ProgramStep::At(common::len2([0.0, 0.0])),
+        ProgramStep::LineTo(at(len(SIDE), 0.0)),
+        ProgramStep::LineTo(at(plus(SIDE), SIDE)),
+        ProgramStep::LineTo(at(plus(0.0), SIDE)),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![outline],
+        },
+    );
+    let prism = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(HEIGHT),
+        },
+    );
+    (session, prism)
+}
+
+/// **The prism's straight edge running along `dir`**, as a viewport
+/// pick on it selects it ([`edge_where`]).
+fn edge_along(
+    session: &mut DocSession,
+    prism: RecipeNodeId,
+    dir: [f64; 3],
+) -> viewer::session::EdgeSelection {
+    edge_where(session, prism, pncad::select::CurveKind::Line, dir, |_| {
+        true
+    })
+}
+
+/// A row of three of the prism, stepped 50 mm along its edge `edge`.
+fn row_along(
+    session: &mut DocSession,
+    prism: RecipeNodeId,
+    edge: viewer::session::EdgeSelection,
+) -> RecipeNodeId {
+    session_insert(
+        session,
+        SessionOp::AddPattern {
+            input: prism.into(),
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: viewer::PatternDirection::Edge(edge),
+                spacing: len(0.05),
+            },
+        },
+    )
+}
+
 /// **A row steps its spacing along its direction, whatever the
-/// direction's length**: typed `(1, 1, 0)` and `(0, 3, 4)`, member `k`
+/// direction**: picked as a prism's edge along `(1, 1, 0)`, member `k`
 /// stands `k·spacing` along the unit direction, where a slide per
-/// component steps `spacing·√2` and `spacing·5`.
+/// component stepped `spacing·√2`.
 #[test]
-#[ignore = "disabled red: work/placing/a-linear-patterns-direction-components-land-in-its-slides.md"]
 fn a_row_steps_its_spacing_along_an_oblique_direction() {
-    for typed in [[1.0, 1.0, 0.0], [0.0, 3.0, 4.0]] {
-        let (mut session, row) = a_row(typed, None, len(0.05), 3);
-        stepped(&mut session, row, typed, 0.05);
+    let (mut session, prism) = slanted_prism(1.0);
+    let edge = edge_along(&mut session, prism, [1.0, 1.0, 0.0]);
+    let row = row_along(&mut session, prism, edge);
+    assert_eq!(member_offsets(&mut session, row).len(), 3, "three members");
+    stepped(&mut session, row, [1.0, 1.0, 0.0], 0.05);
+}
+
+/// **A diagonal row follows the edge it was picked on when the edge is
+/// edited**: the prism's slanted side re-leaned from `(1, 1)` to `(2, 1)`,
+/// the row steps along the new side, its spacing unchanged.
+#[test]
+fn a_diagonal_row_follows_its_edited_edge() {
+    let (mut session, prism) = slanted_prism(1.0);
+    let edge = edge_along(&mut session, prism, [1.0, 1.0, 0.0]);
+    let row = row_along(&mut session, prism, edge);
+    stepped(&mut session, row, [1.0, 1.0, 0.0], 0.05);
+    let lean = common::var_of(session.committed_doc(), "lean");
+    let moved = session.perform(SessionOp::SetVariable {
+        var: lean,
+        value: viewer::props::SlotValue::Continuous(0.02),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    stepped(&mut session, row, [2.0, 1.0, 0.0], 0.05);
+}
+
+/// **The edge of `node` the pick would select, as `keep` keeps one**:
+/// the first of its edges whose carrier is of kind `kind`, runs along
+/// `dir` and passes `keep`, read off the landed evaluation.
+fn edge_where(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    kind: pncad::select::CurveKind,
+    dir: [f64; 3],
+    keep: impl Fn(&pncad::select::Pose<f64>) -> bool,
+) -> viewer::session::EdgeSelection {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let node = common::drawn_node(session.committed_doc(), node);
+    let norm = dir.iter().map(|c| c * c).sum::<f64>().sqrt();
+    let unit = dir.map(|c| c / norm);
+    let name = pncad::select::all_edges(eval, node)
+        .into_iter()
+        .find(|name| {
+            pncad::select::edge_carrier_kind(eval, node, name).is_ok_and(|k| k == kind)
+                && pncad::select::edge_frame(eval, node, name).is_ok_and(|pose| {
+                    let a = [pose.axis.x, pose.axis.y, pose.axis.z];
+                    let n = a.iter().map(|c| c * c).sum::<f64>().sqrt();
+                    let along: f64 = a.iter().zip(unit).map(|(c, u)| c / n * u).sum();
+                    (along.abs() - 1.0).abs() < 1e-12 && keep(&pose)
+                })
+        })
+        .unwrap_or_else(|| panic!("{node:?} has a {kind:?} edge along {dir:?}"));
+    viewer::session::EdgeSelection {
+        name,
+        node,
+        body: 0,
+    }
+}
+
+/// Each member of the family `pattern`'s motion from member 0, as its
+/// turn's columns and its origin, in the family's space.
+fn member_motions(
+    session: &mut DocSession,
+    pattern: RecipeNodeId,
+) -> Vec<pncad::geom_core::linalg::Affine3<f64>> {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let ValuePayload::Instances(instances) =
+        &eval.value(pattern).expect("the family evaluated").payload
+    else {
+        panic!("a family evaluates to its members");
+    };
+    instances
+        .iter()
+        .map(|member| {
+            instances[0]
+                .relative(member)
+                .expect("members of one space relate")
+                .map_or_else(pncad::geom_core::linalg::Affine3::identity, |m| {
+                    m.to_affine()
+                })
+        })
+        .collect()
+}
+
+/// **A ring about a tilted axis stands at one height along it**: the
+/// prism ringed about its own slanted edge, along `(1, 1, 0)` and
+/// missing the origin, turns each member about that line, so every
+/// point of the prism keeps its height along the axis and its distance
+/// from it — a ring, where a slide held on a target axis made a helix.
+#[test]
+fn a_ring_about_a_tilted_axis_stands_at_one_height() {
+    let (mut session, prism) = slanted_prism(1.0);
+    let edge = edge_where(
+        &mut session,
+        prism,
+        pncad::select::CurveKind::Line,
+        [1.0, 1.0, 0.0],
+        |pose| {
+            let o = pose.origin;
+            (o.x - o.y).abs() > 1e-6
+        },
+    );
+    let line = {
+        let eval = session.evaluation().expect("the inline seam landed");
+        pncad::select::edge_frame(eval, edge.node, &edge.name).expect("a line")
+    };
+    let ring = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: prism.into(),
+            count: 4,
+            rule: PatternRuleSpec::Circular {
+                axis: viewer::PatternDirection::Edge(edge),
+                step: ang(core::f64::consts::FRAC_PI_2),
+            },
+        },
+    );
+    let h = core::f64::consts::FRAC_1_SQRT_2;
+    let u = pncad::geom_core::linalg::Vec3::new(h, h, 0.0);
+    let foot = line.origin;
+    // A probe point of the prism off the axis: its corner at the origin.
+    let p = pncad::geom_core::linalg::Point3::origin();
+    let height = |q: pncad::geom_core::linalg::Point3<f64>| (q - foot).dot(u);
+    let reach = |q: pncad::geom_core::linalg::Point3<f64>| {
+        let d = q - foot;
+        (d - u * d.dot(u)).norm()
+    };
+    let motions = member_motions(&mut session, ring);
+    assert_eq!(motions.len(), 4, "four members");
+    for (k, m) in motions.iter().enumerate() {
+        let q = m.transform_point(p);
+        assert!(
+            (height(q) - height(p)).abs() < 1e-12,
+            "member {k} stands {} along the axis, not {}",
+            height(q),
+            height(p)
+        );
+        assert!(
+            (reach(q) - reach(p)).abs() < 1e-12,
+            "member {k} stands {} from the axis, not {}",
+            reach(q),
+            reach(p)
+        );
+    }
+    assert!(
+        (motions[2].transform_point(p) - p).norm() > 1e-3,
+        "the half-turned member moved: the probe is off the axis"
+    );
+}
+
+/// **A bolt circle turns about another body's axis, with no mate**: a
+/// bolt block beside a flange cylinder in its space, ringed about the
+/// flange's round edge's axis — a spin about an axis read off the
+/// flange — stands its members on a circle about the flange's centre.
+#[test]
+fn a_bolt_circle_turns_about_another_bodys_axis() {
+    const CENTRE: [f64; 2] = [0.03, 0.01];
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let flange_profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at(CENTRE, 0.02)],
+        },
+    );
+    let flange = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: flange_profile,
+            distance: len(0.005),
+        },
+    );
+    let raw_bolt = common::xy_box_in(&mut session, [0.002, 0.002, 0.008]);
+    let space = session
+        .committed_doc()
+        .node_space(flange)
+        .expect("the flange's space");
+    let bolt = session_insert(
+        &mut session,
+        SessionOp::Place {
+            body: raw_bolt.into(),
+            target: space,
+            constraints: pncad::document::Placed::unmated(common::slides([0.045, 0.01, 0.0]))
+                .bundle(),
+        },
+    );
+    let rim = edge_where(
+        &mut session,
+        flange,
+        pncad::select::CurveKind::Circle,
+        [0.0, 0.0, 1.0],
+        |_| true,
+    );
+    let bolts = session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: bolt.into(),
+            count: 4,
+            rule: PatternRuleSpec::Circular {
+                axis: viewer::PatternDirection::Edge(rim),
+                step: ang(core::f64::consts::FRAC_PI_2),
+            },
+        },
+    );
+    assert!(matches!(
+        pncad::pattern::recognise(session.committed_doc(), bolts),
+        Some(pncad::pattern::Recognised::Circular { .. })
+    ));
+    // Member 0's centre is the bolt's: 15 mm along x from the flange's.
+    // A member's motion is from member 0 in the bolt's own coordinates,
+    // which its placement slides to where it stands.
+    let placed = pncad::geom_core::linalg::Vec3::new(0.045, 0.01, 0.0);
+    let p = pncad::geom_core::linalg::Point3::new(0.0, 0.0, 0.004);
+    let c = pncad::geom_core::linalg::Point3::new(CENTRE[0], CENTRE[1], 0.004);
+    let quarter = |k: usize| {
+        let (s, co) = (core::f64::consts::FRAC_PI_2 * k as f64).sin_cos();
+        pncad::geom_core::linalg::Point3::new(c.x + 0.015 * co, c.y + 0.015 * s, c.z)
+    };
+    for (k, m) in member_motions(&mut session, bolts).iter().enumerate() {
+        let q = m.transform_point(p) + placed;
+        assert!(
+            (q - quarter(k)).norm() < 1e-12,
+            "bolt {k} stands at {q:?}, not {:?}",
+            quarter(k)
+        );
+    }
+}
+
+/// **A ring of a moved body reads its axis where the body stands**: the
+/// second block, moved by the Transform tool, ringed about its own
+/// vertical edge picked on the moved copy — the copy's axis read in its
+/// own space, so no mate reads a body the placement does not copy.
+#[test]
+fn a_ring_of_a_moved_body_turns_about_its_picked_edge() {
+    let (mut session, _, proto) = two_boxes(Tol::witness());
+    let edge = edge_where(
+        &mut session,
+        proto,
+        pncad::select::CurveKind::Line,
+        [0.0, 0.0, 1.0],
+        |_| true,
+    );
+    let edge_name = edge.name.clone();
+    let outcome = session.perform(SessionOp::AddPattern {
+        input: proto.into(),
+        count: 4,
+        rule: PatternRuleSpec::Circular {
+            axis: viewer::PatternDirection::Edge(edge),
+            step: ang(core::f64::consts::FRAC_PI_2),
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let ring = outcome.made.expect("the ring is made");
+    // The picked line in the moved block's own coordinates, those its
+    // members' motions are in: read off the block it copies.
+    let raw = match session.committed_doc().node(proto) {
+        Some(Node::Place { source, .. }) => session
+            .committed_doc()
+            .operation_of(source.read)
+            .expect("the moved block copies a body"),
+        other => panic!("the moved block is a placement: {other:?}"),
+    };
+    let line = {
+        let eval = session.evaluation().expect("the inline seam landed");
+        pncad::select::edge_frame(eval, raw, &edge_name).expect("the picked edge's line")
+    };
+    let on_line = [line.origin, line.origin + line.axis];
+    let motions = member_motions(&mut session, ring);
+    assert_eq!(motions.len(), 4, "four members");
+    for (k, m) in motions.iter().enumerate() {
+        for p in on_line {
+            assert!(
+                (m.transform_point(p) - p).norm() < 1e-12,
+                "member {k} keeps the picked line where it stands: {p:?}"
+            );
+        }
+    }
+    let centre = pncad::geom_core::linalg::Point3::origin();
+    assert!(
+        (motions[2].transform_point(centre) - centre).norm() > 1e-3,
+        "the half-turned member moved: the block's centre is off the line"
+    );
+}
+
+/// **The placement editor keeps a ring's slide along its axis on a
+/// re-edit**: a ring of a cylinder about its own axis, written by the
+/// pattern writer with one `Axis` mate and a slide along the mated
+/// direction, opened in the editor, proposes the loaded slide along the
+/// mated direction as it is, not a slide along a target axis, and drops
+/// nothing.
+#[test]
+fn the_placement_editor_keeps_a_rings_mated_slide() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], 0.01)],
+        },
+    );
+    let cylinder = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.005),
+        },
+    );
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let side = {
+        let eval = session.evaluation().expect("the inline seam landed");
+        pncad::select::all_faces(eval, cylinder)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(eval, cylinder, name)
+                    .is_ok_and(|k| k == pncad::geom::SurfaceKind::Cylinder)
+            })
+            .expect("the cylinder has a round side")
+    };
+    let axis = pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
+        of: pncad::document::Operand::select(pncad::document::Operand::Node(cylinder), vec![side]),
+    }));
+    let k = viewer::combine::fresh_index(&doc);
+    let doc = pncad::document::apply(
+        &doc,
+        &pncad::pattern::index_decl(k.clone(), Formula::count(3), None),
+        tol,
+    )
+    .expect("an index declares")
+    .doc;
+    let space = doc.node_space(cylinder).expect("the cylinder's space");
+    let ring = pncad::pattern::circular_pattern(
+        &doc,
+        &k,
+        pncad::document::BodyRead::plain(pncad::document::Operand::Node(cylinder)),
+        pncad::document::Operand::Var(space),
+        pncad::pattern::RingAxis::Mated {
+            on: axis.clone(),
+            to: axis,
+            slide: len(0.002),
+        },
+        pncad::pattern::RingStep::Full(Formula::count(3)),
+    )
+    .expect("a ring");
+    let (doc, ring) = common::inserted(&doc, ring, tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let draft = viewer::matetool::MateTool::edit(doc, ring)
+        .expect("the ring is a placement")
+        .proposal(doc, ev, tol)
+        .expect("the loaded bundle proposes");
+    let coords: Vec<pncad::document::Coord<pncad::document::Operand>> =
+        draft.values.iter().map(|row| row.coord.clone()).collect();
+    assert!(
+        coords.contains(&pncad::document::Coord::SLIDE)
+            && !coords
+                .iter()
+                .any(|c| matches!(c, pncad::document::Coord::Slide(Some(_)))),
+        "the slide along the mated direction is kept as it is: {coords:?}"
+    );
+    assert!(
+        draft.dropped.is_empty(),
+        "nothing drops: {:?}",
+        draft.dropped
+    );
+}
+
+/// **A skewed grid is a parallelogram lattice**: two indices, each
+/// stepping along one of the prism's two sides, `x` and `(1, 1, 0)`,
+/// written by the pattern writer the gesture writes through, each
+/// member the sum of its two steps.
+#[test]
+fn a_skewed_grid_steps_along_both_its_picked_sides() {
+    let (mut session, prism) = slanted_prism(1.0);
+    let edge = edge_along(&mut session, prism, [1.0, 1.0, 0.0]);
+    let doc = session.committed_doc();
+    let (body, name) = (
+        pncad::document::Operand::output(edge.node, 0),
+        edge.name.clone(),
+    );
+    let read = pncad::document::pose::RoleRead::plain(pncad::document::Operand::Pose(Box::new(
+        pncad::document::pose::PoseDef::Axis {
+            of: pncad::document::Operand::select(body, vec![name]),
+        },
+    )));
+    let (i, j) = (
+        pncad::document::VarName::new("i").expect("a name"),
+        pncad::document::VarName::new("j").expect("a name"),
+    );
+    let mut doc = doc.clone();
+    for (name, count, within) in [(&i, 2, None), (&j, 3, Some(&i))] {
+        doc = pncad::document::apply(
+            &doc,
+            &pncad::pattern::index_decl(name.clone(), Formula::count(count), within),
+            Tol::witness(),
+        )
+        .expect("an index declares")
+        .doc;
+    }
+    let space = doc.node_space(prism).expect("the prism's space");
+    let grid = pncad::pattern::grid(
+        (
+            &i,
+            (
+                pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+                len(0.03),
+            ),
+        ),
+        (&j, (pncad::pattern::RowDirection::Read(read), len(0.05))),
+        pncad::document::BodyRead::plain(pncad::document::Operand::from(prism)),
+        pncad::document::Operand::Var(space),
+        Some(pncad::document::slides_across(&[
+            pncad::geom_core::linalg::Vec3::new(1.0, 0.0, 0.0),
+            pncad::geom_core::linalg::Vec3::new(1.0, 1.0, 0.0),
+        ])),
+    )
+    .expect("length pitches");
+    let (doc, grid) = common::inserted(&doc, grid, Tol::witness());
+    let mut session = DocSession::inline(doc, Tol::witness());
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let ValuePayload::Instances(members) = &eval.value(grid).expect("the grid evaluated").payload
+    else {
+        panic!("a grid evaluates to its members");
+    };
+    assert_eq!(members.len(), 6, "two by three members");
+    let h = core::f64::consts::FRAC_1_SQRT_2;
+    for (n, member) in members.iter().enumerate() {
+        let (a, b) = ((n / 3) as f64, (n % 3) as f64);
+        let want = [0.03 * a + 0.05 * b * h, 0.05 * b * h, 0.0];
+        let o = members[0]
+            .relative(member)
+            .expect("members of one space relate")
+            .map_or([0.0; 3], |m| {
+                let o = m.origin();
+                [o.x, o.y, o.z]
+            });
+        assert!(
+            o.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12),
+            "member {n} stands at {o:?}, not {want:?}"
+        );
     }
 }
 
@@ -1120,7 +1643,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
             input: proto.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1199,7 +1722,7 @@ fn overlapping_copies_fuse_into_one_body() {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(B[0] / 4.0),
             },
         },
@@ -1210,7 +1733,7 @@ fn overlapping_copies_fuse_into_one_body() {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(B[0] / 4.0),
             },
         },
@@ -1246,7 +1769,7 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1299,7 +1822,7 @@ fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1355,7 +1878,12 @@ fn the_output_choice_names_both_doors_and_defaults_to_instances() {
     tool.pick(session.committed_doc(), body);
     for (output, label) in PatternOutputChoice::ALL {
         let op = tool
-            .linear_op(output, 2, scl3([1.0, 0.0, 0.0]), len(0.05))
+            .linear_op(
+                output,
+                2,
+                viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
+                len(0.05),
+            )
             .expect("the body seat is filled");
         let minted = matches!(
             (output, &op),
@@ -1435,7 +1963,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1443,7 +1971,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1499,7 +2027,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: plane.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1507,8 +2035,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                through: len3([0.0; 3]),
-                direction: scl3([0.0; 3]),
+                axis: viewer::PatternDirection::Face(end_cap(body)),
                 step: ang(1.0),
             },
         },
@@ -1516,7 +2043,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: plane.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1524,8 +2051,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                through: len3([0.0; 3]),
-                direction: scl3([0.0; 3]),
+                axis: viewer::PatternDirection::Face(end_cap(body)),
                 step: ang(1.0),
             },
         },
@@ -1574,7 +2100,7 @@ fn a_zero_count_is_a_family_of_no_member_and_a_negative_one_refuses() {
                 input: body.into(),
                 count,
                 rule: PatternRuleSpec::Linear {
-                    direction: scl3([1.0, 0.0, 0.0]),
+                    direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                     spacing: len(0.05),
                 },
             },
@@ -1701,15 +2227,15 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         Ok(SessionOp::AddSplit { .. })
     ));
 
-    // The pattern tool's one seat is its body, whichever rule; a
-    // circular rule's axis is fields.
+    // The pattern tool's one seat is its body, whichever rule; its
+    // direction, or its ring's axis, is a target axis or a pick.
     let mut pattern = PatternTool::new();
     pattern.pick(session.committed_doc(), a);
     assert!(matches!(
         pattern.linear_op(
             PatternOutputChoice::Instances,
             3,
-            scl3([1.0, 0.0, 0.0]),
+            viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
             len(0.05)
         ),
         Ok(SessionOp::AddPattern { count: 3, .. })
@@ -1718,8 +2244,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         pattern.circular_op(
             PatternOutputChoice::Instances,
             3,
-            len3([0.0; 3]),
-            scl3([0.0, 0.0, 1.0]),
+            viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
             ang(1.0)
         ),
         Ok(SessionOp::AddPattern { count: 3, .. })
@@ -1731,7 +2256,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
         pattern.linear_op(
             PatternOutputChoice::Fused,
             3,
-            scl3([1.0, 0.0, 0.0]),
+            viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
             len(0.05)
         ),
         Ok(SessionOp::AddFusedPattern { count: 3, .. })
@@ -1740,7 +2265,12 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert_eq!(pattern.input(), None);
     for output in [PatternOutputChoice::Instances, PatternOutputChoice::Fused] {
         assert!(matches!(
-            pattern.circular_op(output, 3, len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(1.0)),
+            pattern.circular_op(
+                output,
+                3,
+                viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
+                ang(1.0)
+            ),
             Err(SeatError::Empty {
                 seat: Seat::PatternBody
             })
@@ -1765,7 +2295,6 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
     ToolKind::ALL.map(|kind| match kind {
         ToolKind::Mate => tools.mate().is_some(),
-        ToolKind::Revolve => tools.revolve().is_some(),
         ToolKind::Boolean => tools.boolean().is_some(),
         ToolKind::Split => tools.split().is_some(),
         ToolKind::Transform => tools.transform().is_some(),
@@ -1852,7 +2381,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -1881,15 +2410,6 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             }
         };
         let op = match seat {
-            Seat::RevolveProfile => SessionOp::AddRevolve {
-                profile: filled(Seat::RevolveProfile),
-                axis_through: [
-                    Formula::zero(Dimension::Length),
-                    Formula::zero(Dimension::Length),
-                ],
-                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
-                angle: ang(core::f64::consts::TAU),
-            },
             // A member beside one filled correctly, so the refusal is
             // about the member under test.
             Seat::Member => SessionOp::AddBoolean {
@@ -1939,8 +2459,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                 input: filled(Seat::PatternBody).into(),
                 count: 3,
                 rule: PatternRuleSpec::Circular {
-                    through: len3([0.0; 3]),
-                    direction: scl3([0.0, 0.0, 1.0]),
+                    axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
                     step: ang(1.0),
                 },
             },
@@ -2227,21 +2746,9 @@ fn a_tool_closes_on_its_own_committed_edit() {
                 input: (RecipeNodeId::new(0, tagged(1))).into(),
                 count: 2,
                 rule: PatternRuleSpec::Linear {
-                    direction: scl3([1.0, 0.0, 0.0]),
+                    direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                     spacing: len(0.05),
                 },
-            },
-        ),
-        (
-            ToolKind::Revolve,
-            SessionOp::AddRevolve {
-                profile: RecipeNodeId::new(0, tagged(1)),
-                axis_through: [
-                    Formula::zero(Dimension::Length),
-                    Formula::zero(Dimension::Length),
-                ],
-                axis_heading: Formula::turn_over(4).expect("a quarter turn"),
-                angle: ang(1.0),
             },
         ),
     ];
@@ -2262,6 +2769,15 @@ fn a_tool_closes_on_its_own_committed_edit() {
         SessionOp::AddExtrude {
             profile: RecipeNodeId::new(0, tagged(1)),
             distance: len(0.01),
+        },
+        SessionOp::AddRevolve {
+            profile: RecipeNodeId::new(0, tagged(1)),
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
+            angle: ang(1.0),
         },
         SessionOp::Undo,
     ] {
@@ -2447,7 +2963,11 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 &pattern_name,
                 pncad::document::BodyRead::plain(Operand::from(body)),
                 Operand::Var(doc.node_space(body).expect("the body's space")),
-                &[(pncad::document::TargetAxis::X, common::len(0.05))],
+                &[(
+                    pncad::pattern::RowDirection::Axis(pncad::document::TargetAxis::X),
+                    common::len(0.05),
+                )],
+                None,
             )
             .expect("a length pitch"),
         ),
@@ -2549,8 +3069,6 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
             // bodies from the tree.
             ToolKind::Mate | ToolKind::Mirror | ToolKind::Clearance => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
-            // The one tool whose seat reads a profile.
-            ToolKind::Revolve => PickKinds::Any,
             ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
@@ -2608,7 +3126,7 @@ fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(A[0] * 2.0),
             },
         },
@@ -2788,7 +3306,7 @@ fn a_pattern_takes_its_body_over_and_a_member_read_places_nothing() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(A[0] * 2.0),
             },
         },
@@ -3020,7 +3538,7 @@ fn a_duplicates_copy_moves_on_its_own() {
         &mut session,
         copy,
         &[(
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Y),
             len(A[1] * 3.0),
         )],
     );
@@ -3111,7 +3629,7 @@ fn the_part_seats_track_the_part_door() {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(A[0] * 2.0),
             },
         },
@@ -3272,7 +3790,7 @@ fn step_of(session: &DocSession, copy: RecipeNodeId) -> [f64; 3] {
         constraints
             .iter()
             .filter_map(|c| c.value())
-            .find(|value| value.coord == Coord::Slide(axis))
+            .find(|value| value.coord == Coord::slide(axis))
             .map(|value| doc.written(&Expr::var(value.by, Dimension::Length)))
             .filter(|written| !written.is_zero())
             .map_or(0.0, |written| {
@@ -3311,7 +3829,7 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
         &mut session,
         copy,
         &[(
-            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
+            pncad::document::Coord::slide(pncad::document::TargetAxis::Y),
             len(lift),
         )],
     );
@@ -3372,7 +3890,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             ToolKind::Part => continue,
             // Faces and edges, taken whole rather than as a node; and
             // a profile and an axis, which a face pick never is.
-            ToolKind::Mate | ToolKind::Blend | ToolKind::Revolve => continue,
+            ToolKind::Mate | ToolKind::Blend => continue,
             // A face pick seats the face itself, not its body.
             ToolKind::Clearance => continue,
         };
@@ -3930,7 +4448,7 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
             input: below,
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([0.0, 1.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
                 spacing: len(A[1] * 2.0),
             },
         },
