@@ -605,19 +605,25 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: the bulb's cone seam, the line in the plane
-/// `y = 0` from `(0.312, 0, 2.443)` to `(1.764, 0, −0.073)`, meets the
-/// loop's NURBS seam edge, which runs in that plane from the rim point
-/// `(0.275, 0, 3)` down to `(−0.275, 0, 0.6)`: the loop's sections start
-/// their circles on the start frame's `+x`, which the least turn keeps
-/// in that plane. A meeting on a spline face's boundary edge splits the
-/// edge there, and the split asks the edge's spline carrier for a point
-/// parameter it does not have. The refusal names the loop's edge, not
-/// the site. Shared with `verbs_gate_r1_probes`, so the two cannot drift.
-pub fn wall3_pinned<S: Scalar>(e: &BooleanError, top: &AtRestBody<S>) -> bool {
-    let BooleanError::PointSplitCarrierUnsupported {
+/// Wall 3's pinned refusal: half of the loop's start-cap rim, the
+/// circle arc at `z = 3` from `(0.275, 0, 3)` to `(−0.275, 0, 3)`, against
+/// the bulb's neck cylinder (radius 0.275 about the `z` axis), which the
+/// arc lies on. The loop's sections start their circles on the start
+/// frame's `+x`, so the rim's vertices sit in the plane `y = 0`, one of
+/// them on the neck cylinder's seam point, and the curved pierce door
+/// takes no conic lying on the face it is read against. The refusal
+/// names the loop's edge and the bulb's face, not the site. Shared with
+/// `verbs_gate_r1_probes`, so the two cannot drift.
+pub fn wall3_pinned<S: Scalar>(
+    e: &BooleanError,
+    bulb: &AtRestBody<S>,
+    top: &AtRestBody<S>,
+) -> bool {
+    let BooleanError::CurvedPierceUnsupported {
         operand: Operand::B,
+        face,
         edge,
+        ..
     } = e
     else {
         return false;
@@ -633,24 +639,36 @@ pub fn wall3_pinned<S: Scalar>(e: &BooleanError, top: &AtRestBody<S>) -> bool {
                 (lo - k).abs() < 1e-3 && (hi - k).abs() < 1e-3
             })
     };
-    top.get_edge(*edge).is_some_and(|e| {
+    let the_rim_arc = top.get_edge(*edge).is_some_and(|e| {
         let ends = [e.he_plus, e.he_minus].map(|he| top.half_edge_start_point(he));
-        let spline = matches!(
+        let circle = matches!(
             top.get_curve_geom(e.curve),
             Some(pncad::topo::CurveGeom::Certified(c))
-                if matches!(c.carrier(), pncad::geom::Curve3::Nurbs(_))
+                if matches!(c.carrier(), pncad::geom::Curve3::Circle(_))
         );
-        spline
+        circle
             && matches!(ends, [Some(p), Some(q)]
-                if near(p, [0.275, 0.0, 3.0]) && near(q, [-0.275, 0.0, 0.6]))
-    })
+                if near(p, [0.275, 0.0, 3.0]) && near(q, [-0.275, 0.0, 3.0]))
+    });
+    let the_neck = bulb
+        .get_face(*face)
+        .and_then(|f| bulb.get_surface(f.surface))
+        .is_some_and(|s| match s {
+            pncad::geom::Surface::Cylinder { axis, radius, .. } => {
+                let r = pncad::geom_core::Bounds::lo(*radius);
+                (r - 0.275).abs() < 1e-3
+                    && near(Point3::new(axis.x, axis.y, axis.z), [0.0, 0.0, 1.0])
+            }
+            _ => false,
+        });
+    the_rim_arc && the_neck
 }
 
 /// Wall 4's pinned refusal: one of the loop's rational NURBS walls
 /// against a planar face of the bulb, at the ∖/∩ revert roster. Both
 /// kinds and the op are pinned, so a pair that changed kind reds. A
 /// NURBS face has no seam lane under ∖ and ∩, and the roster has no
-/// covered rung whatever the pair; it answers before the split that
+/// covered rung whatever the pair; it answers before the pierce that
 /// stops wall 3.
 pub fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
@@ -1104,15 +1122,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
     // annular faces — the REST mate — and the union refuses past them:
-    // the bulb's cone seam meets the loop's NURBS seam edge in the
-    // bottle's plane of symmetry, and splitting that edge there asks
-    // its spline carrier for a point parameter it does not have.
+    // half of the loop's start-cap rim lies on the bulb's neck
+    // cylinder, and the curved pierce door takes no conic lying on the
+    // face it is read against.
     crate::walls::wall(
         "bottle",
         3,
         "join the loop to the bulb (annular mate)",
         pncad::topo::union(&bulb_body, &top, tol),
-        |e| wall3_pinned(e, &top),
+        |e| wall3_pinned(e, &bulb_body, &top),
         "make the bottle a single body",
     );
 

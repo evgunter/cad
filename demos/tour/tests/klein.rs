@@ -123,7 +123,7 @@ mod verbs_gate_r1_probes {
     //! loop's NURBS wall, has no covered rung at all: a decided
     //! coincidence supplies the verdict a germ arm would have, and it
     //! cannot supply a seam lane to revert through. (Wall 3, a union,
-    //! passes that roster and refuses later, splitting an edge.)
+    //! passes that roster and refuses later, at the curved pierce.)
 
     use demo_tour::klein::*;
     use pncad::geom_core::Tol;
@@ -141,8 +141,8 @@ mod verbs_gate_r1_probes {
             .expect_err("the bottle's pieces still cannot be joined");
         println!("klein wall 3: {joined:?}");
         assert!(
-            wall3_pinned(&joined, &top),
-            "wall 3 must refuse splitting the loop's NURBS seam edge where the bulb meets it: \
+            wall3_pinned(&joined, &bulb_body, &top),
+            "wall 3 must refuse the loop's start-cap rim arc on the bulb's neck cylinder: \
              {joined:?}"
         );
 
