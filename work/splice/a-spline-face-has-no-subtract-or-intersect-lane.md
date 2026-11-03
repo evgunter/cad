@@ -18,7 +18,7 @@ refusal for weeks, and no row owned it.
 
 `crates/topo/src/boolean/ops.rs:904`: for any op but ∪, the front door
 runs `reduce::first_unsupported_pair` with `reduce::revert_arm_exists`
-(`crates/topo/src/boolean/reduce.rs:432`), which lists plane, cylinder,
+(`crates/topo/src/boolean/reduce.rs:419`), which lists plane, cylinder,
 sphere, torus and cone and leaves out `Nurbs`. The union's roster,
 `boolean_arm_exists` beside it, has `Nurbs`. So once a loft or sweep
 body's spline face may meet the other operand (box overlap), every ∖
