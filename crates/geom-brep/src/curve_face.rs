@@ -270,6 +270,58 @@ pub fn located<T: Decide>(
     pass(span, edges, lone, band, true)
 }
 
+impl<T: Decide> Located<T> {
+    /// **Where the span is cut**: each meeting's parameter strictly inside
+    /// it, and each undecided window's two ends. No member crosses the
+    /// open run between two cuts outside every window.
+    #[must_use]
+    pub fn cuts(&self) -> Vec<T> {
+        let meetings = self
+            .reading
+            .meetings
+            .iter()
+            .filter_map(|m| match m.on_span {
+                Hit::On { t, .. } => Some(t),
+                Hit::End(_) => None,
+            });
+        let ends = self.undecided.iter().flat_map(|u| [u.window.0, u.window.1]);
+        meetings.chain(ends).collect()
+    }
+
+    /// The first member whose reading faulted ([`BoundaryRefusal::Fault`]):
+    /// a kernel fault no window confines.
+    #[must_use]
+    pub fn fault(&self) -> Option<BoundaryRefusal> {
+        self.undecided
+            .iter()
+            .find(|u| matches!(u.why, BoundaryRefusal::Fault { .. }))
+            .map(|u| u.why)
+    }
+
+    /// **The first window the run `(a, b)` can reach into**: one it does
+    /// not definitely end at or before, or start at or after
+    /// (`curve_face_window`, the parameters metred at `speed`, the span
+    /// carrier's). A window is the escalation wider than where its member
+    /// can meet the span, so a run past it by a zero gap misses the
+    /// member.
+    #[must_use]
+    pub fn undecided_over(&self, (a, b): (T, T), speed: T, band: Band) -> Option<&Undecided<T>> {
+        let past = |gap: T| {
+            matches!(
+                geom_core::k_stats::decide(
+                    "curve_face_window",
+                    geom_core::Margin::of(gap * speed),
+                    band
+                ),
+                Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
+            )
+        };
+        self.undecided
+            .iter()
+            .find(|u| !(past(u.window.0 - b) || past(a - u.window.1)))
+    }
+}
+
 /// [`read`] and [`located`]'s one walk; `past` reads on past a member's
 /// refusal.
 fn pass<T: Decide>(

@@ -38,7 +38,7 @@ use std::sync::Arc;
 
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
-use geom_brep::curve_pair::{Hit, Span};
+use geom_brep::curve_pair::Span;
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
@@ -559,30 +559,32 @@ fn edge_witness<T: Decide>(
         for he in cycle {
             let (carrier, (t0, t1)) = edge_span(x.0, he)?;
             let span = Span::new(carrier, (t0, t1));
-            let reading = match boundary.read(&span, band) {
-                Ok(reading) => reading,
-                Err(r) => {
-                    keep(OverlapRefusal::Meeting(r));
-                    continue;
-                }
-            };
-            let mut cuts: Vec<T> = reading
-                .meetings
-                .iter()
-                .filter_map(|m| match m.on_span {
-                    Hit::On { t, .. } => Some(t),
-                    Hit::End(_) => None,
-                })
-                .collect();
+            let located = boundary.located(&span, band);
+            if let Some(fault) = located.fault() {
+                keep(OverlapRefusal::Meeting(fault));
+                continue;
+            }
+            // The ends sorted with the cuts, so a window's end at one is
+            // one cut there.
+            let mut cuts = [t0, t1].into_iter().chain(located.cuts()).collect();
             let speed = carrier.deriv(geom::mid_param(t0, t1)).norm();
             if let Err(r) = sort_params(&mut cuts, speed, band) {
                 keep(r);
                 continue;
             }
-            cuts.insert(0, t0);
-            cuts.push(t1);
             for w in cuts.windows(2) {
                 let q = carrier.eval(geom::mid_param(w[0], w[1]));
+                // A piece a member's window reaches is a witness only
+                // strictly inside `y`: its corner reading needs no cut of
+                // `y`'s boundary reaching it.
+                if let Some(u) = located.undecided_over((w[0], w[1]), speed, band) {
+                    match place(y, q, band) {
+                        Ok(FaceContainment::In) => return Ok(true),
+                        Ok(_) => keep(OverlapRefusal::Meeting(u.why)),
+                        Err(r) => keep(r),
+                    }
+                    continue;
+                }
                 match piece_witness((x, x_rev), he, (y, y_rev), q, band) {
                     Ok(true) => return Ok(true),
                     Ok(false) => {}
