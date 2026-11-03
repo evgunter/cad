@@ -446,3 +446,11 @@ and bodies unchanged. No orchestrator yet.
     - an undisclosed widening of chord-end reading through `reads`' pad;
     - D3's ellipse agreement is held only by prose (add a `debug_assert` or route it through `site()`).
   - **Fix-or-file:** several, including a second public `Sense` enum and three spellings of the node-end projection.
+
+- 2026-11-03 21:15 — **NURBS stage 4 is up as PR 6479.** It merges 4a and 4b: the plane is `Form::Plane` of `ImplicitForm`, and `PlaneSection`, the plane's ℝ⁴ lane and `WindowShortOfWall` are removed. CI is green.
+  - **Moved readings:**
+    - The one ruled decided→refused move is pinned, with the old reading quoted.
+    - A second move is on the uncertified trace door: an inflection deviation of 2.41e-9 against 1.31e-10. The single residual cannot see the pcurve's timing drift. The lane filed `the-implicit-chart-march-does-not-read-its-pcurves-timing`.
+  - **Mutants:** the pivot-padding mutant survives (that code predates the PR, and the PR discloses it).
+  - **Review:** a dual review is dispatched; claim 5 asks whether any certifying path reaches the timing weakness.
+  - **6466:** blind-coded at tally 0 (byte 114, A = R1), and its row is drafted.
