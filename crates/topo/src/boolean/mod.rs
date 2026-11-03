@@ -7664,56 +7664,58 @@ fn verify_tangency<T: Decide>(
     // 2. The witness locus.
     let mut overlap = None;
     let mut decided = None;
-    let (carrier, t0, t1, locus, located) =
-        match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
-            Ok(line) => {
-                overlap = Some(line.overlap);
-                if let geom::Curve3::Line(geom::Line { origin, dir }) = line.carrier {
-                    decided = Some((origin, dir));
+    let (carrier, t0, t1, locus, located) = match tangent_line((a, fa, &sa), (b, fb, &sb), band)
+        .map_err(Refused)?
+    {
+        Ok(line) => {
+            overlap = Some(line.overlap);
+            if let geom::Curve3::Line(geom::Line { origin, dir }) = line.carrier {
+                decided = Some((origin, dir));
+            }
+            let locus = match line.carrier {
+                geom::Curve3::Line(geom::Line { origin, dir }) => rim_wedge::Locus::Line {
+                    origin,
+                    dir: dir / dir.norm(),
+                },
+                _ => {
+                    return Err(Refused(BooleanError::ClassificationInvariant {
+                        what: "the glue door: a tangent line's carrier is not a line",
+                    }));
                 }
-                let locus = match line.carrier {
-                    geom::Curve3::Line(geom::Line { origin, dir }) => rim_wedge::Locus::Line {
-                        origin,
-                        dir: dir / dir.norm(),
-                    },
-                    _ => {
-                        return Err(Refused(BooleanError::ClassificationInvariant {
-                            what: "the glue door: a tangent line's carrier is not a line",
-                        }));
-                    }
-                };
-                (line.carrier, line.span.0, line.span.1, locus, line.gap)
-            }
-            Err(geom_brep::TangentLocusError::Escalated(diag)) => {
-                return Err(Refused(BooleanError::coincidence(
-                    Coincide::TangentLocus,
-                    read,
-                    diag,
-                )));
-            }
-            Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
-                return Err(Contradicted {
-                    fact: None,
-                    margin: label(predicate),
-                });
-            }
-            Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
-                // An UNDECIDABLE rim identity escalates typed rather than
-                // reading as "no rim here": only the second means the
-                // geometry was examined and cleared.
-                let (rim, identity) = rim_wedge::shared_rim(a, fa, b, fb, band)
+            };
+            (line.carrier, line.span.0, line.span.1, locus, line.gap)
+        }
+        Err(geom_brep::TangentLocusError::Escalated(diag)) => {
+            return Err(Refused(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                read,
+                diag,
+            )));
+        }
+        Err(geom_brep::TangentLocusError::NotTangent { predicate, .. }) => {
+            return Err(Contradicted {
+                fact: None,
+                margin: label(predicate),
+            });
+        }
+        Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
+            // An UNDECIDABLE rim identity escalates typed rather than
+            // reading as "no rim here": only the second means the
+            // geometry was examined and cleared.
+            let (rim, identity) =
+                rim_wedge::shared_rim(a, fa, b, fb, geom_brep::ladder::Answering::First, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
-                (
-                    circle,
-                    T::zero(),
-                    T::from_f64(core::f64::consts::TAU),
-                    rim_wedge::Locus::Rim(rim),
-                    identity,
-                )
-            }
-        };
+            let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+            (
+                circle,
+                T::zero(),
+                T::from_f64(core::f64::consts::TAU),
+                rim_wedge::Locus::Rim(rim),
+                identity,
+            )
+        }
+    };
     // 3. The tangency table along the witness.
     use crate::contact::ContactRefusal;
     use contact_verify::TableRefusal as Table;

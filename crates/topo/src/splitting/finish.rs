@@ -3102,4 +3102,23 @@ mod whole_body_side_rows {
             Err(e) => panic!("the arc at height 1 decides Above: {e:?}"),
         }
     }
+
+    /// **An offset that is not finite is a limit, not a side**: a plane
+    /// whose origin lies at infinity puts every arc's midpoint `+∞` off
+    /// it, which reads no sign ([`geom_brep::ladder::decided`]), so the
+    /// side refuses on the unreadable margin rather than answering Above.
+    #[test]
+    fn an_infinite_offset_refuses_on_an_unreadable_margin() {
+        let tol = Tol::witness();
+        let at_infinity = split_plane(
+            Point3::new(0.0, f64::NEG_INFINITY, 0.0),
+            Vec3::unit_y(),
+            tol,
+        );
+        let got = whole_body_side(wall(tol), &SecondaryMap::new(), &at_infinity, tol);
+        let Err(SplitFinishError::WholeBodySideEscalated { diag, .. }) = got else {
+            panic!("an infinite offset escalates the side: {got:?}")
+        };
+        assert!(diag.margin.is_invalid(), "{diag:?}");
+    }
 }

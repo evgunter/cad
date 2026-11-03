@@ -26,6 +26,7 @@
 
 use std::borrow::Cow;
 
+use geom_brep::ladder::Answering;
 use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
@@ -149,8 +150,9 @@ fn tangency<T: Decide>(
     let kind = |body: &Body<T>, f| body.proven_face_surface(f).kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
-        && !super::rim_wedge::has_shared_rim(a, fa, b, fb, band)
+        && super::rim_wedge::shared_rim(a, fa, b, fb, Answering::Any, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
+            .is_none()
     {
         return Ok(false);
     }

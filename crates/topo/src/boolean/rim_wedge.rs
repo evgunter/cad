@@ -44,7 +44,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 use crate::validate::{MaterialArmOutcome, MaterialStations};
 use crate::{Body, FaceKey};
 use geom_brep::MaterialWedge;
-use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
+use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -92,6 +92,13 @@ pub(crate) enum RimRouting {
 /// wins; a face pair riding two common circles at once is not a rim
 /// contact and is outside what this door claims to see.
 ///
+/// **`answering` is the caller's question** ([`Answering`]). A caller
+/// that reads WHICH rim answered asks [`Answering::First`]: that it is
+/// THE shared rim rests on no earlier pair being one too, so an
+/// undecided pair ahead of the answer stays live. A caller that asks
+/// only whether a rim exists asks [`Answering::Any`]: every pair decided
+/// one answers it alike, so an undecided pair ahead is superseded.
+///
 /// **The comparison is the identity ladder's** ([`same_circle`] reads
 /// [`read_identity`], as `carrier_eq`'s curved rungs do); only the
 /// subject is local. `carrier_eq` compares SURFACE carriers for a
@@ -129,73 +136,19 @@ pub(crate) fn shared_rim<T: Decide>(
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
+    answering: Answering,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
     // A pair decided one answers whatever another pair read: the ladder
-    // whose answer is a pair decided one. Which pair answers names the
-    // rim, and that it is THE shared rim rests on no earlier pair being
-    // one too (a face pair riding two circles is outside this door), so
-    // an undecided pair ahead of the answer stays live
-    // (`Answering::First`).
-    match climb(Answering::First, rim_pairs(a, fa, b, fb), |pair| {
-        rim_pair(pair, band)
-    }) {
-        Climb::Answered { answer, .. } => Ok(Some(answer)),
-        Climb::Passed => Ok(None),
-        Climb::Undecided(diag) => Err(diag),
-    }
-}
-
-/// Whether `fa` and `fb` end on a common circle: [`shared_rim`]'s
-/// ladder asked only whether one exists, which every pair decided one
-/// answers alike (`Answering::Any`), so an undecided pair ahead of one
-/// decided is superseded. A caller that reads the rim reads
-/// [`shared_rim`].
-///
-/// # Errors
-///
-/// As [`shared_rim`]: no pair decided one, and one undecided.
-pub(crate) fn has_shared_rim<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    match climb(Answering::Any, rim_pairs(a, fa, b, fb), |pair| {
-        rim_pair(pair, band)
-    }) {
-        Climb::Answered { .. } => Ok(true),
-        Climb::Passed => Ok(false),
-        Climb::Undecided(diag) => Err(diag),
-    }
-}
-
-/// Every pair of a boundary circle of `fa` and one of `fb`, `fa`'s
-/// outermost.
-fn rim_pairs<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
-) -> impl Iterator<Item = (Rim<T>, Rim<T>)> {
+    // whose answer is a pair decided one.
     let bs = face_boundary_circles(b, fb);
-    face_boundary_circles(a, fa)
+    let pairs = face_boundary_circles(a, fa)
         .into_iter()
-        .flat_map(move |ra| bs.clone().into_iter().map(move |rb| (ra, rb)))
-}
-
-/// One pair of circles as a rung of the rim ladder: decided one
-/// answers, with the rim and the circles' joint margin.
-fn rim_pair<T: Decide>(
-    (ra, rb): (Rim<T>, Rim<T>),
-    band: Band,
-) -> Rung<(Rim<T>, geom_core::MarginDiag), Indeterminate> {
-    match same_circle(ra, rb, band) {
-        Ok(Some(margin)) => Rung::Answers((ra, margin)),
-        Ok(None) => Rung::Passes,
-        Err(diag) => Rung::kept(diag),
-    }
+        .flat_map(|ra| bs.iter().map(move |&rb| (ra, rb)));
+    climb(answering, pairs, |(ra, rb)| {
+        Rung::of_reading(same_circle(ra, rb, band).map(|one| one.map(|margin| (ra, margin))))
+    })
+    .into_reading()
 }
 
 /// Whether two circles are one, on their own data at `band`: the

@@ -4527,10 +4527,7 @@ impl<T: Decide> IslandReading<T> {
     }
 
     /// The winding read off the paths to `q` from every outer-loop point
-    /// of `face` ([`outer_references`]), in the order they are asked:
-    /// the first path that decides ([`paths_rung`]). Every path reads the
-    /// one winding, so a path set aside ahead of one that decides is
-    /// superseded ([`Answering::Any`]); `Ok(None)` where every path says
+    /// of `face` ([`Self::read_paths`]); `Ok(None)` where every path says
     /// nothing.
     pub(crate) fn winding(
         &self,
@@ -4538,12 +4535,25 @@ impl<T: Decide> IslandReading<T> {
         face: FaceKey,
         band: Band,
     ) -> Result<Result<Option<Sign>, Indeterminate>, SplitJoinError> {
+        self.read_paths(body, face, band, |path| self.read(path, band))
+    }
+
+    /// The paths to `q` from every outer-loop point of `face`
+    /// ([`outer_references`]), in the order they are asked, each read by
+    /// `read` until one decides: a side ladder ([`paths_rung`]), so a
+    /// path set aside ahead of one that decides is superseded.
+    pub(crate) fn read_paths<R>(
+        &self,
+        body: &Body<T>,
+        face: FaceKey,
+        band: Band,
+        mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
+    ) -> Result<Result<Option<R>, Indeterminate>, SplitJoinError> {
         let references = outer_references(body, face, &[])?;
-        Ok(settled(climb(Answering::Any, references, |w| {
-            paths_rung(&self.quadric, (w, self.q), band, |path| {
-                self.read(path, band)
-            })
-        })))
+        Ok(climb(Answering::Any, references, |w| {
+            paths_rung(&self.quadric, (w, self.q), band, &mut read)
+        })
+        .into_reading())
     }
 
     /// The winding `path` reads: its lean against the left normal
@@ -4575,11 +4585,12 @@ impl<T: Decide> IslandReading<T> {
     }
 }
 
-/// **One reading of a side as a rung** of the ladder ([`climb`]) whose
-/// answer is a decided side: `Ok(None)` (the zero band) says nothing and
-/// passes; an escalation is kept ([`Rung::kept`]).
+/// The paths [`Quadric::paths`] offers between two points, read by
+/// `read` as one rung of a **side ladder**: the first path that decides
+/// answers ([`Rung::of_reading`]); an escalation choosing the paths is
+/// the rung's kept reading.
 ///
-/// **The premise**, which makes every such ladder [`Answering::Any`]:
+/// **The premise**, which makes every side ladder [`Answering::Any`]:
 /// the decided readings agree. Every reading answers one question —
 /// which side of a curve a point lies on, the same whatever path or
 /// point reads it. For the winding's references and a ring's paths it
@@ -4592,31 +4603,6 @@ impl<T: Decide> IslandReading<T> {
 /// NURBS ones
 /// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
 /// Under it, which decided reading is taken changes nothing.
-fn side_rung<R>(reading: Result<Option<R>, Indeterminate>) -> Rung<R, Indeterminate> {
-    match reading {
-        Ok(Some(r)) => Rung::Answers(r),
-        Ok(None) => Rung::Passes,
-        Err(diag) => Rung::kept(diag),
-    }
-}
-
-/// A side ladder's outcome as one reading: the answer, `None` where every
-/// reading passed, and the ranked escalation ([`ladder::Evidence`])
-/// where none answered and one was kept.
-///
-/// [`ladder::Evidence`]: geom_brep::ladder::Evidence
-fn settled<R>(climbed: Climb<R, Indeterminate>) -> Result<Option<R>, Indeterminate> {
-    match climbed {
-        Climb::Answered { answer, .. } => Ok(Some(answer)),
-        Climb::Passed => Ok(None),
-        Climb::Undecided(diag) => Err(diag),
-    }
-}
-
-/// The paths [`Quadric::paths`] offers between two points, read by
-/// `read` as one rung of a side ladder ([`side_rung`]'s premise): the
-/// first path that decides answers. An escalation choosing the paths
-/// is the rung's kept reading.
 fn paths_rung<T: Decide, R>(
     quadric: &Quadric<T>,
     ends: (Point3<T>, Point3<T>),
@@ -4624,9 +4610,9 @@ fn paths_rung<T: Decide, R>(
     mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
 ) -> Rung<R, Indeterminate> {
     match quadric.paths(ends, band) {
-        Ok(paths) => side_rung(settled(climb(Answering::Any, paths, |path| {
-            side_rung(read(path))
-        }))),
+        Ok(paths) => Rung::of_reading(
+            climb(Answering::Any, paths, |path| Rung::of_reading(read(path))).into_reading(),
+        ),
         Err(diag) => Rung::kept(diag),
     }
 }
@@ -4643,7 +4629,7 @@ fn paths_rung<T: Decide, R>(
 /// decides. One with a reading in the escalation band says nothing
 /// either; the first escalation escalates only where no pair decides.
 /// The decided pairs agree because the ring does not cross the run
-/// ([`side_rung`]'s premise). A ring no pair decides otherwise is
+/// ([`paths_rung`]'s premise). A ring no pair decides otherwise is
 /// [`RingSide::Undecided`]. The parity does not depend on the path on any
 /// of these kinds (`crate::ring_path`'s module docs: on a cylinder, an
 /// annulus, two closed curves cross an even number of times), so a run
@@ -4669,11 +4655,13 @@ fn path_ring_side<T: Decide>(
     let pairs = loop_points(body, ring)?
         .into_iter()
         .flat_map(|p| outside.iter().map(move |&w| (p, w)));
-    match settled(climb(Answering::Any, pairs, |ends| {
+    match climb(Answering::Any, pairs, |ends| {
         paths_rung(quadric, ends, band, |path| {
             path_parity(&path, &arcs, None, band)
         })
-    })) {
+    })
+    .into_reading()
+    {
         Ok(Some(odd)) => Ok(if odd { RingSide::In } else { RingSide::Out }),
         Ok(None) => Ok(RingSide::Undecided),
         Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
@@ -6019,7 +6007,7 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// the run. A vertex whose reading escalates says nothing either, and
 /// the next is asked; the first escalation escalates only where no
 /// vertex decides ([`climb`]). The vertices agree because the
-/// ring does not cross the run ([`side_rung`]'s premise).
+/// ring does not cross the run ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -6032,7 +6020,7 @@ fn ring_side<T: Decide>(
         Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
         Ok(LoopContainment::OnBoundary) => Rung::Passes,
         Err(e @ PointInLoopError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| e),
-        Err(e) => Rung::Answers(Err(SplitJoinError::from(e))),
+        Err(e) => Rung::Aborts(Err(SplitJoinError::from(e))),
     };
     match climb(Answering::Any, ring_vertices(body, ring)?, read) {
         Climb::Answered { answer, .. } => answer,
@@ -6094,41 +6082,37 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
-/// The side ladders' ranking ([`side_rung`], [`settled`]): where no
-/// reading decides, a reading whose margin cannot be read refuses ahead
-/// of an in-band one read before it — `ladder::Evidence`'s order, where
-/// the hand-rolled search these ladders replace kept the first
-/// escalation, whichever it was.
+/// The side ladders' ranking ([`Rung::of_reading`]): where no reading
+/// decides, a reading whose margin cannot be read refuses ahead of an
+/// in-band one read before it — `ladder::Evidence`'s order, where the
+/// hand-rolled search these ladders replace kept the first escalation,
+/// whichever it was.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod side_ladder_rows {
-    use geom_brep::ladder::{Answering, climb};
-    use geom_core::{Band, Margin};
-
-    use super::{settled, side_rung};
+    use geom_brep::ladder::{Answering, Rung, climb};
+    use geom_core::{Band, Margin, Sign};
 
     #[test]
     fn an_unreadable_side_refuses_ahead_of_an_earlier_in_band_one() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let read = |m: f64| {
             crate::validate::decide("test_side", Margin::of(m), band)
-                .map(|sign| (sign != geom_core::Sign::Zero).then_some(sign))
+                .map(|sign| (sign != Sign::Zero).then_some(sign))
         };
-        let got = settled(climb(Answering::Any, [5e-9, f64::NAN, 0.0], |m| {
-            side_rung(read(m))
-        }));
-        let cause = got.expect_err("no reading decides");
+        let side = |margins: [f64; 3]| {
+            climb(Answering::Any, margins, |m| Rung::of_reading(read(m))).into_reading()
+        };
+        let cause = side([5e-9, f64::NAN, 0.0]).expect_err("no reading decides");
         assert!(cause.margin.is_invalid(), "the unreadable one: {cause:?}");
-        let got = settled(climb(Answering::Any, [5e-9, 0.0, -1.0], |m| {
-            side_rung(read(m))
-        }));
         assert_eq!(
-            got,
-            Ok(Some(geom_core::Sign::Negative)),
+            side([5e-9, 0.0, -1.0]),
+            Ok(Some(Sign::Negative)),
             "a later decided side answers"
         );
     }
 }
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;

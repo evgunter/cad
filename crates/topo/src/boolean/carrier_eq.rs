@@ -61,7 +61,7 @@
 //! document's coincidence door's question, never the kernel's. A datum
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
-use geom_brep::ladder::{IdentityLadder, Rung};
+use geom_brep::ladder::{IdentityLadder, Kept};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::validate::decide_reported;
@@ -138,37 +138,32 @@ impl CoincidenceMeasure {
         }
     }
 
-    /// One coincidence datum decided ([`Rung::decide`]): its sign and
+    /// One coincidence datum decided ([`ladder::decided`]): its sign and
     /// the margin the band decided, or the measure it leaves where it
     /// decides nothing. A datum that is not finite (NaN or ±∞) is
     /// unreadable whatever sign it reads: an infinite offset is no more a
     /// locus than a NaN one.
+    ///
+    /// [`ladder::decided`]: geom_brep::ladder::decided
     pub(crate) fn decide<T: Decide>(
         name: &'static str,
         margin: Margin<T>,
         band: Band,
     ) -> Result<Decided, Self> {
-        Self::of_rung(Rung::decide(name, margin, band, Some))
+        geom_brep::ladder::decided(name, margin, band).map_err(Self::of_kept)
     }
 
-    /// A measure that did not decide zero, as what it is: unreadable
-    /// where its margin is poisoned, undecided otherwise
-    /// ([`Rung::kept`]).
+    /// A measure that did not decide zero, as what it is ([`Kept::of`]).
     pub(crate) fn not_zero(diag: Indeterminate) -> Self {
-        match Self::of_rung(Rung::<Decided, _>::kept(diag)) {
-            Ok(_) => unreachable!("a kept reading is no answer"),
-            Err(measure) => measure,
-        }
+        Self::of_kept(Kept::of(diag))
     }
 
-    /// The measure a reading's rung leaves: a limit is unreadable, an
-    /// in-band reading undecided.
-    fn of_rung(rung: Rung<Decided, Indeterminate>) -> Result<Decided, Self> {
-        match rung {
-            Rung::Answers(decided) => Ok(decided),
-            Rung::Passes => unreachable!("every decided datum answers"),
-            Rung::InBand(diag) => Err(Self::Undecided(diag)),
-            Rung::Blocked(diag) => Err(Self::Unreadable(diag)),
+    /// A kept reading's measure: a limit is unreadable, an in-band
+    /// reading undecided.
+    fn of_kept(kept: Kept<Indeterminate>) -> Self {
+        match kept {
+            Kept::InBand(diag) => Self::Undecided(diag),
+            Kept::Blocked(diag) => Self::Unreadable(diag),
         }
     }
 }
@@ -1023,7 +1018,7 @@ mod tests {
 
     /// **An infinite coincidence datum is a limit, recorded as an
     /// escalation and never as a verdict**: the ladder's one non-finite
-    /// rule ([`geom_brep::ladder::Rung::decide`]), read here too.
+    /// rule ([`geom_brep::ladder::decided`]), read here too.
     #[test]
     fn an_infinite_datum_is_unreadable_and_recorded_as_an_escalation() {
         for poison in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {

@@ -21,21 +21,30 @@
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
 # and `#[cfg(test)]` items), in the code view (comments and literals
-# blanked), for `Err(_) =>` followed by `continue`, `break` or `{}` on
-# the same line.
+# blanked), for an arm on one line whose pattern holds `Err(_)` (first in
+# an or-pattern or after `|`) and whose body is `continue`, `break`, `{}`
+# or `()`: the arm a search moves on by.
 #
-# WHAT IT CANNOT SEE, each a pass where a discard exists: a binding that
-# is dropped by name (`Err(_e) => continue`, `Err(..) => {}`); a
-# catch-all (`_ => continue`) after the decided arms; an arm whose body
-# is on the next line; `.ok()`, `if let Ok(..)` and `matches!(.., Ok(..))`
-# reads that never name the error. Those shapes also carry legitimate
-# reads too often for a line grep to tell apart, so they are a reviewer's.
+# WHAT IT CANNOT SEE, each a pass where a discard exists:
+#   * a binding dropped by name (`Err(_e) => continue`, `Err(..) => {}`);
+#   * a catch-all (`_ => continue`) after the decided arms;
+#   * an arm whose body is on the next line;
+#   * `.ok()`, `if let Ok(..)` and `matches!(.., Ok(..))` reads that never
+#     name the error;
+#   * a VALUE discard, `Ok(Sign::Zero) | Err(_) => None` or `=> false`:
+#     the refusal leaves as "nothing found" rather than moving the loop on.
+#     About two dozen production arms have this shape; they are listed with
+#     the row `work/onecopy/value-discards-read-a-refusal-as-nothing-found.md`
+#     rather than registered here, because whether each is a search's kept
+#     reading depends on what its caller does with `None`.
+# Those shapes also carry legitimate reads too often for a line grep to
+# tell apart, so they are a reviewer's.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 REGISTER=scripts/gates/escalation-discards.counts
-DISCARD_RE='Err\(_\)[[:space:]]*=>[[:space:]]*(continue|break|\{[[:space:]]*\})'
+DISCARD_RE='Err\(_\)([[:space:]]*\|[^=]*)?[[:space:]]*=>[[:space:]]*(continue|break|\(\)|\{[[:space:]]*\})'
 
 gate() {
   gate_require_crate_sources
@@ -78,6 +87,12 @@ plant_registered() {
   printf 'crates/planted/src/lib.rs 1\n' >> "$1/$REGISTER"
 }
 
+plant_err_first_in_an_or_pattern() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[Result<u8, ()>]) { for r in v { match r { Ok(1) => {}\n Err(_) | Ok(_) => (), } } }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_in_a_test_module() {
   mkdir -p "$1/crates/planted/src"
   printf '#[cfg(test)]\nmod rows { fn f(r: Result<u8, ()>) { match r { Ok(_) => {}\n Err(_) => {} } } }\n' \
@@ -90,9 +105,10 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_unregistered
   gate_selftest_case "$want" plant_stale_entry
+  gate_selftest_case "$want" plant_err_first_in_an_or_pattern
   gate_selftest_passes "a registered discard" plant_registered
   gate_selftest_passes "a discard inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a registered discard and one in a test module; fires on an unregistered discard and on a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a registered discard and one in a test module; fires on an unregistered discard, on one whose `Err(_)` leads an or-pattern into `()`, and on a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

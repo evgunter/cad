@@ -84,7 +84,7 @@
 //! The rounding of its own later stages (the anchor rotation, the pole
 //! division, the rescale, the depression) is left to its band decisions.
 
-use crate::ladder::{Answering, Climb, Rung, climb};
+use crate::ladder::{Answering, Climb, Rung, climb, decided};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
@@ -422,12 +422,10 @@ fn ladder_roots<T: Decide>(
         let anchor = mid + shift;
         // The pole decided apart from a root goes on; a root passes.
         let pole = Margin::of(residual(anchor + T::pi()));
-        if let Err(stop) = Rung::decide(rows.pole, pole, band, |d| {
-            (d.sign != Sign::Zero).then_some(())
-        })
-        .into_answer()
-        {
-            return stop;
+        match decided(rows.pole, pole, band) {
+            Ok(d) if d.sign == Sign::Zero => return Rung::Passes,
+            Ok(_) => {}
+            Err(kept) => return kept.into(),
         }
         // The harmonics about the anchor: the first rotates by `θₐ`, the
         // second by `2θₐ`.
@@ -450,12 +448,10 @@ fn ladder_roots<T: Decide>(
             speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
             amplitude,
         );
-        if let Err(stop) = Rung::decide(rows.conditioning, conditioning, band, |d| {
-            (d.sign == Sign::Positive).then_some(())
-        })
-        .into_answer()
-        {
-            return stop;
+        match decided(rows.conditioning, conditioning, band) {
+            Ok(d) if d.sign == Sign::Positive => {}
+            Ok(_) => return Rung::Passes,
+            Err(kept) => return kept.into(),
         }
         // Monic in `τ = 2ρ·t` (a length): `τ⁴ + B τ³ + C τ² + D τ + E`.
         let b3 = scale * a[3] / lead;

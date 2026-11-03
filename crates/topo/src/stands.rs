@@ -64,7 +64,7 @@ use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::{Answering, Climb, Ranked, Rung, climb};
+use geom_brep::ladder::{Answering, Ranked, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces.
 #[derive(Debug)]
@@ -155,10 +155,12 @@ impl From<LadderRefusal> for PointInSolidError {
 
 /// **The witness ladder** over the cell complex `faces` of `body`
 /// (module docs): each witness is handed to `probe`, and the first
-/// decisive one is the reading. It is the ladder ([`climb`]) whose answer
-/// is a side or a refusal that propagates; one decisive witness names
+/// decisive one is the reading. It is the ladder
+/// ([`climb_evidence`]) whose answer is a side, and which a refusal that
+/// propagates aborts ([`Rung::Aborts`]). One decisive witness names
 /// every side (module docs), so a witness set aside ahead of it is
-/// superseded in the record ([`Answering::Any`]). A witness is found
+/// superseded in the record ([`Answering::Any`]); ahead of an abort it
+/// stays live. A witness is found
 /// inside its rung, so the readings that find it (a face's interior
 /// point) are recorded in rung order with the probe's.
 ///
@@ -227,37 +229,37 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
     let cells = (halves.iter().map(|&(f, he)| Cell::Vertex(f, he)))
         .chain(halves.iter().map(|&(f, he)| Cell::Edge(f, he)))
         .chain(faces.iter().map(|&f| Cell::Face(f)));
-    // The ladder's control and recording are `climb`'s; what the refused
-    // witnesses kept is tallied here, whole, for a caller that ranks two
-    // ladders' evidence together.
-    let mut tally = Tally::default();
-    let climbed = climb(Answering::Any, cells, |cell| {
+    // A refusal about the complex (it does not walk) or the probed
+    // surface aborts: it rests on every witness set aside ahead of it,
+    // which a tighter tolerance might have decided first.
+    let (mut on_boundary, mut in_band) = (0, 0);
+    let climbed = climb_evidence(Answering::Any, cells, |cell| {
         let q = match witness(cell) {
             Ok(Some(q)) => q,
             Ok(None) => return Rung::Passes,
-            Err(refusal) => return Rung::Answers(Err(E::from(refusal))),
+            Err(refusal) => return Rung::Aborts(Err(E::from(refusal))),
         };
         match probe(q) {
             Ok(Witness::Side(s)) => Rung::Answers(Ok(s)),
             Ok(Witness::On) => {
-                tally.on_boundary += 1;
+                on_boundary += 1;
                 Rung::Passes
             }
-            Ok(Witness::Blocked(e)) => {
-                tally.kept.blocked(e);
-                Rung::Blocked(())
-            }
+            Ok(Witness::Blocked(e)) => Rung::Blocked(e),
             Ok(Witness::InBand(e)) => {
-                tally.in_band += 1;
-                tally.kept.in_band(e);
-                Rung::InBand(())
+                in_band += 1;
+                Rung::InBand(e)
             }
-            Err(e) => Rung::Answers(Err(e)),
+            Err(e) => Rung::Aborts(Err(e)),
         }
     });
     match climbed {
-        Climb::Answered { answer, .. } => answer.map(Reading::Side),
-        Climb::Passed | Climb::Undecided(()) => Ok(Reading::Undecided(tally)),
+        Ok((_, answer)) => answer.map(Reading::Side),
+        Err(kept) => Ok(Reading::Undecided(Tally {
+            on_boundary,
+            in_band,
+            kept,
+        })),
     }
 }
 
