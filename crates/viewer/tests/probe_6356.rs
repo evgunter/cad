@@ -81,7 +81,7 @@ fn p3_transform_on_a_patterned_body() {
             input: body.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(A[0] * 2.0),
             },
         },
@@ -145,7 +145,7 @@ fn p5_a_pattern_takeover_writes_set_param() {
         input: body.into(),
         count: 2,
         rule: PatternRuleSpec::Linear {
-            direction: scl3([1.0, 0.0, 0.0]),
+            direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
             spacing: len(A[0] * 2.0),
         },
     });

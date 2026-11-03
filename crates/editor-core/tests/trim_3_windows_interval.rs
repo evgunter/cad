@@ -106,9 +106,9 @@ fn translated(
         r.write(
             placement,
             editor_core::Placed::unmated(vec![
-                (Coord::Slide(TargetAxis::X), dx),
-                (Coord::Slide(TargetAxis::Y), dy),
-                (Coord::Slide(TargetAxis::Z), dz),
+                (Coord::slide(TargetAxis::X), dx),
+                (Coord::slide(TargetAxis::Y), dy),
+                (Coord::slide(TargetAxis::Z), dz),
             ]),
         );
         return placement;
@@ -157,8 +157,8 @@ fn translated(
         .values
         .into_iter()
         .map(|(coord, by)| match coord {
-            Coord::Slide(TargetAxis::X) => (coord, dx.clone()),
-            Coord::Slide(TargetAxis::Y) => (coord, dy.clone()),
+            Coord::Slide(Some(TargetAxis::X)) => (coord, dx.clone()),
+            Coord::Slide(Some(TargetAxis::Y)) => (coord, dy.clone()),
             _ => (coord, by),
         })
         .collect();

@@ -892,7 +892,7 @@ fn dm5_is_over_the_variables_read() {
         ),
     );
     let axis = editor_core::pose::RoleRead::plain(Operand::output(revolve, 1));
-    fixture::circular(doc, revolve, (axis, editor_core::TargetAxis::Y), 1.0, 3);
+    fixture::circular(doc, revolve, axis, 1.0, 3);
 }
 
 /// A union of two blocks under a placement, saved: the file the load

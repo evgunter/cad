@@ -431,7 +431,7 @@ pub fn mate_into(
     doc: &mut Doc<ProfileProgram>,
     placement: RecipeNodeId,
     mate: pncad::document::Mate<Formula>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
     tol: Tol,
 ) -> pncad::document::MateRef {
     let (next, mate) = viewer::test_support::mated(doc, placement, mate, values, tol);
@@ -977,7 +977,7 @@ pub fn proposed(
 pub fn transformed(
     session: &mut DocSession,
     node: RecipeNodeId,
-    values: &[(pncad::document::Coord, Formula)],
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
     transformed_at(session, node, None, values)
 }
@@ -988,7 +988,7 @@ pub fn transformed_at(
     session: &mut DocSession,
     node: RecipeNodeId,
     body: Option<u32>,
-    values: &[(pncad::document::Coord, Formula)],
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
 ) -> SessionOp {
     session.pump();
     let tol = session.tol();
@@ -996,7 +996,7 @@ pub fn transformed_at(
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
     for (coord, by) in values {
-        tool.type_value(*coord, by.clone());
+        tool.type_value(coord.clone(), by.clone());
     }
     tool.proposal(doc, ev, tol)
         .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
@@ -1005,11 +1005,11 @@ pub fn transformed_at(
 
 /// **The three slides the Transform tool types**, each zero the constant
 /// `0` ([`translation`]).
-pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord, Formula)> {
+pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)> {
     pncad::document::TargetAxis::ALL
         .into_iter()
         .zip(translation(by))
-        .map(|(axis, by)| (pncad::document::Coord::Slide(axis), by))
+        .map(|(axis, by)| (pncad::document::Coord::slide(axis), by))
         .collect()
 }
 
