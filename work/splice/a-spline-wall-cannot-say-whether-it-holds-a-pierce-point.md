@@ -114,3 +114,29 @@ uniqueness on the wall is
 `the-spline-placement-read-certifies-no-second-in-trim-foot`.
 
 Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Measured on main d1ac688 (held-pierce lane, Phase 0, 2026-11-03)
+
+The rowless half-edge is not a piece of a split corner. Every
+`SplitEdge` piece on the wall's loop stores its row (`Body::split_edge`
+already restricts it through `pcurves::split_cache`). On the loft wall
+`FaceKey(4v1)`'s outer loop, the four rowless halves (`53v1`, `50v1`,
+`41v1`, `44v1`, `51v1`, `56v1` on the cycle) are each a half of a
+`MevNull` edge (`Fan`, `new_side: Above`): the null scaffolding the
+boolean's sweep mints at each crossing vertex, which has no carrier
+and so, by `pcurves`' module rule, no row while it holds the loop
+open. Each has its joint element, and both its ends are one point.
+`Body::loop_lift` returns `LiftGap` on the first of them, so
+`spline_region::Trim::of` answers `None` and the read `Trim(None)`.
+
+The analytic reader already treats this edge: `region::boundary` with
+`Scaffolding::Skipped` leaves out a null edge whose two ends are one
+point. A scratch spline trim lift that leaves such halves out (their
+elements still summed along the loop, so the decks of the halves
+around them are unchanged) gets the wavy loft past this site: the
+wall reads `OffCarrier` at both pierce points `(1, ∓1, 3)` (it is the
+loft's right wall, 0.3 off them), `held_reads` passes, and the union
+refuses one site on in the join: `GermFrameUnsupported { a_face:
+4v1, a_kind: Nurbs, b_face: 6v1, b_kind: Plane }`
+(`boolean::join::pair_section_frame_at`'s `NoArm`). The second half
+(`placed: true`) is not reached by the wavy loft.
