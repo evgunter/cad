@@ -21,7 +21,7 @@ Found by the TANGRIM review of PR 6257 (`tangrim/coplanar-conic-touch`).
 
 ## Places to check
 
-- `crates/topo/src/boolean/ellipse_torus.rs` `torus_walk`: takes the meter as an `Option`. Check that only its rows pass `None`.
+- `crates/geom-brep/src/curve_face/ellipse_torus.rs` `torus_walk`: takes the meter as an `Option`. Check that only its rows pass `None`.
 - `crates/topo/src/boolean/section_cert/ruling.rs`, the `certified_subdivision` call: the docs call it the ruling charts' uncharged reading, which only chooses a refusal's row. Check that no answer rests on it.
 
 ## What is owed

@@ -20,7 +20,7 @@ the public `geom_core::exact::two_sum`:
   `two_prod`; test-only), the oracle of `seg.rs`
   `circle_pair_points_sit_within_a_few_ulps_of_scale`;
 - `crates/test-utils/src/cone_cut.rs` (`Dd`, `two_sum`);
-- `crates/topo/src/boolean/conic_oracle/exact.rs` (`Dd`, `two_sum`);
+- `crates/geom-brep/src/curve_face/conic_oracle/exact.rs` (`Dd`, `two_sum`);
 - `crates/sweep/examples/conic_past_band_probe.rs` (`Dd`, `two_sum`);
 - `crates/geom-brep/src/ssi/enclose.rs` `two_sum`, already filed as
   `ssi-enclose-carries-a-private-two-sum-beside-geom-core-exact`.
@@ -53,7 +53,7 @@ Re-sweep on main d621f67e with
 inline product:
 - `enclose.rs`'s `two_sum` is gone (its row's fix);
 - still open: `profile/src/dd.rs`, `test-utils/src/cone_cut.rs`,
-  `topo/src/boolean/conic_oracle/exact.rs`,
+  `geom-brep/src/curve_face/conic_oracle/exact.rs`,
   `sweep/examples/conic_past_band_probe.rs`;
 - new, not listed above: `crates/sweep/tests/near_circular_sections.rs`
   (`Dd`, `two_sum`);
