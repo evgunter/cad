@@ -255,8 +255,8 @@ pub(crate) fn slid_by(
     *along = signed(along, probe[2], &by[2]);
     for (coord, value) in &mut placed.values {
         match coord {
-            Coord::Slide(TargetAxis::X) => *value = signed(value, probe[0], &by[0]),
-            Coord::Slide(TargetAxis::Y) => *value = signed(value, probe[1], &by[1]),
+            Coord::Slide(Some(TargetAxis::X)) => *value = signed(value, probe[0], &by[0]),
+            Coord::Slide(Some(TargetAxis::Y)) => *value = signed(value, probe[1], &by[1]),
             _ => {}
         }
     }

@@ -4453,11 +4453,11 @@ mod properties_pane_tests {
             .into_iter()
             .flat_map(|axis| {
                 [
-                    pncad::document::Coord::Slide(axis),
-                    pncad::document::Coord::Spin(Some(axis)),
+                    <pncad::document::Coord>::slide(axis),
+                    <pncad::document::Coord>::spin(axis),
                 ]
             })
-            .map(pncad::document::Coord::name)
+            .map(|coord| coord.name())
             .collect();
         let fields: Vec<(String, egui::Pos2)> = painted
             .windows(2)
@@ -4480,7 +4480,7 @@ mod properties_pane_tests {
         let slide_x = painted
             .windows(2)
             .find(|pair| {
-                pair[0].0 == pncad::document::Coord::Slide(pncad::document::TargetAxis::X).name()
+                pair[0].0 == <pncad::document::Coord>::slide(pncad::document::TargetAxis::X).name()
             })
             .map(|pair| pair[1].1.center())
             .expect("the slide along x is drawn");
@@ -4494,7 +4494,7 @@ mod properties_pane_tests {
             typed
                 .as_ref()
                 .is_some_and(|typed| typed.iter().any(|(coord, by)| {
-                    *coord == pncad::document::Coord::Slide(pncad::document::TargetAxis::X)
+                    *coord == pncad::document::Coord::slide(pncad::document::TargetAxis::X)
                         && by.literal_value() == Some(0.005)
                 })),
             "typing replaces the slide along x in the draft: {typed:?}"
