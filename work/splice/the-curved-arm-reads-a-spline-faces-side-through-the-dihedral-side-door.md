@@ -8,6 +8,8 @@ priority: P1
 cost: E
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, the-side-of-a-spline-face-is-read-by-no-dihedral, the-shared-rim-routing-exempts-a-spline-face-by-kind, lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band]
 closed: 2026-11-03
+pr: 6437
+branch: splice/kind-reads
 ---
 
 

@@ -2,11 +2,11 @@
 id: split-section-boundary-curved-arm-untested-past-the-edge-gate
 kind: issue
 title: The section-boundary describer's Spiric/Nurbs arm has no test, because the split operand gate refuses those edge kinds first
-status: dispatched
+status: parked
 opened: 2026-10-01
-priority: P1
+priority: P3
 cost: E
-branch: splice/kind-reads
+blocked_on: [the-plane-split-reads-no-crossing-of-a-spline-edge]
 ---
 
 Filed by CLEAVE's edge-midpoint lane (PR 3645).
@@ -78,3 +78,7 @@ edge the plane may meet (`CurvedEdgeUnsupported`), whose retirement is
 `work/parting/the-plane-split-reads-no-crossing-of-a-spline-edge`, and a
 NURBS or Approx face it may meet (`CurvedBooleanUnsupported`), which no
 open row retires.
+
+## Parked (SPLICE, PR 6437, 2026-11-03)
+
+The describer's fix landed: the split reads the seam through the boolean's own reading (`pcurves::seam_reading`), and the test is owed when an input reaches the arm. Re-banded P3, since a guard does not inherit the band of what it guards. It is parked on `parting/the-plane-split-reads-no-crossing-of-a-spline-edge`, the row that retires the split gate's refusal of a spline edge. No open row retires its refusal of a NURBS face.
