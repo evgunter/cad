@@ -34,9 +34,9 @@
 //! # The trim, in the chart
 //!
 //! The trim is read in the face's chart from C4's derived pcurves, lifted
-//! along each loop ([`crate::Body::loop_lift`]) past its placeholders
-//! ([`crate::null::Scaffolding::Skipped`]: mid-boolean, the sweep's null
-//! edges at the crossing vertices), each half-edge's image
+//! along each loop past its placeholders
+//! ([`crate::pcurves::loop_lift_past_placeholders`]: mid-boolean, the
+//! sweep's null edges at the crossing vertices), each half-edge's image
 //! taken over its edge's span and in its walk's direction, and the
 //! chart-space gap at a joint closed by a segment. A loop that winds a
 //! closed channel bounds no chart polygon and is not read. Each loop's
@@ -70,7 +70,6 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::joint::Winding;
 use crate::live::proven;
-use crate::null::Scaffolding;
 use crate::splitting::Escalation;
 use crate::validate::decide;
 
@@ -798,16 +797,14 @@ impl Trim {
         };
         let mut chains = Vec::new();
         for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let lift = body.loop_lift(lk, Scaffolding::Skipped).ok()?;
+            let lift = crate::pcurves::loop_lift_past_placeholders(body, lk).ok()?;
             if lift.is_empty() {
                 return None;
             }
-            // The winding sums every joint of the loop, a skipped
-            // placeholder's with the rest.
-            let elements: Option<Vec<_>> = crate::pcurves::loop_rows(body, lk)
-                .into_iter()
-                .map(|he| body.joint(he))
-                .collect();
+            // A skipped placeholder's joints are the identity
+            // (`loop_lift_past_placeholders`), so the members' elements
+            // wind as the whole loop's.
+            let elements: Option<Vec<_>> = lift.iter().map(|r| body.joint(r.half_edge)).collect();
             if !Winding::of(elements?).is_zero() {
                 return None;
             }

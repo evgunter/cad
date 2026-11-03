@@ -1850,7 +1850,7 @@ fn trim_polygon(
     // as rowless at its every half-edge, and the walk refuses at the
     // first.
     let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
-        .loop_lift(lk, topo::Scaffolding::Refused)
+        .loop_lift(lk)
         .map(|rows| {
             rows.into_iter()
                 .map(|row| (row.half_edge, row.pcurve))

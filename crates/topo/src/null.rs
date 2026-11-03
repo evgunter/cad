@@ -196,7 +196,7 @@ impl<T: Real> CurveGeom<T> {
 /// zero-length copy of a vertex, which has no carrier and so stores no
 /// chart row while it stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Scaffolding {
+pub(crate) enum Scaffolding {
     /// Left out: it bounds nothing, and the half-edges either side of
     /// it meet at its one point.
     Skipped,

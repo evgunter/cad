@@ -2260,20 +2260,15 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
 /// same chain moved by one deck transformation, and every reader reads
 /// the chain, not its offset.
 ///
-/// **A placeholder on the loop** ([`crate::null::is_placeholder`]) is
-/// as `scaffolding` says. [`Scaffolding::Skipped`] leaves its rowless
-/// halves out of the chain, as the analytic region reader leaves the
-/// edge out of its boundary: it is one point, so the halves either
-/// side of it meet there, and the element of the joint into it is
-/// still summed along the loop, so every other member's lift is the
-/// one it would have with the placeholder gone. [`Scaffolding::Refused`]
-/// reads its half as any rowless half.
+/// A rowless half is a gap, whatever its edge: a finished body holds
+/// no null edge, and mid-operation a reader that steps over one asks
+/// the crate's lift past placeholders.
 ///
 /// # Errors
 ///
 /// [`LiftGap`] naming the first half-edge, in cycle order, that stores
-/// no element on the joint into it, no image (but for a placeholder
-/// skipped), or an image its lift does not apply to.
+/// no image or no element on the joint into it, or whose image its
+/// lift does not apply to.
 ///
 /// # Panics
 ///
@@ -2281,6 +2276,44 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
 /// does not close on the half-edges that claim it ([`loop_rows`]).
 #[track_caller]
 pub fn loop_lift<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    lift_loop(body, r#loop, Scaffolding::Refused)
+}
+
+/// **[`loop_lift`] past the loop's placeholders**
+/// ([`crate::null::is_placeholder`]): a placeholder's rowless halves are
+/// left out of the chain, as the analytic region reader leaves the edge
+/// out of its boundary ([`Scaffolding::Skipped`]). The skip is exact.
+/// The edge is one point, so the halves either side of it meet there,
+/// and the mint gives the joints into its halves
+/// [`JointElement::IDENTITY`](crate::joint::JointElement::IDENTITY) while
+/// the joint out of it keeps its successor's element
+/// (`Body::mev_fan_execute`), so every other member's lift is the one
+/// it has with the placeholder gone. A null edge whose ends have parted
+/// is no placeholder, and any other rowless half is a gap, as in
+/// [`loop_lift`].
+///
+/// # Errors
+///
+/// [`loop_lift`]'s, but for a placeholder's half.
+///
+/// # Panics
+///
+/// [`loop_lift`]'s, and [`crate::null::is_placeholder`]'s.
+#[track_caller]
+pub(crate) fn loop_lift_past_placeholders<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    lift_loop(body, r#loop, Scaffolding::Skipped)
+}
+
+/// The one lift [`loop_lift`] and [`loop_lift_past_placeholders`]
+/// read, a placeholder's half as `scaffolding` says.
+#[track_caller]
+fn lift_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     scaffolding: Scaffolding,
@@ -2344,7 +2377,7 @@ pub(crate) fn lifted_images<T: Decide>(
         return Vec::new();
     };
     let r#loop = proven(&body.half_edges, first, EntityId::HalfEdge).parent_loop;
-    let Ok(lift) = loop_lift(body, r#loop, Scaffolding::Refused) else {
+    let Ok(lift) = loop_lift(body, r#loop) else {
         return vec![None; halves.len()];
     };
     let mut by_half: slotmap::SecondaryMap<HalfEdgeKey, Pcurve<T>> = slotmap::SecondaryMap::new();
@@ -8479,8 +8512,7 @@ pub(crate) mod pole_slit_tests {
                 "anchored at {anchor:?}"
             );
             assert!(
-                body.loop_lift(cap_loop, crate::null::Scaffolding::Refused)
-                    .is_ok(),
+                body.loop_lift(cap_loop).is_ok(),
                 "anchored at {anchor:?}, the loop lifts"
             );
         }
