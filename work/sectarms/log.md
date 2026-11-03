@@ -408,3 +408,15 @@ and bodies unchanged. No orchestrator yet.
   - **Citations:** paths citing the moved rows in crates, demos, docs and other programs' rows were re-pointed. The fork log is left as the historical record.
 
 - 2026-11-03 13:45 — **PR 6412 merged** (NURBS 3a, the 1×2 lane and the whole reading; dual review, tally 0, row PR-6412.md). **NURBS stage 4 asked for a plan**: the plane folds into the arm and its ℝ⁴ whole reading retires. It goes ahead of 3b, which waits on cylinder 3b-ii's node listing.
+
+- 2026-11-03 — **NURBS stage 4 plan accepted** (the plane folds into the 1×2 arm and `PlaneSection` retires).
+  - **Staging:**
+    - **4a:** the plane as a form of the one partner type, plus a differential row comparing every plane fixture through `PlaneSection` and `ImplicitSection` at three ε (single full review);
+    - **4b:** the cutover (dual review), only if no fixture moves from decided to refused, which otherwise stops the lane for a report.
+  - **Rulings:**
+    - one partner type (rename if `Curved` misnames it);
+    - `PlaneSection` removed, with no alias and outside callers moved;
+    - `WindowShortOfWall` retires;
+    - `SeedOutsideTube` stays for the pair lane;
+    - `TracedTriple`'s plane pcurve stays as the exact affine image;
+    - the anchored pivot with its padded band is kept, since a stored-origin readout would be a second reading.
