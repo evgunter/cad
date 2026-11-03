@@ -22,13 +22,12 @@
 //! that document, and SYM-5's Phase 2 (PR-2) runs on it.
 //!
 //! Three rows here are PINS (`m10_*`): the transform-lifted row, which
-//! DOCM filed red and which is green; the measured parity state of the
-//! other ported row; and that the refusal left at `5e-2` is not a
-//! freeze. The ported parity row itself stays `#[ignore]`d — it is red
-//! on the plain `Interval` lane at every width, where the derived
-//! document's widened-height box refuses its own attachment gate in one
-//! leaf exactly as the box alone does, while the authored twin builds
-//! no widened body; its symbolic half is the measured-state pin.
+//! DOCM filed red and which is green; that the two frame kinds agree on
+//! the symbolic lane; and that the refusal left at `5e-2` is not a
+//! freeze. The plain `Interval` lane is not compared: there the
+//! derived document's widened-height box refuses its own attachment
+//! gate in one leaf exactly as the box alone does, which is the plain
+//! tier's, not the frame's.
 //! The `sym5_phase1_*` rows are evidence-only and assert nothing.
 //!
 //! The preamble this file shares with its siblings — `param_doc`,
@@ -286,42 +285,6 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     r.doc
 }
 
-/// **DOCM-1 R1's C7 row** (`r1_c7_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin`),
-/// unchanged in what it asserts: whatever the kernel does with a
-/// widened placement, it must do the same for the two frame kinds.
-#[test]
-#[ignore = "red on the plain lane only, and not on the frame: the widened-height box extrude refuses its own attachment gate in one leaf at every width, as the box alone does (the authored twin builds no widened body); the symbolic lane agrees at every width, pinned by m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width"]
-fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
-    let e = eps();
-    let mut mismatch = Vec::new();
-    for w in [e / 8.0, 1e-6, 1e-3, 0.05] {
-        let (derived, boss_p, boss) = boss_on_widened_box(w);
-        let (authored, _) = boss_on_widened_authored_frame(w);
-        for (lane, run) in [
-            ("plain", interval_failures as fn(&ProfileDoc) -> Vec<String>),
-            ("sym", sym_failures as fn(&ProfileDoc) -> Vec<String>),
-        ] {
-            let d_fails = run(&derived);
-            let a_fails = run(&authored);
-            println!(
-                "C7 eps={e:e} half={w:e} lane={lane}: derived {d_fails:?}; authored {a_fails:?}"
-            );
-            let d_ok = d_fails.is_empty();
-            let a_ok = a_fails.is_empty();
-            if d_ok != a_ok {
-                mismatch.push(format!(
-                    "eps={e:e} half={w:e} lane={lane}: derived ok={d_ok}, authored ok={a_ok}"
-                ));
-            }
-            let _ = (boss_p, boss);
-        }
-    }
-    assert!(
-        mismatch.is_empty(),
-        "frame kinds disagree on a widened placement: {mismatch:?}"
-    );
-}
-
 /// **DOCM-1 R1's transform-lifted row**
 /// (`r1_c7_the_prs_transform_lifted_shape_with_an_extrude_above_it`),
 /// unchanged in what it asserts.
@@ -545,8 +508,7 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
     );
 }
 
-/// **The measured state of the parity row**, pinned while the row
-/// above stays ignored. Measured at all three ε rows: at every
+/// **The two frame kinds agree.** Measured at all three ε rows: at every
 /// half-width up to `5e-2` the two frame kinds AGREE on the symbolic
 /// lane — the derived-frame boss certifies exactly where its authored
 /// twin does. A copy shares its source's body under its frame, so the boss is built

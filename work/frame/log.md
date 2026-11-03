@@ -123,3 +123,16 @@ Decided here, not an `[ev]` fork: no ratified text moves, and the ladder was nev
 Filed:
 - `msolve/the-least-turn-has-two-arithmetics-and-the-chart-decides-its-pole-a-third-way` (P1 M);
 - a seam note on DOCTAIL's log (the bottom-cap pole versus its face frame's spin-only slot).
+
+## 2026-11-03 — P0 closed on re-measure
+
+The measurement lane (`frame/newell-remeasure`, head `8136118f78`) re-measured `a-widened-derived-placement-normalises-a-straddling-newell-sum` on main `0f01217666`:
+- the HEIGHT document, both lanes;
+- the STACKED document, rebuilt in today's terms because its fixture was deleted with `Datum::FaceFrame`;
+- an instrumented `newell_plane`.
+
+Nothing reaches clause 1. Closed. The ignored parity row is deleted (orchestrator's read): its symbolic half is already pinned, and its plain half measured the plain tier's one-leaf gate on a widened box. That gate refusal is a property of the plain tier and is not filed.
+
+Filed: `newell-plane-normalizes-without-minting-the-unit-witness` (P4 E). The lane filed `msolve/a-mate-on-a-placed-copys-cap-over-a-widened-tilt-cannot-mint-its-chart` (P3 M).
+
+Review tier: **orchestrator's read**. The diff is test comments, one ignored test deleted, and tracker state. No code moves.

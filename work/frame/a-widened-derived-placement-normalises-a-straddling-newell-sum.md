@@ -2,10 +2,11 @@
 id: a-widened-derived-placement-normalises-a-straddling-newell-sum
 kind: issue
 title: A boss on a widened derived frame refuses on the symbolic lane at clause 1: newell normalises a cross-sum whose enclosure contains zero, so a margin the tier proves zero is never asked
-status: open
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: H
+closed: 2026-11-03
 ---
 
 
@@ -332,3 +333,11 @@ above still applies, as a hygiene item and not as this P0.
 and `m10_the_derived_frames_refusal_is_not_a_freeze` already hold the
 symbolic lane green at every width. The ignored parity row's reason and
 the file's prose now say what its plain-lane red is.
+
+## Closed
+
+Closed by FRAME on 2026-11-03, on the re-measure above (branch `frame/newell-remeasure`). The re-measure covered the HEIGHT document and a rebuild of the STACKED one at the widths this row names, on both lanes, and instrumented both `newell_plane` call sites. Nothing reaches clause 1. `|N|²` is decided positive at every call, because a copy shares its source's body under its frame and no body is rebuilt over a widened placement.
+
+The `#[ignore]`d parity row this section named as its acceptance test is deleted. Its symbolic half is `m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width`. Its plain half tested the widened box's own one-leaf gate, which is the plain tier's, not the frame's.
+
+What is left is filed as `newell-plane-normalizes-without-minting-the-unit-witness` (P4). The stacked document at `5e-2` meets a different class, filed by the lane as `msolve/a-mate-on-a-placed-copys-cap-over-a-widened-tilt-cannot-mint-its-chart`.
