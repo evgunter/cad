@@ -1006,10 +1006,7 @@ fn face_geo_arms<T: Decide>(
                 center,
                 radius,
                 representative,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
+                sense: proven(&body.faces, representative, EntityId::Face).sense,
             }),
             None => match sphere_face_region(body, face, center, radius)? {
                 Some(region) => Ok(FaceGeo::SpherePatch {
@@ -1035,10 +1032,7 @@ fn face_geo_arms<T: Decide>(
                     major_radius,
                     minor_radius,
                     representative,
-                    sense: body
-                        .get_face(representative)
-                        .ok_or(PointInSolidError::CorruptFace { face })?
-                        .sense,
+                    sense: proven(&body.faces, representative, EntityId::Face).sense,
                 });
             }
             match torus_face_region(body, face)? {
@@ -1163,7 +1157,7 @@ fn partial_reach<T: Decide>(
 ) -> Result<Lever<T>, PointInSolidError> {
     let f = proven(&body.faces, face, EntityId::Face);
     let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for (lk, _) in body.face_loops_linked(face, f) {
+    for (lk, _, _) in body.face_loops_linked(face, f) {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
     Ok(reach)
@@ -1780,8 +1774,8 @@ pub(crate) fn point_in_face<T: Decide>(
             e => PointInSolidError::Loop(e),
         })
     };
-    for (i, (lk, l)) in body.face_loops_linked(face, f).enumerate() {
-        let outer = i == 0;
+    for (lk, l, role) in body.face_loops_linked(face, f) {
+        let outer = role.is_outer();
         if let LoopBoundary::Empty { .. } = l.boundary {
             // An empty outer loop bounds no region (mid-op scaffolding
             // never reaches this query; treat as no-hit); a lone ring
@@ -2378,7 +2372,7 @@ pub(crate) fn selection_reach<T: Decide>(
     let mut reach = geom_brep::ExtentBall::point(q).lever();
     for &face in faces {
         let f = proven(&body.faces, face, EntityId::Face);
-        for (l, _) in body.face_loops_linked(face, f) {
+        for (l, _, _) in body.face_loops_linked(face, f) {
             reach = reach.max(loop_extent_from(body, l, q)?);
         }
     }

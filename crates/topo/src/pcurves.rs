@@ -2983,7 +2983,7 @@ fn derive_face<T: AtRestPolicy>(
     };
     let loops: Vec<LoopKey> = body
         .face_loops_linked(face, face_data)
-        .map(|(lk, _)| lk)
+        .map(|(lk, _, _)| lk)
         .collect();
     let mut walked: Vec<Walked<T>> = Vec::new();
     let mut refused: Vec<PcurveMintError> = Vec::new();
@@ -5021,7 +5021,7 @@ pub fn loop_windings<T: AtRestPolicy>(
     let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
     let period = ChartPeriods::of(chart, band).u();
     let mut out = Vec::new();
-    for (lp, _) in body.face_loops_linked(face, face_data) {
+    for (lp, _, _) in body.face_loops_linked(face, face_data) {
         let Some(read) = read_loop(body, face, lp, (chart, described), period, band)? else {
             continue;
         };

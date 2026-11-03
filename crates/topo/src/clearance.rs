@@ -122,11 +122,11 @@ use crate::FaceContainment;
 use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
-use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
-use crate::live::BoundaryMember;
+use crate::live::{BoundaryMember, proven};
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -3484,10 +3484,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 /// [`window_of`] is argued there.
 fn winds_nowhere<T: Decide>(body: &Body<T>, face: FaceKey, f: &Face) -> bool {
     let mut elements = Vec::new();
-    for (i, (_, members)) in body.face_boundary_by_loop(face, f).enumerate() {
+    for (_, members, role) in body.face_boundary_by_loop(face, f) {
         for member in members {
             let Some(he) = member.half_edge() else {
-                if i == 0 {
+                if role.is_outer() {
                     return false;
                 }
                 continue;
@@ -3749,7 +3749,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
-        for (lk, members) in body.face_boundary_by_loop(face, f) {
+        for (lk, members, role) in body.face_boundary_by_loop(face, f) {
             let mut cycle = false;
             for member in &members {
                 let p = point(&body.member_point(member));
@@ -3761,7 +3761,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 }
             }
             if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
-                if lk == f.outer {
+                if role.is_outer() {
                     let surface = body.face_surface_linked(face, f);
                     let periodic =
                         [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
@@ -3801,8 +3801,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
         }
         for (ek, hes) in halves {
-            let e = body.get_edge(ek)?;
-            let curve = body.get_curve_geom(e.curve)?.certified()?;
+            let e = proven(&body.edges, ek, EntityId::Edge);
+            let curve = body.edge_curve_linked(ek, e).certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
@@ -3810,10 +3810,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
             pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
-            let ends = [
-                body.get_half_edge(e.he_plus)?.start,
-                body.get_half_edge(e.he_minus)?.start,
-            ];
+            let ends = [e.he_plus, e.he_minus]
+                .map(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start);
             let uses = hes
                 .iter()
                 .map(|he| {

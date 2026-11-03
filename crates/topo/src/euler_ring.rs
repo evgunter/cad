@@ -1404,7 +1404,7 @@ impl<T: Decide> Body<T> {
     /// take the old key out of the arena. So this reads no surface.
     ///
     /// The face's rows are its loops' rows, and each loop's walk is
-    /// [`crate::pcurves::loop_rows`], the walk
+    /// [`Body::proven_face_cycles`]', the walk
     /// [`crate::pcurves::validate_pcurves`] reads the same face with.
     /// One walk is what makes "the rows the door removed" and "the rows
     /// the validator would have read" the same set by construction
@@ -1476,19 +1476,6 @@ impl<T: Decide> Body<T> {
             );
         }
         out
-    }
-
-    /// [`Body::face_cycles`] without the whole-loop proof: the members of
-    /// every cycle bounding `face`, outer loop then rings, each in `next`
-    /// order, for a face this call resolved or read out of a record. The
-    /// walk is [`Body::proven_face_cycles`], so a miss panics as
-    /// that walk does.
-    #[track_caller]
-    pub(crate) fn face_cycles_linked(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
-        self.proven_face_cycles(face)
-            .into_iter()
-            .flat_map(|(_, cycle)| cycle)
-            .collect()
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve

@@ -11,8 +11,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopKey};
-use crate::live::BoundaryMember;
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey};
+use crate::live::{BoundaryMember, proven};
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::{PointInLoopError, Uncrossable};
@@ -299,10 +299,10 @@ pub(crate) fn boundary<T: Decide>(
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
-    for (i, (_, members)) in body.face_boundary_by_loop(face, f).enumerate() {
+    for (_, members, role) in body.face_boundary_by_loop(face, f) {
         for member in members {
             // A lone ring vertex bounds no area; an outer loop must.
-            if i == 0 && matches!(member, BoundaryMember::Isolated { .. }) {
+            if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {
                 return Err(corrupt());
             }
             let BoundaryMember::Edge {
@@ -314,13 +314,10 @@ pub(crate) fn boundary<T: Decide>(
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
                 if let Scaffolding::Skipped = scaffolding {
                     let point = |h| {
-                        body.get_half_edge(h)
-                            .and_then(|h| body.get_vertex(h.start))
-                            .map(|v| v.point)
+                        let start = proven(&body.half_edges, h, EntityId::HalfEdge).start;
+                        body.resolve_vertex_point_key(start, crate::live::Proven)
                     };
-                    if point(edge.he_plus).ok_or_else(corrupt)?
-                        == point(edge.he_minus).ok_or_else(corrupt)?
-                    {
+                    if point(edge.he_plus) == point(edge.he_minus) {
                         null.push(edge_key);
                         continue;
                     }

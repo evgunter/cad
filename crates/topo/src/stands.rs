@@ -62,7 +62,8 @@ use crate::body::Body;
 use crate::boolean::PointInSolidError;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
 use geom_brep::ladder::Ranked;
 
@@ -196,26 +197,17 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
                 .map(|he| (face, he)),
         );
     }
-    let half = |(face, he): (FaceKey, HalfEdgeKey)| {
-        body.get_half_edge(he).ok_or(LadderRefusal::Desync {
-            face,
-            what: "witnessed half-edge no longer resolves",
-        })
-    };
+    // Every half-edge is one the face walk read, so each hop from it is
+    // a link.
+    let half = |(_, he): (FaceKey, HalfEdgeKey)| proven(&body.half_edges, he, EntityId::HalfEdge);
 
     let mut seen_vertex: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
     for &fh in &halves {
-        let v = half(fh)?.start;
+        let v = half(fh).start;
         if seen_vertex.insert(v, ()).is_some() {
             continue;
         }
-        let p = body
-            .get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(LadderRefusal::Desync {
-                face: fh.0,
-                what: "witnessed vertex has no point",
-            })?;
+        let p = body.resolve_vertex_point(v, Proven);
         if let Some(s) = side(p)? {
             return Ok(Reading::Side(s));
         }
@@ -223,11 +215,11 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
 
     let mut seen_edge: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
     for &fh in &halves {
-        let e = half(fh)?.edge;
+        let e = half(fh).edge;
         if seen_edge.insert(e, ()).is_some() {
             continue;
         }
-        let Some(curve) = witnessed_curve(body, fh.0, e)? else {
+        let Some(curve) = witnessed_curve(body, e) else {
             continue;
         };
         if let Some(s) = side(curve.mid_point())? {
@@ -304,19 +296,10 @@ fn face_interior_point<T: Decide>(
 
 /// The certified curve of edge `e`, met on `face`'s walk; `None` for
 /// null scaffolding, which has no carrier to read.
-fn witnessed_curve<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    e: EdgeKey,
-) -> Result<Option<&geom_brep::EdgeCurve<T>>, LadderRefusal> {
-    Ok(body
-        .get_edge(e)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .ok_or(LadderRefusal::Desync {
-            face,
-            what: "witnessed edge has no curve",
-        })?
-        .certified())
+#[track_caller]
+fn witnessed_curve<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<&geom_brep::EdgeCurve<T>> {
+    body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
+        .certified()
 }
 
 /// The direction into a face from a half-edge of it running along `t`,
@@ -347,22 +330,14 @@ fn across_edges<T: Decide>(
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Vec<Point3<T>>, LadderRefusal> {
-    let desync = |what| LadderRefusal::Desync { face, what };
     let mut carriers: Vec<&geom::Curve3<T>> = Vec::new();
     let mut feet: Vec<(Point3<T>, Vec3<T>)> = Vec::new();
     for he in face_loops(body, face)?.into_iter().flatten() {
-        let e = body
-            .get_half_edge(he)
-            .ok_or(desync("witnessed half-edge no longer resolves"))?
-            .edge;
-        let Some(curve) = witnessed_curve(body, face, e)? else {
+        let e = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+        let Some(curve) = witnessed_curve(body, e) else {
             continue;
         };
-        let plus = body
-            .get_edge(e)
-            .ok_or(desync("witnessed edge no longer resolves"))?
-            .he_plus
-            == he;
+        let plus = proven(&body.edges, e, EntityId::Edge).he_plus == he;
         carriers.push(curve.carrier());
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
@@ -464,20 +439,18 @@ fn face_loop_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<Point3<T>>>, LadderRefusal> {
-    face_loops(body, face)?
+    Ok(face_loops(body, face)?
         .into_iter()
         .map(|cycle| {
             cycle
                 .into_iter()
                 .map(|he| {
-                    body.half_edge_start_point(he).ok_or(LadderRefusal::Desync {
-                        face,
-                        what: "face vertex has no point",
-                    })
+                    let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+                    body.resolve_vertex_point(start, Proven)
                 })
                 .collect()
         })
-        .collect()
+        .collect())
 }
 
 /// The centroid of three consecutive loop vertices: a face-interior

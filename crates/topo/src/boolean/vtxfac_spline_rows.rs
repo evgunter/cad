@@ -285,8 +285,8 @@ fn domed_cube() -> (Body<f64>, FaceKey) {
 /// loop and cycle order, as text: the byte-level record a door leaves.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
     let data = body.get_face(face).unwrap();
-    data.loop_keys()
-        .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+    body.face_loops_linked(face, data)
+        .filter_map(|(_, l, _)| match l.boundary {
             crate::entity::LoopBoundary::Cycle { first } => Some(first),
             crate::entity::LoopBoundary::Empty { .. } => None,
         })

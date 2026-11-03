@@ -1844,10 +1844,13 @@ fn settle_in_plane<T: Decide>(
             Operand::A => (a, b),
             Operand::B => (b, a),
         };
+        // The contact record names the face, so its walk proves it first
+        // and panics on a stale one; the plane's `None` is then a face
+        // that is not planar.
+        let bounding = face_vertices(y, lie.face);
         let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
-        let bounding = face_vertices(y, lie.face);
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)

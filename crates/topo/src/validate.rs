@@ -8231,10 +8231,8 @@ pub(crate) fn tier3_local_checks_marked<
         // read here for what it CLAIMS (which side is material), and
         // the loop's stored winding is falsified against that claim.
         let outward = plane_outward_normal(face, normal).vec();
-        for (l, is_outer) in face
-            .loop_keys()
-            .zip(core::iter::once(true).chain(core::iter::repeat(false)))
-        {
+        for (role, l) in face.loop_roles() {
+            let is_outer = role.is_outer();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -8455,7 +8453,7 @@ pub(crate) fn tier3_local_checks_marked<
             .map(|((edges, _), corners)| FaceLoop { edges, corners })
             .collect();
         let Ok(cycles) = crate::surface_boundary::surface_cycles(body, face_key) else {
-            continue; // tier 1 refuses a boundary that does not walk
+            continue; // a rotation that does not close: tier 1 refuses it
         };
         let every: Vec<usize> = (0..cycles.len()).collect();
         for (point, x) in singular_points(&chart) {

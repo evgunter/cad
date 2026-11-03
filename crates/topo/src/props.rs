@@ -4984,7 +4984,7 @@ pub(crate) fn seam_region<T: Decide>(
     while let Some(&f) = members.get(i) {
         let rec = face(f)?;
         let first = loops.len();
-        for (lk, _) in body.face_loops_linked(f, rec) {
+        for lk in rec.loop_keys() {
             let Ok((edges, hes)) = loop_edges(body, lk) else {
                 return Ok(None);
             };

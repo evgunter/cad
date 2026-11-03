@@ -374,9 +374,8 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         return None;
     }
     let curve = |e: crate::entity::EdgeKey| {
-        body.get_edge(e)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .and_then(crate::null::CurveGeom::certified)
+        body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
+            .certified()
     };
     let (m, tau) = crate::boolean::solid_contain::along_half(
         body,

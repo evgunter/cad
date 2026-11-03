@@ -609,7 +609,7 @@ fn section_loops<T: Decide>(
     })?;
     Ok(body
         .face_boundary_by_loop(face, f)
-        .map(|(_, members)| {
+        .map(|(_, members, _)| {
             members
                 .into_iter()
                 .filter_map(|member| match member {

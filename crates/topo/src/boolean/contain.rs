@@ -440,7 +440,7 @@ fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, 
     let face_data = body.get_face(face).ok_or(ContainError::StaleFace(face))?;
     Ok(body
         .face_loops_linked(face, face_data)
-        .map(|(lk, _)| lk)
+        .map(|(lk, _, _)| lk)
         .collect())
 }
 
@@ -1510,8 +1510,8 @@ mod tests {
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
         let mut loops = 0;
-        for (_, f) in body.faces() {
-            for lk in f.loop_keys() {
+        for (fk, f) in body.faces() {
+            for (lk, ..) in body.face_loops_linked(fk, f) {
                 loops += 1;
                 assert!(
                     loop_circle(&body, lk, band)

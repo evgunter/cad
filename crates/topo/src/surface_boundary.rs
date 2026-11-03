@@ -45,7 +45,7 @@
 //! (`work/nearpoint/a-seam-region-holding-a-wrap-tip-is-never-read`).
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use geom_core::Real;
 
 impl<T: Real> Body<T> {
@@ -172,9 +172,18 @@ pub fn surface_cycle_windings<T: Real>(
         .face_boundary_linked(face, f)
         .filter_map(|member| member.half_edge())
         .collect();
-    let both_sides = |h: HalfEdgeKey| {
-        let edge = body.get_half_edge(h).ok_or(unresolved)?.edge;
-        Ok(body.both_sides_face(edge).ok_or(unresolved)?.is_some())
+    // `h` is a member of the walk or a half-edge the walk turned to, so
+    // every hop from it is a link.
+    let both_sides = |h: HalfEdgeKey| -> Result<bool, &'static str> {
+        let edge = crate::live::proven(&body.half_edges, h, EntityId::HalfEdge).edge;
+        let e = crate::live::linked(
+            &body.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(h),
+            "edge",
+        );
+        Ok(body.face_of_linked(e.he_plus) == body.face_of_linked(e.he_minus))
     };
     let mut open = Vec::with_capacity(members.len());
     for &h in &members {

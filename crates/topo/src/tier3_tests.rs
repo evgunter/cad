@@ -2970,10 +2970,8 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
     let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     for &face in &body.get_shell(shell).expect("a live shell").faces {
         let f = body.get_face(face).expect("a live face");
-        for lp in f.loop_keys() {
-            let crate::entity::LoopBoundary::Cycle { first } =
-                body.get_loop(lp).expect("a live loop").boundary
-            else {
+        for (_, l, _) in body.face_loops_linked(face, f) {
+            let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
                 panic!("a cube's loops are cycles")
             };
             for he in body.loop_cycle(first).expect("a closed cycle") {

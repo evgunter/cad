@@ -297,11 +297,7 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
         stops.push(BoundaryStop::Unreadable);
         return stops;
     };
-    let on_face = |he| {
-        body.get_half_edge(he)
-            .and_then(|h| body.get_loop(h.parent_loop))
-            .is_some_and(|l| l.face == face)
-    };
+    let on_face = |he| body.face_of_linked(he) == face;
     for member in body.face_boundary_linked(face, f) {
         stops.push(BoundaryStop::Vertex(
             body.member_point(&member).map(Interval::from_certified),

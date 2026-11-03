@@ -7902,7 +7902,7 @@ fn conic_reach<T: Decide>(
 ) -> Option<Vec<T>> {
     let face = body.get_face(f)?;
     let mut out = Vec::new();
-    for (_, members) in body.face_boundary_by_loop(f, face) {
+    for (_, members, _) in body.face_boundary_by_loop(f, face) {
         for member in members {
             let BoundaryMember::Edge { ek, edge, .. } = member else {
                 continue;
@@ -8183,7 +8183,7 @@ fn boundary_cuts<T: Decide>(
     let f = body.get_face(face)?;
     let mut vertices = Vec::new();
     let mut meetings = Vec::new();
-    for (_, members) in body.face_boundary_by_loop(face, f) {
+    for (_, members, _) in body.face_boundary_by_loop(face, f) {
         for member in members {
             vertices.push(along(body.member_point(&member)));
             let BoundaryMember::Edge { ek, edge, .. } = member else {

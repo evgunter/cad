@@ -3158,8 +3158,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let mut unsupported = None;
         let slots = self
             .face_loops_linked(face, survivor)
-            .enumerate()
-            .map(|(i, (lk, _))| (i.checked_sub(1), lk));
+            .map(|(lk, _, role)| (role.ring(), lk));
         for (slot, l) in slots {
             match self.loop_winding(l, normal, band)? {
                 LoopWinding::Wound(Decided {

@@ -171,6 +171,12 @@ REGISTER=(
   "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
   "crates/topo/src/cell_region.rs|lift_boundary||1|audited: the lone vertex's point is a stop already, pushed on the line before, and it has no edge to lift"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
+  # The face boundary walk's home: a lone-vertex loop holds no half-edge,
+  # and every reader of a face's half-edges or edges through the home
+  # (face_cycles_by_loop, proven_face_cycles, proven_face_edges, and
+  # their callers) inherits these two skips rather than writing its own.
+  "crates/topo/src/live.rs|half_edge||1|audited: a lone-vertex loop holds no half-edge and no edge, so it bounds no area and a reader of half-edges has nothing to walk; its vertex is still yielded by the walk (BoundaryMember::vertex, Body::member_point) to every reader of points"
+  "crates/topo/src/live.rs|proven_face_edges||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
   "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"

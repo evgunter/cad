@@ -1863,7 +1863,7 @@ impl PairVerdict {
 fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
     body.face_loops_linked(face, fd)
-        .any(|(_, l)| matches!(l.boundary, LoopBoundary::Empty { .. }))
+        .any(|(_, l, _)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
 /// Places a witness point in one face ([`super::contain::face_placement`]).
@@ -5674,7 +5674,7 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
         let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(face, data) else {
             continue;
         };
-        for (_, members) in body.face_boundary_by_loop(face, data) {
+        for (_, members, _) in body.face_boundary_by_loop(face, data) {
             let mut starts = BTreeSet::new();
             for member in members {
                 let BoundaryMember::Edge { half, .. } = member else {
@@ -7202,7 +7202,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for (_, members) in body.face_boundary_by_loop(face, fd) {
+        for (_, members, _) in body.face_boundary_by_loop(face, fd) {
             for member in members {
                 let BoundaryMember::Edge {
                     half: hd,
@@ -7380,7 +7380,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The two ends' half-edges in the face's one loop.
         let fd = proven(&body.faces, face, EntityId::Face);
         let mut ends = [None, None];
-        for (lk, members) in body.face_boundary_by_loop(face, fd) {
+        for (lk, members, _) in body.face_boundary_by_loop(face, fd) {
             for member in members {
                 let BoundaryMember::Edge { he, half, .. } = member else {
                     continue;
