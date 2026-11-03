@@ -1467,7 +1467,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     // image for every boundary edge and a branch it can pin across each
     // junction, and a face that denies it either is out of the class.
     // Only the in-band arm is an escalation.
-    let raw = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
+    let raw = match crate::chart_window::face_azimuth_window(body, &surf, face, band) {
         Ok(Some(w)) => w,
         Ok(None) => return Ok(None),
         Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })

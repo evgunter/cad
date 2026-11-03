@@ -138,6 +138,7 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
+pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
 pub mod coherence;
@@ -1336,7 +1337,7 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chord_join::face_azimuth_window_traces;
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
