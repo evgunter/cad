@@ -24,26 +24,34 @@
 //! - bare and followed by `::` (`boolean::X` through an import or a
 //!   glob, or at the crate root).
 //!
+//! An engine type spelled through its root re-export names the engine
+//! as much as its full path does, so each name `lib.rs`'s top-level
+//! `pub use` exports from an engine (under its root name, `as` renames
+//! read) is a site wherever a file outside that engine spells it
+//! `crate::Name` or brings it in as an item of a `crate::{…}` group,
+//! renamed or not. Those sites are their own kinds (`…-via-root`), so
+//! respelling `crate::boolean::X` as `crate::X` moves a count between
+//! two lines and reds both. `lib.rs` itself is not read for them.
+//!
 //! A `use` naming the engine module itself (`use crate::boolean;`,
 //! `use crate::boolean as b;`) is its own site. Any `super` chain counts
 //! wherever it lands, which is sound because `lib.rs` declares the only
 //! module of either name; the row asserts that.
 //!
-//! **Blind spots.** A path the module's alias reaches (`b::X` after
-//! `use crate::boolean as b;`) is not counted again; the alias's `use`
-//! is. Macros are not expanded, so a path a macro builds from pieces is
-//! not seen. `topo/tests/`, doctests and other crates reach the engines
-//! only through `topo::boolean` / `topo::splitting`, which are outside
-//! this walk. **An engine type spelled through its root re-export**
-//! (`crate::BooleanOp`, or `use crate::{BooleanOp}`) is not counted,
-//! so respelling a site that way clears its line without moving it:
-//! the signature test still sends that code to the engine. A `#[path]`
-//! module's depth is read from its file's path, so a `pub(super)` in
-//! one can read as climbing out of the engine when it does not:
-//! over-reporting, never under.
+//! **Blind spots.** A path an alias reaches (`b::X` after
+//! `use crate::boolean as b;`, or `Op` after `use crate::BooleanOp as
+//! Op;`) is not counted again; the alias's `use` is. A root name
+//! reached through a glob (`use crate::*;`, or `use super::*;` at the
+//! crate root's children) or through `super::Name` is not seen. Macros
+//! are not expanded, so a path a macro builds from pieces is not seen.
+//! `topo/tests/`, doctests and other crates reach the engines only
+//! through `topo::…`, as consumers of the doors, and are outside this
+//! walk. A `#[path]` module's depth is read from its file's path, so a
+//! `pub(super)` in one can read as climbing out of the engine when it
+//! does not: over-reporting, never under.
 
 use super::{CodeOnly, crate_sources, src_root, tokens};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -53,6 +61,9 @@ const ENGINES: [&str; 2] = ["boolean", "splitting"];
 /// The allowlist's name beside this file, under `src/`.
 const ALLOWLIST: &str = "source_walk/engine_leaves.txt";
 
+/// The names each engine exports through the crate root, by engine.
+type RootNames = BTreeMap<&'static str, BTreeSet<String>>;
+
 /// One allowlist key: the violation's kind and the file it is in,
 /// relative to `src/`.
 type Key = (String, String);
@@ -60,6 +71,8 @@ type Key = (String, String);
 /// Every violation in `topo/src`, counted per (kind, file).
 fn measure() -> BTreeMap<Key, usize> {
     let root = src_root();
+    let lib = std::fs::read_to_string(root.join("lib.rs")).expect("a readable lib.rs");
+    let exports = root_exports(CodeOnly::of(&lib).as_str());
     let mut out = BTreeMap::new();
     let mut declared = 0;
     for path in crate_sources() {
@@ -83,7 +96,7 @@ fn measure() -> BTreeMap<Key, usize> {
                 }
             }
         }
-        for (kind, count) in violations(&rel, code) {
+        for (kind, count) in violations(&rel, code, &exports) {
             *out.entry((kind, rel.clone())).or_insert(0) += count;
         }
     }
@@ -111,7 +124,7 @@ fn home(rel: &str) -> Option<&'static str> {
 }
 
 /// The violations of one file's blanked code, by kind.
-fn violations(rel: &str, code: &str) -> BTreeMap<String, usize> {
+fn violations(rel: &str, code: &str, exports: &RootNames) -> BTreeMap<String, usize> {
     let home = home(rel);
     let reexports = if rel == "lib.rs" {
         pub_use_spans(code)
@@ -127,12 +140,18 @@ fn violations(rel: &str, code: &str) -> BTreeMap<String, usize> {
             .into_iter()
             .filter(|at| !reexports.iter().any(|r| r.contains(at)))
             .count();
+        let kind = match home {
+            Some(h) => format!("{h}-names-{engine}"),
+            None => format!("names-{engine}"),
+        };
         if n > 0 {
-            let kind = match home {
-                Some(h) => format!("{h}-names-{engine}"),
-                None => format!("names-{engine}"),
-            };
-            out.insert(kind, n);
+            out.insert(kind.clone(), n);
+        }
+        if rel != "lib.rs" {
+            let n = root_sites(code, &exports[engine]);
+            if n > 0 {
+                out.insert(format!("{kind}-via-root"), n);
+            }
         }
     }
     if home.is_some() {
@@ -154,6 +173,112 @@ fn pub_use_spans(code: &str) -> Vec<std::ops::Range<usize>> {
         })
         .map(|at| at..code[at..].find(';').map_or(code.len(), |s| at + s))
         .collect()
+}
+
+/// The names `lib.rs`'s top-level `pub use` declarations export from
+/// each engine, under the name they take at the root (an `as` rename's
+/// new name). A glob re-export would make this set the engine's own
+/// `pub` items, which this reader does not collect, so it refuses one.
+fn root_exports(lib: &str) -> RootNames {
+    let nested = inline_mods(lib);
+    let mut out: RootNames = ENGINES.into_iter().map(|e| (e, BTreeSet::new())).collect();
+    for span in pub_use_spans(lib) {
+        if nested.iter().any(|m| m.contains(&span.start)) {
+            continue;
+        }
+        let tree = &lib[span.start + 3..span.end];
+        for (path, name) in flatten(tree) {
+            let path: Vec<&str> = path
+                .iter()
+                .map(String::as_str)
+                .skip_while(|s| matches!(*s, "crate" | "self"))
+                .collect();
+            let Some(engine) = ENGINES.into_iter().find(|e| path.first() == Some(e)) else {
+                continue;
+            };
+            assert!(
+                name != "*",
+                "lib.rs glob-re-exports from `{engine}`: this row reads the root's engine \
+                 names off its named re-exports, so teach it the engine's own `pub` items"
+            );
+            if path.len() > 1 && name != "_" && name != "self" {
+                out.get_mut(engine).expect("an engine").insert(name);
+            }
+        }
+    }
+    for (engine, names) in &out {
+        assert!(
+            !names.is_empty(),
+            "lib.rs re-exports nothing from `{engine}`: the read is lost"
+        );
+    }
+    out
+}
+
+/// One `use` tree, flattened: each leaf's full path and the name it
+/// binds (its `as` rename, else its last segment).
+fn flatten(tree: &str) -> Vec<(Vec<String>, String)> {
+    let tree = tree.trim();
+    if let Some(open) = tree.find('{') {
+        let head = path_segments(&tree[..open]);
+        let close = test_utils::source::balanced_end(tree, open).expect("a closed use group");
+        let inner = &tree[open + 1..close];
+        return test_utils::source::top_level_split(inner, ',')
+            .into_iter()
+            .filter(|r| !inner[r.clone()].trim().is_empty())
+            .flat_map(|r| flatten(&inner[r]))
+            .map(|(tail, name)| ([head.clone(), tail].concat(), name))
+            .collect();
+    }
+    let tree = tree.split_whitespace().collect::<Vec<_>>().join(" ");
+    let (path, alias) = match tree.split_once(" as ") {
+        Some((p, a)) => (p, Some(a.trim().to_string())),
+        None => (tree.as_str(), None),
+    };
+    let path = path_segments(path);
+    let name = alias.unwrap_or_else(|| path.last().cloned().unwrap_or_default());
+    vec![(path, name)]
+}
+
+/// The `::`-separated segments of a path fragment, empties dropped.
+fn path_segments(text: &str) -> Vec<String> {
+    text.split("::")
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// How many paths in `code` name one of `names` through the crate
+/// root: `crate::Name`, or `Name` (renamed or not) as an item of a
+/// `crate::{…}` group.
+fn root_sites(code: &str, names: &BTreeSet<String>) -> usize {
+    let first = |item: &str| -> bool {
+        let item = item.trim();
+        let end = item
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(item.len());
+        names.contains(&item[..end])
+    };
+    tokens(code, "crate")
+        .map(|at| {
+            let Some(rest) = code[at + 5..].trim_start().strip_prefix("::") else {
+                return 0;
+            };
+            let rest = rest.trim_start();
+            if rest.starts_with('{') {
+                let open = code.len() - rest.len();
+                let close = test_utils::source::balanced_end(code, open).expect("a closed group");
+                let inner = &code[open + 1..close];
+                test_utils::source::top_level_split(inner, ',')
+                    .into_iter()
+                    .filter(|r| first(&inner[r.clone()]))
+                    .count()
+            } else {
+                usize::from(first(rest))
+            }
+        })
+        .sum()
 }
 
 /// Every offset in `code` where a path names `crate::<engine>`, by the
@@ -339,7 +464,7 @@ fn engine_directories_are_leaves() {
         let listed = allowed.get(key).copied().unwrap_or(0);
         if n > listed {
             grown.push(format!(
-                "  {:<24} {}: {n} site(s), {listed} allowed",
+                "  {:<32} {}: {n} site(s), {listed} allowed",
                 key.0, key.1
             ));
         }
@@ -348,7 +473,7 @@ fn engine_directories_are_leaves() {
         let n = measured.get(key).copied().unwrap_or(0);
         if n < listed {
             stale.push(format!(
-                "  {:<24} {}: {listed} allowed, {n} left — {}",
+                "  {:<32} {}: {listed} allowed, {n} left — {}",
                 key.0,
                 key.1,
                 if n == 0 {
@@ -366,7 +491,7 @@ fn engine_directories_are_leaves() {
             table.push('\n');
             last = kind;
         }
-        writeln!(table, "{kind:<24} {n:>4}  {file}").expect("a String takes a write");
+        writeln!(table, "{kind:<32} {n:>4}  {file}").expect("a String takes a write");
     }
     assert!(
         grown.is_empty(),
@@ -411,6 +536,37 @@ fn the_reader_counts_engine_paths_and_crate_wide_visibility() {
     ] {
         assert_eq!(sites(text), n, "engine sites in {text:?}");
     }
+    let names: BTreeSet<String> = ["BooleanOp", "union"].map(String::from).into();
+    let via_root = |text: &str| root_sites(CodeOnly::of(text).as_str(), &names);
+    for (text, n) in [
+        ("use crate::BooleanOp;", 1),
+        ("use crate::{BooleanOp as Op, contact::union, union};", 2),
+        (
+            "fn f() { crate::union(a, b); $crate::BooleanOp::Union; }",
+            2,
+        ),
+        (
+            "fn f() { crate::contact::BooleanOp; crate::BooleanOperand; pub(crate) fn g() {} }",
+            0,
+        ),
+    ] {
+        assert_eq!(via_root(text), n, "root-spelled engine names in {text:?}");
+    }
+    let lib = "pub use boolean::{BooleanOp, ops::{union as unite, Plain}}; \
+               pub use crate::splitting::Split; use boolean::Hidden; \
+               pub mod t { pub use crate::boolean::Inner; }";
+    let exports = root_exports(CodeOnly::of(lib).as_str());
+    assert_eq!(
+        (
+            exports["boolean"]
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            exports["splitting"].len()
+        ),
+        (vec!["BooleanOp", "Plain", "unite"], 1),
+        "the root's engine names read off lib.rs's top-level `pub use`"
+    );
     let wide = |rel: &str, text: &str| crate_wide(rel, CodeOnly::of(text).as_str());
     for (rel, text, n) in [
         (
