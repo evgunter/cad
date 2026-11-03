@@ -43,10 +43,7 @@ use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{
-    Cell, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
-    oriented_plane_eq,
-};
+use crate::boolean::{Cell, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, oriented_plane_eq};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
