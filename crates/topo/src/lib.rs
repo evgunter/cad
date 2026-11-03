@@ -245,6 +245,7 @@ pub(crate) mod side_reader;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
+pub(crate) mod star;
 pub(crate) mod strut;
 pub mod surface_boundary;
 pub mod surgery;
@@ -373,13 +374,13 @@ pub mod test_support {
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
-    pub use crate::null::with_ring_root;
     pub use crate::props::{
         DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
         face_reading_structural, fold_order_bound, mass_properties_one_point,
         mass_properties_with_face_terms, measure_with_unmet_width, quadrature_rounds, read_points,
         region_carries_of, shell_references,
     };
+    pub use crate::star::with_ring_root;
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,

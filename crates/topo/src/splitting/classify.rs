@@ -97,8 +97,8 @@ pub(super) fn carrier_gate<T: Decide>(
 /// Whether the plane certainly misses an edge: behind its own reach
 /// (`census::edge_reach_in`) or behind the reach of either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
-/// reach is its control net's hull (`EdgeBoxRule::ControlHull`), which
-/// its faces' reaches may beat. `frame` is the plane's
+/// reach is its control net's hull (its cover), which its faces'
+/// reaches may beat. `frame` is the plane's
 /// ([`BoxFrame::aimed`] at its normal).
 ///
 /// `edge` is one this call's caller read out of the body: the gate's

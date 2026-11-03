@@ -147,6 +147,7 @@ pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
 mod slit;
+pub use boxes::EdgeUncovered;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
@@ -6607,7 +6608,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .collect();
     #[cfg(any(test, feature = "test-support"))]
     insert::reverse_when_asked(&mut plans, &mut orbits);
-    insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
+    insert::reconcile_shared(&mut plans, &orbits, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);

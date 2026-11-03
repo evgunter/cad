@@ -32,7 +32,7 @@ use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 /// and where a test can ask it with no pane in existence. What is
 /// particular here is that this lane is the one with an authored
 /// producer: a path whose corner is `7e307` — a number the
-/// add-profile form takes, because it is a number — replays,
+/// profile editor takes, because it is a number — replays,
 /// flattens, and arrives on its plane with coordinates whose
 /// narrowing is an infinity. A path with one such corner and the rest
 /// ordinary is drawn as its ordinary legs and a gap, which is
@@ -1467,7 +1467,7 @@ mod tests {
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, FaceSelection, SessionOp};
-    use crate::sketch::{self, PreviewLoop, ProfilePreview, ProfileShape, TIP_MARK_PX};
+    use crate::sketch::{self, PreviewLoop, ProfilePreview, TIP_MARK_PX};
     use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
     use pncad::select::HitTestError;
@@ -2970,7 +2970,7 @@ mod tests {
     /// **An authored outline with one far corner draws as a gap**, not
     /// as nothing and not as a smear.
     ///
-    /// The loop a person could compose in the add-profile form:
+    /// The loop a person could compose in the profile editor:
     /// ordinary corners and one at `7e307`, a number the form takes
     /// because it is a number. Four legs are authored, two of them
     /// reach the far corner, and what the lane holds afterwards is the
@@ -3247,7 +3247,7 @@ mod tests {
     fn path(steps: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
         sketch::preview(
             pncad::profile::SketchPlane::xy(),
-            &[ProfileShape::Path { steps }],
+            &[steps],
             Tol::witness(),
             1.0e-4,
         )
@@ -3322,12 +3322,15 @@ mod tests {
     /// **The vesica of the radius-2 circles about (±1, 0)**, its top
     /// corner rounded at `radius` by one `arc_fillet_arc` from the entry
     /// and closed straight along the diameter.
-    fn vesica(radius: f64) -> Vec<ProfileShape> {
+    fn vesica(radius: f64) -> Vec<Vec<pncad::profile::Step<f64>>> {
         vesica_wound(radius, pncad::profile::ArcSweep::Ccw)
     }
 
     /// [`vesica`] with its incoming arc travelled `incoming`.
-    fn vesica_wound(radius: f64, incoming: pncad::profile::ArcSweep) -> Vec<ProfileShape> {
+    fn vesica_wound(
+        radius: f64,
+        incoming: pncad::profile::ArcSweep,
+    ) -> Vec<Vec<pncad::profile::Step<f64>>> {
         use pncad::geom_core::Point2;
         use pncad::profile::{ArcData, ArcSweep, Step, Target};
         let about = |x: f64, to: f64, winding| ArcData::Center {
@@ -3335,35 +3338,33 @@ mod tests {
             winding,
             target: Target::Point(Point2::new(to, 0.0)),
         };
-        vec![ProfileShape::Path {
-            steps: vec![
-                Step::ArcFilletArc {
-                    spec: about(-1.0, 1.0, incoming),
-                    radius,
-                    spec2: about(1.0, -1.0, ArcSweep::Ccw),
-                },
-                Step::LineTo(Target::Start),
-            ],
-        }]
+        vec![vec![
+            Step::ArcFilletArc {
+                spec: about(-1.0, 1.0, incoming),
+                radius,
+                spec2: about(1.0, -1.0, ArcSweep::Ccw),
+            },
+            Step::LineTo(Target::Start),
+        ]]
     }
 
-    /// The create door's preview of `shapes` and its construction, as
-    /// the frame takes them.
-    fn door(shapes: &[ProfileShape]) -> (super::Previews, super::Constructions) {
+    /// The editor's preview of `loops` and its construction, as the
+    /// frame takes them.
+    fn door(loops: &[Vec<pncad::profile::Step<f64>>]) -> (super::Previews, super::Constructions) {
         let (preview, built) = sketch::drawn(
             pncad::profile::SketchPlane::xy(),
-            shapes,
+            loops,
             Tol::witness(),
             1.0e-4,
         );
         (
             crate::drafts::ProfileDoors {
-                create: Some(preview),
-                edit: None,
+                create: None,
+                edit: Some(preview),
             },
             crate::drafts::ProfileDoors {
-                create: Some(built),
-                edit: None,
+                create: None,
+                edit: Some(built),
             },
         )
     }
@@ -3405,7 +3406,7 @@ mod tests {
     fn a_resolved_fused_fillet_draws_its_carriers_and_its_fillet_circle() {
         let (previews, constructions) = door(&vesica(0.5));
         assert!(
-            matches!(&previews.create, Some(Ok(_))),
+            matches!(&previews.edit, Some(Ok(_))),
             "a fixture whose fillet resolves: {previews:?}"
         );
         let drawn = construction_legs(&constructions);
@@ -3440,7 +3441,7 @@ mod tests {
     fn a_refused_fused_fillet_still_draws_its_carriers() {
         let (previews, constructions) = door(&vesica(5.0));
         assert!(
-            matches!(&previews.create, Some(Err(_))),
+            matches!(&previews.edit, Some(Err(_))),
             "a fixture whose fillet refuses with nothing before it: {previews:?}"
         );
         let drawn = construction_legs(&constructions);
@@ -3479,7 +3480,7 @@ mod tests {
             },
         });
         steps.push(Step::LineTo(Target::Start));
-        let (_, constructions) = door(&[ProfileShape::Path { steps }]);
+        let (_, constructions) = door(&[steps]);
         let drawn = construction_legs(&constructions);
         let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
         assert_eq!(
@@ -3636,7 +3637,7 @@ mod tests {
                 .collect();
             assert_eq!(mark.len(), 3, "one heading mark at the anchor: {mark:?}");
             let lift: f64 = mark.iter().flatten().map(|p| f64::from(p[1])).sum();
-            (previews.create.is_some_and(|p| p.is_ok()), lift)
+            (previews.edit.is_some_and(|p| p.is_ok()), lift)
         };
         let (resolves, up) = heading(ArcSweep::Ccw);
         let (refused, down) = heading(ArcSweep::Cw);
@@ -3888,7 +3889,7 @@ mod tests {
             .profile_edit(&doc, profile)
             .expect("the square is held");
         assert!(
-            drafts.door_loops(&doc, tol).edit.is_some(),
+            drafts.door_loops(&doc, tol).is_some(),
             "the edit door holds the square"
         );
         let placement = sketch::profile_plane();
@@ -3909,7 +3910,7 @@ mod tests {
                 edit.edit_row(0, RowEdit::Insert { at, step }, notation)
                     .expect("finite");
             }
-            let held = drafts.door_loops(&doc, tol).edit.expect("held");
+            let held = drafts.door_loops(&doc, tol).expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {
                 create: None,
