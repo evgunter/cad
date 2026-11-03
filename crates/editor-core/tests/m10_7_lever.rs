@@ -184,11 +184,11 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         },
         vec![
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                editor_core::Coord::slide(editor_core::TargetAxis::X),
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                editor_core::Coord::slide(editor_core::TargetAxis::Y),
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (

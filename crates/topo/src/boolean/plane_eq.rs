@@ -419,8 +419,8 @@ mod tests {
                 ] {
                     let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
                     assert_eq!(
-                        text(diag).to_string(),
-                        text(untagged).to_string(),
+                        text(diag).render(geom_brep::recourse::Reading::Build),
+                        text(untagged).render(geom_brep::recourse::Reading::Build),
                         "{what}, {door:?}: the ending reads the margin, not the gate's tag"
                     );
                 }

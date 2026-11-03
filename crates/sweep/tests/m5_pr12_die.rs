@@ -149,7 +149,12 @@ fn pip_tool() -> AtRestBody<f64> {
             SweepStrategy::Realized,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("assembling the pip tool: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "assembling the pip tool: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body()
         .expect("a body")
         .body
@@ -167,7 +172,12 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "pip subtraction: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     out.body().expect("a body").body.clone().into_body()
 }
 

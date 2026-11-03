@@ -2,10 +2,12 @@
 id: the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12
 kind: issue
 title: the lofted-cylinder operand of spline_spiric_operands runs out of quadrature budget at 1e-12
-status: open
+status: closed
 opened: 2026-10-26
 priority: P2
 cost: M
+closed: 2026-11-03
+pr: 6429
 ---
 
 
@@ -62,3 +64,7 @@ the quadrature now meets 1e-12 by a fix that should close this row, or
 passes by chance, was not looked into.
 
 Moved from SPLICESEAM to SPLICE on 2026-11-02, by `git mv`, when SPLICESEAM merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Closed (SPLICE, PR 6429, 2026-11-03)
+
+Measured stale on main (`ee44bee2`): at 1e-12 the pin reported "pinned to stop on [... stopped at `wall`] at ε = 1e-12, and it passed", so the operand already measures there. PR 6429 removes the pin and measures every body of the row at a stated resolution of 1e-6 m, met at 1e-12 in about 29 s for the whole row (159 s before).

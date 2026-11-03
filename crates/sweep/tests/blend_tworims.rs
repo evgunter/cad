@@ -440,7 +440,7 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
                     cross_chain,
                     "the two setbacks are two different rims' — the refusal knows"
                 );
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     text.contains(sweep::blend::FILLET3_CLEARANCE_SPLIT_RECOURSE),
                     "the refusal names the split recourse, got: {text}"

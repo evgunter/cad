@@ -3128,7 +3128,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
                 terminal_sliver: false,
             },
         };
-        let text = refused.to_string();
+        let text = refused.render(pncad::geom_brep::recourse::Reading::Build);
         assert!(
             reads_as_prose(&text) && !text.contains("Key("),
             "a {decision:?} escalation panics the binding rather than raising: {text}"
@@ -3549,7 +3549,11 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         );
         assert_eq!(
             words.reason.as_deref(),
-            Some(negative.to_string().as_str()),
+            Some(
+                negative
+                    .render(pncad::geom_brep::recourse::Reading::AtRest)
+                    .as_str()
+            ),
             "the validator's own sentence for {word}"
         );
     }
@@ -3619,7 +3623,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     };
 
     for finding in [&census, &stale] {
-        let message = finding.to_string();
+        let message = finding.render(pncad::geom_brep::recourse::Reading::AtRest);
         assert!(
             reads_as_prose(&message),
             "a tier-3′ census finding must read as prose: it is raised \
@@ -3637,7 +3641,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     // The prose names what touched and where, in words — the keys
     // ride in the typed payload a caller resolves against — and ends
     // on the recourse.
-    let message = census.to_string();
+    let message = census.render(pncad::geom_brep::recourse::Reading::AtRest);
     assert!(
         message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
@@ -4007,7 +4011,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // move by its section and its place in the station, a
             // value's number by its constraint, a list's entry by its
             // position, a constraint's side by its constraint and which
-            // side, an indexed read's index by its seat, and a drawn
+            // side, a value's direction or axis by its constraint, an
+            // indexed read's index by its seat, and a drawn
             // profile's traced face by its place among the faces it
             // reads, none of which the word carries.
             None => assert!(
@@ -4024,6 +4029,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "measured"
                         | "cleared"
                         | "side"
+                        | "along"
+                        | "about"
                         | "traced"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
@@ -4561,7 +4568,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coord_tag",
         values: &[
-            "slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z",
+            "slide",
+            "slide_along",
+            "slide_x",
+            "slide_y",
+            "slide_z",
+            "spin",
+            "spin_about",
+            "spin_x",
+            "spin_y",
+            "spin_z",
         ],
         delegates: &[],
     },
@@ -5096,6 +5112,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "entity_named",
             "escalated",
+            "holdings_unread",
             "joined_piece_off_root",
             "kind_mismatch",
             "member_edge_tied",
@@ -5108,7 +5125,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unnamed",
             "unsettled_vertex",
             "unsupported_turned_cell",
-            "unsupported_unjudged_glue",
         ],
         delegates: &[
             "band_error_tag",
@@ -5124,7 +5140,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &["slide_turns_a_ball", "slides_do_not_span"],
+        values: &[
+            "read_slides_do_not_span",
+            "slide_turns_a_ball",
+            "slides_do_not_span",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5273,6 +5293,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
+            "about",
+            "along",
             "axis",
             "body",
             "cleared",
@@ -5758,6 +5780,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis_heading",
             "chamfer_distance",
+            "clearance_high",
+            "clearance_low",
             "distance",
             "index",
             "origin_x",

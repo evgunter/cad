@@ -5,7 +5,7 @@
 #![allow(clippy::expect_used)]
 
 use crate::common;
-use common::{len, scl3, session_insert};
+use common::{len, session_insert};
 use pncad::document::{Doc, DocEdit, Node, Operand, RecipeNodeId, VarId};
 use pncad::geom_core::Tol;
 use viewer::matetool::{MateTool, PlaceDoor};
@@ -46,12 +46,12 @@ fn p2_transform_on_a_whole_split() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    let plane = common::cut_across(&session, body, A[2] / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: common::len3([0.0, 0.0, A[2] / 2.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let doc = session.committed_doc();
@@ -81,7 +81,7 @@ fn p3_transform_on_a_patterned_body() {
             input: body.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(A[0] * 2.0),
             },
         },
@@ -145,7 +145,7 @@ fn p5_a_pattern_takeover_writes_set_param() {
         input: body.into(),
         count: 2,
         rule: PatternRuleSpec::Linear {
-            direction: scl3([1.0, 0.0, 0.0]),
+            direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
             spacing: len(A[0] * 2.0),
         },
     });

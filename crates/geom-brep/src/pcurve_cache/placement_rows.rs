@@ -617,6 +617,8 @@ fn a_downward_direction_reads_one_expression_either_side_of_x_zero() {
                     latitude: S::one(),
                 },
                 span: (S::zero(), S::one()),
+                shown: None,
+                edge_only: false,
             };
             let dir = Azimuth::of(S::from_f64(-1.0), S::param(x_sym, x));
             let env = move |p: ParamSymbol| (p == x_sym).then_some(x1);
@@ -775,6 +777,8 @@ fn a_far_half_polar_angle_at_an_equator_start_reads_narrow() {
                 latitude: f(1.0),
             },
             span: (f(0.0), f(1.0)),
+            shown: None,
+            edge_only: false,
         };
         let dir = Azimuth::of(Interval::from_bounds(lo, hi), f(-1.0));
         let placed = place.phase(Along::Latitude, dir, |m| m, band()).unwrap();
@@ -857,8 +861,12 @@ fn a_far_half_meridian_certifies_at_interval_from_any_start() {
         ),
     ] {
         let (ci, si) = (c.map_scalar(f), sphere.map_scalar(f));
-        let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band())
-            .unwrap_or_else(|e| panic!("{name}: derives at Interval: {e}"));
+        let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band()).unwrap_or_else(|e| {
+            panic!(
+                "{name}: derives at Interval: {e_at}",
+                e_at = e.render(crate::recourse::Reading::Build)
+            )
+        });
         let cache = PcurveCache::certify(image.clone(), f(t0), f(t1), &ci, &si, band())
             .unwrap_or_else(|e| panic!("{name}: certifies at Interval: {e:?}"));
         if name != "equator start, near half" {
@@ -981,8 +989,12 @@ fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
         .into_iter()
         .map(|(start, c, (t0, t1))| {
             let (ci, si) = (c.map_scalar(f), surface.map_scalar(f));
-            let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band())
-                .unwrap_or_else(|e| panic!("{name}, {start}: derives at Interval: {e}"));
+            let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band()).unwrap_or_else(|e| {
+                panic!(
+                    "{name}, {start}: derives at Interval: {e_at}",
+                    e_at = e.render(crate::recourse::Reading::Build)
+                )
+            });
             let cache = PcurveCache::certify(image.clone(), f(t0), f(t1), &ci, &si, band())
                 .unwrap_or_else(|e| panic!("{name}, {start}: certifies at Interval: {e:?}"));
             interval_samples(&image, (t0, t1), cache.certificate().envelope)

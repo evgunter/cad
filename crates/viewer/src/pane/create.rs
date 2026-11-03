@@ -16,33 +16,26 @@ use crate::blend::{BlendKindChoice, FREEZE_NOTE};
 use crate::combine::{
     BooleanTool, ClearanceBoundChoice, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION,
 };
-use crate::drafts::{CommitFault, Drafts, scalars};
-use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, UNIT_DRAG_SPEED,
-    boolean_op_label, split_half_label,
-};
+use crate::drafts::{CommitFault, Drafts};
+use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
 use crate::session::BundleVerdict;
-use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
+use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::tree::DrawnBody;
-use crate::widgets::{
-    CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, unit_field,
-    unit_vec3_row, vec3_row,
-};
+use crate::widgets::{CANCEL, commit_row, door, form_door, number_field};
 
 /// **The smallest instance index the part form offers.**
 ///
 /// A family's members are indexed from zero, and an index below it
 /// refuses at evaluation (`MemberOutOfRange`, typed, on the node's own
-/// badge), so the form declines to author one — the same rule
-/// [`MIN_PATTERN_COUNT`] follows. There is deliberately no upper
+/// badge), so the form declines to author one. There is deliberately no upper
 /// bound: how many instances the pattern has is a fact about its
 /// VALUE, not about the document, so a cap here would be a limit read
 /// off a picture that can change under it.
@@ -76,40 +69,15 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
-/// **The clearance form's bound rows**: which side it bounds, then its
-/// one length — or a band's two, low then high — in the working
-/// notation. A free function over the `Ui`, so a headless row can drive
-/// it.
-pub(crate) fn clearance_bound_rows(
-    ui: &mut egui::Ui,
-    drafts: &mut Drafts,
-    notation: &mut Notation,
-) {
+/// **The clearance form's shape row**: which side the requirement
+/// bounds. Its bounds are inserted at contact and edited on the
+/// requirement's own rows.
+pub(crate) fn clearance_shape_row(ui: &mut egui::Ui, drafts: &mut Drafts) {
     ui.horizontal(|ui| {
         ui.label("clearance");
         for (choice, label) in ClearanceBoundChoice::ALL {
             ui.radio_value(&mut drafts.clearance_bound, choice, label);
         }
-    });
-    ui.horizontal(|ui| {
-        let band = drafts.clearance_bound == ClearanceBoundChoice::Between;
-        ui.label(if band { "from" } else { "bound" });
-        unit_field(
-            ui,
-            notation.length.def(),
-            FIELD_DRAG_SPEED,
-            &mut drafts.clearance_lo,
-        );
-        if band {
-            ui.label("to");
-            unit_field(
-                ui,
-                notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut drafts.clearance_hi,
-            );
-        }
-        length_picker(ui, "clearance_bound", &mut notation.length);
     });
 }
 
@@ -241,18 +209,6 @@ pub(crate) fn mate_picks_row(
     crate::widgets::message_toned(ui, tool.line(row, by), theme, Tone::Advisory);
 }
 
-/// **The smallest pattern count the form offers.**
-///
-/// A pattern of zero is a family of no member, and fused it is the
-/// empty boolean value: both evaluate, so the form offers it, as the
-/// door does. A count below zero refuses at evaluation
-/// (`IndexCountOutOfRange`, typed, on the family's own badge), so the
-/// form declines to author one — the rule [`MIN_PART_INSTANCE`]
-/// follows. There is deliberately NO upper bound: the property panel
-/// imposes none on the index afterwards, and a cap here would be a
-/// limit the document does not have.
-pub(crate) const MIN_PATTERN_COUNT: i64 = 0;
-
 /// **The "Add part" chooser's window**, as wide as the pane its door
 /// is drawn in (`opener`) and never under
 /// [`crate::widgets::message_floor`].
@@ -359,38 +315,9 @@ const MAX_TRACE_CROSSING: u32 = 4;
 /// pick.
 pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 
-/// What the split panel says of the plane's numbers: which coordinates
-/// they are in.
-const SPLIT_COORDINATES: &str = "pick the body; the plane's point and normal are in the coordinates \
-     of the space the body is built in, and the viewport draws the plane on the copy you picked";
-
-/// The split panel's line for a target picked without the viewport (a
-/// tree click): no drawn part was hit, so the viewport has nowhere to
-/// draw the plane.
-const SPLIT_NOT_AIMED: &str = "the plane is not drawn: the body was not picked in the viewport; pick it there to see the plane on it";
-
-/// The split panel's line for a viewport pick whose part the picture no
-/// longer draws (hidden, or gone from the picture), or whose body has no
-/// landed value to draw the plane against.
-const SPLIT_NOT_DRAWN: &str =
-    "the plane is not drawn: what was picked is not in the picture as it stands";
-
-/// The split panel's line for a target with no corner to centre the
-/// plane's point on.
-const SPLIT_NO_CENTRE: &str = "the body has no corners to centre the plane on, so the plane starts through its space's origin";
-
-/// The split panel's line while the staged split runs.
-const SPLIT_CHECKING: &str = "checking the plane against the body…";
-
-/// The split panel's line for a plane with material on both sides.
-const SPLIT_CUTS: &str = "the plane cuts the body in two";
-
-/// The split panel's verdict on a plane that leaves a side empty, before
-/// the row's own word for which.
-const SPLIT_LEAVES: &str = "committed as it stands, the split would read";
-
-/// Why a side is empty, said beside [`SPLIT_LEAVES`].
-const SPLIT_MISSES: &str = "the plane misses the body or lies on one of its faces";
+/// What the split panel says of its picks.
+const SPLIT_PICKS: &str = "pick a face: its body is split along its plane — pick another face to \
+     cut along that one; a tree pick re-picks the body";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a proposed label counts by.
@@ -468,7 +395,7 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
         // The refusing layer's own sentence — the store's or the
         // directory rule's — never one composed here.
         Err(refusal) => {
-            crate::widgets::message_toned(ui, refusal.to_string(), theme, chooser.tone());
+            crate::widgets::message_toned(ui, crate::shown(refusal), theme, chooser.tone());
         }
     }
     chosen
@@ -693,13 +620,10 @@ impl ViewerBehavior<'_> {
             &self.theme,
             Tone::Advisory,
         );
-        clearance_bound_rows(ui, self.drafts, self.notation);
-        self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
-            let lo = notation.length_literal(drafts.clearance_lo)?;
-            let bounds = drafts
-                .clearance_bound
-                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
-            Ok(tool.op(bounds)?)
+        clearance_shape_row(ui, self.drafts);
+        self.tool_commit_row(ui, ToolKind::Clearance, None, |drafts, notation| {
+            let contact = notation.length_literal(0.0)?;
+            Ok(tool.op(drafts.clearance_bound.bounds(contact))?)
         });
     }
 
@@ -778,7 +702,11 @@ impl ViewerBehavior<'_> {
         });
         let doc = self.session.committed_doc();
         let coords: Vec<_> = match &proposal {
-            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            Some(Ok(proposal)) => proposal
+                .values
+                .iter()
+                .map(|row| row.coord.clone())
+                .collect(),
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
@@ -806,16 +734,17 @@ impl ViewerBehavior<'_> {
                         if field.changed() {
                             match held {
                                 Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
-                                None => {
-                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
-                                }
+                                None => self
+                                    .drafts
+                                    .mate_value_edits
+                                    .push((row.coord.clone(), text.clone())),
                             }
                         }
                         if field.lost_focus()
                             && let Some(at) = held
                         {
                             let (coord, typed) = self.drafts.mate_value_edits.remove(at);
-                            match crate::matetool::typed_value(doc, coord, &typed) {
+                            match crate::matetool::typed_value(doc, coord.clone(), &typed) {
                                 Ok(by) => edited.type_value(coord, by),
                                 Err(error) => self
                                     .notices
@@ -868,7 +797,7 @@ impl ViewerBehavior<'_> {
                 let said = match verdict {
                     BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
                     BundleVerdict::Faults(fault) => Err(fault.to_string()),
-                    BundleVerdict::Refused(refusal) => Err(refusal.to_string()),
+                    BundleVerdict::Refused(refusal) => Err(crate::shown(&refusal)),
                     BundleVerdict::Unsolved => {
                         Err("what the placement reads does not evaluate".to_owned())
                     }
@@ -1265,148 +1194,33 @@ impl ViewerBehavior<'_> {
         {
             open.clear();
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Boolean, None, |_, _| Ok(tool.op()?));
     }
 
-    /// The split tool's panel: a body pick, the cutting plane's point
-    /// and normal in the body's own coordinates, and the one committed
-    /// edit.
+    /// The split tool's panel: the target and the plane it is cut
+    /// along, held as picks ([`crate::combine::SplitTool`]), and the one
+    /// committed edit, withheld while a pick is missing.
     pub(crate) fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.split() else {
+        let Some(tool) = self.tools.split().cloned() else {
             return self.tool_door(ui, ToolKind::Split);
         };
-        crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_COORDINATES));
-        if let Some((seat, half)) = seats_row(
+        crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_PICKS));
+        crate::widgets::message_toned(
             ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
             &self.theme,
-        ) {
+            Tone::Advisory,
+        );
+        let waiting = tool
+            .seats()
+            .awaits_half(0)
+            .then(|| (0, Seat::SplitTarget.name().to_owned()));
+        if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.seed_split_plane(&tool);
-        let drawn = (self.drafts.split_origin, self.drafts.split_normal);
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                "plane through",
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.split_origin,
-            );
-            length_picker(ui, "split_origin", &mut self.notation.length);
-        });
-        vec3_row(ui, "normal", UNIT_DRAG_SPEED, &mut self.drafts.split_normal);
-        // The viewport drew this frame's plane before the panel ran: an
-        // edit asks for the next frame, which draws it as typed.
-        if (self.drafts.split_origin, self.drafts.split_normal) != drawn {
-            ui.ctx().request_repaint();
-        }
-        self.split_plane_rows(ui, &tool);
-        self.tool_commit_row(ui, ToolKind::Split, |drafts, notation| {
-            Ok(tool.op(
-                notation.length_literals(drafts.split_origin)?,
-                scalars(drafts.split_normal)?,
-            )?)
-        });
-    }
-
-    /// **The split plane's point, seeded for a new target**: at the
-    /// centre of the body's extent in its own coordinates
-    /// ([`crate::splitplane::centre`]), so the plane the panel opens
-    /// with passes through the body rather than along one of its faces.
-    /// Seeded once per target, so what the person types stands.
-    fn seed_split_plane(&mut self, tool: &crate::combine::SplitTool) {
-        let target = tool.seats().read(0);
-        if target == self.drafts.split_seeded {
-            return;
-        }
-        let Some(read) = target.as_ref() else {
-            self.drafts.split_seeded = None;
-            return;
-        };
-        let Some((doc, evaluation)) = self.session.landed_pair() else {
-            return;
-        };
-        let Some(source) = crate::splitplane::source(doc, evaluation, read) else {
-            return;
-        };
-        // A body with no corner has no centre to seed: the plane starts
-        // at the origin, and the panel says why ([`SPLIT_NO_CENTRE`]).
-        self.drafts.split_origin = crate::splitplane::centre(source).unwrap_or([0.0; 3]);
-        self.drafts.split_seeded = target;
-    }
-    /// **What the split plane does to its target, before commit**, and
-    /// whether the viewport draws it.
-    ///
-    /// The verdict is the split door's own: the split the panel would
-    /// commit, staged on the committed document and evaluated beside
-    /// the picture ([`SessionOp::Stage`]), read as its tree row would
-    /// read it ([`tree::split_reading`]). It is asked again whenever the
-    /// draft or the document moves, and says it is checking until the
-    /// staged run lands.
-    fn split_plane_rows(&mut self, ui: &mut egui::Ui, tool: &crate::combine::SplitTool) {
-        if tool.seats().read(0).is_none() {
-            return;
-        }
-        if let Some((doc, evaluation)) = self.session.landed_pair()
-            && let Some(read) = tool.seats().read(0)
-            && crate::splitplane::source(doc, evaluation, &read)
-                .is_some_and(|source| crate::splitplane::centre(source).is_none())
-        {
-            crate::widgets::message_toned(ui, SPLIT_NO_CENTRE, &self.theme, Tone::Advisory);
-        }
-        if tool.seats().through(0).is_none() {
-            crate::widgets::message_toned(ui, SPLIT_NOT_AIMED, &self.theme, Tone::Advisory);
-        } else if self.split_plane_preview().is_none() {
-            crate::widgets::message_toned(ui, SPLIT_NOT_DRAWN, &self.theme, Tone::Advisory);
-        }
-        let op = (|| {
-            tool.op(
-                self.notation
-                    .length_literals(self.drafts.split_origin)
-                    .ok()?,
-                scalars(self.drafts.split_normal).ok()?,
-            )
-            .ok()
-        })();
-        let Some(Ok(creation)) = op.map(Creation::of) else {
-            return;
-        };
-        let staged = self.session.staged_for(&creation);
-        let said = match staged {
-            None | Some(Staged::Checking) => None,
-            Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
-            Some(Staged::Exhausted { doc, out }) => {
-                Some(format!("the staged run {}", out.said(doc)))
-            }
-            Some(Staged::Evaluated {
-                node, evaluation, ..
-            }) => match tree::split_reading(evaluation, node) {
-                Ok(None) => None,
-                Ok(Some(empty)) => Some(format!("{SPLIT_LEAVES} `{empty}`: {SPLIT_MISSES}")),
-                Err(standing) => Some(standing.to_string()),
-            },
-        };
-        match (staged.is_some(), said) {
-            (false, _) => {
-                self.ops.push(SessionOp::Stage { creation });
-                crate::widgets::message(ui, SPLIT_CHECKING);
-                ui.ctx().request_repaint();
-            }
-            (true, Some(said)) => {
-                crate::widgets::message_toned(ui, said, &self.theme, Tone::Advisory);
-            }
-            (true, None) if matches!(staged, Some(Staged::Checking)) => {
-                crate::widgets::message(ui, SPLIT_CHECKING);
-                // A staged answer is not a user event, so nothing else
-                // would wake the frame loop to collect it.
-                ui.ctx().request_repaint();
-            }
-            (true, None) => {
-                crate::widgets::message(ui, SPLIT_CUTS);
-            }
-        }
+        let op = tool.op();
+        let blocked = op.as_ref().err().map(ToString::to_string);
+        self.tool_commit_row(ui, ToolKind::Split, blocked.as_deref(), |_, _| Ok(op?));
     }
 
     /// The mirror tool's panel: the body and the face it is reflected
@@ -1419,7 +1233,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Mirror.says(
-                &"pick a face: its body mirrors across it — pick another face to mirror across that one; a drawn body becomes its symmetric part, the body and its image fused",
+                &"pick a face: its body mirrors across it — pick another face to mirror across that one; the body becomes its symmetric part, the body and its image fused",
             ),
         );
         crate::widgets::message_toned(
@@ -1435,7 +1249,7 @@ impl ViewerBehavior<'_> {
         if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.tool_commit_row(ui, ToolKind::Mirror, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Mirror, None, |_, _| Ok(tool.op()?));
     }
 
     /// **The Transform tool's panel**: its one pick, which opens the
@@ -1469,9 +1283,12 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// The pattern tool's panel: a body pick, a rule choice with its
-    /// fields, the axis pick the circular rule needs, the output
-    /// choice, and the one committed edit.
+    /// The pattern tool's panel: a body pick, the rule and output
+    /// choices, and the one committed edit, which writes the defaults
+    /// the code owns ([`crate::combine::PatternTool`]): a row along the
+    /// target's `x` spaced, rounded up, so the copies clear the body
+    /// ([`crate::combine::row_spacing`]), or a ring about
+    /// its `z`. Each value is then a row of the pattern.
     ///
     /// The output row is what fuses a pattern into the part: `fused`
     /// commits the family with a `Union` over it, ONE body, where
@@ -1480,11 +1297,7 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.pattern() else {
             return self.tool_door(ui, ToolKind::Pattern);
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Pattern
-                .says(&"pick the body; a circular rule's axis is in its own coordinates"),
-        );
+        crate::widgets::message(ui, ToolKind::Pattern.says(&"pick the body"));
         if let Some((seat, half)) = seats_row(
             ui,
             tool.seats(),
@@ -1505,77 +1318,25 @@ impl ViewerBehavior<'_> {
                 ui.radio_value(&mut self.drafts.pattern_output, output, label);
             }
         });
-        ui.horizontal(|ui| {
-            ui.label("count");
-            ui.add(
-                number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
-                    .range(MIN_PATTERN_COUNT..=i64::MAX),
-            );
-        });
-        match self.drafts.pattern_kind {
+        let session = self.session;
+        self.tool_commit_row(ui, ToolKind::Pattern, None, |drafts, notation| match drafts
+            .pattern_kind
+        {
             PatternLayoutChoice::Linear => {
-                vec3_row(
-                    ui,
-                    "direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_direction,
-                );
-                ui.horizontal(|ui| {
-                    ui.label("spacing");
-                    unit_field(
-                        ui,
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_spacing,
-                    );
-                    length_picker(ui, "pattern_spacing", &mut self.notation.length);
-                });
-            }
-            PatternLayoutChoice::Circular => {
-                ui.horizontal(|ui| {
-                    unit_vec3_row(
-                        ui,
-                        "axis through",
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_through,
-                    );
-                    length_picker(ui, "pattern_through", &mut self.notation.length);
-                });
-                vec3_row(
-                    ui,
-                    "axis direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_axis,
-                );
-                ui.horizontal(|ui| {
-                    ui.label("step");
-                    unit_field(
-                        ui,
-                        self.notation.angle.def(),
-                        ANGLE_DRAG_SPEED,
-                        &mut self.drafts.pattern_step,
-                    );
-                    angle_picker(ui, "pattern_step", &mut self.notation.angle);
-                });
-            }
-        }
-        self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
-            match drafts.pattern_kind {
-                PatternLayoutChoice::Linear => Ok(tool.linear_op(
+                let clears = session.clearing_step(&tool.read()?)?;
+                Ok(tool.linear_op(
                     drafts.pattern_output,
-                    drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
-                    notation.length_literal(drafts.pattern_spacing)?,
-                )?),
-                PatternLayoutChoice::Circular => Ok(tool.circular_op(
-                    drafts.pattern_output,
-                    drafts.pattern_count,
-                    notation.length_literals(drafts.pattern_through)?,
-                    scalars(drafts.pattern_axis)?,
-                    notation.angle_literal(drafts.pattern_step)?,
-                )?),
+                    crate::combine::PATTERN_COUNT,
+                    crate::session::PatternDirection::Axis(crate::combine::STEP_ALONG),
+                    crate::combine::row_spacing(clears, notation.length)?,
+                )?)
             }
+            PatternLayoutChoice::Circular => Ok(tool.circular_op(
+                drafts.pattern_output,
+                crate::combine::PATTERN_COUNT,
+                crate::session::PatternDirection::Axis(crate::combine::RING_ABOUT),
+                notation.angle_literal(crate::combine::RING_STEP)?,
+            )?),
         });
     }
 
@@ -1604,7 +1365,7 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         part_selector_rows(ui, &self.theme, &mut self.drafts.part_instance);
-        self.tool_commit_row(ui, ToolKind::Part, |drafts, _| {
+        self.tool_commit_row(ui, ToolKind::Part, None, |drafts, _| {
             Ok(tool.instance_op(drafts.part_instance)?)
         });
     }
@@ -1631,12 +1392,14 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, ToolKind::Duplicate, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Duplicate, None, |_, _| Ok(tool.op()?));
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
-    /// choice with its one Length field, and the one committed edit.
+    /// choice, and the one committed edit. The blend is inserted at
+    /// [`crate::blend::default_size`], and its size is then its
+    /// Properties slot row.
     ///
     /// **The freeze sentence is not decoration.** #217 makes the
     /// selection a commitment — a later edit that adds an edge does
@@ -1669,16 +1432,6 @@ impl ViewerBehavior<'_> {
             for (kind, label) in BlendKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.blend_kind, kind, label);
             }
-        });
-        ui.horizontal(|ui| {
-            ui.label(self.drafts.blend_kind.size_label());
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.blend_size,
-            );
-            length_picker(ui, "blend_size", &mut self.notation.length);
         });
         self.blend_commit_row(ui, count);
     }
@@ -1768,7 +1521,7 @@ impl ViewerBehavior<'_> {
             tool.clear();
         }
         if closing.commit {
-            match self.notation.length_literal(self.drafts.blend_size) {
+            match crate::blend::default_size(self.notation.length) {
                 Ok(size) => {
                     let op: Option<SessionOp> =
                         self.tools
@@ -1814,8 +1567,9 @@ impl ViewerBehavior<'_> {
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
-    /// projection, and the mirror tool's, for a drawn body, the union
-    /// of its symmetric part; the label lands there.
+    /// projection, where the label lands. The mirror tool's noun is
+    /// the mirror, which its insert labels and selects, not the union
+    /// of the symmetric part it reads into.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
             ToolKind::Mate | ToolKind::Transform => return None,
@@ -1825,17 +1579,7 @@ impl ViewerBehavior<'_> {
                 Some(BooleanOp::Subtract) => "Subtract",
             },
             ToolKind::Split => "Split",
-            // A drawn body becomes its symmetric part, whose last node
-            // is the union; an unplaced body's image stands alone.
-            ToolKind::Mirror => match self.tools.mirror().and_then(|tool| tool.seats().read(0)) {
-                Some(body)
-                    if !crate::world::placements_of_read(self.session.committed_doc(), &body)
-                        .is_empty() =>
-                {
-                    "Union"
-                }
-                _ => "Mirror",
-            },
+            ToolKind::Mirror => "Mirror",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -1935,13 +1679,14 @@ impl ViewerBehavior<'_> {
         &mut self,
         ui: &mut egui::Ui,
         kind: ToolKind,
+        blocked: Option<&str>,
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let noun = self.tool_noun(kind);
-        if let Some(noun) = noun {
+        if let Some(noun) = noun.filter(|_| kind.offers_label()) {
             self.creation_label_row(ui, noun);
         }
-        let closing = commit_row(ui, kind.commit(), None, |_| {});
+        let closing = commit_row(ui, kind.commit(), blocked, |_| {});
         if closing.commit {
             match op(self.drafts, *self.notation) {
                 Ok(op) => self.push_tool_op(noun, op),
@@ -2023,78 +1768,6 @@ mod tests {
     use crate::theme::Theme;
     use pncad::select::SplitHalf;
     use pncad::topo::BooleanOp;
-
-    /// **The pattern form's floor is the least count a pattern
-    /// evaluates at**, through both doors the form commits by. At
-    /// [`super::MIN_PATTERN_COUNT`] the unfused pattern is a family of
-    /// no member and the fused one the empty boolean value; one below
-    /// it, the family refuses typed on its own badge and the fused
-    /// pattern has no value. So the form offers exactly the counts that
-    /// evaluate, and the door, which judges no count, takes them all.
-    #[test]
-    fn the_pattern_forms_floor_is_the_least_count_that_evaluates() {
-        use crate::session::{DocSession, PatternRuleSpec, SessionOp};
-        use pncad::document::{BooleanValue, NodeErrorKind, NodeResult, ValuePayload};
-        let tol = Tol::witness();
-        let (doc, body) = crate::scene::plate_with_hole(tol).expect("the plate");
-        let floor = super::MIN_PATTERN_COUNT;
-        for fused in [false, true] {
-            for count in [floor, floor - 1] {
-                let mut session = DocSession::inline(doc.clone(), tol);
-                session.pump();
-                let rule = PatternRuleSpec::Linear {
-                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
-                    spacing: crate::test_support::len(0.05),
-                };
-                let op = if fused {
-                    SessionOp::AddFusedPattern {
-                        input: body.into(),
-                        count,
-                        rule,
-                    }
-                } else {
-                    SessionOp::AddPattern {
-                        input: body.into(),
-                        count,
-                        rule,
-                    }
-                };
-                let outcome = session.perform(op);
-                assert!(
-                    outcome.refusal.is_none(),
-                    "fused {fused}, count {count}: the door admits it: {:?}",
-                    outcome.refusal
-                );
-                let made = outcome.made.expect("the door made a node");
-                session.pump();
-                let eval = session.evaluation().expect("the inline seam landed");
-                let value = eval.value(made).map(|value| &value.payload);
-                match (fused, count == floor) {
-                    (false, true) => assert!(
-                        matches!(value, Some(ValuePayload::Instances(members)) if members.is_empty()),
-                        "the floor is a family of no member: {value:?}"
-                    ),
-                    (true, true) => assert!(
-                        matches!(value, Some(ValuePayload::Boolean(BooleanValue::Empty))),
-                        "the fused floor is the empty boolean value: {value:?}"
-                    ),
-                    (false, false) => assert!(
-                        matches!(
-                            eval.result(made),
-                            Some(NodeResult::Failed(error))
-                                if matches!(error.kind, NodeErrorKind::IndexCountOutOfRange { .. })
-                        ),
-                        "below the floor the family refuses typed: {:?}",
-                        eval.result(made)
-                    ),
-                    (true, false) => assert!(
-                        value.is_none(),
-                        "below the floor the fused pattern has no value: {value:?}"
-                    ),
-                }
-            }
-        }
-    }
 
     /// The end cap `minted` made, picked on the body of `drawn`.
     fn cap_on(minted: u64, drawn: u64) -> FaceSelection {

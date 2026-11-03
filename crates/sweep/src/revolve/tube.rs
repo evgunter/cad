@@ -258,8 +258,12 @@ fn door(e: &TubeError) -> &'static str {
     }
 }
 
-impl core::fmt::Display for TubeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl TubeError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         let door = door(self);
         match self {
             Self::Band(e) => write!(f, "{e}"),
@@ -298,10 +302,12 @@ impl core::fmt::Display for TubeError {
                     decision.ending(source),
                 )
             ),
-            Self::Revolve(e) => write!(f, "{e}"),
+            Self::Revolve(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
         }
     }
 }
+
+geom_brep::ended_by_write!(TubeError);
 
 impl std::error::Error for TubeError {}
 

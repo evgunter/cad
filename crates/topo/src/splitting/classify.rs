@@ -4,7 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
-use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
@@ -97,8 +97,8 @@ pub(super) fn carrier_gate<T: Decide>(
 /// Whether the plane certainly misses an edge: behind its own reach
 /// (`census::edge_reach_in`) or behind the reach of either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
-/// reach is its control net's hull (`EdgeBoxRule::ControlHull`), which
-/// its faces' reaches may beat. `frame` is the plane's
+/// reach is its control net's hull (its cover), which its faces'
+/// reaches may beat. `frame` is the plane's
 /// ([`BoxFrame::aimed`] at its normal).
 ///
 /// `edge` is one this call's caller read out of the body: the gate's
@@ -351,12 +351,14 @@ impl CrossingDecision {
         }
     }
 
-    /// The one ending `diag`'s escalation carries, at the operation that
-    /// placed the crossing.
+    /// The one ending `diag`'s escalation carries, read at `at`.
     #[must_use]
-    pub(crate) fn ending_of(self, diag: &geom_core::Indeterminate) -> String {
-        self.sized()
-            .recourse(RefusedArm::Undecided(diag), Reading::Build)
+    pub(crate) fn ending_of(
+        self,
+        diag: &geom_core::Indeterminate,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        self.sized().recourse(RefusedArm::Undecided(diag), at)
     }
 }
 
@@ -1210,7 +1212,7 @@ mod tests {
                     edge: crate::EdgeKey::default(),
                     fault,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     split.contains("within the zero band")
                         && split.ends_with(&format!(
@@ -1223,13 +1225,14 @@ mod tests {
                     decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
                     diag,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     boolean.contains("if this gap is intended, tighten the tolerance below")
                         && !boolean.contains("unreadable"),
                     "{label}: the Boolean's sized ending: {boolean}"
                 );
-                let census = crate::ValidationError::CensusEscalated { cause: diag }.to_string();
+                let census = crate::ValidationError::CensusEscalated { cause: diag }
+                    .render(geom_brep::recourse::Reading::AtRest);
                 assert!(
                     census.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE))
                         && !census.contains("defect"),

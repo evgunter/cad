@@ -37,7 +37,12 @@ fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64>
         SweepStrategy::Realized,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{name}: the boolean builds, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{name}: the boolean builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     out.body()
         .unwrap_or_else(|| panic!("{name}: a body"))
         .body
@@ -313,7 +318,12 @@ fn corpus() -> Vec<(String, Body<f64>)> {
         ] {
             let rim = circle_arcs_at_z(&body, z);
             let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
-                .unwrap_or_else(|e| panic!("filleted {name}({n}): carves, got {}", e.error));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "filleted {name}({n}): carves, got {}",
+                        e.error.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             v.push((format!("filleted {name}_of_arcs({n})"), out.body));
         }
     }

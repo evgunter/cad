@@ -349,7 +349,12 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
             t,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what}: an oblique all-plane junction hollows now: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: an oblique all-plane junction hollows now: {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
         assert_eq!(
             pncad::topo::validate_geometric(&hollow, tol),

@@ -207,7 +207,7 @@ use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::Surface;
-use geom::curves::boxes;
+use geom::cover::{Cover, ParamWindow, Site};
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, SmoothJoin, SurfacePair, must_carry_description,
 };
@@ -3463,80 +3463,40 @@ fn not_a_support(edge: EdgeKey) -> BlendError {
     )
 }
 
-/// A certified box's six bounds at `T`, `None` when one is not finite.
-/// Box arithmetic produced them in `f64`, so each enters as one
-/// computed value ([`Real::from_computed`]), shared by every corner and
-/// face that reads it.
-fn lifted_box<T: Real>(lo: [f64; 3], hi: [f64; 3]) -> Option<([T; 3], [T; 3])> {
-    if lo.iter().chain(hi.iter()).any(|v| !v.is_finite()) {
-        return None;
-    }
-    Some((lo.map(T::from_computed), hi.map(T::from_computed)))
-}
-
 /// **A certified range of the latitude function over one piece whose
 /// carrier has no windowed closed form here** — an ellipse, a spiric
 /// oval or a NURBS curve: `(low, high)` bounding the distance from `c`
 /// (`u` absent) or the height `(p − c)·u` along the unit `u`, for every
 /// point `p` of `carrier` over `window`, whose ends are `ends`.
 ///
-/// Read off the certified box `geom::curves::boxes` mints: an ellipse
-/// arc's over its window, a spiric oval's over its whole period, a
-/// NURBS curve's over its control hull. A range that holds the box
-/// holds the piece. An ellipse's HEIGHT is also read exactly over its
-/// whole period — a sinusoid of the parameter in any frame, which a
-/// world-axis box overstates once the axis is tilted — and the two
-/// ranges are intersected. Every range here is a BOUND, not the piece's
-/// own. `None` for a box that is not finite (poison) or a carrier the
-/// boxes do not take.
-fn boxed_reach<T: Bounds>(
+/// Read off the piece's cover ([`Curve3::cover_over`], hulled with its
+/// ends): its distance range from `c`, or its support either way along
+/// `u`. An ellipse arc's is its own over the window, a spiric oval's its
+/// whole period's, a NURBS curve's its control hull's. Every range here
+/// is a BOUND, not the piece's own. `None` for a carrier or an end with
+/// no cover.
+fn boxed_reach<T: geom_core::spline::SpanLocate>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
     (end0, end1): (Point3<T>, Point3<T>),
     c: Point3<T>,
     u: Option<Vec3<T>>,
 ) -> Option<(T, T)> {
-    let aabb = match carrier {
-        Curve3::Ellipse(..) => boxes::ellipse_arc_aabb(carrier, ta, tb, end0, end1)?,
-        Curve3::Spiric { .. } => boxes::spiric_arc_aabb(carrier, end0, end1)?,
-        Curve3::Nurbs(n) => boxes::nurbs_curve_aabb(n),
-        Curve3::Line(_) | Curve3::Circle(..) => return None,
-    };
-    let (lo, hi) = lifted_box(
-        [aabb.min_x, aabb.min_y, aabb.min_z],
-        [aabb.max_x, aabb.max_y, aabb.max_z],
-    )?;
-    let corner = |i: usize| {
-        let pick = |k: usize| if i >> k & 1 == 0 { lo[k] } else { hi[k] };
-        Point3::new(pick(0), pick(1), pick(2))
-    };
-    let first = corner(0) - c;
-    match u {
-        None => {
-            // Nearest: the box's own distance from `c`, per axis the
-            // overshoot past either face; farthest: a corner.
-            let gap = |k: usize, ck: T| (lo[k] - ck).max(ck - hi[k]).max(T::zero());
-            let near = (gap(0, c.x).powi(2) + gap(1, c.y).powi(2) + gap(2, c.z).powi(2)).sqrt();
-            let far = (1..8).fold(first.norm(), |m, i| m.max((corner(i) - c).norm()));
-            Some((near, far))
-        }
+    let ends = Cover::points(vec![end0, end1])?;
+    let cover = carrier
+        .cover_over(ParamWindow::new(ta, tb))
+        .ok()?
+        .hull(ends);
+    Some(match u {
+        None => cover.distance_range(&Site::Point(c)),
         Some(u) => {
-            let h0 = first.dot(u);
-            let (low, high) = (1..8).fold((h0, h0), |(l, h), i| {
-                let v = (corner(i) - c).dot(u);
-                (l.min(v), h.max(v))
-            });
-            match carrier {
-                Curve3::Ellipse(e) => {
-                    let mid = (e.frame.center - c).dot(u);
-                    let (p, q) = geom::Conic::along(e, u);
-                    let amp = (p.powi(2) + q.powi(2)).sqrt();
-                    Some((low.max(mid - amp), high.min(mid + amp)))
-                }
-                _ => Some((low, high)),
-            }
+            let base = (c - Point3::origin()).dot(u);
+            (
+                T::zero() - cover.support(-u) - base,
+                cover.support(u) - base,
+            )
         }
-    }
+    })
 }
 
 // ------------------------------------------------------------------
@@ -5747,8 +5707,10 @@ mod tests {
             "a stale support is Unresolved: {e:?}"
         );
         assert!(
-            e.to_string().ends_with(&format!("did not resolve, {tail}")),
-            "{e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .ends_with(&format!("did not resolve, {tail}")),
+            "{e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
 
         let mut lone = topo::Body::<f64>::new();
@@ -5769,8 +5731,12 @@ mod tests {
             "a cycle that does not walk is Unwalked: {e:?}"
         );
         assert!(
-            e.to_string().contains("the walk from ") && e.to_string().ends_with(tail),
-            "{e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("the walk from ")
+                && e.render(geom_brep::recourse::Reading::Build)
+                    .ends_with(tail),
+            "{e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
 
         topo::instance::graft_disjoint_all(&mut body, &cube(L * 0.5, Tol::witness()))
@@ -5794,7 +5760,7 @@ mod tests {
             ),
             "a link across shells is Disagrees: {e:?}"
         );
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("resolved, but its structure disagrees")
                 && !text.contains("did not resolve"),
@@ -5858,7 +5824,7 @@ mod tests {
             ),
             "a zero-axis cylinder is Degenerate at its face: {e:?}"
         );
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(&format!(
                 "stored carrier is degenerate under the run's band, {tail}"
@@ -6092,13 +6058,13 @@ mod tests {
         }
     }
 
-    /// **A boxed reach reads its box as computed values**: the carrier's
-    /// certified box is `f64` arithmetic over its hull, so at `Sym` its
-    /// bounds are unknowns, and the reach about a parameterized centre
-    /// re-values to nothing rather than to the box's `f64` numbers moved
-    /// by the centre alone.
+    /// **A boxed reach is a function of the data it reads**: the piece's
+    /// cover is read at the carrier's own scalar, so at `Sym` each of a
+    /// reach's four bounds about a parameterized centre re-values, and to
+    /// the `f64` bound about the moved centre, never to the bound about
+    /// the old centre.
     #[test]
-    fn a_boxed_reach_reads_its_box_as_computed_values() {
+    fn a_boxed_reach_revalues_with_its_centre() {
         use std::sync::Arc;
 
         use geom::{Curve3, NurbsCurve3};
@@ -6141,19 +6107,25 @@ mod tests {
             let at = |_: ParamSymbol| Some(0.125);
             [near, far, low, high].map(|v| revalue(v.node(), &at))
         });
-        assert_eq!(
-            revalued, [None; 4],
-            "the box's bounds are unknowns: no reach re-values as if only the centre moved"
-        );
-        let none = |_: ParamSymbol| None::<f64>;
-        let (bounds, _) = with_session(budget, || {
-            let (lo, hi) = super::lifted_box::<S>([0.0, -1.0, 0.5], [1.0, 2.0, 3.5]).unwrap();
-            [lo, hi].map(|b| b.map(|v| revalue(v.node(), &none)))
-        });
-        assert_eq!(
-            bounds, [[None; 3]; 2],
-            "each of the box's six bounds is an unknown, the low corner's and the high's alike"
-        );
+        let carrier = Curve3::Nurbs(Arc::new(nurbs));
+        let ends = (carrier.eval(0.0), carrier.eval(1.0));
+        let reach = |cx: f64| {
+            let c = Point3::new(cx, 0.5, 0.25);
+            let (near, far) = boxed_reach(&carrier, (0.0, 1.0), ends, c, None).unwrap();
+            let (low, high) =
+                boxed_reach(&carrier, (0.0, 1.0), ends, c, Some(Vec3::unit_x())).unwrap();
+            [near, far, low, high]
+        };
+        let (moved, stayed) = (reach(-3.0 + 0.125), reach(-3.0));
+        for k in 0..4 {
+            let v = revalued[k].unwrap_or_else(|| panic!("bound {k} does not re-value"));
+            assert!(
+                (v - moved[k]).abs() <= 1e-12 && (v - stayed[k]).abs() > 1e-6,
+                "bound {k} re-values to {v}, not the moved centre's {} (the old {})",
+                moved[k],
+                stayed[k]
+            );
+        }
     }
 
     /// Review probe (PR 3715): tier 3 certifies an ellipse whose

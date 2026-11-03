@@ -96,7 +96,10 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
         face, other, gap, ..
     } = e
     else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!(
+            "expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         (gap - 0.4).abs() < 1e-9,
@@ -135,7 +138,11 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let t = 0.3;
     let e = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
         .expect_err("the notches' concave faces are read as facing");
-    assert!(matches!(e, ShellError::WallClearance { .. }), "got {e}");
+    assert!(
+        matches!(e, ShellError::WallClearance { .. }),
+        "got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     // Below the wall it builds: at t = 0.1 the notch walls (0.4 apart
     // in x, footprints 0.5 apart in y) clear.
     let s = topo::shell(&finished("the operand", body.clone(), tol), 0.1, tol)

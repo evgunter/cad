@@ -655,7 +655,7 @@ const DRIVER_CARRIED: &[&str] = &[
 
 #[test]
 fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
-    let carried = payloads::euler().to_string();
+    let carried = payloads::euler().render(geom_brep::recourse::Reading::Build);
     let (_, recourse) = carried
         .split_once("Recourse: ")
         .expect("the sample operation refusal states a recourse");
@@ -4738,19 +4738,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnsupportedUnjudgedGlue",
-            NamingError::UnsupportedUnjudgedGlue {
-                face: topo::FaceKey::default(),
-                faces: vec![
-                    (
-                        editor_core::VarId::new(0, tagged(41)),
-                        stable(EntityKind::Face, 3),
-                    ),
-                    (
-                        editor_core::VarId::new(0, tagged(43)),
-                        stable(EntityKind::Face, 4),
-                    ),
-                ],
+            "HoldingsUnread",
+            NamingError::HoldingsUnread {
+                face: Some(topo::FaceKey::default()),
+                refusal: topo::HeldRefusal::UncutRemainder {
+                    face: topo::FaceKey::default(),
+                },
             },
         ),
         (
@@ -6068,7 +6061,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         let words = "the sign of a shell's volume cannot be read: this scalar carries no \
                      interval to certify its sums, and the volume lies within their rounding";
         let ending = geom_core::NOT_YET_ENDING;
-        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        assert_eq!(
+            source.render(geom_brep::recourse::Reading::Build),
+            format!("{words}. {ending}")
+        );
         let text = render(CheckEvidence::Unsupported {
             source: source.clone(),
         });
@@ -6594,7 +6590,7 @@ fn longest_breach() -> &'static str {
     .max_by_key(|&breach| {
         let detail = "";
         BlendError::BodyNotIntact { at, breach, detail }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
             .split_whitespace()
             .count()
     })

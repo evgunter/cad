@@ -144,7 +144,7 @@ use geom_core::{Band, Indeterminate, MarginDiag, NOT_YET_ENDING, Point3, Real, S
 
 use crate::certify::CertCheck;
 use crate::recourse::{
-    ReadAt, Reading, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
+    ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
 };
 
 pub use boundary::{
@@ -1460,7 +1460,8 @@ impl SsiError {
     /// both through [`SsiError::render`]. No SSI door takes a
     /// declaration, so no ending offers one.
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> String {
+    pub fn ending(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
+        let reading = reading.into();
         match self {
             Self::TransversalityBand { verdict, .. } => {
                 crate::certify::recourse(CertCheck::Transversality, verdict.arm(), reading)
@@ -1724,8 +1725,14 @@ impl SsiError {
     /// The payload and the ending read at `reading`
     /// ([`SsiError::ending`]).
     #[must_use]
-    pub fn render(&self, reading: Reading) -> String {
+    pub fn render(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
         format!("{self}. {}", self.ending(reading))
+    }
+}
+
+impl crate::recourse::Ended for SsiError {
+    fn ended(&self, at: crate::recourse::ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -2186,7 +2193,7 @@ const GRAZE: SizedDecision = SizedDecision {
 const GRAZE_SIDE: &str = "the plane or the curve so they cross";
 
 /// The graze's ending, its lever naming `side` where the curve is one.
-fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: Reading) -> String {
+fn graze_recourse(side: Option<ChartSide>, verdict: &BandVerdict, reading: ReadAt) -> String {
     let text = GRAZE.recourse(verdict.arm(), reading);
     match side {
         Some(side) => text.replacen(
@@ -2270,7 +2277,7 @@ fn step_cap_words(cap: StepCap) -> &'static str {
 /// The step budget's ending, by the rungs that held the branch's steps:
 /// [`SsiError::StepBudget`]'s, and a refinement's that met the budget
 /// while its refused residual was still falling, which the curvature held.
-fn step_budget_recourse(bound: StepBound, reading: Reading) -> &'static str {
+fn step_budget_recourse(bound: StepBound, reading: ReadAt) -> &'static str {
     match bound {
         StepBound::Cap(StepCap::Idealized) | StepBound::Both(StepCap::Idealized) => {
             STEP_BUDGET_IDEALIZED_RECOURSE

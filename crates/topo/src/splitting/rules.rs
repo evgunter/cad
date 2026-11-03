@@ -70,7 +70,7 @@
 //! an ordinary edge of `S`'s piece: the vertex's runs do not split, no
 //! null edge is minted, and the edge adds nothing to the section. That
 //! is the answer the face contact (rule (a)) and the vertex contact (no
-//! runs, `insert::above_runs`) already give.
+//! runs, `star::runs`) already give.
 //!
 //! **Reflex** — the plane passes through the edge, with material on
 //! both sides. Tangent-edge fixture: a V-notch cut into a block's top,
@@ -1435,7 +1435,7 @@ mod tests {
     /// A refusal's ending is the split's lever alone, after a payload
     /// that is not the poisoned-margin sentence.
     fn ends_in_the_lever(label: &str, e: &SplitReduceError) {
-        let text = e.to_string();
+        let text = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(&format!(
                 ". Recourse: {}",
@@ -1508,8 +1508,10 @@ mod tests {
         };
         assert!((m.abs() - 1.0).abs() <= 1e-15, "{label}: the margin {m}");
         assert!(
-            e.to_string().contains("within the zero band"),
-            "{label}: {e}"
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("within the zero band"),
+            "{label}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
         ends_in_the_lever(label, e);
     }
@@ -1697,7 +1699,7 @@ mod tests {
                 face: FaceKey::default(),
                 reading,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(want.as_str()), "{label}: {text}");
         }
     }

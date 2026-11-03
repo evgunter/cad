@@ -251,3 +251,8 @@ Newest entries at the bottom; the tail is the program's live status.
     - `[ev]` added to 6394's title, with the question at the top of its body. The options are accept the rule (recommended), keep the old projection, or refuse carried axes there.
     - The fix pass on the union runs meanwhile, with the item-6 rule untouched.
   - **Class:** "unchanged" claims in an `[ev]` summary must be measured, not argued. 6369's "perpendicular axes unchanged" was true by argument for the designers' cases and false for one they marked unsure. (PLACING orchestrator)
+- 2026-11-03 — **PR 6394's fix pass is in**, green at `fd11967b`; the orchestrator's read accepts it.
+  - **Every union item is fixed.** New rows pin an oblique rest's position, and go red under option (b). Also fixed: `read_back` beside a read spin; `Slide(None)`'s closed form; the story's refusal restored by a picked-edge ring; the weak rows; one door, `Constraint::reads`; `leaves` generic; the stale prose; the mate tool keeping new-form values on re-edit.
+  - **Filed:** `a-rows-zero-slides-across-a-read-refuse-once-an-edit-turns-the-read-into-their-plane` (P3), `the-pattern-gesture-evaluates-the-whole-document-to-read-its-pick` (P4), MSOLVE's `a-chains-no-two-in-a-row-rule-compares-read-axes-by-identity-not-by-line`, and `work/issues/main-red-two-slow-digest-rows-at-8ae2b9b` (both reviewers' N3).
+  - **A container restart** killed the lane's background CI polls mid-pass. The lane was resumed and polled in the foreground. Lanes are told never to poll in the background; this one had.
+  - **6394 now waits only on Ev's `[ev]` answer** on the oblique rule. (PLACING orchestrator)

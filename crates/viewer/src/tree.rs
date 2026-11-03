@@ -1177,48 +1177,6 @@ fn split_emptiness(above: &SplitSide<f64>, below: &SplitSide<f64>) -> Option<Emp
     }
 }
 
-/// **What a split's value comes to**, as its tree row reads it: the
-/// part holding no material ([`Emptiness`]), or `Ok(None)` for a split
-/// with material on both sides. For a reader asking before the split is
-/// committed, of a staged evaluation
-/// ([`crate::session::DocSession::staged_for`]).
-///
-/// # Errors
-///
-/// [`SplitUnread`]: the node's standing when it has no value, or a node
-/// whose value is not a split's.
-pub fn split_reading(
-    evaluation: &Evaluation<f64>,
-    id: RecipeNodeId,
-) -> Result<Option<Emptiness>, SplitUnread> {
-    match &evaluation
-        .usable(id)
-        .map_err(SplitUnread::Standing)?
-        .payload
-    {
-        ValuePayload::Split { above, below } => Ok(split_emptiness(above, below)),
-        _ => Err(SplitUnread::NotASplit),
-    }
-}
-
-/// **Why [`split_reading`] has no reading.**
-#[derive(Clone, Debug)]
-pub enum SplitUnread {
-    /// The node has no value: its standing.
-    Standing(pncad::document::NodeStanding),
-    /// The node's value is not a split's.
-    NotASplit,
-}
-
-impl std::fmt::Display for SplitUnread {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Standing(standing) => write!(f, "{standing}"),
-            Self::NotASplit => f.write_str("the node read is not a split"),
-        }
-    }
-}
-
 /// **A value assertion's verdict, its numbers carried in its value's
 /// dimension.** A value claim's value is a scalar variable, and its
 /// kind's dimension is the one both numbers are in.
@@ -1679,7 +1637,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Backwards { mate, .. }
         | MateFault::Unoriented { mate }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
-        MateFault::NoChart { value, .. } => vec![value.placement],
+        MateFault::NoChart { value, .. } | MateFault::ReadUnevaluated { value, .. } => {
+            vec![value.placement]
+        }
         // A claim about one bundle: its placement is the row.
         MateFault::Overconstrained { placement, .. } | MateFault::Unpinned { placement, .. } => {
             vec![*placement]

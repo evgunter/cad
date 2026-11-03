@@ -220,7 +220,6 @@ use crate::splitting::containment::{
 };
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
-use geom_brep::recourse::Reading;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::region::RegionRefusal;
@@ -571,8 +570,12 @@ impl From<PointInLoopError> for PointInSolidError {
     }
 }
 
-impl core::fmt::Display for PointInSolidError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PointInSolidError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             // The escalation names no decision, so it ends as the
             // containment door ends the same escalation
@@ -580,9 +583,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::Escalated { diag, .. } => write!(
                 f,
                 "cannot tell what is inside the solid: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     super::placement_subject(None),
-                    super::placement_ending(None, Escalation::Margin, diag, Reading::Build),
+                    at.map(|at| super::placement_ending(None, Escalation::Margin, diag, at)),
                 )
             ),
             Self::RayExhausted => write!(
@@ -590,7 +594,11 @@ impl core::fmt::Display for PointInSolidError {
                 "cannot tell what is inside the solid: {}",
                 ray_walk::NoRaySettled
             ),
-            Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
+            Self::Loop(e) => write!(
+                f,
+                "cannot tell what is inside the solid: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"
@@ -682,6 +690,8 @@ impl core::fmt::Display for PointInSolidError {
         }
     }
 }
+
+geom_brep::ended_by_write!(PointInSolidError);
 
 impl std::error::Error for PointInSolidError {}
 
@@ -2895,7 +2905,7 @@ fn clear_of_carrier<T: Decide>(
 /// carrier (normal `normal`) within the band, pass definitely beside the
 /// face? The ray lies in the plane through `q` spanned by `d` and
 /// `normal`, whose normal is `m = normal × d`; the face lies in the hull
-/// of its outer loop's vertices and its curved edges' balls
+/// of its outer loop's vertices and its edges' covers
 /// ([`loop_hull`](crate::splitting::containment::loop_hull)), so when
 /// every one of them is definitely on one side of that plane, no point
 /// of the face is on the ray. `bool_point_in_solid_beside` decides the
@@ -2913,19 +2923,20 @@ fn ray_passes_beside<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-    let (verts, balls) = crate::splitting::containment::loop_hull(body, f.outer)
+    let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
     let m = m / m.norm();
+    let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
-    // An edge lies in each of its balls, so on a side of the plane where
-    // either ball does: its clearance is the clearer ball's.
-    for pair in verts.into_iter().map(|v| [(v, T::zero()); 2]).chain(balls) {
-        let [(a, b), (a2, b2)] = pair.map(|(c, r)| {
-            let h = (c - q).dot(m);
-            (h - r, T::zero() - h - r)
-        });
-        let (a, b) = (a.max(a2), b.max(b2));
+    // Each part's least height above the plane, and least depth below it:
+    // a vertex's own, an edge's cover's support either way.
+    let vertex = |v: Point3<T>| {
+        let h = (v - q).dot(m);
+        (h, T::zero() - h)
+    };
+    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
     }
@@ -5867,7 +5878,7 @@ mod escalated_ending_rows {
                 escalation: Escalation::Margin,
                 diag,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let placement = contfp.strip_prefix("contfp: ").unwrap();
             for (label, e) in [
                 ("solid door", PointInSolidError::Escalated { face, diag }),
@@ -5876,7 +5887,7 @@ mod escalated_ending_rows {
                     RegionRefusal::Escalated(diag).of_face(face),
                 ),
             ] {
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.strip_prefix("cannot tell what is inside the solid: "),
                     Some(placement),

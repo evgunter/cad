@@ -81,7 +81,7 @@ use super::enclose::{
     Box3, NurbsBoxes, UvWindow, has_implicit_enclosure, implicit_enclosure, refused_box,
 };
 use super::four::{Box4, PairBoxes};
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, defect_ending};
+use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
 /// is not split again. Fixed and named (C3: "a named constant tied to
@@ -448,7 +448,8 @@ impl FloorRefusal {
     /// tolerance is named); a floor that is not a length is the
     /// caller's knobs; an unreadable root is no input's.
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> String {
+    pub fn ending(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
+        let reading = reading.into();
         let decision = match (self.fault, self.lane) {
             (FloorFault::NotALength, _) => {
                 return "Recourse: give the domain a feature extent and floor scale whose \

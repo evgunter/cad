@@ -147,7 +147,7 @@ pub use enters::{
 };
 pub use extent::{
     ExtentBall, LeverBounds, Reach, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
-    edge_reach_from, points_diameter, points_lever_from, polygon_half_perimeter,
+    points_diameter, points_lever_from, polygon_half_perimeter,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -166,10 +166,11 @@ pub use implicit::{
     implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
-    ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
-    OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite,
-    PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius,
-    SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
+    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
+    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
+    SectionRadius, SphereSphereSection, cone_cone_apex_meeting, cone_cylinder_section,
+    cone_plane_apex_extrema, cylinder_axes_coplanar, cylinder_axes_parallel,
     cylinder_cylinder_section, parallel_axes_at, plane_cone_apex_extrema, plane_cone_section,
     plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
     route, route_pose, sphere_sphere_section, tilted_section_major,
@@ -215,7 +216,8 @@ pub use pcurve_cache::{
     Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
     ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, read_edge_incidence,
+    read_incidence, read_point_incidence,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

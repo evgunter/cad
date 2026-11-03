@@ -84,3 +84,5 @@ Villarceau circle's radius, equals `R` only to the band), `unit_sign`
 leg), an extent read in kind, but `profile` does not depend on
 `geom_brep`, so it has no extent home to read through: whether it gets
 one is a design call.
+
+**2026-11-02 (orchestrator).** PR 6410 adds one pin while fixing main after PR 6387 (reads/holdings) collided with this change. In `topo::boolean::overlap::one_sense` (`bool_overlap_senses`), the cosine of two unit normals is levered at a unit arm. Its source is the faces' extent (the sine × extent reading), and the holdings lane owns that choice.

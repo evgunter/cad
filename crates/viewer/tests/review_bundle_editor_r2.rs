@@ -31,7 +31,11 @@ fn authored(
 }
 
 /// The formula on `coord`, as its text says it.
-fn by_on(session: &DocSession, placement: RecipeNodeId, coord: Coord) -> String {
+fn by_on(
+    session: &DocSession,
+    placement: RecipeNodeId,
+    coord: Coord<pncad::document::Operand>,
+) -> String {
     authored(session, placement)
         .iter()
         .find_map(|c| {
@@ -52,7 +56,7 @@ fn said(session: &DocSession, placement: RecipeNodeId) -> Vec<String> {
 fn id_on(
     session: &DocSession,
     placement: RecipeNodeId,
-    coord: Coord,
+    coord: Coord<pncad::document::Operand>,
 ) -> pncad::document::ConstraintId {
     authored(session, placement)
         .iter()
@@ -276,7 +280,7 @@ fn r2_turning_a_loaded_rests_sense_keeps_a_slide_reading_a_variable() {
     let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
     common::commit_mate(&mut session, proposal.op());
     declare(&mut session, "px", Dimension::Length, asm::POST_B_AT[0]);
-    let slide = id_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let slide = id_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: bench.post_b,
         slot: SlotId::ValueSlide { constraint: slide },
@@ -284,7 +288,7 @@ fn r2_turning_a_loaded_rests_sense_keeps_a_slide_reading_a_variable() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    let px = by_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let px = by_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let (doc, ev) = session.landed_pair().expect("landed");
     let mut edit = MateTool::edit(doc, bench.post_b).expect("a placement");
     edit.set_sense(0, false);
@@ -292,7 +296,7 @@ fn r2_turning_a_loaded_rests_sense_keeps_a_slide_reading_a_variable() {
     let row = flushed
         .values
         .iter()
-        .find(|row| row.coord == Coord::Slide(TargetAxis::X))
+        .find(|row| row.coord == Coord::slide(TargetAxis::X))
         .expect("a slide along x");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     assert_eq!(row.by.to_string(), px, "{:?}", flushed.values);
@@ -444,7 +448,7 @@ fn r2_the_panels_value_rows_are_editable_numbers() {
         .iter()
         .map(|row| {
             let text = viewer::matetool::value_text(doc, &row.by);
-            let typed = viewer::matetool::typed_value(doc, row.coord, &text)
+            let typed = viewer::matetool::typed_value(doc, row.coord.clone(), &text)
                 .ok()
                 .and_then(|by| doc.resolve(&by).ok())
                 .and_then(|by| pncad::document::eval::<f64>(&by, &doc.var_env()).ok());

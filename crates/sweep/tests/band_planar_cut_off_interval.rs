@@ -156,7 +156,12 @@ fn tabbed<T: geom_core::Decide + Bounds + topo::AtRestPolicy>(
         SweepStrategy::Realized,
         tol,
     )
-    .unwrap_or_else(|e| panic!("the tabbed fixture builds, got {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "the tabbed fixture builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
     .body()
     .expect("the tabbed fixture is a body")
     .body
@@ -268,7 +273,12 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
             SweepStrategy::Realized,
             tol,
         )
-        .unwrap_or_else(|e| panic!("the void builds, got {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the void builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body()
         .expect("the void is a body")
         .body
