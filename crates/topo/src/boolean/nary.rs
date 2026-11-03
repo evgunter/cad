@@ -431,20 +431,31 @@ impl NaryRefusal {
     }
 }
 
-impl core::fmt::Display for NaryRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl NaryRefusal {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Arity { members } => write!(
                 f,
                 "an n-ary boolean takes two or more members, and was given {members}"
             ),
-            Self::Hull { member, error } => write!(f, "member {member}'s box: {error}"),
-            Self::Judgement { a, b, error } => {
-                write!(f, "the judgement of members {a} and {b}: {error}")
+            Self::Hull { member, error } => {
+                write!(f, "member {member}'s box: {}", read_at(error.as_ref(), at))
             }
-            Self::Step { member, error } => {
-                write!(f, "the fold step joining member {member}: {error}")
-            }
+            Self::Judgement { a, b, error } => write!(
+                f,
+                "the judgement of members {a} and {b}: {}",
+                read_at(error.as_ref(), at)
+            ),
+            Self::Step { member, error } => write!(
+                f,
+                "the fold step joining member {member}: {}",
+                read_at(error.as_ref(), at)
+            ),
             Self::VerdictsDisagree {
                 member,
                 face,
@@ -457,6 +468,8 @@ impl core::fmt::Display for NaryRefusal {
         }
     }
 }
+
+geom_brep::ended_by_write!(NaryRefusal);
 
 impl core::error::Error for NaryRefusal {}
 

@@ -247,8 +247,8 @@ pub enum ChartRegionError {
     /// incidence on the plane: decided off it, read at a pose, or
     /// undecided. It carries that read, which each reader ends at its own
     /// door by the one map (`geom_brep::IncidenceRead::ending`; at rest,
-    /// the validator's classifier); its `Display` ends at rest, the ending
-    /// true at every door.
+    /// the validator's classifier); its `Display` is the payload alone,
+    /// and `render(at)` ends it at the reader's door.
     TrimOffFace {
         /// The face whose loop refused.
         face: FaceKey,
@@ -381,8 +381,12 @@ pub(crate) const EDGE_SCALE_RECOURSE: &str =
 /// What [`ChartRegionError::Escalated`] leaves undecided.
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
 
-impl core::fmt::Display for ChartRegionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ChartRegionError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::ChartDivergence { detail } => write!(
                 f,
@@ -407,20 +411,23 @@ impl core::fmt::Display for ChartRegionError {
                  is the named exclusion and has neither, so it waits on the curved \
                  region lane"
             ),
-            // The at-rest ending holds at every door: a read in band ends
-            // in its lever at each, and a definite miss names the kernel or
-            // the file it was read from, either of which is the culprit
-            // wherever this is reported.
-            Self::TrimOffFace { read, .. } => write!(
-                f,
-                "chart-region: an edge of a plane face {}. {}",
-                if read.is_definite() {
-                    "does not lie on the face's plane"
-                } else {
-                    "is not shown on the face's plane"
-                },
-                read.ending(geom_brep::recourse::Reading::AtRest)
-            ),
+            // The read is the payload; the region query's caller ends it
+            // at its own door (`IncidenceRead::ending`).
+            Self::TrimOffFace { read, .. } => {
+                write!(
+                    f,
+                    "chart-region: an edge of a plane face {}",
+                    if read.is_definite() {
+                        "does not lie on the face's plane"
+                    } else {
+                        "is not shown on the face's plane"
+                    }
+                )?;
+                match at {
+                    Some(at) => write!(f, ". {}", read.ending(at)),
+                    None => Ok(()),
+                }
+            }
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
@@ -481,9 +488,11 @@ impl core::fmt::Display for ChartRegionError {
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
                 f,
                 "chart-region: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     OVERLAP_SUBJECT,
-                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                    geom_brep::recourse::at_build(at)
+                        .map(|at| geom_brep::recourse::defect_ending(at).to_owned()),
                 )
             ),
             Self::Escalated(diag) => write!(
@@ -522,6 +531,8 @@ impl core::fmt::Display for ChartRegionError {
         }
     }
 }
+
+geom_brep::ended_by_write!(ChartRegionError);
 
 impl std::error::Error for ChartRegionError {}
 
@@ -3782,6 +3793,35 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A trim off its plane ends by the door that reads it**: a
+    /// definite miss names the kernel at a build and the kernel or the
+    /// file at rest, and its `Display` names neither. Red if the region
+    /// query's refusal ends at one door for every reader.
+    #[test]
+    fn a_trim_off_its_face_ends_by_the_readers_door() {
+        use geom_brep::recourse::Reading;
+        let off = ChartRegionError::TrimOffFace {
+            face: FaceKey::default(),
+            half_edge: HalfEdgeKey::default(),
+            read: geom_brep::IncidenceRead::Off(None),
+        };
+        let (build, rest) = (off.render(Reading::Build), off.render(Reading::AtRest));
+        assert!(
+            build.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "a build names the kernel: {build}"
+        );
+        assert!(
+            rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest the kernel or the file: {rest}"
+        );
+        let payload = off.to_string();
+        assert!(
+            !payload.contains(geom_core::KERNEL_DEFECT_ENDING)
+                && !payload.contains(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+            "the payload names no culprit: {payload}"
+        );
+    }
+
     /// **A poisoned overlap decision ends in the build's defect ending**
     /// (D4 ¶1 (i)): no declaration or move makes an unreadable margin
     /// readable. A margin that was read keeps the coincidence menu.
@@ -3794,7 +3834,7 @@ mod tests {
             terminal_sliver: false,
         };
         let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
-        let text = poisoned.to_string();
+        let text = poisoned.render(geom_brep::recourse::Reading::AtRest);
         assert!(
             text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
             "{text}"
@@ -3803,9 +3843,10 @@ mod tests {
         let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
         assert!(
             in_band
-                .to_string()
+                .render(geom_brep::recourse::Reading::AtRest)
                 .contains(geom_core::COINCIDENCE_RECOURSE),
-            "{in_band}"
+            "{in_band_at}",
+            in_band_at = in_band.render(geom_brep::recourse::Reading::AtRest)
         );
     }
 
@@ -3935,7 +3976,7 @@ mod tests {
             .map(sample)
             .collect();
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::AtRest);
             // `Escalated` delegates to `Indeterminate`, whose Display
             // ends in the shared coincidence recourse — it is covered
             // by the carrier and not by a clause of its own.
@@ -3961,12 +4002,12 @@ mod tests {
         let segment = ChartRegionError::WitnessSegmentCapExceeded {
             segments: WITNESS_SEGMENT_CAP + 1,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         let cell = ChartRegionError::WitnessCellCapExceeded {
             segments: WITNESS_SEGMENT_CAP,
             cells: WITNESS_CELL_CAP,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         let names = |msg: &str, cap: &str, n: usize| msg.contains(&format!("{cap} cap of {n}"));
         assert!(
             names(&segment, "segment", WITNESS_SEGMENT_CAP)

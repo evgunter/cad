@@ -1232,3 +1232,9 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Ruled (API):** the public `Body::loop_lift` stays strict, because finished bodies hold no null edges and no public caller would ever vary the policy. The `Skipped` lift gets a crate-private door.
   - The skip's exactness rests on the mint's identity joint elements (`euler.rs`), so the docs cite that.
   - **Fix pass:** the orchestrator reads it.
+- 2026-11-03 — **PR 6429 merges** (`far-union-volume`), closing `main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6` and `the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12`. The far union was built right. Its test read a quadrature midpoint against a band three orders tighter than the bracket.
+  - The first pass widened the band by the bracket. The review let a 500ε cap displacement through that, so the fix pass measures at a stated resolution (1e-6 m) and asserts each bracket within the band. Every survivor dies at every ε; the floor is a 3e-6 m displacement.
+  - The orchestrator read the fix pass; there was no re-review. The test-only diff gives `topo::test_support` a `volume_at` and an `assert_volume_near`.
+  - The 1e-12 row went from 159 s to 29 s.
+  - Filed: `tint/volume-rows-hold-a-midpoint-within-a-band-plus-an-unbounded-pad` (11 sites), plus evidence on `issues/a-tilted-plane-cut-through-a-tube-measures-1e-7-off-the-closed-form`.
+  - Main reds the lane met, all already filed: BOXES' inventory, FLUSH's needle cavity, and SPLITDOOR's `the-cone-fuzz-draws-a-cone-bounding-no-one-material-at-a-seed`.

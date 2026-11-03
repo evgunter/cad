@@ -161,7 +161,7 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
             edge: EdgeKey::default(),
             error: refusal,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             at_rest.contains(topo::test_support::incidence_reasons::OFF)
                 && at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),

@@ -121,8 +121,12 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
     let want_beta = -MINOR / (MAJOR + (MAJOR * MAJOR - MINOR * MINOR).sqrt());
     for (what, carrier) in poses() {
         assert!(off_torus(&carrier) < 1e-14, "{what}: on the torus");
-        let image = chart_pcurve(&carrier, &surface, band())
-            .unwrap_or_else(|e| panic!("{what}: no image: {e}"));
+        let image = chart_pcurve(&carrier, &surface, band()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: no image: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let Pcurve::FocalSection(FocalImage {
             t0,
             va,
@@ -155,8 +159,13 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
             // The row is the image placed over the span it certifies on
             // (C4).
             let row = chart_pcurve_over(&carrier, a, b, &surface, band()).unwrap();
-            let cache = PcurveCache::certify(row, a, b, &carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}, [{a}, {b}]: {e}"));
+            let cache =
+                PcurveCache::certify(row, a, b, &carrier, &surface, band()).unwrap_or_else(|e| {
+                    panic!(
+                        "{what}, [{a}, {b}]: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let cert = cache.certificate();
             assert!(
                 cert.envelope < 1e-12,
@@ -227,7 +236,12 @@ fn the_rows_certify_at_the_interval_scalar() {
             &surface,
             band(),
         )
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let cert = cache.certificate();
         assert_eq!(cert.samples, 0, "{what}: no schedule at an exact witness");
         assert!(
@@ -509,10 +523,19 @@ fn an_in_band_move_is_never_read_off_the_torus() {
         for fraction in [0.2, 0.5, 0.9] {
             let what = format!("r/R {ratio}, moved {fraction}·ε along the axis");
             let carrier = moved(fraction * eps());
-            let image = chart_pcurve(&carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}: refused: {e}"));
+            let image = chart_pcurve(&carrier, &surface, band()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cache = PcurveCache::certify(image.clone(), 0.0, TAU, &carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}: the image does not certify: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: the image does not certify: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let mut sup = 0.0_f64;
             for i in 0..=4096 {
                 let t = TAU * f64::from(i) / 4096.0;
@@ -789,7 +812,7 @@ fn a_tube_rate_gates_rejected_zero_is_a_class_reading() {
         "the gate that rejected: {cause:?}"
     );
     assert_eq!(
-        refusal.to_string(),
+        refusal.render(geom_brep::recourse::Reading::Build),
         "pcurve certification: ChartClass at sample 0 escalated: margin 9e-10 lies within \
          the zero band (±1e-9). There is no way through yet",
         "the rendered refusal"

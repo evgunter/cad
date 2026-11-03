@@ -88,6 +88,9 @@ fn r2_collapsed_boundary_balloon_probe() {
             fb.area.hi(),
             fb.area.width()
         ),
-        Err(e) => println!("R2 balloon: refused {e} — fallback not reached through this shape"),
+        Err(e) => println!(
+            "R2 balloon: refused {e_at} — fallback not reached through this shape",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        ),
     }
 }

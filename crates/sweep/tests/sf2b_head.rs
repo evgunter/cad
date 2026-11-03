@@ -354,7 +354,10 @@ fn sf2b_head_measurement() {
         match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
             Ok(_) => println!("  HOLLOWS"),
             Err(e) => {
-                println!("  Display: {e}");
+                println!(
+                    "  Display: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
                 println!("  Debug:   {e:?}");
             }
         }

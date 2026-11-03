@@ -102,7 +102,10 @@ fn hold(
     let run = match out {
         Ok(run) => run,
         Err(e) => {
-            println!("PROBE {name}: REFUSED {e} ({dt:?})");
+            println!(
+                "PROBE {name}: REFUSED {e_at} ({dt:?})",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            );
             return None;
         }
     };
