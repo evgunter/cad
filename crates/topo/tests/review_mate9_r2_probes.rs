@@ -43,13 +43,8 @@
 
 use crate::common;
 
-use geom::Surface;
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::Tol;
 use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// The straddle seat of the MATE-9 suite, verbatim: a cap
 /// `[0.30, 0.60] x [0.20, 0.42]` under a shelf `[0, 0.9] x [0, 0.30]`,
@@ -123,79 +118,6 @@ fn crossings(errors: &[ValidationError]) -> Vec<(CensusContact, String)> {
             _ => None,
         })
         .collect()
-}
-
-fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
-    let u_ref = if normal.x.abs() < 0.5 {
-        Vec3::new(1.0, 0.0, 0.0)
-    } else {
-        Vec3::new(0.0, 1.0, 0.0)
-    };
-    Surface::Plane {
-        origin,
-        normal,
-        u_ref: normal.cross(u_ref).cross(normal).normalize(),
-    }
-}
-
-/// **Probe 1 — the imported fold's precondition is dropped.**
-///
-/// The unit's `a_perpendicular_pair_holding_the_point_escalates_undecided`
-/// row reaches the third verdict arm through the post's `x = 0.30`
-/// side face against the shelf's `y = 0.30` side face: two
-/// PERPENDICULAR planes. Its prose calls the outcome an exact-zero ε
-/// margin. But `classify_material_pairing`'s contract is a
-/// `DihedralClass::Smooth` site, and this pair classifies
-/// `Transverse` — so the algebra is being consulted outside its
-/// documented domain, and the `Indeterminate` it returns carries a
-/// DECIDED zero (normals that name no side, per its own `# Errors`
-/// section), NOT the in-band residue `CrossingSideVerdict::Undecided`'s
-/// doc claims.
-#[test]
-fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
-    let q = Point3::new(0.30, 0.30, 0.5);
-    // The post's x = 0.30 side face (outward -x) and the shelf's
-    // y = 0.30 side face (outward +y), both through q.
-    let s_post = plane(q, Vec3::new(-1.0, 0.0, 0.0));
-    let s_shelf = plane(q, Vec3::new(0.0, 1.0, 0.0));
-    // The shorter crossing edge, roughly.
-    let extent = geom_core::test_support::fixture_lever(0.22_f64);
-    let arm = geom_brep::folded_lever_arm(&s_post, &s_shelf, q, extent);
-
-    // (a) The site is NOT smooth — the precondition both existing
-    //     consumers establish before calling the pairing algebra.
-    let dihedral = geom_brep::classify_dihedral(&s_post, &s_shelf, q, extent, band()).unwrap();
-    assert_eq!(
-        dihedral,
-        geom_brep::DihedralClass::Transverse,
-        "the perpendicular declared pair is a TRANSVERSE dihedral site, \
-         not the Smooth one classify_material_pairing documents as its \
-         domain"
-    );
-
-    // (b) And the pairing call's failure is a decided zero — the
-    //     question-not-posed diagnosis — at every band, not an
-    //     in-band ε residue.
-    let err = geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, band())
-        .expect_err("perpendicular normals decide neither aligned nor opposed");
-    assert_eq!(
-        err.margin.rejected_sign(),
-        Some(geom_core::Sign::Zero),
-        "the undecided arm's cause is a decided zero (normals that name no \
-         side), which is not what `CrossingSideVerdict::Undecided`'s doc — \
-         \"could not decide at this ε\" — says: {err:?}"
-    );
-    // Widening the band does not change it: nothing about this is a
-    // tolerance question.
-    let wide = Band::new(1e-3, 1e-2).unwrap();
-    let err_wide =
-        geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, wide)
-            .expect_err("still no verdict at a 1e-3 band");
-    assert_eq!(
-        err_wide.margin.rejected_sign(),
-        Some(geom_core::Sign::Zero),
-        "ε-independent: {err_wide:?}"
-    );
 }
 
 /// **Probe 2 — the rung's posture is a total function of the

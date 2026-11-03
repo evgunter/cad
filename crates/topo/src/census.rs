@@ -5287,24 +5287,22 @@ fn ee_cross_backed<T: Decide>(
         // transverse planes where both hug the planes' common line, so a
         // definitely transverse pair passes the edge screen and still
         // does not hold the crossing: it answers for nothing.
-        match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
-            Ok(geom_brep::DihedralClass::Smooth) => {}
-            Ok(geom_brep::DihedralClass::Transverse) => continue,
+        let tangency = match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
+            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
+            Ok(geom_brep::Dihedral::Corner(_)) => continue,
             Err(escalation) => {
                 undecided.push(escalation.diag());
                 continue;
             }
-        }
-        let arm = geom_brep::folded_lever_arm(sa, sb, q, arm_extent);
-        let side =
-            match geom_brep::classify_material_pairing(sa, da.sense, sb, db.sense, q, arm, band) {
-                Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-                Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-                Err(cause) => {
-                    undecided.push(cause);
-                    continue;
-                }
-            };
+        };
+        let side = match tangency.pairing([da.sense, db.sense], band) {
+            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
+            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
+            Err(escalation) => {
+                undecided.push(escalation.diag());
+                continue;
+            }
+        };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
             // nothing; its own state is the confirm pass's report.

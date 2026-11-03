@@ -7759,6 +7759,11 @@ fn route_rim<T: Decide>(
             },
             wedge,
         })),
+        // A rim whose stations disagree, or one with a spline face the
+        // routing reads no wedge of: a junction it cannot place.
+        rim_wedge::RimRouting::Mixed(_)
+        | rim_wedge::RimRouting::Split(_)
+        | rim_wedge::RimRouting::SplineFace => Err(Refused(BooleanError::TangencyUnsupported)),
         // The table verified the pair tangent with a definite
         // second-order margin, so neither a crossing nor an osculating
         // lamina remains for the routing to find.
@@ -9382,7 +9387,7 @@ mod tests {
             },
             BooleanError::MixedSeam {
                 edge: EdgeKey::default(),
-                stations: Some(geom_brep::MixedStations {
+                stations: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),

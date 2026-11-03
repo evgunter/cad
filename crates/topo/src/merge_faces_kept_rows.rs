@@ -225,7 +225,7 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
             body.get_surface(s1).unwrap().clone(),
             body.get_surface(s2).unwrap().clone(),
         );
-        if let Ok(geom_brep::DihedralClass::Transverse) = geom_brep::classify_dihedral(
+        if let Ok(geom_brep::DihedralClass::Transverse) = geom_brep::dihedral_class(
             &surfaces.0,
             &surfaces.1,
             witness,

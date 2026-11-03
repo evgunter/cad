@@ -11,7 +11,7 @@
 use geom::Curve3;
 use geom_brep::{
     DihedralClass, EdgeDescriptionSpec, MustCarryDescription, SmoothJoin, SurfacePair,
-    classify_dihedral, must_carry_description,
+    dihedral_class, must_carry_description,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -86,7 +86,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
         .get_surface(s2)
         .cloned()
         .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
-    match classify_dihedral(&surf1, &surf2, data.witness, data.reach, band) {
+    match dihedral_class(&surf1, &surf2, data.witness, data.reach, band) {
         Ok(DihedralClass::Transverse) => {
             body.restate_stored_edge(
                 edge,

@@ -1832,7 +1832,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
             let witness = draft.witness;
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
-                Ok(geom_brep::DihedralClass::Transverse) => {
+                Ok(geom_brep::Dihedral::Corner(_)) => {
                     let carrier = draft.span().0.kind();
                     let drafted = crate::pcurves::seam_intersection(
                         body,
@@ -1853,19 +1853,15 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 // pairing tells them apart — tier 3's own reading
                 // (D1). The wedge end is a knife edge no input
                 // declared: this op's refusal.
-                Ok(geom_brep::DihedralClass::Smooth) => {
+                Ok(geom_brep::Dihedral::Tangent(tangency)) => {
                     if !matches!(surf_other, Surface::Plane { .. }) {
                         let sense_of = |f| body.get_face(f).map(|d| d.sense).ok_or_else(corrupt);
-                        let pairing = geom_brep::classify_material_pairing(
-                            surf_self,
-                            sense_of(face)?,
-                            surf_other,
-                            sense_of(other_face)?,
-                            witness,
-                            geom_brep::folded_lever_arm(surf_self, surf_other, witness, reach),
-                            band,
-                        )
-                        .map_err(|diag| SplitFinishError::DescribeSideEscalated { edge, diag })?;
+                        let pairing = tangency
+                            .pairing([sense_of(face)?, sense_of(other_face)?], band)
+                            .map_err(|e| SplitFinishError::DescribeSideEscalated {
+                                edge,
+                                diag: e.diag(),
+                            })?;
                         if pairing == geom_brep::MaterialPairing::Opposed {
                             return Err(SplitFinishError::KnifeEdge(KnifeEdge {
                                 wall: other_face,
@@ -2496,7 +2492,7 @@ mod smooth_arm_rows {
                 assert_eq!(refused, edge, "the refusal names the mixed edge");
                 assert_eq!(
                     stations,
-                    geom_brep::MixedStations {
+                    geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4
                     },
