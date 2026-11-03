@@ -1125,7 +1125,10 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         );
         // The stored line moved off the carrier, inside the band.
         let mut moved = (**p).clone();
-        let (dp, dd) = (unit(&mut s) * (0.3 * b.zero()), unit(&mut s) * (0.1 * b.zero()));
+        let (dp, dd) = (
+            unit(&mut s) * (0.3 * b.zero()),
+            unit(&mut s) * (0.1 * b.zero()),
+        );
         let FramedCarrier::Line { point, dir, .. } = &mut moved.carrier else {
             unreachable!("matched above")
         };
@@ -1160,8 +1163,7 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
             origin: f(o),
             span: f(span),
         };
-        if let Ok(cache) =
-            PcurveCache::certify_projected(moved_i, f(t0), f(t1), &ci, &si, b, None)
+        if let Ok(cache) = PcurveCache::certify_projected(moved_i, f(t0), f(t1), &ci, &si, b, None)
         {
             let env = cache.certificate().envelope.hi();
             assert!(

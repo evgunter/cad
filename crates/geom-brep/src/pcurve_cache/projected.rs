@@ -1063,7 +1063,8 @@ fn chart_of<T: Decide>(
                 let (d0, d1) = net.knot_values().domain();
                 net.eval(T::from_f64(0.5) * (d0 + d1)).z
             }
-            FramedCarrier::Circle { origin, span, .. } | FramedCarrier::Line { origin, span, .. } => {
+            FramedCarrier::Circle { origin, span, .. }
+            | FramedCarrier::Line { origin, span, .. } => {
                 framed.eval(*origin + *span * T::from_f64(0.5)).z
             }
         },
@@ -2252,7 +2253,11 @@ pub(super) fn projected_envelope<T: Decide>(
             // `t`, so its sup over the edge is at an end.
             let gap = |t: T| (point - p + (dir - l) * t).norm();
             let d = gap(t0).max(gap(t1));
-            (line_off_cylinder_sup(p + l * t0, p + l * t1, radius), d, T::zero())
+            (
+                line_off_cylinder_sup(p + l * t0, p + l * t1, radius),
+                d,
+                T::zero(),
+            )
         }
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };

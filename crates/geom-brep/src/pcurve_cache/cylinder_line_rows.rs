@@ -42,7 +42,10 @@ fn line_at(surface: &Surface<f64>, phi: f64, off: f64, tilt: f64) -> Curve3<f64>
     };
     let (s, c) = phi.sin_cos();
     let at = origin + Vec3::new(c, s, 0.0) * (radius + off) + Vec3::new(0.0, 0.0, 0.3);
-    Curve3::line(at, (Vec3::new(-s, c, 0.0) * tilt + Vec3::unit_z()).normalize())
+    Curve3::line(
+        at,
+        (Vec3::new(-s, c, 0.0) * tilt + Vec3::unit_z()).normalize(),
+    )
 }
 
 /// The image `chart_pcurve_over` derives for `carrier` over `span`, at
@@ -300,7 +303,10 @@ fn a_line_definitely_off_ends_as_its_incidence_read() {
             "parallel",
             line_at(&surface, 1.0, 4.0 * band().escalate(), 0.0),
         ),
-        ("in-band tilt", line_at(&surface, 1.0, 4.0 * band().escalate(), in_band())),
+        (
+            "in-band tilt",
+            line_at(&surface, 1.0, 4.0 * band().escalate(), in_band()),
+        ),
         ("tilted", line_at(&surface, 1.0, 0.0, 0.2)),
     ] {
         let (at_f64, at_interval) = derived(&carrier, (-0.5, 0.5), &surface);
