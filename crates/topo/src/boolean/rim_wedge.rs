@@ -42,7 +42,7 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
 use crate::{Body, FaceKey};
-use geom_brep::ladder::{Answering, Climb, IdentityLadder, Rung, climb, read_identity};
+use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -97,25 +97,20 @@ pub(crate) enum RimRouting {
 /// wins; a face pair riding two common circles at once is not a rim
 /// contact and is outside what this door claims to see.
 ///
-/// **Why the comparison is written here rather than consumed from
-/// `carrier_eq`, stated so the next reader does not have to re-derive
-/// it.** The resemblance is real and it is now exact in POSTURE as well
-/// as in data: both compare a centre, an axis line and a radius; both
-/// meter the angular datum at a consumption extent rather than at unit
-/// arm; both treat an in-band datum as an escalation rather than as a
-/// separation. What differs is the subject. `carrier_eq` is a ladder
-/// over SURFACE carriers — its inventory is plane, sphere, cylinder,
-/// torus, its verdict is a material-side relation (`SameOriented` /
-/// `SameOpposite` / `Distinct`), and its rungs consult declared
-/// intent. A rim is a CURVE, it has no material side, and
-/// no declaration is being verified here: the question is only "are
-/// these two boundary edges the same circle". Consuming the ladder
-/// would mean giving it a curve-carrier variant with no orientation and
-/// no identity rungs — a fifth `CarrierDesc` arm that answers a
-/// different kind of question — which is a design move on the C4 table,
-/// not a de-duplication. Until someone wants that variant for its own
-/// sake, one small comparison stated plainly beats a ladder bent to
-/// cover two subjects.
+/// **Which question the caller asks** ([`Answering`]). A caller
+/// that reads WHICH rim answered asks this door ([`Answering::First`]): that it is
+/// THE shared rim rests on no earlier pair being one too, so an
+/// undecided pair ahead of the answer stays live. A caller that asks
+/// only whether a rim exists asks [`rim_exists`] ([`Answering::Any`]): every pair decided
+/// one answers it alike, so an undecided pair ahead is superseded.
+///
+/// **The comparison is the identity ladder's** ([`same_circle`] reads
+/// [`read_identity`], as `carrier_eq`'s curved rungs do); only the
+/// subject is local. `carrier_eq` compares SURFACE carriers for a
+/// material-side relation (`SameOriented` / `SameOpposite` /
+/// `Distinct`); a rim is a CURVE with no material side, so the
+/// question here is only "are these two boundary edges the same
+/// circle", and its data are the circle's own.
 ///
 /// **The angular margin is metered at the candidate's own extent**, not
 /// at unit arm. A dimensionless sine says nothing until it is priced as
@@ -148,27 +143,44 @@ pub(crate) fn shared_rim<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
+    rims(a, fa, b, fb, Answering::First, band)
+}
+
+/// Whether `fa` and `fb` end on a common circle: [`shared_rim`]'s ladder
+/// asked only whether a rim exists ([`Answering::Any`]).
+///
+/// # Errors
+///
+/// As [`shared_rim`].
+pub(in crate::boolean) fn rim_exists<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    rims(a, fa, b, fb, Answering::Any, band).map(|rim| rim.is_some())
+}
+
+/// The rim ladder under the caller's `answering` ([`shared_rim`]'s docs).
+fn rims<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    answering: Answering,
+    band: Band,
+) -> Result<Option<(Rim<T>, geom_core::MarginDiag)>, Indeterminate> {
     // A pair decided one answers whatever another pair read: the ladder
-    // whose answer is a pair decided one. Which pair answers names the
-    // rim, and that it is THE shared rim rests on no earlier pair being
-    // one too (a face pair riding two circles is outside this door), so
-    // an undecided pair ahead of the answer stays live
-    // (`Answering::First`).
+    // whose answer is a pair decided one.
     let bs = face_boundary_circles(b, fb);
     let pairs = face_boundary_circles(a, fa)
         .into_iter()
         .flat_map(|ra| bs.iter().map(move |&rb| (ra, rb)));
-    match climb(Answering::First, pairs, |(ra, rb)| {
-        match same_circle(ra, rb, band) {
-            Ok(Some(margin)) => Rung::Answers((ra, margin)),
-            Ok(None) => Rung::Passes,
-            Err(diag) => Rung::kept(diag),
-        }
-    }) {
-        Climb::Answered { answer, .. } => Ok(Some(answer)),
-        Climb::Passed => Ok(None),
-        Climb::Undecided(diag) => Err(diag),
-    }
+    climb(answering, pairs, |(ra, rb)| {
+        Rung::of_reading(same_circle(ra, rb, band).map(|one| one.map(|margin| (ra, margin))))
+    })
+    .into_reading()
 }
 
 /// Whether two circles are one, on their own data at `band`: the
