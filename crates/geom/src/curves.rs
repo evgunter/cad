@@ -60,12 +60,13 @@ pub mod second_derivative;
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, Frame, MajorFrame, on_span_branch};
+pub use conic::{Circle, Conic, Ellipse, Frame, MajorFrame};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
+use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
-use crate::azimuth;
+use crate::azimuth::{self, Azimuth};
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
@@ -810,7 +811,75 @@ impl<T: Real> Curve3<T> {
     }
 }
 
+/// **A point's direction in a spiric's tube section**: `(h, ρ − R)` in
+/// the meridian half-plane through `p`, `h = (p − center)·axis` and `ρ`
+/// its distance from the axis, whose angle is the point's minor angle.
+fn tube_section<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major_radius: T,
+    p: Point3<T>,
+) -> Azimuth<T> {
+    let (h, rho) = on_carrier::height_and_radius(p - center, axis);
+    Azimuth::of(h, rho - major_radius)
+}
+
 impl<T: Decide> Curve3<T> {
+    /// **`t` renamed by whole turns to within half a turn of
+    /// `reference`** on a closed carrier ([`Period::near`]), `t` itself
+    /// on an open one.
+    #[must_use]
+    pub fn branch_near(&self, t: T, reference: T) -> T {
+        if self.is_periodic() {
+            Period::new(T::tau()).near(t, reference)
+        } else {
+            t
+        }
+    }
+
+    /// **The direction of `p` about a closed carrier's centre**, whose
+    /// angle ([`Azimuth::near`]) is the parameter of `p` for a point of
+    /// the carrier: a conic's [`Conic::azimuth`], and on a spiric the
+    /// tube's section, `(h, ρ − R)` in the meridian half-plane with
+    /// `h = (p − center)·axis` and `ρ` the distance from the axis. It
+    /// answers the point's minor angle on either oval: which oval the
+    /// carrier names is the mint's decision. `None` on a line and a
+    /// spline, whose parameter is not an angle.
+    #[must_use]
+    pub fn azimuth(&self, p: Point3<T>) -> Option<Azimuth<T>> {
+        match self {
+            Curve3::Circle(c) => Some(c.azimuth(p)),
+            Curve3::Ellipse(e) => Some(e.azimuth(p)),
+            Curve3::Spiric {
+                center,
+                axis,
+                major_radius,
+                ..
+            } => Some(tube_section(*center, *axis, *major_radius, p)),
+            Curve3::Line(_) | Curve3::Nurbs(_) => None,
+        }
+    }
+
+    /// **The parameter of a point on this carrier within half a turn of
+    /// `near`**: a line's projection ([`Line::param`], `near` unused), a
+    /// closed carrier's [direction](Self::azimuth) read [near](Azimuth::near)
+    /// `near`, and `None` on a spline, whose inversion is a solve
+    /// (`project`). Half a turn from `near`, the tie reads `near + π`.
+    ///
+    /// Off the carrier it answers about `p`'s radial projection (the
+    /// line's axial one), and at a closed carrier's centre, a direction
+    /// of no length, the copy of `0` near `near`: the caller owes the
+    /// point on the carrier. The answer depends on `near` only through
+    /// the whole number of turns, so two anchors within half a turn of
+    /// the point's parameter read it bit for bit alike.
+    #[must_use]
+    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
+        match self {
+            Curve3::Line(line) => Some(line.param(p)),
+            _ => Some(self.azimuth(p)?.near(near)),
+        }
+    }
+
     /// The one deciding door into [`Curve3::Ellipse`]: refuses a
     /// non-finite semi-axis ([`EllipseInvalid::SemiAxisNotFinite`], a
     /// value-channel read, no band) and a non-positive minor semi-axis
@@ -1398,173 +1467,6 @@ impl<T: SpanLocate> Curve3<T> {
                 m * f2 - *axis * (r * s)
             }
             Curve3::Nurbs(n) => n.deriv2(t),
-        }
-    }
-
-    /// The parameter of a point **on** this carrier, on the branch
-    /// nearest `near` — the one body for point-on-carrier parameter
-    /// recovery, and pure carrier arithmetic. `None` for the kinds
-    /// whose inversion is a solve rather than a closed form.
-    ///
-    /// - **`Line`**: the projection `t = (p − origin)·dir`. A line's
-    ///   parameterization is injective, so there is no branch to pick
-    ///   and `near` is unused — the argument belongs to the periodic
-    ///   kind and costs this arm nothing.
-    /// - **`Circle`**: `near + δ` with `δ = atan2(w·τ̂, w·r̂)`,
-    ///   `w = p − center`, and the frame at `near` read from the public
-    ///   evaluators (`r̂·radius = eval(near) − center`,
-    ///   `τ̂·radius = deriv(near)`). Both `atan2` arguments carry the
-    ///   factor `radius`, so no division enters and no frame is
-    ///   re-derived here. **The factor is not assumed positive.** A
-    ///   `Curve3::Circle` with a representable NEGATIVE `radius` is a
-    ///   circle traversed through the antipode of the `u_ref` seam, and
-    ///   there `atan2` does not quotient the factor away — it flips the
-    ///   angle by π, which is precisely the parameter that reproduces
-    ///   the point. So this arm inverts `eval` for either sign, which
-    ///   the retired seam spelling did NOT: reading the stored `u_ref`
-    ///   and `v_ref` directly, it answers about the point's angle in
-    ///   the frame rather than about its parameter, and at `radius =
-    ///   −1`, `near = 0`, `t = 0` it returns `π` where this arm returns
-    ///   `0` and `eval(0)` is the point. Not a claimed feature of the
-    ///   consolidation — a measured consequence of reading the frame
-    ///   from the evaluators, recorded so the sign is not later
-    ///   "simplified" back out.
-    /// - **`Spiric`**: the circle arm's anchored-difference form in the
-    ///   torus's meridian half-plane: `h = (p − center)·axis`,
-    ///   `ρ = |(p − center) − axis·h|`, `w = (ρ − R, h)`,
-    ///   `r̂ = (cos near, sin near)`, `τ̂ = (−sin near, cos near)`,
-    ///   `near + atan2(w·τ̂, w·r̂)`. Both `atan2` arguments are lengths,
-    ///   the quotient is scale-free, and the branch is the one within a
-    ///   half-turn of `near` — the circle arm's tie and midpoint-anchor
-    ///   preconditions verbatim. It answers the point's minor angle on
-    ///   EITHER oval: which oval the carrier names is the mint's
-    ///   decision, not this arithmetic's.
-    /// - **`Ellipse`**: the circle arm's anchored difference on the
-    ///   eccentric anomaly θ, which is the polar angle of the point
-    ///   AFTER each frame coordinate is divided by its semi-axis:
-    ///   `x = (w·u_ref)·minor`, `y = (w·v_ref)·major` are
-    ///   `major·minor·(cos θ, sin θ)` on the carrier, and
-    ///   `near + atan2(y·cos near − x·sin near, x·cos near + y·sin near)`
-    ///   is θ on the branch within half a turn of `near`. Scaling both
-    ///   coordinates by `major·minor` rather than dividing keeps a zero
-    ///   semi-axis from entering a quotient; the circle arm's tie and
-    ///   midpoint-anchor preconditions hold verbatim. Off the carrier it
-    ///   answers about the point's scaled polar angle, which is not its
-    ///   foot: the on-carrier precondition below is what makes it the
-    ///   point's parameter.
-    /// - **`Nurbs`**: `None`. A spline's inversion is Newton on the
-    ///   foot-point condition (`project`) — a different machine with a
-    ///   different refusal, not a branch policy.
-    ///
-    /// **Anchoring at `near` is what removes the branch cut.** `atan2`
-    /// returns its principal value in `(−π, π]`, so `near + δ` is by
-    /// construction the unique branch within half a turn of `near`:
-    /// there is no `k·2π` to select, hence no ordering decision and no
-    /// lane fork. A SEAM anchor would need that selection, which on a
-    /// bare `Real` costs either an ordering (not available) or a
-    /// `floor` whose interval answer widens across the integer. Here
-    /// the interval scalar's `atan2` encloses the same value, and a
-    /// `near` whose half-turn window straddles the cut widens the
-    /// enclosure rather than mis-selecting a branch — degradation the
-    /// consumer's own gate can see, never a silent turn.
-    ///
-    /// **Two preconditions, neither checked here**, because neither is
-    /// this arithmetic's to decide:
-    ///
-    /// - `p` must be ON the carrier. Off it, the circle arm answers
-    ///   about `p`'s radial projection and the line arm about its
-    ///   axial one. The degenerate violation `p == center` has no
-    ///   radial projection at all: `w` is the zero vector, both
-    ///   `atan2` arguments are zero, and the total `atan2(0, 0) = 0`
-    ///   makes the answer `near` itself. (The retired seam spellings
-    ///   answered the nearest multiple of `τ` to `near` instead. Both
-    ///   are arbitrary; this one is at least the anchor the caller
-    ///   already had.) The spiric arm reads `w = (ρ − R, h)` in the
-    ///   meridian half-plane, so `p == center` gives `w = (−R, 0)` and
-    ///   the answer `near + π` — equally arbitrary, and equally the
-    ///   caller's violation.
-    /// - The branch the caller wants must be the one nearest `near`.
-    ///   A caller recovering a parameter INSIDE a stored span
-    ///   `[t₀, t₁]` can get that by passing the span's MIDPOINT, and
-    ///   only while the span is at most one period: then `|t − mid|` is
-    ///   at most half a period for every `t` in the span, so the
-    ///   nearest branch to the midpoint IS the in-span one. Past a
-    ///   period the answer aliases by `2π` and nothing downstream can
-    ///   see it, so a caller with a span that long owes a period guard.
-    ///
-    /// **A THIRD PRECONDITION BELONGS TO SOME CALLERS AND NOT OTHERS,
-    /// and it is what decides the anchor**: whether the answer may
-    /// depend on the anchor the caller passed. It does, at the ulp
-    /// scale, and unavoidably — `near` enters both `atan2` arguments
-    /// through `eval(near)` and `deriv(near)`. So a caller whose anchor
-    /// is derived from a STORED SPAN gets an answer that moves when the
-    /// stored span moves, and a stored span is not a stable thing:
-    /// splitting an edge rewrites it. A caller that needs the recovered
-    /// parameter to be a function of the POINT and the CARRIER alone —
-    /// because two orderings of the same operations have to agree
-    /// bitwise — must anchor at something the CARRIER owns, and the
-    /// circle's own such anchor is its SEAM, `near = 0`.
-    /// `sweep::blend::surgery::seam_split_param` is that caller and
-    /// carries the measurement that made it one; its period guard is
-    /// what makes the principal branch the in-window one.
-    ///
-    /// # `|δ| = π` — the tie, and what it means at each posture
-    ///
-    /// At exactly half a turn the point has TWO parameters within half
-    /// a turn of the anchor, `near ± π`, and this body returns one of
-    /// them. Which one is not derivable: it is `atan2`'s cut, so the
-    /// SIGN BIT of `w·τ̂` decides it — `Real::atan2(0.0, −1.0) = π`
-    /// against `atan2(−0.0, −1.0) = −π`. Both answers are correct
-    /// parameters of `p`; no answer is "the" one.
-    ///
-    /// **Midpoint-anchored callers are unaffected.** `|δ| = π` from a
-    /// midpoint means the two ends of a full-period span, so whichever
-    /// the tie names is an ENDPOINT, and a consumer whose interiority
-    /// gate refuses a split at either end is unaffected by which.
-    ///
-    /// **ENDPOINT-anchored callers are NOT covered by that argument,
-    /// and this is the harder half.** An endpoint anchor has no span to
-    /// make the tie harmless: the two answers `t_old ± π` describe the
-    /// same point but produce stored spans differing by a full turn,
-    /// and a gate that checks only `eval(t_new) ≈ p` — which is the
-    /// natural gate, and the one
-    /// `topo::replace_face::plan_reanchors` writes — passes both,
-    /// because both ARE parameters of the point. Such a caller is
-    /// relying on never reaching `|δ| = π`: an endpoint that MOVES
-    /// along its carrier does not jump half a turn, so the pose is
-    /// sound, but it is a precondition on the caller's motion and not
-    /// a property of this arithmetic. A caller that cannot argue that
-    /// owes a `|δ| < π` refusal of its own; this body cannot make the
-    /// choice for it, because at `|δ| = π` there is nothing to choose
-    /// between.
-    ///
-    /// The size of the residue is measured rather than asserted:
-    /// `geom`'s `curves/param_near.rs` row
-    /// `at_the_half_turn_boundary_the_two_forms_disagree_by_a_turn_and_
-    /// both_are_right` puts 9 of 30 boundary cases a full `2π` from
-    /// what the retired seam-anchored longhand picks — close to a coin
-    /// flip, and decided by two unrelated last bits.
-    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
-        match self {
-            Curve3::Line(line) => Some(line.param(p)),
-            Curve3::Circle(c) => Some(c.param_near(p, near)),
-            Curve3::Ellipse(e) => Some(e.param_near(p, near)),
-            Curve3::Spiric {
-                center,
-                axis,
-                major_radius,
-                ..
-            } => {
-                let q = p - *center;
-                let h = q.dot(*axis);
-                let rho = (q - *axis * h).norm();
-                let (w_rho, w_h) = (rho - *major_radius, h);
-                let (s, c) = near.sin_cos();
-                let along = w_rho * c + w_h * s;
-                let across = w_rho * (-s) + w_h * c;
-                Some(near + across.atan2(along))
-            }
-            Curve3::Nurbs(_) => None,
         }
     }
 }

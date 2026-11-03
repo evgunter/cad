@@ -655,7 +655,7 @@ fn seam_vertex_on_loop(
             continue;
         };
         let q = crate::signed_zero::plus_zero_point(circle.frame.center + s_u_ref * circle.radius);
-        let mut t = geom::Conic::angle_of(circle, q);
+        let mut t = geom::Conic::azimuth(circle, q).near(0.0);
         while t <= spec.t0 {
             t += TAU;
         }

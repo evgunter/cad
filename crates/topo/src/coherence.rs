@@ -145,7 +145,7 @@ use geom_core::{Point3, Tol};
 
 use crate::body::Body;
 use crate::chart::Chart;
-use crate::chart_iso::{TravKind, classify_kind, unwrap_near};
+use crate::chart_iso::{TravKind, classify_kind};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 /// Which of the three conditions a [`CoherenceFinding`] reports, and
@@ -345,18 +345,10 @@ pub struct CoherenceReport {
 }
 
 /// The unsigned distance between two values of a PERIODIC chart
-/// coordinate, through the walk's OWN branch selection
-/// ([`unwrap_near`]): `a`'s nearest representative to `b`, minus `b`.
-/// The answer never exceeds half a period.
-///
-/// This is the same reduction the consuming walk performs before it
-/// discards one of the two values — literally the same function, so a
-/// change to how the walk picks a branch changes what this measures —
-/// read here as a measurement rather than as a selection: on a full
-/// turn of skew the two statements agree, and a report that called
-/// that a π gap would be reporting the reduction and not the data.
+/// coordinate, round the turn ([`geom::separation`]): never more than
+/// half a period, whichever copy of `a` the walk's rename takes.
 fn wrapped(a: f64, b: f64) -> f64 {
-    (unwrap_near(a, b) - b).abs()
+    geom::separation(a, b)
 }
 
 /// **The band, and its only spelling in this crate.** Is a chart

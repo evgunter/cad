@@ -2440,7 +2440,7 @@ pub(super) fn strip_frame<T: Decide>(
 /// is not read: a ring of the support lies within the support's own
 /// extent, which a band cut off at both ends spans, and the reach reads
 /// the cup against the band's caps.
-pub(super) fn strip_reading<T: Bounds>(
+pub(super) fn strip_reading<T: Decide + Bounds>(
     pieces: &[Piece<'_, T>],
     witnesses: &[Point3<T>],
     (o, m, across): (Point3<T>, Vec3<T>, T),
@@ -2552,7 +2552,7 @@ pub(super) fn stored_piece<T: Real>(
 /// CIRCLE it is [`CircleFrame::distance`]. On an ELLIPSE it is a bound,
 /// not the extremes: every point lies within the semi-major axis of
 /// the centre, so within that of the centre's distance to `c`.
-pub(super) fn piece_distance<T: Bounds>(
+pub(super) fn piece_distance<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
     c: Point3<T>,
@@ -2584,7 +2584,7 @@ pub(super) fn piece_distance<T: Bounds>(
 /// circle of its frame, whose image it is: `(p − center)·u` at `t` is
 /// the unit circle's height at `t` along
 /// `major·(u_ref·u)·u_ref + minor·(v·u)·v`.
-pub(super) fn piece_along<T: Bounds>(
+pub(super) fn piece_along<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
     c: Point3<T>,
@@ -2655,17 +2655,19 @@ impl<T: Real> CircleFrame<T> {
     fn at(self, t: T) -> Point3<T> {
         Curve3::circle_at(self.center, self.axis, self.radius, self.u_ref, t)
     }
-
-    /// **The angle of the circle point `q` past parameter `t`**, read
-    /// in `(0, τ]` — the branch `Curve3::param_near` takes anchored
-    /// half a turn past `t`, where a full turn is `q` at `t` itself.
-    fn past(self, t: T, q: Point3<T>) -> T {
-        let (w, radial) = (q - self.center, self.at(t + T::pi()) - self.center);
-        T::pi() + w.dot(self.axis.cross(radial)).atan2(w.dot(radial))
-    }
 }
 
-impl<T: Bounds> CircleFrame<T> {
+impl<T: Decide + Bounds> CircleFrame<T> {
+    /// **The angle of the circle point `q` past parameter `t`**, read
+    /// in `(0, τ]`: its direction read within half a turn of `t + π`
+    /// ([`geom::Azimuth::near`]), less `t`, where a full turn is `q` at
+    /// `t` itself.
+    fn past(self, t: T, q: Point3<T>) -> T {
+        let w = q - self.center;
+        let v_ref = self.axis.cross(self.u_ref);
+        geom::Azimuth::of(w.dot(v_ref), w.dot(self.u_ref)).near(t + T::pi()) - t
+    }
+
     /// **Whether the arc over `(ta, tb)` certainly misses the circle
     /// point `q`**: `q`'s angle past `ta` ([`Self::past`], read in
     /// `(0, τ]` with its branch cut on the window's start) certainly
@@ -3602,67 +3604,29 @@ fn scaled<T: Real>(
     }
 }
 
-/// The parameter at which a support's seam meridian meets `target`,
-/// read in the SEAM CARRIER's own frame. A representation pick, not a
-/// classification (the battery's junction-end pick precedent): the
-/// parameter is [`geom::Curve3::param_near`] anchored at the CARRIER'S
-/// SEAM — a circle carrier's angle on its principal branch, a line
-/// carrier's the projection on its own direction — and either way a
+/// The parameter at which a support's seam meridian meets `target`. A
+/// representation pick, not a classification (the battery's
+/// junction-end pick precedent): [`geom::Curve3::param_near`] about the
+/// stored window's middle — a circle carrier's angle within half a turn
+/// of it, a line carrier's the projection on its own direction — and a
 /// parameter outside the stored span refuses typed rather than cutting
 /// blind. `rim` names the requested edge the refusal carries.
 ///
-/// # Why the anchor is the seam and NOT the stored window's midpoint
+/// The answer is a function of the point and the carrier alone: the
+/// anchor enters only through the whole number of turns, never the
+/// angle's bits, so two windows of one edge (carving one rim splits the
+/// shared meridian and hands the next rim a narrower one) read a
+/// crossing alike, and one-call composition agrees bitwise with
+/// sequential composition
+/// (`blend2_r2_probes::r2_p1_zone_pair_equality_off_the_fixture_radius`,
+/// `…::r2_p2_lantern_triple_equality_off_the_fixture_radius`,
+/// `verbs_arms1_r1_probes::both_zone_rims_in_one_call_match_the_sequential_composition`).
 ///
-/// **Because the answer has to be a function of the POINT and the
-/// CARRIER, and a window-derived anchor makes it a function of the
-/// stored window too.** `param_near` is `near + atan2(…)` read in the
-/// frame AT `near`, so the anchor enters the arithmetic continuously:
-/// two calls asking about the same crossing on the same carrier return
-/// parameters a few ulps apart if their windows differ. The stored
-/// window is NOT stable across a surgery — carving one rim splits the
-/// shared meridian and hands the next rim a narrower one — so a
-/// window-derived anchor makes the split parameter depend on the ORDER
-/// the rims were filleted in, and one-call composition stops agreeing
-/// bitwise with sequential composition.
-///
-/// **That is measured, not feared.** With the midpoint anchor the zone
-/// pair's shared meridian is split at `3.32886824659950897e-2` in one
-/// order and `3.32886824659949787e-2` in the other — the same crossing,
-/// ~6 ulps apart, because one window was `[0, 7.7627…e-1]` and the
-/// other `[0, 7.3144…e-1]`. Three rows fail on it:
-/// `blend2_r2_probes::r2_p1_zone_pair_equality_off_the_fixture_radius`,
-/// `…::r2_p2_lantern_triple_equality_off_the_fixture_radius`, and
-/// `verbs_arms1_r1_probes::both_zone_rims_in_one_call_match_the_sequential_composition`.
-/// The seam is the only anchor available here that is a property of the
-/// CARRIER alone, so it is the only one that restores the invariant;
-/// with it all three are green.
-///
-/// This is the per-site anchor fact [`geom::Curve3::param_near`]'s docs
-/// say each consumer owns, and it buys back nothing the consolidation
-/// removed: no `k·2π` selection here, no `floor`, no five-candidate
-/// scan — one anchored read and the window test.
-///
-/// # What makes the principal branch the RIGHT branch
-///
-/// The seam anchor returns the branch in `(−π, π]`, which need not be
-/// the one inside the stored window. The period guard below is what
-/// makes that sound rather than lucky: branches of a point are exactly
-/// one period apart, so a window narrower than a period holds AT MOST
-/// ONE of them. Hence a returned parameter that lands inside the window
-/// IS the in-window branch; and if the in-window branch is some other
-/// turn, the returned one falls outside and the window test refuses
-/// typed. Both arms are sound and neither cuts blind.
-///
-/// Without the guard the failure is silent, and it is the one `geom`'s
-/// `past_one_period_the_answer_aliases_by_a_turn_inside_the_span` row
-/// exhibits: past a period the aliased answer is STILL strictly
-/// interior, so the window test cannot see it. Measured on this tree no
-/// live call comes near — 335 circle windows in the `sweep` suite,
-/// widest `1.5825331081812426` rad against a period of
-/// `6.2831853071795862`, every one of them inside `(−π, π]`. The
-/// guard's refuse arm is therefore not reached by any assembly
-/// fixture. It is here because the distance between "measured to be
-/// fine" and "checked" is exactly the comment it replaces.
+/// **The period guard.** A window under a period holds at most one copy
+/// of a point, and the copy within half a turn of its middle is that
+/// one. A window of a whole turn or more holds two, the answer aliases
+/// by a turn inside the span, and nothing downstream could see it, so
+/// it refuses typed.
 pub(super) fn seam_split_param<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
@@ -3696,11 +3660,10 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
 ) -> Result<Option<T>, BlendError> {
     let sc = certified_curve(body, seam)?;
     let (st0, st1) = sc.params();
-    // THE PERIOD GUARD — the function docs derive why it is what makes
-    // the principal branch the in-window one. The stored window's turn
-    // is the edge certificate's ([`geom_brep::CertifiedTurn`]), decided
-    // at certification's band: a window short of a turn proceeds, and
-    // a whole turn refuses typed rather than cutting blind.
+    // THE PERIOD GUARD (function docs). The stored window's turn is the
+    // edge certificate's ([`geom_brep::CertifiedTurn`]), decided at
+    // certification's band: a window short of a turn proceeds, and a
+    // whole turn refuses typed rather than cutting blind.
     //
     // A period is a CIRCLE's or an ELLIPSE's: a line carrier (a plane
     // end face's straight rim) has no branch to alias by, and its window
@@ -3720,40 +3683,22 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
             }
         }
     }
-    // Anchored at the CARRIER'S SEAM, not at the stored window — the
-    // function docs carry the measured reason (a window-derived anchor
-    // makes the split parameter order-dependent). `param_near` carries
-    // the derivation of the anchored read itself.
-    let t = sc.carrier().param_near(target, T::zero()).ok_or_else(|| {
-        unbuilt_geometry(
-            EntityId::Edge(seam),
-            "a split edge's carrier has no closed-form parameter of a point on it",
-        )
-    })?;
+    let t = sc
+        .carrier()
+        .param_near(target, geom::mid_param(st0, st1))
+        .ok_or_else(|| {
+            unbuilt_geometry(
+                EntityId::Edge(seam),
+                "a split edge's carrier has no closed-form parameter of a point on it",
+            )
+        })?;
     // The window test is the representation pick's other half, and it
     // stays a BOUNDS-lane read rather than a `decide` row (the
     // battery's junction-end pick precedent): a parameter whose whole
     // enclosure is not strictly inside the stored span refuses typed
     // rather than cutting blind.
-    let inside = |t: T| (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0;
-    if inside(t) {
-        return Ok(Some(t));
-    }
-    // The in-window branch may be the principal one's neighbour by a
-    // turn (a cap arc sweeping past π puts its far foot there), and
-    // the period guard above is what makes that neighbour UNIQUE: a
-    // window under one period holds at most one branch, so a shifted
-    // parameter that lands inside is the branch, and the value is still
-    // a function of the point and the carrier alone — the window only
-    // says which turn.
-    if periodic {
-        for shifted in [t + T::tau(), t - T::tau()] {
-            if inside(shifted) {
-                return Ok(Some(shifted));
-            }
-        }
-    }
-    Ok(None)
+    let inside = (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0;
+    Ok(inside.then_some(t))
 }
 
 /// The two pieces a band's split leaves on a source edge, with the
@@ -5333,26 +5278,16 @@ impl SourceFaces {
 }
 
 /// **A cut-off arc's window from `p0` to `p1`** on its carrier: `p0`'s
-/// parameter, then `p1`'s within half a turn of it. `p0` is read at the
-/// carrier's seam, or — where its enclosure there spans a half turn or
-/// more — at the half turn. That is the foot on `atan2`'s cut, half a
-/// turn from `u_ref`: an oblique end's ellipse puts a foot on a major
-/// vertex, and an enclosure straddling the cut reads the whole turn
-/// (`Interval::atan2`'s hull). The two anchors' cuts are half a turn
-/// apart, so a foot sits on at most one; a point read is never wide, so
-/// a point scalar reads at the seam. A read that is not finite is no
-/// window.
+/// parameter within half a turn of the seam, then `p1`'s within half a
+/// turn of it ([`Curve3::param_near`], which reads an enclosure as
+/// narrow as the point's own at either of its jumps). A read that is
+/// not finite is no window.
 pub(super) fn arc_window<T: Decide + Bounds>(
     c: &Curve3<T>,
     p0: Point3<T>,
     p1: Point3<T>,
 ) -> Option<(T, T)> {
-    let at_seam = c.param_near(p0, T::zero())?;
-    let t0 = if at_seam.hi() - at_seam.lo() < core::f64::consts::PI {
-        at_seam
-    } else {
-        c.param_near(p0, T::pi())?
-    };
+    let t0 = c.param_near(p0, T::zero())?;
     let t1 = c.param_near(p1, t0)?;
     [t0.lo(), t0.hi(), t1.lo(), t1.hi()]
         .iter()

@@ -34,6 +34,7 @@
 use crate::common::{axis_y, eps, sampled_deviation, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
+use geom_core::period::Period;
 use geom_core::{Point2, Point3, Tol};
 use mesh::cert::cert_torus;
 use mesh::tessellate;
@@ -42,7 +43,10 @@ use profile::test_support::bulge_loop;
 use sweep::{Revolution, revolve};
 use topo::Body;
 use topo::chart::Chart;
-use topo::chart_iso::unwrap_near;
+
+fn unwrap_near(raw: f64, prev: f64) -> f64 {
+    Period::new(core::f64::consts::TAU).near(raw, prev)
+}
 
 /// The unit's minor radius; `R/r` and `δ/r` are the sweep's axes.
 const MINOR: f64 = 1.0;

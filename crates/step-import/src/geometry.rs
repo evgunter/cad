@@ -89,7 +89,7 @@ pub(crate) fn endpoint_params(
             // zero, reached it. Both returned parameters are therefore
             // finite, and the wrap loop below terminates.
             let angle = |p: Point3<f64>| -> Result<f64, StepImportError> {
-                let t = conic.angle_of(p);
+                let t = conic.azimuth(p).near(0.0);
                 if t.is_finite() {
                     Ok(t)
                 } else {

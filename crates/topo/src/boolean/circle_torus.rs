@@ -581,8 +581,9 @@ fn parallel_axes_roots<T: Decide>(
     // covers.
     let charge = two * (charge_h + tilt.powi(2) / radius * (rho_max + major_radius) / minor_radius);
     // `θ₀`: the carrier's farthest point from the torus axis, along
-    // `+w_perp`.
-    let theta0 = w_perp.dot(v_ref).atan2(w_perp.dot(u_ref));
+    // `+w_perp`, read within half a turn of the span's middle.
+    let middle = geom::mid_param(t0, t1);
+    let theta0 = geom::Azimuth::of(w_perp.dot(v_ref), w_perp.dot(u_ref)).near(middle);
     let place = |theta: T, rho: T| -> Result<Option<Band3>, Indeterminate> {
         let (s, c) = theta.sin_cos();
         let res = geom_brep::implicit_residual(
@@ -662,14 +663,13 @@ fn parallel_axes_roots<T: Decide>(
             Ok(Sign::Zero | Sign::Negative) => {}
             Err(_) => return Err(Unsettled::Meter.into()),
         }
-        // Each root on the branch of the span's middle: sound at every
-        // scalar by `geom::on_span_branch`'s window re-centring argument.
-        // The one reader, `boolean::reduce`'s wall crossing, decides a
+        // Each root within half a turn of the span's middle, by
+        // `Period::near`'s span argument. The one reader, `boolean::reduce`'s wall crossing, decides a
         // root at either end of a closed edge's whole-turn span alike
         // (`at_end`), and reads it only against the span's ends, never as
         // an identity.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = geom::on_span_branch(theta, (t0, t1));
+            thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
             count += 1;
         }
     }

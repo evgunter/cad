@@ -451,22 +451,6 @@ fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
     v * (T::one() / v.norm())
 }
 
-/// **How far round the turn `theta` lies from `at`**, in `[0, π]`, read
-/// clear of the reduction's cut: from `at` where it reads within a
-/// quarter turn of it, and otherwise as half a turn less how far it
-/// lies from `at + π`. An enclosure about the antipode then stays as
-/// narrow as `theta`, where the reduction about `at` would read the
-/// whole half turn.
-fn separation<T: Decide>(theta: T, at: T) -> T {
-    let from = |anchor: T| (theta - anchor).reduce_periodic_centred(T::tau()).abs();
-    let near = from(at);
-    if super::compare(row::BRANCH, near, T::pi() / T::from_f64(2.0)) == Some(Sign::Negative) {
-        near
-    } else {
-        T::pi() - from(at + T::pi())
-    }
-}
-
 /// The metres a span runs at most: its parameter run at the carrier's
 /// greatest speed.
 fn reach<T: Decide>(s: &Span<'_, T>) -> T {
@@ -1462,7 +1446,7 @@ impl<T: Decide> Range<T> {
         let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
         let e = T::from_f64(band.escalate()) + self.noise;
         let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = separation(theta, self.at_hi);
+        let phi = geom::separation(theta, self.at_hi);
         let inner = unit_cos((e - c0) / swing).acos();
         let outer = unit_cos((T::zero() - e - c0) / swing).acos();
         (phi - inner).abs().max((outer - phi).abs())

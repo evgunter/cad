@@ -1,23 +1,12 @@
 //! [`Curve3::param_near`] — point-on-carrier parameter recovery, on
 //! the branch nearest an anchor.
 //!
-//! The rows here are the consolidated corpus of the three call sites
-//! that used to spell this themselves (a boolean edge split, an offset
-//! door's re-anchor, a fillet's seam split). All THREE anchors the
-//! sites pass are exercised, because the anchor is the per-site fact
-//! the consolidation deliberately left visible:
-//!
-//! - the SPAN MIDPOINT (`topo`'s boolean edge split) — `near =
-//!   (t0 + t1)/2` throughout the span rows;
-//! - a moving endpoint's OWN OLD PARAMETER (`topo`'s offset door) — an
-//!   arbitrary `near` in the nearest-branch rows;
-//! - the CARRIER'S SEAM, `near = 0` (`sweep`'s fillet seam split),
-//!   which is what a caller passes when the answer must not depend on
-//!   a stored window at all — the anchor is the only input a span
-//!   split can rewrite, so a window-derived one makes the recovered
-//!   parameter order-dependent. That site's docs carry the
-//!   measurement; here it is the `near = 0` column of the
-//!   nearest-branch rows.
+//! The rows here are the corpus of the sites that read it: a boolean
+//! edge split anchored at the SPAN MIDPOINT, an offset door's re-anchor
+//! at a moving endpoint's OWN OLD PARAMETER, and a fillet's seam split
+//! at its stored window's middle. The anchor enters the answer only
+//! through the whole number of turns, so anchors on one branch read
+//! alike bit for bit.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -190,10 +179,9 @@ fn the_exact_half_period_boundary_lands_on_an_endpoint() {
 /// split each read the edge certificate's turn, which is never over a
 /// period. The fillet's window test alone is NOT enough, which is
 /// exactly what this row shows: an aliased parameter is still strictly
-/// interior, so a test that only asks "inside the window?" passes it. (The fillet also
-/// anchors at the carrier's seam rather than at the window, for a
-/// separate reason its own docs carry.) The offset door anchors at an
-/// endpoint's own old parameter and has no span to exceed.
+/// interior, so a test that only asks "inside the window?" passes it.
+/// The offset door anchors at an endpoint's own old parameter and has
+/// no span to exceed.
 #[test]
 fn past_one_period_the_answer_aliases_by_a_turn_inside_the_span() {
     let carrier = axis_aligned();
@@ -210,63 +198,34 @@ fn past_one_period_the_answer_aliases_by_a_turn_inside_the_span() {
     );
 }
 
-/// **THE ANSWER MOVES WITH THE ANCHOR, at the ulp scale — and that is
-/// why the anchor is a per-site DECISION and not a convenience.** Two
-/// anchors that name the same branch of the same point do NOT have to
-/// return the same bits: `near` enters both `atan2` arguments through
-/// `eval(near)` and `deriv(near)`, so the frame is re-read at the
-/// anchor and rounds differently there.
-///
-/// The row asserts the sensitivity in BOTH directions, because each
-/// direction is load-bearing somewhere:
-///
-/// - the answers agree to within a few ulps (so no consumer's gate is
-///   at risk whichever anchor it picks), AND
-/// - at least one pair is not bit-equal (so a consumer that needs a
-///   bit-stable answer cannot get one by picking a "nicer" anchor —
-///   it has to pick an anchor that never CHANGES).
-///
-/// That second half is the fact `sweep::blend::surgery::
-/// seam_split_param` is built on. Its anchor used to be the stored
-/// window's midpoint, and a stored window is rewritten every time the
-/// meridian is split — so the same crossing came back with different
-/// bits depending on the order the rims were filleted, and `sweep`'s
-/// one-call-vs-sequential composition rows went red. It anchors at the
-/// carrier's seam now, the one anchor a split cannot move. If this row
-/// ever goes green on the bit-equality half, that site's reasoning has
-/// changed and its docs are stale.
+/// **The answer does not move with the anchor.** Anchors that all name
+/// the same branch of `p`, as a window sliding over the point produces,
+/// read it bit for bit alike: the anchor enters only through the whole
+/// number of turns. `sweep`'s `seam_split_param` rests on this: a stored
+/// window is rewritten every time the meridian is split, and the same
+/// crossing has to come back with the same bits whatever order the rims
+/// were filleted in.
 #[test]
-fn the_answer_moves_with_the_anchor_which_is_why_the_anchor_is_a_site_decision() {
-    let mut any_differ = false;
+fn the_answer_keeps_its_bits_across_anchors_on_one_branch() {
     for carrier in [axis_aligned(), tilted(), wound_negative()] {
         for t in [0.05, 0.4, 1.1, 2.0, 3.0] {
             let p = carrier.eval(t);
-            // Anchors that all name the SAME branch of `p` (every one
-            // is within half a turn of `t`), as a window sliding over
-            // the point would produce.
             let anchors = [0.0, t * 0.5, t, t + 0.3, (t + PI * 0.9) * 0.5];
             let first = carrier.param_near(p, anchors[0]).unwrap();
+            assert!(
+                (first - t).abs() < 1e-12,
+                "t={t}: {first} is not the same branch"
+            );
             for near in anchors {
                 let got = carrier.param_near(p, near).unwrap();
-                assert!(
-                    (got - t).abs() < 1e-12,
-                    "t={t} near={near}: {got} is not the same branch"
+                assert_eq!(
+                    got.to_bits(),
+                    first.to_bits(),
+                    "t={t} near={near}: {got} vs {first}"
                 );
-                assert!(
-                    (got - first).abs() < 1e-12,
-                    "t={t} near={near}: {got} vs {first} — more than an ulp-scale move"
-                );
-                if got.to_bits() != first.to_bits() {
-                    any_differ = true;
-                }
             }
         }
     }
-    assert!(
-        any_differ,
-        "no anchor pair differed in a single bit — the premise the fillet's seam anchor \
-         rests on has changed, and `seam_split_param`'s docs are now wrong"
-    );
 }
 
 // ---------------------------------------------------------------
@@ -342,12 +301,10 @@ fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f6
 /// differently (evaluator vs stored `u_ref`) and are not required to
 /// round alike.
 ///
-/// **The grid runs to ±π and the boundary itself is EXCLUDED here, on
-/// purpose** — it is not a gap, it is a measured disagreement, and it
-/// has its own row (`at_the_half_turn_boundary_the_two_forms_disagree_
-/// by_a_turn_and_both_are_right`) immediately below. A row that stopped
-/// the grid short of π would have read as agreement over the whole
-/// domain, which is the claim this pair of rows exists to deny.
+/// **The grid runs to ±π and the boundary itself is EXCLUDED here**: at
+/// exactly half a turn the two forms may name different copies, and the
+/// boundary has its own row
+/// (`at_the_half_turn_boundary_the_answer_is_a_parameter_within_half_a_turn`).
 #[test]
 fn the_retired_seam_anchored_form_selects_the_same_branch() {
     for carrier in [axis_aligned(), tilted(), wound_negative()] {
@@ -370,83 +327,32 @@ fn the_retired_seam_anchored_form_selects_the_same_branch() {
     }
 }
 
-/// **AT `|δ| = π` THE TWO FORMS DISAGREE BY EXACTLY ONE TURN, in about
-/// half the cases, and NEITHER IS WRONG.** This is the boundary the row
-/// above stops one ulp short of, and it is the reason that row cannot
-/// simply be extended: at exactly half a turn the point has TWO
-/// parameters at distance π from the anchor, `near ± π`, and the two
-/// spellings pick by different tie-breaks. `param_near` inherits
-/// `atan2`'s cut — `Real::atan2(0.0, −1.0) = π` against
-/// `atan2(−0.0, −1.0) = −π`, so the sign bit of `w·τ̂` decides — while
-/// the longhand's `floor((near − θ)/τ + ½)` breaks the tie by rounding
-/// half UP, in the seam frame rather than the anchor frame. Which one
-/// each case lands on is not a property of either derivation; it is a
-/// coin flip decided by two unrelated last bits.
-///
-/// **So the property, not the agreement, is what this row asserts**:
-/// whatever comes back is a parameter OF THE POINT (`eval` returns to
-/// it) and is within half a turn of the anchor. Both spellings satisfy
-/// that; only one number satisfies "equal to the other spelling", and
-/// that number does not exist.
-///
-/// MEASURED, on this grid: 12 of the 30 boundary cases come back a full
-/// `2π` apart. That is the number quoted at the consumers, and it is
-/// why the endpoint-anchored consumer
-/// (`topo::replace_face::plan_reanchors`) documents the pose rather
-/// than relying on its own point-comparison gate, which compares
-/// `carrier.eval(t_new)` to `point` and is blind to a `2π` change in
-/// the span it is about to store.
+/// **At `|δ| = π` the answer is a parameter of the point within half a
+/// turn of the anchor.** The point there has two such parameters,
+/// `near ± π`; [`Curve3::param_near`] takes `near + π` where the rename's
+/// mark is a tie, and otherwise whichever the point's own rounding puts
+/// within half a turn. Either is a parameter of the point, which is the
+/// property asserted; an endpoint-anchored consumer
+/// (`topo::replace_face::plan_reanchors`) relies on an endpoint that
+/// moves never jumping half a turn, not on which copy a tie names.
 #[test]
-fn at_the_half_turn_boundary_the_two_forms_disagree_by_a_turn_and_both_are_right() {
-    let mut disagreements = 0;
-    let mut cases = 0;
+fn at_the_half_turn_boundary_the_answer_is_a_parameter_within_half_a_turn() {
     for carrier in [axis_aligned(), tilted(), wound_negative()] {
         for near in [-9.0, -1.0, 0.0, 2.5, 11.0] {
             for delta in [PI, -PI] {
-                cases += 1;
-                let t = near + delta;
-                let p = carrier.eval(t);
+                let p = carrier.eval(near + delta);
                 let got = carrier.param_near(p, near).unwrap();
-                let seam_anchored = retired_seam_anchored(&carrier, p, near);
-
-                // (1) The answer is a parameter OF THE POINT.
                 assert!(
                     carrier.eval(got).distance(p) < 1e-12,
                     "near={near} delta={delta}: {got} is not a parameter of the point"
                 );
-                // (2) …on a branch within half a turn of the anchor.
                 assert!(
                     (got - near).abs() <= PI + 1e-12,
                     "near={near} delta={delta}: {got} is over half a turn from the anchor"
                 );
-                // (3) The longhand also satisfies (1) and (2) — which
-                // is exactly why the disagreement is a tie and not a
-                // defect in either form.
-                assert!(
-                    carrier.eval(seam_anchored).distance(p) < 1e-12
-                        && (seam_anchored - near).abs() <= PI + 1e-12,
-                    "near={near} delta={delta}: the longhand {seam_anchored} is not a \
-                     legitimate answer either"
-                );
-
-                let apart = (got - seam_anchored).abs();
-                if apart > 1e-9 {
-                    disagreements += 1;
-                    assert!(
-                        (apart - TAU).abs() < 1e-9,
-                        "near={near} delta={delta}: the two forms are {apart} apart, \
-                         which is neither agreement nor a whole turn"
-                    );
-                }
             }
         }
     }
-    assert_eq!(cases, 30, "the boundary grid changed size");
-    assert_eq!(
-        disagreements, 9,
-        "the measured boundary coin flip moved; the consumers' documented pose quotes \
-         this number"
-    );
 }
 
 // ---------------------------------------------------------------

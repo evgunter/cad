@@ -438,7 +438,7 @@ impl<T: Bounds> SectionFrame<T> {
     }
 }
 
-impl<T: Bounds> CapSliver<T> {
+impl<T: Decide + Bounds> CapSliver<T> {
     /// **How clear one end-face edge is of the sliver**: the `carrier`
     /// over `window` misses `Ω` when this is positive. `None` for a
     /// carrier with no closed form ([`piece_distance`]).
@@ -609,7 +609,7 @@ impl<T: Bounds> CapSliver<T> {
 /// semi-axis, which holds it, and the disc of its minor, which it holds.
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
-fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
+fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
             .map(|k| (k.frame().center, k.speed_hi(), k.speed_lo()))

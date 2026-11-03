@@ -95,22 +95,11 @@ use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 /// torus ([`crate::ConicTorusHarmonics`]).
 pub const MAX_DEGREE: usize = 4;
 
-/// **A carrier parameter as every conic root door reports it**: `theta`
-/// moved by whole turns to within `π` of `mid`, the midpoint of the arc
-/// `[t₀, t₁]` the caller passed, so the caller compares it with that arc
-/// directly, without wrapping. The one home of the convention: the
-/// subdivision's roots and touches, and the cone door's apex reading
-/// (`topo`'s `conic_quadric`), report through it.
-#[must_use]
-pub fn near_midpoint<T: geom_core::Real>(mid: T, theta: T) -> T {
-    mid + (theta - mid).reduce_periodic_centred(T::tau())
-}
-
 /// What [`certified_subdivision`] (and so [`half_angle_roots`]) answers
 /// about a residual round the whole turn: [`Roots::Miss`], or a
 /// certified count (even, at most twice the residual's degree) of
 /// carrier parameters `θ`, each within `π` of the arc's midpoint
-/// ([`near_midpoint`]). A
+/// ([`geom_core::period::Period::near`]). A
 /// trigonometric residual is never read as a zero constant here, so it
 /// has no [`Roots::On`] arm.
 pub type TrigRoots<T> = Roots<T, { 2 * MAX_DEGREE }>;
@@ -812,13 +801,13 @@ fn subdivision<T: Decide>(
     // are moved along their pieces, so the last piece runs past the
     // half-turn. Of the two adjacent scalars a bracket closes on, a steep
     // residual can read ON at one only, and their midpoint rounds onto
-    // either. Sound at every scalar by `geom::on_span_branch`'s window
-    // re-centring argument. `rows.side` reads the residual, which is
+    // either. Sound at every scalar by `Period::near`'s span argument.
+    // `rows.side` reads the residual, which is
     // periodic. The readers read an end of a whole-turn span alike: the
     // wall crossing's `at_end`, and the ruling's fixed `(−π, π)` window,
     // which re-sorts its roots. None reads the root as an identity.
-    let mid = (t0 + t1) / two;
-    let reported = |t: T| near_midpoint(mid, t);
+    let mid = geom::mid_param(t0, t1);
+    let reported = |t: T| geom_core::period::Period::new(T::tau()).near(t, mid);
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<T> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {

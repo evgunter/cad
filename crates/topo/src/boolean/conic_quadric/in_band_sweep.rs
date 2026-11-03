@@ -96,7 +96,7 @@ fn tangent_circle(r: f64, rho: f64, depth: f64, g: f64, b: f64) -> geom::Curve3<
 /// Moving one past `π` by `TAU` is exact (Sterbenz), so the difference
 /// rounds at its own scale, not at the spacing near `2π`. Both must lie
 /// within `π` of `0` once moved: the door reports within `π` of the
-/// arc's midpoint (`geom_brep::half_angle::near_midpoint`), `[−1, 1]` here.
+/// arc's midpoint (`geom_core::period::Period::near`), `[−1, 1]` here.
 fn arc_between(a: f64, b: f64, rho: f64) -> f64 {
     let centred = |x: f64| if x > PI { x - TAU } else { x };
     (centred(a) - centred(b)).abs() * rho

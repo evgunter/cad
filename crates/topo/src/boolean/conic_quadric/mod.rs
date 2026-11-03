@@ -549,14 +549,12 @@ fn through_the_apex<T: Decide>(
 ) -> ThroughTheApex<T> {
     use ThroughTheApex::{Clear, Read};
     let two = T::from_f64(2.0);
-    let mid = (t0 + t1) / two;
-    let near_mid = |theta: T| geom_brep::half_angle::near_midpoint(mid, theta);
-    // A parameter difference as a turn in `(−π, π]`, the same rule.
-    let wrap = |x: T| geom_brep::half_angle::near_midpoint(T::zero(), x);
+    let mid = geom::mid_param(t0, t1);
+    let near_mid = |theta: T| geom_core::period::Period::new(T::tau()).near(theta, mid);
     // Past every bound: a reading no bound holds refuses.
     let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.
-    let theta_a = near_mid(conic.angle_of(apex));
+    let theta_a = conic.azimuth(apex).near(mid);
     let off_apex = conic.point_at(theta_a) - apex;
     match decide(CONE_APEX, Margin::norm3(off_apex), band) {
         Ok(Sign::Positive) => return Clear,
@@ -648,7 +646,7 @@ fn through_the_apex<T: Decide>(
     let mut found = [theta_a; 4];
     for (slot, phi) in [beta + spin, beta - spin].into_iter().enumerate() {
         let theta = near_mid(theta_a + phi);
-        let off = wrap(theta - theta_a).abs() - width - spread_phi;
+        let off = geom::separation(theta, theta_a) - width - spread_phi;
         match decide(
             CONE_DEFLATED_CLEAR,
             Margin::of(off * conic.speed_lo()),
@@ -671,7 +669,7 @@ fn through_the_apex<T: Decide>(
             Ok(Sign::Positive | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Meter)),
         }
     }
-    let apart = wrap(found[2] - found[3]).abs() - two * width;
+    let apart = geom::separation(found[2], found[3]) - two * width;
     match decide(
         CONE_DEFLATED_CLEAR,
         Margin::of(apart * conic.speed_lo()),

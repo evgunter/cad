@@ -268,6 +268,16 @@ impl<T: Decide> Azimuth<T> {
     }
 }
 
+/// **How far round the turn `theta` lies from `at`**, in `[0, π]`:
+/// `atan2(|sin(θ − at)|, cos(θ − at))`. It takes no decision, and since
+/// its first argument is never negative its read stays clear of
+/// `atan2`'s cut, so an enclosure of `theta` about `at`'s antipode reads
+/// as narrow as `theta` itself, near `π`.
+pub fn separation<T: Real>(theta: T, at: T) -> T {
+    let (s, c) = (theta - at).sin_cos();
+    s.abs().atan2(c)
+}
+
 /// **The window a placed channel is named in**, and so the window its
 /// angle is read in: each window carries its start, the reader takes its
 /// cut there (`Azimuth::principal_in`), and the marks are read about its
@@ -463,6 +473,38 @@ mod tests {
                 "angle {angle} about {reference}: {n:?} misses {want}"
             );
         }
+    }
+
+    /// **`separation` is the distance round the turn, narrow at the
+    /// antipode.** At `f64` it is `|θ − at|` reduced into `[0, π]`; at
+    /// `Interval` an enclosure astride `at + π` (where `|sin|`'s lower end
+    /// is exactly `0` and the cosine negative) reads near `π`, not over
+    /// `[0, π]`.
+    #[test]
+    fn separation_is_the_distance_round_the_turn_and_narrow_at_the_antipode() {
+        use core::f64::consts::{PI, TAU};
+        use geom_core::{Bounds, Interval};
+        for (theta, at, want) in [
+            (0.3, 0.1, 0.2),
+            (0.1, 0.3, 0.2),
+            (3.0, -3.0, TAU - 6.0),
+            (7.0, 0.5, 6.5 - TAU),
+        ] {
+            let want: f64 = want;
+            let got = separation(theta, at);
+            assert!(
+                (got - want.abs()).abs() < 1e-12,
+                "separation({theta}, {at}) = {got}"
+            );
+        }
+        assert!((separation(PI, 0.0_f64) - PI).abs() < 1e-15, "the antipode");
+        let at = Interval::from_f64(0.4);
+        let theta = at + Interval::pi() + Interval::from_bounds(-1e-9, 1e-9);
+        let s = separation(theta, at);
+        assert!(
+            s.lo() > PI - 1e-8 && s.hi() <= PI + 1e-12,
+            "astride the antipode: {s:?}"
+        );
     }
 
     /// CERT-N2 R1 reviewer probe, adopted with its **expectation

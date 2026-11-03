@@ -810,7 +810,7 @@ fn arc_place<T: Decide>(
 const SPAN: &str = "bool_torus_region_span";
 
 /// A point's angle on an arc, from its offset `(x, y)` as [`arc_place`]
-/// takes it, on the branch of the span's middle, and the span reading on
+/// takes it, within half a turn of the span's middle, and the span reading on
 /// it ([`span`]).
 fn arc_span<T: Decide>(
     (t0, t1): (T, T),
@@ -818,7 +818,7 @@ fn arc_span<T: Decide>(
     lever: T,
     band: Band,
 ) -> (T, Result<Option<bool>, Fault>) {
-    let theta = geom::on_span_branch(y.atan2(x), (t0, t1));
+    let theta = geom::Azimuth::of(y, x).near(geom::mid_param(t0, t1));
     (theta, span(SPAN, theta, (t0, t1), lever, band))
 }
 

@@ -63,9 +63,9 @@
 //!
 //! [`speed_floor`]: crate::carrier_speed::speed_floor
 
-use geom_core::{Point3, Real, Rounded, Vec3};
+use geom_core::{Decide, Point3, Real, Rounded, Vec3};
 
-use crate::azimuth;
+use crate::azimuth::{self, Azimuth};
 use crate::curves::Curve3;
 
 /// **A rigid placement**: a point and an oriented orthonormal basis
@@ -183,43 +183,6 @@ pub struct MajorFrame<T: Real> {
     pub phase: T,
 }
 
-/// **`t` moved by whole turns onto the branch of `span`'s middle**, into
-/// `(mid − τ/2, mid + τ/2]`: the one rule that unwinds an angle onto the
-/// span it is read against. Only whole turns are added, so a `t` already
-/// on that branch comes back bit for bit.
-///
-/// **The window re-centring argument**, which the sites that re-centre
-/// a parameter on a span's middle and read it only against the span's
-/// ends cite. A raw pick, sound whichever way it falls. A parameter
-/// inside the span lies within half the span of the middle and lands on
-/// its own branch. Only a parameter half a turn from the middle is in
-/// doubt:
-/// - on a span shorter than a turn (a piece's), it is outside the span
-///   on either branch, by at least half the span's complement;
-/// - on a whole-turn span (a loop arc over a closed edge), it IS the
-///   span's end, `lo` and `hi` being one point. It lands on `hi`, and
-///   every reader of an end reads `lo` and `hi` alike.
-///
-/// Over the scalars:
-/// - at `f64` the half-turn parameter is reached (adversarial path grids
-///   do) and lands as above;
-/// - at `Interval` an enclosure straddling it spans both branches and
-///   the in-span reading escalates or declines;
-/// - at `Sym` the `floor` folds only where its argument's form is the
-///   zero polynomial, the exact tie, where the fold is the true `⌊0⌋`
-///   and agrees with `f64`. Elsewhere it is an atom keyed by its
-///   argument's form, so floors of form-equal arguments cancel, and a
-///   reading is numeric unless such a fold or cancellation makes it an
-///   identity.
-///
-/// No reader reads the pick as an identity: the parameter is compared
-/// only with span ends of another provenance.
-pub fn on_span_branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
-    let mid = (lo + hi) * T::from_f64(0.5);
-    let tau = T::tau();
-    t + (mid - t).periodic_branch(tau) * tau
-}
-
 /// **The readings a circle and an ellipse both answer.** See the
 /// [module docs](self) for the conventions every method reads.
 ///
@@ -248,18 +211,12 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// (`P + P″ = center` in ℝ).
     fn second_derivative_at(&self, theta: T) -> Vec3<T>;
 
-    /// **The principal angle of `p`**, in `[−π, π]`: the parameter whose
-    /// point `p` is, for a point of the conic, and the parameter of its
-    /// projection along the centre's ray (scaled per axis on an ellipse)
-    /// otherwise.
-    fn angle_of(&self, p: Point3<T>) -> T;
-
-    /// **The parameter of `p`, a point of the conic, within half a turn
-    /// of `near`**: `near` plus the angle from the point at `near` to
-    /// `p`, so a parameter near `near` resolves at its own scale. At
-    /// exactly half a turn the two answers `near ± π` are `atan2`'s cut;
-    /// [`Curve3::param_near`] states what that means at each posture.
-    fn param_near(&self, p: Point3<T>, near: T) -> T;
+    /// **The direction of `p` about the centre, in the conic's unit
+    /// coordinates**: the angle it is read as ([`Azimuth::near`],
+    /// [`Azimuth::principal`]) is the parameter whose point `p` is, for a
+    /// point of the conic, and the parameter of its projection along the
+    /// centre's ray (scaled per axis on an ellipse) otherwise.
+    fn azimuth(&self, p: Point3<T>) -> Azimuth<T>;
 
     /// The least speed `|P′|` over the carrier: the smaller semi-axis.
     fn speed_lo(&self) -> T;
@@ -306,11 +263,14 @@ pub trait Conic<T: Real>: core::fmt::Debug {
         (a * f.u_ref.dot(n), b * f.v_ref().dot(n))
     }
 
-    /// **The parameter of `p` on the branch of `span`'s middle**: its
-    /// [principal angle](Self::angle_of) [unwound](on_span_branch) onto
-    /// the span.
-    fn param_in(&self, p: Point3<T>, span: (T, T)) -> T {
-        on_span_branch(self.angle_of(p), span)
+    /// **The parameter of `p` within half a turn of `span`'s middle**:
+    /// its [direction](Self::azimuth) read [near](Azimuth::near) the
+    /// middle.
+    fn param_in(&self, p: Point3<T>, (t0, t1): (T, T)) -> T
+    where
+        T: Decide,
+    {
+        self.azimuth(p).near(crate::mid_param(t0, t1))
     }
 
     /// The semi-axis vectors `semi_u·u_ref` and `semi_v·v_ref`, in stored
@@ -364,11 +324,8 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     fn second_derivative_at(&self, theta: T) -> Vec3<T> {
         (**self).second_derivative_at(theta)
     }
-    fn angle_of(&self, p: Point3<T>) -> T {
-        (**self).angle_of(p)
-    }
-    fn param_near(&self, p: Point3<T>, near: T) -> T {
-        (**self).param_near(p, near)
+    fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
+        (**self).azimuth(p)
     }
     fn speed_lo(&self) -> T {
         (**self).speed_lo()
@@ -394,7 +351,10 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     fn unit_of(&self, w: Vec3<T>) -> (T, T) {
         (**self).unit_of(w)
     }
-    fn param_in(&self, p: Point3<T>, span: (T, T)) -> T {
+    fn param_in(&self, p: Point3<T>, span: (T, T)) -> T
+    where
+        T: Decide,
+    {
         (**self).param_in(p, span)
     }
     fn semi_axis_vectors(&self) -> (Vec3<T>, Vec3<T>) {
@@ -467,16 +427,12 @@ impl<T: Real> Conic<T> for Circle<T> {
         (self.frame.u_ref * (-c) + v_ref * (-s)) * self.radius
     }
 
-    fn angle_of(&self, p: Point3<T>) -> T {
+    /// `(x/r, y/r)`'s direction, read as `(y·r, x·r)`, as an ellipse
+    /// reads its own: a circle of negative radius, traversed through the
+    /// seam's antipode, reads the parameter that reproduces the point.
+    fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
         let (x, y) = self.frame.in_plane(p);
-        y.atan2(x)
-    }
-
-    fn param_near(&self, p: Point3<T>, near: T) -> T {
-        let w = p - self.frame.center;
-        let (p_near, tau_near) = self.jet_at(near);
-        let r_near = p_near - self.frame.center;
-        near + w.dot(tau_near).atan2(w.dot(r_near))
+        Azimuth::of(y * self.radius, x * self.radius)
     }
 
     fn speed_lo(&self) -> T {
@@ -642,16 +598,11 @@ impl<T: Real> Conic<T> for Ellipse<T> {
         self.frame.u_ref * (-(self.semi_u * c)) + v_ref * (-(self.semi_v * s))
     }
 
-    fn angle_of(&self, p: Point3<T>) -> T {
-        let (x, y) = self.unit_in_plane(p);
-        y.atan2(x)
-    }
-
-    fn param_near(&self, p: Point3<T>, near: T) -> T {
+    /// `(x/a, y/b)`'s direction, read as `(y·a, x·b)`: the same
+    /// direction scaled by `a·b`, with no division.
+    fn azimuth(&self, p: Point3<T>) -> Azimuth<T> {
         let (x, y) = self.frame.in_plane(p);
-        let (x, y) = (x * self.semi_v, y * self.semi_u);
-        let (s, c) = near.sin_cos();
-        near + (y * c - x * s).atan2(x * c + y * s)
+        Azimuth::of(y * self.semi_u, x * self.semi_v)
     }
 
     fn speed_lo(&self) -> T {
@@ -707,11 +658,9 @@ impl<T: Real> Curve3<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp)]
 mod tests {
-    use core::f64::consts::{PI, TAU};
 
     use geom_core::{Point3, Real, Vec3};
 
-    use super::on_span_branch;
     use crate::Curve3;
 
     fn carriers() -> [Curve3<f64>; 3] {
@@ -791,40 +740,6 @@ mod tests {
                 );
                 assert!(lo > 0.0 && lo <= k.semi_axes().0.min(k.semi_axes().1));
             }
-        }
-    }
-
-    /// **The span-branch rule keeps an on-branch angle's bits.** It adds
-    /// whole turns only, so an angle already on the branch of the span's
-    /// middle comes back unchanged. The retired re-centring spelling,
-    /// `mid + (t − mid).reduce_periodic_centred(τ)`, rounded the angle
-    /// through the middle and back: on `t = 0.1` against `(3.0, 3.2)` it
-    /// returns a different double, and an angle compared with a span end
-    /// of another provenance moved by its rounding. Off the branch it
-    /// lands within half a turn of the middle, a half turn on landing at
-    /// the top of the window.
-    #[test]
-    fn the_span_branch_rule_keeps_an_on_branch_angle() {
-        let (t, span) = (0.1_f64, (3.0, 3.2));
-        assert_eq!(on_span_branch(t, span).to_bits(), t.to_bits());
-        let mid = 3.1_f64;
-        let recentred = mid + (t - mid).reduce_periodic_centred(TAU);
-        assert_ne!(
-            recentred.to_bits(),
-            t.to_bits(),
-            "the re-centring spelling rounds it"
-        );
-        for (t, span, want) in [
-            (0.1 + TAU, (-0.2, 0.4), 0.1),
-            (-PI + 0.1, (2.0, 3.0), PI + 0.1),
-            (PI, (0.0, 0.0), PI),
-            (-PI, (0.0, 0.0), PI),
-        ] {
-            let got = on_span_branch(t, span);
-            assert!(
-                (got - want).abs() < 1e-14,
-                "{t} on {span:?}: {got}, not {want}"
-            );
         }
     }
 }

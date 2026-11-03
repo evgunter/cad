@@ -305,6 +305,15 @@ impl<T: Decide> Period<T> {
     /// outside the log (`docs/predicate-dimension-audit.md` row F31, a
     /// renaming between copies equal modulo a period).
     ///
+    /// **A span's middle as the reference** (the argument the sites that
+    /// rename a parameter onto a span and read it only against the span's
+    /// ends cite). A parameter inside the span lies within half the span
+    /// of the middle and lands on its own copy. Only one half a period
+    /// from the middle is in doubt: on a span shorter than a period it is
+    /// outside the span on either copy, and on a whole-period span it IS
+    /// the span's end, which lands on the upper one, `hi`, and every
+    /// reader of an end reads `lo` and `hi` alike.
+    ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and
     /// reads NaN.

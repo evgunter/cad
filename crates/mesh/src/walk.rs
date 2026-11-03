@@ -144,8 +144,9 @@ use crate::types::TessellateError;
 // crate's own disposition of their answers: the typed refusal a
 // non-iso carrier becomes, the band the separation test is read at,
 // the walk's rotation and pole handling, and the emission itself.
+use geom_core::period::Period;
 pub(crate) use topo::chart::{Chart, ChartKind};
-pub(crate) use topo::chart_iso::{TAU, TravKind, unwrap_near};
+pub(crate) use topo::chart_iso::{TAU, TravKind};
 
 /// One directed boundary traversal: an edge's chord ids in the loop's
 /// walking direction, plus its iso classification.
@@ -372,7 +373,7 @@ pub(crate) fn overused_identified_edge_in(
     uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
 }
 
-/// [`unwrap_near`] with half-period tie resolution toward `anchor`
+/// [`Period::near`] with half-period tie resolution toward `anchor`
 /// (module docs: the wire-band pole junction, meridians exactly π
 /// apart).
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
@@ -1119,7 +1120,7 @@ pub(crate) fn loop_polygon(
             travs
                 .iter()
                 .map(|t| match t.kind {
-                    TravKind::Meridian { u_raw } => unwrap_near(u_raw, mid_az),
+                    TravKind::Meridian { u_raw } => Period::new(TAU).near(u_raw, mid_az),
                     TravKind::Rim { .. } => f64::NAN,
                 })
                 .collect(),
@@ -1148,7 +1149,7 @@ pub(crate) fn loop_polygon(
         match cur.kind {
             TravKind::Rim { v_raw } => {
                 let v_own = if chart.v_periodic() && k > 0 {
-                    unwrap_near(v_raw, prev_v)
+                    Period::new(TAU).near(v_raw, prev_v)
                 } else {
                     v_raw
                 };
@@ -1169,7 +1170,7 @@ pub(crate) fn loop_polygon(
                 let ju = if k == 0 {
                     chart.u_of(positions[jid as usize])
                 } else if prev_was_rim {
-                    unwrap_near(chart.u_of(positions[jid as usize]), prev_u)
+                    Period::new(TAU).near(chart.u_of(positions[jid as usize]), prev_u)
                 } else {
                     prev_u
                 };
@@ -1181,7 +1182,7 @@ pub(crate) fn loop_polygon(
                 });
                 prev_u = ju;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
-                    let u = unwrap_near(chart.u_of(positions[id as usize]), prev_u);
+                    let u = Period::new(TAU).near(chart.u_of(positions[id as usize]), prev_u);
                     out.push(UvPoint {
                         u,
                         v: v_edge,
@@ -1283,7 +1284,7 @@ pub(crate) fn loop_polygon(
                     } else {
                         let v = chart.v_of(positions[jid as usize]);
                         if chart.v_periodic() && k > 0 {
-                            unwrap_near(v, prev_v)
+                            Period::new(TAU).near(v, prev_v)
                         } else {
                             v
                         }
@@ -1300,7 +1301,7 @@ pub(crate) fn loop_polygon(
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
                     let v_raw_pt = chart.v_of(positions[id as usize]);
                     let v = if chart.v_periodic() {
-                        unwrap_near(v_raw_pt, prev_v)
+                        Period::new(TAU).near(v_raw_pt, prev_v)
                     } else {
                         v_raw_pt
                     };
@@ -1337,7 +1338,7 @@ pub(crate) fn loop_polygon(
     // itself and CANNOT go red for any input, however defective.
     // What reds it is a SOURCE EDIT that puts the column back on a
     // derived value, and it does that job well: putting
-    // `unwrap_near(u_raw, anchor)` back in that arm reds this on
+    // `Period::new(TAU).near(u_raw, anchor)` back in that arm reds this on
     // #648's obliquely-placed split frustum wedge at 1 ulp, through the
     // whole-body path rather than through a unit row written for it.
     // Keep it as the acceptance criterion made executable; do not read
@@ -1480,15 +1481,10 @@ mod tests {
         }
     }
 
-    /// **[`unwrap_near`] lands within half a period of its anchor, for
-    /// any raw whatever.** Two live consumers rest on that and neither
-    /// can state it: the walk's wedge rule for θ > 3π/2 needs the
-    /// branch nearest `prev` and no other, and
-    /// `topo::coherence::wrapped` reads this same function as a
-    /// MEASUREMENT — the gap it reports is `|unwrap_near(a, b) − b|`,
-    /// which is a fact about the data only while the selection cannot
-    /// exceed π. A selector that overshot by a turn would make that
-    /// examination report 2π-sized gaps on bodies that agree exactly.
+    /// **[`Period::near`] lands within half a period of its anchor, for
+    /// any raw whatever.** The walk's wedge rule for θ > 3π/2 rests on
+    /// that and cannot state it: it needs the branch nearest `prev` and
+    /// no other.
     ///
     /// `skew` is an ABSOLUTE radian offset and not a count of ulps,
     /// because the row does not depend on the count: its job is to be
@@ -1497,23 +1493,18 @@ mod tests {
     /// anchor plus a hair inside the branch, the shape imported
     /// geometry produces.
     #[test]
-    fn unwrap_near_lands_within_half_a_period_of_its_anchor() {
+    fn the_rename_lands_within_half_a_period_of_its_anchor() {
         let mut skewed = 0_u32;
         const E: f64 = f64::EPSILON;
         for anchor in [0.0, 0.7, -2.4, core::f64::consts::PI, 5.9] {
             for turns in [-2.0_f64, -1.0, 0.0, 1.0, 2.0] {
                 for skew in [0.0_f64, E, -E, 4096.0 * E, -4096.0 * E] {
                     let raw = anchor + turns * TAU + skew;
-                    let carrier = unwrap_near(raw, anchor);
+                    let carrier = Period::new(TAU).near(raw, anchor);
                     assert!(
                         (carrier - anchor).abs() < TAU / 2.0,
                         "the selection must stay inside the anchor's own branch \
                          (anchor {anchor}, turns {turns}, skew {skew} rad)"
-                    );
-                    assert!(
-                        (topo::chart_iso::unwrap_near(raw, anchor) - anchor).abs() <= TAU / 2.0,
-                        "and so must the measurement `coherence::wrapped` takes \
-                         through it (anchor {anchor}, turns {turns}, skew {skew})"
                     );
                     if carrier != anchor {
                         skewed += 1;
@@ -1888,7 +1879,10 @@ mod tests {
         for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
             let far = band_mid_az(&chart, &placed_band(d));
             for u_raw in [0.37, 2.27] {
-                let (near_col, far_col) = (unwrap_near(u_raw, at_origin), unwrap_near(u_raw, far));
+                let (near_col, far_col) = (
+                    Period::new(TAU).near(u_raw, at_origin),
+                    Period::new(TAU).near(u_raw, far),
+                );
                 assert!(
                     (near_col - far_col).abs() < 1e-9,
                     "placement {d:e}: meridian u_raw {u_raw} takes column \
@@ -1926,7 +1920,7 @@ mod tests {
                 let want = (a0 + a1) / 2.0 - core::f64::consts::PI;
                 // Compare modulo 2π: the azimuth is a branch, not a
                 // number, and `atan2` answers in (−π, π].
-                let err = (unwrap_near(got, want) - want).abs();
+                let err = (Period::new(TAU).near(got, want) - want).abs();
                 assert!(
                     err < 1e-12,
                     "meridians {a0} and {a1} at placement {d:e}: area azimuth \

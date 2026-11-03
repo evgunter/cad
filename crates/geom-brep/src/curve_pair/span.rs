@@ -217,29 +217,11 @@ impl<'a, T: Decide> Span<'a, T> {
         (self.lo, self.hi)
     }
 
-    /// `t` on the branch within half a turn of the span's middle, on a
-    /// closed carrier; `t` itself on an open one.
+    /// `t` within half a turn of the span's middle on a closed carrier,
+    /// `t` itself on an open one ([`Curve3::branch_near`]).
     pub fn branch(&self, t: T) -> T {
-        match self.carrier {
-            Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
-                let mid = geom::mid_param(self.t0, self.t1);
-                let d = t - mid;
-                let r = d.reduce_periodic_centred(T::tau());
-                // An enclosure of `t` about the antipode of the middle
-                // would wrap the whole turn: there either branch is as
-                // near, so it is read on the one whose cut lies at the
-                // middle instead.
-                let row = "curve_pair_span_branch";
-                let inside = super::compare(row, r, T::pi()) == Some(Sign::Negative)
-                    && super::compare(row, r, T::zero() - T::pi()) == Some(Sign::Positive);
-                if inside {
-                    mid + r
-                } else {
-                    mid + (d + T::pi()).reduce_periodic_centred(T::tau()) - T::pi()
-                }
-            }
-            Curve3::Line(_) | Curve3::Nurbs(_) => t,
-        }
+        self.carrier
+            .branch_near(t, geom::mid_param(self.t0, self.t1))
     }
 
     /// **The parameters a shared run of this span and another is read
