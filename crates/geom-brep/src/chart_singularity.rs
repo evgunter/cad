@@ -497,19 +497,19 @@ enum Near<T> {
     Unsettled,
 }
 
-/// **The carrier parameter of the point of `carrier` nearest `x`**, in
-/// closed form: a line's projection, or a circle's angle about its
-/// centre in its own frame brought to the turn at or past `from` and
-/// short of a turn beyond it. `None` for any other carrier. The one
-/// spelling of the foot, which import's meridian landing cites.
-pub fn foot<T: Real>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
-    match *carrier {
-        Curve3::Line(line) => Some(line.param(x)),
-        Curve3::Circle(ref c) => {
-            let t = geom::Conic::angle_of(c, x);
+/// **The carrier parameter of the point of `carrier` nearest `x`**: its
+/// [`Curve3::foot`] seeded at `from`, where that is the nearest point of
+/// the whole carrier (a line and a circle), a circle's brought to the
+/// turn at or past `from` and short of a turn beyond it. `None` for any
+/// other carrier.
+pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
+    match carrier {
+        Curve3::Line(_) => Some(carrier.foot(x, from).t()),
+        Curve3::Circle(_) => {
+            let t = carrier.foot(x, from).t();
             Some(from + (t - from).reduce_periodic(T::tau()))
         }
-        _ => None,
+        Curve3::Ellipse(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 

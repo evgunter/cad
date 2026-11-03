@@ -451,16 +451,6 @@ fn use_edges(solid: &SolidSpec, uses: &[EdgeUse]) -> Vec<LoopEdge<f64>> {
         .collect()
 }
 
-/// **The parameter at which `carrier` passes nearest `x`**, where a
-/// minted meridian meets the boundary: a line's projection, or a
-/// circle's angle about its centre in its own frame (the convention
-/// [`crate::geometry::endpoint_params`] derives edge intervals in),
-/// brought to the representative at or past `from` and short of a turn
-/// beyond it. `None` for any other carrier.
-fn param_at(carrier: &Curve3<f64>, x: Point3<f64>, from: f64) -> Option<f64> {
-    home::foot(carrier, x, from)
-}
-
 /// The two uses of the single edge at `vertex` in face `fi`'s loop: the
 /// one arriving at the vertex and the one leaving it, when the face
 /// uses that edge once each way (a seam ending at a strut tip).
@@ -709,7 +699,7 @@ fn first_hit(
             crossings(&ray.carrier, &spec.carrier, read).ok_or(foreign_carrier(face.id))?
         {
             let delta = walked(t_ray);
-            let te = param_at(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
+            let te = home::foot(&spec.carrier, p, spec.t0).ok_or(foreign_carrier(face.id))?;
             // At one of the edge's ends, decided at the pass's band as
             // the singular point itself is: within it, the landing is
             // that vertex; past it, the edge is split there; between,
@@ -752,7 +742,7 @@ fn first_hit(
 
 /// The parameter of `carrier` at `x`, when `x` lies on it within ε_in.
 fn foot(carrier: &Curve3<f64>, x: Point3<f64>, read: &Read) -> Option<f64> {
-    let t = param_at(carrier, x, 0.0)?;
+    let t = home::foot(carrier, x, 0.0)?;
     ((carrier.eval(t) - x).norm() <= read.eps).then_some(t)
 }
 

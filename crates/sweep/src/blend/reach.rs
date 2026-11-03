@@ -828,21 +828,12 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
         .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's face fan"))
 }
 
-/// The point of `curve` nearest `p`, for a line or a circle (a band's
-/// trimline or spine); `None` for any other carrier.
-fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
-    match *curve {
-        Curve3::Line(line) => Some(line.foot(p)),
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { center, axis, .. },
-            radius,
-        }) => {
-            let a = axis.normalize();
-            let v = p - center;
-            Some(center + (v - a * v.dot(a)).normalize() * radius)
-        }
-        _ => None,
-    }
+/// The point of `curve` nearest `p` ([`Curve3::foot`]), for a carrier
+/// whose foot is nearest on the whole of it (a band's trimline or
+/// spine: a line or a circle); `None` for any other.
+fn foot_on<T: Decide>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
+    let foot = curve.foot(p, T::zero());
+    foot.is_nearest().then(|| curve.eval(foot.t()))
 }
 
 /// The mean of some points.
@@ -983,7 +974,7 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             axis,
             radius,
             ..
-        } => foot_on(&Curve3::Line(geom::Line { origin, dir: axis }), p).map(|c| (c, radius)),
+        } => Some((geom::Line { origin, dir: axis }.foot(p), radius)),
         Surface::Torus {
             center,
             axis,

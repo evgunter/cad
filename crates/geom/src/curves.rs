@@ -1444,7 +1444,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// flip, and decided by two unrelated last bits.
     pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
         match self {
-            Curve3::Line(Line { origin, dir }) => Some((p - *origin).dot(*dir)),
+            Curve3::Line(line) => Some(line.param(p)),
             Curve3::Circle(c) => Some(c.param_near(p, near)),
             Curve3::Ellipse(e) => Some(e.param_near(p, near)),
             Curve3::Spiric {
