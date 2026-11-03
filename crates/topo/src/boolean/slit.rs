@@ -1079,6 +1079,16 @@ fn holding<T: Decide>(
         // its faces go into the face's material: where they do not, the
         // parting is not asked whatever the answer.
         Err(read) => {
+            // The walls' own refusals (a wall tangent to the face, a wall
+            // with no normal) presuppose the edge lies in the face; where
+            // that is what is unread, the refusal is the unread one.
+            let unread_place = matches!(
+                read,
+                BooleanError::EdgeInFace {
+                    gap: EdgeInFaceGap::CarrierUnread | EdgeInFaceGap::SplineFace,
+                    ..
+                }
+            );
             return match walls_inside(body, e, f, band) {
                 Ok(Some(_)) => unplaced(read),
                 // A definite `Crossed` cannot hold of an edge lying in
@@ -1091,6 +1101,7 @@ fn holding<T: Decide>(
                     gap: EdgeInFaceGap::Crossed,
                     ..
                 }) => Ok(None),
+                Err(_) if unread_place => Err(read),
                 Err(other) => Err(other),
             };
         }
@@ -2968,11 +2979,11 @@ mod spline_rider {
     /// it is a rider in the wall. As a spline it refuses, and first at the
     /// box's top face, which the crossing record relates it to: the keel
     /// only crosses that face's plane, but no certificate clears a carrier
-    /// that crosses it, so its place there is unread, and its walls, both
-    /// square to the top, read tangent to it (`EdgeInFace { keel, top,
-    /// Tangent }`). Red on a reading that asks both ends before a record,
-    /// or that reads a crossing-only face as holding nothing (`Ok`, no
-    /// parting).
+    /// that crosses it, so its place there is unread
+    /// (`EdgeInFace { keel, top, CarrierUnread }`); the walls' own reading,
+    /// which presupposes the keel lies in the face, does not name it. Red
+    /// on a reading that asks both ends before a record, or that reads a
+    /// crossing-only face as holding nothing (`Ok`, no parting).
     #[test]
     fn a_spline_keel_past_a_plane_face_refuses_at_the_face_it_crosses() {
         let (mut body, wall, keel, [lo, _]) = box_and_keel((0.5, 1.5));
@@ -3006,7 +3017,7 @@ mod spline_rider {
                 Err(BooleanError::EdgeInFace {
                     edge,
                     face,
-                    gap: EdgeInFaceGap::Tangent,
+                    gap: EdgeInFaceGap::CarrierUnread,
                 }) if edge == keel && face == roof
             ),
             "the spline keel past the wall refuses at the box's top, got {:?}",

@@ -529,9 +529,8 @@ fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
 /// The slit pass asks each circle rim arc against the lofted cylinder's
 /// OTHER spline wall, which shares the arc's two vertices in the
 /// cylinder's own topology and nothing else: the arc's place on a spline
-/// face is not read, so nothing says it lies along no piece of that wall,
-/// and the walls are read; the arc's own spline wall has no normal there
-/// (`EdgeInFace { NoNormal }`). Pinned in the far `O ∪ B` by identity: the edge is
+/// face is not read, so nothing says it lies along no piece of that wall
+/// (`EdgeInFace { SplineFace }`). Pinned in the far `O ∪ B` by identity: the edge is
 /// a circle arc of the cylinder bounding a plane cap and a spline wall,
 /// the face a spline wall of the cylinder that is not one of the arc's
 /// faces and holds both its vertices. In the far `B ∪ O` and the around
@@ -546,7 +545,7 @@ fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
         brick_with_fresh_keys::<f64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol),
         tol,
     );
-    let gap = topo::EdgeInFaceGap::NoNormal;
+    let gap = topo::EdgeInFaceGap::SplineFace;
     match topo::union(&cyl, &brick, tol) {
         Err(BooleanError::EdgeInFace { edge, face, gap: g }) if g == gap => {
             let kind = |f: topo::FaceKey| {
