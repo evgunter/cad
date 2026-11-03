@@ -352,3 +352,16 @@ and bodies unchanged. No orchestrator yet.
   - Removed the torus gate after re-measuring, which also lets `shaft_and_bearing_rounded` build.
   - Ran the slow sets of all touched crates, 12,906 rows.
   - In the main merge, kept main's new cone-apex use of the rulings lane, narrowed to the cone pair.
+
+- 2026-11-03 10:10 — **PR 6412 dual review is in:** R1 and R2 both APPROVE-WITH-FIXES, no MAJOR. Fix pass sent, both sessions archived, blind coding running.
+  - **Confirmed:** both lanes checked the 1×2 jets by finite differences and found exhaustiveness sound; R1 confirmed the plane path is bit-identical.
+  - **Must fix:**
+    - The louder tolerance, minted before classification, turns a decided R = 10⁶ pose at 1e-12 into a refusal (R1, undisclosed). The preferred fix is to mint it only where a march needs it.
+    - The margin rows can't catch an unsound margin (both lanes).
+    - `rhs3` has no row (R2).
+    - The curved side arm is undriven (both lanes).
+    - The partner-reach refusal is mislabelled as the domain (R2).
+  - **To file:**
+    - a translated pose refuses through `PROJECT_EPS_POINT`'s absolute 1e-13;
+    - a crease march escalates;
+    - 7 s cell-budget refusals.
