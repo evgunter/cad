@@ -405,3 +405,145 @@ fn sheets_along_one_ray_part_by_their_bends_f64() {
 fn sheets_along_one_ray_part_by_their_bends_interval() {
     sheets_along_one_ray_part_by_their_bends::<Interval>();
 }
+
+/// A horn at `p` of outward unit `m` along `ends`, held as built: what
+/// [`FaceSector::tangent_piece`] keeps of a cusp corner it reads as one.
+fn horn<T: Real>(
+    p: Point3<T>,
+    m: Vec3<T>,
+    ends: [(Vec3<T>, Bound<T>); 2],
+) -> TangentPiece<T> {
+    TangentPiece::Horn(Horn {
+        outward: m,
+        apex: p,
+        ends,
+    })
+}
+
+/// **A thorn is read with its first order charged**: a thorn along
+/// `+x` thin enough that its curved face's edge `B` stands just past the
+/// escalation off the face in `z = 0` and its line `L` as far off the
+/// curved face, one order down. It rests; with `B` leaving the tip
+/// tilted off that face by nine tenths of the band's zero at the arm it
+/// refuses, the tilt charged; with `B` leaving it by twice the
+/// escalation, so that `B`'s edge leaves the face's plane at first
+/// order, it refuses however far `B` bends. A ring of four whose third
+/// corner lies on the line of the first two refuses. Red where a
+/// vertex's first-order residue is not charged, an edge off the face's
+/// plane is read as one of the picture, or a vertex on a side's line is
+/// passed.
+fn a_thorn_is_read_with_its_first_order_charged<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let (zero, escalate) = (band().zero(), band().escalate());
+    // `B` stands `β` across: at the arm `l = 2` its parting is `2β`.
+    let beta = (escalate + 0.5 * zero) / 2.0;
+    let thin = |p: Point3<T>, b_at: [f64; 3], lift: f64| -> Vec<TangentPiece<T>> {
+        let k = edges(3);
+        let d = v::<T>(2.0, 0.0, 0.0);
+        let (l, a, b) = (
+            bound(k[0], [0.0; 3]),
+            bound(k[1], [0.0, 1.0, 0.0]),
+            bound(k[2], b_at),
+        );
+        let db = v::<T>(2.0, 0.0, lift);
+        let n = Vec3::new(0.0, b_at[2], 1.0).normalize();
+        vec![
+            horn(p, v(0.0, 0.0, -1.0), [(d, a), (d, l)]),
+            horn(p, v(0.0, -1.0, 0.0), [(d, l), (db, b)]),
+            horn(p, v(0.0, n.y, n.z), [(db, b), (d, a)]),
+        ]
+    };
+    for p in apexes::<T>() {
+        assert!(
+            matches!(read(p, thin(p, [0.0, 0.0, beta], 0.0)), TouchVerdict::Rest(_)),
+            "a thin thorn at {p:?}"
+        );
+        assert_eq!(
+            read(p, thin(p, [0.0, 0.0, beta], 0.9 * zero)),
+            unread,
+            "a thin thorn, its edge tilted at {p:?}"
+        );
+        assert_eq!(
+            read(p, thin(p, [0.0, 0.0, 1.0], 4.0 * escalate)),
+            unread,
+            "a thorn whose edge leaves the face's plane at {p:?}"
+        );
+        // `M` on the line through `A` and `L`, the face from `M` to `A`
+        // lying on the plane of the one from `A` to `L`.
+        let k = edges(4);
+        let d = v::<T>(2.0, 0.0, 0.0);
+        let (m, a, l, b) = (
+            bound(k[0], [0.0, 2.0, 0.0]),
+            bound(k[1], [0.0, 1.0, 0.0]),
+            bound(k[2], [0.0; 3]),
+            bound(k[3], [0.0, 0.0, 1.0]),
+        );
+        let n = Vec3::new(0.0, 1.0, 2.0).normalize();
+        let four = vec![
+            horn(p, v(0.0, 0.0, -1.0), [(d, m), (d, a)]),
+            horn(p, v(0.0, 0.0, -1.0), [(d, a), (d, l)]),
+            horn(p, v(0.0, -1.0, 0.0), [(d, l), (d, b)]),
+            horn(p, v(0.0, n.y, n.z), [(d, b), (d, m)]),
+        ];
+        assert_eq!(read(p, four), unread, "a corner on a side's line at {p:?}");
+    }
+}
+
+#[test]
+fn a_thorn_is_read_with_its_first_order_charged_f64() {
+    a_thorn_is_read_with_its_first_order_charged::<f64>();
+}
+
+#[test]
+fn a_thorn_is_read_with_its_first_order_charged_interval() {
+    a_thorn_is_read_with_its_first_order_charged::<Interval>();
+}
+
+/// [`two_wedges`], the first wedge's edge also `rise` above the plane
+/// `z = 0` one order down, and its face in `z = 0` tilted about `x` to
+/// the normal `(0, −tilt, 1)`.
+fn two_wedges_tilted<T: Decide>(p: Point3<T>, rise: f64, tilt: f64) -> Vec<TangentPiece<T>> {
+    let k = edges(2);
+    let (e1, e2) = (bound(k[0], [0.0, -1.0, rise]), bound(k[1], [0.0, -3.0, 0.0]));
+    let x = v::<T>(2.0, 0.0, 0.0);
+    let n = Vec3::new(0.0, -tilt, 1.0).normalize();
+    vec![
+        corner(p, v(0.0, 1.0, 0.0), (-x, x), [e1, e1]),
+        corner(p, v(0.0, n.y, n.z), (x, -x), [e1, e1]),
+        corner(p, v(0.0, -1.0, 0.0), (-x, x), [e2, e2]),
+        corner(p, v(0.0, 0.0, -1.0), (x, -x), [e2, e2]),
+    ]
+}
+
+/// **A sheet along another's line is read with its lean charged**: two
+/// wedges whose faces in `z = 0` run on along one line at first order,
+/// the first's edge just past the escalation above the other's line one
+/// order down. They rest; with the first's face leaning toward the
+/// other's line by nine tenths of the band's zero at the arm, they
+/// refuse. Red where a sheet's lean along another's line is not
+/// charged.
+fn a_sheet_along_anothers_line_is_read_with_its_lean_charged<T: Decide>() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let rise = (escalate + 0.5 * zero) / 2.0;
+    for p in apexes::<T>() {
+        assert!(
+            matches!(read(p, two_wedges_tilted(p, rise, 0.0)), TouchVerdict::Rest(_)),
+            "two wedges, one above the other's line, at {p:?}"
+        );
+        assert_eq!(
+            read(p, two_wedges_tilted(p, rise, 0.45 * zero)),
+            TouchVerdict::Unread(TouchUnread::Unreadable),
+            "two wedges, one leaning toward the other's line, at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_sheet_along_anothers_line_is_read_with_its_lean_charged_f64() {
+    a_sheet_along_anothers_line_is_read_with_its_lean_charged::<f64>();
+}
+
+#[test]
+fn a_sheet_along_anothers_line_is_read_with_its_lean_charged_interval() {
+    a_sheet_along_anothers_line_is_read_with_its_lean_charged::<Interval>();
+}

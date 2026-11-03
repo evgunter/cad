@@ -32,3 +32,9 @@ of the draw, not a contradiction of the oracle, but it fails the row.
 The draw cannot produce such a cone (or skips it loudly, by
 `loud_skip_marker!`, rather than failing), and this seed is pinned as
 an ordinary row beside the fix.
+
+**A second seed** (RESTREAD, `restread/self-touch-second-order`, whose
+diff does not reach the fuzz's draw or its oracle): seed
+`0xa194f9d0b0758284` at the default ε, effort 1, reports
+`ε 1e-6, cone 18, split` and `ε 1e-6, cone 18, conic`, the same
+message.

@@ -1139,12 +1139,14 @@ solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
 curved edge held at its corner, a planar face with a spline edge, or a
 point tied inside a curved edge read as its faces' tangent cones
-(`FaceSector::tangent`) where their first order decides, and left
-unread where it does not (`census::SelfTouch::SecondOrder`: a cone's
-apex, a cusp corner, sheets tangent to first order, a face whose
-tangent reading does not build, or sectors lying on each other). Every
-other use of a face's normal in the coincidence sweeps is
-sense-invariant.
+(`FaceSector::tangent`) where their first order decides, one order
+down where it ties at a cusp corner or along a ray
+(`link::second_order`), and left unread where neither decides
+(`census::SelfTouch::SecondOrder`: a cone's apex, a horn beside a sheet
+along its ray, a curved sheet holding a tied ray inside it, sheets the
+bends do not part, a face whose tangent reading does not build, or
+sectors lying on each other). Every other use of a face's normal in the
+coincidence sweeps is sense-invariant.
 
 The tangent reading is the germ's (`rest::first_order`). Under the
 blow-up `q ↦ p + (q − p)/t` the faces about `p` tend in C¹, as
@@ -1163,6 +1165,51 @@ a shared edge at dihedral π, graphs over complementary domains of one
 plane), each of which survives the perturbation. So the cone's verdict
 is the faces' at every small enough scale: the germ's, which is what
 the link claim is about.
+
+Where the first order ties along a ray `u` — a cusp corner, whose two
+edges leave along it, or a bound lying on another sheet's plane where
+the faces keep no coincidence — the reading goes one order down
+(`link::second_order`). Cut the faces square to `u` at distance `s` and
+scale the cut by `2/s²`: as `s → 0`, an edge leaving `p` along `u`
+with curvature vector `κ` meets the cut at `κ`, and a face whose
+tangent plane holds `u` meets it in a straight line of the face's
+outward normal `m` through its edges' points; a face whose tangent
+plane does not hold `u`, or holds it outside its sector, leaves the cut
+for good. So the germ about `u` is the cut's picture along the ray:
+
+- **a cusp corner** is a horn where the edge back into the vertex
+  stands left of the edge out (`(κ₁ − κ₀)·(m × u) > 0`), the face the
+  segment between them; the whole turn but a horn where it stands
+  right, the face its line less that segment, and a sector of the whole
+  turn at first order;
+- **a ring of horns** (each meeting the next at the edge back into it)
+  is a polygon; where every vertex off a side stands strictly on one
+  side of that side's face, the same side throughout, the polygon is
+  convex and simple and its faces' normals all point out of it (a thorn
+  of material) or all into it (a needle of void). The cone of the
+  link's sectors must read the ray decidedly outside its material for
+  a thorn, inside it for a needle, so no sheet of the cone comes near
+  it and the windings either side of the polygon differ by one;
+- **sheets along a ray where a bound ties** are half-lines from their
+  edges' points into their sectors, and planar sheets through the ray
+  whole lines through the point; where no two meet but at an edge's
+  point they share (without folding there), they are curves bounding
+  the material on their outward sides, and the cone, which sees them
+  meet on the ray as edges meet, reads the faces' winding about it as
+  the cut does.
+
+Each such sign is the bend's Taylor term at the arm `l` in metres
+(`κ·l²/2`), decided with the first order's residue there charged
+(`Reading::charged`): the two departures' parting off the plane it is
+read against, `δ·l` decided zero, and a sheet's lean along a line it
+runs on at first order. The residue's part grows as `δ·s` and the
+bend's as `Δκ·s²/2`, so the picture read holds at every scale from the
+arm down to `s₀ = 2δ/|Δκ|`, and below `s₀` the faces stand within
+`δ·s₀ ≤ 2(δl)²/(|Δκ|l²) ≤ 4·zero/K` of it, the bend's term at the arm
+being past the escalation `K·zero`: inside the band. A sign the charge
+leaves in band, a picture whose sheets meet, a horn beside a sector
+along its ray, and a curved sheet holding a tied ray inside it (its
+line is not read) are left unread.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,

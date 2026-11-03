@@ -83,7 +83,7 @@ pub(super) fn cusp<T: Decide>(
 
 /// **The link's horns, read as the thorns they bound**: every horn is
 /// held to a cycle of horns along one ray, each meeting the next at the
-/// edge back into it, of three horns or more. One order down a cycle is
+/// edge back into it. One order down a cycle is
 /// a polygon, its vertices the edges' points and its sides the horns'
 /// segments. It is read as one where every vertex off a side stands
 /// strictly on one side of that side's face, the same side for every
@@ -98,8 +98,8 @@ pub(super) fn cusp<T: Decide>(
 /// polygon winds one less than inside it for a thorn, one more for a
 /// needle. Two cycles must lie on rays decidedly apart. Anything else
 /// is [`TouchUnread::Unreadable`]: a horn beside a sector along its ray,
-/// two horns lying flat on each other, a polygon the band does not
-/// part.
+/// a ring of two horns (no vertex off a side), a polygon the band does
+/// not part.
 pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), TouchUnread> {
     let (p, horns) = (link.cone.p, &link.horns);
     let unread = TouchUnread::Unreadable;
@@ -134,9 +134,6 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             seen[at] = true;
             cycle.push(at);
             at = next(at)?;
-        }
-        if cycle.len() < 3 {
-            return Err(unread);
         }
         let l = cycle
             .iter()
@@ -249,24 +246,13 @@ enum Run<T: Decide> {
 /// material on its outward side, so the cone, which sees them meet on
 /// the ray, reads the faces' winding about it as the cut does.
 ///
-/// Read only where no horn lies along the ray ([`thorns`] reads those)
-/// and no curved sector holds it inside; anything else is false.
+/// A horn along the ray is no sheet here: [`thorns`] refuses a horn
+/// whose ray a sector of the cone reaches. A curved sector holding the
+/// ray inside is false.
 pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> bool {
     let p = link.cone.p;
     let unit = (r - p).normalize();
     let mut arm = (r - p).norm();
-    let on_ray = |m: Vec3<T>, q: Point3<T>| {
-        metric::sign_over(LINK_PLANE, Distance::of(r, p, m), rd) == Some(Sign::Zero)
-            && wedge_side(p, m, q, r, rd) == Some(Sign::Zero)
-            && ahead(p, q, r, rd) == Some(Sign::Positive)
-    };
-    if link.horns.iter().any(|h| {
-        h.ends
-            .iter()
-            .any(|&(d, _)| on_ray(h.outward, p + d.normalize() * arm))
-    }) {
-        return false;
-    }
     let mut sheets: Vec<Sheet<T>> = Vec::new();
     for (j, t) in link.cone.sectors.iter().enumerate() {
         match link.cone.side(t, r, rd) {
