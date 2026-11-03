@@ -6,6 +6,8 @@ status: closed
 opened: 2026-10-14
 closed: 2026-11-03
 pr: 6468
+priority: P1
+cost: E
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve` (conic
