@@ -59,8 +59,8 @@
 //!   and stops once its reach is within the band
 //!   (`curve_carrier_piece`). The point is off only where every piece
 //!   clears. A walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
-//!   ([`CarrierRefusal::Exhausted`]), and a speed bound that is zero or
-//!   poison refuses on kind ([`CarrierRefusal::Unbounded`]). A rational
+//!   ([`PieceWalkRefusal::Exhausted`]), and a speed bound that is zero or
+//!   poison refuses on kind ([`PieceWalkRefusal::Unbounded`]). A rational
 //!   spline's speed bound is certified at `Interval`; at `f64` and
 //!   extreme weights it is the same expression in round-to-nearest, not
 //!   a bound.
@@ -158,11 +158,8 @@ impl<'c, T: Decide> Foot<'c, T> {
                 _,
             ) => Ok(OnCarrier::Off),
             (_, Err(diag)) | (Err(diag), _) => Err(diag.into()),
-            (Ok(low), Ok(high)) => Err(CarrierRefusal::Straddle(straddle(
-                "curve_carrier_straddle",
-                low,
-                high,
-                band,
+            (Ok(low), Ok(high)) => Err(CarrierRefusal::Escalated(CarrierEscalation::Straddle(
+                straddle("curve_carrier_straddle", low, high, band),
             ))),
         }
     }
@@ -193,25 +190,75 @@ pub enum OnCarrier {
     Off,
 }
 
-/// Why [`Foot::on_carrier`] gives no answer.
+/// Why [`Foot::on_carrier`] gives no answer: the band's escalation, or a
+/// spline's walk that could not run. The two are one fact about the
+/// refusal, so a consumer sorts them by these two arms
+/// ([`Self::escalation`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CarrierRefusal {
+    /// The band's escalation.
+    Escalated(CarrierEscalation),
+    /// A spline's piece walk could not run: no closed-form carrier
+    /// walks.
+    Unwalked(PieceWalkRefusal),
+}
+
+/// How the band escalated a carrier reading ([`CarrierRefusal::Escalated`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CarrierEscalation {
     /// A decision the answer rests on fell in the band's gap.
-    Escalated(Indeterminate),
+    InBand(Indeterminate),
     /// The lower bound on the band's zero side and the gap past it
     /// straddle the whole band (`curve_carrier_straddle`): two decided
     /// readings of one distance that no margin of either says.
     Straddle(Indeterminate),
-    /// A spline's piece walk ran past its budget.
+}
+
+impl CarrierEscalation {
+    /// The diagnostics, either way.
+    #[must_use]
+    pub const fn diag(self) -> Indeterminate {
+        match self {
+            Self::InBand(diag) | Self::Straddle(diag) => diag,
+        }
+    }
+}
+
+/// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PieceWalkRefusal {
+    /// The walk ran past its budget.
     Exhausted,
-    /// A spline whose greatest speed is zero or poison: its pieces have
-    /// no reach to clear by.
+    /// The spline's greatest speed is zero or poison: its pieces have no
+    /// reach to clear by.
     Unbounded,
+}
+
+impl CarrierRefusal {
+    /// **The band's escalation this refusal is**, its diagnostics
+    /// ([`CarrierEscalation::diag`]); `Err` where a spline's walk could not
+    /// run.
+    ///
+    /// # Errors
+    ///
+    /// [`PieceWalkRefusal`]: the refusal is no escalation.
+    pub fn escalation(self) -> Result<Indeterminate, PieceWalkRefusal> {
+        match self {
+            Self::Escalated(how) => Ok(how.diag()),
+            Self::Unwalked(why) => Err(why),
+        }
+    }
 }
 
 impl From<Indeterminate> for CarrierRefusal {
     fn from(diag: Indeterminate) -> Self {
-        Self::Escalated(diag)
+        Self::Escalated(CarrierEscalation::InBand(diag))
+    }
+}
+
+impl From<PieceWalkRefusal> for CarrierRefusal {
+    fn from(why: PieceWalkRefusal) -> Self {
+        Self::Unwalked(why)
     }
 }
 
@@ -460,8 +507,8 @@ impl<T: Decide> Curve3<T> {
     ///
     /// # Errors
     ///
-    /// [`CarrierRefusal::Exhausted`] past the piece budget;
-    /// [`CarrierRefusal::Unbounded`] where the carrier's greatest speed is
+    /// [`PieceWalkRefusal::Exhausted`] past the piece budget;
+    /// [`PieceWalkRefusal::Unbounded`] where the carrier's greatest speed is
     /// zero or poison.
     pub fn clear_of(
         &self,
@@ -474,7 +521,7 @@ impl<T: Decide> Curve3<T> {
             || decide("curve_carrier_speed", Margin::of(hi.get()), Band::least())
                 != Ok(Sign::Positive)
         {
-            return Err(CarrierRefusal::Unbounded);
+            return Err(PieceWalkRefusal::Unbounded.into());
         }
         let mut kept: Option<Result<Decided, Indeterminate>> = None;
         self.point_walk(
@@ -506,7 +553,7 @@ impl<T: Decide> Curve3<T> {
                 PieceStep::Halve
             },
         )
-        .map_err(|_| CarrierRefusal::Exhausted)?;
+        .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
         Ok(kept.map_or(Clearance::Clear, Clearance::Near))
     }
 }

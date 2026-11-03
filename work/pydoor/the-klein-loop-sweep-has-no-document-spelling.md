@@ -51,3 +51,8 @@ an interpolant of it. The audit's row 40 moved from YES to NO on it;
 it flips back with this row, `TestProjectbox` building the spring.
 
 - 2026-11-03 — moved from LIB to PYDOOR by `git mv` when LIB closed, id and body unchanged (LIB had three P1 rows left behind 124 closed ones; its library-door rows went to PYDOOR, opened for them, and its tag, stub, census and projection rows to BIND; Ev, in chat).
+
+
+## `path_start_frame` retired (FRAME, PR 6465, 2026-11-03)
+
+`geom_core::linalg::frame::path_start_frame` and its Python spelling `Frame.path_start_frame` retired in PR 6465, with the `FrameInput::{Tangent, ReferenceLadder}` words. A frame across a direction with no stated reference is now a written frame turned onto it: `RigidMotion::turned_onto(self, direction, site, band)` (`crates/geom-core/src/linalg/rigid_motion.rs`), e.g. `RigidMotion::axes_xy(p).turned_onto(t̂, …)` for a sweep's start. The klein loop's start placement is now `scalar::frame_across` (`demos/tour/src/scalar.rs`), which calls it. This row's status and title are the owning program's call.

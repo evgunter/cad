@@ -10,9 +10,8 @@
 
 use core::f64::consts::PI;
 
-use crate::common::arc_section;
+use crate::common::{arc_section, start_frame};
 use geom_brep::props::quad::{PatchNet, RVec3, mean_boundary_displacement, nurbs_patch_face};
-use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3};
 use profile::{ProfileLoop, SketchPlane, circle, circle_split};
@@ -161,7 +160,7 @@ fn lofted_loop(
     let band = Band::linear(tol()).unwrap();
     let (t0, t1) = spine.domain();
     let (start, tangent) = spine.ders1(t0);
-    let roll = path_start_frame(start, tangent, tol()).unwrap().u().get();
+    let roll = start_frame(start, tangent).u().get();
     let places: Vec<SketchPlane<f64>> = (0..stations)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
@@ -221,7 +220,7 @@ fn row3_swept_loop() {
         let spine = loop_spine([0.0; 3]);
         let (t0, _) = spine.domain();
         let (start, tangent) = spine.ders1(t0);
-        let place = path_start_frame(start, tangent, tol()).unwrap();
+        let place = start_frame(start, tangent);
         let r = sweep_body::<f64>(
             &annulus(0),
             SketchPlane::from_frame(place),
