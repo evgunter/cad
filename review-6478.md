@@ -49,8 +49,7 @@ rotational row green. Every fixture has `env` ≈ 1e-13, and on the cylinder the
 breaks guard nothing the integrand needs. The only singularity, `x² + y² = 0`, is
 caught per piece by `recip`, which refuses an interval containing 0. So claim 2's "pieces cut at the sector breaks,
 so the ρ/pole/tube bounds hold" is decorative at this stage. It is not wrong, but
-premise (e) ("check it, don't assume it") is not shown. Confidence: **sure**
-(execution).
+premise (e) ("check it, don't assume it") is not shown. Confidence: **sure** (execution).
 
 **MINOR 4 — the swap rows never test the chart term's rational part.** As MAJOR 1
 says, `face` builds `closed = whole − lever·VA(carrier, 4096)` with the same
