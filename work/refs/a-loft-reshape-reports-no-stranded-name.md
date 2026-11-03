@@ -4,6 +4,8 @@ kind: issue
 title: A loft reshape that drops or re-pairs a section reports no stranded name, and no door checks a name's section ids against the mint
 status: open
 opened: 2026-11-02
+priority: P2
+cost: M
 ---
 
 

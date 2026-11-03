@@ -163,7 +163,13 @@ pub(crate) fn planar_axis<T: Decide>(
 ) -> Option<UnitVec3<T>> {
     let n = crate::face_normal::face_outward_normal(body, face)?;
     let (lo, hi) = reach()?;
-    UnitVec3::levered(n.vec(), PAIR_NORMAL, band, (hi - lo).norm()).ok()
+    UnitVec3::levered(
+        n.vec(),
+        PAIR_NORMAL,
+        band,
+        geom_brep::ExtentBall::box_diagonal(lo, hi),
+    )
+    .ok()
 }
 
 /// What [`operand_axes`] compares two axes by: two equal keys are one

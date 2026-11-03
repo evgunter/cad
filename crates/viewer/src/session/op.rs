@@ -590,8 +590,8 @@ pub enum SessionOp {
         /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
         name: String,
     },
-    /// Insert one profile node from template loops, drawn on its own
-    /// plane — the add-profile tool's one committed edit.
+    /// Insert one profile node, drawn on its own plane — New profile's
+    /// committed edit, with no loops.
     ///
     /// `loops` is DESCRIPTION order, nothing more: which loop is the
     /// outer boundary and which are holes is decided by the profile
@@ -658,9 +658,8 @@ pub enum SessionOp {
         /// The loops, outer first, in the document's vocabulary.
         chains: Vec<pncad::trace::Chain>,
     },
-    /// **Write the path editor's program over a committed profile's**
-    /// — the door the add-profile form's editor commits through when
-    /// it is opened on an existing node instead of on nothing. A
+    /// **Write the profile editor's program over a committed
+    /// profile's** — the door each of its changes commits through. A
     /// `node` that is not a `Node::Profile` refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
@@ -672,8 +671,8 @@ pub enum SessionOp {
     /// one undo — whatever moved: numbers, steps inserted, removed or
     /// reordered, verbs, arc modes, targets, a split circle's count.
     /// Nothing at all reaches it when the program is the committed one
-    /// with every step kept in place, which is what makes opening a
-    /// profile and applying it untouched cost no history entry.
+    /// with every step kept in place, so a draft that moved nothing
+    /// costs no history entry.
     ///
     /// Every argument of a kept step that did not move is written as
     /// the document holds it, so only what moved takes the editor's
@@ -705,8 +704,8 @@ pub enum SessionOp {
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node — the extrude
-    /// tool's one committed action. It lands unplaced, drawn in its own
+    /// Insert one extrude of an existing profile node — what the
+    /// extrude button commits. It lands unplaced, drawn in its own
     /// space. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
@@ -721,8 +720,9 @@ pub enum SessionOp {
         distance: Formula,
     },
     /// Insert one revolve of an existing profile node about an axis
-    /// line in the profile's own plane, and its identity world
-    /// placement (A10) — the revolve tool's one committed action.
+    /// line in the profile's own plane — what the revolve button
+    /// commits. It lands unplaced, drawn in its own space, as an
+    /// extrude does.
     /// A wrong-kind profile pick refuses [`Refusal::WrongNodeKind`] at
     /// the door.
     AddRevolve {
@@ -1793,6 +1793,26 @@ impl SessionOp {
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
+        }
+    }
+
+    /// **Whether this creation's gesture follows the rule that a
+    /// creation selects the node its noun names**
+    /// (`crates/viewer/README.md`, "A create gesture commits the
+    /// node"): the chrome selects [`OpOutcome::made`] once the op
+    /// lands, so the node's edit surface opens on it. A gesture brought
+    /// under the rule joins the list here.
+    #[must_use]
+    pub fn selects_what_it_makes(&self) -> bool {
+        match self {
+            Self::CreateLabelled { creation, .. } => creation.op().selects_what_it_makes(),
+            op => matches!(
+                op,
+                Self::AddProfile { .. }
+                    | Self::AddDrawnProfile { .. }
+                    | Self::AddExtrude { .. }
+                    | Self::AddRevolve { .. }
+            ),
         }
     }
 
