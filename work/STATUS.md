@@ -3925,6 +3925,7 @@ Blocked: no orchestrator, and no row that can be picked up.
 | `main-red-near-tangent-pierce-poses-w60-a4-census-undecidable-at-1e-6` | 2026-11-01 | Main red at ε 1e-6: near_tangent_pierce_poses' w60 nt e1 a4 d1e-7 prism ∪ cube fails tier 3′ CensusUndecidable |
 | `seat7-sweep-digest-drifted-on-main` | 2026-11-01 | seat7_sweep_lowering's committed corner_table digest no longer matches on main |
 | `intent-retired-machinery-is-still-described-as-live` | 2026-11-02 | prose and one Python surface still describe INTENT-retired machinery as live (literal Frame, PlacedUnion, Datum, world pin) |
+| `main-red-two-slow-digest-rows-at-8ae2b9b` | 2026-11-03 | main is red on two slow-set digest rows at 8ae2b9b: seat7_sweep_lowering (corner_table) and m10_sym_profile_interval (plate) |
 
 ## Blocked
 
