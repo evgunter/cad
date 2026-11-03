@@ -1554,11 +1554,8 @@ impl EulerOpError {
                         "a crossing lands outside its edge".to_owned()
                     }
                 },
-                at.map(|at| format!(
-                    ". {}",
-                    crate::split::split_param_ending(verdict.arm(), at)
-                ))
-                .unwrap_or_default()
+                at.map(|at| format!(". {}", crate::split::split_param_ending(verdict.arm(), at)))
+                    .unwrap_or_default()
             ),
             Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
                 diag,

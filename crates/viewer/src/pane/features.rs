@@ -128,7 +128,7 @@ pub(crate) fn feature_row_ui(
                 egui::Checkbox::new(&mut shown, "shown"),
             );
             let toggle = match hide_refusal {
-                Some(refusal) => toggle.on_disabled_hover_text(refusal.to_string()),
+                Some(refusal) => toggle.on_disabled_hover_text(crate::shown(refusal)),
                 None => toggle,
             };
             if toggle.changed() {

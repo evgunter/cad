@@ -50,6 +50,15 @@
 //! in this crate (G4's ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
+/// **A refusal as the viewer shows it**: ended at rest
+/// (`pncad::geom_brep::recourse::Ended`). The viewer draws and measures
+/// a body it holds, so the one reading a nested ending takes here is
+/// the at-rest one; this is that door's one spelling.
+#[must_use]
+pub fn shown(refusal: &impl pncad::geom_brep::recourse::Ended) -> String {
+    refusal.ended(pncad::geom_brep::recourse::Reading::AtRest.into())
+}
+
 pub mod blend;
 pub mod bounds;
 pub mod camera;

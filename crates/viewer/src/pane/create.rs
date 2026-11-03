@@ -443,7 +443,7 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
         // The refusing layer's own sentence — the store's or the
         // directory rule's — never one composed here.
         Err(refusal) => {
-            crate::widgets::message_toned(ui, refusal.to_string(), theme, chooser.tone());
+            crate::widgets::message_toned(ui, crate::shown(refusal), theme, chooser.tone());
         }
     }
     chosen
@@ -845,7 +845,7 @@ impl ViewerBehavior<'_> {
                 let said = match verdict {
                     BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
                     BundleVerdict::Faults(fault) => Err(fault.to_string()),
-                    BundleVerdict::Refused(refusal) => Err(refusal.to_string()),
+                    BundleVerdict::Refused(refusal) => Err(crate::shown(refusal)),
                     BundleVerdict::Unsolved => {
                         Err("what the placement reads does not evaluate".to_owned())
                     }
@@ -1353,7 +1353,7 @@ impl ViewerBehavior<'_> {
         let staged = self.session.staged_for(&creation);
         let said = match staged {
             None | Some(Staged::Checking) => None,
-            Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
+            Some(Staged::Refused(refusal)) => Some(crate::shown(refusal)),
             Some(Staged::Exhausted { doc, out }) => {
                 Some(format!("the staged run {}", out.said(doc)))
             }

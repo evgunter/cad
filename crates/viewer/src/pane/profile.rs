@@ -477,7 +477,7 @@ pub(crate) fn edit_door_ui(
             (at.0 == index).then(|| {
                 let why = ProfileEdit::judge_text(at, arg, text, landed)
                     .err()
-                    .map(|refusal| refusal.to_string());
+                    .map(|refusal| crate::shown(refusal));
                 (at.1, arg, text.clone(), why)
             })
         });

@@ -251,7 +251,9 @@ pub(crate) fn refusable_button(
 ) -> bool {
     let button = ui.add_enabled(blocked.is_none(), egui::Button::new(label));
     match blocked {
-        Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+        Some(refusal) => button
+            .on_disabled_hover_text(crate::shown(refusal))
+            .clicked(),
         None => button.clicked(),
     }
 }
@@ -591,17 +593,25 @@ pub enum StartupError {
     Worker(crate::evalseam::SpawnError),
 }
 
-impl core::fmt::Display for StartupError {
+impl StartupError {
     /// Every payload arm forwards to the refusing layer's own
     /// `Display`; the prefix is only which startup step was standing
     /// when it refused.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Document(error) => {
                 write!(f, "the starting document could not be authored: {error}")
             }
             Self::Scene(error) => {
-                write!(f, "the starting document draws no scene: {error}")
+                write!(
+                    f,
+                    "the starting document draws no scene: {}",
+                    pncad::geom_brep::recourse::read_at(error, at)
+                )
             }
             Self::Identity(error) => {
                 write!(f, "the starting document has no id: {error}")
@@ -615,6 +625,8 @@ impl core::fmt::Display for StartupError {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(StartupError);
 
 impl core::error::Error for StartupError {}
 
@@ -1840,7 +1852,7 @@ impl ViewerApp {
                             .desired_width(120.0),
                     );
                     let named = Refusal::new_document_name(name).map(str::to_owned);
-                    let blocked = named.as_ref().err().map(Refusal::to_string);
+                    let blocked = named.as_ref().err().map(crate::shown);
                     let closing = crate::widgets::commit_row(
                         ui,
                         NEW_DOCUMENT_COMMIT,
@@ -2867,7 +2879,7 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
         WINDOW_TITLE,
         options,
         Box::new(move |cc| {
-            let mut app = ViewerApp::new(cc, tol).map_err(|error| error.to_string())?;
+            let mut app = ViewerApp::new(cc, tol).map_err(|error| crate::shown(&error))?;
             if let Some(path) = open {
                 // A successful open books the re-frame itself (the
                 // success-only arm in `perform_batch`); a refused one
@@ -2977,7 +2989,7 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
             canvas,
             options,
             Box::new(move |cc| {
-                let app = ViewerApp::new(cc, tol).map_err(|error| error.to_string())?;
+                let app = ViewerApp::new(cc, tol).map_err(|error| crate::shown(&error))?;
                 Ok(Box::new(app))
             }),
         )
