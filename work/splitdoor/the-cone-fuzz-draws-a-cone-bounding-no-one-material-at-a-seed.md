@@ -34,6 +34,9 @@ Found on `splitdoor/cone-apex-vertex-pairs`, and red identically at
 that branch's earlier head `656e9bd920`. The failing check is fixture code only
 (`drawn`, `cone_oracle`, `one_material`). A third,
 `0xbdef491a30087e7a`, fails it at its ε-1e-9 draw (`cone 30, split`).
+A fourth, `0xea18fcee647dcd12`, at its ε-1e-12 draw (`cone 15,
+split`). The fuzz draws a fresh seed per run, so a replay needs the
+seed given.
 
 ## Done when
 

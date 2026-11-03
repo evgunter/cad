@@ -101,12 +101,22 @@ type Operand<'a> = (&'a AtRestBody<f64>, &'a dyn Fn() -> Region, f64);
 /// Holds the four ops of `a` and `b` to the volumes `share` (their
 /// intersection's) sets, and to their regions at the `7³` lattice over
 /// `lattice`, with tiers 3 and 3′ over the contacts each result records.
-fn four_ops(
+fn four_ops(what: &str, a: Operand, b: Operand, share: f64, lattice: (Point3<f64>, Point3<f64>)) {
+    four_ops_pinching(what, a, b, share, lattice, &[]);
+}
+
+/// [`four_ops`], but each op named in `pinched` refuses
+/// `ResultPinchedAtConeApex` by name, and every other op builds and is
+/// held: a cone face cut along two rulings on both sides of its wrap seam
+/// is two lobes meeting only at the apex, which props cannot yet measure
+/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+fn four_ops_pinching(
     what: &str,
     (a, ra, va): Operand,
     (b, rb, vb): Operand,
     share: f64,
     lattice: (Point3<f64>, Point3<f64>),
+    pinched: &[&str],
 ) {
     let both: Region = {
         let (x, y) = (ra(), rb());
@@ -131,6 +141,16 @@ fn four_ops(
         ("b ∖ a", subtract(b, a, tol()), vb - share, b_less),
     ] {
         let what = format!("{what}, {op}");
+        if pinched.contains(&op) {
+            assert!(
+                matches!(
+                    result,
+                    Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
+                ),
+                "{what}: expected to pinch at the apex, got {result:?}"
+            );
+            continue;
+        }
         match result {
             Ok(BooleanResult::Body(body)) => {
                 membership::holds_short_of_tier_3_prime(
@@ -161,33 +181,6 @@ fn four_ops(
             Err(e) => panic!("{what}: {e:?}"),
         }
     }
-}
-
-/// [`four_ops`], but an op that keeps either cone's remainder (`∪`,
-/// `a ∖ b`, `b ∖ a`) may refuse `ResultPinchedAtConeApex` by name: a cone
-/// face cut along two rulings on both sides of its wrap seam is two lobes
-/// meeting only at the apex, which props cannot yet measure
-/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
-/// `∩` builds at every pose.
-fn four_ops_or_pinch(
-    what: &str,
-    a: Operand,
-    b: Operand,
-    share: f64,
-    lattice: (Point3<f64>, Point3<f64>),
-) {
-    let (x, y) = (a.0, b.0);
-    for (op, result) in [
-        ("a ∪ b", union(x, y, tol())),
-        ("a ∖ b", subtract(x, y, tol())),
-        ("b ∖ a", subtract(y, x, tol())),
-    ] {
-        if let Err(topo::BooleanError::ResultPinchedAtConeApex { .. }) = result {
-            eprintln!("{what}, {op}: pinched at the apex, refused by name");
-            return;
-        }
-    }
-    four_ops(what, a, b, share, lattice);
 }
 
 /// The lattice about a cone of base radius `r` and its partner, out to
@@ -617,7 +610,7 @@ fn two_cones_through_one_apex_build_across_the_pose_families() {
                 );
                 let (ra, rb) = (move || the_cone(r1), move || moved_region(the_cone(r2), m));
                 let reach = r1.max(r2) + 1.0;
-                four_ops_or_pinch(
+                four_ops_pinching(
                     &what,
                     (&a, &ra, volume(alpha1)),
                     (&b, &rb, volume(alpha2)),
@@ -626,8 +619,24 @@ fn two_cones_through_one_apex_build_across_the_pose_families() {
                         Point3::new(-reach, -0.5, -reach),
                         Point3::new(reach, 1.25 + reach, reach),
                     ),
+                    pinches(alpha1, alpha2, pose, form),
                 );
             }
         }
+    }
+}
+
+/// The ops of [`two_cones_through_one_apex_build_across_the_pose_families`]
+/// that keep a cone face cut along two rulings on both sides of its wrap
+/// seam, pinched at the apex (refused `ResultPinchedAtConeApex`): the
+/// 50° cone's remainder at 20/50 (∪ and b ∖ a) tipped at every crossing
+/// pose and revolved skew, and the 45° cone's (∪ and a ∖ b) at 45/30
+/// skew. Every other op builds.
+fn pinches(alpha1: f64, alpha2: f64, pose: &str, form: &str) -> &'static [&'static str] {
+    match ((alpha1 as u32, alpha2 as u32), pose, form) {
+        ((20, 50), "cross-mid" | "near the inner touch", "tipped")
+        | ((20, 50), "skew-cross", _) => &["a ∪ b", "b ∖ a"],
+        ((45, 30), "skew-cross", _) => &["a ∪ b", "a ∖ b"],
+        _ => &[],
     }
 }

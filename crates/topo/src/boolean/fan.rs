@@ -680,14 +680,18 @@ mod rows {
     /// no refusal. Decided coaxial (`arm·sin t` under `ε`), they are one
     /// cone's fans. Between, they read, are one cone or refuse by name
     /// (`VertexPairAtConeApex`, or a decision's escalation), never a
-    /// tangency. Fans of apertures `0.1` apart meet at the apex alone
+    /// tangency. With the axes apart, where the rulings are placed past
+    /// `20ε` they refuse `VertexPairAtConeApex`, and where the spread lies
+    /// in the gap (`2ε`–`5ε`) they escalate at the gate
+    /// (`bool_fans_meet_conditioning`): the row pins where the gate is.
+    /// Fans of apertures `0.1` apart meet at the apex alone
     /// wherever the axes are decided, and escalate (`bool_fans_coaxial`)
     /// only with `arm·sin t` in the gap.
     #[test]
     fn near_coaxial_fans_meet_or_refuse_by_name_across_the_grid() {
         let down = Vec3::new(0.0, -1.0, 0.0);
         let tilted = |t: f64| Vec3::new(t.sin(), -t.cos(), 0.0);
-        let mut built = 0;
+        let (mut built, mut refused, mut escalated) = (0, 0, 0);
         for eps in [1e-6, 1e-9, 1e-12] {
             let band = Band::new(eps, 10.0 * eps).unwrap();
             for arm in [1e-3, 1.0, 1e2] {
@@ -726,6 +730,24 @@ mod rows {
                         );
                         built += 1;
                     }
+                    // The gate itself: axes apart, rulings past what the
+                    // formula places them to, refused by name; in the
+                    // band's gap, its own escalation.
+                    if apart && spread > 20.0 * eps {
+                        assert!(
+                            matches!(&got, Err(BooleanError::VertexPairAtConeApex { .. })),
+                            "axes apart, rulings unplaced, {what}: {got:?}"
+                        );
+                        refused += 1;
+                    }
+                    if apart && spread > 2.0 * eps && spread < 5.0 * eps {
+                        assert!(
+                            matches!(&got, Err(BooleanError::Escalated { diag, .. })
+                                if diag.predicate == Some("bool_fans_meet_conditioning")),
+                            "axes apart, spread in the gap, {what}: {got:?}"
+                        );
+                        escalated += 1;
+                    }
                     if coaxial {
                         assert!(
                             matches!(&got, Ok(Meeting::Coincident)),
@@ -736,5 +758,7 @@ mod rows {
             }
         }
         assert!(built >= 19, "{built} apart pairs built");
+        assert!(refused > 0, "no grid point reaches the gate's refusal");
+        assert!(escalated > 0, "no grid point reaches the gate's escalation");
     }
 }
