@@ -1261,15 +1261,8 @@ pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
     p: geom_core::Point3<T>,
     tol: Tol,
 ) -> Result<(VertexKey, crate::entity::LoopKey), BooleanError> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let crate::entity::LoopBoundary::Cycle { first: anchor } = linked(
-        &body.loops,
-        face_data.outer,
-        EntityId::Loop,
-        EntityId::Face(face),
-        "outer",
-    )
-    .boundary
+    let crate::entity::LoopBoundary::Cycle { first: anchor } =
+        body.proven_face(face).outer().1.boundary
     else {
         return Err(BooleanError::ClassificationInvariant {
             what: "a face a ring vertex is minted in has no outer cycle",

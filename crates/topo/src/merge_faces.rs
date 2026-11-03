@@ -5511,8 +5511,7 @@ mod winding_arm_tests {
             tol,
         );
         let face = body.get_loop(first).unwrap().face;
-        let mut survivor = body.get_face(face).unwrap().clone();
-        survivor.rings = vec![second];
+        body.faces.get_mut(face).unwrap().rings = vec![second];
         let text = body
             .merged_outline_ring(face, tol)
             .expect_err("two outlines are not one face's")
@@ -5613,8 +5612,7 @@ mod winding_arm_tests {
         fit_a_nurbs_quarter(&mut t, tol);
         let thin = thin_into(&mut t.body, 10.0, tol);
         let face = t.body.get_loop(t.r#loop).unwrap().face;
-        let mut survivor = t.body.get_face(face).unwrap().clone();
-        survivor.rings = vec![thin];
+        t.body.faces.get_mut(face).unwrap().rings = vec![thin];
         let err = t
             .body
             .merged_outline_ring(face, tol)
@@ -5640,8 +5638,7 @@ mod winding_arm_tests {
         let thin = thin_into(&mut body, 0.0, tol);
         let lone = body.mvfs(Point3::new(5.0, 5.0, 0.0), true).unwrap().r#loop;
         let face = body.get_loop(thin).unwrap().face;
-        let mut survivor = body.get_face(face).unwrap().clone();
-        survivor.rings = vec![lone];
+        body.faces.get_mut(face).unwrap().rings = vec![lone];
         let err = body
             .merged_outline_ring(face, tol)
             .expect_err("a zero outline is no outline");
@@ -5658,13 +5655,13 @@ mod winding_arm_tests {
             tol,
         );
         let mut body = t.body;
-        let (face, mut survivor) = body
+        let face = body
             .faces()
             .find(|(_, f)| f.outer != t.r#loop)
-            .map(|(k, f)| (k, f.clone()))
+            .map(|(k, _)| k)
             .expect("the triangle's second face");
         let lone = body.mvfs(Point3::new(5.0, 5.0, 0.0), true).unwrap().r#loop;
-        survivor.rings = vec![lone];
+        body.faces.get_mut(face).unwrap().rings = vec![lone];
         let err = body
             .merged_outline_ring(face, tol)
             .expect_err("a face of holes has no outline");

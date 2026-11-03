@@ -173,16 +173,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         ring: LoopKey,
         tol: Tol,
     ) -> Result<(), EulerOpError> {
-        let outline = proven(&self.faces, face, EntityId::Face).outer;
-        let target = match crate::live::linked(
-            &self.loops,
-            outline,
-            EntityId::Loop,
-            EntityId::Face(face),
-            "outer",
-        )
-        .boundary
-        {
+        let (outline, outer) = self.proven_face(face).outer();
+        let target = match outer.boundary {
             LoopBoundary::Cycle { first } => first,
             LoopBoundary::Empty { .. } => unreachable!(
                 "face {face:?}'s outline {outline:?} is a lone vertex: every caller stops before \

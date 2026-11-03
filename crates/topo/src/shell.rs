@@ -2229,8 +2229,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // of the host — the invariant the validator states as check 9.
         // Refused HERE, naming the shape, rather than left to arrive
         // as a generic at-rest report on a body already built.
-        let guest_outer = proven(&out.faces, guest, EntityId::Face).outer;
-        let host_outer = proven(&out.faces, host, EntityId::Face).outer;
+        let (guest_outer, _) = out.proven_face(guest).outer();
+        let (host_outer, _) = out.proven_face(host).outer();
         //
         // An UNDECIDABLE separation refuses too, and does not proceed:
         // the glue is a write, and building on a gap the predicate
@@ -2300,7 +2300,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // the outer rim has.
         let mut holes = Vec::with_capacity(promoted.len());
         for &(face, host_ring) in &promoted {
-            let outer = proven(&out.faces, face, EntityId::Face).outer;
+            let (outer, _) = out.proven_face(face).outer();
             let (ring_edges, ring_vertices) = ring_rows(&out, outer, &rows);
             holes.push(HoleRim {
                 face,
@@ -2621,7 +2621,7 @@ fn canonicalize_chart<T: Decide>(
         // The role assignment is verified, not assumed: the ring must
         // be the enclosed side.
         let (ring_pts, outer_pts) = {
-            let outer = proven(&body.faces, anchor, EntityId::Face).outer;
+            let (outer, _) = body.proven_face(anchor).outer();
             (loop_points(body, made.ring), loop_points(body, outer))
         };
         if !encloses(&chart, &ring_pts, &outer_pts, band)
@@ -2886,7 +2886,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     // The host face's corner at the pole: `into` arrives along one seam,
     // `out_of` leaves along the other (along the same seam, on a spur).
-    let host_cycle = cycle_of(body, proven(&body.faces, host, EntityId::Face).outer);
+    let host_cycle = cycle_of(body, body.proven_face(host).outer().0);
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
     let Some(&out_of) = host_cycle.iter().find(|&&he| at(body, he) == pole) else {
         return Err(not_expressible(
@@ -3286,8 +3286,8 @@ fn glue_ring<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     dead: &mut ShellRetired,
 ) -> Result<crate::euler_ring::KfmrhResult, ShellError<T>> {
-    let guest_data = proven(&body.faces, guest, EntityId::Face);
-    let (guest_outer, guest_surface) = (guest_data.outer, guest_data.surface);
+    let guest_data = body.proven_face(guest);
+    let (guest_outer, guest_surface) = (guest_data.outer().0, guest_data.record().surface);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     let mut carried: Vec<_> = Vec::new();
     for (edge, description) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
@@ -3315,8 +3315,7 @@ fn guest_corner<T: Real>(
     twins: &TwinIndex,
     v: VertexKey,
 ) -> Option<VertexKey> {
-    let guest_outer = proven(&body.faces, guest, EntityId::Face).outer;
-    cycle_of(body, guest_outer)
+    cycle_of(body, body.proven_face(guest).outer().0)
         .into_iter()
         .map(|he| proven(&body.half_edges, he, EntityId::HalfEdge).start)
         .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
