@@ -1343,7 +1343,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverRadius { .. } => "sliver_radius",
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
-        RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
+        RevolveError::SheetApex { .. } => "sheet_apex",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
