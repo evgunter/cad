@@ -6,7 +6,6 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: H
-design: true
 ---
 
 Filed by the REFS lane (`work/refs/select-all-edges-picks-edges-a-fillet-refuses.md`), from its sweep for readers of an edge's dihedral.

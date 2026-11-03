@@ -49,3 +49,7 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     - `face-pair-contact-pairing-has-four-spellings` (P1, M, design), from the wedge designers;
     - `stored-description-adjacent-is-the-gates-reading-not-tier-3s` (P1, E), from the ladder designers.
   - **Friction:** the shallow clone hides the provenance of every ratified clause these forks touched; `git log -S` reaches only the 2026-10-31 graft. (ONEDOOR orchestrator)
+- 2026-11-03 — **Dispatched the wedge fold, stage 1** (`onedoor/wedge-fold`). It builds the tokens, the rung type and the fold in `geom_brep`, with check 4 and `rim_wedge` as the first readers.
+  - **Review tier: dual.** This is a broad architectural decision that moves `WedgeCheck`'s semantics and every dihedral reader's K population. It is cost H, so the concurrent arm.
+  - **Seams:** SELECT and SPLICE ground in `geom-brep/src/dihedral.rs`, where neither has a unit dispatched. `validate.rs` and `rim_wedge.rs` are double claims.
+  - (ONEDOOR orchestrator)
