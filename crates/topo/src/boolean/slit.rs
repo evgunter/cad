@@ -3144,11 +3144,12 @@ mod spline_rider {
     }
 }
 
-/// Reviewer probes (PR 6437): what the spline-rider arm reads.
+/// Reviewer probes (PR 6437, re-review at `21dd9210`): what the
+/// spline-rider door reads after the fix pass.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_6437_probes {
-    use super::{conic_or_line_on, part_riders, riders};
+    use super::{EdgeInFaceGap, Placed, conic_or_line_on, part_riders, riders};
     use crate::Body;
     use crate::boolean::{Cell, Contact, ContactRecords};
     use crate::coincidence::{Cited, Cites};
@@ -3171,60 +3172,18 @@ mod review_6437_probes {
         ))
     }
 
-    /// A C0 quadratic B-spline whose x vanishes at the nine equispaced
-    /// parameters `k / 8` and bows ±0.05 off `x = 0` between each pair.
-    fn wiggle() -> geom::Curve3<f64> {
-        let mut knots = vec![0.0; 3];
-        for k in 1..8 {
-            let t = f64::from(k) / 8.0;
-            knots.extend([t, t]);
+    fn plane_x0() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
         }
-        knots.extend([1.0; 3]);
-        let ctrl: Vec<Point3<f64>> = (0..17)
-            .map(|i| {
-                let z = 0.25 + 0.5 * f64::from(i) / 16.0;
-                let x = if i % 2 == 0 {
-                    0.0
-                } else if (i / 2) % 2 == 0 {
-                    0.1
-                } else {
-                    -0.1
-                };
-                Point3::new(x, 0.5, z)
-            })
-            .collect();
-        nurbs(knots, 2, ctrl)
     }
 
-    /// Claim 1(b): a carrier 0.05 off the plane between its samples
-    /// reads `None` (unread), the same as one lying in it; `holding` then
-    /// takes it by its ends and midpoint.
+    /// M2 re-check: a spline in the plane over half its span is unread,
+    /// no longer `Off`.
     #[test]
-    fn a_wiggle_off_the_plane_between_samples_reads_unread() {
-        let plane = geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-        };
-        let w = wiggle();
-        let off = w.eval(1.0 / 16.0);
-        assert!(off.x.abs() > 0.04, "the wiggle is off the plane: {off:?}");
-        let read = conic_or_line_on(&w, (0.0, 1.0), &plane, band());
-        assert!(matches!(read, Ok(None)), "read {read:?}");
-    }
-
-    /// Claim 1(a): a spline lying in the plane over half its span and
-    /// leaving it over the other half reads `Some(false)`, "not on", which
-    /// `holding` takes as lying in the face along no piece; a line or
-    /// conic cannot lie on the surface along part of its length only, a
-    /// spline can.
-    #[test]
-    fn a_spline_in_the_plane_over_half_its_span_reads_off() {
-        let plane = geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
-        };
+    fn a_spline_in_the_plane_over_half_its_span_is_unread() {
         let half = nurbs(
             vec![0.0, 0.0, 0.5, 1.0, 1.0],
             1,
@@ -3234,76 +3193,121 @@ mod review_6437_probes {
                 Point3::new(0.2, 0.5, 0.75),
             ],
         );
-        assert!(half.eval(0.25).x.abs() == 0.0, "in the plane over [0, 1/2]");
-        let read = conic_or_line_on(&half, (0.0, 1.0), &plane, band());
-        assert!(matches!(read, Ok(None)), "half in the plane reads {read:?}");
+        let read = conic_or_line_on(&half, (0.0, 1.0), &plane_x0(), band());
+        assert!(
+            matches!(read, Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread))),
+            "{read:?}"
+        );
     }
 
-    /// The box's `x = 0` wall and a prism whose keel at `(0, ½)` runs
-    /// from `z = ½` (on the wall) to `z = 3/2` (past its top edge): the
-    /// keel lies in the wall along half its length. Records: the low
-    /// end on the wall, the keel on the wall, the keel crossing the
-    /// wall's top edge.
-    fn keel_past_the_wall() -> (Body<f64>, FaceKey, EdgeKey, ContactRecords) {
+    fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> crate::VertexKey {
+        body.vertices()
+            .find(|(_, v)| (*body.get_point(v.point).unwrap() - p).norm() < 1e-12)
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("no vertex at {p:?}"))
+    }
+
+    fn edge_between(body: &Body<f64>, a: crate::VertexKey, b: crate::VertexKey) -> EdgeKey {
+        body.edges()
+            .find(|&(e, _)| {
+                let (x, y) = crate::query::edge_ends(body, e);
+                [x, y] == [a, b] || [x, y] == [b, a]
+            })
+            .map(|(e, _)| e)
+            .unwrap()
+    }
+
+    /// A U-shaped block whose `x = 1` face is a U in `(y, z)`: arms
+    /// `y ∈ [0, 1]` and `y ∈ [2, 3]`, base `z ∈ [0, 1]`, the notch
+    /// `y ∈ (1, 2), z ∈ (1, 2)` open. In the same body, a triangular
+    /// prism whose keel runs along `y` at `(x, z) = (1, 1.5)` from
+    /// `y = ½` to `y = 5/2`, its walls going into `x < 1`, the U's
+    /// material side: the keel lies in the U face over `y ∈ [½, 1]` and
+    /// `[2, 5/2]`, and crosses the notch between. Records: both keel
+    /// ends on the face, the keel crossing the notch's two edges.
+    fn keel_across_a_notch() -> (Body<f64>, FaceKey, EdgeKey, ContactRecords) {
         let tol = Tol::witness();
-        let boxed = crate::test_support_fixtures::prism_z::<f64>(
-            &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
-            0.0,
-            1.0,
+        let mut body = Body::<f64>::new();
+        let u_profile = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        // (x, y, z) ↦ (z, x, y): the profile's top, z = 1, is x' = 1.
+        let u_ops = crate::test_support_fixtures::prism_ops(
+            &mut body,
+            &u_profile,
+            (0.0, 1.0),
+            |x, y, z| Point3::new(z, x, y),
+            crate::test_support_fixtures::FaceGeometry::Certified,
             tol,
         );
-        let wall = boxed.side_faces[3];
-        let mut body = boxed.body;
-        let prism = crate::test_support_fixtures::prism_z::<f64>(
-            &[(0.0, 0.5), (1.0, 0.0), (1.0, 1.0)],
-            0.5,
-            1.5,
+        let face = u_ops.seed.face;
+        crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
+        let mut keel_body = Body::<f64>::new();
+        // (x, y, z) ↦ (y, z, x): the profile corner (1.5, 1) is the keel
+        // at x' = 1, z' = 1.5, running along y' = z.
+        crate::test_support_fixtures::prism_ops(
+            &mut keel_body,
+            &[(1.5, 1.0), (1.0, 0.0), (2.0, 0.0)],
+            (0.5, 2.5),
+            |x, y, z| Point3::new(y, z, x),
+            crate::test_support_fixtures::FaceGeometry::Certified,
             tol,
         );
-        crate::instance::graft_disjoint(&mut body, &prism.body).unwrap();
-        let at = |p: Point3<f64>| {
-            body.vertices()
-                .find(|(_, v)| (*body.get_point(v.point).unwrap() - p).norm() < 1e-12)
-                .map(|(k, _)| k)
-                .unwrap()
+        crate::test_support_fixtures::describe_as_intersections(&mut keel_body, tol);
+        crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
+        let normal = body.proven_face_surface(face).clone();
+        assert!(
+            matches!(normal, geom::Surface::Plane { origin, normal, .. }
+                if (origin.x - 1.0).abs() < 1e-12 && normal.x.abs() > 0.99),
+            "the U face is the plane x = 1: {normal:?}"
+        );
+        let lo = vertex_at(&body, Point3::new(1.0, 0.5, 1.5));
+        let hi = vertex_at(&body, Point3::new(1.0, 2.5, 1.5));
+        let keel = edge_between(&body, lo, hi);
+        let notch = |y: f64| {
+            edge_between(
+                &body,
+                vertex_at(&body, Point3::new(1.0, y, 1.0)),
+                vertex_at(&body, Point3::new(1.0, y, 2.0)),
+            )
         };
-        let edge_between = |a, b| {
-            body.edges()
-                .find(|&(e, _)| {
-                    let (x, y) = crate::query::edge_ends(&body, e);
-                    [x, y] == [a, b] || [x, y] == [b, a]
-                })
-                .map(|(e, _)| e)
-                .unwrap()
-        };
-        let lo = at(Point3::new(0.0, 0.5, 0.5));
-        let hi = at(Point3::new(0.0, 0.5, 1.5));
-        let keel = edge_between(lo, hi);
-        let top = edge_between(at(Point3::new(0.0, 0.0, 1.0)), at(Point3::new(0.0, 1.0, 1.0)));
         let contacts: ContactRecords = [
-            Contact::new(&body, Cell::Vertex(lo), Cell::Face(wall)).unwrap(),
-            Contact::new(&body, Cell::Edge(keel), Cell::Face(wall)).unwrap(),
-            Contact::new(&body, Cell::Edge(keel), Cell::Edge(top)).unwrap(),
+            Contact::new(&body, Cell::Vertex(lo), Cell::Face(face)).unwrap(),
+            Contact::new(&body, Cell::Vertex(hi), Cell::Face(face)).unwrap(),
+            Contact::new(&body, Cell::Edge(keel), Cell::Edge(notch(1.0))).unwrap(),
+            Contact::new(&body, Cell::Edge(keel), Cell::Edge(notch(2.0))).unwrap(),
         ]
         .into_iter()
         .enumerate()
         .map(|(i, c)| Cited::new(c, Cites::decided(u32::try_from(i).unwrap())))
         .collect();
-        (body, wall, keel, contacts)
+        (body, face, keel, contacts)
     }
 
-    /// Claim 1: a spline keel lying in a plane face along part of its
-    /// length, named by an edge-on-face record but with only one end on
-    /// the face, still reads as lying in no face: no rider, no
-    /// refusal. On its line it is a rider.
+    /// The point the orchestrator asked judged: an unread carrier whose
+    /// ends alone put it on the face is taken to lie there only where the
+    /// face holds its midpoint. The keel lies in the U face along two
+    /// pieces, its ends on the face, its midpoint over the notch. On its
+    /// line it is a rider in the face (its crossings cut it, and a piece
+    /// reads in). On a straight NURBS through the same points nothing
+    /// refuses.
     #[test]
-    fn a_spline_keel_past_the_face_named_by_a_record_skips_its_refusal() {
+    fn a_spline_keel_across_a_notch_is_read_in_no_face() {
         let tol = Tol::witness();
-        let (mut body, wall, keel, contacts) = keel_past_the_wall();
+        let (mut body, face, keel, contacts) = keel_across_a_notch();
         let found = riders(&body, &contacts, band()).unwrap();
         assert!(
-            found.iter().any(|(e, lies)| *e == keel && lies.iter().any(|l| l.face == wall)),
-            "on its line the keel is a rider in the wall"
+            found
+                .iter()
+                .any(|(e, lies)| *e == keel && lies.iter().any(|l| l.face == face)),
+            "on its line the keel is a rider in the U face"
         );
         let curve = body
             .get_curve_geom(body.get_edge(keel).unwrap().curve)
@@ -3319,10 +3323,13 @@ mod review_6437_probes {
         );
         (spec.param_start, spec.param_end) = (0.0, 1.0);
         body.set_edge_curve(keel, spec, tol).expect("certifies");
+        let found = riders(&body, &contacts, band());
         let got = part_riders(&mut body, &contacts, band(), tol);
         assert!(
             got.is_err(),
-            "the spline keel lying in the wall refuses, got Ok({:?} parted)",
+            "the spline keel lying in the U face along two pieces refuses; riders read {:?}, \
+             part_riders Ok({:?} parted)",
+            found.map(|r| r.len()),
             got.map(|(parted, _)| parted.len())
         );
     }
