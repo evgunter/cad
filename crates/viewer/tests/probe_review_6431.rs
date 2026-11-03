@@ -1,5 +1,10 @@
 //! Review probes for PR 6431 (not for merge).
-#![allow(clippy::expect_used, clippy::panic, clippy::print_stderr, clippy::unwrap_used)]
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stderr,
+    clippy::unwrap_used
+)]
 
 use crate::common;
 use common::{body_volume, len, near, session_insert};
@@ -27,12 +32,15 @@ fn sides(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> Result<(f64
         return Err("not a split".into());
     };
     let v = |s: &SplitSide<f64>| match s {
-        SplitSide::Body(b) => pncad::topo::test_support::pinned_volume(
-            "mass",
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b.body()), tol).unwrap(),
-            tol,
-        )
-        .volume,
+        SplitSide::Body(b) => {
+            pncad::topo::test_support::pinned_volume(
+                "mass",
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b.body()), tol)
+                    .unwrap(),
+                tol,
+            )
+            .volume
+        }
         SplitSide::Empty => 0.0,
     };
     Ok((v(above), v(below)))
@@ -64,7 +72,10 @@ fn p1_a_cylinder_wall_as_split_plane() {
     let op = tool.op();
     eprintln!("P1 op: {op:?}");
     let outcome = session.perform(op.expect("op"));
-    eprintln!("P1 refusal: {:?}", outcome.refusal.as_ref().map(ToString::to_string));
+    eprintln!(
+        "P1 refusal: {:?}",
+        outcome.refusal.as_ref().map(ToString::to_string)
+    );
     if outcome.refusal.is_none() {
         let doc = session.committed_doc().clone();
         let split = *doc
@@ -72,7 +83,10 @@ fn p1_a_cylinder_wall_as_split_plane() {
             .iter()
             .find(|&&id| matches!(doc.node(id), Some(pncad::document::Node::Split { .. })))
             .unwrap();
-        eprintln!("P1 rod {rod:?} split {split:?} -> {:?}", sides(&mut session, split, tol));
+        eprintln!(
+            "P1 rod {rod:?} split {split:?} -> {:?}",
+            sides(&mut session, split, tol)
+        );
     }
 }
 
@@ -106,7 +120,11 @@ fn p2_target_and_plane_in_two_spaces() {
     let mut tool = SplitTool::new();
     tool.pick(&doc, a);
     tool.pick_plane(&doc, face.clone());
-    eprintln!("P2 target {:?} plane {:?}", tool.target(), tool.face().map(|f| f.node));
+    eprintln!(
+        "P2 target {:?} plane {:?}",
+        tool.target(),
+        tool.face().map(|f| f.node)
+    );
     let mut tool2 = SplitTool::new();
     tool2.pick_plane(&doc, face);
     tool2.pick(&doc, if tool.target() == Some(a) { b } else { a });
@@ -140,7 +158,10 @@ fn p3_a_space_frame_as_the_plane() {
             continue;
         };
         let outcome = session.perform(op);
-        eprintln!("P3 refusal {:?}", outcome.refusal.as_ref().map(ToString::to_string));
+        eprintln!(
+            "P3 refusal {:?}",
+            outcome.refusal.as_ref().map(ToString::to_string)
+        );
         if outcome.refusal.is_none() {
             let doc = session.committed_doc().clone();
             let split = *doc
@@ -184,16 +205,25 @@ fn p4_a_split_half_splits() {
         target: half,
         plane: common::plane_inside(cap, A[2] / 4.0),
     });
-    eprintln!("P4 refusal {:?}", outcome.refusal.as_ref().map(ToString::to_string));
+    eprintln!(
+        "P4 refusal {:?}",
+        outcome.refusal.as_ref().map(ToString::to_string)
+    );
     if outcome.refusal.is_none() {
         let doc = session.committed_doc().clone();
         let second = *doc
             .ids()
             .iter()
             .rev()
-            .find(|&&id| id != split && matches!(doc.node(id), Some(pncad::document::Node::Split { .. })))
+            .find(|&&id| {
+                id != split && matches!(doc.node(id), Some(pncad::document::Node::Split { .. }))
+            })
             .unwrap();
-        eprintln!("P4 sides {:?} (want {} each)", sides(&mut session, second, tol), A[0] * A[1] * A[2] / 4.0);
+        eprintln!(
+            "P4 sides {:?} (want {} each)",
+            sides(&mut session, second, tol),
+            A[0] * A[1] * A[2] / 4.0
+        );
     }
 }
 
@@ -207,9 +237,19 @@ fn p5_cut_across_is_the_old_plane() {
         let body = common::xy_box_in(&mut session, A);
         session.pump();
         let plane = common::cut_across(&session, body, TargetAxis::Z, h);
-        let split = session_insert(&mut session, SessionOp::AddSplit { target: body.into(), plane });
+        let split = session_insert(
+            &mut session,
+            SessionOp::AddSplit {
+                target: body.into(),
+                plane,
+            },
+        );
         let (up, down) = sides(&mut session, split, tol).unwrap();
-        eprintln!("P5 h={h}: up {up} want {} down {down} want {}", base * (A[2] - h), base * h);
+        eprintln!(
+            "P5 h={h}: up {up} want {} down {down} want {}",
+            base * (A[2] - h),
+            base * h
+        );
         assert!(near(up, base * (A[2] - h)) && near(down, base * h));
     }
     // A union target, as takeovers' `a_split_of_the_body_the_product_reads_re_points_the_slot`.
@@ -222,9 +262,19 @@ fn p5_cut_across_is_the_old_plane() {
     let moved = common::moved_to(&mut session, a, [0.0, 0.0, 0.003]);
     session.pump();
     let plane = common::cut_across(&session, moved, TargetAxis::Z, A[2] / 2.0);
-    let split = session_insert(&mut session, SessionOp::AddSplit { target: moved.into(), plane });
-    eprintln!("P5 moved copy halves {:?} (old space-z=5mm would give up {} down {})",
-        sides(&mut session, split, tol), base * 0.005, base * 0.005);
+    let split = session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: moved.into(),
+            plane,
+        },
+    );
+    eprintln!(
+        "P5 moved copy halves {:?} (old space-z=5mm would give up {} down {})",
+        sides(&mut session, split, tol),
+        base * 0.005,
+        base * 0.005
+    );
 }
 
 /// Claim 3: defaults clear for a non-symmetric off-origin target; ring closes.
@@ -232,7 +282,12 @@ fn p5_cut_across_is_the_old_plane() {
 fn p6_defaults_clear_and_ring() {
     let tol = Tol::witness();
     let l: Vec<(f64, f64)> = [
-        (0.0, 0.0), (0.04, 0.0), (0.04, 0.01), (0.01, 0.01), (0.01, 0.02), (0.0, 0.02),
+        (0.0, 0.0),
+        (0.04, 0.0),
+        (0.04, 0.01),
+        (0.01, 0.01),
+        (0.01, 0.02),
+        (0.0, 0.02),
     ]
     .iter()
     .map(|&(x, y)| (x + 0.07, y + 0.03))
@@ -244,7 +299,13 @@ fn p6_defaults_clear_and_ring() {
             loops: vec![pncad::document::LoopProgram::polygon(l).unwrap()],
         },
     );
-    let block = session_insert(&mut session, SessionOp::AddExtrude { profile, distance: len(0.01) });
+    let block = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
     session.pump();
     let one = body_volume(&mut session, block, tol);
     let spacing = session.clearing_step(&block.into()).expect("measured");
@@ -274,7 +335,14 @@ fn p6_defaults_clear_and_ring() {
         },
     );
     session.pump();
-    eprintln!("P6 ring node {ring:?} result {:?}", session.evaluation().unwrap().result(ring).map(|r| matches!(r, pncad::document::NodeResult::Ok(_))));
+    eprintln!(
+        "P6 ring node {ring:?} result {:?}",
+        session
+            .evaluation()
+            .unwrap()
+            .result(ring)
+            .map(|r| matches!(r, pncad::document::NodeResult::Ok(_)))
+    );
 }
 
 /// Claim 3/4: the row's text with the index named and anonymous;
@@ -304,7 +372,9 @@ fn p7_index_text_and_direction_change() {
         .iter()
         .find(|&&id| pncad::pattern::recognise(&doc, id).is_some())
         .unwrap();
-    let pncad::pattern::Recognised::Linear { index, .. } = pncad::pattern::recognise(&doc, row).unwrap() else {
+    let pncad::pattern::Recognised::Linear { index, .. } =
+        pncad::pattern::recognise(&doc, row).unwrap()
+    else {
         panic!()
     };
     let texts = |session: &DocSession| {
@@ -319,29 +389,49 @@ fn p7_index_text_and_direction_change() {
     let named = texts(&session);
     eprintln!("P7 named rows {named:?}");
     for (coord, text) in &named {
-        eprintln!("P7 named retype {text:?}: {:?}", viewer::matetool::typed_value(&doc, coord.clone(), text).map(|_| ()));
+        eprintln!(
+            "P7 named retype {text:?}: {:?}",
+            viewer::matetool::typed_value(&doc, coord.clone(), text).map(|_| ())
+        );
     }
     // Direction change: slide x -> 0, slide y -> scalar(k) * 7 mm.
     {
         let (doc, ev) = session.landed_pair().unwrap();
         let name = doc.var_name(index).unwrap().as_str().to_owned();
         let mut editor = viewer::matetool::MateTool::edit(doc, row).unwrap();
-        editor.type_value(Coord::slide(TargetAxis::X), viewer::matetool::typed_value(doc, Coord::slide(TargetAxis::X), "0").unwrap());
+        editor.type_value(
+            Coord::slide(TargetAxis::X),
+            viewer::matetool::typed_value(doc, Coord::slide(TargetAxis::X), "0").unwrap(),
+        );
         editor.type_value(
             Coord::slide(TargetAxis::Y),
-            viewer::matetool::typed_value(doc, Coord::slide(TargetAxis::Y), &format!("scalar({name}) * 7 mm")).unwrap(),
+            viewer::matetool::typed_value(
+                doc,
+                Coord::slide(TargetAxis::Y),
+                &format!("scalar({name}) * 7 mm"),
+            )
+            .unwrap(),
         );
         let p = editor.proposal(doc, ev, session.tol());
-        eprintln!("P7 direction proposal ok? {:?}", p.as_ref().map(|_| ()).map_err(ToString::to_string));
+        eprintln!(
+            "P7 direction proposal ok? {:?}",
+            p.as_ref().map(|_| ()).map_err(ToString::to_string)
+        );
         if let Ok(p) = p {
             let out = session.perform(p.op());
-            eprintln!("P7 direction refusal {:?}", out.refusal.as_ref().map(ToString::to_string));
+            eprintln!(
+                "P7 direction refusal {:?}",
+                out.refusal.as_ref().map(ToString::to_string)
+            );
             session.pump();
             let doc = session.committed_doc();
             match pncad::pattern::recognise(doc, row) {
                 Some(pncad::pattern::Recognised::Linear { steps, .. }) => eprintln!(
                     "P7 after: {:?}",
-                    steps.iter().map(|(d, s)| (d.clone(), doc.unparse(s))).collect::<Vec<_>>()
+                    steps
+                        .iter()
+                        .map(|(d, s)| (d.clone(), doc.unparse(s)))
+                        .collect::<Vec<_>>()
                 ),
                 other => eprintln!("P7 after: {other:?}"),
             }
@@ -366,7 +456,12 @@ fn p7_index_text_and_direction_change() {
             let rows = texts(&s2);
             eprintln!("P7 anonymous rows {rows:?}");
             for (coord, text) in &rows {
-                eprintln!("P7 anon retype {text:?}: {:?}", viewer::matetool::typed_value(&doc, coord.clone(), text).map(|_| ()).map_err(|e| e.to_string()));
+                eprintln!(
+                    "P7 anon retype {text:?}: {:?}",
+                    viewer::matetool::typed_value(&doc, coord.clone(), text)
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                );
             }
         }
     }
