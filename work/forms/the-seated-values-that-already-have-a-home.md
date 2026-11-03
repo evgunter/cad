@@ -2,8 +2,9 @@
 id: the-seated-values-that-already-have-a-home
 kind: unit
 title: Blend, mirror, clearance and the pattern count: the seated values with an agreed home leave their forms
-status: dispatched
+status: closed
 opened: 2026-11-03
+closed: 2026-11-03
 priority: P1
 cost: M
 parent: creating-a-thing-and-editing-it-are-two-implementations
@@ -37,3 +38,31 @@ build of 6369:
 Not in this unit: the split plane, the pattern's direction, axis,
 pitch and step fields, the pose-scalar slot address and the
 fused-union discovery. Those wait on 6406 and on PLACING.
+
+## Closed
+
+2026-11-03, on `forms/seated-homed`.
+
+- **Blend.** The size field is gone. The insert writes
+  `viewer::blend::default_size`: a millimetre in the working unit at
+  one significant figure (`1 mm`, `0.1 cm`, `0.04 in`). It is not
+  measured off the picked edges, because the faces beside an edge
+  bound a blend's size and its length does not. The size is the
+  fillet's `Radius` or the chamfer's `ChamferDistance` row.
+- **Mirror.** The label box is gone (`ToolKind::offers_label`). The
+  insert answers the `Mirror` node as what it made, for a placed body
+  and an unplaced one alike, so it carries `Mirror N` and is selected
+  (`SessionOp::selects_what_it_makes`). The union takes no label.
+- **Clearance.** `SlotId::ClearanceBound(BoundEnd::{Low, High})` in
+  editor-core; `Node::slots()` lists them for a clearance claim, so
+  they are Properties rows and `SetParam` writes them. A clearance's
+  bounds are no longer payload (`payload_exprs`, `payload_reads`).
+  The evaluator still reads them with the measured values bound, and
+  `eval_slots` skips the assertion. The form keeps only the shape
+  choice, and the bounds are inserted at `0`. Python's slot words are
+  `clearance_low` and `clearance_high`.
+- **Pattern count.** One widget (`index_count_ui`) is drawn on the
+  index variable's row and on the rows of every node that reads the
+  index (`props::indices_read`). It writes through
+  `props::index_count_edit`, and so does a drag. The pattern form's
+  count field stays.

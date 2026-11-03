@@ -3063,7 +3063,7 @@ impl DocSession {
                 return Err(Refusal::Edit(Box::new(refusal)));
             }
             let Some(dimension) = held.kind().dimension() else {
-                unreachable!("a free or defined variable is a scalar")
+                unreachable!("a free, defined or index variable reads at a dimension")
             };
             Ok(GestureTarget::Variable { var, dimension })
         })
