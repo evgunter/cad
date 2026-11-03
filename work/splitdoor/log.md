@@ -150,3 +150,23 @@
   - every check-in prompt now says to re-arm before ending;
   - every turn that ends with work in flight re-arms;
   - every check-in runs `get_session` on each live lane to look for a question waiting. (SPLITDOOR orchestrator)
+- 2026-11-02 — **Ruled on B1's fix-pass item 2: CONEARM's props code is fixed at the cause, in B1.** The 0.3 box at the cone's x+/z− quadrant (10° and 30°) refused `ResultInvalid{props_cone_loop_vertex}` on `cone∪box` and `cone∖box`.
+  - **The cause.** `props/curved.rs` `cone_winding` accumulated the loop's azimuths from its first edge. A loop through the apex lost its turn whenever the apex fell between a seam vertex's two copies, so the verdict depended on where the loop started.
+  - **The fix.** A loop through the apex once is now read from the edge leaving the apex. A geom-brep row tests all six loop starts and goes red without the rotation.
+  - **The alternative, not taken.** Refusing such loops by name (`pinched_at_cone_apex`) would have over-approximated props and refused valid faces.
+  - **CONEARM's rows.** `a-pinched-cone-loop-reaches-the-gate-unnamed` closes in B2, where its 60° pose builds. `props-measures-a-cone-loop-pinched-at-its-apex` carries a signed note; its status is CONEARM's. A seam note is on `work/conearm/log.md`. (SPLITDOOR orchestrator)
+- 2026-11-03 — **Landed** cone-apex unit B1, vertex against vertex (PR 6345). The copy row stays dispatched until B2 closes it. DUAL tier, letter H, concurrent pair. Both reviews returned APPROVE-WITH-FIXES with no MAJOR, 0 wrong bodies. Row `docs/dual-review-log/rows/PR-6345.md`.
+  - **What it does.**
+    - A fan meets a flat sector, and a fan meets a fan (`fan::meeting`, read in the axes' bisector frame).
+    - Coincident fans are handled, as are a sweep edge ending at the apex and the `link::Cone` arm.
+    - `VertexPairAtConeApex` is left only as a postcondition refusal.
+  - **The union fix pass was put to a FULL delta review**, because the logic moved: a new formula and gate, a new refusal, the props rotation, the spread rung, and a main merge through `pair_search`. It returned REQUEST CHANGES with one MAJOR: the main merge stranded 54 cone–cone builds at `UnpairedLooseEnds`, and no row saw it.
+  - **The second fix pass.**
+    - `bool_join_on_ruling` makes a straight germ pair on two cones through one apex lie on one ruling. Every pose family is pinned.
+    - `apex_root_spread` is exact and refuses as `Unsettled::AtApex`.
+    - `Conditioned` gates only the Positive arm.
+    - Both gates have rows that go red without them.
+    - The delta reviewer's narrow re-check returned APPROVE-WITH-FIXES: M1–M4 were verified, the probe table confirmed, and no regressions found. Two MINOR test-strength fixes were taken: the grid row now pins where the gate sits, and `four_ops_or_pinch` checks every op that builds.
+  - **48 near-apex box-corner poses now refuse `CrossingAtConeApex`.** In each one, the edge's true double root lies 1.3–3e-9 off its end: past the zero band, inside escalation, so the kernel's contract is to refuse. The old bound snapped the root onto the end, so those bodies were built on an undecided root. They were right to the oracle's resolution, but uncertified. The reviewer recomputed every family.
+  - **CLASS logged, not B1's.** `.plane(op)?` is a bare guard in front of `tangent()`'s `unreachable!` (recl.rs and sectors.rs, 18 sites). The invariant holds by statement order alone.
+  - **Filed:** `a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`. (SPLITDOOR orchestrator)

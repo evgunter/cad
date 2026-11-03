@@ -25,12 +25,13 @@
 //! still rulings stored as `start`/`end` vectors, chained as above, but
 //! "convex" is read round the axis, not in a plane: the corner is
 //! subdivided at each extremal ruling of the plane it is read against
-//! that lies inside it ([`ApexPlane`], [`crate::sector_shape::apex_corner_shape`]),
+//! that lies inside it ([`Partners`], [`crate::sector_shape::apex_corner_shape`]),
 //! so that across each sub-sector the plane's side along its rulings is
 //! monotone, and its middle is the ruling halfway round
-//! ([`BoolSector::middle`]), not its bounds' sum. Only the pierce reads
-//! such a sector; the vertex–vertex lane refuses it
-//! ([`apex_pair_refusal`]).
+//! ([`BoolSector::middle`]), not its bounds' sum. The pierce reads such
+//! a sector through its apex arms; the vertex–vertex lane's pair search
+//! reads it through the fan arms ([`super::fan`]), and a reader with no
+//! fan arm refuses by name ([`BoolSector::plane`]).
 //!
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
@@ -75,7 +76,7 @@ use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
 use geom_brep::{ConicDeparture, EntersMaterial, OutwardNormal};
-use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
@@ -198,9 +199,12 @@ impl<T: geom_core::Real> BoolSector<T> {
         self.start_reach.lever().max(self.end_reach.lever())
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
-    /// Only a pierce reads a sector at a cone's apex, through its own
-    /// arms ([`Self::apex`]); the vertex–vertex lane refuses an apex
-    /// sector before it reads any ([`apex_pair_refusal`]).
+    /// A sector at a cone's apex is read through its own arms
+    /// ([`Self::apex`]): the pierce's, and the vertex–vertex lane's
+    /// ([`super::fan`]). A reader that may meet one and has no fan arm reads
+    /// [`Self::plane`], which refuses there by name; this one panics, and
+    /// is left to the readers no fan reaches (the pierce's tangent-plane
+    /// arms, the planar carriers' identity rungs).
     ///
     /// The panic at an apex rests on that order, not on the type: the
     /// readers of a tangent are some sixty sites across both lanes'
@@ -212,9 +216,29 @@ impl<T: geom_core::Real> BoolSector<T> {
         match self.at_vertex {
             BoolFace::Tangent(normal) => normal,
             BoolFace::Apex(_) => unreachable!(
-                "a sector at a cone's apex has no tangent plane: the pierce reads it by its \
-                 apex arms, and the vertex-vertex lane refuses it first"
+                "a sector at a cone's apex has no tangent plane: its readers take its fan \
+                 arms (boolean::fan) or refuse through BoolSector::plane"
             ),
+        }
+    }
+
+    /// **The face's tangent plane, for a reader with no fan arm**: the
+    /// outward normal ([`Self::tangent`]) where the face has one; at a
+    /// cone's apex the reader's refusal, by name
+    /// ([`BooleanError::VertexPairAtConeApex`], `operand` the sector's),
+    /// never a panic: a pair the search reads at the apex can reach a
+    /// reader the fan arms do not yet cover.
+    ///
+    /// # Errors
+    ///
+    /// As above.
+    pub(super) fn plane(&self, operand: Operand) -> Result<OutwardNormal<T>, BooleanError> {
+        match &self.at_vertex {
+            BoolFace::Tangent(normal) => Ok(*normal),
+            BoolFace::Apex(_) => Err(BooleanError::VertexPairAtConeApex {
+                operand,
+                face: self.face,
+            }),
         }
     }
 
@@ -274,19 +298,24 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub bend: FaceBend<T>,
 }
 
-/// **The plane a corner at a cone's apex is read against**
-/// ([`build_sectors`]). One at most: two planes' rulings are ordered
-/// round the axis by a decision of their own, the vertex–vertex lane's
-/// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`),
-/// whose unit widens this.
-#[derive(Clone, Copy, Debug)]
-pub(super) enum ApexPlane<T: geom_core::Real> {
-    /// No plane: the vertex–vertex lane, which refuses an apex sector
-    /// ([`apex_pair_refusal`]), and every walk of a vertex no cone's
-    /// apex is.
+/// **What a vertex's corners are read against** ([`build_sectors`]): the
+/// faces whose sides the pair algebra reads off each sector's bounds, so
+/// each sector is cut where a partner's side along it turns.
+#[derive(Clone, Debug)]
+pub(super) enum Partners<T: geom_core::Real> {
+    /// No partner's faces: an apex corner is cut into its four quarters
+    /// alone, and no sector is cut at a partner's extremes. The
+    /// vertex–vertex lane's first reading of each side, before it knows
+    /// whether either vertex is an apex, and the rows that read one
+    /// vertex's sectors on their own.
     None,
-    /// The unit normal of the pierced face's plane through the apex.
-    One(Vec3<T>),
+    /// The unit normal of the pierced face's plane through the apex: the
+    /// pierce reads an apex corner against it alone.
+    Pierced(Vec3<T>),
+    /// The partner vertex's faces, as its sectors read them: the
+    /// vertex–vertex lane, whose pair search reads each sector's side of
+    /// each of them off its bounds.
+    Faces(Vec<BoolFace<T>>),
 }
 
 /// **What a sector's face is at its base vertex, as the Boolean reads
@@ -324,20 +353,28 @@ impl<T: geom_core::Real> BoolFace<T> {
 /// sectors, each convex.
 ///
 /// A corner at a cone's apex has no tangent plane: its directions are
-/// the cone's rulings between its bounds. Read against a plane through
-/// the apex ([`ApexPlane::One`], the unit normal of the face it is read
-/// against), it is subdivided at each extremal ruling of the plane that
-/// lies strictly inside it ([`apex_corner_shape`]), so that between two
-/// neighbouring bounds the plane's side is monotone; a ruling bound is a
-/// bisector's. Against none ([`ApexPlane::None`]), the corner is one
-/// sector, read by nothing but the refusal of the lane that has no apex
-/// algebra ([`apex_pair_refusal`]).
+/// the cone's rulings between its bounds. Read against a pierced plane
+/// through the apex ([`Partners::Pierced`]), it is subdivided at each
+/// extremal ruling of the plane that lies strictly inside it
+/// ([`apex_corner_shape`]), so that between two neighbouring bounds the
+/// plane's side is monotone; a ruling bound is a bisector's. In the
+/// vertex–vertex lane ([`Partners::None`], [`Partners::Faces`]) each of
+/// its pieces is cut in four equal turns, so that every sector spans
+/// less than a half-turn, the reach of a fan's membership
+/// ([`super::fan::fan_within_signs`]).
+///
+/// Against a partner vertex's faces ([`Partners::Faces`]), every sector
+/// is cut where a partner face's side along it turns, so that the pair
+/// search's bound codes decide its interior ([`partner_cuts`]): a fan at
+/// each extremal ruling of a partner plane or cone, a planar sector at
+/// each direction of its plane nearest and farthest from a partner
+/// cone's axis.
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
     tips: &SlitTips,
-    plane: ApexPlane<T>,
+    partners: &Partners<T>,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
     let corners = orbit_corners(body, operand, vertex, band);
@@ -352,7 +389,7 @@ pub(super) fn build_sectors<T: Decide>(
             BoolFace::Tangent(normal) => normal,
             BoolFace::Apex(apex) => {
                 let face = corner.face;
-                push_apex_corner(&mut sectors, corner, &apex, bounds, plane, band)
+                push_apex_corner(&mut sectors, corner, &apex, bounds, partners, band)
                     .map_err(|fault| sector_fault(fault, vertex, face))?;
                 continue;
             }
@@ -442,7 +479,116 @@ pub(super) fn build_sectors<T: Decide>(
             }
         }
     }
+    if let Partners::Faces(faces) = partners {
+        partner_cuts(&mut sectors, faces, band)?;
+    }
     Ok(sectors)
+}
+
+/// **Each sector cut where a partner face's side along it turns**
+/// ([`build_sectors`]'s [`Partners::Faces`]), so that its bounds' codes
+/// decide its interior against every partner face. Along a fan of
+/// rulings `g(φ)` a partner plane reads `g·n` and a partner cone at the
+/// apex `g·a₂ − cos α₂`, each extreme at the ruling the dual extremes name
+/// ([`geom_brep::plane_cone_apex_extrema`], with the cone's axis for its
+/// normal); along a planar sector's directions `d(θ)` a partner cone
+/// reads `d·a₂`, extreme at the plane's directions nearest and farthest
+/// from the axis ([`geom_brep::cone_plane_apex_extrema`]); a plane against
+/// a plane reads a monotone side across any convex sector. A partner whose
+/// side along the sector does not turn at all (an axis square to the
+/// plane, or along the fan's own axis) gives no cut. A cut strictly
+/// inside a sector (`bool_sector_within`) splits it in two, the
+/// end-sharing piece first, the cut a bisector's bound at the sector's
+/// arm.
+fn partner_cuts<T: Decide>(
+    sectors: &mut Vec<BoolSector<T>>,
+    faces: &[BoolFace<T>],
+    band: Band,
+) -> Result<(), BooleanError> {
+    let mut k = 0;
+    while k < sectors.len() {
+        let s = sectors[k].clone();
+        let mut cut = None;
+        for face in faces {
+            for dir in extreme_directions(&s, face, band)? {
+                if within(&s, dir, true, DeclarationRead::Moot, band)? {
+                    cut = Some(dir);
+                    break;
+                }
+            }
+            if cut.is_some() {
+                break;
+            }
+        }
+        let Some(dir) = cut else {
+            k += 1;
+            continue;
+        };
+        let dir = dir.normalize();
+        let inner = BoundSupport::straight_bisector(s.arm);
+        sectors[k] = BoolSector {
+            start: dir,
+            start_reach: inner,
+            ..s.clone()
+        };
+        sectors.insert(
+            k + 1,
+            BoolSector {
+                end: dir,
+                end_reach: inner,
+                ..s
+            },
+        );
+    }
+    Ok(())
+}
+
+/// The directions along `s` where `face`'s side turns ([`partner_cuts`]),
+/// each on the sector's own surface: a fan's rulings on its nappe, a
+/// planar sector's directions in its plane. None where the side does not
+/// turn along the sector (`bool_sector_partner_tilt`, the part of the
+/// partner's normal or axis square to the fan's axis or in the sector's
+/// plane, levered at the sector's arm).
+fn extreme_directions<T: Decide>(
+    s: &BoolSector<T>,
+    face: &BoolFace<T>,
+    band: Band,
+) -> Result<Vec<Vec3<T>>, BooleanError> {
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let tilted = |v: Vec3<T>| -> Result<bool, BooleanError> {
+        Ok(decide(
+            "bool_sector_partner_tilt",
+            Margin::levered(v.norm(), s.arm),
+            band,
+        )
+        .map_err(escalate)?
+            == Sign::Positive)
+    };
+    match (&s.at_vertex, face) {
+        (BoolFace::Tangent(_), BoolFace::Tangent(_)) => Ok(Vec::new()),
+        (BoolFace::Apex(apex), partner) => {
+            let across = match partner {
+                BoolFace::Tangent(n) => n.vec(),
+                BoolFace::Apex(other) => other.axis,
+            };
+            if !tilted(across - apex.axis * across.dot(apex.axis))? {
+                return Ok(Vec::new());
+            }
+            Ok(geom_brep::plane_cone_apex_extrema(&apex.surface(), across)
+                .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"))
+                .map(|g| apex.onto_nappe_of(g, s.start))
+                .to_vec())
+        }
+        (BoolFace::Tangent(n), BoolFace::Apex(other)) => {
+            let n = n.vec();
+            if !tilted(other.axis - n * other.axis.dot(n))? {
+                return Ok(Vec::new());
+            }
+            Ok(geom_brep::cone_plane_apex_extrema(&other.surface(), n)
+                .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"))
+                .to_vec())
+        }
+    }
 }
 
 /// **A corner's metering arm** ([`crate::sector_shape`]'s, the shorter of
@@ -477,14 +623,15 @@ fn sector_fault(fault: SectorFault, vertex: VertexKey, face: FaceKey) -> Boolean
 /// Pushes the corner at a cone's apex ([`build_sectors`]) in the
 /// chained order a subdivided corner is pushed in: from its own bound,
 /// one sector per stretch between neighbouring rulings, each extremal
-/// ruling of `plane` strictly inside the corner ([`apex_corner_shape`])
-/// a bound levered at the corner's arm.
+/// ruling of a pierced plane strictly inside the corner
+/// ([`apex_corner_shape`]), or each quarter of it in the vertex–vertex
+/// lane, a bound levered at the corner's arm.
 fn push_apex_corner<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     corner: OrbitCorner<T>,
     apex: &ConeApex<T>,
     bounds: crate::sector_shape::CornerBounds,
-    plane: ApexPlane<T>,
+    partners: &Partners<T>,
     band: Band,
 ) -> Result<(), SectorFault> {
     let OrbitCorner {
@@ -499,14 +646,25 @@ fn push_apex_corner<T: Decide>(
     } = corner;
     // With no plane, the axis's own: square to the axis, it holds no
     // extremal ruling, and the corner reads its arm and its window.
-    let across = match plane {
-        ApexPlane::None => apex.axis,
-        ApexPlane::One(across) => across,
+    let across = match partners {
+        Partners::None | Partners::Faces(_) => apex.axis,
+        Partners::Pierced(across) => *across,
     };
     // In orbit order, from the own bound.
-    let ApexShape { arm, rulings } = apex_corner_shape((end, start), apex, bounds, across, band)?;
+    let ApexShape { arm, mut rulings } =
+        apex_corner_shape((end, start), apex, bounds, across, band)?;
     let arm = metering_arm(arm);
     let (unit_end, unit_start) = (end.normalize(), start.normalize());
+    // The vertex–vertex lane's quarters: the window, read from the next
+    // bound in the face's sweep (the whole turn where the bounds are one
+    // ruling), in four equal turns, the own bound's side first.
+    if !matches!(partners, Partners::Pierced(_)) {
+        let window = apex.azimuth_from(unit_start, unit_end);
+        rulings = [T::from_f64(0.75), T::from_f64(0.5), T::from_f64(0.25)]
+            .into_iter()
+            .map(|k| apex.ruling_from(unit_start, window * k))
+            .collect();
+    }
     // A ruling is a straight line on the cone.
     let inner = BoundSupport::straight_bisector(arm);
     let mut from = (unit_end, end_reach);
@@ -707,7 +865,7 @@ impl SectorFaceError {
 ///
 /// A cone face at its apex is its circle of rulings
 /// ([`VertexFace::Apex`]), which the pierce reads by its apex arms and
-/// the vertex–vertex lane refuses ([`apex_pair_refusal`]). A vertex in
+/// the vertex–vertex lane by its fan arms ([`super::fan`]). A vertex in
 /// the band of a cone's axis, its tangent plane read ill-conditioned or
 /// neither it nor the apex decided, refuses
 /// [`BooleanError::VertexNearConeAxis`].
@@ -752,28 +910,6 @@ pub(super) fn sector_face<T: Decide>(
         VertexFace::Tangent(normal) => Ok((resolved.face, BoolFace::Tangent(normal))),
         VertexFace::Apex(apex) => Ok((resolved.face, BoolFace::Apex(apex))),
     }
-}
-
-/// **The vertex–vertex lane at a cone's apex**: a pair one of whose
-/// vertices is the apex of a cone face of its operand refuses
-/// [`BooleanError::VertexPairAtConeApex`], before any pair reading. A
-/// sector there is a fan of rulings, and the pair algebra over two such
-/// fans is unbuilt. The other vertex is in practice an apex too: a flat
-/// corner at the apex has an edge through it, which refuses
-/// [`BooleanError::CrossingAtConeApex`] before the pair is read
-/// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
-pub(super) fn apex_pair_refusal<T: geom_core::Real>(
-    pair: [(Operand, &[BoolSector<T>]); 2],
-) -> Result<(), BooleanError> {
-    for (operand, sectors) in pair {
-        if let Some(s) = sectors.iter().find(|s| s.apex().is_some()) {
-            return Err(BooleanError::VertexPairAtConeApex {
-                operand,
-                face: s.face,
-            });
-        }
-    }
-    Ok(())
 }
 
 /// The refusal for a bisector reading On between two bounds definitely
@@ -1522,6 +1658,9 @@ fn within_signs<T: Decide>(
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
     let lever = |r: BoundSupport<T>| exact_lever(r.lever(), own);
+    if let Some(apex) = s.apex() {
+        return super::fan::fan_within_signs(s, apex, (dir, lever), read, band);
+    }
     let c1 = Margin::levered(
         s.start.cross(dir).dot(s.tangent().vec()),
         lever(s.start_reach),
@@ -2722,7 +2861,7 @@ pub(super) fn pair_codes<T: Decide>(
     sb: &BoolSector<T>,
     band: Band,
 ) -> Result<(SidePair, SidePair), BooleanError> {
-    let code = |dir, reach, face| sector_code(dir, reach, face, band);
+    let code = |dir, reach, other| super::fan::face_side_code(dir, reach, other, band);
     Ok((
         (
             code(sa.start, sa.start_reach, sb)?,
@@ -2735,12 +2874,23 @@ pub(super) fn pair_codes<T: Decide>(
     ))
 }
 
-/// The all-pairs search (15.7) over a vertex pair, each operand's body
-/// and its sectors there: every intersecting (A-sector, B-sector) pair
-/// becomes a [`PairRecord`] with its four side codes, in deterministic
-/// A-major order.
+/// The bodies and vertices of a vertex pair, A's first: what a fan
+/// sector's meeting with a plane is read through
+/// ([`super::fan::meeting`]).
+pub(super) type PairSites<'a, T> = ([&'a Body<T>; 2], [VertexKey; 2]);
+
+/// The all-pairs search (15.7) over a vertex pair, each operand's body,
+/// vertex and sectors there: every intersecting (A-sector, B-sector)
+/// pair becomes a [`PairRecord`] with its four side codes, in
+/// deterministic A-major order. Where the two faces meet at the vertex
+/// is [`super::fan::meeting`]'s: two planes in their line, or a
+/// coincidence where they are parallel; a fan of a cone's apex against a
+/// plane or another fan in the rulings both hold, or a coincidence where
+/// the two fans are one cone's. A pair meeting along a ray within both
+/// sectors is a crossing; a coincident pair overlaps or only touches
+/// ([`sector_overlap`], [`super::fan::fans_overlap`]).
 pub(super) fn pair_search<T: Decide>(
-    bodies: [&Body<T>; 2],
+    (bodies, vertices): PairSites<'_, T>,
     sectors: [&[BoolSector<T>]; 2],
     contacts: &super::ReductionContacts,
     band: Band,
@@ -2751,10 +2901,9 @@ pub(super) fn pair_search<T: Decide>(
         sectors: sectors[k],
         sector,
     };
+    let site = |k: usize| Some((bodies[k], vertices[k]));
     for (i, sa) in sectors[0].iter().enumerate() {
         for (j, sb) in sectors[1].iter().enumerate() {
-            let int = sa.tangent().vec().cross(sb.tangent().vec());
-            let arm = sa.arm.min(sb.arm);
             // Parallel normals at the shorter arm make the pair a
             // near-coincidence at this vertex: the bound that sets the
             // arm reads at most `arm·|n_a × n_b|` off the other plane, so
@@ -2764,33 +2913,48 @@ pub(super) fn pair_search<T: Decide>(
             // refuses it; declared, the door has verified it. Its bounds'
             // readings are not consulted — a far bound reading off would
             // make the record half a crossing, which no germ pairing
-            // closes.
-            // A norm levered by a minimum of chord norms: a magnitude.
-            let coplanar = match geom_core::k_stats::decide_magnitude(
-                "bool_faces_parallel",
-                Margin::levered(int.norm(), arm),
-                band,
-            ) {
-                Ok(Magnitude::Zero) => true,
-                Ok(Magnitude::Positive) => false,
-                Err(diag) => {
-                    return Err(BooleanError::coincidence(
-                        Coincide::Sectors,
-                        DeclarationRead::Moot,
-                        diag,
-                    ));
+            // closes. Two fans of one cone are the same coincidence.
+            match super::fan::meeting((Operand::A, site(0), sa), (Operand::B, site(1), sb), band)? {
+                super::fan::Meeting::Coincident => {
+                    let overlap = if sa.apex().is_some() {
+                        super::fan::fans_overlap(sa, sb, band)?
+                    } else {
+                        sector_overlap(corner(0, sa), corner(1, sb), contacts, band)?
+                    };
+                    if overlap {
+                        records.push(PairRecord::coincident(i, j));
+                    }
+                    continue;
                 }
-            };
-            if coplanar {
-                if sector_overlap(corner(0, sa), corner(1, sb), contacts, band)? {
-                    records.push(PairRecord::coincident(i, j));
+                super::fan::Meeting::Rays(rays) => {
+                    let hit = if sa.apex().is_none() && sb.apex().is_none() {
+                        // Two planes' line, read leaned by their sine.
+                        let int = sa.tangent().vec().cross(sb.tangent().vec());
+                        let (plus, minus) = rays_within(
+                            Leaned::of_line(int),
+                            &[sa, sb],
+                            DeclarationRead::Moot,
+                            band,
+                        )?;
+                        plus || minus
+                    } else {
+                        // A fan's meeting rays are unit rulings.
+                        let mut hit = false;
+                        for &ray in &rays {
+                            let (plus, _) = rays_within(
+                                Leaned::upright(ray),
+                                &[sa, sb],
+                                DeclarationRead::Moot,
+                                band,
+                            )?;
+                            hit |= plus;
+                        }
+                        hit
+                    };
+                    if !hit {
+                        continue;
+                    }
                 }
-                continue;
-            }
-            let line = Leaned::of_line(int);
-            let (plus, minus) = rays_within(line, &[sa, sb], DeclarationRead::Moot, band)?;
-            if !(plus || minus) {
-                continue;
             }
             let (sa_codes, sb_codes) = pair_codes(sa, sb, band)?;
             // A curved bound's code reads the edge, which can lie
@@ -2980,7 +3144,8 @@ mod tests {
     ) -> Result<Vec<PairRecord>, BooleanError> {
         let body = Body::new();
         let contacts = super::super::ReductionContacts::default();
-        pair_search([&body, &body], [a, b], &contacts, band)
+        let vertex = crate::entity::VertexKey::default();
+        pair_search(([&body, &body], [vertex, vertex]), [a, b], &contacts, band)
     }
 
     /// **A sector at a cone's apex has its middle on the cone**: the
@@ -3680,7 +3845,7 @@ mod tests {
             Operand::A,
             vertex,
             &crate::sector_shape::SlitTips::default(),
-            ApexPlane::None,
+            &Partners::None,
             b,
         )
         .unwrap();
