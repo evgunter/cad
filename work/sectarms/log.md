@@ -420,3 +420,8 @@ and bodies unchanged. No orchestrator yet.
     - `SeedOutsideTube` stays for the pair lane;
     - `TracedTriple`'s plane pcurve stays as the exact affine image;
     - the anchored pivot with its padded band is kept, since a stored-origin readout would be a second reading.
+
+- 2026-11-03 — **NURBS stage 4a measured.** The plane is now a form of the one partner type, `ImplicitForm` (renamed from `Curved`). A differential row ran the whole suite through `PlaneSection` and `ImplicitSection` at three ε: 388 readings at 1e-12, and at every ε each refusal is either the same or a different kind on both lanes, never a new refusal. One fixture moves from decided to refused:
+  - `a_flat_wall_whose_chart_path_bends…` at 1e-12 (μ 0.2), now `TubeNotOneArc{Short}`.
+  - **Ruled accepted.** It is the same limb-3 shortfall the ℝ⁴ lane already refuses on its μ 0.1 sibling (SSIARITH P3, `ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12`). It is pinned with a dated note on that row.
+  - 4a and 4b go as one PR with dual review.
