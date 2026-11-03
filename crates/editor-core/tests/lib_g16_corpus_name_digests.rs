@@ -95,9 +95,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die", 0x842c07a9245e3188),
     ("corner_table", 0x9f694f6348a96dd6),
     ("heat_sink", 0x7956_4324_d870_c32d),
-    // The cavity floor cites a wall the kernel's substitution row names in
-    // error (`work/refs/a-substitution-row-names-a-kept-fragment-of-a-face-across-the-corner.md`).
-    ("crossing_slots", 0xd94a78dcfa887ea7),
+    ("crossing_slots", 0xe8dc66f2cb5166ab),
     ("nested_islands_105", 0x15d51d7c25dfe6df),
     ("nested_islands_106_depth1", 0x4677e01cb07a25ee),
     ("nested_islands_106_depth2", 0x664fe6e3cc64f8a7),
