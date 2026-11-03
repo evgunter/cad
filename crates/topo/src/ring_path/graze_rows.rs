@@ -32,10 +32,7 @@ fn case(
     let mt = m.cross(t_hat);
     let u0 = t_hat * 0.7f64.cos() - mt * 0.7f64.sin();
     let piece = CircleArc {
-        centre: o,
-        axis: w(m),
-        radius: r,
-        u_ref: w(u0),
+        circle: geom::Circle::new(geom::Frame::new(o, w(m), w(u0)), r),
         span: (0.0, 1.4),
     };
     let path = Path {
@@ -518,23 +515,31 @@ fn parallel_ruling(
     for dir in [direction(rng), z, -z] {
         let arcs = [
             LoopArc::Line {
-                origin: apex,
-                dir: e,
+                line: geom::Line {
+                    origin: apex,
+                    dir: e,
+                },
                 span: (l - s, l),
             },
             LoopArc::Line {
-                origin: apex + dir * jitter,
-                dir: (e + dir.cross(e) * (jitter / l)).normalize(),
+                line: geom::Line {
+                    origin: apex + dir * jitter,
+                    dir: (e + dir.cross(e) * (jitter / l)).normalize(),
+                },
                 span: (l, l + s),
             },
         ];
         for nudge in nudges() {
             let ln = l + nudge * s;
             let piece = CircleArc {
-                centre: apex + z * (ln * alpha.cos()),
-                axis: z,
-                radius: ln * alpha.sin(),
-                u_ref: w(Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0)),
+                circle: geom::Circle::new(
+                    geom::Frame::new(
+                        apex + z * (ln * alpha.cos()),
+                        z,
+                        w(Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0)),
+                    ),
+                    ln * alpha.sin(),
+                ),
                 span: (0.0, 0.6),
             };
             let path = Path {
@@ -560,10 +565,10 @@ fn a_crossing_decided_out_of_span_is_passed_over_though_another_reading_escalate
     let band = super::cone_islands::band();
     let end = 1.0f64;
     let piece = CircleArc {
-        centre: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
+        circle: geom::Circle::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+        ),
         span: (0.0, end),
     };
     let path = Path {
@@ -574,8 +579,10 @@ fn a_crossing_decided_out_of_span_is_passed_over_though_another_reading_escalate
     let delta = (band.zero() * band.escalate()).sqrt();
     let at = piece.at(end + delta);
     let ruling = |span| LoopArc::Line {
-        origin: at - Vec3::unit_z() * 0.5,
-        dir: Vec3::unit_z(),
+        line: geom::Line {
+            origin: at - Vec3::unit_z() * 0.5,
+            dir: Vec3::unit_z(),
+        },
         span,
     };
     assert!(

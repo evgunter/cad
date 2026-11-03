@@ -337,10 +337,7 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
     for o in [far, 0.0] {
         let at = |x: f64, y: f64, z: f64| Point3::new(o + x, y, z);
         let circle = |centre, axis, u_ref, radius, span| CircleArc {
-            centre,
-            axis,
-            radius,
-            u_ref,
+            circle: geom::Circle::new(geom::Frame::new(centre, axis, u_ref), radius),
             span,
         };
         // The unit circle in the plane `x = 0` about `at(0)`.
@@ -455,8 +452,10 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                 read(
                     vec![segment(at(1.0, 0.0, 0.0), at(2.0, 0.0, 0.0))],
                     LoopArc::Line {
-                        origin: at(0.0, 0.0, 0.0),
-                        dir: Vec3::new(1.0, 2.0 * m, 0.0),
+                        line: geom::Line {
+                            origin: at(0.0, 0.0, 0.0),
+                            dir: Vec3::new(1.0, 2.0 * m, 0.0),
+                        },
                         span: (0.0, 1.0),
                     },
                 ),
@@ -466,8 +465,10 @@ fn each_charged_reading_stands_down_inside_far_points_resolution() {
                 read(
                     vec![segment(at(1.0, 0.0, 0.0), at(2.0, 0.0, 0.0))],
                     LoopArc::Line {
-                        origin: at(0.0, 0.0, 0.0),
-                        dir: Vec3::new(1.0, 64.0 * m, 0.0),
+                        line: geom::Line {
+                            origin: at(0.0, 0.0, 0.0),
+                            dir: Vec3::new(1.0, 64.0 * m, 0.0),
+                        },
                         span: (0.0, 1.0 / 64.0),
                     },
                 ),
