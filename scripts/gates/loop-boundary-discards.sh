@@ -150,19 +150,16 @@ REGISTER=(
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
   "crates/topo/src/boolean/mod.rs|conic_reach||1|audited: a lone-vertex loop has no edge to bulge, and its vertex is in the span already — witness_span projects every loop's points through face_boundary_points, which reads the Empty arm by name"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
-  "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
-  "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|pinched_at_cone_apex|else { continue|1|audited: a lone-vertex loop holds one vertex once, so it passes no vertex twice; the at-rest gate after this scan reads it as it reads every loop"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_arcs||1|unaudited"
   "crates/topo/src/boolean/overlap.rs|loops||1|audited: the discarded variant is refused by name — a face holding a lone vertex answers OverlapRefusal::Unread, so no witness is read past it"
-  "crates/topo/src/stands.rs|face_loops||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
-  "crates/topo/src/boolean/region.rs|boundary||2|audited: a lone-vertex RING holds no edge, so it has no edge for a path to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
+  "crates/topo/src/boolean/region.rs|boundary||1|audited: a lone-vertex RING holds no edge, so it has no edge for a path to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace on the line before, never passed over"
   "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own reading (sphere_chart_trim, region::boundary), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/vtxfac.rs|ring_vertex_in||1|audited: the discarded variant is refused by name — a face whose outer loop is a lone vertex bounds no region a ring vertex could be minted in, and the arm returns ClassificationInvariant naming it, so no face is passed over"
   "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
@@ -171,8 +168,14 @@ REGISTER=(
   # and the hull closures take no vertex from it, `line_bounded` reads
   # it as "not a line", the reach walks propagate it as `None`.
   "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
-  "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
+  "crates/topo/src/cell_region.rs|lift_boundary||1|audited: the lone vertex's point is a stop already, pushed on the line before, and it has no edge to lift"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
+  # The face boundary walk's home: a lone-vertex loop holds no half-edge,
+  # and every reader of a face's half-edges or edges through the home
+  # (face_cycles_by_loop, proven_face_cycles, proven_face_edges, and
+  # their callers) inherits these two skips rather than writing its own.
+  "crates/topo/src/live.rs|half_edge||1|audited: a lone-vertex loop holds no half-edge and no edge, so it bounds no area and a reader of half-edges has nothing to walk; its vertex is still yielded by the walk (BoundaryMember::vertex, Body::member_point) to every reader of points"
+  "crates/topo/src/live.rs|face_edges_linked||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
   "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
@@ -215,7 +218,6 @@ REGISTER=(
   "crates/topo/src/splitting/containment.rs|certify_plane||1|audited: the discard is answered as CorruptLoop, the answer carrier_loop gives the same loop on the line after it in point_in_loop"
   "crates/topo/src/splitting/containment.rs|loop_points||1|unaudited"
   "crates/topo/src/splitting/finish.rs|classify_shell||1|unaudited"
-  "crates/topo/src/splitting/finish.rs|describe_section_boundary||1|unaudited"
   "crates/topo/src/splitting/finish.rs|section_plane_restatements||1|audited: an Empty loop holds no edge, so it has no description to restate; describe_section_boundary, which re-describes the same loops right after, steps over it the same way"
   "crates/topo/src/splitting/section.rs|section_walk||1|audited: the discarded variant is answered — a lone-vertex loop refuses as SectionInvariant, the refusal join::loop_starts gives the same below loop"
   "crates/topo/src/splitting/section_loops.rs|loop_edges|LoopBoundary::Empty { .. } => return|1|audited: the discarded variant is answered by name — a lone-vertex loop is read as an outline edge nothing decides, so outlines_disjoint answers false and the hole is left unplaced"

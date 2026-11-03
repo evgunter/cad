@@ -974,6 +974,7 @@ mod kernel {
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
             Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -2696,6 +2697,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "DescribeBendEscalated",
             F::DescribeBendEscalated { edge, diag: diag() },
+        ),
+        (
+            "WholeBodySideEscalated",
+            F::WholeBodySideEscalated { edge, diag: diag() },
         ),
         (
             "EdgeOnFacesEscalated",

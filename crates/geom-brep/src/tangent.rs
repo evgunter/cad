@@ -277,6 +277,7 @@ pub fn tangent_span_bounds<T: Real>(
             // with the rest, and the caller keeps its own door.
             Surface::Cone { .. }
             | Surface::Torus { .. }
+            | Surface::Spindle { .. }
             | Surface::Nurbs(_)
             | Surface::Approx(_) => None,
         }
@@ -520,7 +521,7 @@ fn circle_span_bounds<T: Real>(
             }
             // As the first-order bound above: no closed form for the
             // spline stand-in or the description behind it.
-            Surface::Nurbs(_) | Surface::Approx(_) => None,
+            Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
     };
     let (f2a, da) = bounds_of(s1)?;

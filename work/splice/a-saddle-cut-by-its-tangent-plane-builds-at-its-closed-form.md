@@ -23,15 +23,19 @@ it along `x = 0` and `z = 0`: a straight section of two lines crossing
 at a point. Closed forms: the block holds `8`, its part above the plane
 `1/2`, so `∩ = 0.5`, `s ∖ h = 7.5`, `h ∖ s = 255.5`, `∪ = 263.5`.
 
-Every op refuses at the spline × plane pair, before the join:
+Every op refuses at the spline × plane pair:
 
 - `∩` and `∖`, either way round: `CurvedPairUnsupported { site:
   RevertRoster, kind: Nurbs, other_kind: Plane }` (the spline × plane
   arm is on the union's roster only, `boolean/reduce.rs`
   `boolean_arm_exists`).
-- `∪`, either way round: `HeldPierceUnbuilt { kind: Nurbs, pierced_kind:
-  Plane }`, this program's
-  `a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`.
+- `∪`, either way round: in the join, `GermFrameUnsupported` for the
+  saddle wall against the face `y = 0` (SECTARMS'
+  `a-nurbs-wall-against-a-plane-has-no-germ-frame`). Before the
+  `splice/held-pierce` change (2026-11-03) it refused at the held pierce
+  (`HeldPierceUnbuilt`), where the wall's trim could not be lifted past
+  the sweep's null edges. That trim now reads the block's corner
+  pierces at `(±1, 0, ±1)` off its carrier.
 
 `crates/sweep/tests/a_saddle_cut_by_its_tangent_plane.rs`
 `a_saddle_cut_by_its_tangent_plane_refuses_at_the_spline_plane_pair`

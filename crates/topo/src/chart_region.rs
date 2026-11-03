@@ -152,6 +152,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
@@ -1174,28 +1175,20 @@ fn plane_frame<T: Decide>(
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order
-/// (fixed schedule, D9).
+/// (fixed schedule, D9): [`Body::face_boundary_linked`], every hop past
+/// the face a link. A lone-vertex loop is refused, as a face that does
+/// not resolve is.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
     let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    let mut out = Vec::new();
-    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let loop_data = body.get_loop(lk).ok_or(ChartRegionError::Corrupt)?;
-        let LoopBoundary::Cycle { first } = loop_data.boundary else {
-            return Err(ChartRegionError::Corrupt);
-        };
-        for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
-            let v = body
-                .get_half_edge(he)
-                .ok_or(ChartRegionError::Corrupt)?
-                .start;
-            let pk = body.get_vertex(v).ok_or(ChartRegionError::Corrupt)?.point;
-            out.push(*body.get_point(pk).ok_or(ChartRegionError::Corrupt)?);
-        }
-    }
-    Ok(out)
+    body.face_boundary_linked(face, face_data)
+        .map(|member| match member {
+            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
+            BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),
+        })
+        .collect()
 }
 
 /// **`chart_region_carrier_tilt`** — the metered gate that turns
@@ -2361,7 +2354,7 @@ fn boundary_segments<T: Decide + Bounds>(
 ) -> Option<Vec<NominalSeg>> {
     let mut out = Vec::new();
     for uv in [uv_a, uv_b] {
-        for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
+        for poly in uv.polygons() {
             if poly.len() < 3 {
                 continue;
             }
@@ -2488,6 +2481,13 @@ pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface
 struct FaceUv<T: Decide> {
     outer: Vec<Point2<T>>,
     rings: Vec<Vec<Point2<T>>>,
+}
+
+impl<T: Decide> FaceUv<T> {
+    /// The polygons, the outer first, in the face's loop order.
+    fn polygons(&self) -> impl Iterator<Item = &Vec<Point2<T>>> {
+        core::iter::once(&self.outer).chain(&self.rings)
+    }
 }
 
 /// Exact-`f64`-structure read of a `T` scalar being EXACTLY zero: a
@@ -2766,6 +2766,24 @@ fn certified_arms<T: Decide + Bounds>(
             gate(major_radius - minor_radius, "torus")?,
             gate(minor_radius, "torus")?,
         ),
+        // `R + r·cos v` at the window's largest `|v|`, as the sphere's
+        // latitude arm, on the range `[0, π]` where `cos` is monotone;
+        // a window reaching an apex reads zero there and the gate
+        // refuses it.
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let v_abs = v_lo.abs().max(v_hi.abs());
+            if v_abs.hi() > core::f64::consts::PI || v_abs.hi().is_nan() {
+                return Err(ChartRegionError::ArmUnbounded { chart: "spindle" });
+            }
+            (
+                gate(major_radius + minor_radius * v_abs.cos(), "spindle")?,
+                gate(minor_radius, "spindle")?,
+            )
+        }
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.
@@ -2914,7 +2932,7 @@ fn arm_values<T: geom_core::Real, E>(
 fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> {
     let mut reach: Option<(T, T)> = None;
     for face in [a, b] {
-        for poly in core::iter::once(&face.outer).chain(&face.rings) {
+        for poly in face.polygons() {
             for p in poly {
                 reach = Some(match reach {
                     None => (p.y, p.y),
@@ -2940,9 +2958,7 @@ fn seam_gate<T: Decide + Bounds>(
     let Surface::Cylinder { radius, .. } = *surface else {
         return Ok(()); // plane charts do not wrap; other kinds refused at the arm gate
     };
-    let loops = [a, b]
-        .into_iter()
-        .flat_map(|uv| core::iter::once(&uv.outer).chain(&uv.rings));
+    let loops = [a, b].into_iter().flat_map(FaceUv::polygons);
     let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };

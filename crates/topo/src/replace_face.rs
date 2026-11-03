@@ -1244,7 +1244,9 @@ fn transport_curve<T: Decide>(
                 ))
             }
         },
-        Surface::Approx(_) => None,
+        // The offset door mints no spindle sheet, so no edge is moved
+        // with one.
+        Surface::Spindle { .. } | Surface::Approx(_) => None,
     })
 }
 
@@ -2404,12 +2406,12 @@ fn cone_v_range<T: Decide>(
 /// each once — including the seams INTERNAL to the group, which move
 /// with the chart exactly as its outer edges do. Every member resolved
 /// at the door, and the walk from it reads links, so a miss panics
-/// naming the record ([`Body::face_cycles_linked`]).
+/// naming the record ([`Body::proven_face_half_edges`]).
 #[track_caller]
 fn group_boundary<T: geom_core::Decide>(body: &Body<T>, group: &[FaceKey]) -> Vec<EdgeKey> {
     let mut out: Vec<EdgeKey> = Vec::new();
     for &face in group {
-        for he in body.face_cycles_linked(face) {
+        for he in body.proven_face_half_edges(face) {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
             if !out.contains(&edge) {
                 out.push(edge);
@@ -3120,7 +3122,7 @@ fn carried_alike<T: Decide>(
     tol: Tol,
 ) -> Result<Transported<T>, ReplaceFaceError<T>> {
     let exact = |c: &MovedChart<'_, T>| match c.old_surface {
-        Surface::Nurbs(_) | Surface::Approx(_) => false,
+        Surface::Nurbs(_) | Surface::Approx(_) | Surface::Spindle { .. } => false,
         Surface::Cylinder { .. } | Surface::Cone { .. } => !matches!(old, Curve3::Nurbs(_)),
         Surface::Plane { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => true,
     };
