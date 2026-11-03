@@ -5157,7 +5157,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   build" — the proof the sampling probe stands in for — and the
 ///   Python door for it is FILED and not built, which is the whole of
 ///   why these are here rather than in `crate::analysis`. The row is
-///   `work/lib/certified-range-has-no-python-door`, and carrying this
+///   `work/pydoor/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
 /// - **The mint** (`Mint` and its log's `Minted` entries): the chain

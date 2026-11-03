@@ -62,5 +62,5 @@ The square-wall arm (`square_folds`) reads `geom_core::Circles` for its
 tube row and its folds. The tube circle against the sphere's great
 circle (`sphere_arm`) does not yet, since its secant row is another
 decomposition whose move can shift a verdict at `Interval`; it is
-`work/sect/sphere-against-a-tube-circle-decides-its-secant-in-its-own-decomposition.md`.
+`work/secttorus/sphere-against-a-tube-circle-decides-its-secant-in-its-own-decomposition.md`.
 `sphere_sphere` here is unchanged.

@@ -272,7 +272,7 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 /// the enum and a word that appears the day the door does is better
 /// than a build break then; they become live the day a Python path
 /// builder threads a notation, which is
-/// `work/lib/path-legs-erase-the-authored-notation-one-layer-down`'s
+/// `work/pydoor/path-legs-erase-the-authored-notation-one-layer-down`'s
 /// work and not this crate's.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
