@@ -293,6 +293,18 @@ pub struct SectorEntry {
     pub class: PlaneSide,
 }
 
+impl crate::star::Member for SectorEntry {
+    fn he(&self) -> HalfEdgeKey {
+        self.he
+    }
+    fn real(&self) -> bool {
+        self.kind == SectorEntryKind::Edge
+    }
+    fn moved(&self) -> bool {
+        self.class == PlaneSide::Above
+    }
+}
+
 /// One minted null edge, with its F9 orientation attribute and birth
 /// site — the record PR 3's joining consumes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -949,7 +961,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     for &v in &on_vertices {
         let (entries, rays) =
             neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, &tips, band)?;
-        let runs = insert::above_runs(&entries);
+        let runs = crate::star::runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A
         // crossing's vertex was minted on the plane, so no margin
