@@ -1464,6 +1464,15 @@ impl core::fmt::Display for StatedSpan {
 const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
 
 impl CertCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `at` ([`recourse`]), as [`crate::PcurveCheck::recourse`] gives
+    /// the pcurve door's: the public spelling of this door's table, for
+    /// a holder that names the decision a refusal restates.
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        recourse(self, arm, at)
+    }
+
     /// Whether this check refuses on a certified upper bound on a miss
     /// rather than on the miss: its refusal says only that the
     /// certificate cannot show the cache is the description.

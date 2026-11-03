@@ -653,6 +653,24 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             width: 1e-15,
             extent: 2.0,
         },
+        // The two stories a bound within the carrier's own enclosure
+        // width tells (`AnalyticRung3Refusal::KernelLimit`'s ending):
+        // the edge's extent as the limit, shorter edges its lever, and a
+        // wider enclosure with no cause the numbers name.
+        A::KernelLimit {
+            operand: geom::SurfaceKind::Cylinder,
+            bound: 1e-13,
+            margin: MarginDiag::value(1e-13),
+            width: 1e-14,
+            extent: 2.0,
+        },
+        A::KernelLimit {
+            operand: geom::SurfaceKind::Sphere,
+            bound: 1e-6,
+            margin: MarginDiag::value(1e-6),
+            width: 1e-6,
+            extent: 2.0,
+        },
         A::Limb {
             operand: geom::SurfaceKind::Plane,
             margin: MarginDiag::value(7.5e-5),
@@ -2218,18 +2236,9 @@ mod tests {
                 }
             }
             // The payload states what was refused; its recourse is the
-            // ending, stated once at every door. A pose the general lane
-            // does not cover names its lever beside "not yet"
-            // (`plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`).
-            let pose = matches!(
-                e,
-                C::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Pose { .. },
-                    ..
-                }
-            );
+            // ending, stated once at every door.
             let payload = e.to_string();
-            if test_utils::refusal::recourse_markers(&payload) != usize::from(pose) {
+            if test_utils::refusal::recourse_markers(&payload) != 0 {
                 wrong.push(format!("{e:?}: the payload spells a recourse: {payload}"));
             }
             for at in [Reading::Build, Reading::AtRest] {
@@ -2341,7 +2350,7 @@ mod tests {
                 };
                 let ending = e.ending(at);
                 let text = finding.render(at);
-                if test_utils::refusal::recourse_markers(&text) != 1 + usize::from(pose) {
+                if test_utils::refusal::recourse_markers(&text) != 1 {
                     wrong.push(format!(
                         "{e:?} at {at:?} states other than one recourse: {text}"
                     ));
@@ -2351,6 +2360,242 @@ mod tests {
                         "{e:?} at {at:?} ends outside its decision: {ending}, not {want}"
                     ));
                 }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+    /// **Every plane × NURBS and analytic rung-3 refusal ends in the
+    /// recourse its decision earns, at every door, through its one
+    /// ending** (`PlaneNurbsRefusal::ending`,
+    /// `AnalyticRung3Refusal::ending`). Over the two rosters, which
+    /// `nested_coverage_gaps` holds to every variant: the lane's own
+    /// door, the edge certification door and the at-rest classifier each
+    /// end an arm in that ending and state exactly one recourse, its
+    /// payload none; and each arm's class, named below by an exhaustive
+    /// match spelled from its own decision's table rather than from
+    /// `ending`, holds at a build, at rest and at the import door.
+    ///
+    /// Red where a door ends an arm by a table of its own, where an arm
+    /// ends outside its class — a swapped lever included — or where a
+    /// payload carries a recourse.
+    #[test]
+    fn every_lane_refusal_ends_by_its_decision_at_every_door() {
+        use geom_brep::edge_nurbs::{
+            AnalyticRung3Refusal as A, AnalyticRung3RefusalKind as AK, PlaneNurbsRefusal as P,
+            PlaneNurbsRefusalKind as PK,
+        };
+        use geom_brep::recourse::{ReadAt, RefusedArm, defect_ending, not_yet};
+        use geom_brep::ssi::{OneArcDoor, SsiDecision};
+        use geom_brep::{CertCheck, Rung3Limb, SsiLimb};
+
+        let doors = [
+            ReadAt::from(Reading::Build),
+            Reading::AtRest.into(),
+            FileCoincidence::new(1e-6).into(),
+        ];
+        let definite = RefusedArm::SignCertain(None);
+        let mut wrong = Vec::new();
+        // One statement for both rosters: the ending each arm's decision
+        // gives it, against every door that renders the refusal.
+        macro_rules! at_the_doors {
+            ($refusal:expr, $nested:expr, $ending:expr, $want:expr, $at:expr) => {{
+                let (refusal, nested, ending, want, at) =
+                    (&$refusal, $nested, $ending, $want, $at);
+                if ending != want {
+                    wrong.push(format!(
+                        "{refusal:?} at {at:?} ends outside its decision: {ending}, not {want}"
+                    ));
+                }
+                for (door, text) in [
+                    ("the lane's own door", refusal.render(at)),
+                    ("the edge door", nested.render(at)),
+                ] {
+                    if !text.ends_with(&ending) {
+                        wrong.push(format!("{refusal:?} at {at:?}: {door} ends apart: {text}"));
+                    }
+                    if test_utils::refusal::recourse_markers(&text) != 1 {
+                        wrong.push(format!(
+                            "{refusal:?} at {at:?}: {door} states other than one recourse: {text}"
+                        ));
+                    }
+                }
+                let payload = refusal.to_string();
+                if test_utils::refusal::recourse_markers(&payload) != 0 {
+                    wrong.push(format!(
+                        "{refusal:?}: the payload spells a recourse: {payload}"
+                    ));
+                }
+                let at_rest = crate::ValidationError::EdgeCertification {
+                    edge: crate::EdgeKey::default(),
+                    error: nested.clone(),
+                }
+                .render(Reading::AtRest);
+                let rest = refusal.ending(Reading::AtRest);
+                if !at_rest.ends_with(&rest) {
+                    wrong.push(format!(
+                        "{refusal:?}: the at-rest classifier ends apart: {at_rest}"
+                    ));
+                }
+            }};
+        }
+        for refusal in super::plane_nurbs_refusals() {
+            let nested = super::CertifyError::PlaneNurbs(refusal);
+            for at in doors {
+                let check = |check: CertCheck, arm| check.recourse(arm, at);
+                let want = match PK::from(&refusal) {
+                    // Limb 1 with no residual to state, and limb 1's or
+                    // limb 2's with one: the limb's own decision.
+                    PK::FootPointInconclusive => check(SsiLimb::OnLocus.check(), definite),
+                    PK::Limb => match &refusal {
+                        P::Limb { limb, margin } => {
+                            check(limb.check(), RefusedArm::SignCertain(Some(*margin)))
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // The two transversality decisions, decided or in
+                    // band, and the chart speed.
+                    PK::NotTransverse => match &refusal {
+                        P::NotTransverse { verdict, .. } => {
+                            check(CertCheck::Transversality, verdict.arm())
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    PK::TransversalityEscalated => match &refusal {
+                        P::TransversalityEscalated { cause, .. } => {
+                            check(CertCheck::Transversality, RefusedArm::Undecided(cause))
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    PK::TubeStraddles => match &refusal {
+                        P::TubeStraddles { verdict, .. } => {
+                            check(CertCheck::TransversalityTube, verdict.arm())
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    PK::ReportedTransversalityPoisoned => match &refusal {
+                        P::ReportedTransversalityPoisoned(cause) => check(
+                            CertCheck::PlaneNurbsReportedTransversality,
+                            RefusedArm::Undecided(cause),
+                        ),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    PK::ChartSpeed => match &refusal {
+                        P::ChartSpeed(r) => check(r.check(), definite),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // An exact arc rim reads its own check (its fitted
+                    // path's where no limb names one).
+                    PK::ArcRim => match &refusal {
+                        P::ArcRim(r) => {
+                            let (c, arm) = r.decision();
+                            check(c, arm)
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // The SSI door's own decisions: a certificate limb
+                    // escalated there, and the one-arc proof.
+                    PK::Escalated => match &refusal {
+                        P::Escalated { limb, cause } => {
+                            SsiDecision::Limb(*limb).ending(cause, at)
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    PK::TubeNotOneArc => match &refusal {
+                        P::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::AtRest, at),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // The kernel's own image producer refused.
+                    PK::PcurveFit => defect_ending(at).to_owned(),
+                    // A lever on the input, by identity: the same two the
+                    // pcurve door gives the same facts.
+                    PK::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
+                    PK::PlaceholderWall => {
+                        geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned()
+                    }
+                    // Capability gaps (D3): never a defect, never a
+                    // tolerance, no lever.
+                    PK::CarrierEnclosure | PK::Unsupported => not_yet(definite, at),
+                };
+                at_the_doors!(refusal, nested, refusal.ending(at), want, at);
+            }
+        }
+        for refusal in super::analytic_rung3_refusals() {
+            let nested = super::CertifyError::AnalyticRung3(refusal);
+            for at in doors {
+                let check = |check: CertCheck, arm| check.recourse(arm, at);
+                let want = match AK::from(&refusal) {
+                    AK::Limb => match &refusal {
+                        A::Limb { margin, .. } => check(
+                            Rung3Limb::HullValue.check(),
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    AK::Escalated => match &refusal {
+                        A::Escalated { limb, cause, .. } => {
+                            check(limb.check(), RefusedArm::Undecided(cause))
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    AK::Stalled => match &refusal {
+                        A::Stalled { cause, .. } => {
+                            check(Rung3Limb::HullSup.check(), RefusedArm::Undecided(cause))
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    AK::TubeStraddles => match &refusal {
+                        A::TubeStraddles { verdict, .. } => {
+                            check(CertCheck::TransversalityTube, verdict.arm())
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    AK::TubeNotOneArc => match &refusal {
+                        A::TubeNotOneArc { cause, .. } => cause.ending(OneArcDoor::AtRest, at),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // Limb 2's kernel limit tells its own story off the
+                    // data, door-blind: the extent's rounding names
+                    // shorter edges, a wider enclosure the last resort.
+                    AK::KernelLimit => match &refusal {
+                        A::KernelLimit {
+                            bound,
+                            width,
+                            extent,
+                            ..
+                        } => {
+                            let rounding =
+                                *bound <= geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR * width;
+                            let at_extent = *width
+                                <= geom_brep::KERNEL_LIMIT_EXTENT_FACTOR * extent * f64::EPSILON;
+                            match (rounding, at_extent) {
+                                (true, true) => "The bound is the curve's own rounding at its \
+                                                 length, too long to certify at this tolerance. \
+                                                 Recourse: split the edge into shorter edges"
+                                    .to_owned(),
+                                (true, false) => format!(
+                                    "The bound is the curve's own enclosure width, wider than \
+                                     its length's rounding. {}",
+                                    geom_core::KERNEL_LIMIT_RECOURSE
+                                ),
+                                (false, _) => format!(
+                                    "The bound lies far above the curve's own enclosure width. \
+                                     {}",
+                                    geom_core::KERNEL_LIMIT_RECOURSE
+                                ),
+                            }
+                        }
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // Capability gaps (D3): a span no net encloses, a
+                    // composite no bound covers, a pose the tube has no
+                    // gradient enclosure for, a pair outside the
+                    // inventory.
+                    AK::CarrierEnclosure
+                    | AK::NoOffsetBound
+                    | AK::NoTubeEnclosure
+                    | AK::Unsupported => not_yet(definite, at),
+                };
+                at_the_doors!(refusal, nested, refusal.ending(at), want, at);
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));

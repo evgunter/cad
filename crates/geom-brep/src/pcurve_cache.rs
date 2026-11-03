@@ -14455,15 +14455,16 @@ mod check_4_class_rows {
         }
     }
 
-    /// **A lane choice with no general lane yet ends lever-only "not
-    /// yet"** (D3, `PcurveCheck::ChartClass` and `GeneralLane`): its
-    /// undecided reading and its definite refusal (`NoGeneralLane`, for an
-    /// unwritten pair and an uncovered pose) all end in the
-    /// not-yet ending at every reading, never in a defect ending and
-    /// never in a tolerance offer. An identity check on a stored image's
-    /// copies (`ImageIdentity`) keeps the defect ending.
+    /// **A lane choice ends in its gap, never a defect and never a
+    /// tolerance** (D3 `[verdicts.consumers]`, `PcurveCheck::ChartClass`
+    /// and `GeneralLane`): a pair with no general lane written ends "not
+    /// yet", with no lever, on its undecided reading and on its definite
+    /// refusal alike; a written lane that cannot image this pose ends in
+    /// the closed form's pose as its lever, by identity (`POSE_GAP`), on
+    /// both. An identity check on a stored image's copies
+    /// (`ImageIdentity`) keeps the defect ending.
     #[test]
-    fn a_lane_choice_with_no_lane_ends_not_yet_never_a_defect() {
+    fn a_lane_choice_ends_in_its_gap_never_a_defect() {
         use crate::recourse::Reading;
         let cause = geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
@@ -14494,14 +14495,29 @@ mod check_4_class_rows {
                 channel: super::projected::SectorChannel::Azimuth,
             },
         };
+        let definite = crate::recourse::RefusedArm::SignCertain(None);
         for reading in [Reading::Build, Reading::AtRest] {
-            for e in [&undecided, &unwritten, &lane_undecided, &uncovered] {
+            // The pair with no lane written, which has no lever.
+            for e in [&undecided, &unwritten] {
                 let ending = e.ending(reading);
                 assert!(
                     ending.starts_with(geom_core::NOT_YET_ENDING),
                     "{reading:?}: {e:?} ends {ending}"
                 );
                 for not in ["defect", "tolerance", "Recourse:"] {
+                    assert!(!ending.contains(not), "{reading:?}: {ending}");
+                }
+            }
+            // The pose the written lane cannot image, whose lever is a
+            // way through: the one sentence, never a defect.
+            for e in [&lane_undecided, &uncovered] {
+                let ending = e.ending(reading);
+                assert_eq!(
+                    ending,
+                    super::POSE_GAP.recourse(definite, reading),
+                    "{reading:?}: {e:?} ends apart from the pose's lever"
+                );
+                for not in ["defect", "tolerance", geom_core::NOT_YET_ENDING] {
                     assert!(!ending.contains(not), "{reading:?}: {ending}");
                 }
             }

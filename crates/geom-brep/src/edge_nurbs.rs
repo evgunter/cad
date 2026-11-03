@@ -660,12 +660,19 @@ impl PlaneNurbsRefusal {
     /// ([`crate::CertifyError::decision`]'s structure); `None` for every
     /// other decision ([`Self::decided`]), whose ending
     /// [`Self::ending`] gives.
+    ///
+    /// A certificate limb escalated at the SSI door is that limb's
+    /// check here, for a holder naming the decision that could not be
+    /// read ([`crate::certify::CertifyError::decision`]'s readers), and
+    /// the SSI door's undecided sentence in [`Self::ending`].
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         match self.decided() {
             LaneDecision::Check(check, arm) => Some((check, arm)),
-            LaneDecision::SsiUndecided(..)
-            | LaneDecision::OneArc(_)
+            LaneDecision::SsiUndecided(limb, cause) => {
+                Some((limb.check(), RefusedArm::Undecided(cause)))
+            }
+            LaneDecision::OneArc(_)
             | LaneDecision::NotYet
             | LaneDecision::Defect
             | LaneDecision::KernelLimit { .. }
