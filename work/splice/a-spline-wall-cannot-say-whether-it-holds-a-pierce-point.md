@@ -153,3 +153,10 @@ pierced_kind: Sphere, placed: false }`. The face is the spout's outer
 wall and the pierced face the belly's sphere, both pinned by geometry in
 `teapot::wall3_pinned`. At 1e-6 the join stops one wall earlier
 (`teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
+
+With the trim lifted past the sweep's null edges (`splice/held-pierce`),
+the spout's walls read the pierce point, and teapot wall 3 moves on at
+the default and 1e-12 rows. It now stops in the join at SECTARMS'
+`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`
+(`GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }`), which is
+re-pinned in `teapot::wall3_pinned`.

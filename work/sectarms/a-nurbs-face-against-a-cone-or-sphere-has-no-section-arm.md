@@ -110,3 +110,22 @@ After that come the torus partner (lily wall 8,
 plane × NURBS folded in. That is at least three more hard units, so it
 is priced at 24 points. It is the row the curved demo joins lean on
 most (`work/issues/curved-demo-joins-build.md`).
+
+## Teapot wall 3 reaches this pair in the join (SPLICE, 2026-11-03)
+
+Added by SPLICE's `splice/held-pierce` lane. Two SPLICE changes have now
+landed: `splice/split-parameter` carries a boundary meeting's parameter
+to the spout's seam split, and `splice/held-pierce` lifts a spline
+wall's trim past the sweep's null edges. With both, teapot wall 3
+(`demos/tour/src/teapot.rs`) gets past the sweep and the held pierce
+at the default and 1e-12 rows, and the union refuses in the join:
+
+`GermFrameUnsupported { a_face, a_kind: Sphere, b_face, b_kind: Nurbs }`
+
+`a_face` is the belly's sphere (centre `(0, Y_BELLY_C, 0)`, radius
+`R_BELLY`), and `b_face` is the spout's outer wall (chart from `SPOUT_R0`
+above `SPOUT_ROOT` to `SPOUT_OUTER_TIP`). `teapot::wall3_pinned` pins
+both by geometry. At 1e-6, wall 3 still stops in the sweep
+(`splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
+When this row's sphere partner reaches the join, the wall-3 tripwire
+goes red, and its lane should re-pin it at the next stop.
