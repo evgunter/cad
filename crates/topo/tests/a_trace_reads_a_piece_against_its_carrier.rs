@@ -260,9 +260,9 @@ fn a_circle_in_the_torus_doors_band_refuses_with_the_doors_escalation() {
         panic!("the door's escalation, not {got:?}");
     };
     assert!(
-        diag.predicate.is_some_and(
-            |p| geom_brep::curve_face::decided_by_a_door(p) && p.starts_with("circle_torus_")
-        ),
+        diag.predicate
+            .is_some_and(|p| geom_brep::curve_face::decided_by_curve_face(p)
+                && p.starts_with("circle_torus_")),
         "named by the circle × torus door: {diag:?}"
     );
 }

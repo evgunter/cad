@@ -460,9 +460,9 @@ fn a_joint_between_two_runs_meets_the_span() {
     }
 }
 
-/// **Every K name decided under `curve_face/` carries a door's listed
-/// prefix, and every listed prefix is decided under it**
-/// ([`super::DOOR_K_PREFIXES`]). A door renamed, or a name added under a
+/// **Every K name decided in `curve_face.rs` or under `curve_face/`
+/// carries a listed prefix, and every listed prefix is decided there**
+/// ([`super::TABLE_K_PREFIX`], [`super::DOOR_K_PREFIXES`]). A door renamed, or a name added under a
 /// prefix the list does not hold, reds the first half; a prefix whose
 /// door moved away or was renamed reds the second. The census reader is
 /// `test_utils::source::predicate_census`; a name the doors hand in from
@@ -471,23 +471,38 @@ fn a_joint_between_two_runs_meets_the_span() {
 #[test]
 fn every_door_name_carries_a_listed_prefix() {
     use test_utils::source::{NameCarrier, predicate_census};
-    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/curve_face");
-    let census = predicate_census(
-        &src,
-        &[
-            NameCarrier::Call("HalfAngleRows"),
-            NameCarrier::Call("QuarticRows"),
-            NameCarrier::Call("SubdivisionRows"),
-            NameCarrier::Const("ROOT_SLACK"),
-            NameCarrier::Const("TORUS_ROOT_SLACK"),
-            NameCarrier::Const("PAST_THE_BAND"),
-            NameCarrier::Const("AT_THE_END"),
-            NameCarrier::Call("spread_signs"),
-            NameCarrier::Call("constant_residual_roots"),
-            NameCarrier::Call("gap"),
-            NameCarrier::Call("apart"),
-        ],
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let carriers = [
+        NameCarrier::Call("HalfAngleRows"),
+        NameCarrier::Call("QuarticRows"),
+        NameCarrier::Call("SubdivisionRows"),
+        NameCarrier::Const("ROOT_SLACK"),
+        NameCarrier::Const("TORUS_ROOT_SLACK"),
+        NameCarrier::Const("PAST_THE_BAND"),
+        NameCarrier::Const("AT_THE_END"),
+        NameCarrier::Call("spread_signs"),
+        NameCarrier::Call("constant_residual_roots"),
+        NameCarrier::Call("gap"),
+        NameCarrier::Call("apart"),
+    ];
+    let (table, doors) = (
+        predicate_census(&src.join("curve_face.rs"), &carriers),
+        predicate_census(&src.join("curve_face"), &carriers),
     );
+    assert!(
+        table.indirect.is_empty() && table.unreadable.is_empty() && table.unwalked.is_empty(),
+        "curve_face.rs holds a site the census could not read: {table:?}"
+    );
+    assert!(
+        table
+            .names
+            .iter()
+            .any(|n| n.starts_with(super::TABLE_K_PREFIX)),
+        "the table's prefix is decided nowhere in curve_face.rs: {:?}",
+        table.names
+    );
+    let mut census = doors;
+    census.names.extend(table.names);
     assert!(
         census.unreadable.is_empty() && census.unwalked.is_empty(),
         "sites the census could not read: {:?} {:?}",
@@ -521,11 +536,11 @@ fn every_door_name_carries_a_listed_prefix() {
     let outside: Vec<&String> = census
         .names
         .iter()
-        .filter(|n| !super::decided_by_a_door(n))
+        .filter(|n| !super::decided_by_curve_face(n))
         .collect();
     assert!(
         outside.is_empty(),
-        "names decided under curve_face/ outside every listed door prefix: {outside:?}"
+        "names decided in curve_face outside every listed prefix: {outside:?}"
     );
     for (door, prefix) in super::DOOR_K_PREFIXES {
         assert!(

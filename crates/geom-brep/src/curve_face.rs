@@ -135,12 +135,13 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
 
 /// **The K-name prefix of every door this crate decides in**, by door:
 /// a K name's prefix is the module that decides its margin
-/// (`[topo.homes]`), and every name decided under `curve_face/` starts
-/// with one of these (its row `every_door_name_carries_a_listed_prefix`
-/// reads this module's sources for it). A door built elsewhere decides
-/// under its own module's prefix there, and has no row here until it
-/// moves beside [`route`]. A reader that asks whether a recorded name
-/// is curve × face machinery reads this list, not a copy of it.
+/// (`[topo.homes]`), and every name decided in `curve_face.rs` or under
+/// `curve_face/` starts with one of these or with [`TABLE_K_PREFIX`]
+/// (its row `every_door_name_carries_a_listed_prefix` reads those
+/// sources for it). A door built elsewhere decides under its own
+/// module's prefix there, and has no row here until it moves beside
+/// [`route`]. A reader that asks whether a recorded name is curve × face
+/// machinery asks [`decided_by_curve_face`], not a copy of this list.
 pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
     (Door::PlaneCrossing, "plane_crossing_"),
     (Door::ConicTorus, "circle_torus_"),
@@ -149,13 +150,18 @@ pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
     (Door::SplineFace, "spline_face_"),
 ];
 
-/// Whether `predicate` is decided by one of this crate's curve × face
-/// doors ([`DOOR_K_PREFIXES`]).
+/// The K-name prefix of this module's own readings, ahead of any door:
+/// the boundary pass and its windows.
+pub const TABLE_K_PREFIX: &str = "curve_face_";
+
+/// Whether `predicate` is decided by the curve × face table or one of
+/// its doors in this crate ([`TABLE_K_PREFIX`], [`DOOR_K_PREFIXES`]).
 #[must_use]
-pub fn decided_by_a_door(predicate: &str) -> bool {
-    DOOR_K_PREFIXES
-        .iter()
-        .any(|(_, prefix)| predicate.starts_with(prefix))
+pub fn decided_by_curve_face(predicate: &str) -> bool {
+    predicate.starts_with(TABLE_K_PREFIX)
+        || DOOR_K_PREFIXES
+            .iter()
+            .any(|(_, prefix)| predicate.starts_with(prefix))
 }
 
 /// What the boundary pass makes of a span ([`boundary`]).
