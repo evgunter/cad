@@ -1043,8 +1043,14 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     })
 }
 
-impl core::fmt::Display for SplitFinishError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitFinishError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use core::fmt::Display as _;
+        use geom_brep::recourse::read_at;
         match self {
             Self::DegenerateSide { side, .. } => write!(
                 f,
@@ -1062,7 +1068,7 @@ impl core::fmt::Display for SplitFinishError {
                  classify it by"
             ),
             Self::Corrupt => write!(f, "the finish traversal failed (corrupt body)"),
-            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::Band(e) => write!(f, "{e}"),
             Self::DescribeEscalated { diag, .. } => diag
                 .undecided(
@@ -1090,15 +1096,18 @@ impl core::fmt::Display for SplitFinishError {
                  half-edge ({what}). {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::DescribeSideEscalated { diag, .. } => diag
-                .undecided(
+            Self::DescribeSideEscalated { diag, .. } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    diag,
                     geom_brep::MATERIAL_PAIRING_CLAUSE,
-                    geom_brep::MATERIAL_PAIRING.recourse(
-                        geom_brep::recourse::RefusedArm::Undecided(diag),
-                        geom_brep::recourse::Reading::Build,
-                    ),
+                    at.map(|at| {
+                        geom_brep::MATERIAL_PAIRING
+                            .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
+                    }),
                 )
-                .fmt(f),
+            ),
             Self::DescribeBendEscalated { diag, .. } => diag
                 .undecided(
                     "whether two faces touching along the cut curve apart there or share their \
@@ -1174,14 +1183,16 @@ impl core::fmt::Display for SplitFinishError {
             Self::EdgeJoin { side, refusal } => {
                 write!(
                     f,
-                    "the piece on the {} side of the plane: {refusal}",
-                    side.word()
+                    "the piece on the {} side of the plane: {}",
+                    side.word(),
+                    read_at(refusal, at)
                 )
             }
             Self::Merge { side, error } => write!(
                 f,
-                "the piece on the {} side of the plane: {error}",
-                side.word()
+                "the piece on the {} side of the plane: {}",
+                side.word(),
+                read_at(error, at)
             ),
             Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
                 f,
@@ -1217,6 +1228,9 @@ impl core::fmt::Display for SplitFinishError {
     }
 }
 
+geom_brep::ended_by_write!(SplitFinishError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitFinishError {}
 
 /// The finish step (module docs). Consumes the joined scratch body

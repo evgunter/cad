@@ -148,7 +148,13 @@ impl ContainDecision {
     /// The one ending an escalation of this decision carries, read at
     /// `reading` (D4 ¶1 (i)), from the shared table.
     #[must_use]
-    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(
+        self,
+        escalation: Escalation,
+        diag: &Indeterminate,
+        reading: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let reading: geom_brep::recourse::ReadAt = reading.into();
         let arm = escalation.arm(diag);
         let lever = placement_lever(Some(self));
         match self {
@@ -179,8 +185,9 @@ pub fn placement_ending(
     decision: Option<ContainDecision>,
     escalation: Escalation,
     diag: &Indeterminate,
-    reading: Reading,
+    reading: impl Into<geom_brep::recourse::ReadAt>,
 ) -> String {
+    let reading: geom_brep::recourse::ReadAt = reading.into();
     match decision {
         Some(decision) => decision.ending(escalation, diag, reading),
         None => unnamed_placement_ending(escalation.arm(diag), reading),
@@ -192,7 +199,11 @@ pub fn placement_ending(
 /// `None` arm of [`placement_ending`], for a refusal that holds its
 /// readings in a shape of its own rather than as one escalation.
 #[must_use]
-pub fn unnamed_placement_ending(arm: RefusedArm<'_>, reading: Reading) -> String {
+pub fn unnamed_placement_ending(
+    arm: RefusedArm<'_>,
+    reading: impl Into<geom_brep::recourse::ReadAt>,
+) -> String {
+    let reading: geom_brep::recourse::ReadAt = reading.into();
     LeverOnly {
         lever: placement_lever(None),
     }

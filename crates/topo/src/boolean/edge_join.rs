@@ -814,8 +814,7 @@ impl JoinRefusal {
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
-        const IMAGE: &str =
-            "two edges meeting at a vertex on one surface read their family off a chart image \
+        const IMAGE: &str = "two edges meeting at a vertex on one surface read their family off a chart image \
              that did not derive";
         match self {
             Self::Undecided(JoinUndecided {

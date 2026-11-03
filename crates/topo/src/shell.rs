@@ -762,7 +762,11 @@ impl<T: Real> ShellError<T> {
                 AsShelled(error, at)
             ),
             Self::Face { error, .. } => {
-                write!(f, "a face could not be offset inward: {}", AsShelled(error, at))
+                write!(
+                    f,
+                    "a face could not be offset inward: {}",
+                    AsShelled(error, at)
+                )
             }
             Self::OpenFaceStale { .. } => {
                 write!(
@@ -847,10 +851,7 @@ impl<T: Real> std::error::Error for ShellError<T> {}
 /// moves each face by the wall thickness, signed by the face's sense,
 /// so an arm about the offset's length speaks of the wall. Every other
 /// arm reads as the door's own refusal.
-struct AsShelled<'a, T: Real>(
-    &'a ReplaceFaceError<T>,
-    Option<geom_brep::recourse::ReadAt>,
-);
+struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>, Option<geom_brep::recourse::ReadAt>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
@@ -5423,7 +5424,10 @@ mod tests {
                 face: FaceKey::default(),
                 error: geom_brep::OffsetFitError::Meter(meter),
             };
-            (AsShelled(&error, Some(Reading::Build.into())).to_string(), ending)
+            (
+                AsShelled(&error, Some(Reading::Build.into())).to_string(),
+                ending,
+            )
         };
         let (zero, ending) = render(Refused::Zero(Classified {
             margin: geom_core::MarginDiag::value(5e-10),

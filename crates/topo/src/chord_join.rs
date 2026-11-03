@@ -659,8 +659,14 @@ fn order_ending(diag: &Indeterminate) -> String {
     }
 }
 
-impl core::fmt::Display for SplitJoinError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitJoinError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use core::fmt::Display as _;
+        use geom_brep::recourse::read_at;
         match self {
             Self::OrderEscalated { diag } => write!(
                 f,
@@ -744,7 +750,7 @@ impl core::fmt::Display for SplitJoinError {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Band(e) => write!(f, "{e}"),
-            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {}", read_at(e, at)),
             Self::SectionEndEscalated {
                 reading: SectionEndReading::OnPlane,
                 diag,
@@ -773,12 +779,12 @@ impl core::fmt::Display for SplitJoinError {
                     }
                     _ => "whether a section curve lies on the surfaces it is cut from",
                 };
-                let ending = geom_brep::recourse::Unsized::Fit.recourse(
-                    geom_brep::recourse::RefusedArm::Undecided(diag),
-                    geom_brep::recourse::Reading::Build,
-                );
-                diag.undecided(subject, format!("{SECTION_UNRESOLVED_CAUSE} {ending}"))
-                    .fmt(f)
+                let ending = at.map(|at| {
+                    let ending = geom_brep::recourse::Unsized::Fit
+                        .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at);
+                    format!("{SECTION_UNRESOLVED_CAUSE} {ending}")
+                });
+                write!(f, "{}", geom_brep::recourse::undecided_at(diag, subject, ending))
             }
             Self::SectionUnresolved {
                 miss:
@@ -789,15 +795,22 @@ impl core::fmt::Display for SplitJoinError {
                     },
                 ..
             } => {
-                let ending = geom_brep::recourse::Unsized::Fit.recourse(
-                    geom_brep::recourse::RefusedArm::SignCertain(Some(*margin)),
-                    geom_brep::recourse::Reading::Build,
-                );
                 write!(
                     f,
                     "a section curve's end misses its vertex: {check} at sample {sample} is \
-                     {margin:e}, definitely past the tolerance. {SECTION_WITHIN_CAUSE} {ending}"
-                )
+                     {margin:e}, definitely past the tolerance"
+                )?;
+                match at {
+                    Some(at) => write!(
+                        f,
+                        ". {SECTION_WITHIN_CAUSE} {}",
+                        geom_brep::recourse::Unsized::Fit.recourse(
+                            geom_brep::recourse::RefusedArm::SignCertain(Some(*margin)),
+                            at,
+                        )
+                    ),
+                    None => Ok(()),
+                }
             }
             // The join keeps the carrier constructor's subject and
             // offers its own door's levers.
@@ -812,7 +825,11 @@ impl core::fmt::Display for SplitJoinError {
                 diag.payload()
             ),
             Self::Section { source, .. } => {
-                write!(f, "the section through a curved face refused: {source}")
+                write!(
+                    f,
+                    "the section through a curved face refused: {}",
+                    read_at(source, at)
+                )
             }
             Self::OpenConicChord { conic, .. } => write!(
                 f,
@@ -855,7 +872,7 @@ impl core::fmt::Display for SplitJoinError {
                 // Worded by what was read and ended by the one map; a
                 // refusal that carried no read is no incidence refusal.
                 let Some(read) = R::of(refusal) else {
-                    return write!(f, "{refusal}");
+                    return write!(f, "{}", read_at(refusal, at));
                 };
                 let what = match read {
                     _ if read.is_definite() && !matches!(read, R::Off(_)) => {
@@ -865,11 +882,11 @@ impl core::fmt::Display for SplitJoinError {
                     R::AtPose(_) => "sits, within the band, where it holds no curve of its kind",
                     R::Undecided(_) => "is not shown on it",
                 };
-                write!(
-                    f,
-                    "an edge of a {kind} face the join divides {what}. {}",
-                    read.ending(geom_brep::recourse::Reading::Build)
-                )
+                write!(f, "an edge of a {kind} face the join divides {what}")?;
+                match at {
+                    Some(at) => write!(f, ". {}", read.ending(at)),
+                    None => Ok(()),
+                }
             }
             Self::RunImageNotYet { kind, .. } => write!(
                 f,
@@ -943,6 +960,9 @@ impl core::fmt::Display for SplitJoinError {
     }
 }
 
+geom_brep::ended_by_write!(SplitJoinError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitJoinError {}
 
 /// The corruption refusal naming the half-edge the join was reading.

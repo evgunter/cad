@@ -758,8 +758,13 @@ impl From<EulerOpError> for SplitReduceError {
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
-impl core::fmt::Display for SplitReduceError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitReduceError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use core::fmt::Display as _;
         use geom_core::RANGE_RECOURSE;
         match self {
             Self::Band(e) => write!(f, "{e}"),
@@ -922,9 +927,14 @@ impl core::fmt::Display for SplitReduceError {
             } => write!(
                 f,
                 "inserting the plane crossing on edge {edge:?} (endpoints {u:?}/{v:?}) \
-                 refused: {source}"
+                 refused: {}",
+                geom_brep::recourse::read_at(source.as_ref(), at)
             ),
-            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Euler(e) => write!(
+                f,
+                "an Euler operation refused: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::LineageRow(refusal) => write!(
                 f,
                 "{}. {}",
@@ -935,6 +945,9 @@ impl core::fmt::Display for SplitReduceError {
     }
 }
 
+geom_brep::ended_by_write!(SplitReduceError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitReduceError {}
 
 /// The non-mutating prefix of the reduction — the finished-body gate,
@@ -1146,13 +1159,18 @@ impl SplitError {
 // layer prefixes again, and so does the binding. `Pcurves` is the one
 // stage whose error is shared with callers that are not splits, so it
 // is the one arm that says where it ran.
-impl core::fmt::Display for SplitError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
-            Self::Reduce(e) => write!(f, "{e}"),
-            Self::Join(e) => write!(f, "{e}"),
-            Self::Finish(e) => write!(f, "{e}"),
-            Self::Pcurves(e) => write!(f, "{e}"),
+            Self::Reduce(e) => write!(f, "{}", read_at(e, at)),
+            Self::Join(e) => write!(f, "{}", read_at(e, at)),
+            Self::Finish(e) => write!(f, "{}", read_at(e, at)),
+            Self::Pcurves(e) => write!(f, "{}", read_at(e, at)),
             Self::Pieces(e) => write!(
                 f,
                 "a side of the split could not be sorted into solids: {e}"
@@ -1161,6 +1179,9 @@ impl core::fmt::Display for SplitError {
     }
 }
 
+geom_brep::ended_by_write!(SplitError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for SplitError {}
 
 /// Runs reduce + join on a scratch clone, returning the joined
