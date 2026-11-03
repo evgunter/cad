@@ -2,11 +2,12 @@
 id: a-spline-rider-reads-as-lying-in-no-plane-face
 kind: issue
 title: the slit pass's carrier_on_surface reads a spline or spiric edge as lying in no plane face, so a rider skips its EdgeInFaceGap refusal
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P1
 cost: E
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite]
+branch: splice/kind-reads
 ---
 
 
