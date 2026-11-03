@@ -39,7 +39,7 @@ faces and maximal edges"), recording the merge's groups and joins for
 naming. The naming side is WIRE's
 `a-split-names-an-operand-edge-in-its-plane-as-a-section-chord`
 (FORK-INPLANE), which recommends this; it is the split's instance of
-`work/issues/tier-3-does-not-check-maximal-faces.md`. The unit that
+`work/restgate/tier-3-does-not-check-maximal-faces.md`. The unit that
 builds it is likely one cross-territory WIRE unit (naming plus
 `splitting/finish.rs`); CLEAVE's orchestrator should say if a live
 CLEAVE lane is in that file.

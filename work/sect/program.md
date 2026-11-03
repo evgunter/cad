@@ -51,7 +51,7 @@ table's plane × torus and cone × cylinder residue, its U-H1 touching
 poses (a torus sector on the plane, the tangent circle, the Villarceau
 pair), whose D10 hold lifted on 2026-10-30. Both are read on the section
 object. Lily wall 8 stops at the second's general plane × torus rung,
-P0 since 2026-11-03 (`work/issues/curved-demo-joins-build.md`).
+P0 since 2026-11-03 (`work/splice/curved-demo-joins-build.md`).
 
 **Beside the torus thread, the remainder** (merged back 2026-11-02 from
 SECTTAIL and SECTRUNG, the P2/P3 rows cut out on the priority seam):

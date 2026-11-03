@@ -44,6 +44,6 @@ an `Affine3` documented as rigid; that sweep is part of this row.
 
 - `crates/sweep/tests/a_mirrored_loft_placement_is_no_sketch_plane.rs` pins the mirror, scale and shear refusals at f64 and Interval, and a proper quarter-turn loft at its exact volume of 8/3.
 - `loft_body`'s doc says the placement is rigid by its type.
-- The sweep for other doors that take an `Affine3` documented as rigid covered 43 signature hits and 21 field hits; PR 6120's body lists them. One finding was filed: `work/issues/a-mirrored-bodys-mapped-places-are-called-rigid.md`.
+- The sweep for other doors that take an `Affine3` documented as rigid covered 43 signature hits and 21 field hits; PR 6120's body lists them. One finding was filed: `work/shell/a-mirrored-bodys-mapped-places-are-called-rigid.md`.
 
 **Review: the orchestrator's read.** Dispatch planned a single FULL review for a new decide. The unit came back as tests, a doc line and a filed row, with no kernel logic, so the tier dropped. I checked the lane's key claim against the tree: `RigidMotion`'s fields are private, `from_linear` is private, and `SketchPlane { frame: RigidMotion }`.

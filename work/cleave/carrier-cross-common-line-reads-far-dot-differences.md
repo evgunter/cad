@@ -51,4 +51,4 @@ three ε, red against the current spelling.
 
 ## Closed (2026-10-26)
 
-Stale: PR 5154 (`f6237757e6`, the curve-pair reader's stage c1) deleted `carrier_cross::common_line`; `carrier_cross` reads its meetings from `geom_brep::curve_pair::meet`. The world-origin anchoring of a plane-plane solve elsewhere is `work/issues/offset-section-plane-plane-cramer-anchors-at-the-world-origin.md`. (CLEAVE slate triage)
+Stale: PR 5154 (`f6237757e6`, the curve-pair reader's stage c1) deleted `carrier_cross::common_line`; `carrier_cross` reads its meetings from `geom_brep::curve_pair::meet`. The world-origin anchoring of a plane-plane solve elsewhere is `work/shell/offset-section-plane-plane-cramer-anchors-at-the-world-origin.md`. (CLEAVE slate triage)

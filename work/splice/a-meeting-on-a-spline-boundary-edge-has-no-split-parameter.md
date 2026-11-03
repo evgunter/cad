@@ -48,4 +48,4 @@ Moved from SPLICECARRIER to SPLICE on 2026-11-02, by `git mv`, when SPLICECARRIE
 
 ## Re-banded P0 (2026-11-03)
 
-This row is teapot wall 3's current stop: `demos/tour/src/teapot.rs` `wall_probes` pins `PointSplitCarrierUnsupported { operand: B }` on the spout. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/issues/curved-demo-joins-build.md`).
+This row is teapot wall 3's current stop: `demos/tour/src/teapot.rs` `wall_probes` pins `PointSplitCarrierUnsupported { operand: B }` on the spout. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/splice/curved-demo-joins-build.md`).

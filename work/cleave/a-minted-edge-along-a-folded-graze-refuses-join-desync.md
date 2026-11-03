@@ -43,7 +43,7 @@ the side code read that edge On against the cube face (departure 1e-9 m
 at its 1 m reach, inside the zero band), but the two planes' line
 leaves the edge's far vertex by about the same 1e-9 m, the certification
 limit. Unmeasured: which edge, check and sample (the payload is dropped;
-`work/issues/joindesync-swallows-the-certification-payload.md`).
+`work/honeword/joindesync-swallows-the-certification-payload.md`).
 
 ## Owed
 

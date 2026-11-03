@@ -24,7 +24,7 @@ items on DOCM's slate.
 `mate.rs` and `mate/*` until DOCM cedes them or declines to. That is
 announced, not assumed — and it is exactly the state
 `scripts/work.py territory` is blind to
-(`work/issues/territory-cannot-see-a-path-two-programs-both-claim`), so
+(`work/meta/territory-cannot-see-a-path-two-programs-both-claim`), so
 it will not warn anyone.
 
 ## The ruling this program runs on (Ev, in chat, 2026-09-05)

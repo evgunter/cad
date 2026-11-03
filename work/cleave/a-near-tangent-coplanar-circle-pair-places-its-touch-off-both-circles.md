@@ -89,7 +89,7 @@ foot in place; it only moved the one-circle decision onto
   and `carrier_cross` answers `Unread`. The caller keeps its frontier
   door rather than reading `Clear`.
 
-The row's second ask, a sweep of the other closed-form arms for a generic formula at data a `Zero` reading called degenerate, is not done here. It lives on `work/issues/decided-tangent-point-is-the-radical-foot.md`, with the two arms still of that shape (`splitting::conic_plane_candidates` and `rim_wedge::crossings`).
+The row's second ask, a sweep of the other closed-form arms for a generic formula at data a `Zero` reading called degenerate, is not done here. It lives on `work/tang/decided-tangent-point-is-the-radical-foot.md`, with the two arms still of that shape (`splitting::conic_plane_candidates` and `rim_wedge::crossings`).
 
 ## The PR 5190 review's M-1 family through `curve_pair::meet` (2026-10-19)
 

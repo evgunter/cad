@@ -175,7 +175,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
@@ -323,7 +323,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
     "Check/ChartCoherenceUnexamined(corrupt)",

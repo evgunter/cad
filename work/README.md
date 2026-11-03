@@ -22,8 +22,6 @@ one channel to Ev (Ev's channel, below).
 work/
   README.md                this contract
   STATUS.md                GENERATED on main by CI — never hand-edited
-  issues/README.md         that directory's signpost
-  issues/<id>.md           items no program owns yet
   <program>/
     program.md             the program: charter, prefix, territory
     plan.md                the plan (narrative, present state only)
@@ -361,14 +359,15 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 - **A finding goes straight onto the slate of the program whose ground
   it lands on.** When the owning program is clear, file the item in
   that program's directory: a lane does not need the owner's
-  permission to put a finding where it belongs, and routing it through
-  `work/issues/` only delays the owner seeing it.
+  permission to put a finding where it belongs.
   (`python3 scripts/work.py territory --files -` says who owns a path.)
-- **`work/issues/` is for issues with no home yet, not a waiting
-  room** (Ev, 2026-09-04): a finding whose owner is undecided or
-  disputed, or that coheres with no live track.
-- **Claiming moves the file.** A program claiming another's item, or
-  one from `work/issues/`, MOVES it into its own directory with
+- **Every item has an owner; there is no unowned bucket** (Ev,
+  2026-11-03, retiring `work/issues/`). A finding whose ground no
+  program's `paths` cover, or several cover, goes on the slate of the
+  live program whose charter it fits best. If that program disagrees,
+  it re-homes the item by moving it; nothing waits ownerless meanwhile.
+- **Claiming moves the file.** A program claiming another's item
+  MOVES it into its own directory with
   `git mv` in the PR that claims it, keeps the id, and sets `parent:`
   to the unit that carries it.
 - **A rides-along is its own file**, with `rides_with:` naming its
@@ -458,13 +457,13 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   directory (Ev, 2026-09-06): to a live program whose charter it fits,
   or to a new program the closing program opens for it when the
   residue coheres into a track of its own (a dozen items on one
-  territory are a successor's opening slate). `work/issues/` is the
-  last resort, for residue that coheres with no live or new track.
+  territory are a successor's opening slate). Every residue item lands
+  on some program's slate; there is no unowned bucket.
 - **The sweep sees items, not sentences.** A residue mentioned in an
   item's `## Closed` prose reads as a record of work done, so it dies
   with the directory. Disclosing a residue is therefore not scheduling
   it — give it its own file at the moment you disclose it, on this
-  program's slate or in `work/issues/`, and let the Closed section
+  program's slate or the owning program's, and let the Closed section
   point at that file.
 
 ### Where documents live
@@ -518,7 +517,6 @@ each check-in and before bringing main into its branch.
   (Track size); the status columns count
   rows per item status; `status` is the program's own.
 - **One section per program** — its live rows, by band.
-- **Issues no program owns** — the live rows in `work/issues/`.
 - **Blocked** — every live row with a `blocked_on`, and what it
   waits on.
 - **Untouched for 14+ days** — live rows whose file has not changed in
@@ -530,7 +528,7 @@ each check-in and before bringing main into its branch.
 python3 scripts/work.py lint                  every checkable rule above; CI runs it
 python3 scripts/work.py status [--program P]  the board, to stdout; P is an id, or a group for its subtree
 python3 scripts/work.py render                the board, to work/STATUS.md (CI's job)
-python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
+python3 scripts/work.py new <id> --kind K --title T --program P [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]
 python3 scripts/work.py territory (--base <ref> | --files <list>|-) [--branch <name>] [--strict]
 python3 scripts/work.py territory --overlaps

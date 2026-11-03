@@ -75,5 +75,5 @@ with its subject, and a pure reassociation reddens it.
   has zero call sites workspace-wide.
 - `placement-rs-states-its-exactness-rule-in-nine-paragraphs` — S6/S8/S9
   from the reviewer's whole-file read.
-- `work/issues/inert-allow-attributes-on-test-modules-are-house-style-and-half-are-unneeded.md`
+- `work/comb/inert-allow-attributes-on-test-modules-are-house-style-and-half-are-unneeded.md`
   — the class behind this unit's own inert `#[allow]`.

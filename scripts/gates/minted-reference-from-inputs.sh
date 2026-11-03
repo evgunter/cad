@@ -28,7 +28,7 @@
 #   topo/src/boolean/section_cert.rs  a ruling chart and the section
 #                                 witnesses: no output keeps them, but a
 #                                 verdict may read them, which is filed
-#                                 (`work/issues/a-section-certificates-
+#                                 (`work/orbit/a-section-certificates-
 #                                 witness-point-is-picked-off-the-axes.md`).
 #
 # KNOWN GAPS. A home's file can grow a second read that does reach a
