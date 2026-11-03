@@ -2,10 +2,11 @@
 id: main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6
 kind: issue
 title: Main red: spline_spiric_operands' lofted cylinder far union builds a volume 3.2e-5 off its closed form at 1e-6
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: M
+branch: splice/far-union-volume
 ---
 
 
