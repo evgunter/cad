@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
-refs: [a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission, a-pinch-carried-through-a-later-fold-step-refuses-naming]
+refs: [a-pinch-carried-through-a-later-fold-step-refuses-naming]
 branch: splitdoor/pocket-floor-sliver
 closed: 2026-10-29
 pr: 5982

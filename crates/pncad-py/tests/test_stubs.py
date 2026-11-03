@@ -20,7 +20,7 @@ Depth 2 exists because depth 1 alone was blind to exactly the drift
 that matters most in a hand-written stub: a forgotten enum member or
 a renamed method changes no top-level name, so the whole Python suite
 stayed green while the stub advertised a surface that did not exist
-(the issue is `work/lib/stub-check-never-descends-class-attributes.md`,
+(the issue is `stub-check-never-descends-class-attributes` (closed with LIB: `docs/doc-ledger/lib-leaves-the-tracker.md`),
 raised off BLEND-5's review of `RimSupport::{Host, Mate}`).
 
 WHAT IS STILL NOT CHECKED HERE, stated so nobody reads more into a

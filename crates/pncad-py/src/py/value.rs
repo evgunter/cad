@@ -1367,9 +1367,19 @@ pub(crate) struct Evaluation {
     /// that want a product — `run_checks`, `product`, `product_named` —
     /// share one gather.
     product: crate::product_memo::ProductMemo,
+    /// **What stopped the run**: `evaluate`'s `cancel=` token and
+    /// `member_budget=`, captured at `evaluate`: every evaluation a door
+    /// reading this one runs on its behalf (the coincidence door's
+    /// replay) is held to it.
+    stop: d::Stop,
 }
 
 impl Evaluation {
+    /// The stop the run was evaluated under ([`Self::stop`]).
+    pub(crate) fn stop(&self) -> &d::Stop {
+        &self.stop
+    }
+
     /// The document this evaluation is of: the one a refusal raised
     /// from it speaks its nodes from.
     pub(crate) fn doc(&self) -> &d::ProfileDoc {
@@ -1517,21 +1527,22 @@ impl Evaluation {
 
     /// **The coincidences `node` decided from values** (D10), in
     /// decision order, each with what the coincidence door decided
-    /// about it. A node with no value raises as [`Self::value`] does.
+    /// about it. A node with no value raises as [`Self::value`] does;
+    /// a door the run's `cancel=` token stopped raises `ChecksError`
+    /// `canceled`, as `run_checks` does.
     fn coincidences(&self, py: Python<'_>, node: &NodeId) -> PyResult<Vec<Coincidence>> {
         self.value(py, node)?;
         let Some(value) = self.inner.value(node.0) else {
             return Ok(Vec::new());
         };
-        let Ok(proofs) = d::coincide::prove(
+        let proofs = d::coincide::prove(
             &self.doc,
             &[(node.0, &*value.coincidences)],
             self.inner.resolver(),
             Tol::witness(),
-            &d::CancelToken::new(),
-        ) else {
-            unreachable!("a token no one else holds is never canceled")
-        };
+            &self.stop,
+        )
+        .map_err(|canceled| super::checks::checks_err(py, &d::ChecksError::Canceled(canceled)))?;
         value
             .coincidences
             .iter()
@@ -2793,6 +2804,7 @@ pub(crate) fn evaluate(
         params: doc.inner.var_env::<f64>(),
         doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
+        stop: d::Stop::of(&token, &opts),
     }
 }
 

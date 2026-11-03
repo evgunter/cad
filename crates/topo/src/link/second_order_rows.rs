@@ -441,18 +441,6 @@ fn horn<T: Real>(p: Point3<T>, m: Vec3<T>, ends: [(Vec3<T>, Bound<T>); 2]) -> Ta
     })
 }
 
-/// **A thorn is read with its first order charged**: a thorn along
-/// `+x` thin enough that its curved face's edge `B` stands just past the
-/// escalation off the face in `z = 0` and its line `L` as far off the
-/// curved face, one order down. It rests; with `B` leaving the tip
-/// tilted off that face by nine tenths of the band's zero at the arm it
-/// refuses, the tilt charged; with `B` leaving it by twice the
-/// escalation, so that `B`'s edge leaves the face's plane at first
-/// order, it refuses however far `B` bends. A ring of four whose third
-/// corner lies on the line of the first two refuses. Red where a
-/// vertex's first-order residue is not charged, an edge off the face's
-/// plane is read as one of the picture, or a vertex on a side's line is
-/// passed.
 /// A thin thorn along `+x` from `p`: the line `L` at `0`, the arc `A`
 /// at `(0, 1, 0)` and the arc `B` at `b_at` one order down, `B` leaving
 /// the tip tilted `lift` toward `+z` at the arm `2`; the faces in
@@ -481,6 +469,18 @@ fn thin_thorn<T: Decide>(
     ]
 }
 
+/// **A thorn is read with its first order charged**: a thorn along
+/// `+x` thin enough that its curved face's edge `B` stands just past the
+/// escalation off the face in `z = 0` and its line `L` as far off the
+/// curved face, one order down. It rests; with `B` leaving the tip
+/// tilted off that face by nine tenths of the band's zero at the arm it
+/// refuses, the tilt charged; with `B` leaving it by twice the
+/// escalation, so that `B`'s edge leaves the face's plane at first
+/// order, it refuses however far `B` bends. A ring of four whose third
+/// corner lies on the line of the first two refuses. Red where a
+/// vertex's first-order residue is not charged, an edge off the face's
+/// plane is read as one of the picture, or a vertex on a side's line is
+/// passed.
 fn a_thorn_is_read_with_its_first_order_charged<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
     let (zero, escalate) = (band().zero(), band().escalate());
@@ -652,7 +652,9 @@ fn a_fin_on_a_plane<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
 /// ball's line in the cut not read; a fin, an edge's two faces running
 /// on along one line one way, refuses as unread, not as faces on each
 /// other. Red where an anchor's first-order residue is not charged, a
-/// curved sheet is read as its plane, or a fold is passed.
+/// curved sheet is read as its plane, or a fold is passed. The lean's
+/// charge is witnessed near the origin: a kilometre off, on `Interval` at
+/// the finest band, the leaning arc refuses with or without it.
 fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
     let (zero, escalate) = (band().zero(), band().escalate());

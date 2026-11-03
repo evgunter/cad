@@ -231,6 +231,7 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
             DocumentId::derive("recourse-split-forward-part"),
             Tol::witness(),
             None,
+            &editor_core::Stop::default(),
         )
     };
     let err = split(&doc).expect_err("the part cannot be rebuilt in order");
@@ -329,6 +330,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "carrier_on_surface_1",
             "carrier_on_surface_2",
             "dihedral_arm",
+            "dihedral_sign",
             "dihedral_wedge",
             "enters_material",
             "enters_material_arm",

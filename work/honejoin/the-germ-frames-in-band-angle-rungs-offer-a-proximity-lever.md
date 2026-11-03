@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: M
-refs: [an-in-band-axis-parallelism-offers-a-proximity-lever, coincidence-tangent-locus-contact-section-escalate-without-their-rung]
+refs: [coincidence-tangent-locus-contact-section-escalate-without-their-rung]
 ---
 
 Found by the sweep of `an-in-band-axis-parallelism-offers-a-proximity-lever`

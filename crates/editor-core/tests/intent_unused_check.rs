@@ -259,7 +259,14 @@ fn an_indexed_family_is_one_subject() {
     );
     assert_eq!(doc.unused(), ops(&[family]));
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let report = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).unwrap();
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let subjects: Vec<_> = report
         .findings
         .iter()
@@ -300,7 +307,14 @@ fn the_resident_reports_the_tips() {
     let (doc, spare) = block(doc, 4.0);
     let (doc, _) = declare(doc, "depth");
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let report = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).unwrap();
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let unused: Vec<_> = report
         .findings
         .iter()
@@ -321,7 +335,14 @@ fn the_resident_reports_the_tips() {
         unused: editor_core::Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &off, Tol::witness()).unwrap();
+    let report = run_checks(
+        &doc,
+        &ev,
+        &off,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(report.skipped.contains(&CheckId::Unused));
     assert!(report.findings.iter().all(|f| f.check != CheckId::Unused));
 }
@@ -347,7 +368,14 @@ fn a_parts_finding_stays_in_the_part() {
     );
     assert_eq!(host.unused(), quiet());
     let ev = fixture::run(&host, &fixture::resolver::with_resolver(store));
-    let report = run_checks(&host, &ev, &ChecksConfig::default(), Tol::witness()).unwrap();
+    let report = run_checks(
+        &host,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(
         report.findings.iter().all(|f| f.check != CheckId::Unused),
         "{}",
@@ -468,7 +496,14 @@ fn a_folded_named_output_is_said_and_not_lost() {
     let doc = rename(doc, below, Some(named("offcut")));
     assert_eq!(doc.unused(), ops(&[split]));
     let ev = fixture::run(&doc, &EvalOptions::default());
-    let report = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).unwrap();
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let spoken = report.spoken(&doc);
     assert!(
         spoken.contains("used by nothing, its outputs named top, offcut with it: not the product"),
@@ -523,7 +558,14 @@ fn a_product_refusal_discards_the_unused_findings() {
         at_rest: editor_core::Severity::Off,
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &alone, Tol::witness()).expect("alone, it runs");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &alone,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("alone, it runs");
     assert!(
         report
             .findings
@@ -533,7 +575,14 @@ fn a_product_refusal_discards_the_unused_findings() {
         report.spoken(&doc)
     );
     assert!(
-        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).is_err(),
+        run_checks(
+            &doc,
+            &ev,
+            &ChecksConfig::default(),
+            &editor_core::Stop::default(),
+            Tol::witness()
+        )
+        .is_err(),
         "the default configuration refuses, its unused finding with it"
     );
 }

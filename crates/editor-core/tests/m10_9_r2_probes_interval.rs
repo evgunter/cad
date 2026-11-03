@@ -258,6 +258,7 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
                     symbolic: dials(rules),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .map(|v| v.serialize())
@@ -462,6 +463,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the link builds");

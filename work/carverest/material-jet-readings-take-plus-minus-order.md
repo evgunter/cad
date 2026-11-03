@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-refs: [intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself]
 ---
 
 

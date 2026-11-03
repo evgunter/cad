@@ -5321,7 +5321,9 @@ mod tests {
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
-    /// - the classifier of unit normals is called only from `pairing`;
+    /// - the classifier of unit normals is called only from `pairing`
+    ///   (`geom_brep::classify_material_pairing_as`), and no tangency
+    ///   token's pairing (`.pairing(`) is asked anywhere it reads;
     /// - nothing reads a bare sign: no `sign_within`, no
     ///   `definitely_positive(` (`validate`'s unnamed door), no
     ///   `enclosure_probe(` (an instrument nothing may branch on), no
@@ -5460,7 +5462,12 @@ mod tests {
         let second = code_only(include_str!("link/second_order.rs"));
         let second = &second[..];
         let mut stray = Vec::new();
-        for needle in ["Margin::", "decide(", "classify_material_pairing"] {
+        for needle in [
+            "Margin::",
+            "decide(",
+            "classify_material_pairing",
+            ".pairing(",
+        ] {
             stray.extend(outside(touch, needle, &[]));
             stray.extend(outside(second, needle, &[]));
         }
@@ -5468,6 +5475,7 @@ mod tests {
             stray.extend(outside(module, needle, &[&metric]));
         }
         stray.extend(outside(module, "classify_material_pairing", &[&pairing]));
+        stray.extend(outside(module, ".pairing(", &[]));
         for needle in [
             "sign_within",
             "definitely_positive(",

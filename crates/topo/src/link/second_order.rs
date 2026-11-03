@@ -10,7 +10,7 @@
 //! charged ([`Reading::charged`]) is the germ's, are argued once, in
 //! `crates/topo/README.md` beside the first-order link claim. Every
 //! reading here is a sign of that picture at the arm `l`, the Taylor
-//! term `κ·l²/2` in metres ([`Distance::departure`], `Parted`), under
+//! term `Δκ·l²/2` in metres ([`Distance::departure`], `Parted`), under
 //! the K row [`LINK_SECOND_ORDER`].
 
 use super::metric::{self, Departure, Distance, Reading};
@@ -148,7 +148,7 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             for j in (0..cycle.len()).filter(|&j| j != i && j != (i + 1) % cycle.len()) {
                 let (tc, c) = vertex(j);
                 let s = beside(p, (ta, a), (tc, c), face.outward, arm, rd).ok_or(unread)?;
-                if s == Sign::Zero || side.is_some_and(|x| x != s) {
+                if side.is_some_and(|x| x != s) {
                     return Err(unread);
                 }
                 side = Some(s);
@@ -231,7 +231,7 @@ struct Sheet<T: Decide> {
 /// along a unit direction square to the ray and its normal.
 #[derive(Clone, Copy)]
 enum Run<T: Decide> {
-    Line(Vec3<T>),
+    Both(Vec3<T>),
     Half(Vec3<T>),
 }
 
@@ -271,7 +271,7 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
                     // off the plane is a residue the readings charge.
                     at: (unit - t.outward * t.outward.dot(unit)).normalize(),
                     normal: t.outward,
-                    run: Run::Line(t.outward.cross(unit).normalize()),
+                    run: Run::Both(t.outward.cross(unit).normalize()),
                     edge: None,
                 });
             }
@@ -371,10 +371,10 @@ fn misses<T: Decide>(
     // `b`'s anchor decidedly behind `a`'s along `a`'s half-line.
     let behind = || match a.run {
         Run::Half(wa) => off(wa, None) == Some(Sign::Negative),
-        Run::Line(_) => false,
+        Run::Both(_) => false,
     };
     let wb = match b.run {
-        Run::Line(w) | Run::Half(w) => w,
+        Run::Both(w) | Run::Half(w) => w,
     };
     // A sheet run along `a`'s line at first order may still lean toward
     // it by what that zero leaves: charged, out to the arm, where the
@@ -383,7 +383,7 @@ fn misses<T: Decide>(
     let side = off(a.normal, None);
     let clear = off(a.normal, Some(tilt));
     match b.run {
-        Run::Line(wb) => {
+        Run::Both(wb) => {
             matches!(clear, Some(Sign::Positive | Sign::Negative))
                 && toward(wb, a.normal) == Some(Sign::Zero)
         }
@@ -393,7 +393,7 @@ fn misses<T: Decide>(
             (Some(Sign::Zero), Some(Sign::Positive | Sign::Negative)) => behind(),
             (Some(Sign::Zero), Some(Sign::Zero)) => match a.run {
                 Run::Half(wa) => toward(wb, wa) == Some(Sign::Negative) && behind(),
-                Run::Line(_) => false,
+                Run::Both(_) => false,
             },
             _ => false,
         },

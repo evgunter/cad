@@ -4527,6 +4527,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "checks_error_tag",
         values: &[
             "band",
+            "canceled",
             "evaluation_of_another_document",
             "placement_without_value",
             "product_unavailable",
@@ -4890,17 +4891,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_aim",
             "degenerate_mirror_normal",
-            "degenerate_reference_ladder",
             "degenerate_roll_reference",
-            "degenerate_tangent",
             "non_finite_aim",
             "non_finite_mirror_normal",
             "non_finite_roll_reference",
-            "non_finite_tangent",
             "underflowed_aim",
             "underflowed_mirror_normal",
             "underflowed_roll_reference",
-            "underflowed_tangent",
         ],
         delegates: &[],
     },
@@ -5073,7 +5070,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mc_refusal_tag",
-        values: &["no_samples", "nominal_does_not_build"],
+        values: &["no_samples", "nominal_does_not_build", "stopped"],
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
@@ -5875,6 +5872,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "severed_edge",
             "space_straddles_cut",
             "split_pin",
+            "stopped",
             "uncut_var_reference",
             "unknown_cut_node",
             "unresolved_var_crosses_cut",
@@ -6465,6 +6463,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
     ("split_lineage_cycle", 2),
     ("step_ids", 3),
+    // One fact: an evaluation a door ran stopped short
+    // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
+    ("stopped", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
@@ -7664,7 +7665,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `editor-core` and `topo`, not here, and the arm is not
 /// constructible from this crate (see
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
-/// them. `work/lib/` carries that as its own row.
+/// them. BIND carries that as its own row
+/// (`work/bind/select-refusal-predicate-names-are-unpinned.md`).
 ///
 /// **The `reason` and `door` words are a second family, and no raise
 /// site under `src/py/` MINTS one any more.** Such an attribute is as
@@ -8038,7 +8040,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             "nothing: it is a `#[doc(hidden)]` anchor whose whole content is a \
              six-row prose table, and the count that table fixes was written \
              three ways with two different numbers before it existed, which is \
-             `work/lib/the-dimension-door-table-is-prose-nothing-re-derives.md`",
+             `work/bind/the-dimension-door-table-is-prose-nothing-re-derives.md`",
         )],
     },
     MintingItem {
@@ -10407,7 +10409,15 @@ mod product_memo_rows {
 
         let memo = ProductMemo::default();
         let checks_then_product = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
         });
         assert_eq!(checks_then_product, 1);
@@ -10415,8 +10425,24 @@ mod product_memo_rows {
         let memo = ProductMemo::default();
         let product_then_checks = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("and runs again");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("and runs again");
         });
         assert_eq!(product_then_checks, 1);
     }
@@ -10434,7 +10460,15 @@ mod product_memo_rows {
         let count = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
             product_memo::body_and_names(&memo, &doc, &ev, tol).expect("and names its entities");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(count, 1);
     }
@@ -10457,7 +10491,15 @@ mod product_memo_rows {
         let tol = Tol::witness();
         let memo = ProductMemo::default();
         let none = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(none, 0);
         let first = gathers(|| {
@@ -10503,6 +10545,7 @@ mod product_memo_rows {
             &doc,
             &ev,
             &d::ChecksConfig::default(),
+            &pncad::document::Stop::default(),
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
@@ -10592,6 +10635,7 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         DocumentId::derive("place-node-map-part"),
         Tol::witness(),
         None,
+        &pncad::document::Stop::default(),
     )
     .expect("a cut of free profiles splits");
     let listed = crate::node_map::in_target_id_order(&out.node_map, &out.part);

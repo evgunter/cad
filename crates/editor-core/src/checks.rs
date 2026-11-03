@@ -1286,6 +1286,9 @@ pub enum ChecksError {
         /// taken ([`Subject::Unavailable`]).
         refusal: Option<product::ProductRefusal>,
     },
+    /// The coincidence door was canceled before it decided every row:
+    /// the token of the `stop` handed to [`run_checks_on`].
+    Canceled(crate::coincide::Canceled),
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -1327,6 +1330,7 @@ impl crate::spoken::Say for ChecksError {
                 "checks: an enabled check reads the document's product, and none was taken. {}",
                 crate::sentence::Recourse("pass the gathered product as the subject")
             ),
+            Self::Canceled(canceled) => write!(f, "checks: {canceled}"),
         }
     }
 }
@@ -1525,7 +1529,9 @@ impl<T: Decide> Subject<'_, T> {
 /// a value in `ev`, a band the tolerance cannot form, or a document
 /// whose placements do not gather into a product for a resident that reads
 /// one. These mean the checks could not run at all; a check that ran
-/// and disagreed is a FINDING, not an error.
+/// and disagreed is a FINDING, not an error. [`ChecksError::Canceled`]
+/// once `stop`'s token cancels the coincidence door, which `stop` holds
+/// to its member budget.
 pub fn run_checks<
     P: crate::ProfilePayload,
     T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
@@ -1533,6 +1539,7 @@ pub fn run_checks<
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
     // LAZY, and the laziness is the point: the gather is by far the
@@ -1542,13 +1549,15 @@ pub fn run_checks<
     // gather refusal from reaching a run no resident would have shown
     // it to.
     if !cfg.needs_a_subject() {
-        return run_checks_on(doc, ev, Subject::not_needed(), cfg, tol);
+        return run_checks_on(doc, ev, Subject::not_needed(), cfg, stop, tol);
     }
     let subject = match product::product_recorded(doc, ev, tol) {
-        Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
+        Ok(ref gathered) => {
+            return run_checks_on(doc, ev, Subject::Product(gathered), cfg, stop, tol);
+        }
         Err(source) => Subject::refused(source),
     };
-    run_checks_on(doc, ev, subject, cfg, tol)
+    run_checks_on(doc, ev, subject, cfg, stop, tol)
 }
 
 /// The registry over a subject the CALLER derived — the door
@@ -1574,7 +1583,9 @@ pub fn run_checks<
 /// registry's own preconditions; and [`ChecksError::Product`] when an
 /// enabled resident reads the subject and finds
 /// [`Subject::Unavailable`] — after the residents that read no subject
-/// have answered, so their refusals still come first.
+/// have answered, so their refusals still come first; and
+/// [`ChecksError::Canceled`] once `stop`'s token cancels the
+/// coincidence door.
 pub fn run_checks_on<
     P: crate::ProfilePayload,
     T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
@@ -1583,14 +1594,12 @@ pub fn run_checks_on<
     ev: &Evaluation<T>,
     subject: Subject<'_, T>,
     cfg: &ChecksConfig,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
     let (mut report, door) = run_checks_at_rest_on(doc, ev, subject, cfg, tol)?;
     if let Some(job) = door {
-        let Ok(findings) = job.run(doc, &crate::CancelToken::new()) else {
-            unreachable!("a token no one else holds is never canceled")
-        };
-        report.settle(findings);
+        report.settle(job.run(doc, stop).map_err(ChecksError::Canceled)?);
     }
     Ok(report)
 }
@@ -1715,10 +1724,10 @@ impl DoorJob {
     ///
     /// # Errors
     ///
-    /// [`crate::coincide::Canceled`] once `cancel` is canceled: the
-    /// replay checks it between nodes and a family's members, and the
-    /// door between the margins
-    /// it discharges.
+    /// [`crate::coincide::Canceled`] once `stop`'s token is canceled:
+    /// the replay checks it between nodes and a family's members, and
+    /// the door between the margins it discharges. The replay is held
+    /// to `stop`'s member budget.
     ///
     /// # Panics
     ///
@@ -1726,18 +1735,17 @@ impl DoorJob {
     pub fn run<P: crate::ProfilePayload>(
         &self,
         doc: &Doc<P>,
-        cancel: &crate::CancelToken,
+        stop: &crate::Stop,
     ) -> Result<DoorFindings, crate::coincide::Canceled> {
         crate::spoken::assert_taken_of("this door job", self.document, doc);
-        let mut findings =
-            door_findings(doc, &self.rows, self.resolver.as_ref(), self.tol, cancel)?;
+        let mut findings = door_findings(doc, &self.rows, self.resolver.as_ref(), self.tol, stop)?;
         for part in &self.carried {
             let own = door_findings(
                 &**part.rows.doc.get(),
                 &part.rows.sets,
                 self.resolver.as_ref(),
                 self.tol,
-                cancel,
+                stop,
             )?;
             findings.extend(own.into_iter().map(|finding| CheckFinding {
                 check: CheckId::UnprovenCoincidence,
@@ -1882,7 +1890,7 @@ fn door_findings<P: crate::ProfilePayload>(
     rows: &[DoorRows],
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
-    cancel: &crate::CancelToken,
+    stop: &crate::Stop,
 ) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
     let named: Vec<Vec<crate::coincide::NamedCoincidence>> = rows
         .iter()
@@ -1893,7 +1901,7 @@ fn door_findings<P: crate::ProfilePayload>(
         .zip(&named)
         .map(|((_, node, _), rows)| (*node, &rows[..]))
         .collect();
-    let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, cancel)?;
+    let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, stop)?;
     let mut findings: Vec<CheckFinding> = Vec::new();
     for ((subject, _, rows), proofs) in rows.iter().zip(proofs) {
         let unproven: Vec<_> = rows

@@ -63,7 +63,7 @@ cheap check is whether some earlier refusal gets there first.
 
 ## Related
 
-`work/issues/aq8-skip-half-is-cited-as-ratified-and-is-not.md` — the
+`work/msolve/aq8-skip-half-is-cited-as-ratified-and-is-not.md` — the
 (b)-SKIP half this turns on has no ratified home, which is part of why
 the sweep could reason past it.
 

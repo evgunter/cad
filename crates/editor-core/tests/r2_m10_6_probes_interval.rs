@@ -214,7 +214,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
         &doc,
         None,
         &editor_core::CancelToken::new(),
-        &editor_core::drive::witness_options(&analyzed),
+        &editor_core::drive::witness_options(&analyzed, &editor_core::Stop::default()),
         Tol::witness(),
     );
     let full = VerdictVector::of(&witness);
@@ -226,8 +226,14 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
          if they do not, this fixture no longer exercises the filter"
     );
 
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -256,8 +262,10 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
             assertion,
             &leaf.box_,
             verdict.symbolic(),
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
+        .expect("the replay is not stopped")
         .expect("the assertion node evaluated over a certified leaf, on its lane");
         if matches!(av, AssertionVerdict::Unevaluated { .. }) {
             straddled += 1;
@@ -508,6 +516,7 @@ fn report_key_tells_the_dials_that_move_a_report_apart() {
             seed: 1,
             parallel: false,
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the nominal builds");
@@ -519,6 +528,7 @@ fn report_key_tells_the_dials_that_move_a_report_apart() {
             seed: 2,
             parallel: false,
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the nominal builds");
@@ -646,6 +656,7 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
                 seed,
                 parallel,
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the nominal builds")

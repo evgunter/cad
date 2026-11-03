@@ -342,7 +342,7 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
         // above (`CurvedPierceUnsupported`) and accepts these, on the
         // same point set — the reference's answer depends on the rim
         // edges' minting order (filed:
-        // `work/issues/idealized-sweep-refuses-a-rim-crossing-by-the-loops-authored-start.md`),
+        // `work/orbit/idealized-sweep-refuses-a-rim-crossing-by-the-loops-authored-start.md`),
         // so the pin is held on both authorings and binds where the
         // reference answers.
         (

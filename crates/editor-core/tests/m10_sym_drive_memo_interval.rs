@@ -107,7 +107,7 @@ fn ceiling(label: &str, doc: &ProfileDoc, max_leaves: usize) {
     };
     start_profile();
     let t0 = Instant::now();
-    let v = drive(doc, &analyzed, &cfg, tol).unwrap();
+    let v = drive(doc, &analyzed, &cfg, &editor_core::Stop::default(), tol).unwrap();
     let wall = t0.elapsed();
     let p = take_profile();
     let forms = p.walk(geom_core::sym::profile::Walk::Plain).forms;
@@ -161,6 +161,7 @@ fn on_and_off(
                 plain_memo,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .unwrap()
@@ -349,6 +350,7 @@ fn a_freezing_drive_is_identical_across_schedules_and_the_dial() {
                 plain_memo,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .unwrap()
@@ -494,6 +496,7 @@ fn every_leaf_reports_one_column_under_every_schedule_and_both_dials() {
                 &doc,
                 &analyzed,
                 &racing_config(r, parallel, plain_memo),
+                &editor_core::Stop::default(),
                 tol,
             )
             .unwrap()
@@ -593,6 +596,7 @@ fn a_freezing_drive_is_identical_across_thread_counts_too() {
                     plain_memo,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .unwrap()
@@ -729,7 +733,7 @@ fn plain_memo_wall_times() {
                     ..DriveConfig::default()
                 };
                 let t0 = Instant::now();
-                let v = drive(&doc, &analyzed, &cfg, tol).unwrap();
+                let v = drive(&doc, &analyzed, &cfg, &editor_core::Stop::default(), tol).unwrap();
                 println!(
                     "{label} {max_leaves} leaves memo={plain_memo} parallel={parallel}: \
                      wall {:?} | receipt {:?} | decisions {:?} | memo {:?}",
@@ -779,7 +783,7 @@ fn sym_memo_callgrind_drive() {
         ..DriveConfig::default()
     };
     let t0 = Instant::now();
-    let v = drive(&doc, &analyzed, &cfg, tol).unwrap();
+    let v = drive(&doc, &analyzed, &cfg, &editor_core::Stop::default(), tol).unwrap();
     println!(
         "drive {max_leaves} leaves memo={plain_memo}: wall {:?} receipt {:?} decisions {:?} \
          memo {:?}",
@@ -841,6 +845,7 @@ fn the_leaf_column_across_schedules_probe() {
                 symbolic: dials,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .unwrap()
