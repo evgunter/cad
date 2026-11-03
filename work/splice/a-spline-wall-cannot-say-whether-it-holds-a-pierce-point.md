@@ -120,7 +120,7 @@ Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merg
 The rowless half-edge is not a piece of a split corner. Every
 `SplitEdge` piece on the wall's loop stores its row (`Body::split_edge`
 already restricts it through `pcurves::split_cache`). On the loft wall
-`FaceKey(4v1)`'s outer loop, the four rowless halves (`53v1`, `50v1`,
+`FaceKey(4v1)`'s outer loop, the six rowless halves (`53v1`, `50v1`,
 `41v1`, `44v1`, `51v1`, `56v1` on the cycle) are each a half of a
 `MevNull` edge (`Fan`, `new_side: Above`): the null scaffolding the
 boolean's sweep mints at each crossing vertex, which has no carrier
