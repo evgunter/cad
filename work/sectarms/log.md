@@ -345,3 +345,10 @@ and bodies unchanged. No orchestrator yet.
   - **Follow-up Q1, answered:** an arc's identity is its row in the component list (index, curve and span, end nodes), and the boolean walks the rows. Ev was not fully persuaded on Q1 but approved.
   - **PR housekeeping:** the fork row was renumbered 246 → 248 (246 was taken on main), the mapping and decision commit landed, and the `[ev]` is off the title. The PR merges on green.
   - **Unblocked:** cylinder 3b-ii (bisector retirement on the node listing) and NURBS 3b (node ends).
+
+- 2026-11-03 — **PR 6398 merged.** The node rule (F1) is now in C5.
+- 2026-11-03 — **PR 6405's fix pass is accepted.** The dual-review row is committed as the last commit (`25c4f76`, tally 1: R2's red slow-set row), and the PR merges on green. What the fix pass did:
+  - Took the preferred fix: a straight edge inside the other solid's face rides the value's carried ruling, and the `EdgePlane` Line arm is deleted.
+  - Removed the torus gate after re-measuring, which also lets `shaft_and_bearing_rounded` build.
+  - Ran the slow sets of all touched crates, 12,906 rows.
+  - In the main merge, kept main's new cone-apex use of the rulings lane, narrowed to the cone pair.
