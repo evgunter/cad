@@ -20,4 +20,4 @@ Found by the FULL review of ONECOPY's PR 6463. Each failure below is identical o
 ## Partly covered
 - `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned`. `work/splice/main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171` names 4 files, but today's drift is wider: carrier_net, ruling, winds, residual, ssi/boundary, clearance, net, and others.
 
-Route each to the program that owns its ground (`python3 scripts/work.py territory --files -`), and correct the two open rows' stated states. This row closes once each failure has an owner's row.
+Filed on GREEN, which carries main-red rows (work/issues/ is retired). Route each to the program that owns its ground (`python3 scripts/work.py territory --files -`), and correct the two open rows' stated states. This row closes once each failure has an owner's row.
