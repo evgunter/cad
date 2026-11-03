@@ -58,7 +58,7 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, VarId};
 use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, StableName, attribute};
 
@@ -976,11 +976,11 @@ fn marked_for(
 
 /// Whether any of `node`'s slot expressions reads the variable `var`
 /// — through `Expr::reads`, the public read side, so a reader nested
-/// inside arithmetic counts exactly as a bare one does. Slots only: a
-/// payload expression (a measured value, an assertion's bound) moves
-/// no geometry.
+/// inside arithmetic counts exactly as a bare one does. An assertion
+/// is not driven, its bound slots included: it moves no geometry, and
+/// neither does a payload expression (a measured value).
 fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, var: VarId) -> bool {
-    let Some(recipe_node) = doc.node(node) else {
+    let Some(recipe_node) = doc.node(node).filter(|n| !matches!(n, Node::Assertion(_))) else {
         return false;
     };
     recipe_node.slots().into_iter().any(|slot| {

@@ -156,7 +156,8 @@ pub use editor_core::{Label, LabelFault};
 // K-census consumer can name the row rather than spell the string.
 // `Claim` and `ClearanceBounds` are what `Node::Assertion` holds: a
 // value against a bound, or a clearance between two seats within its
-// bounds.
+// bounds; `BoundEnd` addresses a clearance's bound slot
+// (`SlotId::ClearanceBound`).
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
@@ -164,7 +165,7 @@ pub use editor_core::{Label, LabelFault};
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, FaceName,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, BoundEnd, Claim, ClearanceBounds, FaceName,
     MeasureOutcome, MeasurePrimitive, MeasureVerb, Measured, NotAFaceName, ObservedRefusal,
     SitedFace, SitedRef, UnevaluatedReason, measure,
 };

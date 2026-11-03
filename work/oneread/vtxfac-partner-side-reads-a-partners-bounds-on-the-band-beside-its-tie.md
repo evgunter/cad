@@ -2,7 +2,9 @@
 id: vtxfac-partner-side-reads-a-partners-bounds-on-the-band-beside-its-tie
 kind: issue
 title: vtxfac::partner_side reads a partner's bound sides of the touched face on the band alone, about a vertex its tie off the point
-status: open
+status: closed
+closed: 2026-11-02
+pr: 6407
 opened: 2026-11-02
 priority: P2
 cost: E

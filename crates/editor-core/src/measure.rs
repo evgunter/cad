@@ -554,21 +554,60 @@ pub enum ClearanceBounds<S> {
     },
 }
 
-impl<S> ClearanceBounds<S> {
-    /// The bound expressions, low to high (`= c` reads one).
-    pub fn exprs(&self) -> Vec<&S> {
+/// **Which end of a clearance's band a bound is**: the address of its
+/// slot ([`crate::SlotId::ClearanceBound`]). `≥ c` and `= c` hold a low
+/// end, `≤ c` a high one, and a band both.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum BoundEnd {
+    /// The lower end.
+    Low,
+    /// The upper end.
+    High,
+}
+
+impl BoundEnd {
+    /// The end as a prose word.
+    pub fn label(self) -> &'static str {
         match self {
-            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
-            Self::Within { lo, hi } => vec![lo, hi],
+            Self::Low => "low",
+            Self::High => "high",
         }
+    }
+}
+
+impl<S> ClearanceBounds<S> {
+    /// **The bounds as slot rows**, low to high, in [`Self::exprs`]
+    /// order: each at the end of the band it holds ([`BoundEnd`]).
+    pub(crate) fn rows(&self) -> Vec<(crate::SlotId, &S)> {
+        use crate::SlotId::ClearanceBound as At;
+        match self {
+            Self::AtLeast(c) | Self::Equal(c) => vec![(At(BoundEnd::Low), c)],
+            Self::AtMost(c) => vec![(At(BoundEnd::High), c)],
+            Self::Within { lo, hi } => vec![(At(BoundEnd::Low), lo), (At(BoundEnd::High), hi)],
+        }
+    }
+
+    /// [`Self::rows`], exclusive.
+    pub(crate) fn rows_mut(&mut self) -> Vec<(crate::SlotId, &mut S)> {
+        use crate::SlotId::ClearanceBound as At;
+        match self {
+            Self::AtLeast(c) | Self::Equal(c) => vec![(At(BoundEnd::Low), c)],
+            Self::AtMost(c) => vec![(At(BoundEnd::High), c)],
+            Self::Within { lo, hi } => vec![(At(BoundEnd::Low), lo), (At(BoundEnd::High), hi)],
+        }
+    }
+
+    /// The bound expressions, low to high (`= c` reads one): the
+    /// [`Self::rows`]' expressions, in their order.
+    pub fn exprs(&self) -> Vec<&S> {
+        self.rows().into_iter().map(|(_, e)| e).collect()
     }
 
     /// [`Self::exprs`], exclusive.
     pub fn exprs_mut(&mut self) -> Vec<&mut S> {
-        match self {
-            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
-            Self::Within { lo, hi } => vec![lo, hi],
-        }
+        self.rows_mut().into_iter().map(|(_, e)| e).collect()
     }
 
     /// The same bounds over other expressions.

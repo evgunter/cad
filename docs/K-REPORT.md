@@ -3473,3 +3473,25 @@ in the band's gap, its sample is an escalation on the log under the
 reading's name (`bool_chord_side`, `enters_material`,
 `bool_pierce_sector_side_curved`), while the reading is no refusal: the
 bound is the slack's tie (`bound_side::TiedBy::Slack`).
+
+## ONEREAD addendum (2026-11-02): the cone sites read every bound's side through the one reading
+
+**Roster: no name joins or leaves.** recl's edge-edge line cone
+(`recl::sheet_side`) and `vtxfac::cone_classes` (each partner corner)
+hand the cone each face's side of the bound a probe stands for, read by
+`sectors::given_side` (`bound_side::read`, `Tie::descend`) on the
+cone's reading over its tie (`link::Cone::reading`), and
+`vtxfac::partner_side` reads a partner's bounds over the pair's tie
+(`link::metric::Reading::tied`). So `bool_chord_side`,
+`enters_material`, `tangent_sector_order2` and
+`bool_pierce_sector_side_curved` gain samples at those three sites,
+each a definite sign read twice there (the band, then moved by the
+slack), as the held face's already is; the touched face's side at
+`cone_classes` is read on the band alone, one sample, as the pierce
+reads it. `link_plane` keeps every sample it had: the cone still reads
+the probe's point against each sector's plane, which a given side is
+compared with (`link::Cone::reads_given`), so no reading moved from it.
+`link_wedge` and `link_ahead` gain samples: where a sector's given side
+is taken, the cone places the probe on that sector's plane
+(`Sector::place`) to read it off a face's interior, or to certify it off
+the sector, a place it did not read there before.

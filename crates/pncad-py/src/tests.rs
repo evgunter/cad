@@ -5776,6 +5776,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis_heading",
             "chamfer_distance",
+            "clearance_high",
+            "clearance_low",
             "distance",
             "index",
             "origin_x",

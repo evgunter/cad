@@ -32,3 +32,11 @@ spiric or spline and for a conic read against a plane (`bound_side.rs`
 ≈84), is checked only at run time. A conic with no arc against a sphere
 or a cylinder reaches `ReadFault::Unwitnessed`, a
 `ClassificationInvariant`.
+
+Seen once already (PR 6385's last merge, with ONEREAD's cone sites):
+`boolean/recl.rs` `a_curved_flank_pair_tied_at_first_order_reads_alike_at_both_sites`
+hand-built its bore's `FaceBend` with a sense opposite to its sector's
+outward normal. The witness then read A's flank against the wrong side
+and refused (`Coincidence(SectorSide)`, margin 0.414). The fixture now
+passes the bore's sense. Nothing in the reading caught the
+disagreement; only the test's expected verdict did.

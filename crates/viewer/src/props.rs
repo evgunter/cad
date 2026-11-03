@@ -1328,6 +1328,32 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
         .collect()
 }
 
+/// **An index's count, as its row reads it** (D10 `[repetition]`): the
+/// index, its count's formula and what that reads — `None` where `doc`
+/// holds no index `var`. A [`DefinedRow`], since a count is edited as a
+/// defined variable's formula is, through the variable's doors, which
+/// write it by [`index_count_edit`].
+pub fn index_count_row(doc: &Doc<ProfileProgram>, var: VarId) -> Option<DefinedRow> {
+    let count = &doc.var(var)?.def().index()?.count;
+    Some(DefinedRow {
+        var,
+        label: doc.spoken_var(var),
+        dimension: Dimension::Count,
+        formula: doc.unparse(count),
+        value: reading(doc, count, Dimension::Count),
+    })
+}
+
+/// **The indices `node`'s own rows read**, outermost first: a pattern's
+/// placement reads its index through its values. Empty where it reads
+/// none, or two unrelated ones, which the edit door refuses.
+pub fn indices_read(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<VarId> {
+    doc.node_reach(node)
+        .chain()
+        .map(<[VarId]>::to_vec)
+        .unwrap_or_default()
+}
+
 /// **The edit a value GESTURE writes into `slot` on `node`**: a slot
 /// reading a typed value moves that value (VARIABLES-DESIGN,
 /// INTENT-LITERALS Q6), so the variable keeps its identity, its
