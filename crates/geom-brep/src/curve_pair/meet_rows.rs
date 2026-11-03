@@ -816,7 +816,7 @@ fn meets_or_refuses(label: &str, got: &Result<Meetings<f64>, super::MeetRefusal<
 /// they cross at a right angle, their planes `tilt` apart, and their
 /// least distance is `h`, at the origin. Each span runs a radian either
 /// side of it.
-fn shallow_circles(tilt: f64, h: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
+pub(super) fn shallow_circles(tilt: f64, h: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
     let (s, c) = tilt.sin_cos();
     let e = Vec3::new(c, 0.0, -s);
     let a = circle([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], 1.0);
@@ -870,7 +870,12 @@ fn an_in_band_miss_across_nearly_parallel_planes_meets() {
 /// `(0, 0, h)` and its angle there `−π/2`, and a unit circle `b` in
 /// `z = 0` crossing `a`'s shadow at a right angle... `angle` off its
 /// tangent, `along` radians round `a` from that lowest point.
-fn touching_circles(tilt: f64, h: f64, along: f64, angle: f64) -> [(Curve3<f64>, (f64, f64)); 2] {
+pub(super) fn touching_circles(
+    tilt: f64,
+    h: f64,
+    along: f64,
+    angle: f64,
+) -> [(Curve3<f64>, (f64, f64)); 2] {
     let (s, c) = tilt.sin_cos();
     let a = circle([0.0, c, h + s], [0.0, -s, c], 1.0);
     let x = Point3::new(along.sin(), c * (1.0 - along.cos()), 0.0);
