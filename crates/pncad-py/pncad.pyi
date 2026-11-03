@@ -949,19 +949,11 @@ class FrameError(PncadError):
     not DEFINITELY usable, a direction whose length is not a finite
     number, or a tolerance yielding no usable band.
 
-    `variant` is `degenerate_aim`, `degenerate_tangent`,
-    `degenerate_roll_reference`, `degenerate_reference_ladder`,
-    `non_finite_aim`, `non_finite_tangent`,
-    `non_finite_roll_reference`, or `band`. WHICH input was refused is
+    `variant` is `degenerate_aim`, `degenerate_roll_reference`,
+    `non_finite_aim`, `non_finite_roll_reference`, `underflowed_aim`,
+    `underflowed_roll_reference`, or `band`. WHICH input was refused is
     that word and nothing else: the tag is minted per input, so there
     is no second attribute spelling the same fact.
-
-    **The two families are not the same length.** There are four
-    `degenerate_*` words and only three `non_finite_*` ones: the
-    reference LADDER is a pair of unit constants the kernel supplies,
-    not a vector you hand in, so it can be degenerate (neither rung is
-    off the tangent line) but never non-finite. No
-    `non_finite_reference_ladder` exists and none can be produced.
 
     The `non_finite_*` words are a different situation from the
     `degenerate_*` ones and are kept apart for that reason: the
@@ -2029,16 +2021,6 @@ class Frame:
         """The frame at `eye` whose local +Z aims at `target`, rolled
         by `roll_reference`. A reference parallel to the aim, or a
         zero-length aim, raises FrameError."""
-
-    @staticmethod
-    def path_start_frame(
-        origin: tuple[Length, Length, Length],
-        tangent: tuple[float, float, float],
-    ) -> Frame:
-        """The frame at `origin` whose local +Z is `tangent`, so the
-        local XY plane is a swept profile's plane. The roll comes from
-        a stated ladder (world +Z, then world +X); if neither is
-        definitely off the tangent line it raises FrameError."""
 
     @property
     def columns(self) -> tuple[

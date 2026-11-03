@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-19
 priority: P2
 cost: E
-refs: [review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose]
 ---
 
 Found by CONTACTHOLD's nightly-red lane.

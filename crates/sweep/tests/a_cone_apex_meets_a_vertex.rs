@@ -386,12 +386,17 @@ fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
 /// **A box whose side holds the 80° cone's wrap seam refuses typed**, in
 /// every op either way round (the R2 review's `x90` pose): the box
 /// `[0, 5] × [−5, 0] × [0, 5]` turned a quarter about `x` and cornered
-/// at the apex, its side holding the axis and the wrap edge's ruling. The
-/// vertex pair records the wrap edge's bound `On` the box's side, which
-/// the edge rules settle only for a planar sector: `VertexPairAtConeApex`
-/// on the cone's face, never the kernel's own fault. The other ops reach
-/// the 80° cone's hyperbolic section at the box's far faces first
-/// (`GermSectionOpenConic`, the join's open-conic limit).
+/// at the apex, its side holding the axis and the wrap edge's ruling.
+/// Every op reaches the 80° cone's hyperbolic section at the box's far
+/// faces (`GermSectionOpenConic`, the join's open-conic limit); the 80°
+/// cone's apex against a box clear of its rim builds every op
+/// (`a_cone_apex_on_an_edge::an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds`). The
+/// vertex pair at the apex reads the cone's whole turn in four true
+/// quarters, its window `2π` by the corner's bounds
+/// (`boolean::sectors::push_apex_corner`); read off the two bounds'
+/// azimuth, a hair past zero where the seam's departures round apart,
+/// the quarters collapsed onto the seam and left its bound `On` the
+/// box's side (`VertexPairAtConeApex`, box first and `box ∖ cone`).
 #[test]
 fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
     let block = topo::test_support::brick((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0), tol());
@@ -399,28 +404,14 @@ fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let b = moved(&block, m);
     let c = finished("c", one_wrap_edge(cone(80.0), true).0, tol());
-    // Each op names its refusal: where the box's part is kept against the
-    // cone's face (`box ∖ cone`, and every op read box first but
-    // `box ∖ cone`), the fan bound on the box's side; the others reach
-    // the 80° cone's hyperbolic section at the box's far faces first.
     let pair = |r: &Result<BooleanResult<f64>, topo::BooleanError>| match r {
         Err(topo::BooleanError::VertexPairAtConeApex { .. }) => "vertex pair",
         Err(topo::BooleanError::GermSectionOpenConic { .. }) => "open conic",
         _ => "other",
     };
     for (order, x, y, want) in [
-        (
-            "cone first",
-            &c,
-            &b,
-            ["open conic", "open conic", "open conic", "vertex pair"],
-        ),
-        (
-            "box first",
-            &b,
-            &c,
-            ["vertex pair", "vertex pair", "vertex pair", "open conic"],
-        ),
+        ("cone first", &c, &b, ["open conic"; 4]),
+        ("box first", &b, &c, ["open conic"; 4]),
     ] {
         let got = [
             union(x, y, tol()),
@@ -506,26 +497,33 @@ fn a_box_cornered_at_the_apex_off_the_axis_holds_the_cone_in_its_wedge() {
     }
 }
 
-/// **An edge through the apex, not ending there, refuses at the apex**
-/// where the sweep reads it before the vertex pair can: the box
-/// `[0, 2] × [0.55, 1] × [−2, 2.3]`, its top holding the apex and its edge
-/// along `z` there passing through it. Read box first, that edge's root
-/// at the apex is no end's, and `box ∖ cone` refuses
-/// `CrossingAtConeApex` (`boolean::reduce::line_cone_roots`) rather than
-/// read a crossing there. Cone first, the apex vertex splits the edge
-/// before it is swept, and the op builds.
+/// **An edge through the apex, not ending there, is read the same in
+/// either order**: the box `[0, 2] × [0.55, 1] × [−2, 2.3]`, its top
+/// holding the apex and its edge along `z` there passing through it.
+/// Read box first, that edge's root at the apex is placed on the cone
+/// face's apex vertex (`boolean::reduce::line_cone_roots`), as the apex
+/// vertex splits it cone first, so every op builds either way round at
+/// its closed form, the box holding half the cone above `y = 0.55`.
 #[test]
-fn an_edge_through_the_apex_refuses_at_the_apex_box_first() {
+fn an_edge_through_the_apex_builds_box_first() {
     let b = moved(
         &topo::test_support::brick((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3), tol()),
         Affine3::identity(),
     );
+    let vb = 2.0 * 0.45 * 4.3;
+    let r = 30f64.to_radians().tan();
     for (form, body) in forms(30.0) {
         let c = finished("c", body, tol());
-        let r = subtract(&b, &c, tol());
-        assert!(
-            matches!(r, Err(topo::BooleanError::CrossingAtConeApex { .. })),
-            "{form}: box ∖ cone {r:?}"
+        let (rb, rc) = (
+            move || membership::cuboid((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3)),
+            move || the_cone(r),
+        );
+        four_ops(
+            &format!("{form}, box first, an edge through the apex"),
+            (&b, &rb, vb),
+            (&c, &rc, volume(30.0)),
+            volume(30.0) * 0.45f64.powi(3) / 2.0,
+            about(2.3, 1.0),
         );
     }
 }

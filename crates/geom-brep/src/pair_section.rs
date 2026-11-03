@@ -992,8 +992,7 @@ pub enum SectionRead<T: Real> {
 /// no bounded side asked with no `region` ([`SectionError::NoRegion`]);
 /// a spline and an implicit surface asked with no `lane`
 /// ([`SectionError::NoMarch`]), and with one, the pass's and the whole
-/// reading's refusals, mapped by name, and a curved partner's declined
-/// sweep ([`SectionError::RoutesToGeneralRung`]; [`spline_implicit`]).
+/// reading's refusals, mapped by name ([`spline_implicit`]).
 ///
 /// `region` is the operation's (C5): the ball about the overlap of the
 /// two operands' boxes, padded, which holds every section point the
@@ -1743,11 +1742,11 @@ pub struct SsiLane<T: Real> {
     /// A spline wall and an implicit surface's classification past what
     /// the scalar reads ([`spline_implicit`]): a curved partner's hull and
     /// door, the boundary pass, the regularity sweep, and where it
-    /// declines a plane's whole reading.
+    /// declines the whole reading.
     spline: fn(SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
-    /// A spline wall and an implicit surface's section read whole, on the
-    /// pass its classification carried: a plane's; a curved partner's
-    /// is unbuilt.
+    /// A spline wall and an implicit surface's section read whole: a
+    /// plane's on the pass its classification carried, a curved
+    /// partner's on the 1×2 trace.
     whole: fn(&SplineImplicitPose<T>, Band) -> Result<PairSection<T>, SectionError>,
     /// Two spline walls' section, read whole ([`spline_pair`]).
     spline_pair: fn(SplinePairPose<T>, Band) -> Result<PairSection<T>, SectionError>,
@@ -2217,7 +2216,7 @@ impl<T: Decide> CarriedComponent<T> {
     ///
     /// [`SiteRefusal`]: an undecided reading escalates.
     pub fn reads(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
-        use geom::{CarrierRefusal, OnCarrier};
+        use geom::OnCarrier;
         let padded = band
             .padded(self.pad)
             .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
@@ -2225,11 +2224,9 @@ impl<T: Decide> CarriedComponent<T> {
         match foot.on_carrier(padded) {
             Ok(OnCarrier::On { .. }) => Ok(Some(foot.t())),
             Ok(OnCarrier::Off) => Ok(None),
-            Err(CarrierRefusal::Escalated(diag) | CarrierRefusal::Straddle(diag)) => {
-                Err(SiteRefusal::Escalated(diag))
-            }
-            Err(CarrierRefusal::Exhausted | CarrierRefusal::Unbounded) => Err(SiteRefusal::Desync(
-                "a point's distance from a fitted component could not be read",
+            Err(refusal) => Err(refusal.escalation().map_or(
+                SiteRefusal::Desync("a point's distance from a fitted component could not be read"),
+                SiteRefusal::Escalated,
             )),
         }
     }

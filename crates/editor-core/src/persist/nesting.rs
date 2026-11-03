@@ -67,7 +67,7 @@ use crate::expr::{DimensionError, MAX_NESTING};
 /// inside its mate, the mate inside the bundle a placement's insert
 /// writes whole. No door bounds a pose chain's depth, so a chain
 /// written deeper than this saves an edit log the load door refuses
-/// (`work/issues/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`).
+/// (`work/doctail/a-pose-chain-written-deeper-than-the-load-doors-envelope-does-not-load.md`).
 ///
 /// Not a hand count: `expr_nesting_bound`'s
 /// `the_load_doors_limit_is_the_deepest_body_a_save_writes` finds every

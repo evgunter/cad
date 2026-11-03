@@ -34,4 +34,4 @@ From SPLICE's `splice/rim-sector-clearance`, at ε 1e-9, 1e-6 and 1e-12 alike. W
 
 ## Re-banded P0 (2026-11-03)
 
-This row is klein wall 3's current stop: `demos/tour/src/klein.rs` `wall3_pinned` pins `SplineCrossingUnsettled { why: Crease }` on the loop's half-tube joint, the crossing described above. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/issues/curved-demo-joins-build.md`, which tracks each join's stop). `tier-3-refuses-a-carrier-with-an-interior-c0-knot` stays P1 behind it: it is sequencing, not on klein's path.
+This row is klein wall 3's current stop: `demos/tour/src/klein.rs` `wall3_pinned` pins `SplineCrossingUnsettled { why: Crease }` on the loop's half-tube joint, the crossing described above. A blocker inherits the band of what waits on it (`work/README.md`, Priority), and the demo joins are P0 (`work/splice/curved-demo-joins-build.md`, which tracks each join's stop). `tier-3-refuses-a-carrier-with-an-interior-c0-knot` stays P1 behind it: it is sequencing, not on klein's path.
