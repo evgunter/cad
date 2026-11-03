@@ -96,7 +96,10 @@ fn bspline_surface_knot_budget_refuses_typed() {
                 "the refusal is the knot-budget gate, got: {expected}"
             );
         }
-        other => panic!("expected MalformedRecord, got: {other}"),
+        other => panic!(
+            "expected MalformedRecord, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -143,7 +146,10 @@ fn dangling_reference_refuses_named() {
         StepImportError::DanglingReference { from, to } => {
             assert_eq!((from, to), (13, 9999), "the refusal names both ids");
         }
-        other => panic!("expected DanglingReference, got: {other}"),
+        other => panic!(
+            "expected DanglingReference, got: {other_at}",
+            other_at = other.render()
+        ),
     }
 }
 
@@ -272,7 +278,8 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
         .expect_err("a length declared over an angle is not a length");
     assert!(
         matches!(err, StepImportError::UnsupportedUnit { .. }),
-        "expected UnsupportedUnit, got: {err}"
+        "expected UnsupportedUnit, got: {err_at}",
+        err_at = err.render()
     );
 }
 
@@ -351,7 +358,8 @@ fn part21_basic_alphabet_bounds_on_the_read_path() {
                 ..
             }) => false,
             Err(other) => panic!(
-                "{ch:?} must either import or refuse as the basic-alphabet syntax row, got {other}"
+                "{ch:?} must either import or refuse as the basic-alphabet syntax row, got {other_at}",
+                other_at = other.render()
             ),
         }
     };

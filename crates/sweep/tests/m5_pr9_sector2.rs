@@ -111,7 +111,10 @@ fn an_off_ruling_tangent_plane_still_grazes_honestly() {
         | SplitReduceError::ConsecutiveOnSectors { .. }),
     )) = split(&body, &plane, Tol::witness())
     {
-        panic!("second order owns the graze: {e}")
+        panic!(
+            "second order owns the graze: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
     }
 }
 
@@ -232,7 +235,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     let msg = errs
         .iter()
         .find(|e| matches!(e, topo::ValidationError::TangentNotIntrinsic { .. }))
-        .map(|e| format!("{e}"))
+        .map(|e| e.render(geom_brep::recourse::Reading::AtRest))
         .unwrap();
     assert!(
         msg.starts_with(

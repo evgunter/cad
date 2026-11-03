@@ -68,10 +68,18 @@ pub enum SectionVerdict {
     },
 }
 
-impl core::fmt::Display for SectionVerdict {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SectionVerdict {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Closed(e) => write!(f, "the closed-form section refused: {e}"),
+            Self::Closed(e) => write!(
+                f,
+                "the closed-form section refused: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::Ssi(e) => write!(f, "the spline-wall section refused: {e}"),
             Self::FromMiddle(e) => write!(
                 f,
@@ -94,6 +102,8 @@ impl core::fmt::Display for SectionVerdict {
         }
     }
 }
+
+geom_brep::ended_by_write!(SectionVerdict);
 
 /// Why a moved corner is not a root of a surface along an edge.
 #[derive(Clone, Debug)]

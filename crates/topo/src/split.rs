@@ -25,7 +25,7 @@
 //! Serves ch. 14 `splitgenerate` edge splitting and ch. 15's edge×face
 //! reduction sweep (M3 PRs 2 and 4).
 
-use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertifyError, EdgeCurveSpec};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
@@ -70,8 +70,11 @@ pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
 /// operation that asked. Both of `split_edge`'s interiority refusals end
 /// here, and neither offers a declaration: no door that splits an edge
 /// takes one naming where on the edge a crossing lands.
-pub(crate) fn split_param_ending(arm: RefusedArm<'_>) -> String {
-    SPLIT_PARAM_INTERIOR.recourse(arm, Reading::Build)
+pub(crate) fn split_param_ending(
+    arm: RefusedArm<'_>,
+    at: impl Into<geom_brep::recourse::ReadAt>,
+) -> String {
+    SPLIT_PARAM_INTERIOR.recourse(arm, at)
 }
 
 /// Every key minted (and the one possibly killed) by one

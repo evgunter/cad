@@ -378,7 +378,12 @@ fn a_split_whose_section_is_nearly_a_circle_is_the_ellipse() {
         ),
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the nearly-circular split builds: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the nearly-circular split builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     for (what, part) in [("below", &result.below), ("above", &result.above)] {
         let topo::SplitPart::Body(half) = part else {
             panic!("{what}: the half carries material");

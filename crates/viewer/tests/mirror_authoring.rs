@@ -24,7 +24,7 @@ use pncad::document::{
     Operand, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
-use viewer::combine::MirrorEvent;
+use viewer::combine::PlaneEvent;
 use viewer::seats::SeatError;
 use viewer::session::{DocSession, FaceSelection, Refusal, Selection, SessionOp};
 use viewer::tools::{ToolKind, ToolNotice, Tools};
@@ -757,7 +757,7 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
         .count();
     let plane = notices
         .iter()
-        .filter(|n| matches!(n, ToolNotice::Mirror(MirrorEvent::PlaneLost { .. })))
+        .filter(|n| matches!(n, ToolNotice::Mirror(PlaneEvent::PlaneLost { .. })))
         .count();
     assert_eq!((seat, plane), (1, 1), "one drop each: {notices:?}");
     let tool = tools.mirror().expect("still open");
@@ -810,7 +810,7 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
     let dropped: Vec<String> = tools
         .reconcile(session.doc(), session.landed_pair())
         .iter()
-        .filter(|notice| matches!(notice, ToolNotice::Mirror(MirrorEvent::PlaneLost { .. })))
+        .filter(|notice| matches!(notice, ToolNotice::Mirror(PlaneEvent::PlaneLost { .. })))
         .map(|notice| notice.said(session.landed_pair()))
         .collect();
     assert_eq!(

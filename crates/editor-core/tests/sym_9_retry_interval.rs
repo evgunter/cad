@@ -828,6 +828,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
                 symbolic,
                 ..editor_core::drive::DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the pad drives")

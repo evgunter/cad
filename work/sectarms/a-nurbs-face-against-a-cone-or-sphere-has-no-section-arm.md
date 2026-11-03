@@ -5,7 +5,8 @@ title: A NURBS face against a cone or sphere face has no C5 section arm, and no 
 status: dispatched
 opened: 2026-10-25
 priority: P0
-cost: H
+cost: X
+points: 24
 refs: [c5-plane-torus-cone-cylinder-arms, nurbs-edge-crossing-rung-is-the-ring-composite, joining-a-spline-carrier-is-unbuilt]
 pr: 6347
 branch: sectarms/nurbs-implicit-arm-stage2
@@ -97,3 +98,15 @@ cone after SECTRUNG's cone unit. The build is staged as units on this row.
 
 The row's open question, "fitted cubic or per-span bound", was a false
 choice: the arm needs both.
+
+## Re-priced X (2026-11-03)
+
+Ev's ruling stages this row's build as units (above), and the log shows
+it: stage 1 (PR 6304) and stage 2 (PR 6347) have merged, and stage 3
+(the curved whole reading) is planned and held for cylinder stage 3.
+After that come the torus partner (lily wall 8,
+`a-nurbs-face-against-a-torus-has-no-section-arm`), the cone after
+`the-cone-has-no-implicit-enclosure-or-metres-conversion`, and
+plane × NURBS folded in. That is at least three more hard units, so it
+is priced at 24 points. It is the row the curved demo joins lean on
+most (`work/issues/curved-demo-joins-build.md`).

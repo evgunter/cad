@@ -44,7 +44,7 @@ fn whole_torus() -> Body<f64> {
             body.into_body()
         }
         Ok(StepImport::Wireframe { .. }) => panic!("the torus imported as a wireframe"),
-        Err(e) => panic!("the torus imports: {e}"),
+        Err(e) => panic!("the torus imports: {e_at}", e_at = e.render()),
     }
 }
 

@@ -384,7 +384,17 @@ fn analysis_is_keyed_by_var_id() {
     }
     assert!(widest_v > 0.1, "v's draws span its uniform, not w's normal");
 
-    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
+    let entries = sensitivities(
+        &doc,
+        measure,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let partial = |var: VarId| {
         let e = entries.iter().find(|e| e.param == var).expect("an entry");
         match e.outcome {
@@ -518,7 +528,17 @@ fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     // Equal laws, so equal relative widths: the tie goes to the
     // earlier-declared variable, never to the lower digest.
     assert_eq!(root.split_axis(&root), Some(w));
-    let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
+    let entries = sensitivities(
+        &doc,
+        measure,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(
         entries.iter().map(|e| e.param).collect::<Vec<_>>(),
         vec![w, v]

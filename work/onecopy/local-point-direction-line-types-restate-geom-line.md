@@ -24,3 +24,7 @@ Five local types carry the same two fields under their own names, and their read
 Fix: each variant holds a `geom::Line` (`Locus::Line(geom::Line<T>)`, …) and reads its foot, parameter and point through it. Where a variant adds a fact (a certified unit `dir`, a leg's start), it holds that beside the line, not instead of it.
 
 Not here: the analytic surfaces' bare axis fields (`origin`/`axis` on `Surface::Cylinder`, `apex`/`axis` on `Cone`, …) are the parked row `analytic-surfaces-spell-their-frame-field-by-field`.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

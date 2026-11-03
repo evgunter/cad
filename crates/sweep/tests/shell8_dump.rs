@@ -100,7 +100,10 @@ fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {
         tol(),
     ) {
         Ok(s) => dump(label, &s.body),
-        Err(e) => println!("[dump8] {label}: shell_open Err {e}"),
+        Err(e) => println!(
+            "[dump8] {label}: shell_open Err {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

@@ -4,6 +4,8 @@ kind: issue
 title: Four topo and sweep structs re-spell geom::Circle's fields: rim_wedge::Rim, surgery::CircleFrame, ring_path::CircleArc, contain::LoopCircle
 status: open
 opened: 2026-11-02
+priority: P1
+cost: M
 ---
 
 
@@ -34,3 +36,8 @@ carry the circle's fields and were outside that list:
 Fix: each holds a `geom::Circle` beside what it adds (a span, a loop
 identity) and reads the `Conic` trait; `LoopCircle` decides whether it is
 a circle or a narrower reading.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.
+- Band P1: two implementations of one reading, the class `work/README.md` Priority bands P1. Priced `M`: four structs and about 87 uses of `Rim` to repoint.

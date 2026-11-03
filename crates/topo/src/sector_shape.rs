@@ -1337,7 +1337,9 @@ mod tests {
                 SectorRung::Straight { full_circle: false },
                 "{theta_deg}°"
             );
-            let text = crate::boolean::refusal_routes::BooleanDecision::Corner(rung).render(&diag);
+            let text = crate::boolean::refusal_routes::BooleanDecision::Corner(rung)
+                .written(&diag, Some(geom_brep::recourse::Reading::Build.into()))
+                .to_string();
             assert_eq!(
                 text.contains("tighten the tolerance"),
                 offers,

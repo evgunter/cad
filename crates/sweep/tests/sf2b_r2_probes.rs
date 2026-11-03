@@ -149,7 +149,10 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
                     "{what}: the wall's closed form is {want}, got {v}"
                 );
             }
-            Err(e) => panic!("[r2] {what}: both nappes hollow through `shell`; got {e}"),
+            Err(e) => panic!(
+                "[r2] {what}: both nappes hollow through `shell`; got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -176,7 +179,10 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
             // The caps no longer stand in front of the cone chart: each
             // rim is the moved cone's section with its cap.
             if let Err(e) = got {
-                panic!("[r2] per-chart {what} d={signed}: REFUSED {e}");
+                panic!(
+                    "[r2] per-chart {what} d={signed}: REFUSED {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
             }
         }
     }
@@ -225,7 +231,12 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
             T,
             tol,
         )
-        .unwrap_or_else(|e| panic!("conical wedge {what}: the hollow builds, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "conical wedge {what}: the hollow builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             topo::validate_geometric(&hollow, tol),
             Ok(()),
@@ -287,14 +298,18 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
         )
         .expect_err("the door refuses");
         let topo::ShellError::Face { error, .. } = err else {
-            panic!("expected the axial door's refusal, got {err}");
+            panic!(
+                "expected the axial door's refusal, got {err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
+            );
         };
         *error
     };
     let got = refusal(r1, PI / 6.0);
     assert!(
         matches!(got, topo::ReplaceFaceError::TogetherAxialEdge { .. }),
-        "conical wedge a 1/12 turn: an edge with no forward span, got {got}"
+        "conical wedge a 1/12 turn: an edge with no forward span, got {got_at}",
+        got_at = got.render(geom_brep::recourse::Reading::Build)
     );
     // A wedge of the whole cone, its apex in the body: the apex corner,
     // between the cone and both moved caps, is read as the axis's pole
@@ -305,7 +320,8 @@ fn r2_a_conical_wedge_hollows_with_hyperbolic_meridian_edges() {
     assert!(
         matches!(got, topo::ReplaceFaceError::TogetherEdgeDisagreement { gap, .. }
             if (gap - T / (PI / 4.0).sin()).abs() <= 1e-9),
-        "conical wedge of the whole cone: the apex corner stands T/sin 45° off, got {got}"
+        "conical wedge of the whole cone: the apex corner stands T/sin 45° off, got {got_at}",
+        got_at = got.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -373,7 +389,10 @@ fn r2_wedge_at_degenerate_turns() {
                     assert!((v - want).abs() <= 1e-15, "quarter turn: {want} vs {v}");
                 }
             }
-            Err(e) => println!("[r2] wedge {what}: REFUSED {e}"),
+            Err(e) => println!(
+                "[r2] wedge {what}: REFUSED {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -456,7 +475,10 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
                 topo::validate_geometric(&cup, tol).is_ok()
             );
         }
-        Err(e) => println!("[r2] the opened cup REFUSED: {e}"),
+        Err(e) => println!(
+            "[r2] the opened cup REFUSED: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -478,7 +500,10 @@ fn r2_stepped_vase_lift_branch() {
     );
     match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
         Ok(_) => println!("[r2] stepped vase SEALED: ok"),
-        Err(e) => println!("[r2] stepped vase SEALED: REFUSED {e}"),
+        Err(e) => println!(
+            "[r2] stepped vase SEALED: REFUSED {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
     let mouth: Vec<topo::FaceKey> = body
         .faces()
@@ -494,7 +519,10 @@ fn r2_stepped_vase_lift_branch() {
             cup.shells().count(),
             topo::validate_geometric(&cup, tol).is_ok()
         ),
-        Err(e) => println!("[r2] stepped vase OPENED: REFUSED {e}"),
+        Err(e) => println!(
+            "[r2] stepped vase OPENED: REFUSED {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

@@ -813,3 +813,115 @@ fn a_branch_point_on_a_first_cut_is_counted() {
         );
     }
 }
+
+/// The listed rulings' lines, each a point and its unit direction.
+fn ruling_lines(section: &PairSection<f64>) -> Vec<(Point3<f64>, Vec3<f64>)> {
+    listed(section)
+        .iter()
+        .map(|c| match &c.carrier {
+            ClassCarrier::Span {
+                curve: geom::Curve3::Line(geom::Line { origin, dir }),
+                ..
+            } => (*origin, dir.normalize()),
+            other => panic!("a parallel pair's component is a ruling, not {other:?}"),
+        })
+        .collect()
+}
+
+/// How far `q` is from the line through `o` along the unit `d`.
+fn off_line(q: Point3<f64>, (o, d): (Point3<f64>, Vec3<f64>)) -> f64 {
+    (q - o).cross(d).norm()
+}
+
+/// **The rulings are the walls' meeting lines, in any frame** (moved
+/// from the join's rulings-plane rows when the parallel pair came to
+/// ride its carried rulings): each listed ruling runs along the axes
+/// through one of the cross-section circles' two meeting points, found
+/// apart from the value (`x = (d² + r₁² − r₂²)/(2d)` along the axes'
+/// offset, `±h` across it). Equal radii, either one larger, an axis
+/// inside the other wall, both operand orders, axes off every
+/// coordinate direction, origins slid along the axis.
+#[test]
+fn the_parallel_rulings_run_through_the_circles_meeting_points() {
+    let axis = Vec3::new(1.0, 2.0, 0.5).normalize();
+    let (e1, e2) = axis.orthonormal_basis();
+    for (r1, r2, d, slide) in [
+        (0.5, 0.2, 0.5, 0.0),
+        (0.5, 0.5, 0.7, 0.3),
+        (0.5, 0.8, 0.9, -1.0),
+        (0.5, 0.2, 0.4, 2.0),
+        (0.3, 0.3, 0.1, 0.0),
+    ] {
+        let tilt = 0.6_f64;
+        let toward = e1 * tilt.cos() + e2 * tilt.sin();
+        let o1 = Point3::new(0.2, -0.1, 0.3);
+        let o2 = o1 + toward * d + axis * slide;
+        let (c1, c2) = (wall(o1, axis, r1), wall(o2, -axis, r2));
+        let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+        let h = (r1 * r1 - x * x).sqrt();
+        let across = axis.cross(toward);
+        let meets = [o1 + toward * x + across * h, o1 + toward * x - across * h];
+        for (label, own, partner) in [("ab", &c1, &c2), ("ba", &c2, &c1)] {
+            let tag = format!("r {r1}/{r2} d {d} {label}");
+            let lines = ruling_lines(&built(own, partner, ExtentBall::of_sphere(o1, 2.0)));
+            assert_eq!(lines.len(), 2, "{tag}: two rulings");
+            for q in meets {
+                let on: Vec<_> = lines.iter().filter(|&&l| off_line(q, l) < 1e-12).collect();
+                assert_eq!(on.len(), 1, "{tag}: one ruling through {q:?}");
+                assert!(on[0].1.cross(axis).norm() < 1e-12, "{tag}: along the axes");
+            }
+        }
+    }
+}
+
+/// **The rulings are read at the region, wherever an origin is
+/// stored** (moved from the join's rulings-plane rows). A radius-0.5
+/// wall about `z` and a radius-0.3 one whose axis passes `(d, 0, 0)`
+/// tilted half the zero band toward `y`, read over a region at the
+/// origin; the partner's origin is stored up to 1000 m along its axis.
+/// Offset (`d = 0.6`), the rulings pass the walls' two meeting points in
+/// `z = 0` within `zero` at every stored origin; coaxial (`d = 0`), the
+/// walls list no ruling at every stored origin.
+#[test]
+fn the_parallel_rulings_are_read_at_the_region_wherever_an_origin_is_stored() {
+    let zero = band().zero();
+    let theta = 0.5 * zero;
+    let tilted = Vec3::new(0.0, theta.sin(), theta.cos());
+    let z = Vec3::unit_z();
+    let (r1, r2, d): (f64, f64, f64) = (0.5, 0.3, 0.6);
+    let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+    let h = (r1 * r1 - x * x).sqrt();
+    let meets = [Point3::new(x, h, 0.0), Point3::new(x, -h, 0.0)];
+    let at = ExtentBall::of_sphere(Point3::origin(), 2.0);
+    for along in [0.0, 10.0, -10.0, 1000.0, -1000.0] {
+        let own = wall(Point3::origin(), z, r1);
+        let partner = wall(Point3::new(d, 0.0, 0.0) + tilted * along, tilted, r2);
+        for (label, a, b) in [("ab", &own, &partner), ("ba", &partner, &own)] {
+            let lines = ruling_lines(&built(a, b, at));
+            assert_eq!(
+                lines.len(),
+                2,
+                "stored {along} m along ({label}): two rulings"
+            );
+            for q in meets {
+                let off = lines
+                    .iter()
+                    .map(|&l| off_line(q, l))
+                    .fold(f64::INFINITY, f64::min);
+                assert!(
+                    off < zero,
+                    "stored {along} m along ({label}): a ruling passes the walls' meeting \
+                     point {q:?} at the region, {off:e} off"
+                );
+            }
+        }
+        let partner = wall(Point3::origin() + tilted * along, tilted, r2);
+        for (label, a, b) in [("ab", &own, &partner), ("ba", &partner, &own)] {
+            let got = listed(&built(a, b, at)).len();
+            assert_eq!(
+                got, 0,
+                "stored {along} m along ({label}): coaxial at the region, no ruling"
+            );
+        }
+    }
+}

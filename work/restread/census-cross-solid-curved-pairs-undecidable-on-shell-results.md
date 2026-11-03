@@ -6,7 +6,8 @@ status: open
 opened: 2026-10-03
 priority: P0
 refs: [3870]
-cost: H
+cost: X
+points: 16
 ---
 
 
@@ -450,3 +451,29 @@ every edge in a face), four more join them at the default ε: the
 one-segment unions with `B`'s vertex at 0 over `[−0.5, 1.5]`, at rest
 and turned, which refused `EdgeInFace` before, now build and reach the
 same `CensusUndecidable`, 48 in all.
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), stage 5 included, so
+the hold that kept a touching pair at `CensusUndecidable` /
+`CurvedWithinReach` (2026-10-17, 2026-10-19 above) no longer stands.
+What the touching half needs is the 2026-10-27 section's: the pair's
+whole meeting accounted for, not a deferral to its recorded touches.
+The certify-apart residue stays on its two rows above.
+
+## Re-priced X (2026-11-03)
+
+This row has been the sink for one class of finding since 2026-10-03:
+eleven tracks have appended a consumer above, and two units have landed
+under it (the depth gap, 2026-10-19; two more apart readings,
+2026-10-26). It has also split off two rows of its own
+(`census-arm-1-reads-directions-from-the-pairs-own-faces-only`,
+`census-arm-1-cannot-part-coplanar-faces-no-line-separates`). What is
+left is the touching half: reading a curved touch with the pair's whole
+meeting accounted for (2026-10-27, above). That is a reading the census
+does not have, and three parked P0 rows wait on it (REACHHOLD's
+`boolean-door-runs-the-census-over-its-result` and FLUSH's two). Priced
+at two hard rows, 16 points. Cut the touching half into its own row at
+dispatch; the 2026-10-17 section's note that it "is not built here" is
+the seam.

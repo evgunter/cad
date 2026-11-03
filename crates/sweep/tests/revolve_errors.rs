@@ -128,7 +128,7 @@ fn an_axis_direction_with_no_finite_length_is_typed() {
         let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
         assert!(matches!(e, RevolveError::NonFiniteAxis), "{dir:?}: {e:?}");
         // The sentence names the cause and a recourse that can work.
-        let msg = e.to_string();
+        let msg = e.render(geom_brep::recourse::Reading::Build);
         assert!(msg.contains("no finite length"), "{msg}");
         assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     }
@@ -161,7 +161,7 @@ fn an_axis_direction_whose_length_underflowed_is_typed() {
         assert!(matches!(e, RevolveError::UnderflowedAxis), "{dir:?}: {e:?}");
         // The sentence names the end of the format it is, and the one
         // recourse that can work — not a coincidence band.
-        let msg = e.to_string();
+        let msg = e.render(geom_brep::recourse::Reading::Build);
         assert!(msg.contains("underflowed out of the format"), "{msg}");
         assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
         assert_eq!(

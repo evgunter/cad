@@ -391,11 +391,17 @@ fn split_and_check(
             // The quadrature's own convergence decision in band: the
             // volume lane's limit, not the split's.
             Err(e) if format!("{e:?}").contains("Converged") => {
-                println!("PROPS {what}, {side}: {e}");
+                println!(
+                    "PROPS {what}, {side}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                );
                 *props_refused += 1;
                 continue;
             }
-            Err(e) => panic!("{what}, {side}: the half's volume refused: {e}"),
+            Err(e) => panic!(
+                "{what}, {side}: the half's volume refused: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            ),
         };
         assert!(
             (p.enclosure.volume - oracle).abs() <= p.enclosure.volume_pad + 1e-7 * s * s * s,
@@ -610,7 +616,10 @@ fn every_cut_clear_of_a_partial_turn_sphere_face_splits_row() {
                                  passes within 100 ε of",
                             );
                         }
-                        Err(e) => panic!("{what}: a cut clear of the face must split: {e}"),
+                        Err(e) => panic!(
+                            "{what}: a cut clear of the face must split: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        ),
                     }
                 }
                 // The stand-downs' floor: as measured, at most one cut

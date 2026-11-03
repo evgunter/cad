@@ -438,6 +438,7 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the slab builds")
@@ -514,6 +515,7 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the plate builds")

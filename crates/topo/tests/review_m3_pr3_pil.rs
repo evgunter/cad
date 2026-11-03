@@ -516,7 +516,12 @@ fn each_walk_site_tags_its_decision() {
             "{row}: {diag:?}"
         );
         let ending = want.ending(Escalation::Margin, diag, Reading::Build);
-        assert!(e.to_string().ends_with(&ending), "{row}: {e}");
+        assert!(
+            e.render(geom_brep::recourse::Reading::Build)
+                .ends_with(&ending),
+            "{row}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
         assert_eq!(
             ending.contains("tighten the tolerance below"),
             want == LoopDecision::Boundary,

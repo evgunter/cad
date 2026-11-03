@@ -150,7 +150,12 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
             // (C4).
             let row = chart_pcurve_over(&carrier, 0.3, 4.0, &surface, band()).unwrap();
             let cache = PcurveCache::certify(row, 0.3, 4.0, &carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let cert = cache.certificate();
             assert!(
                 cert.envelope < 1e-12,
@@ -275,7 +280,12 @@ fn the_envelope_covers_an_admitted_slant_error() {
             });
             let (t0, t1) = (0.3, 4.0);
             let cache = PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, band())
-                .unwrap_or_else(|e| panic!("{what}: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             let envelope = cache.certificate().envelope;
             let sup = (0..=4096)
                 .map(|i| {
@@ -396,7 +406,12 @@ fn whole_turn_miss(image: &Pcurve<f64>, carrier: &Curve3<f64>, surface: &Surface
 fn a_skew_section_near_the_parabola_certifies() {
     let at_default = eps() == geom_core::tolerance::DEFAULT_EPS;
     let reached = skew_section(0.5_f64.atan(), 0.1, 0.999_999).and_then(|(c, s, k)| {
-        let image = chart_pcurve(&c, &s, band()).map_err(|e| format!("the chart answers {e}"))?;
+        let image = chart_pcurve(&c, &s, band()).map_err(|e| {
+            format!(
+                "the chart answers {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })?;
         Ok((c, s, k, image))
     });
     let (carrier, surface, k, image) = match reached {
@@ -449,10 +464,20 @@ fn a_skew_section_near_the_parabola_certifies() {
     let certifies = minted < 0.25 * eps();
     if certifies {
         let cache = PcurveCache::certify(image.clone(), t0, t1, &carrier, &surface, band())
-            .unwrap_or_else(|e| panic!("f64: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "f64: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let envelope = cache.certificate().envelope;
         assert!(envelope < 0.5 * eps(), "f64 envelope {envelope:e}");
-        let cache = certify_lifted(&image).unwrap_or_else(|e| panic!("Interval: {e}"));
+        let cache = certify_lifted(&image).unwrap_or_else(|e| {
+            panic!(
+                "Interval: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let envelope = cache.certificate().envelope.hi();
         assert!(envelope < 0.5 * eps(), "Interval envelope {envelope:e}");
     }
@@ -556,8 +581,12 @@ fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
     for f in [0.99, 0.9999, 0.999_999] {
         let reached = skew_section(0.5_f64.atan(), 0.1, f).and_then(|(c, s, _)| {
             let (lc, ls) = (c.map_scalar(lift), s.map_scalar(lift));
-            let image =
-                chart_pcurve(&lc, &ls, band()).map_err(|e| format!("the chart answers {e}"))?;
+            let image = chart_pcurve(&lc, &ls, band()).map_err(|e| {
+                format!(
+                    "the chart answers {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            })?;
             Ok((lc, ls, image))
         });
         let (lc, ls, image) = match reached {
@@ -586,10 +615,17 @@ fn a_skew_section_minted_at_interval_reads_a_tight_vertex_azimuth() {
             ) {
                 Ok(cache) => cache,
                 Err(e @ geom_brep::PcurveCertifyError::Escalated { .. }) if !at_default => {
-                    println!("IN BAND f {f} at ε {:e}: {e}", eps());
+                    println!(
+                        "IN BAND f {f} at ε {:e}: {e_at}",
+                        eps(),
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    );
                     continue;
                 }
-                Err(e) => panic!("f {f}: {e}"),
+                Err(e) => panic!(
+                    "f {f}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             };
             let envelope = cache.certificate().envelope.hi();
             assert!(envelope < 0.5 * eps(), "f {f}: envelope {envelope:e}");
@@ -632,7 +668,10 @@ fn interval_mints(poses: &[(f64, f64)]) -> Vec<IntervalMint> {
                     image,
                 }),
                 Ok(other) => Err(format!("the chart answers {other:?}")),
-                Err(e) => Err(format!("the chart answers {e}")),
+                Err(e) => Err(format!(
+                    "the chart answers {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )),
             }
         });
         match minted {
@@ -717,10 +756,17 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
             Err(e @ geom_brep::PcurveCertifyError::Escalated { .. })
                 if eps() != geom_core::tolerance::DEFAULT_EPS =>
             {
-                println!("IN BAND {at} at ε {:e}: {e}", eps());
+                println!(
+                    "IN BAND {at} at ε {:e}: {e_at}",
+                    eps(),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
                 continue;
             }
-            Err(e) => panic!("{at}: minted at Interval: {e}"),
+            Err(e) => panic!(
+                "{at}: minted at Interval: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         };
         let Ok(Pcurve::FocalSection(at_f64)) = chart_pcurve(&carrier, &surface, band()) else {
             panic!("{at}: the f64 mint");
@@ -735,8 +781,12 @@ fn a_near_parabola_section_minted_at_interval_certifies() {
             beta: lift(at_f64.beta),
             sense: lift(at_f64.sense),
         });
-        let lifted = certify(lifted, &carrier, &surface)
-            .unwrap_or_else(|e| panic!("{at}: the f64 mint, lifted: {e}"));
+        let lifted = certify(lifted, &carrier, &surface).unwrap_or_else(|e| {
+            panic!(
+                "{at}: the f64 mint, lifted: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(
             minted < 8.0 * lifted,
             "{at}: envelope {minted:e} minted at Interval, {lifted:e} lifted"
@@ -787,7 +837,12 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
     let off = off_cone(&carrier, &surface);
     let image = match chart_pcurve(&carrier, &surface, band()) {
         Ok(image) => image,
-        Err(e) => return refused(format!("a carrier {off:e} off the cone: {e}")),
+        Err(e) => {
+            return refused(format!(
+                "a carrier {off:e} off the cone: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ));
+        }
     };
     let miss = whole_turn_miss(&image, &carrier, &surface);
     let bound = off / alpha.cos() + 4.0 * f64::EPSILON * semi_u / k;

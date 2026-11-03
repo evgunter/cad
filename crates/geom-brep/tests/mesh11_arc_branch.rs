@@ -88,7 +88,7 @@ fn a_pole_crossing_meridian_arc_is_not_one_chart_branch() {
     // it is pinned by `contains` on the fragments that carry the kind
     // and the mechanism, never as a whole string.
     let Err(e) = refusal else { unreachable!() };
-    let text = e.to_string();
+    let text = e.render(geom_brep::recourse::Reading::AtRest);
     for fragment in [
         "boundary edge 1",
         "sphere meridian arc",
