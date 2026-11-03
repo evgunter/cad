@@ -2,11 +2,13 @@
 id: tier-3-prime-reads-no-side-for-an-edge-on-a-ruling-of-a-curved-face-lying-in-a-face
 kind: issue
 title: Tier 3′ reads no side of an edge lying in a face of its own solid where a face of the edge is a cylinder or cone the edge is a ruling of
-status: open
+status: review
 opened: 2026-10-27
 priority: P1
 cost: M
 refs: [tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face]
+pr: 6415
+branch: restread/edge-on-ruling-in-face
 ---
 
 
