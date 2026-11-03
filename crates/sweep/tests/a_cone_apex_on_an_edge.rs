@@ -430,4 +430,3 @@ fn an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds() {
         |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
     );
 }
-
