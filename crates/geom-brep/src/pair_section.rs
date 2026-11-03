@@ -727,7 +727,7 @@ impl<T: Real> SectionNode<T> {
     /// (from ray `i` to ray `i + 1`, mod 4).
     #[must_use]
     pub const fn above_in(&self, sector: usize) -> PairSide {
-        if sector % 2 == 0 {
+        if sector.is_multiple_of(2) {
             self.above
         } else {
             self.above.other()

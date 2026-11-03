@@ -377,7 +377,7 @@ pub(super) fn bisector_datum<T: Decide>(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used, clippy::panic)]
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{Operand, bisector_datum};

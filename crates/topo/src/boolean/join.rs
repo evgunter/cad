@@ -608,23 +608,16 @@ impl SolidJoin {
         &mut self,
         body: &mut Body<T>,
         plan: &JoinPlan,
-        ((component, lever, nodes), partner): (
-            (
-                &geom_brep::CarriedComponent<T>,
-                geom_core::Lever<T>,
-                &[geom_brep::SectionNode<T>],
-            ),
-            geom::Surface<T>,
-        ),
+        (seated, partner): (&SeatedCarried<T>, geom::Surface<T>),
         datum: AuxDatum,
         leave: Leave<T>,
     ) -> Result<SegmentCurve<T>, BooleanError> {
         let mut ctx = crate::chord_join::CarriedCtx {
-            component: component.clone(),
+            component: seated.component.clone(),
             partner,
             partner_key: self.aux.get(&datum).copied(),
-            lever,
-            nodes: nodes.to_vec(),
+            lever: seated.lever,
+            nodes: seated.nodes.clone(),
         };
         let curve = self.curve(body, plan, JoinLane::Carried(&mut ctx), leave)?;
         if let Some(k) = ctx.partner_key {
@@ -1606,8 +1599,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     .get(&(ka, kb, k))
                     .copied()
                     .ok_or(desync("a carried segment's component has no seat"))?;
-                let (component, lever, nodes) = carried_component(red, &germ, k, at)?;
-                let component = (&component, lever, nodes.as_slice());
+                let seated = carried_component(red, &germ, k, at)?;
+                let component = &seated;
                 (
                     sa.carried_curve(
                         &mut red.a,
@@ -3676,6 +3669,14 @@ fn unheld_section() -> BooleanError {
     }
 }
 
+/// **A carried component as a chord reads it**: seated, with its
+/// section's scale and nodes.
+struct SeatedCarried<T: geom_core::Real> {
+    component: geom_brep::CarriedComponent<T>,
+    lever: geom_core::Lever<T>,
+    nodes: Vec<geom_brep::SectionNode<T>>,
+}
+
 /// **Component `k` of `germ`'s carried section, seated** at its seat
 /// parameter `at` ([`carried_seats`],
 /// [`super::section_table::SectionTable::seated`]), the section's scale
@@ -3690,19 +3691,16 @@ fn carried_component<T: Decide>(
     germ: &HalfGerm<T>,
     k: usize,
     at: T,
-) -> Result<
-    (
-        geom_brep::CarriedComponent<T>,
-        geom_core::Lever<T>,
-        Vec<geom_brep::SectionNode<T>>,
-    ),
-    BooleanError,
-> {
+) -> Result<SeatedCarried<T>, BooleanError> {
     let section = germ_section(red, germ)?.ok_or_else(unheld_section)?;
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
     match red.sections.seated(faces.0, faces.1, k, at) {
         None => Err(unheld_section()),
-        Some(Ok(component)) => Ok((component.clone(), section.lever(), section.nodes().to_vec())),
+        Some(Ok(component)) => Ok(SeatedCarried {
+            component: component.clone(),
+            lever: section.lever(),
+            nodes: section.nodes().to_vec(),
+        }),
         Some(Err(why)) => Err(faces_section_unbuilt(why, faces.0, faces.1)),
     }
 }
