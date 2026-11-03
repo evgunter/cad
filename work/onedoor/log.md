@@ -158,3 +158,11 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - Main moved again during the lane's merge, with PR 6480. The only conflict was the two appended K-REPORT census notes, which I resolved as a union. The engine-leaves gate is OK at 3026 sites, and a `cargo check` of the merged tree passed before freezing, because both PRs moved code.
   - Dual review, concurrent arm: R1 and R2 have identical briefs, the same frozen head and the same disk rule, and carry six claims. The PR thread was empty at briefing.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **#6488's reviews are in.** Both reviewers say APPROVE-WITH-FIXES, with no MAJOR. Hosted CI is green at `f08a2ba2`, though the `interval` job was skipped by the change filter.
+  - The fix pass runs on the adjudicated union, with a brief kept with the lane briefs. Blinded coding runs in a separate lane.
+  - Class findings logged at adjudication:
+    - **(a) A reader keyed on a name prefix goes stale on every move.** This is the K-prefix class from earlier, now in a test reader. The sweep's `decided_by_crossing` lost the 27 renamed torus names. The fix makes the set read a fact, not a list of prefixes.
+    - **(b) A module moved down a crate keeps its consumer's vocabulary.** Its docs, its guard and its "for both lanes" wrappers still describe the crate above it. This is the shared-cores defect in prose. The fix states each contract in the door's own terms, and each crate's suite guards its own sources.
+    - **(c) A soundness note that rests on "the one reader" is an unenforced census.** It goes false the day a second reader appears. Here `trace` and `in_band_sweep` also read the root. The fix restates the note as the door's guarantee.
+    - **(d) A rename that moves names without moving their citations leaves open rows ungreppable.** About 15–30 open items were affected. The fix pass updates open items. The general cure is `lane-prefixed-k-names-outside-their-lane`, filed by the fix pass.
+  - (ONEDOOR orchestrator)
