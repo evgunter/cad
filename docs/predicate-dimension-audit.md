@@ -1560,7 +1560,9 @@ Flagged, NOT fixed here (dispositions):
     (measured on PR 6371: 61 rows). Held but never relogged, every leaf
     whose sweep fed a taker refused it too (PR 6371 review r1, M1).
   - A reader that is not a taker (a measure, a clearance, a pick) relogs
-    nothing, as main gated nothing there.
+    nothing and finishes nothing: a body it reads through a placement's
+    map is construction state (`ReadIn::Mapped`), finished only by a
+    taker, once.
   - The rows that hold the two logs equal are
     `editor-core/tests/onehome_switch_parity_interval.rs` (a slab under a
     union, and a slab placed then unioned, certify in one leaf).

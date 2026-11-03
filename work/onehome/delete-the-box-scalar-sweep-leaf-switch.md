@@ -27,22 +27,29 @@ this final state, but … keep it disabled/selectively disabled for now".
   builders (`crates/sweep/src/loft.rs`, `crates/sweep/src/revolve/mod.rs`),
   which become the doors' finish;
 - `sweep::test_support::taken`;
-- `NodeErrorKind::UnfinishedLeaf` (`crates/editor-core/src/eval/mod.rs`),
-  its `From<topo::NotFinished>`, and its class, tags and rendered rows;
-- `Held`'s leaf arm and `Held::finished` (`crates/editor-core/src/eval/framed.rs`):
-  a value holds a finished body again, and `Framed::own_leaf`,
-  `in_frame_leaf` and `Framed::read_in`'s leaf end go;
+- the three evaluator doors' `T::leaf` ends, which become `T::finish`:
+  the computing frame's twist, the mirror and the `⊔` graft
+  (`crates/editor-core/src/eval/wire.rs`);
+- `NodeErrorKind::UnfinishedLeaf`'s leaf half: it stays, renamed to what
+  it then is, a body read through a placement's map that does not finish
+  where an operation takes it (`ReadIn::Mapped`, `ReadIn::taken`), with
+  its `input`, class, tags and rendered rows
+  (`crates/editor-core/src/eval/mod.rs`, `crates/pncad-py`);
+- `Held`'s leaf arm, `Held::finished` and `Held::at_f64`/`arc`
+  (`crates/editor-core/src/eval/framed.rs`), and `Framed::own_leaf` and
+  `in_frame_leaf`: a value holds a finished body again, and `ReadIn::Held`
+  holds that body. `Framed::read_in` and `ReadIn` stay: a body mapped
+  into another frame is construction state with or without the switch;
 - the `MemberRead::taken_in` and `distribute::Operand::taken`/`taken_in`
-  takes (`crates/editor-core/src/eval/wire.rs`, `wire/distribute.rs`);
-- the connectedness check's take and its `CheckEvidence::NotAtRest`
-  arm with its binding tag, payload, stub and census entries
-  (`crates/editor-core/src/checks.rs`, `crates/pncad-py`);
-- the product's leaf reads of its sources and `GatheredCopy.body`'s
-  `Held` (`crates/editor-core/src/product.rs`);
-- `ComposeError::NotFinished` at the read-outs and `body_in_space`'s
-  `Held` (`crates/pncad/src/export.rs`), and the bindings' `HostBody`
-  held arm (`crates/pncad-py/src/py/value.rs`);
-- the tour's `Operand` impl for `Replay` and its `Scalar` bound on
+  takes of a held body (`crates/editor-core/src/eval/wire.rs`,
+  `wire/distribute.rs`): a held body is taken as it is, a mapped one
+  still finishes there;
+- the connectedness check's take of a held body
+  (`crates/editor-core/src/checks.rs`);
+- the bindings' `HostBody` held arm, which holds the finished body
+  (`crates/pncad-py/src/py/value.rs`);
+- `topo::test_support::Finishing for Replay` (`crates/topo/src/lib.rs`)
+  and the tour's `Operand` impl for `Replay` and its `Scalar` bound on
   `Leaf` (`demos/tour/src/booleans.rs`, `demos/tour/src/scalar.rs`);
 - the drive's "what a certified leaf has not had" paragraph
   (`crates/editor-core/src/drive.rs`) and `docs/DESIGN.md`'s exception;

@@ -7023,21 +7023,25 @@ pub trait AtRestPolicy: Decide {
     /// selectively disabled for now so it doesn't break everything").
     ///
     /// The final state is every door finishing its own result
-    /// ([`AtRestPolicy::finish`]). At the box scalars a sweep door's leaf
-    /// is tier 2 alone ([`crate::Replay`]): it does not run tier 3, and
-    /// the consumer that takes a finished body runs it there, at the one
-    /// taker door ([`crate::take`]): a Boolean's, a split's, a shell's
-    /// and a blend's operand, the product, an at-rest check. That is the
-    /// one exception to "doors take finished bodies; none re-gates".
-    /// Every other door keeps the full finish.
+    /// ([`AtRestPolicy::finish`]). The doors behind the switch end in
+    /// this leaf instead: the sweep doors (extrude, revolve, loft, sweep,
+    /// the tube) and, in the evaluator, the computing frame's twist, the
+    /// mirror and the `⊔` graft, so at the box scalars a twisted or
+    /// mirrored Boolean result is a [`crate::Replay`] too. At the box
+    /// scalars the leaf is tier 2 alone ([`crate::Replay`]): it does not
+    /// run tier 3, and the consumer that takes a finished body runs it
+    /// there, at the one taker door ([`crate::take`]): a Boolean's, a
+    /// split's, a shell's and a blend's operand, the product's
+    /// aggregate, an at-rest check, the STEP writer. That is the one
+    /// exception to "doors take finished bodies; none re-gates". Every
+    /// other door keeps the full finish.
     ///
     /// At `f64` and `Probe` the leaf is the finished body, finished here
     /// with the finish's decisions held off this node's verdict log and
     /// kept on the body, and the taker door relogs them where it takes
     /// the body (`docs/predicate-dimension-audit.md` F31). So both lanes
-    /// log tier 3 at the taker, once, as main's taker gate did, and the
-    /// `f64` witness's verdict vector is the box leaf's. At a dual it is
-    /// the finish.
+    /// log tier 3 at the taker, once, and the `f64` witness's verdict
+    /// vector is the box leaf's. At a dual it is the finish.
     ///
     /// It retires when the box scalars' tier 3 reads what the box
     /// studies build: the rows

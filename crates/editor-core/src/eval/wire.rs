@@ -1802,7 +1802,10 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // It computes in its operand's frame.
     let operand = read_body(results, target)?;
-    let body = operand.holding().finished(tol)?;
+    let body = operand
+        .holding()
+        .finished(tol)
+        .map_err(NodeErrorKind::unfinished(target))?;
     let size = slot_scalar(vals, verb.slots.size_slot);
     let target_value = value_of(results, target)?;
     let target_table = read_table(target_value);
@@ -1882,9 +1885,10 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// selection is the sealed hollow, not a refusal. Failure of the op itself is
 /// [`NodeErrorKind::Shell`]; the input body is never passed through. A
 /// scalar that cannot form the door's call at all — a dual — refuses
-/// [`NodeErrorKind::ShellLaneUnsupported`]. The operand is already
-/// finished: a body slot holds the scalar's finished type, so nothing is
-/// re-gated here.
+/// [`NodeErrorKind::ShellLaneUnsupported`]. The operand is taken through
+/// the one taker door ([`super::Held::finished`]): a finished body as it
+/// is, a leaf finished there at the box scalars, which refuses
+/// [`NodeErrorKind::UnfinishedLeaf`] naming the operand.
 ///
 /// # Naming
 ///
@@ -1902,7 +1906,10 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (target_read, target) = (open.read, open.at);
     // It computes in its operand's frame.
     let operand = read_body(results, target)?;
-    let body = operand.holding().finished(tol)?;
+    let body = operand
+        .holding()
+        .finished(tol)
+        .map_err(NodeErrorKind::unfinished(target))?;
     let thickness = slot_scalar(vals, verb.slots.size_slot);
     let target_table = read_table(value_of(results, target)?);
     // Designation order: the first designated face of a chart carries
@@ -2658,7 +2665,10 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     // It computes in its operand's frame, its tool read into it.
     let operand = read_body(results, target)?;
-    let body = operand.holding().finished(tol)?;
+    let body = operand
+        .holding()
+        .finished(tol)
+        .map_err(NodeErrorKind::unfinished(target))?;
     let tool = &tool.read_into(operand.frame(), band(tol)?)?;
     let plane = (verb.tool)(tool).unwrap_or_else(|| {
         unreachable!(
@@ -3151,6 +3161,8 @@ fn with_replaced<T: topo::AtRestPolicy + Decide>(
 #[derive(Clone)]
 struct MemberRead<T: topo::AtRestPolicy + Decide> {
     read: crate::VarId,
+    /// The node it is read from: the operand a refusing take names.
+    node: RecipeNodeId,
     /// Where it stands: its body in its own frame.
     framed: super::Framed<T>,
     table: Arc<NameTable>,
@@ -3187,7 +3199,9 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
         let read = computing.read_in(&self.framed, tol)?;
         let own = read.held().is_some();
-        let body = read.taken(tol)?;
+        let body = read
+            .taken(tol)
+            .map_err(NodeErrorKind::unfinished(self.node))?;
         let framed = if own {
             self.framed.clone()
         } else {
@@ -3594,6 +3608,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 names::check_total(&table, body.body(), 0).map_err(NodeErrorKind::Naming)?;
                 Ok(MemberRead {
                     read,
+                    node: at,
                     framed: body.clone(),
                     table: Arc::new(table),
                     // Each member's own, its records keyed in its arena.
@@ -3627,6 +3642,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 };
                 members.push(MemberRead {
                     read,
+                    node: at,
                     framed: read_body(results, at)?,
                     table: read_table(value),
                     carry: value.carry.kept(doc, tol),
@@ -3688,6 +3704,7 @@ fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let unit = Arc::new(unit);
             replaced[i] = MemberRead {
                 read: unit.read,
+                node: unit.node,
                 framed: unit.body.clone(),
                 table: Arc::clone(&unit.table),
                 carry: unit.carry.clone(),

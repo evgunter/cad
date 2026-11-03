@@ -134,22 +134,30 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
         wall,
         Tol::witness(),
     );
-    // The full-period 1.3 km ring at ε = 1e-12: the door finishes its
-    // result, and check 7's quadrature escalates there on the rim span's
-    // winding (`props_rim_span_winding`, in band). The tube is measured
-    // at the rows where it finishes.
-    if major > 1e3
-        && window_arg.is_none()
-        && Tol::witness().eps() <= 1e-12
-        && matches!(
-            &got,
+    // The full-period 1.3 km ring at ε = 1e-12, pinned to refuse: the
+    // door finishes its result, and check 7's quadrature escalates there
+    // on the rim span's winding (`props_rim_span_winding`, in band),
+    // `VolumeUncomputable` alone. The P0 row
+    // `work/onehome/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
+    // is the reader that lifts it; this pin turns red when it lands.
+    if major > 1e3 && window_arg.is_none() && Tol::witness().eps() <= 1e-12 {
+        match &got {
             Err(sweep::TubeError::Revolve(sweep::RevolveError::NotFinished { findings }))
                 if findings
                     .iter()
-                    .all(|f| matches!(f, topo::ValidationError::VolumeUncomputable { .. }))
-        )
-    {
-        return None;
+                    .all(|f| matches!(f, topo::ValidationError::VolumeUncomputable { .. })) =>
+            {
+                return None;
+            }
+            Ok(_) => panic!(
+                "the full 1.3 km hollow tube at ε 1e-12 is pinned to refuse VolumeUncomputable, \
+                 and it built: the hairline-revolve row landed, so lift this pin"
+            ),
+            Err(other) => panic!(
+                "the full 1.3 km hollow tube at ε 1e-12 is pinned to refuse VolumeUncomputable \
+                 alone: {other:?}"
+            ),
+        }
     }
     test_utils::kernel_limit::pinned(
         got,

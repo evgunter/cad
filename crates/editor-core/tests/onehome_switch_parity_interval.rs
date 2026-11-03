@@ -7,8 +7,7 @@
 //! `f64` the leaf is finished where it is built, its finish's decisions
 //! held off that node's log and relogged by the taker. So both lanes
 //! log tier 3 at the taker, once, and a box leaf's verdict vector is the
-//! witness's on every document where main's were: these rows certify in
-//! one leaf where main did.
+//! witness's: these rows certify in one leaf.
 //!
 //! The connectedness check takes each placement's body the same way,
 //! and a body that does not finish at a box scalar is that output's
@@ -79,7 +78,7 @@ fn certified(doc: &ProfileDoc) -> usize {
 }
 
 /// **The reviewer's probe**: a slab of depth `1 ± half` under a
-/// one-member union, so its leaf feeds a taker. Main certifies it in one
+/// one-member union, so its leaf feeds a taker. It certifies in one
 /// leaf at both half-widths; a lane that logged tier 3 at the taker on
 /// one side only would refuse `FlipCrossing` (`bool_ring_run_winding`
 /// and the battery's rows diverging).
@@ -150,8 +149,8 @@ fn a_placement_that_does_not_finish_is_its_outputs_finding() {
         ev.node_error(loft)
     );
     // The residents that read the gathered product refuse the run as a
-    // whole when its aggregate does not finish (`ProductInvalid`), as on
-    // main: off here, so the row reads the connectedness walk alone.
+    // whole when its aggregate does not finish (`ProductInvalid`): off
+    // here, so the row reads the connectedness walk alone.
     let cfg = ChecksConfig {
         at_rest: editor_core::Severity::Off,
         chart_coherence: editor_core::Advisory::Off,
@@ -208,4 +207,67 @@ fn review_probe_6371_union_after_a_box_extrude() {
         }
         assert_eq!(certified(&r.doc), 1, "members {members}, half {half}");
     }
+}
+
+/// **A refusing take names the member that does not finish** (PR 6371
+/// review r2, MAJ-1). A union of a placed block and a placed loft at
+/// `Interval`: the block finishes, the loft's walls do not (check 7, as
+/// above), and the union's refusal names the loft's placement as its
+/// input, in words that say nothing of how the body was made.
+#[test]
+fn a_union_whose_one_member_does_not_finish_names_it() {
+    use editor_core::analysis::BoxAxis;
+    let (doc, loft) = crate::eval10_section_reads_the_nominal::square_loft_doc(0.5);
+    let (doc, block) = crate::fixture::on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![crate::fixture::square(0.5, 0.5, 0.5)],
+    );
+    let (doc, block) = crate::fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: block.into(),
+            distance: crate::fixture::len(1.0),
+        },
+    );
+    let (doc, block_copy) = editor_core::test_support::in_world(
+        doc,
+        block,
+        &editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        Tol::witness(),
+    );
+    let (doc, loft_copy) = crate::fixture::place(doc, loft);
+    let (doc, union) = crate::fixture::union_over(doc, &[block_copy, loft_copy]);
+    let w = Tol::witness().get().eps / 256.0;
+    let mut axes = std::collections::BTreeMap::new();
+    axes.insert(
+        crate::eval10_section_reads_the_nominal::var(&doc),
+        BoxAxis::Varying { lo: -w, hi: w },
+    );
+    let opts = EvalOptions {
+        param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
+        ..EvalOptions::default()
+    };
+    let ev: Evaluation<Interval> = evaluate(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+    assert!(
+        ev.node_error(block_copy).is_none(),
+        "the block's copy builds"
+    );
+    assert!(ev.node_error(loft_copy).is_none(), "the loft's copy builds");
+    let refusal = ev.node_error(union).expect("the union refuses");
+    let editor_core::NodeErrorKind::UnfinishedLeaf { input, findings } = &refusal.kind else {
+        panic!(
+            "the union refuses its unfinished member: {:?}",
+            refusal.kind
+        );
+    };
+    assert_eq!(*input, loft_copy, "the refusal names the loft's copy");
+    assert!(!findings.as_slice().is_empty());
+    let text = refusal.kind.to_string();
+    assert!(
+        text.contains("does not finish") && !text.contains("swept"),
+        "the text names the input, not how it was made: {text}"
+    );
 }

@@ -359,7 +359,11 @@ impl<T: topo::AtRestPolicy> Framed<T> {
     ///
     /// The relative map's overflow, or the kernel's own
     /// [`topo::transform::TransformError`].
-    pub(crate) fn read_in(&self, other: &Self, tol: Tol) -> Result<ReadIn<T>, super::NodeErrorKind> {
+    pub(crate) fn read_in(
+        &self,
+        other: &Self,
+        tol: Tol,
+    ) -> Result<ReadIn<T>, super::NodeErrorKind> {
         match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
             None => Ok(ReadIn::Held(other.body.clone())),
             Some(map) => {

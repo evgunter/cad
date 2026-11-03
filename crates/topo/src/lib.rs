@@ -705,17 +705,21 @@ pub mod test_support {
         }
     }
 
-    /// A replay is a dual's finished body and a box scalar's sweep leaf
-    /// ([`crate::AtRestPolicy::leaf`]): finished through its scalar's
-    /// finish, which at a dual is tier 2 again.
-    impl<T: crate::AtRestPolicy> Finishing for crate::Replay<T> {
+    /// A replay is a dual's finished body and a box scalar's leaf
+    /// ([`crate::AtRestPolicy::leaf`]): taken through the one taker door
+    /// ([`crate::take`]), which at a dual passes it through and at the
+    /// box scalars runs tier 3.
+    impl<T: crate::AtRestPolicy<Leaf = crate::Replay<T>>> Finishing for crate::Replay<T>
+    where
+        T::Finished: Clone,
+    {
         type Scalar = T;
 
         #[allow(clippy::panic)]
         #[track_caller]
         fn finished(self, what: &str, tol: geom_core::Tol) -> T::Finished {
-            match T::finish(self.into_body(), tol) {
-                Ok(body) => body,
+            match crate::take::<T>(&std::sync::Arc::new(self), tol) {
+                Ok(body) => std::sync::Arc::unwrap_or_clone(body),
                 Err(e) => panic!("{what} is not a finished body: {e:?}"),
             }
         }
@@ -1012,6 +1016,23 @@ pub mod test_support {
             }
             BooleanError::DegenerateTorus { convention, .. } => {
                 decision(BooleanDecision::Torus(*convention))
+            }
+            // A result that does not finish is keyed by its findings'
+            // own variants: an in-band reading (a shell certified in
+            // band) and a definite one (a negative volume) are two
+            // decisions, and the editor's offers stay distinct.
+            BooleanError::ResultInvalid { findings } => {
+                let mut variants: Vec<String> = findings
+                    .iter()
+                    .map(|finding| {
+                        let debug = format!("{finding:?}");
+                        let end = debug.find([' ', '{', '(']).unwrap_or(debug.len());
+                        debug[..end].to_owned()
+                    })
+                    .collect();
+                variants.sort();
+                variants.dedup();
+                format!("ResultInvalid({})", variants.join(","))
             }
             other => format!("{:?}", other.kind()),
         };
@@ -1439,9 +1460,9 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, take};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
+pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, take};
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{

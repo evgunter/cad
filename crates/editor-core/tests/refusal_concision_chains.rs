@@ -1741,6 +1741,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "UnfinishedLeaf/NegativeVolume",
             NodeErrorKind::UnfinishedLeaf {
+                input: RecipeNodeId::new(0, tagged(3)),
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::NegativeVolume {
                         solid: topo::SolidKey::default(),

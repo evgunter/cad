@@ -77,7 +77,10 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
     /// **Its body, taken** as a door that takes finished bodies takes it
     /// ([`crate::eval::Held::finished`]), in its own frame.
     pub(super) fn taken(&self, tol: Tol) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        Ok(self.body.holding().finished(tol)?)
+        self.body
+            .holding()
+            .finished(tol)
+            .map_err(NodeErrorKind::unfinished(self.node))
     }
 
     /// **Its body taken in `into`'s frame**: `own`, its body already
@@ -92,7 +95,9 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
         match into.read_in(&self.body, tol)? {
             crate::eval::ReadIn::Held(_) => Ok(Arc::clone(own)),
-            mapped @ crate::eval::ReadIn::Mapped(_) => Ok(mapped.taken(tol)?),
+            mapped @ crate::eval::ReadIn::Mapped(_) => mapped
+                .taken(tol)
+                .map_err(NodeErrorKind::unfinished(self.node)),
         }
     }
 

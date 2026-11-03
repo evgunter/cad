@@ -464,6 +464,11 @@ impl ValidationError {
             | Self::PoisonedSurfaceDescription { .. }
             | Self::PoisonedSurfaceDatum { .. }
             | Self::PoisonedCurveDatum { .. }
+            // The curve half of `UnrepresentableSurfaceDatum` sits here,
+            // not in `Convention`: its sentence states the breach alone
+            // and ends in this family's fixed recourse, where the
+            // surface datum writes its own (`convention_recourse`, which
+            // reads the datum's measure and the end it broke).
             | Self::UnrepresentableCurveDatum { .. }
             | Self::DescriptionNotAdjacent { .. }
             | Self::TransverseNotIntrinsic { .. }

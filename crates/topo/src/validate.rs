@@ -10548,14 +10548,13 @@ macro_rules! scaffolding_recourse {
 /// [`AtRestPolicy::finish`]: crate::AtRestPolicy::finish
 ///
 /// **A sweep leaf's finish record** (`AtRestPolicy::leaf`, the box
-/// scalars' switch): at `f64` and `Probe` a sweep door's leaf, a
-/// placement's image and an assemble's graft are finished where they
-/// are built, with the finish's decisions held off that node's verdict
-/// log and kept here, and the one taker door ([`crate::take`]) relogs
-/// them where it takes the body. The box scalars' leaf is tier 2 alone
-/// and its taker runs tier 3 there, logged, so both lanes log the
-/// finish at the taker, as main's taker gate did
-/// (`docs/predicate-dimension-audit.md` F31).
+/// scalars' switch): at `f64` and `Probe` a door behind the switch (the
+/// sweep doors, the twist, the mirror, the `⊔` graft) finishes its leaf
+/// where it builds it, with the finish's decisions held off that node's
+/// verdict log and kept here, and the one taker door ([`crate::take`])
+/// relogs them where it takes the body. The box scalars' leaf is tier 2
+/// alone and its taker runs tier 3 there, logged, so both lanes log the
+/// finish at the taker (`docs/predicate-dimension-audit.md` F31).
 #[derive(Clone, Debug)]
 pub struct AtRestBody<T: Real> {
     body: Body<T>,

@@ -606,6 +606,7 @@ mod tests {
                 ]),
             },
             C::UnfinishedLeaf => K::UnfinishedLeaf {
+                input: n(3),
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::ScaffoldAtRest {
                         edge: topo::EdgeKey::default(),

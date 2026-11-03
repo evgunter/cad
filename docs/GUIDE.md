@@ -584,7 +584,7 @@ assert_eq!(lightened.kind, BooleanResultKind::Seamed);
 finishes its own result once (the at-rest gate, tier 3), so a sweep's
 body and a boolean's result go straight into the next operation. (At
 the box scalars, `Interval` and `Sym`, a sweep's result is tier 2 alone,
-`AtRestPolicy::leaf`, and `topo::finish_leaf` finishes it for the next
+`AtRestPolicy::leaf`, and `topo::take` finishes it for the next
 operation.) They return a `BooleanResult`, which is `Empty` or
 a `BooleanBody`. That is the first fail-loud habit to build: an empty
 result is a *value*, not an error and not a crash, and you say what
@@ -1761,7 +1761,7 @@ let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
 // An evaluated value holds the body in its own coordinates; at `f64`
-// it is finished already (`Framed::finished` hands back the same body),
+// it is finished already (`Held::finished` hands back the same body),
 // which is what the measurement reads.
 let body = (*body.holding().finished(tol).expect("an f64 value holds a finished body")).clone();
 let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;

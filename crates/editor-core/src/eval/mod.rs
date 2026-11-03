@@ -1632,12 +1632,15 @@ pub enum NodeErrorKind {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
-    /// **A sweep door's leaf that does not finish where this operation
-    /// takes a finished body**: at the box scalars a sweep door returns
-    /// tier 2 alone ([`topo::AtRestPolicy::leaf`], the switch), and the
-    /// operation that takes a finished body runs tier 3 on it. It goes
-    /// with the switch.
+    /// **An operand that does not finish where this operation takes a
+    /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
+    /// tier 2 alone at the box scalars), or a body read into this
+    /// operation's frame through a placement's map, construction state
+    /// ([`super::ReadIn::Mapped`]); the operation that takes it runs
+    /// tier 3 on it ([`super::ReadIn::taken`]).
     UnfinishedLeaf {
+        /// The operand's node: the node whose value this operation took.
+        input: RecipeNodeId,
         /// The finish's findings.
         findings: topo::NotFinished,
     },
@@ -2010,13 +2013,12 @@ pub enum NodeErrorKind {
     },
 }
 
-/// **A taker's refusal** ([`Held::finished`]): the box scalars' leaf that
-/// does not finish where a node takes it, read as
-/// [`NodeErrorKind::UnfinishedLeaf`]. A node's own finish of what it
-/// produced names [`NodeErrorKind::NotFinished`] explicitly.
-impl From<topo::NotFinished> for NodeErrorKind {
-    fn from(findings: topo::NotFinished) -> Self {
-        Self::UnfinishedLeaf { findings }
+impl NodeErrorKind {
+    /// **A taker's refusal** ([`ReadIn::taken`], [`Held::finished`]):
+    /// `input`'s body does not finish where a node takes it. A node's
+    /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
+    pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
+        move |findings| Self::UnfinishedLeaf { input, findings }
     }
 }
 
@@ -2215,9 +2217,10 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 "the body this operation produced is not a finished body: {findings}"
             ),
-            Self::UnfinishedLeaf { findings } => write!(
+            Self::UnfinishedLeaf { input, findings } => write!(
                 f,
-                "a swept body this operation takes does not finish here: {findings}"
+                "{} does not finish where this operation takes it: {findings}",
+                by.node_as(*input, "input")
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
