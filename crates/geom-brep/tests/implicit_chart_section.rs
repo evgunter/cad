@@ -13,7 +13,7 @@
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::ssi::BranchEnd;
-use geom_brep::{ChartAxis, ImplicitSection, SectionReading, SsiDomain, SsiOutcome};
+use geom_brep::{ChartAxis, ImplicitSection, SectionReading, SsiDomain, SsiError, SsiOutcome};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -274,5 +274,41 @@ fn a_large_sphere_cuts_the_strip_in_two_arcs() {
             (1.5..2.0).contains(&x),
             "an arc near an end of the strip: {x}"
         );
+    }
+}
+
+/// **A sphere of radius 10⁴ cuts the strip in two arcs.** The sphere
+/// about `(0, 0, 0.45 − 10⁴)`, its top `0.15` above the strip's middle
+/// and nearly flat across the strip, meets it near `x = ±√3`: two arcs
+/// across the strip, each on both surfaces. The canonical form's divisor
+/// here is `2·10⁴`: red against limb 2 reading the sphere's composite
+/// with no divisor (its hull over-reads the fit's deviation twenty
+/// thousand fold, past the band).
+///
+/// Where `f64` at the sphere's own reach cannot settle a state well
+/// inside ε (at ε = 1e-12, the spacing of floats near 10⁴ is 1.8e-12),
+/// the section refuses at its door, the binding reach the partner's:
+/// the march's tolerance reads the wall written about the sphere's
+/// centre, not the wall alone. Red against the tolerance read on the
+/// wall's coordinates alone (the march then refuses mid-trace, unable to
+/// settle a step).
+#[test]
+fn a_very_large_sphere_cuts_the_strip_in_two_arcs() {
+    let r = 1.0e4;
+    let (s, w) = (sphere(Point3::new(0.0, 0.0, 0.45 - r), r), strip());
+    match ImplicitSection::of(&s, &w, domain(), band()) {
+        Ok(section) => {
+            let out = section.all().expect("every branch");
+            assert_eq!(out.branches.len(), 2, "two arcs");
+            on_both(&s, &w, &out, "very large sphere × strip");
+        }
+        Err(SsiError::SettlingUnresolvable(why)) => {
+            assert!(why.reach >= r, "the partner's reach binds: {why:?}");
+            assert!(
+                why.settle > 0.5 * why.tolerance,
+                "refused only where it cannot settle inside ε: {why:?}"
+            );
+        }
+        Err(e) => panic!("the section: {e:?}"),
     }
 }
