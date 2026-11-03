@@ -496,17 +496,19 @@ fn a_circle_definitely_off_ends_as_its_incidence_read() {
     }
 }
 
-/// **A circle's projected envelope covers its residual** (a
-/// counterexample search; the seed varies). Each draw places a cone,
-/// torus or cylinder at a random scale, axis and distance from the
+/// **A circle's or a cone line's projected envelope covers its
+/// residual** (a counterexample search; the seed varies). Each draw
+/// places a cone, torus or cylinder at a random scale, axis and distance from the
 /// origin, and a circle near it that its class readings miss or read in
 /// band: on the cone a tilted section's nearest circle (its distance
 /// from the cone drawn up to `0.9·zero`, or its tilt drawn in band); on
 /// the torus a crest circle (top or bottom, its centre off the axis by
 /// up to the band's worth of distance) or a parallel at a random tube
 /// angle tilted in band; on the cylinder a circle of in-band radius on
-/// the wall. Each is then moved by an offset and a radius change inside
-/// the zero band, and read over a random arc that may cross the azimuth
+/// the wall; and a ruling of the cone anchored at the apex's height
+/// within the band, read over a segment clear of the apex. Each is then
+/// moved by an offset (and a circle by a radius change) inside the zero
+/// band, and a circle read over a random arc that may cross the azimuth
 /// window's cut or make a whole turn. Whatever takes the projected lane
 /// has check 4's envelopes, at `f64` and at `Interval`, over its densely
 /// sampled residual.
@@ -514,7 +516,7 @@ fn a_circle_definitely_off_ends_as_its_incidence_read() {
 fn a_circles_projected_envelope_covers_its_residual() {
     let mut s = fuzz::start("pcurve_cache::circle_lane_rows::search");
     let b = band();
-    let mut tally = [0usize; 4];
+    let mut tally = [[0usize; 4]; 4];
     for trial in 0..fuzz::scaled(300) {
         let scale = s.log_uniform(0.05, 20.0);
         let far = if s.below(2) == 0 {
@@ -526,7 +528,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let axis = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), 1.0).normalize();
         let u_ref = axis.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
         let sign = |s: &mut fuzz::Rng| if s.below(2) == 0 { 1.0 } else { -1.0 };
-        let chart = s.below(3);
+        let chart = s.below(4);
         let (surface, carrier) = match chart {
             0 => {
                 let alpha = s.range(0.1, 1.3);
@@ -575,6 +577,24 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 };
                 (surface, carrier)
             }
+            3 => {
+                // A ruling of either nappe anchored at the apex's height
+                // within the band, read over a segment clear of the apex.
+                let alpha = s.range(0.1, 1.3);
+                let surface = Surface::Cone {
+                    apex: place,
+                    axis,
+                    half_angle: alpha,
+                    u_ref,
+                };
+                let (sa, ca) = alpha.sin_cos();
+                let phi = s.range(-3.1, 3.1);
+                let sigma = sign(&mut s);
+                let g = Vec3::new(sa * phi.cos(), sa * phi.sin(), ca) * sigma;
+                let h = s.range(b.zero(), b.escalate()) * sign(&mut s);
+                let carrier = Curve3::line(world(&surface, g * (h / ca)), world_dir(&surface, g));
+                (surface, carrier)
+            }
             _ => {
                 let radius = scale;
                 let surface = Surface::Cylinder {
@@ -597,29 +617,36 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 (surface, carrier)
             }
         };
-        let Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    center,
-                    axis: n,
-                    u_ref: x,
-                },
-            radius,
-        }) = carrier
-        else {
-            unreachable!("the draws are circles")
-        };
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let dr = 0.3 * b.zero() * s.range(-1.0, 1.0) * f64::from(u8::from(s.below(2) == 0));
-        let carrier = Curve3::circle(center + offset, n, (radius + dr).abs(), x);
-        let t0 = s.range(-4.0, 4.0);
-        let t1 = t0
-            + if s.below(4) == 0 {
-                TAU
-            } else {
-                s.range(0.2, 6.0)
-            };
+        let (carrier, t0, t1) = match carrier {
+            Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis: n,
+                        u_ref: x,
+                    },
+                radius,
+            }) => {
+                let t0 = s.range(-4.0, 4.0);
+                let t1 = t0
+                    + if s.below(4) == 0 {
+                        TAU
+                    } else {
+                        s.range(0.2, 6.0)
+                    };
+                let carrier = Curve3::circle(center + offset, n, (radius + dr).abs(), x);
+                (carrier, t0, t1)
+            }
+            Curve3::Line(geom::Line { origin, dir }) => {
+                let t0 = s.log_uniform(1e-3, 1.0) * scale;
+                let t1 = t0 + s.log_uniform(1e-2, 3.0) * scale;
+                (Curve3::line(origin + offset, dir), t0, t1)
+            }
+            _ => unreachable!("the draws are circles and lines"),
+        };
         let context = || {
             format!(
                 "trial {trial}, chart {chart}, scale {scale:e}, far {far:e}, offset {offset:?}, \
@@ -628,19 +655,19 @@ fn a_circles_projected_envelope_covers_its_residual() {
             )
         };
         let (Ok(image), Ok(image_i)) = derived(&carrier, (t0, t1), &surface) else {
-            tally[0] += 1;
+            tally[chart][0] += 1;
             continue;
         };
         if image.projected().is_none() || image_i.projected().is_none() {
-            tally[0] += 1;
+            tally[chart][0] += 1;
             continue;
         }
         let Ok((envelope, hi)) = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface)
         else {
-            tally[1] += 1;
+            tally[chart][1] += 1;
             continue;
         };
-        tally[2] += 1;
+        tally[chart][2] += 1;
         let sup = sampled_residual(&image, (t0, t1), &carrier, &surface, 2048);
         let noise = 64.0 * f64::EPSILON * (scale + far);
         assert!(
@@ -649,12 +676,14 @@ fn a_circles_projected_envelope_covers_its_residual() {
             context()
         );
         if PcurveCache::certify(image, t0, t1, &carrier, &surface, b).is_ok() {
-            tally[3] += 1;
+            tally[chart][3] += 1;
         }
     }
-    println!(
-        "[fuzz] circle_lane_rows::search: {} took no projected image, {} refused at check 4, \
-         {} read check 4's envelope, {} of them certified at f64",
-        tally[0], tally[1], tally[2], tally[3]
-    );
+    for (chart, [none, refused, read, certified]) in tally.iter().enumerate() {
+        println!(
+            "[fuzz] circle_lane_rows::search, chart {chart}: {none} took no projected image, \
+             {refused} refused at check 4, {read} read check 4's envelope, {certified} of them \
+             certified at f64"
+        );
+    }
 }

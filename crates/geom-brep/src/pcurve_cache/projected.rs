@@ -1,7 +1,8 @@
 //! **The projected image** ([`Pcurve::Projected`], C4): on an analytic
 //! chart, the image of a carrier with no closed-form image (a spline
 //! carrier; a circle on a sphere, cylinder, cone or torus not shown one
-//! of the chart's own circles; a line on a cylinder not shown a ruling)
+//! of the chart's own circles; a line on a cylinder or a cone not shown
+//! a ruling)
 //! is the chart's own
 //! inverse applied to the carrier, `P(t) = ψ(C(t))`. It is exact, not a
 //! fit.
@@ -72,7 +73,8 @@
 //! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
 //! for a net, `sphere_circle::off_sphere_sup` for a circle on a sphere
 //! and `circle_chart::form_sup` on the other charts,
-//! [`line_off_cylinder_sup`] for a line over the edge's interval), converted to
+//! [`line_off_cylinder_sup`] and [`line_off_cone_form`] for a line over
+//! the edge's interval), converted to
 //! metres per part of the twin net's knot spans, each cut into
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
@@ -1120,9 +1122,9 @@ pub(crate) fn chart_at<T: Decide>(
 /// cylinder, cone or torus, whose incidence term is the chart's form
 /// along the circle, a trigonometric polynomial, bounded by its
 /// harmonics' sups (`sphere_circle::off_sphere_sup` on the sphere,
-/// `circle_chart::form_sup` elsewhere); and a line on a cylinder, whose
-/// incidence term is the cylinder's form along the line, a quadratic,
-/// bounded by its Bernstein coefficients over the edge.
+/// `circle_chart::form_sup` elsewhere); and a line on a cylinder or a
+/// cone, whose incidence term is the chart's form along the line, a
+/// quadratic, bounded by its Bernstein coefficients over the edge.
 pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
     match carrier {
         Curve3::Nurbs(_) => crate::edge_nurbs::is_analytic(surface),
@@ -1133,7 +1135,7 @@ pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bo
                 | Surface::Cone { .. }
                 | Surface::Torus { .. }
         ),
-        Curve3::Line(_) => matches!(surface, Surface::Cylinder { .. }),
+        Curve3::Line(_) => matches!(surface, Surface::Cylinder { .. } | Surface::Cone { .. }),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } => false,
     }
 }
@@ -2112,29 +2114,37 @@ fn read_round<T: Decide>(
     })
 }
 
+/// **The sup of `|f|` along a segment for a chart's quadratic form**
+/// `f = Q(q) − c`, `Q` a quadratic form, from `f0 = f(q0)`, `f1 = f(q1)`
+/// and `chord = Q(q1 − q0)`: along the segment `f` is a quadratic in the
+/// segment's parameter whose Bernstein coefficients are `f0`, `f1` and
+/// the middle one `B(q0, q1) − c = (f0 + f1 − chord)/2` (`B` the form's
+/// polar), so `|f|` is at most their largest magnitude. Every operation
+/// is outward-rounded at `Interval`.
+fn segment_form_sup<T: Real>(f0: T, f1: T, chord: T) -> T {
+    let middle = (f0 + f1 - chord) * T::from_f64(0.5);
+    let big = f0.abs().max(f1.abs()).max(middle.abs());
+    #[cfg(test)]
+    let big = super::mutants::line_off_cylinder(f0, f1, middle).unwrap_or(big);
+    big
+}
+
 /// **The sup of the distance from a cylinder of radius `r` (in its own
 /// canonical frame, axis `z`) of the segment from `q0` to `q1`**: the
-/// line's incidence term. The cylinder's form `f = ρ² − r²` along the
-/// segment is a quadratic whose Bernstein coefficients are
-/// `f(q0) = (ρ₀ − r)(ρ₀ + r)`, `f(q1)` likewise, and the middle one
-/// `q0·q1 − r² = (f(q0) + f(q1) − |q1 − q0|²)/2` (`x`, `y` only), so `|f|`
-/// is at most their largest magnitude `F` over the segment. Then
-/// `|ρ − r| = |f|/(ρ + r)` with `ρ ≥ r − F/r`, the cylinder's metre
-/// conversion ([`Meters::over`]) with no floor on `ρ`. Every operation
-/// is outward-rounded at `Interval`, so the bound holds for every
-/// segment whose ends lie in the enclosures `q0`, `q1`.
+/// line's incidence term. The cylinder's form `f = ρ² − r²`, written
+/// `(ρ − r)(ρ + r)` at the ends, with `Q` the `x`, `y` square, is bounded
+/// by [`segment_form_sup`] at `F`. Then `|ρ − r| = |f|/(ρ + r)` with
+/// `ρ ≥ r − F/r`, the cylinder's metre conversion ([`Meters::over`]) with
+/// no floor on `ρ`. The bound holds for every segment whose ends lie in
+/// the enclosures `q0`, `q1`.
 pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> T {
     let radial = |q: Vec3<T>| (q.x.powi(2) + q.y.powi(2)).sqrt();
     let form = |q: Vec3<T>| {
         let rho = radial(q);
         (rho - r) * (rho + r)
     };
-    let (f0, f1) = (form(q0), form(q1));
     let chord = (q1.x - q0.x).powi(2) + (q1.y - q0.y).powi(2);
-    let middle = (f0 + f1 - chord) * T::from_f64(0.5);
-    let big = f0.abs().max(f1.abs()).max(middle.abs());
-    #[cfg(test)]
-    let big = super::mutants::line_off_cylinder(f0, f1, middle).unwrap_or(big);
+    let big = segment_form_sup(form(q0), form(q1), chord);
     let Ok(sup) = Meters::Cylinder { radius: r }.over(
         big,
         T::zero(),
@@ -2142,6 +2152,91 @@ pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> 
         Ok::<T, core::convert::Infallible>,
     );
     sup
+}
+
+/// **A bound on the cone's form `|f|` along the segment from `q0` to
+/// `q1`** (in its canonical frame, apex at the origin, axis `z`), the
+/// half-angle's `sin α` and `cos α` given: `f = ρ²·cos²α − z²·sin²α`,
+/// written `(ρ cos α − z sin α)(ρ cos α + z sin α)` at the ends, bounded
+/// by [`segment_form_sup`]. The projected row converts it to metres on
+/// its own floors ([`Meters::over_at`]).
+pub(crate) fn line_off_cone_form<T: Real>(q0: Vec3<T>, q1: Vec3<T>, sin: T, cos: T) -> T {
+    let form = |q: Vec3<T>| {
+        let rho = (q.x.powi(2) + q.y.powi(2)).sqrt();
+        (rho * cos - q.z * sin) * (rho * cos + q.z * sin)
+    };
+    let dq = q1 - q0;
+    let chord = (dq.x.powi(2) + dq.y.powi(2)) * cos.powi(2) - dq.z.powi(2) * sin.powi(2);
+    segment_form_sup(form(q0), form(q1), chord)
+}
+
+/// The parts a line's edge is cut into for its incidence on a cone.
+const LINE_CUTS: usize = 32;
+
+/// The stored carrier's radial floor and axial range over the pieces
+/// `met` of `[t0, t1]`, read off each piece's box, each piece's sector
+/// (its azimuth, and on a torus its tube channel) decided first.
+fn met_floors<T: Decide>(
+    image: &ProjectedImage<T>,
+    met: &[usize],
+    (t0, t1): (T, T),
+    band: Band,
+) -> Result<(T, (T, T)), PcurveCertifyError> {
+    let mut floors: Option<(T, (T, T))> = None;
+    for &k in met {
+        let b = image.frame_box(k, t0, t1);
+        holds(b.x.0, band, k, SectorChannel::Azimuth)?;
+        if let ProjectedChart::Torus { major } = image.chart {
+            holds(
+                image.tube_box(k, &b, major).0.0,
+                band,
+                k,
+                SectorChannel::Tube,
+            )?;
+        }
+        let rho = ProjectedImage::rho_range(&b).0;
+        floors = Some(floors.map_or((rho, b.z), |(r, (lo, hi))| {
+            (r.min(rho), (lo.min(b.z.0), hi.max(b.z.1)))
+        }));
+    }
+    let Some(floors) = floors else {
+        unreachable!("`overlapped` names at least one piece")
+    };
+    Ok(floors)
+}
+
+/// The cone's `(σz)_min` over an axial range `(lo, hi)`, on the chart's
+/// nappe, less `d`; `0` off the cone, where it is not read.
+fn axial_less<T: Real>(chart: &ProjectedChart<T>, (lo, hi): (T, T), d: T) -> T {
+    match chart {
+        ProjectedChart::Cone {
+            nappe: Nappe::Mirror,
+            ..
+        } => T::zero() - hi - d,
+        ProjectedChart::Cone { .. } => lo - d,
+        _ => T::zero(),
+    }
+}
+
+/// [`Meters::over_at`] of a closed-form carrier's `|f|` bound `f`, its
+/// lever decided positive (check 4's sector refusal otherwise).
+fn closed_form_meters<T: Decide>(
+    meters: Meters<T>,
+    f: T,
+    rho: T,
+    axial: T,
+    band: Band,
+) -> Result<T, PcurveCertifyError> {
+    meters.over_at(f, rho, axial, |lever| {
+        require_positive(
+            "pcurve_projected_lever",
+            lever,
+            band,
+            PcurveCheck::Sector,
+            0,
+            sector_refused(0, SectorChannel::Lever),
+        )
+    })
 }
 
 /// Check 4 of a projected row (module docs): the envelope's terms, with
@@ -2250,28 +2345,7 @@ pub(super) fn projected_envelope<T: Decide>(
             // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
             // exact sup.
             let d = (*centre - tc).norm() + harmonic_sup(*a - ta, *b - tb);
-            // The stored circle's radial floor and axial range over the
-            // pieces the edge reads, off each piece's box.
-            let mut rho_lo: Option<T> = None;
-            let mut z: Option<(T, T)> = None;
-            for &k in &met {
-                let b = image.frame_box(k, t0, t1);
-                holds(b.x.0, band, k, SectorChannel::Azimuth)?;
-                if let ProjectedChart::Torus { major } = image.chart {
-                    holds(
-                        image.tube_box(k, &b, major).0.0,
-                        band,
-                        k,
-                        SectorChannel::Tube,
-                    )?;
-                }
-                let rho = ProjectedImage::rho_range(&b).0;
-                rho_lo = Some(rho_lo.map_or(rho, |m| m.min(rho)));
-                z = Some(z.map_or(b.z, |(lo, hi)| (lo.min(b.z.0), hi.max(b.z.1))));
-            }
-            let (Some(rho_lo), Some((z_lo, z_hi))) = (rho_lo, z) else {
-                unreachable!("`overlapped` names at least one piece")
-            };
+            let (rho_lo, z) = met_floors(image, &met, (t0, t1), band)?;
             // The larger of the boxes' radial floor and the whole
             // circle's (a quarter piece's box may hold the axis); the
             // twin is within `d` of the stored circle, and so is every
@@ -2305,23 +2379,8 @@ pub(super) fn projected_envelope<T: Decide>(
                         Meters::Plane | Meters::Sphere { .. } => unreachable!("answered above"),
                     };
                     let f = crate::circle_chart::form_sup(chart, tc, ta, tb);
-                    let axial = match image.chart {
-                        ProjectedChart::Cone {
-                            nappe: Nappe::Mirror,
-                            ..
-                        } => T::zero() - z_hi,
-                        _ => z_lo,
-                    } - d;
-                    meters.over_at(f, rho_floor, axial, |lever| {
-                        require_positive(
-                            "pcurve_projected_lever",
-                            lever,
-                            band,
-                            PcurveCheck::Sector,
-                            0,
-                            sector_refused(0, SectorChannel::Lever),
-                        )
-                    })?
+                    let axial = axial_less(&image.chart, z, d);
+                    closed_form_meters(meters, f, rho_floor, axial, band)?
                 }
             };
             #[cfg(test)]
@@ -2335,24 +2394,53 @@ pub(super) fn projected_envelope<T: Decide>(
                 dir: along,
             }),
         ) => {
-            let (true, &Surface::Cylinder { radius, .. }) = (has_lane(carrier, surface), surface)
-            else {
-                return Err(refuse("a line's projected image is written for a cylinder"));
-            };
-            for &k in &met {
-                let b = image.frame_box(k, t0, t1);
-                holds(b.x.0, band, k, SectorChannel::Azimuth)?;
+            if !has_lane(carrier, surface) {
+                return Err(refuse(
+                    "a line's projected image is written for a cylinder or a cone",
+                ));
             }
+            let (rho_lo, _) = met_floors(image, &met, (t0, t1), band)?;
             let (p, l) = (to_frame(at0 - o, &e), to_frame(along, &e));
             // The stored line's gap from the re-derived one is affine in
             // `t`, so its sup over the edge is at an end.
             let gap = |t: T| (point - p + (dir - l) * t).norm();
             let d = gap(t0).max(gap(t1));
-            (
-                line_off_cylinder_sup(p + l * t0, p + l * t1, radius),
-                d,
-                T::zero(),
-            )
+            let rho_floor = (rho_lo - d).max(T::zero());
+            let incidence = match Meters::of(&twin, &image.chart, |x| x) {
+                Some(Meters::Cylinder { radius }) => {
+                    line_off_cylinder_sup(p + l * t0, p + l * t1, radius)
+                }
+                // The cone's lever grows along a ruling from the apex, so
+                // `|f|` is converted per part of the edge, on the part's
+                // own floors: the twin's segment there, whose ends bound
+                // its box.
+                Some(meters @ Meters::Cone { sin, cos, .. }) => {
+                    let mut sup = T::zero();
+                    for k in 0..LINE_CUTS {
+                        let at = |j: usize| {
+                            let s = T::from_f64(j as f64 / LINE_CUTS as f64);
+                            p + l * (t0 + (t1 - t0) * s)
+                        };
+                        let (qa, qb) = (at(k), at(k + 1));
+                        let b = FrameBox {
+                            x: (qa.x.min(qb.x), qa.x.max(qb.x)),
+                            y: (qa.y.min(qb.y), qa.y.max(qb.y)),
+                            z: (qa.z.min(qb.z), qa.z.max(qb.z)),
+                        };
+                        let part = closed_form_meters(
+                            meters,
+                            line_off_cone_form(qa, qb, sin, cos),
+                            ProjectedImage::rho_range(&b).0,
+                            axial_less(&image.chart, b.z, T::zero()),
+                            band,
+                        )?;
+                        sup = sup.max(part);
+                    }
+                    sup
+                }
+                _ => unreachable!("`has_lane` admits a line on a cylinder or a cone"),
+            };
+            (incidence, d, rho_floor)
         }
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };
@@ -2564,7 +2652,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         _ => {
             return Err(refuse(
                 "the stored carrier is not the edge's carrier kind (a spline's net, a circle on \
-                 a curved analytic chart, or a line on a cylinder)",
+                 a curved analytic chart, or a line on a cylinder or a cone)",
             ));
         }
     }

@@ -194,9 +194,10 @@ pub(super) fn radial_fold() -> bool {
     on("radial-fold")
 }
 
-/// A line's distance from a cylinder read at the segment's two ends
-/// only, dropping the middle Bernstein coefficient: the sup misses a
-/// chord that dips toward the axis (its rows are `cylinder_line_rows`).
+/// A line's chart form read at the segment's two ends only, dropping
+/// the middle Bernstein coefficient: the sup misses a chord that dips
+/// toward the axis (its rows are `cylinder_line_rows` and
+/// `cone_line_rows`).
 pub(super) fn line_off_cylinder<T: Real>(f0: T, f1: T, _middle: T) -> Option<T> {
     on("line-cylinder-ends").then(|| f0.abs().max(f1.abs()))
 }

@@ -56,3 +56,28 @@ its deviation charged. Props' inventory: its ruling reading's lane
 choice, once the ruling question has one home (the two-units row).
 Each fix needs a row with an in-band ruling on
 the face's boundary.
+
+## Circles and cone lines reach them too (E4)
+
+Since PCERT E4 (`pcert/circle-general-lane`), a circle on a cylinder,
+cone or torus that the class readings do not show one of the chart's
+own circles (a cone circle that is no rim, a torus crest circle, any
+in-band class reading), and a cone ruling whose nappe reads in band,
+also image on the projected lane, where before they refused "not yet" at
+the mint. They meet the same three consumers:
+
+- the run walk ends `RunImageNotYet`, the ending their mint refusal
+  already took (`chord_join::run_image_refusal`);
+- the trim inventory refuses "Projected image is not a straight
+  segment", where before the face refused one door earlier;
+- props' curved inventory reads a face's boundary carriers themselves
+  (`props::curved`'s `cone_boundary` through `require_cone_circle` and
+  `require_cone_generator`, `torus_classify`), so a face bounded by a
+  circle that is none of its chart's, or by a cone line not shown a
+  generator, refuses there (`Premise::Inventory`, or its escalation in
+  band), again one door later than before.
+
+`topo::replace_face`'s offset arm answers `None` for a projected image
+(re-mint), which is right for a circle too. E4's per-PR runs (geom-brep,
+topo, sweep at ε 1e-9) reached none of the three through a circle: no
+row moved there.

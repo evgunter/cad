@@ -9082,13 +9082,12 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, cylinder, cone or torus, a line on a cylinder, a
-/// spline on any analytic chart), and otherwise
+/// circle on a sphere, cylinder, cone or torus, a line on a cylinder or a
+/// cone, a spline on any analytic chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. A line on a cone and an ellipse have no general lane
-/// yet (`work/pcert/`).
+/// was definite. An ellipse has no general lane yet (`work/pcert/`).
 /// Where the projected lane is taken, a circle's or a line's lane choice
 /// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
@@ -11764,6 +11763,9 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod circle_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod cone_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod cylinder_line_rows;

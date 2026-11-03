@@ -2,10 +2,11 @@
 id: a-circles-general-lane-is-written-only-on-the-sphere
 kind: issue
 title: A circle's general (projected) lane is written only on the sphere: on a cone, torus or cylinder a circle no closed form images refuses not yet, because the projected envelope has no certified circle-to-chart incidence sup there
-status: open
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: H
+closed: 2026-11-03
 ---
 
 
@@ -88,3 +89,23 @@ so `run_projected_checks` admits the circle there. Two shapes:
 Rows: a cone circle that is not a rim, a torus crest circle, and an
 in-band rim, each minting a projected image with its envelope bounding
 the sampled residual, at `f64` and at `Interval`.
+
+## Closed
+
+Unit E4 (`pcert/circle-general-lane`): `projected::has_lane` admits a
+circle on the cylinder, cone and torus, and a line on the cone. Check
+4's incidence term for the circle is the chart's canonical form along
+it, a trigonometric polynomial, bounded by its harmonics' sups
+(`circle_chart::form_sup`) and converted to metres by the net path's own
+conversion (`projected::Meters::over_at`) on the stored circle's floors
+less its fidelity; the cone line's is E2's Bernstein bound on the cone's
+form (`projected::line_off_cone_form`), converted per part of the edge.
+Rows: `pcurve_cache::circle_lane_rows` (a cone circle that is no rim, a
+torus crest circle, the in-band readings, the definite miss, the
+search) and `pcurve_cache::cone_line_rows`.
+
+Still unrouted, each filed: the ellipse
+(`an-ellipses-general-lane-is-written-on-no-chart`), and a non-ruling
+line within the band of a cone, which the cone arm reads as a ruling
+with no class gate
+(`a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate`).
