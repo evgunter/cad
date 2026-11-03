@@ -61,8 +61,9 @@
 //! name, whatever piece holds its midpoint. Where the carrier's place on
 //! the face is not read, on a spline face, whose chart is not read here,
 //! or for a spline or spiric carrier not certified off the face's surface
-//! along its whole length, an edge whose ends or a record put it on the
-//! face is taken to lie in it, and refuses where both its faces go into
+//! along its whole length, an edge a record names with the face, or both
+//! of whose ends lie on the face and whose midpoint the face holds, is
+//! taken to lie in it, and refuses where both its faces go into
 //! the face's material ([`EdgeInFaceGap::SplineFace`],
 //! [`EdgeInFaceGap::CarrierUnread`]). An edge it does not find, one
 //! touching the face where no record names it, stays
@@ -1006,9 +1007,10 @@ struct Names {
 /// there.
 ///
 /// Where the carrier's place on `f`'s surface is not read (a spline face;
-/// a spline or spiric carrier not certified off it, [`Placed::Unread`])
-/// and its ends or a record put the edge on `f`, the faces are read as
-/// for an in-band carrier: where both go into `f`'s material the edge
+/// a spline or spiric carrier not certified off it, [`Placed::Unread`]),
+/// the edge is taken to lie in `f` where a record names the pair, or
+/// where both its ends lie on `f` and `f` holds its midpoint, and the
+/// faces are then read as for an in-band carrier: where both go into `f`'s material the edge
 /// refuses with the reading's gap ([`EdgeInFaceGap::SplineFace`],
 /// [`EdgeInFaceGap::CarrierUnread`]); otherwise it does not lie in `f`.
 ///
@@ -1018,7 +1020,9 @@ struct Names {
 /// `f` holds a piece's midpoint, is in band and something other than a
 /// crossing names the pair; or where whether the carrier lies on `f`'s
 /// surface is in band, both the edge's faces go into `f`'s material and
-/// something other than a crossing names the pair.
+/// something other than a crossing names the pair; or, for an unread
+/// carrier only its ends name, where whether `f` holds its midpoint is in
+/// band.
 /// [`BooleanError::EdgeInFace`] with [`EdgeInFaceGap::Unread`] where the
 /// containment door does not place a piece's midpoint and no piece reads
 /// in `f`, in the same cases as an in-band midpoint; with
@@ -1057,15 +1061,29 @@ fn holding<T: Decide>(
     let on = match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
         Ok(Placed::On) => Ok(true),
         Ok(Placed::Off) => Ok(false),
-        // Nothing says the edge lies along no piece of the face: where
-        // its ends or a record put it on the face, it is read as an
+        // Nothing says the edge lies along no piece of the face. A record
+        // naming the pair puts it on the face; its ends alone put it there
+        // where the face also holds its midpoint. Either is read as an
         // in-band carrier is, and refuses where both its faces go into
         // the face's material.
-        Ok(Placed::Unread(gap)) if !crossed_only => Err(BooleanError::EdgeInFace {
+        Ok(Placed::Unread(gap)) if names.record => Err(BooleanError::EdgeInFace {
             edge: e,
             face: f,
             gap,
         }),
+        Ok(Placed::Unread(gap)) if names.ends => {
+            let mid = carrier.eval(geom::mid_param(t0, t1));
+            match piece_reading(body, f, mid, band, DoorInBand::Containment) {
+                Ok(PieceRead::In) => Err(BooleanError::EdgeInFace {
+                    edge: e,
+                    face: f,
+                    gap,
+                }),
+                Ok(PieceRead::NotIn) => return Ok(None),
+                Ok(PieceRead::Unread(why)) => return Err(unread(why)),
+                Err(read) => return Err(read),
+            }
+        }
         Ok(Placed::Unread(_)) => return Ok(None),
         Err(read) => Err(read),
     };
@@ -3007,6 +3025,50 @@ mod spline_rider {
             "the spline keel past the wall refuses unread, got {:?}",
             got.map(|(parted, _)| parted.len())
         );
+    }
+
+    /// **A spiric reads against a plane as a conic does**: on where the
+    /// plane is its own (`x = ½`), off where it is parallel and a
+    /// hundredth away, and off where it is tilted (`y = 0`, meeting the
+    /// oval at points only). Red on a reading that leaves a spiric in its
+    /// own plane unread (its rider would refuse where it lies in the
+    /// face's plane as a section edge does).
+    #[test]
+    fn a_spiric_reads_on_its_own_plane_and_off_any_other() {
+        let spiric = geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset: 0.5,
+        };
+        let plane =
+            |origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>| geom::Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            };
+        for (what, surface, want) in [
+            (
+                "its own plane",
+                plane(Point3::new(0.5, 3.0, -1.0), Vec3::unit_x(), Vec3::unit_y()),
+                Placed::On,
+            ),
+            (
+                "a parallel plane a hundredth away",
+                plane(Point3::new(0.51, 0.0, 0.0), -Vec3::unit_x(), Vec3::unit_y()),
+                Placed::Off,
+            ),
+            (
+                "a tilted plane",
+                plane(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
+                Placed::Off,
+            ),
+        ] {
+            let read = conic_or_line_on(&spiric, (0.0, 1.0), &surface, band());
+            assert_eq!(read.ok(), Some(want), "{what}");
+        }
     }
 
     /// A C0 quadratic B-spline whose `x` vanishes at the nine parameters
