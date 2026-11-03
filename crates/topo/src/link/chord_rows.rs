@@ -139,7 +139,16 @@ fn judged(
 /// off, from `2` below `p` to `2` above.
 fn read(p: Point3<f64>, ab: (f64, f64), carrier: Carrier, into: bool, up: bool) -> TouchVerdict {
     let floor = v(0.0, if up { 1.0 } else { -1.0 }, 0.0);
-    judged(p, ab, carrier, into, 1.0, floor, 1.0, [p - Z * 2.0, p + Z * 2.0])
+    judged(
+        p,
+        ab,
+        carrier,
+        into,
+        1.0,
+        floor,
+        1.0,
+        [p - Z * 2.0, p + Z * 2.0],
+    )
 }
 
 fn rests(t: &TouchVerdict) -> bool {
@@ -364,7 +373,10 @@ fn the_chord_is_the_half_plane_through_the_arcs_point() {
         square.dot(chord.bounds[1]) > 1.0 - 1e-12,
         "the fan's quarter turn from the edge is toward it: {square:?}"
     );
-    assert!((chord.sector.face.clear.unwrap() - 0.5).abs() < 1e-12, "the ball");
+    assert!(
+        (chord.sector.face.clear.unwrap() - 0.5).abs() < 1e-12,
+        "the ball"
+    );
 }
 
 /// **The lever stays inside the section's circle.** A cylinder of radius

@@ -45,3 +45,12 @@ face with the half-plane through the edge and `q` (a chord), and let
 on one side of the face's plane, so does the lens between them, so the
 two wedges meet the face's material alike. A cone ruling's
 cross-section turns along the edge, so it needs its own argument.
+
+## Build (2026-11-03, branch `restread/edge-on-ruling-in-face`)
+
+The row's chord, built (`link::FaceSector::chord`, `census::Link::chord_on_edge`), for a cylinder and for a cone. A cone's sections along the edge are one another scaled about its apex, which the face holding the edge holds, so the cone reads by the same argument. A tangent reading `Zero` with the arc's point decided reads by the bend. Every other sheet of the edge is held out of the lens (`link::chords_clear`). Witnesses:
+
+- **Real bodies** (`crates/sweep/tests/an_edge_on_a_ruling_lying_in_its_own_face.rs`): a ridge resting on its floor, its arc wall transverse or tangent, now passes; a zipped keel with an arc wall now refuses `FaceThroughEdgeWedge`. Both refused `FaceThroughEdgeWedgeUndecided { why: Unreadable }` before.
+- **Link-level rows** (`crates/topo/src/link/chord_rows.rs`): the tangent crossing and the cone, which no door builds today.
+
+The PR body has the argument, the mutants and the measurement.
