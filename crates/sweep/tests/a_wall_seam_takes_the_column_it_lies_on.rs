@@ -11,83 +11,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::semicircle_wall::{
+    arc_wall, band, derived, in_band, recharted, semicircle_prism, tol, wall_half_edges,
+};
 use geom::{NurbsSurface, Surface};
 use geom_brep::EdgeDescriptionSpec;
-use geom_core::{Point2, Point3, Tol};
+use geom_core::{Point2, Point3};
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use sweep::test_support::stacked_at;
 use topo::construction::Construct;
-use topo::construction::FaceSurface;
 use topo::{Body, FaceKey, HalfEdgeKey, Pcurve};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-/// A prism whose profile's second edge is a semicircle (bulge 1): its
-/// wall's knots mirror bitwise, so `reversed_u` and `reversed_v` both
-/// accept it.
-fn semicircle_prism() -> Body<f64> {
-    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
-    let profile = || {
-        vec![bulge_loop(vec![
-            v(0.0, 0.0, 0.0),
-            v(2.0, 0.0, 1.0),
-            v(2.0, 2.0, 0.0),
-            v(0.0, 2.0, 0.0),
-        ])]
-    };
-    sweep::loft_body::<f64>(&[profile(), profile()], &stacked_at(&[0.0, 1.0]), 1, tol())
-        .expect("the prism builds")
-        .body
-}
-
-/// The arc wall: the face whose rows include the `IsoArc` rims.
-fn arc_wall(body: &Body<f64>) -> FaceKey {
-    let rim = body
-        .pcurves()
-        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoArc { .. }))
-        .map(|(h, _)| h)
-        .expect("the prism has an arc rim");
-    body.face_of_half_edge(rim).unwrap()
-}
-
-/// The wall's half-edges.
-fn wall_half_edges(body: &Body<f64>, wall: FaceKey) -> Vec<HalfEdgeKey> {
-    body.half_edges()
-        .map(|(k, _)| k)
-        .filter(|&k| body.face_of_half_edge(k) == Some(wall))
-        .collect()
-}
-
-/// `body` with `wall` re-charted in place onto `remap(its surface)`,
-/// stating `sense`.
-fn recharted(
-    body: &Body<f64>,
-    wall: FaceKey,
-    remap: impl Fn(&NurbsSurface<f64>) -> NurbsSurface<f64>,
-    flip_sense: bool,
-) -> Body<f64> {
-    let mut out = body.clone();
-    let face = out.get_face(wall).unwrap();
-    let (key, sense) = (face.surface, face.sense);
-    let Some(Surface::Nurbs(net)) = out.get_surface(key).cloned() else {
-        panic!("the arc wall is a spline chart")
-    };
-    // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall
-    // re-charted in place onto the same surface reparameterized, its
-    // edges' descriptions left as they were, is the row's premise.
-    out.set_face_surface_unvouched_for_tests(
-        wall,
-        FaceSurface::New {
-            surface: Surface::Nurbs(std::sync::Arc::new(remap(&net))),
-            sense: sense != flip_sense,
-        },
-    )
-    .unwrap();
-    out
-}
 
 /// One stored wall row: its kind, its `p0`, and its moving channel.
 type Row = (&'static str, (f64, f64), (f64, f64));
@@ -120,7 +54,7 @@ fn stored_rows(body: &Body<f64>, wall: FaceKey) -> Vec<Row> {
 /// `u`. The native wall is the control, with every row forward.
 #[test]
 fn a_wall_reversed_in_v_takes_its_seams_reversed() {
-    let body = semicircle_prism();
+    let body = semicircle_prism::<f64>();
     let wall = arc_wall(&body);
     let mut native = body.clone();
     assert_eq!(
@@ -179,7 +113,7 @@ fn a_wall_reversed_in_v_takes_its_seams_reversed() {
 /// channels, and the mint stores them all.
 #[test]
 fn a_wall_reversed_in_u_and_v_takes_its_seams_reversed() {
-    let body = semicircle_prism();
+    let body = semicircle_prism::<f64>();
     let wall = arc_wall(&body);
     let mut reversed = recharted(
         &body,
@@ -203,24 +137,6 @@ fn a_wall_reversed_in_u_and_v_takes_its_seams_reversed() {
         ],
         "every row is the native one mirrored in u and v"
     );
-}
-
-/// The band's interior: a distance the probe can neither confirm nor
-/// rule out (between ε and K·ε).
-fn in_band() -> f64 {
-    tol().eps() * tol().k().sqrt()
-}
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(tol()).unwrap()
-}
-
-/// What `nurbs_iso_derive` answers for `h`, the stored row detached:
-/// `pcurve_of` answers a cached image first.
-fn derived(body: &Body<f64>, h: HalfEdgeKey) -> Result<Pcurve<f64>, topo::PcurveMintError> {
-    let mut fresh = body.clone();
-    fresh.detach_pcurve(h);
-    topo::pcurve_of(&fresh, h, band())
 }
 
 /// The wall's two seams: the half-edges the native mint stores as a
@@ -248,7 +164,7 @@ fn seams(body: &Body<f64>, wall: FaceKey) -> Vec<HalfEdgeKey> {
 /// escalates there; this row is the pick's.)
 #[test]
 fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
-    let body = semicircle_prism();
+    let body = semicircle_prism::<f64>();
     let arc = arc_wall(&body);
     let (flat, chart) = body
         .faces()
@@ -301,7 +217,7 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
 /// door ever does, this goes red and the path is owed a row.
 #[test]
 fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
-    let mut body = semicircle_prism();
+    let mut body = semicircle_prism::<f64>();
     let wall = arc_wall(&body);
     let wall_key = body.get_face(wall).unwrap().surface;
     let (edge, geom) = body
@@ -406,7 +322,7 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
 /// map, which certifies; the closed form does not.
 #[test]
 fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
-    let mut body = semicircle_prism();
+    let mut body = semicircle_prism::<f64>();
     let seam = body
         .pcurves()
         .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x == 0.0))
@@ -491,7 +407,7 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
 /// column, `v` running over the shifted domain.
 #[test]
 fn an_in_band_stated_column_gives_way_to_a_closed_form_that_holds() {
-    let body = semicircle_prism();
+    let body = semicircle_prism::<f64>();
     let (shifted, flat) = flat_wall_shifted_in_v(&body);
     for h in seams(&body, flat) {
         let got = derived(&shifted, h);
@@ -516,7 +432,7 @@ fn an_in_band_stated_column_gives_way_to_a_closed_form_that_holds() {
 /// seam moved into the band whole).
 #[test]
 fn an_in_band_stated_column_with_nothing_shown_takes_the_general_image() {
-    let body = semicircle_prism();
+    let body = semicircle_prism::<f64>();
     let (mut shifted, flat) = flat_wall_shifted_in_v(&body);
     let seam = seams(&body, flat)[0];
     let edge = shifted.get_half_edge(seam).unwrap().edge;

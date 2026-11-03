@@ -211,6 +211,32 @@ fn at_a_dual_the_diagonal_has_no_fitted_door_and_the_faces_stay_uncached() {
     );
 }
 
+/// The probe's reading of `image` against `h`'s carrier on the face it
+/// bounds.
+fn probe<T: AtRestPolicy>(
+    body: &Body<T>,
+    h: HalfEdgeKey,
+    image: Pcurve<T>,
+) -> Result<Option<Pcurve<T>>, geom_core::Indeterminate> {
+    let edge = body.get_half_edge(h).unwrap().edge;
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap();
+    let (t0, t1) = curve.params();
+    let surface = body
+        .face_surface(body.face_of_half_edge(h).unwrap())
+        .unwrap();
+    geom_brep::probe_pick(
+        "pcurve_iso_probe_row",
+        curve.carrier(),
+        (t0, t1 - t0),
+        surface,
+        band(),
+        [image],
+    )
+}
+
 /// **An in-band candidate takes the `General` image.** Lifted off the
 /// chart by a distance inside the band (ε, K·ε), the row edge's
 /// boundary-row candidate is undecided at the probe and every other
@@ -222,6 +248,15 @@ fn an_in_band_candidate_takes_the_general_image<T: AtRestPolicy + geom_core::Bou
     let tol = Tol::witness();
     let lift = tol.eps() * tol.k().sqrt();
     let (body, _, [row, _, _]) = lamina::<T>(lift);
+    // The pose: the row's own image, derived on the lamina at rest, is
+    // undecided at the probe once lifted.
+    let (rest, _, [rest_row, _, _]) = lamina::<T>(0.0);
+    let image = topo::pcurve_of(&rest, rest_row, band()).unwrap();
+    assert!(
+        probe(&body, row, image).is_err(),
+        "the row's own image reads in band, at {}",
+        T::NAME
+    );
     let got = topo::pcurve_of(&body, row, band());
     assert!(
         matches!(&got, Ok(image) if kind(image) == Kind::General),
@@ -353,6 +388,46 @@ fn an_intersection_seam_on_an_interior_column_takes_its_exact_column() {
 fn an_in_band_seam_takes_the_general_image<T: AtRestPolicy + geom_core::Bounds>() {
     let tol = Tol::witness();
     let lift = tol.eps() * tol.k().sqrt();
+    let (rest, rims) = holed_cap::<T>(2.0);
+    let (body, lifted_rims) = holed_cap::<T>(2.0 + lift);
+    assert_eq!(rims, lifted_rims, "one construction, one set of keys");
+    assert_eq!(rims.len(), 8, "two holes of four rims each");
+    for h in rims {
+        // The pose: the rim's own exact image on the cap at rest is
+        // undecided at the probe once lifted.
+        let image = derived(&rest, h).unwrap();
+        assert!(
+            matches!(kind(&image), Kind::Row(_) | Kind::Column(_)),
+            "{h:?}: at rest the rim is an iso, at {}",
+            T::NAME
+        );
+        assert!(
+            probe(&body, h, image).is_err(),
+            "{h:?}: its iso reads in band, at {}",
+            T::NAME
+        );
+        let got = derived(&body, h);
+        assert!(
+            matches!(&got, Ok(image) if kind(image) == Kind::General),
+            "{h:?}: a rim in the band derives its General image, at {}: {got:?}",
+            T::NAME
+        );
+    }
+}
+
+/// What the derivation answers for `h`, the stored row detached.
+fn derived<T: AtRestPolicy>(body: &Body<T>, h: HalfEdgeKey) -> Result<Pcurve<T>, PcurveMintError> {
+    let mut b = body.clone();
+    b.detach_pcurve(h);
+    topo::pcurve_of(&b, h, band())
+}
+
+/// The bored block with two square holes, its top cap re-charted onto
+/// the bilinear patch `(u, v) ↦ (3u, 2v, z)`, every edge described as
+/// the intersection of its two faces' surfaces; with the holes' rim
+/// half-edges on the cap.
+fn holed_cap<T: AtRestPolicy + geom_core::Bounds>(z: f64) -> (Body<T>, Vec<HalfEdgeKey>) {
+    let tol = Tol::witness();
     let mut body = topo::test_support::holed_block::<T>(3.0, &[0.75, 2.25], tol);
     topo::test_support::describe_as_intersections(&mut body, tol);
     let top = body
@@ -367,7 +442,6 @@ fn an_in_band_seam_takes_the_general_image<T: AtRestPolicy + geom_core::Bounds>(
         .map(|(k, _)| k)
         .expect("the top cap holds the holes");
     let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let z = 2.0 + lift;
     let patch = NurbsSurface::new(
         unit(),
         unit(),
@@ -380,8 +454,8 @@ fn an_in_band_seam_takes_the_general_image<T: AtRestPolicy + geom_core::Bounds>(
         vec![1.0; 4],
     )
     .unwrap();
-    // Lifts RechartStrandsDescriptions: the cap on a chart the band's
-    // width off its rims is the row's premise.
+    // Lifts RechartStrandsDescriptions: the cap on a chart at or a
+    // band's width off its rims is the row's premise.
     body.set_face_surface_unvouched_for_tests(
         top,
         FaceSurface::New {
@@ -391,22 +465,13 @@ fn an_in_band_seam_takes_the_general_image<T: AtRestPolicy + geom_core::Bounds>(
     )
     .unwrap();
     let rings = body.get_face(top).unwrap().rings.clone();
-    let rims: Vec<HalfEdgeKey> = body
+    let mut rims: Vec<HalfEdgeKey> = body
         .half_edges()
         .filter(|(_, he)| rings.contains(&he.parent_loop))
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(rims.len(), 8, "two holes of four rims each");
-    for h in rims {
-        let mut b = body.clone();
-        b.detach_pcurve(h);
-        let got = topo::pcurve_of(&b, h, band());
-        assert!(
-            matches!(&got, Ok(image) if kind(image) == Kind::General),
-            "{h:?}: a rim in the band derives its General image, at {}: {got:?}",
-            T::NAME
-        );
-    }
+    rims.sort();
+    (body, rims)
 }
 
 #[test]

@@ -17,72 +17,29 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{NurbsSurface, Surface};
+use crate::common::semicircle_wall::{
+    arc_wall, band, derived, in_band, recharted, semicircle_prism, wall_half_edges,
+};
 use geom_brep::PcurveCertifyError;
-use geom_core::{Bounds, Point2, Tol, Vec3};
-use profile::test_support::bulge_loop;
-use sweep::test_support::{lift_places, lift_sections, stacked_at};
-use topo::construction::Construct;
-use topo::construction::FaceSurface;
+use geom_core::{Bounds, Vec3};
 use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, Pcurve, PcurveMintError};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(tol()).unwrap()
-}
-
-/// The band's interior: a distance the probe can neither confirm nor
-/// rule out (between ε and K·ε).
-fn in_band() -> f64 {
-    tol().eps() * tol().k().sqrt()
-}
 
 /// A distance decided off: far past `K·ε` at every tolerance row.
 const OFF: f64 = 1e-3;
 
-/// The semicircle prism at `T`, its wall rows minted.
-fn semicircle_prism<T: AtRestPolicy>() -> Body<T> {
-    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
-    let profile = || {
-        vec![bulge_loop(vec![
-            v(0.0, 0.0, 0.0),
-            v(2.0, 0.0, 1.0),
-            v(2.0, 2.0, 0.0),
-            v(0.0, 2.0, 0.0),
-        ])]
-    };
-    sweep::loft_body::<T>(
-        &lift_sections::<T>(&[profile(), profile()]),
-        &lift_places::<T>(&stacked_at(&[0.0, 1.0]), tol()),
-        1,
-        tol(),
-    )
-    .expect("the prism builds")
-    .body
-}
-
 /// The arc wall, its rims (the `IsoArc` rows) and its seams (the
 /// columns, `u` held).
-fn arc_wall<T: AtRestPolicy + Bounds>(
+fn wall_rows<T: AtRestPolicy + Bounds>(
     body: &Body<T>,
 ) -> (FaceKey, Vec<HalfEdgeKey>, Vec<HalfEdgeKey>) {
-    let rim = body
-        .pcurves()
-        .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoArc { .. }))
-        .map(|(h, _)| h)
-        .expect("the prism has an arc rim");
-    let wall = body.face_of_half_edge(rim).unwrap();
+    let wall = arc_wall(body);
     let (mut rims, mut seams) = (Vec::new(), Vec::new());
-    for (h, c) in body.pcurves() {
-        if body.face_of_half_edge(h) != Some(wall) {
-            continue;
-        }
-        match c.pcurve() {
-            Pcurve::IsoArc { .. } => rims.push(h),
-            Pcurve::IsoLine { pl, .. } if pl.x.lo() == 0.0 && pl.x.hi() == 0.0 => seams.push(h),
+    for h in wall_half_edges(body, wall) {
+        match body.pcurve(h).map(|c| c.pcurve()) {
+            Some(Pcurve::IsoArc { .. }) => rims.push(h),
+            Some(Pcurve::IsoLine { pl, .. }) if pl.x.lo() == 0.0 && pl.x.hi() == 0.0 => {
+                seams.push(h);
+            }
             other => panic!("{h:?}: the wall's rows are exact iso images: {other:?}"),
         }
     }
@@ -93,34 +50,26 @@ fn arc_wall<T: AtRestPolicy + Bounds>(
 /// `body` with `wall` re-charted in place onto its surface moved by
 /// `lift`.
 fn moved<T: AtRestPolicy>(body: &Body<T>, wall: FaceKey, lift: Vec3<f64>) -> Body<T> {
-    let mut out = body.clone();
-    let face = out.get_face(wall).unwrap();
-    let (key, sense) = (face.surface, face.sense);
-    let Some(Surface::Nurbs(net)) = out.get_surface(key).cloned() else {
-        panic!("the arc wall is a spline chart")
-    };
     let lift = lift.map(T::from_f64);
-    let net: NurbsSurface<T> = net.map_points(|p| p + lift);
-    // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall
-    // re-charted in place onto its surface moved, its edges'
-    // descriptions left as they were, is the row's premise.
-    out.set_face_surface_unvouched_for_tests(
-        wall,
-        FaceSurface::New {
-            surface: Surface::Nurbs(std::sync::Arc::new(net)),
-            sense,
-        },
-    )
-    .unwrap();
-    out
+    recharted(body, wall, |net| net.map_points(|p| p + lift), false)
 }
 
-/// What `nurbs_iso_derive` answers for `h`, the stored row detached:
-/// `pcurve_of` answers a cached image first.
-fn derived<T: AtRestPolicy>(body: &Body<T>, h: HalfEdgeKey) -> Result<Pcurve<T>, PcurveMintError> {
-    let mut fresh = body.clone();
-    fresh.detach_pcurve(h);
-    topo::pcurve_of(&fresh, h, band())
+/// The carrier and interval of `h`'s edge, and the surface of the face
+/// it bounds.
+fn edge_on_wall<T: AtRestPolicy>(
+    body: &Body<T>,
+    h: HalfEdgeKey,
+) -> (geom::Curve3<T>, (T, T), geom::Surface<T>) {
+    let edge = body.get_half_edge(h).unwrap().edge;
+    let curve = body
+        .get_curve_geom(body.get_edge(edge).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap();
+    let surface = body
+        .face_surface(body.face_of_half_edge(h).unwrap())
+        .unwrap()
+        .clone();
+    (curve.carrier().clone(), curve.params(), surface)
 }
 
 /// **A seam in the band takes its `General` image.** The wall moved
@@ -129,9 +78,26 @@ fn derived<T: AtRestPolicy>(body: &Body<T>, h: HalfEdgeKey) -> Result<Pcurve<T>,
 /// all undecided at the probe, and the seam takes the general lane.
 fn a_seam_in_the_band_takes_its_general_image<T: AtRestPolicy + Bounds>() {
     let body = semicircle_prism::<T>();
-    let (wall, _, seams) = arc_wall(&body);
+    let (wall, _, seams) = wall_rows(&body);
     let lifted = moved(&body, wall, Vec3::new(0.0, in_band(), 0.0));
     for h in seams {
+        // The pose: the seam's own column, stored on the native wall, is
+        // undecided at the probe on the moved one.
+        let column = body.pcurve(h).unwrap().pcurve().clone();
+        let (carrier, (t0, t1), surface) = edge_on_wall(&lifted, h);
+        assert!(
+            geom_brep::probe_pick(
+                "pcurve_iso_wall_seam",
+                &carrier,
+                (t0, t1 - t0),
+                &surface,
+                band(),
+                [column],
+            )
+            .is_err(),
+            "{h:?}: the seam's column reads in band, at {}",
+            T::NAME
+        );
         let got = derived(&lifted, h);
         assert!(
             matches!(got, Ok(Pcurve::General(_))),
@@ -159,10 +125,27 @@ fn a_seam_in_the_band_takes_its_general_image_at_interval() {
 /// that gap: the same refusal, ending "not yet" with no tolerance offer.
 fn a_rim_in_the_band_refuses_as_one_off_its_row<T: AtRestPolicy + Bounds>() {
     let body = semicircle_prism::<T>();
-    let (wall, rims, _) = arc_wall(&body);
+    let (wall, rims, _) = wall_rows(&body);
     let near = moved(&body, wall, Vec3::new(0.0, 0.0, in_band()));
     let far = moved(&body, wall, Vec3::new(0.0, 0.0, OFF));
     for h in rims {
+        // The poses: every row in band at the pick on the near wall,
+        // every row decided off on the far one.
+        let pick = |b: &Body<T>| {
+            let (carrier, (t0, t1), surface) = edge_on_wall(b, h);
+            geom_brep::pick_arc_rim(&carrier, (t0, t1 - t0), &surface, band()).map(|p| p.is_some())
+        };
+        assert!(
+            pick(&near).is_err(),
+            "{h:?}: the pick reads in band, at {}",
+            T::NAME
+        );
+        assert_eq!(
+            pick(&far),
+            Ok(false),
+            "{h:?}: the pick decides every row off, at {}",
+            T::NAME
+        );
         let got = derived(&near, h);
         let Err(
             ref refused @ PcurveMintError::Certify {
