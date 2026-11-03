@@ -7133,7 +7133,8 @@ fn given_verdicts<T: Decide>(
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
                 if let Some(line) = given.line {
                     let (origin, dir) = line;
-                    let (_, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+                    let (_, overlap) =
+                        witness_span(a, fa, b, fb, &geom::Line { origin, dir }, band, pad)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
                         &geom::Curve3::Line(geom::Line { origin, dir }),
@@ -7367,7 +7368,8 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let (span, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
+            let (span, overlap) =
+                witness_span(a, fa, b, fb, &geom::Line { origin, dir }, band, pad)?;
             Ok(Ok(TangentLine {
                 carrier: geom::Curve3::Line(geom::Line { origin, dir }),
                 span,
@@ -7862,21 +7864,21 @@ fn witness_span<T: Decide>(
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    line: &geom::Line<T>,
     band: Band,
     pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
-    let along = |p: Point3<T>| (p - origin).dot(dir);
+    let along = |p: Point3<T>| line.param(p);
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
         let invalid = |what| BooleanError::InvalidInput { operand, what };
         let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
             .into_iter()
             .map(along)
             .collect();
-        match conic_reach(body, f, along, dir) {
+        match conic_reach(body, f, along, line.dir) {
             Some(extra) => ts.extend(extra),
             None => {
-                let aim = geom_core::UnitVec3::new(dir, "bool_tangent_line_aim", band)
+                let aim = geom_core::UnitVec3::new(line.dir, "bool_tangent_line_aim", band)
                     .map_err(|_| invalid("the tangent line has no direction"))?;
                 let (lo, hi) =
                     crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
