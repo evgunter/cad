@@ -301,14 +301,14 @@ pub(crate) fn boundary<T: Decide>(
     let mut null = Vec::new();
     for (i, (_, members)) in body.face_boundary_by_loop(face, f).enumerate() {
         for member in members {
+            // A lone ring vertex bounds no area; an outer loop must.
+            if i == 0 && matches!(member, BoundaryMember::Isolated { .. }) {
+                return Err(corrupt());
+            }
             let BoundaryMember::Edge {
                 ek: edge_key, edge, ..
             } = member
             else {
-                // A lone ring vertex bounds no area; an outer loop must.
-                if i == 0 {
-                    return Err(corrupt());
-                }
                 continue;
             };
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
