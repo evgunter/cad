@@ -958,12 +958,19 @@ extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
 or ends at a node (Edge descriptions): a node is
 decided on the pose as a Zero tangency whose section still has
-carriers, placed in closed form or enclosed alone in a certified box,
-and a site at it reads as the node. The value lists each node with the
-surfaces' common normal, its two tangent lines and the side of each
-other the surfaces lie on in the sectors between them, all read off
-their relative second fundamental form there, indefinite and
-nondegenerate. Each arc end at a node names its line and the sense it
+carriers, or as a cone's apex lying on the other surface, placed in
+closed form or enclosed alone in a certified box, and a site at it
+reads as the node. The value lists each node with a normal, its two
+tangent lines and the side of each other the surfaces lie on in the
+sectors between them, all read off the section's quadratic form there,
+indefinite and nondegenerate: at a tangency the surfaces' relative
+second fundamental form, with their common normal; at a cone's apex the
+cone's form restricted to the other surface's tangent plane there,
+with that surface's normal, the lines the two rulings in that plane.
+At an apex that form definite is a touch, the apex an isolated point
+of the section; degenerate, a ruling in the tangent plane, refuses
+against a curved surface, and against a plane is the section's own
+line. Each arc end at a node names its line and the sense it
 leaves along. A germ leaving a node is minted from its arc end, and no
 reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
@@ -975,7 +982,8 @@ common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
 distance where parallel. A pair with a ruled side reads its pose on the
 sweep of the discriminant along that side's rulings: its double root
 the tangency, decided on the pose, the arcs where it is positive the
-components, a cone's apex a closed-form margin, and for two cylinders
+components, a cone's apex on the other surface a closed-form margin
+(its residual there), whose Zero is a node or a touch, and for two cylinders
 the margins above its extremes. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
@@ -1756,7 +1764,7 @@ locus, so the implicit function theorem makes S₁∩S₂ locally a
 1-manifold; the margin (angle between normals) governs the conditioning
 of every derived cache. A branch may end at a *node*, a point where
 it crosses another branch of the same pair and the two surfaces are
-tangent (two equal cylinders with intersecting axes: their section is
+tangent, or one is a cone singular there, at its apex (two equal cylinders with intersecting axes: their section is
 two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
 connected set, so the witness selects the branch, and transversality
 holds on the open edge, which is where certification samples it. A tangency's validity sits one
