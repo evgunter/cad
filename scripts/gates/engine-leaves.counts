@@ -1,41 +1,41 @@
 # `[topo.homes]`'s engine-door sites, pinned per kind and file
-# (scripts/gates/engine-leaves.sh, counted by engine_leaves.py). The move
-# list: a count only falls, and the change that clears a site lowers or
-# drops its line. FILE is relative to crates/topo/src/.
+# (scripts/gates/engine-leaves.sh, counted by engine_leaves.py, whose KINDS
+# block says what each kind is). The move list: a count only falls, and
+# the change that clears a site lowers or drops its line. FILE is relative
+# to crates/topo/src/.
 #
-#   KIND COUNT FILE
-#     names-boolean, names-splitting   a file outside both engines naming one
-#     boolean-names-splitting          a boolean/ file naming splitting
-#     splitting-names-boolean          a splitting/ file naming boolean
-#     crate-visible                    a crate-wide qualifier that is not `pub`,
-#                                      declared inside an engine
+#   KIND COUNT FILE      count >= 1; one line per kind and file
+#   ambiguous NAME       an item an engine declares whose name is also
+#                        declared outside the engines (or in both): counted
+#                        only where a path or an import through the engine
+#                        spells it, or as `crate::NAME` for a root
+#                        re-export of it. After the `#`, where else it is
+#                        declared (a note the gate does not check).
 #
-#   ambiguous NAME
-#     an item an engine declares whose name is also declared outside the
-#     engines (or in both): counted only where a path or an import through
-#     the engine spells it, never by its bare name alone. After the `#`,
-#     where else it is declared (as of the line's last edit; the gate
-#     checks the names, not this note).
+# `refused-binding` lines are today's second names for engine items
+# (`use … as Q`, `type Q = …`): the kind admits no new site, and each line
+# goes when its rename does.
+#
+# Not checked here: that a PR's pins are no higher than its base's (CI
+# checks out one commit, so a raised pin reads only in review), and the
+# counter's over-counts (a name it reads as the engine's where a namesake
+# was meant; engine_leaves.py states them), which err the safe way.
 
-
-boolean-names-splitting     3  boolean/carrier_cross.rs
+boolean-names-splitting     2  boolean/carrier_cross.rs
 boolean-names-splitting     2  boolean/carrier_touch.rs
 boolean-names-splitting     1  boolean/carrier_touch_rows.rs
-boolean-names-splitting    71  boolean/contain.rs
+boolean-names-splitting    72  boolean/contain.rs
 boolean-names-splitting    13  boolean/factored_crossing.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting     7  boolean/finish.rs
-boolean-names-splitting     1  boolean/glue.rs
 boolean-names-splitting    21  boolean/insert.rs
 boolean-names-splitting    16  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting    11  boolean/mod.rs
-boolean-names-splitting     2  boolean/node.rs
-boolean-names-splitting    11  boolean/offer_rows.rs
-boolean-names-splitting    27  boolean/ops.rs
-boolean-names-splitting     6  boolean/records.rs
+boolean-names-splitting     8  boolean/offer_rows.rs
+boolean-names-splitting    17  boolean/ops.rs
 boolean-names-splitting    23  boolean/reduce.rs
-boolean-names-splitting    26  boolean/refusal_routes.rs
+boolean-names-splitting    20  boolean/refusal_routes.rs
 boolean-names-splitting    17  boolean/region.rs
 boolean-names-splitting     1  boolean/rim_wedge.rs
 boolean-names-splitting     3  boolean/ruled_region.rs
@@ -44,10 +44,7 @@ boolean-names-splitting     4  boolean/slit.rs
 boolean-names-splitting    37  boolean/solid_contain.rs
 boolean-names-splitting     6  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
-boolean-names-splitting     7  boolean/torn_hop_rows.rs
 boolean-names-splitting    22  boolean/torus_region.rs
-boolean-names-splitting     1  boolean/trace.rs
-boolean-names-splitting     2  boolean/vtxfac.rs
 
 crate-visible              66  boolean/boxes.rs
 crate-visible              10  boolean/carrier_eq.rs
@@ -102,13 +99,13 @@ names-boolean               7  attach.rs
 names-boolean              14  body.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             458  census.rs
+names-boolean             500  census.rs
 names-boolean               2  census/curved.rs
 names-boolean              33  census/depth_gap.rs
 names-boolean              26  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
 names-boolean               3  census/point.rs
-names-boolean              33  census/self_touch.rs
+names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean               3  chart_groups.rs
 names-boolean               4  chart_region.rs
@@ -129,7 +126,7 @@ names-boolean               1  fuse.rs
 names-boolean               4  injective.rs
 names-boolean              14  instance.rs
 names-boolean               1  joint.rs
-names-boolean              75  lib.rs
+names-boolean              77  lib.rs
 names-boolean              99  lineage.rs
 names-boolean               3  link.rs
 names-boolean              88  link/cone_fuzz.rs
@@ -162,16 +159,16 @@ names-boolean               1  split.rs
 names-boolean              26  stands.rs
 names-boolean               1  star.rs
 names-boolean               2  surgery.rs
-names-boolean               1  test_support_fixtures.rs
+names-boolean               2  test_support_fixtures.rs
 names-boolean              28  test_support_holdings.rs
-names-boolean              29  test_support_samples.rs
+names-boolean              31  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
-names-boolean              46  tier3_tests.rs
+names-boolean              48  tier3_tests.rs
 names-boolean               2  turn_rows.rs
-names-boolean              83  validate.rs
+names-boolean              85  validate.rs
 
 names-splitting            10  cell_region.rs
-names-splitting            49  census.rs
+names-splitting            56  census.rs
 names-splitting             1  census/self_touch.rs
 names-splitting            42  chord_join.rs
 names-splitting             7  chord_join/sibling_escalation_rows.rs
@@ -185,16 +182,27 @@ names-splitting             2  separation.rs
 names-splitting             2  shell.rs
 names-splitting             2  surgery.rs
 names-splitting             2  test_support_fixtures.rs
-names-splitting            23  test_support_samples.rs
+names-splitting            27  test_support_samples.rs
 names-splitting            13  tier3_tests.rs
-names-splitting            40  validate.rs
+names-splitting            44  validate.rs
 names-splitting            31  vertex_section.rs
+
+refused-binding             2  boolean/contain.rs
+refused-binding             1  boolean/reduce.rs
+refused-binding             5  census.rs
+refused-binding             1  census/self_touch.rs
+refused-binding             2  props.rs
+refused-binding             1  props/quad_lane.rs
+refused-binding             2  review_d18.rs
+refused-binding             1  test_support_holdings.rs
+refused-binding             2  test_support_samples.rs
+refused-binding             6  validate.rs
 
 splitting-names-boolean    14  splitting/classify.rs
 splitting-names-boolean    16  splitting/containment.rs
-splitting-names-boolean    50  splitting/finish.rs
+splitting-names-boolean    51  splitting/finish.rs
 splitting-names-boolean     5  splitting/insert.rs
-splitting-names-boolean     2  splitting/mod.rs
+splitting-names-boolean     3  splitting/mod.rs
 splitting-names-boolean     4  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/rules.rs
 splitting-names-boolean     2  splitting/section.rs
@@ -229,7 +237,6 @@ ambiguous Touch                          # census/point.rs
 ambiguous anchor                         # injective.rs, validate.rs
 ambiguous apart                          # injective.rs, ray_walk.rs
 ambiguous boundary                       # link/cleared_rows.rs
-ambiguous cases                          # link/oracle_rows.rs
 ambiguous certify                        # policy_lane.rs
 ambiguous chord                          # link.rs, replace_face.rs
 ambiguous classify                       # offset_axial.rs
@@ -257,7 +264,6 @@ ambiguous span                           # census/curved.rs
 ambiguous spiric_cap                     # census.rs
 ambiguous split                          # census/depth_gap.rs, clearance.rs, link/cone_fuzz.rs, props.rs
 ambiguous sweep_pad                      # lib.rs
-ambiguous synthetic                      # census.rs
 ambiguous through_the_join               # both engines
 ambiguous torus_chart_window             # census.rs
 ambiguous uncrossable                    # test_support_samples.rs, validate.rs

@@ -1,53 +1,58 @@
 """`[topo.homes]`'s engine-door census, read by `engine-leaves.sh`.
 
 Reads `gate_rust_code`'s `path:line:code` records of `crates/topo/src` on
-stdin (comments and literals already stripped) and counts, per file:
-
-- `names-<engine>`: in a file outside both engines, every site naming
-  that engine — a path through its module (`crate::boolean::…`, any
-  alias of `crate` before it, a `use` leaf through it, `use
-  crate::boolean as b`), and every occurrence of an item DECLARED under
-  it, by name, however the name got into scope (an alias, a hub's
-  re-export, `use super::X`, a glob, the root's `pub use`);
-- `<engine>-names-<other>`: the same, in one engine's files, for the
-  other engine;
-- `crate-visible`: in an engine's files, every visibility qualifier that
-  reaches the whole crate without being `pub`.
+stdin (comments and literals already stripped) and counts, per file and
+KIND (the block below): every site naming an engine from outside it —
+a path through its module, and every occurrence of an item DECLARED
+under it, BY NAME, however the name reached scope (a hub's re-export,
+`use super::X`, a glob, the root's own `pub use`) — the crate-wide
+qualifiers declared inside an engine, and the constructs it refuses.
 
     engine_leaves.py BASELINE CARGO_TOML
 
-Prints `NEW kind file: now (allowed was) at L…`, `STALE kind file:
-allowed was, now now`, `AMBIGUOUS-NEW name: …` / `AMBIGUOUS-GONE name`,
-`MALFORMED …`, `REFUSED …`, then `TOTAL n`. The gate decides from them.
+Prints `ROSE kind file: was -> now (the file's counted sites: L…)`,
+`FELL kind file: was -> now`, `AMBIGUOUS-NEW name: …`, `AMBIGUOUS-GONE
+name`, `MALFORMED …`, then `TOTAL n`; `REFUSED …` on stderr when it
+cannot read its subject. The gate decides from them.
+
+BY NAME IS SOUND ONLY IF EVERY ITEM IS SPELLED BY ITS OWN NAME, so a
+second name is REFUSED (`refused_bindings`, kind `refused-binding`):
+`use crate as C`, `use crate::{self as C}`, `use super::{self as C}`
+reaching the root, `extern crate self as …`, a leading `::topo::` path,
+an `as` rename of an engine item or module in a `use` (lib.rs's
+top-level re-exports included), a module-level `type` alias naming an
+engine item, and a `macro_rules!` body outside the engine spelling one.
+A macro is refused rather than counted because its expansion sites are
+invisible: one count could not stand for its uses.
 
 WHICH NAMES. The items an engine declares at module level (a file's top
 level or an inline `mod`'s — never a method, field or local) that are
-visible outside it: `pub`, or a qualifier reaching the crate. A name also
-declared at module level in a file outside the engines, or in both
-engines, cannot be told apart by name: it is AMBIGUOUS, counted only
-where a path through the engine spells it or its occurrence resolves (per
-inline module, through `use super::*`) to an import through the engine,
-and the baseline lists every such name so the exclusion is read rather
-than silent.
-
-WHAT IT CANNOT SEE. A method an engine declares on a type outside it
-(`impl Body { … }` under `boolean/`) is not a name it declares. A
-lowercase name passed point-free (`map(f)`), unqualified, is not read.
-An ambiguous name reached through a hub or a glob that is not the
-engine's own (`use crate::hub::X`, `use crate::*`) cannot be told from
-its namesake and is not counted. A bare name imported by a glob from an
-external crate (`use geom_brep::*`) is read as the engine's. Macros are
-not expanded. Callers outside `topo` are consumers of the doors and are
-not read.
+visible outside it: `pub`, a qualifier reaching the crate, or
+`#[macro_export]` for a macro. A name also declared at module level
+outside the engines, or in both, is AMBIGUOUS: counted only where a path
+or an import through the engine spells it, where it resolves (per inline
+module, through `use super::*`) to such an import, or as `crate::NAME`
+for a NAME lib.rs re-exports from the engine. The baseline lists every
+such name, so the exclusion is read rather than silent.
 
 WHAT AN OCCURRENCE IS. A token of the name, not after `.` (a method or
-field), not qualified by an external crate or a capitalised segment
-(`geom_brep::X`, `Self::x`, `T::x`), and not in a file that imports the
-name from an external crate. A lowercase name (a function) counts only
-called (`f(`, `f::<`), as a macro (`f!`), path-qualified, or imported,
-so a local or field of the same spelling is not read as it. `lib.rs`'s
-top-level `pub use` declarations are the doors' re-exports and are not
-read.
+field), not qualified by an external crate, and not resolving to an
+external crate's import. Under a capitalised head (`H::name`) it counts
+unless H is `Self`, a type parameter, a std type, a type declared
+outside the engines or imported from elsewhere, or an engine name
+(counted itself). A lowercase name counts only called (`f(`, `f::<`),
+as a macro (`f!`), path-qualified, or imported, and never as `f::…`
+(a module of that name).
+
+WHAT IT CANNOT SEE. A method an engine declares on a type outside it
+(`impl Body` under `boolean/`) is not a name it declares. A lowercase
+name passed point-free and unqualified (`map(f)`). An ambiguous name
+through a non-engine hub or glob (`use crate::hub::X`, `use crate::*`).
+An associated `type` in an `impl` (only its own right side is a site).
+OVER-COUNTS, the safe direction: a bare name imported by a glob from an
+external crate, an unknown capitalised head, a local closure called like
+an engine function. Not expanded: macros. Not read: callers outside
+`topo`, which are consumers of the doors.
 """
 import os
 import re
@@ -57,8 +62,16 @@ from collections import defaultdict
 
 ENGINES = ('boolean', 'splitting')
 SRC = 'crates/topo/src/'
+# THE KINDS, stated once (the counts file's header points here):
+#   names-boolean, names-splitting  a file outside both engines naming one
+#   boolean-names-splitting         a boolean/ file naming splitting
+#   splitting-names-boolean         a splitting/ file naming boolean
+#   crate-visible                   a crate-wide qualifier that is not `pub`,
+#                                   declared inside an engine
+#   refused-binding                 a second name bound to an engine item or
+#                                   module, or to this crate (refused_bindings)
 KINDS = ('names-boolean', 'names-splitting', 'boolean-names-splitting',
-         'splitting-names-boolean', 'crate-visible')
+         'splitting-names-boolean', 'crate-visible', 'refused-binding')
 ITEM_KW = {'fn', 'struct', 'enum', 'trait', 'type', 'const', 'static'}
 QUALIFIERS = {'const', 'async', 'unsafe', 'extern', 'default'}
 TOKEN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|\d[\w.]*|::|\S')
@@ -180,7 +193,8 @@ class File:
                 continue
             nxt = toks[i + 1][0] if i + 1 < len(toks) else ''
             if t == 'macro_rules' and nxt == '!' and i + 2 < len(toks):
-                out.append((toks[i + 2][0], ['pub'], i))
+                exported = i >= 4 and [x for x, _ in toks[i - 4:i]] == ['#', '[', 'macro_export', ']']
+                out.append((toks[i + 2][0], ['pub'] if exported else [], i))
             elif t == 'union' and is_ident(nxt) and i + 2 < len(toks) and toks[i + 2][0] in '{<':
                 out.append((nxt, self.visibility(i), i))
             elif t in ITEM_KW:
@@ -191,6 +205,27 @@ class File:
                 if t in ('struct', 'enum', 'trait', 'type', 'fn', 'const', 'static') \
                         and is_ident(nxt) and nxt != '_' and not (i >= 1 and toks[i - 1][0] in ('impl', 'dyn', '&', '<', ',', '(')):
                     out.append((nxt, self.visibility(i), i))
+        return out
+
+    def type_params(self):
+        """Every name declared as a type parameter anywhere in the file
+        (`<T: Real, const N: usize>` after an item keyword or `impl`)."""
+        toks, out = self.toks, {'Self'}
+        for i, (t, _) in enumerate(toks):
+            j = i + 1 if t == 'impl' else i + 2
+            if t not in ('fn', 'struct', 'enum', 'trait', 'type', 'union', 'impl') or j >= len(toks) \
+                    or toks[j][0] != '<':
+                continue
+            depth, k = 0, j
+            while k < len(toks):
+                x = toks[k][0]
+                depth += x == '<'
+                depth -= x == '>'
+                if depth == 0:
+                    break
+                if depth == 1 and is_ident(x) and toks[k - 1][0] in ('<', ',', 'const') and x != 'const':
+                    out.add(x)
+                k += 1
         return out
 
     def prefix(self, i):
@@ -247,67 +282,161 @@ class File:
         return leaves
 
 
+STD_HEADS = {'Self', 'Vec', 'Option', 'Result', 'Box', 'String', 'Some', 'None', 'Ok', 'Err',
+             'Default', 'Iterator', 'IntoIterator', 'From', 'Into', 'TryFrom', 'TryInto', 'Clone',
+             'Copy', 'PartialEq', 'PartialOrd', 'Ord', 'Eq', 'Hash', 'Debug', 'ToString',
+             'AsRef', 'Fn', 'FnMut', 'FnOnce', 'Send', 'Sync', 'Sized', 'Drop'}
+
+
+class Engines:
+    """What every file is read against: the names each engine declares,
+    which of them are ambiguous, and what the root re-exports."""
+
+    def __init__(self, files, ext):
+        self.ext = ext
+        declared = {e: {} for e in ENGINES}
+        outside = defaultdict(set)
+        for f in files.values():
+            for name, vis, at in f.items():
+                if f.home is None:
+                    outside[name].add(f.rel)
+                elif f.reaches_outside(vis, at):
+                    declared[f.home].setdefault(name, f.rel)
+        for e in ENGINES:
+            if not declared[e]:
+                raise SystemExit(f'REFUSED no item under {SRC}{e}/ reaches outside it: the census read nothing')
+        both = set(declared['boolean']) & set(declared['splitting'])
+        self.ambiguous = {n: sorted(outside[n]) or ['both engines'] for e in ENGINES for n in declared[e]
+                          if n in outside or n in both}
+        self.declared = {e: set(declared[e]) for e in ENGINES}
+        self.names = {e: self.declared[e] - set(self.ambiguous) for e in ENGINES}
+        self.outside = set(outside)
+        # The root's re-export table: a name lib.rs's top-level `pub use`
+        # binds, and the engine it binds it through.
+        self.root = {}
+        lib = files['lib.rs']
+        for segs, bound, _, exempt in lib.use_leaves():
+            hit = next((e for e in ENGINES if e in segs), None)
+            if exempt and hit and bound not in ('*', '_'):
+                self.root[bound] = hit
+
+    def engine_of(self, segs, through):
+        """The engine a `use` leaf's or a path's segments reach, if any:
+        through its module, through a name already bound through it, or
+        as `crate::NAME` where the root re-exports NAME from it."""
+        if segs and (segs[0] == '::' or segs[0] in self.ext):
+            return None
+        for e in ENGINES:
+            if e in segs or (segs and segs[0] in through[e]):
+                return e
+        if len(segs) == 2 and segs[0] == 'crate' and segs[1] in self.root:
+            return self.root[segs[1]]
+        if segs and segs[-1] in self.names['boolean']:
+            return 'boolean'
+        if segs and segs[-1] in self.names['splitting']:
+            return 'splitting'
+        return None
+
+
 def census(files, ext):
-    """Counts by (kind, file), each with its lines, and the ambiguous names."""
-    declared = {e: {} for e in ENGINES}
-    outside = defaultdict(set)
-    for f in files.values():
-        for name, vis, at in f.items():
-            if f.home is None:
-                outside[name].add(f.rel)
-            elif f.reaches_outside(vis, at):
-                declared[f.home].setdefault(name, f.rel)
-    for e in ENGINES:
-        if not declared[e]:
-            raise SystemExit(f'REFUSED no item under {SRC}{e}/ reaches outside it: the census read nothing')
-    both = set(declared['boolean']) & set(declared['splitting'])
-    ambiguous = {n: sorted(outside[n]) or ['both engines'] for e in ENGINES for n in declared[e]
-                 if n in outside or n in both}
-    names = {e: set(declared[e]) - set(ambiguous) for e in ENGINES}
-    shared = {e: set(declared[e]) & set(ambiguous) for e in ENGINES}
+    """Counts by (kind, file), each with its lines; the ambiguous names."""
+    eng = Engines(files, ext)
     sites = defaultdict(list)
     for f in files.values():
         for i, (t, _) in enumerate(f.toks):
             if t == 'mod' and i + 1 < len(f.toks) and f.toks[i + 1][0] in ENGINES and f.rel != 'lib.rs':
                 raise SystemExit(f'REFUSED {SRC}{f.rel} declares a module named {f.toks[i + 1][0]}: '
                                  'this census reads that name as the engine\'s')
+        sites[('refused-binding', f.rel)] += refused_bindings(f, eng)
         for e in ENGINES:
             if f.home == e:
                 continue
             kind = f'{f.home}-names-{e}' if f.home else f'names-{e}'
-            sites[(kind, f.rel)] += names_engine(f, e, names[e], shared[e], ext)
+            sites[(kind, f.rel)] += names_engine(f, e, eng)
         if f.home:
             n = []
             for i, (t, ln) in enumerate(f.toks):
                 if t == 'pub' and i + 1 < len(f.toks) and f.toks[i + 1][0] == '(':
                     j = i + 1
-                    while f.toks[j][0] != ')':
+                    while j < len(f.toks) and f.toks[j][0] != ')':
                         j += 1
                     vis = ['pub'] + [x for x, _ in f.toks[i + 2:j] if x != '::']
                     if f.crate_wide(vis, i):
                         n.append(ln)
             sites[('crate-visible', f.rel)] += n
-    return {k: v for k, v in sites.items() if v}, ambiguous
+    return {k: v for k, v in sites.items() if v}, eng.ambiguous
 
 
-def names_engine(f, e, names, shared, ext):
+def refused_bindings(f, eng):
+    """The lines of every construct in `f` that binds a second name to an
+    engine item or module, or to this crate, so that a count by name
+    could no longer see the item's uses."""
+    toks, out = f.toks, []
+    other = [e for e in ENGINES if e != f.home]
+    through = defaultdict(set)
+    for segs, bound, k, _exempt in f.use_leaves():
+        ln = toks[k][1]
+        if segs and segs[0] in ('crate', '$crate') and all(s in ('crate', '$crate', 'self') for s in segs) \
+                and bound not in ('*', '_'):
+            out.append(ln)                                     # use crate as C
+            continue
+        if segs and segs[0] == 'super' and all(s in ('super', 'self') for s in segs) and bound not in ('*', '_') \
+                and segs.count('super') >= module_depth(f.rel) + f.mods[k]:
+            out.append(ln)                                     # use super::{self as C} at the root
+            continue
+        e = eng.engine_of(segs, through)
+        if e in other:
+            through[e].add(bound)
+            if bound not in ('*', '_', segs[-1]):
+                out.append(ln)                                 # use …engine… as Q
+    for i, (t, ln) in enumerate(toks):
+        if t == 'extern' and [x for x, _ in toks[i + 1:i + 3]] == ['crate', 'self']:
+            out.append(ln)
+        if t == '::' and i + 1 < len(toks) and toks[i + 1][0] == 'topo' \
+                and not (i >= 1 and (is_ident(toks[i - 1][0]) or toks[i - 1][0] == '>')):
+            out.append(ln)
+    for _name, _vis, at in f.items():
+        kw = toks[at][0]
+        if kw not in ('type', 'macro_rules'):
+            continue
+        j, depth = at + 1, 0
+        while j < len(toks):
+            x = toks[j][0]
+            if x in '{([':
+                depth += 1
+            elif x in '})]':
+                depth -= 1
+                if depth == 0 and kw == 'macro_rules':
+                    break
+            elif x == ';' and depth == 0 and kw == 'type':
+                break
+            j += 1
+        body = [x for x, _ in toks[at + 3:j]]
+        if any(x in other or any(x in eng.names[e] for e in other) for x in body):
+            out.append(toks[at][1])                            # type Q = …engine…; macro body
+    return out
+
+
+def names_engine(f, e, eng):
     """The lines of every site in `f` naming engine `e`.
 
     A name's binding is resolved the way rustc resolves a single
     segment, per inline module: the module's own `use` leaves and
     item declarations, then its parent's only through `use super::*`.
-    A `shared` (ambiguous) name counts where it resolves to an import
-    through the engine, or follows a segment that does; any other engine
-    name counts unless it resolves to an external crate's import."""
-    toks, out = f.toks, []
-    through = set()                         # names bound through `e`
+    An ambiguous name counts where it resolves to an import through the
+    engine, follows a segment that does, or is `crate::NAME` for a NAME
+    the root re-exports from the engine; any other engine name counts
+    unless it resolves to an external crate's import."""
+    toks, out, ext = f.toks, [], eng.ext
+    names, shared = eng.names[e], eng.declared[e] & set(eng.ambiguous)
+    through = {x: set() for x in ENGINES}
     binds = defaultdict(dict)               # name -> scope -> 'e' | 'ext' | 'other'
     globs_e, globs_super = set(), set()
     for segs, bound, k, exempt in f.use_leaves():
         sc = f.scope[k]
         if segs and (segs[0] == '::' or segs[0] in ext):
             kind = 'ext'
-        elif e in segs or (segs and segs[0] in through):
+        elif eng.engine_of(segs, through) == e:
             kind = 'e'
         else:
             kind = 'other'
@@ -319,13 +448,12 @@ def names_engine(f, e, names, shared, ext):
         else:
             binds[bound].setdefault(sc, kind)
             if kind == 'e':
-                through.add(bound)
-        if exempt:
-            continue
-        if kind == 'e' or (kind == 'other' and segs and segs[-1] in names):
+                through[e].add(bound)
+        if not exempt and kind == 'e':
             out.append(toks[k][1])
     for name, _, at in f.items():
         binds[name].setdefault(f.scope[at], 'other')
+    params = f.type_params()
 
     def resolve(name, at):
         sc = f.scope[at]
@@ -345,7 +473,7 @@ def names_engine(f, e, names, shared, ext):
         if t != e and t not in names and t not in shared:
             continue
         pre = f.prefix(i)
-        if pre is None or (pre and (pre[0] in ext or pre[0][0].isupper())):
+        if pre is None or (pre and pre[0] in ext):
             continue
         nxt = toks[i + 1][0] if i + 1 < len(toks) else ''
         if t == e:
@@ -357,12 +485,23 @@ def names_engine(f, e, names, shared, ext):
         if e in pre:
             continue
         head = resolve(pre[0], i - 2 * len(pre)) if pre else resolve(t, i)
-        if t in shared and head != 'e':
+        if pre and pre[0][0].isupper():
+            # An associated item of a type: the engine's only when the
+            # type is not a parameter, `Self`, a std type, one declared
+            # outside the engines, or one imported from elsewhere — and
+            # not already counted as an engine name itself.
+            h = pre[0]
+            if h in params or h in STD_HEADS or h in eng.outside or head in ('ext', 'other') \
+                    or any(h in eng.declared[x] for x in ENGINES):
+                continue
+        if t in shared and head != 'e' and not (pre == ['crate'] and eng.root.get(t) == e):
             continue
         if not pre and head == 'ext':
             continue
         if t[0].islower() or t[0] == '_':
             after = toks[i + 2][0] if i + 2 < len(toks) else ''
+            if nxt == '::' and after != '<':
+                continue                    # a module of the same name
             if not (pre or nxt in ('(', '!') or (nxt == '::' and after == '<')):
                 continue
         out.append(ln)
@@ -408,9 +547,9 @@ def main():
         now, was = len(sites.get(key, [])), allowed.get(key, 0)
         if now > was:
             at = ' '.join(map(str, sorted(set(sites[key]))))
-            print(f'NEW {key[0]} {key[1]}: {now} (allowed {was}) at L{at}')
+            print(f'ROSE {key[0]} {key[1]}: {was} -> {now} (the file\'s counted sites: L{at})')
         elif now < was:
-            print(f'STALE {key[0]} {key[1]}: allowed {was}, now {now}')
+            print(f'FELL {key[0]} {key[1]}: {was} -> {now}')
     for name in sorted(set(ambiguous) - listed):
         print(f'AMBIGUOUS-NEW {name}: declared under an engine and in {", ".join(ambiguous[name])}')
     for name in sorted(listed - set(ambiguous)):
@@ -423,4 +562,5 @@ def main():
     print(f'TOTAL {sum(len(v) for v in sites.values())}')
 
 
-main()
+if __name__ == '__main__':
+    main()

@@ -52,7 +52,8 @@
 //! `splitting::neighborhood`'s module docs, which own them, and are not
 //! restated here.
 //!
-//! Its home follows `[topo.homes]` (`crates/topo/README.md`).
+//! Its Body-free rungs owe the move `[topo.homes]` arm 1 asks
+//! (`crates/topo/README.md`; `work/onedoor/crossing-doors-leave-topo-for-geom-brep`).
 //!
 //! # Which scalars the argument-order equality is proven for
 //!
