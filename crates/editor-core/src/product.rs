@@ -245,7 +245,11 @@ impl crate::finding::Finding for SourceLine<'_> {
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.error)
+        write!(
+            f,
+            "{}",
+            self.error.render(geom_brep::recourse::Reading::AtRest)
+        )
     }
 
     fn recourse(&self) -> &str {
@@ -340,7 +344,15 @@ impl ProductError {
         labels: Labels,
         by: Speaker<'_>,
     ) -> core::fmt::Result {
-        let list = crate::finding::render_lines::<&ValidationError, _>;
+        // The findings are the at-rest gate's.
+        let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
+            crate::finding::render_lines(
+                f,
+                errors
+                    .iter()
+                    .map(|e| e.render(geom_brep::recourse::Reading::AtRest)),
+            )
+        };
         let piece = |id: RecipeNodeId| by.node_as(id, "piece");
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
@@ -373,8 +385,9 @@ impl ProductError {
             ),
             Self::Graft { node, source } => write!(
                 f,
-                "the kernel could not graft {}'s body: {source}",
-                piece(*node)
+                "the kernel could not graft {}'s body: {}",
+                piece(*node),
+                source.render(geom_brep::recourse::Reading::Build)
             ),
             Self::PieceInvalid { findings } => {
                 // Findings arrive in gather order, so one piece's outputs
@@ -407,7 +420,10 @@ impl ProductError {
                         }
                         crate::finding::render_lines(
                             f,
-                            findings.iter().flat_map(|source| &source.errors),
+                            findings
+                                .iter()
+                                .flat_map(|source| &source.errors)
+                                .map(|e| e.render(geom_brep::recourse::Reading::AtRest)),
                         )
                     }
                 }

@@ -522,7 +522,7 @@ fn the_refusal_names_the_class_it_needs() {
     let msg = PointInSolidError::PartialSphereFace {
         face: FaceKey::default(),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     for want in [
         "sphere face",
         "Recourse: cut the sphere face only where its edges are circles",
@@ -846,7 +846,12 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
         matches!(err, PointInSolidError::PartialSphereFace { .. }),
         "{err:?}"
     );
-    assert!(err.to_string().contains("edges are circles"), "{err}");
+    assert!(
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("edges are circles"),
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// The body's one flat disc face — the revolve's cap, whose plane's

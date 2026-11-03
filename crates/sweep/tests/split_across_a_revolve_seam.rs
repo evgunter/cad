@@ -84,6 +84,13 @@ struct Vol {
     pad: f64,
 }
 
+impl Vol {
+    /// Within `by` of `want` beyond its own enclosure.
+    fn near(self, label: &str, want: f64, by: f64) {
+        topo::test_support::assert_volume_near(label, self.v, self.pad, want, by);
+    }
+}
+
 impl core::ops::Add for Vol {
     type Output = Self;
     fn add(self, o: Self) -> Self {
@@ -111,16 +118,6 @@ fn near(label: &str, got: f64, want: f64, by: f64) {
     assert!((got - want).abs() <= by, "{label}: {got}, want {want}");
 }
 
-/// [`near`] for a certified volume: within `by` beyond its own enclosure.
-fn near_vol(label: &str, got: Vol, want: f64, by: f64) {
-    assert!(
-        (got.v - want).abs() <= by + got.pad,
-        "{label}: {} ± {}, want {want}",
-        got.v,
-        got.pad
-    );
-}
-
 /// **A tube cut across its axis splits into two annular halves.** The
 /// tube about y, cut through its centre `(0, 0.5, 0)` square, mirrored
 /// and leaning at azimuths off the seam: the point reflection through
@@ -140,14 +137,14 @@ fn a_tube_cut_across_its_axis_splits_into_two_annular_halves() {
     for (tilt, az, s) in poses {
         let label = format!("about y, tilt {tilt}, azimuth {az}, s = {s}");
         for v in halves(&label, &tube, &across(y, 0.5, tilt, az, s)) {
-            near_vol(&label, v, half, 1e-8);
+            v.near(&label, half, 1e-8);
         }
     }
     let z = Vec3::new(0.0, 0.0, 1.0);
     let tube = revolved(SketchPlane::yz(), &TUBE);
     let label = "about z, tilt 0.25, azimuth 0.7, s = -1";
     for v in halves(label, &tube, &across(z, 0.5, 0.25, 0.7, -1.0)) {
-        near_vol(label, v, half, 1e-8);
+        v.near(label, half, 1e-8);
     }
 }
 
@@ -179,8 +176,8 @@ fn a_counterbore_and_a_cone_socket_split_across_their_axes() {
                 halves(&label, &cb, &p)
             };
             let (b, a) = if s > 0.0 { (b, a) } else { (a, b) };
-            near_vol(&label, b, below, 1e-8);
-            near_vol(&label, a, whole - below, 1e-8);
+            b.near(&label, below, 1e-8);
+            a.near(&label, whole - below, 1e-8);
         }
     }
     let socket = revolved(SketchPlane::xy(), &SOCKET);
@@ -193,8 +190,8 @@ fn a_counterbore_and_a_cone_socket_split_across_their_axes() {
         let label = format!("socket, s = {s}");
         let [b, a] = halves(&label, &socket, &across(y, 0.5, 0.0, 0.0, s));
         let (b, a) = if s > 0.0 { (b, a) } else { (a, b) };
-        near_vol(&label, b, below, 1e-9);
-        near_vol(&label, a, whole - below, 1e-9);
+        b.near(&label, below, 1e-9);
+        a.near(&label, whole - below, 1e-9);
     }
 }
 
@@ -321,8 +318,8 @@ fn a_section_touching_a_rim_splits_at_the_closed_form() {
                 } else {
                     below
                 };
-                near_vol(&label, cap, cap_side, 1e-8);
-                near_vol(&label, below + above, whole, 1e-8);
+                cap.near(&label, cap_side, 1e-8);
+                (below + above).near(&label, whole, 1e-8);
             }
         }
     }
@@ -400,7 +397,7 @@ fn touching_the_bore_rim(tube: &Body<f64>, t: f64, az: f64) {
         } else {
             (below, above)
         };
-        near_vol(&format!("{label}: the cap side"), cap, cap_side, 1e-9);
-        near_vol(&format!("{label}: the rest"), rest, whole - cap_side, 1e-9);
+        cap.near(&format!("{label}: the cap side"), cap_side, 1e-9);
+        rest.near(&format!("{label}: the rest"), whole - cap_side, 1e-9);
     }
 }

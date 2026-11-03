@@ -179,7 +179,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
                 ) => {
                     assert_eq!(*diag, cause(), "x {x:e}");
                     assert_eq!(*resolution, MarginDiag::value(k * rho), "x {x:e}");
-                    let text = got.to_string();
+                    let text = got.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         text.starts_with(
                             "whether a section curve's end meets its vertex is undecided"
@@ -237,8 +237,9 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
                 },
                 ..
             }
-        ) && got.to_string() == want,
-        "within: {got:?}: {got}"
+        ) && got.render(geom_brep::recourse::Reading::Build) == want,
+        "within: {got:?}: {got_at}",
+        got_at = got.render(geom_brep::recourse::Reading::Build)
     );
     for (what, spec, at) in [
         ("past the resolution", spec.clone(), off(100.0 * rho)),

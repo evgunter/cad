@@ -1411,8 +1411,8 @@ mod tests {
             "the lift is the Boolean's own: {lifted:?}"
         );
         for shown in [
-            lifted.to_string(),
-            SplitJoinError::LineageRow(refusal).to_string(),
+            lifted.render(geom_brep::recourse::Reading::Build),
+            SplitJoinError::LineageRow(refusal).render(geom_brep::recourse::Reading::Build),
         ] {
             assert!(shown.contains(&row), "{shown}");
             assert!(shown.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{shown}");

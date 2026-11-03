@@ -2059,12 +2059,13 @@ mod tests {
     fn no_sample_renders_a_run_of_spaces() {
         let rendered = super::validation_error_samples()
             .into_iter()
-            .map(|(label, e)| (label, e.to_string()))
-            .chain(
-                super::mass_props_errors()
-                    .into_iter()
-                    .map(|e| (format!("{e:?}"), e.to_string())),
-            );
+            .map(|(label, e)| (label, e.render(geom_brep::recourse::Reading::AtRest)))
+            .chain(super::mass_props_errors().into_iter().map(|e| {
+                (
+                    format!("{e:?}"),
+                    e.render(geom_brep::recourse::Reading::AtRest),
+                )
+            }));
         let problems: Vec<_> = rendered
             .filter(|(_, text)| text.contains("  ") || text.contains('\n'))
             .map(|(label, text)| format!("{label}: {text:?}"))

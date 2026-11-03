@@ -271,7 +271,7 @@ fn plane_cylinder_parallel_trio() {
     let SectionError::Escalated(_) = err else {
         panic!("expected escalation, got {err:?}");
     };
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
     assert!(msg.contains("ill-conditioned at this tolerance"), "{msg}");
 }
@@ -500,7 +500,7 @@ fn parallel_equal_cylinders_trio() {
     // the shared recourse exactly once.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
-    let msg = err.to_string();
+    let msg = err.render(geom_brep::recourse::Reading::Build);
     assert_eq!(
         msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
         1,
@@ -2513,7 +2513,7 @@ fn the_ring_guard_ends_each_half_in_its_lever() {
     ] {
         let err = plane_torus_section(&plane, &tor, fixture_lever(1.0), b).expect_err(what);
         assert_eq!(torus_refusal(&err).0, half, "{what}: {err:?}");
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(lever)
                 && !text.contains("corrupt")
