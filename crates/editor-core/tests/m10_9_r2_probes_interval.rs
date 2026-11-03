@@ -187,11 +187,11 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let wall = MeasurePrimitive::Distance { a: 0, b: 1 };
     let measured = r.measure(&[wall], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(0.5e-3),
         relation: editor_core::AssertionRelation::AtLeast,
-    });
+    }));
     (r.doc, measure, assertion)
 }
 
@@ -403,13 +403,7 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
             "f64 at t = {t}"
         );
         // And through the enum, which is what the certifier calls.
-        let c = Curve3::Circle {
-            center,
-            axis,
-            radius: 0.8e-3,
-            u_ref,
-        }
-        .eval(t);
+        let c = Curve3::circle(center, axis, 0.8e-3, u_ref).eval(t);
         assert_eq!(
             [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()],
             [b.x.to_bits(), b.y.to_bits(), b.z.to_bits()]

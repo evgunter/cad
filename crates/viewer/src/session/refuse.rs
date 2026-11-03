@@ -141,7 +141,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::World
         | Node::Space
         | Node::Measure { .. }
-        | Node::Assertion { .. } => None,
+        | Node::Assertion(_) => None,
     }
 }
 
@@ -415,6 +415,43 @@ pub enum Refusal {
         /// The profile node, as the document held it at the refusal.
         node: SpokenNode,
     },
+    /// The placement editor's draft was loaded from a bundle the
+    /// placement no longer holds: it is not written over the one it
+    /// holds.
+    BundleStale {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// The placement editor's Create door was asked to place a body a
+    /// placement already copies: a placed body moves by that copy's
+    /// Edit door, and is never placed a second time by the door.
+    BodyPlaced {
+        /// The body, as the document held it at the refusal.
+        body: SpokenNode,
+        /// The copy whose Edit door moves it.
+        copy: SpokenNode,
+    },
+    /// The placement editor's Create door was asked to place a copy (a
+    /// placement or an instance): a copy moves by its own Edit door.
+    CreateOnACopy {
+        /// The copy, as the document held it at the refusal.
+        copy: SpokenNode,
+    },
+    /// The tree's `remove` asked of a value: a freedom is always set,
+    /// and its only edit is its number.
+    ValueNotRemoved {
+        /// The placement, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// The placement editor could not derive a bundle from its draft.
+    Draft(Box<crate::matetool::MateToolError>),
+    /// The placement editor's Apply would place a copy that does not
+    /// stand: its placement's fault, or `None` where what it reads does
+    /// not evaluate. It is withheld, and the draft stays open.
+    PlacementFails {
+        /// The fault the placement would evaluate to.
+        fault: Option<Box<pncad::document::MateFault>>,
+    },
     /// A takeover would re-point a copy a pick reads onto a body that
     /// holds no pieces — a feature's result, a mirror's or a sketch's
     /// union, a combine. A pick is never re-pointed (D10
@@ -456,6 +493,15 @@ impl Refusal {
                 wanted,
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::BundleStale { node } => Self::BundleStale { node: again(node) },
+            Self::BodyPlaced { body, copy } => Self::BodyPlaced {
+                body: again(body),
+                copy: again(copy),
+            },
+            Self::CreateOnACopy { copy } => Self::CreateOnACopy { copy: again(copy) },
+            Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
+            Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
+            Self::PlacementFails { fault } => Self::PlacementFails { fault },
             Self::InTheProduct { copy } => Self::InTheProduct { copy: again(copy) },
             Self::StrandedPick { copy, pick } => Self::StrandedPick {
                 copy: again(copy),
@@ -535,6 +581,12 @@ impl Refusal {
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
+            | Self::BundleStale { .. }
+            | Self::BodyPlaced { .. }
+            | Self::CreateOnACopy { .. }
+            | Self::ValueNotRemoved { .. }
+            | Self::Draft(_)
+            | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. } => None,
         }
@@ -577,6 +629,12 @@ impl Refusal {
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
+            | Self::BundleStale { .. }
+            | Self::BodyPlaced { .. }
+            | Self::CreateOnACopy { .. }
+            | Self::ValueNotRemoved { .. }
+            | Self::Draft(_)
+            | Self::PlacementFails { .. }
             | Self::StrandedPick { .. }
             | Self::InTheProduct { .. }
             | Self::Io(_) => 1,
@@ -892,6 +950,35 @@ impl core::fmt::Display for Refusal {
                 "document {id} is the open document — a document cannot be an instance of \
                  itself; pick another part"
             ),
+            Self::BundleStale { node } => write!(
+                f,
+                "{node}'s bundle changed since the editor loaded it; the editor's draft was not \
+                 written — the editor now shows the bundle as it is"
+            ),
+            Self::BodyPlaced { body, copy } => write!(
+                f,
+                "{body} is placed by {copy}; move it by {copy}'s placement (the placement \
+                 editor's Edit door), not by a second copy"
+            ),
+            Self::CreateOnACopy { copy } => write!(
+                f,
+                "{copy} is a copy; move it by its own placement (the placement editor's Edit \
+                 door), not by a copy of it"
+            ),
+            Self::ValueNotRemoved { node } => write!(
+                f,
+                "a value of {node} sets a freedom its mates leave, and a freedom is always set; \
+                 edit its number instead"
+            ),
+            Self::Draft(error) => write!(f, "{error}"),
+            Self::PlacementFails { fault: Some(fault) } => write!(
+                f,
+                "the copy would not stand: {fault}; the editor's draft was not written"
+            ),
+            Self::PlacementFails { fault: None } => write!(
+                f,
+                "what the placement reads does not evaluate; the editor's draft was not written"
+            ),
             Self::ProfileEditStale { node } => write!(
                 f,
                 "{node} changed since the editor loaded it; the editor's program was not \
@@ -989,9 +1076,8 @@ impl VersionOffer {
     }
 }
 
-/// **Why a gesture's frame could not be made** — the transform
-/// gesture's placement, a split's cutting plane, a circular pattern's
-/// axis. Each is made of numbers the gesture carries, taken at their
+/// **Why a gesture's frame could not be made** — a split's cutting
+/// plane, a pattern's direction or axis. Each is made of numbers the gesture carries, taken at their
 /// nominal values in the document, and read off a body's own geometry
 /// (spec §5, the restate ladder).
 #[derive(Debug, Clone)]
@@ -1031,6 +1117,12 @@ pub enum GestureFrameFault {
     /// No frame reads off a traced face and a plane face
     /// ([`pncad::trace::traced_frame`]).
     Traced(std::sync::Arc<pncad::trace::TracedFrameFault>),
+    /// The geometry picked for a pattern reads no direction where it
+    /// stands, or, for a ring, no axis.
+    NoHeading {
+        /// The field, as the form names it.
+        field: &'static str,
+    },
 }
 
 impl core::fmt::Display for GestureFrameFault {
@@ -1048,6 +1140,11 @@ impl core::fmt::Display for GestureFrameFault {
             Self::Direction { field, refusal } => write!(f, "the {field} {refusal}"),
             Self::Geometry(refusal) => write!(f, "{refusal}"),
             Self::Traced(fault) => write!(f, "{fault}"),
+            Self::NoHeading { field } => write!(
+                f,
+                "the {field} picked reads none where it stands: pick a straight edge, a flat \
+                 face for its normal or a round edge or face for its axis"
+            ),
         }
     }
 }
@@ -1081,7 +1178,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::
         | ValuePayload::Instances(_)
         | ValuePayload::Family
         | ValuePayload::Measure { .. }
-        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
     }
 }

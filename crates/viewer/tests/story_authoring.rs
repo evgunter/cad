@@ -10,8 +10,8 @@
 //! crown is square: the scene predates the join arm that lets a slab
 //! cut through a cylinder WALL, whose round-crown cut is `editor-core`'s
 //! `reach_slab_cut_sector_side` row. Stacked discs stand in for the revolved
-//! silhouette a rook naturally is: this scene predates
-//! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
+//! silhouette a rook naturally is: this scene predates the path
+//! verbs, which can now spell one.) On the way
 //! the user tries to crown the rook with a circular pattern and learns
 //! instances are not a body,
 //! fuses the same rule into ONE body and unions THAT onto the crown,
@@ -36,17 +36,16 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape, translation};
+use common::{ang, body_volume, circle_at, len, near, session_insert};
 use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
-use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, PatternRuleSpec, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the rook's dimensions (metres) --------------------------------
@@ -80,7 +79,7 @@ const CUT_W: f64 = 0.040;
 const CUT_T: f64 = 0.006;
 const CUT_Z: f64 = 0.031;
 const CUT_H: f64 = 0.008;
-/// The second cutter is the FIRST one quarter-turned and lifted a
+/// The second cutter is the first one's twin, quarter-turned and lifted a
 /// little, so its floor is not coplanar with the first slot's.
 const CUT2_LIFT: f64 = 0.0004;
 /// The taller drum the user edits in after the undo walk.
@@ -96,17 +95,18 @@ const MERLON_SINK: f64 = 0.001;
 const MERLON_OFF: f64 = 0.009;
 
 /// History states from `NewDocument` to the carved rook: the root
-/// plus twenty-one committed actions. Four of those are LIFTS: every
-/// profile is drawn on its own plane, so each body the rook stacks
-/// above the plinth is moved up its axis before it is combined.
-const CARVED_STATES: usize = 22;
+/// plus twenty-three committed actions. Five of those are the Transform
+/// tool's: four LIFTS, since every profile is drawn on its own plane, so
+/// each body the rook stacks above the plinth is moved up its axis
+/// before it is combined, and the second cutter's turn and lift.
+const CARVED_STATES: usize = 24;
 /// The placing edits among the carving actions (D10), each riding in
 /// the action that caused it: five booleans each re-targeting its moved
 /// second operand into the plinth's space, its values as written (5).
 /// Every body lands unplaced, so no action writes or re-points a world
 /// placement.
 const PLACING_EDITS: usize = 5;
-/// Edits on the session's FINAL path: the twenty-two carving actions'
+/// Edits on the session's FINAL path: the twenty-three carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
@@ -147,26 +147,15 @@ fn circle(session: &mut DocSession, radius: f64) -> RecipeNodeId {
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius,
-            })],
+            loops: vec![circle_at([0.0, 0.0], radius)],
         },
     )
 }
 
-/// `body` moved by `translation` — the transform gesture, which places
-/// the body against its own geometry.
+/// `body` moved by `translation` — the Transform tool on a body nothing
+/// places: the placement editor's Create door, its slides typed.
 fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -> RecipeNodeId {
-    session_insert(
-        session,
-        SessionOp::AddTransform {
-            input: body.into(),
-            translation: len3(translation),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    )
+    common::moved_to(session, body, translation)
 }
 
 /// The whole sitting, top to bottom. One test because it is one
@@ -288,8 +277,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
 
     // ── The crown: two crossing slots, the second the first cutter
-    //    quarter-turned about the axis (one cutter body, moved by
-    //    both transforms — the DAG's sharing) ─────────────────────────
+    //    quarter-turned about the axis: a second cutter body, turned
+    //    and lifted by the Transform tool. The first cutter's body cannot
+    //    be shared: the Transform tool on it opens the first copy's Edit
+    //    door, the Create door refuses a placed body, and a duplicate of
+    //    the cutter (its one copy is consumed by the cut, so nothing
+    //    draws it) lands as two copies, a stand-in by the identity and
+    //    the stepped one, leaving the stand-in in the picture ──────────
     let (_, cutter) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
     let cutter1 = lifted(&mut session, cutter, [0.0, 0.0, CUT_Z]);
     let cut1 = session_insert(
@@ -306,15 +300,14 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         near(v_cut1, v_u3 - slab_area() * (DRUM_Z + DRUM_H - CUT_Z)),
         "the first slot removes a chord slab of the drum: {v_cut1}"
     );
-    let cutter2 = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: cutter.into(),
-            translation: translation([0.0, 0.0, CUT_Z + CUT2_LIFT]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(FRAC_PI_2),
-        },
-    );
+    let (_, second) = common::box_in(&mut session, [CUT_W, CUT_T, CUT_H]);
+    let mut values = common::slides([0.0, 0.0, CUT_Z + CUT2_LIFT]);
+    values.push((
+        pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Z)),
+        ang(FRAC_PI_2),
+    ));
+    let op = common::transformed(&mut session, second, &values);
+    let cutter2 = session_insert(&mut session, op);
     let carved = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -343,21 +336,36 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let carved_doc = session.committed_doc().clone();
 
     // ── The crenellation experiment: a merlon block, patterned round
-    //    the axis — instances are not a body, and the fused door is
-    //    what the refusal points at ─────────────────────────────────
-    // The block is drawn about its own origin and patterned about the
-    // rook's axis as it will stand once moved into a CORNER quadrant of
-    // the crown: `MERLON_OFF` back along x and y, in the block's own
-    // coordinates.
-    let (block_profile, block) = common::box_in(&mut session, [MERLON_S, MERLON_S, MERLON_H]);
+    //    an edge of its own — instances read their space, and the fused
+    //    door is what the refusal points at ────────────────────────────
+    // The block is drawn in a CORNER quadrant of the crown, `MERLON_OFF`
+    // out along x and y. First it is ringed about one of its own
+    // vertical edges, picked: a ring that reads the block's space.
+    let block_profile = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![common::rectangle_at(
+                [MERLON_OFF, MERLON_OFF],
+                MERLON_S,
+                MERLON_S,
+            )],
+        },
+    );
+    let block = session_insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: block_profile,
+            distance: len(MERLON_H),
+        },
+    );
+    let edge = vertical_edge(&mut session, block);
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                through: len3([-MERLON_OFF, -MERLON_OFF, 0.0]),
-                direction: scl3([0.0, 0.0, 1.0]),
+                axis: viewer::PatternDirection::Edge(edge),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -373,10 +381,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         assert_eq!(instances.len(), 4, "four blocks round the crown");
     }
     // Fusing THESE onto the rook is refused at the door, typed: a union's
-    // member seat reads the family whole (D10 `[repetition]`), its
-    // members joining the list, but the family stands in the block's own
-    // space and the carved rook in the rook's, and a union reads its
-    // members in one space.
+    // member seat reads the family whole (D10 `[repetition]`), but the
+    // family stands in the block's space and the carved rook in the
+    // rook's, and the ring reads the block's edge in its own space, so
+    // no re-target can carry it over (`in_one_space`).
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
@@ -393,17 +401,17 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert!(refused.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), states, "and mints no state");
 
-    // The door that refusal points at: the same prototype and the
-    // same rule, said FUSED — one body out instead of four, which the
-    // boolean seat takes without complaint.
+    // The door that refusal points at: the same prototype, said FUSED
+    // and ringed about its space's z axis, which stands on the rook's
+    // axis once moved under the crown — one body out instead of four,
+    // which the boolean seat takes without complaint.
     let merlons = session_insert(
         &mut session,
         SessionOp::AddFusedPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
-                through: len3([-MERLON_OFF, -MERLON_OFF, 0.0]),
-                direction: scl3([0.0, 0.0, 1.0]),
+                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Z),
                 step: ang(FRAC_PI_2),
             },
         },
@@ -431,7 +439,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let crowning = lifted(
         &mut session,
         merlons,
-        [MERLON_OFF, MERLON_OFF, DRUM_Z + DRUM_H - MERLON_SINK],
+        [0.0, 0.0, DRUM_Z + DRUM_H - MERLON_SINK],
     );
     let crenellated = session_insert(
         &mut session,
@@ -677,4 +685,26 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         );
     }
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A vertical straight edge of `node`**, as a viewport pick on it
+/// selects it, read off the landed evaluation.
+fn vertical_edge(session: &mut DocSession, node: RecipeNodeId) -> viewer::session::EdgeSelection {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let node = common::drawn_node(session.committed_doc(), node);
+    let name = pncad::select::all_edges(eval, node)
+        .into_iter()
+        .find(|name| {
+            pncad::select::edge_carrier_kind(eval, node, name)
+                .is_ok_and(|k| k == pncad::select::CurveKind::Line)
+                && pncad::select::edge_frame(eval, node, name)
+                    .is_ok_and(|pose| pose.axis.x == 0.0 && pose.axis.y == 0.0)
+        })
+        .expect("the block has a vertical edge");
+    viewer::session::EdgeSelection {
+        name,
+        node,
+        body: 0,
+    }
 }

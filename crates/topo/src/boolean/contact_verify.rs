@@ -171,6 +171,8 @@ pub fn tangent_pair_relation<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<geom_core::MarginDiag, ContactRefusal> {
+    // This is a public door, so a stale face key is the caller's input
+    // and refuses typed.
     let (face_a, face_b) = (
         a.get_face(fa).ok_or(ContactRefusal::NotCertifiable {
             what: "the A-side face does not resolve",
@@ -180,14 +182,8 @@ pub fn tangent_pair_relation<T: Decide>(
         })?,
     );
     let (s1, s2) = (
-        a.get_surface(face_a.surface)
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "the A-side face has no surface",
-            })?,
-        b.get_surface(face_b.surface)
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "the B-side face has no surface",
-            })?,
+        a.face_surface_linked(fa, face_a),
+        b.face_surface_linked(fb, face_b),
     );
     tangent_locus_relation(s1, face_a.sense, s2, face_b.sense, carrier, t0, t1, band)
 }
@@ -329,8 +325,7 @@ fn tangent_table<T: Decide>(
     // parallel reading's Zero is what verifies the contact. (The edge
     // certifier levers the same pair at its faces' extent; this table
     // has no faces.)
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, chord);
+    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
     let mut halvings = 0;
     loop {
         let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
@@ -417,7 +412,7 @@ fn tangent_pass<T: Decide>(
     (s2, sense2): (&geom::Surface<T>, bool),
     (carrier, t0, t1, samples): (&Curve3<T>, T, T, u32),
     bounds: &geom_brep::TangentSpanBounds<T>,
-    extent: T,
+    extent: geom_core::Lever<T>,
     claim: Claim,
     band: Band,
     sag_logs: &mut Vec<geom_core::k_stats::Detached>,
@@ -531,7 +526,7 @@ fn tangent_pass<T: Decide>(
         // second-order margin is therefore computed first and ACTED ON
         // last — computing it early must not let it refuse before the
         // first-order test (which can contradict) has spoken.
-        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm);
+        let so = Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm.length());
         // Both readings run detached so the second-order one's
         // escalation reaches the frame's log only where the outcome
         // rests on it (`k_stats::splice_superseded`, below).
@@ -569,7 +564,7 @@ fn tangent_pass<T: Decide>(
                 let (at, log) = geom_core::k_stats::detached(|| {
                     crate::validate::decide(
                         "contact_tangent_second_order_at",
-                        Margin::sagitta(jet.kappa_rel.abs(), arm),
+                        Margin::sagitta(jet.kappa_rel.abs(), arm.length()),
                         band,
                     )
                 });
@@ -608,8 +603,10 @@ fn tangent_pass<T: Decide>(
             // locus one above the other, and a contact's materials must
             // be on the outer sides of that pair, not between it.
             Ok(Sign::Positive) if claim == Claim::Contact => {
-                let crescent =
-                    Margin::sagitta(geom_brep::material_kappa_rel(jet.kappa_rel, sense1), arm);
+                let crescent = Margin::sagitta(
+                    geom_brep::material_kappa_rel(jet.kappa_rel, sense1),
+                    arm.length(),
+                );
                 match crate::validate::decide("contact_tangent_overlap", crescent, band) {
                     Ok(Sign::Negative) => {}
                     Ok(Sign::Positive | Sign::Zero) => {
@@ -853,10 +850,7 @@ mod tests {
     }
 
     fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
-        geom::Curve3::Line {
-            origin: Point3::from_array(o),
-            dir: Vec3::from_array(d),
-        }
+        geom::Curve3::line(Point3::from_array(o), Vec3::from_array(d))
     }
 
     /// The certified-lane row: a cylinder resting on a plane, tangent
@@ -892,12 +886,12 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
-        let equator = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let equator = geom::Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let err = tangent_locus_relation(
             &sphere,
             true,
@@ -1096,12 +1090,12 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let (near, far) = (torus(0.0), torus(2.0));
-        let meridian = geom::Curve3::Circle {
-            center: Point3::new(1.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: 0.1,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let meridian = geom::Curve3::circle(
+            Point3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.1,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let tau = core::f64::consts::TAU;
         let whole = geom_brep::tangent_span_bounds(&near, &far, &meridian, 0.0, tau)
             .unwrap()
@@ -1142,10 +1136,7 @@ mod tests {
         );
         // The lane's other `NotCertifiable` is the contact's own refusal,
         // not the span bound's: a carrier outside the lane.
-        let outside = geom::Curve3::Line {
-            origin: Point3::new(1.1, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        };
+        let outside = geom::Curve3::line(Point3::new(1.1, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         assert!(
             matches!(
                 tangency_reading(&near, true, &far, true, &outside, 0.0, 0.1, b),
@@ -1194,12 +1185,12 @@ mod tests {
             inward.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
         );
         let bend = torus(bend_center, bend_axis, 1.5, 0.5 + 0.6 * e);
-        let rim = geom::Curve3::Circle {
-            center: Point3::new(2.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
-            radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let rim = geom::Curve3::circle(
+            Point3::new(2.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            0.5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let pose = geom_brep::TorusTorusPose::decide(&first, &bend, b).expect("two tori");
         assert!(
             matches!(pose, Ok(ref p) if matches!(p.gap(), geom_brep::TorusGap::Tangent { .. })),

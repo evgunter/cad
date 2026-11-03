@@ -298,7 +298,7 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     let slide_x = fixture::value_slot(
         &r.doc,
         placed,
-        editor_core::Coord::Slide(editor_core::TargetAxis::X),
+        editor_core::Coord::slide(editor_core::TargetAxis::X),
     );
     r.push(editor_core::DocEdit::SetParam {
         node: placed,

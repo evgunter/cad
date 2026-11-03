@@ -96,6 +96,7 @@ use geom_brep::ssi::{
     SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::fixture_lever;
 use geom_core::test_support::upper;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
@@ -2646,7 +2647,7 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             carrier.knot_values().domain(),
             &cutting_plane(),
             &wall,
-            1.0,
+            fixture_lever(1.0),
             band(),
         ) {
             Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {
@@ -5922,7 +5923,7 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 /// side refuses as possibly tangent
 /// (`work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md`).
 /// (`μ` 0.1 refuses on limb 3 at ε 1e-12:
-/// `work/ssimarch/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
+/// `work/ssiarith/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();

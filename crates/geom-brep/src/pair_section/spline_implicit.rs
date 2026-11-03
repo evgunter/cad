@@ -26,10 +26,14 @@
 //!    section ends;
 //! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
 //!    zero, past the band's exclusions, no component closes in the
-//!    wall's chart. That verdict is the section, no component where the
-//!    pass found no end and otherwise [`Components::Reaching`] on the
-//!    sides it found them on; the interior-loop guard's loop-free stage
-//!    is it. Where the sweep declines, a plane's pose is read whole on
+//!    wall's chart outside the critical points it decides Zero. That
+//!    verdict is the section: no component where the pass found no end
+//!    and no point was decided, [`Components::Reaching`] on the sides the
+//!    pass found ends on, the touches as point components where they are
+//!    all the section has, and a pinch ([`SectionError::Pinched`]) where a
+//!    node, or a touch beside components with ends, meets arcs the march
+//!    would list; the interior-loop guard's loop-free stage is it. Where
+//!    the sweep declines, a plane's pose is read whole on
 //!    the same pass, the pass carried on the pose; a curved partner's
 //!    whole reading over the rectangle is not built, and its pose refuses
 //!    as the general rung's ([`SectionError::RoutesToGeneralRung`]).
@@ -189,21 +193,7 @@ impl<T: Real> SplineImplicitPose<T> {
     /// net's control points: about the middle of their box, reaching the
     /// farthest.
     pub fn ball(&self) -> ExtentBall<T> {
-        let control = self.net.control();
-        let Some(&first) = control.first() else {
-            return ExtentBall::new(Point3::origin(), T::zero());
-        };
-        let (lo, hi) = control.iter().fold((first, first), |(lo, hi), &p| {
-            (
-                Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
-                Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
-            )
-        });
-        let center = lo + (hi - lo) * T::from_f64(0.5);
-        let radius = control
-            .iter()
-            .fold(T::zero(), |r, &p| r.max((p - center).norm()));
-        ExtentBall::new(center, radius)
+        ExtentBall::of_control_net(self.net.control())
     }
 }
 
@@ -221,12 +211,23 @@ impl<T: Real> SplineImplicitPose<T> {
 
     /// The pair's section with these components, nothing decided Zero.
     fn section(self, components: Components<T>) -> PairSection<T> {
-        let lever = self.ball().radius();
+        self.section_deciding(components, Vec::new())
+    }
+
+    /// The pair's section with these components and these `Zero`
+    /// verdicts.
+    fn section_deciding(
+        self,
+        components: Components<T>,
+        decided: Vec<super::ZeroVerdict>,
+    ) -> PairSection<T> {
+        let lever = self.ball().lever();
         PairSection {
             pose: PairPose::SplineImplicit(Box::new(self)),
-            decided: Vec::new(),
+            decided,
             components,
             nodes: Vec::new(),
+            node_sets: Vec::new(),
             lever,
         }
     }
@@ -708,22 +709,101 @@ pub(super) fn section(
             .fold(ChartReach::default(), ChartReach::or);
         (reach, std::sync::Arc::new(pass.clone()))
     };
-    if let sweep::Sweep::Declined(_) = sweep::sweep(
+    let decided = match sweep::sweep(
         reading.boxes(),
         pivot.phi(),
         reading.account_floor(),
         read_band,
-        pose.domain().extent,
+        pose.ball().certified_diameter(),
     ) {
-        let out = reading.all().map_err(super::whole_reading_refused)?;
-        return listed(pose, &pivot, out);
-    }
-    drop(reading);
-    let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
-        return Ok(pose.section(Components::Counted(Vec::new())));
+        sweep::Sweep::Declined(_) => {
+            let out = reading.all().map_err(super::whole_reading_refused)?;
+            return listed(pose, &pivot, out);
+        }
+        sweep::Sweep::LoopFree(decided) => decided,
     };
+    let witnesses = witnesses(reading.boxes(), &decided);
+    drop(reading);
     pose.pass = Some(pass);
-    Ok(pose.section(Components::Reaching(reached)))
+    loop_free(pose, reach, &decided, &witnesses)
+}
+
+/// Each decided critical point's witness, the wall's point at its box's
+/// enclosure's centre, and that enclosure's reach, its pad.
+pub(super) fn witnesses(
+    boxes: &crate::ssi::enclose::NurbsBoxes<'_, f64>,
+    decided: &[sweep::Critical],
+) -> Vec<Option<(Point3<f64>, f64)>> {
+    decided
+        .iter()
+        .map(|c| {
+            c.cell
+                .window()
+                .and_then(|w| boxes.rect_box(w).centre_and_reach())
+        })
+        .collect()
+}
+
+/// What a decided critical point's section refuses as
+/// ([`SectionError::Pinched`]) where the section has more than its
+/// touches: its decision's name.
+pub(super) const CRITICAL: &str = "spline_critical_value";
+
+/// Why a touch's component has no carrier.
+const TOUCH: &str = "a touch decided Zero at a critical point of the composite: the surfaces \
+                     meet at one point within the band, and no carrier is minted for it";
+
+/// **The section a loop-free sweep's verdict is** (module docs), the
+/// pass's ends `reach` and the critical points `decided` Zero:
+///
+/// - none decided: no component where the pass found no end, else
+///   [`Components::Reaching`] on the sides it found them on;
+/// - only touches and no end: each touch a point component, its witness
+///   the wall's point at its box and its pad that box's reach, each a
+///   tangency decided Zero, the reading the interior-loop guard's touch
+///   arm takes;
+/// - a node, or touches beside components with ends: those components
+///   meet a decided tangency, and the march that would list them does not
+///   start at one, so they are not counted
+///   ([`SectionError::Pinched`], named [`CRITICAL`]).
+///
+/// # Errors
+///
+/// [`SectionError::Pinched`] as above.
+pub(super) fn loop_free(
+    pose: SplineImplicitPose<f64>,
+    reach: ChartReach,
+    decided: &[sweep::Critical],
+    witnesses: &[Option<(Point3<f64>, f64)>],
+) -> Result<PairSection<f64>, SectionError> {
+    if decided.is_empty() {
+        let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
+            return Ok(pose.section(Components::Counted(Vec::new())));
+        };
+        return Ok(pose.section(Components::Reaching(reached)));
+    }
+    if reach.any() || decided.iter().any(|c| c.kind == sweep::Kind::Node) {
+        return Err(SectionError::Pinched {
+            predicate: CRITICAL,
+        });
+    }
+    let mut components = Vec::with_capacity(decided.len());
+    let mut verdicts = Vec::with_capacity(decided.len());
+    for (c, &witness) in decided.iter().zip(witnesses) {
+        components.push(SectionComponent {
+            shape: ComponentShape::Point,
+            winds: [false, false],
+            witness: witness.map(|(q, _)| q),
+            pad: witness.map_or(0.0, |(_, pad)| pad),
+            carrier: ClassCarrier::Unminted(TOUCH),
+            cut_ends: None,
+        });
+        verdicts.push(super::ZeroVerdict {
+            decision: super::SectionDecision::Tangency(CRITICAL),
+            margin: c.margin,
+        });
+    }
+    Ok(pose.section_deciding(Components::Counted(components), verdicts))
 }
 
 /// **The section read whole** (module docs): C3's reading, every
@@ -807,6 +887,7 @@ fn listed(
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(UNCARRIED),
+            cut_ends: None,
         });
     }
     components.extend(out.boundary.iter().map(|region| SectionComponent {
@@ -815,6 +896,7 @@ fn listed(
         witness: None,
         pad: 0.0,
         carrier: ClassCarrier::Unminted(REGION),
+        cut_ends: None,
     }));
     Ok(pose.section(Components::Counted(components)))
 }

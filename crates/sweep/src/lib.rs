@@ -168,6 +168,11 @@ mod swept;
 #[doc(hidden)]
 pub mod test_support;
 
+/// What every sweep refuses a profile with no loops in: the empty
+/// region is a profile's document state, and sweeps nothing.
+pub(crate) const EMPTY_PROFILE: &str =
+    "profile has no loops — nothing to sweep. Recourse: add a loop to the profile";
+
 pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
 pub use loft::{LoftError, Lofted, LoopSegment, PinnedSite, loft_body, loft_profiles, sweep_body};
 pub use revolve::tube::{

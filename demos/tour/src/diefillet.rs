@@ -438,11 +438,10 @@ fn build(tol: Tol) -> Die {
     // The 21 pip rims: plane against sphere, UNORDERED across the edge
     // (the atom takes two SETS, not a left and a right). What this
     // EXCLUDES is the point — the two cavity meridians of each pip read
-    // `(Sphere, Sphere)` and match neither set, and `fillet_edges`
-    // would refuse them `TangentialEdge` at a margin of exactly zero,
-    // correctly, at any radius: two half-cap faces sharing ONE sphere
-    // surface have no dihedral wedge to roll a ball into. The
-    // exclusion is by DESCRIPTION, not by a hand-maintained omission.
+    // `(Sphere, Sphere)` and match neither set; `fillet_edges` would
+    // leave them as they are at any radius, two half-cap faces sharing
+    // ONE sphere surface having no dihedral wedge to roll a ball into.
+    // The exclusion is by DESCRIPTION, not by a hand-maintained omission.
     let rims = select_where(
         &eval(&a.doc, tol),
         blanked,

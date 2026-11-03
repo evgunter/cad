@@ -2,10 +2,12 @@
 id: an-edges-extent-has-four-dispatchers
 kind: issue
 title: an edge's extent has four per-Curve3 dispatchers and no home, so each per-site fold of a face's extent picks a different one
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
+closed: 2026-11-03
+pr: 6399
 ---
 
 
@@ -93,3 +95,12 @@ question, outside that map:
 ## The edge extent's new home (OFFSET, 2026-10-27)
 
 `geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). The premise above that the edge extent "is not this class" no longer holds: `edge_extent_sup` and `edge_reach_from` answer this row's question (an upper bound on an edge's region, about a point or as a diameter) at the `SpanLocate` bound, built on `extent.rs`'s reach family: a circle exactly, an ellipse through `conic_arc_reach` over its span, a spiric through `geom::curves::spiric_rate_bounds`, a spline by the lesser of its control net and a Lipschitz bound over its own window (the samples plus the speed bound). PR 5875 consolidates `certify::edge_extent`, `certify::farthest_pair` and `edge_nurbs::carrier_diameter` into that home, so these three now share one diameter helper (`extent::farthest_pair`). The census's `edge_reach_in` box, `containment::carrier_ball`, `boxes::{conic_extent, arc_extent}` and the maximal-faces ball are untouched and remain this row's.
+
+## Closed (PR 6399, 2026-11-03)
+
+An edge's region now has one home: `geom`'s `Curve3::cover_over(window)`, read in topo through one edge reading (`boxes::edge_cover_over` → `edge_cover_of`/`edge_cover_linked`), which hulls the arc's cover with the edge's vertices. Every per-`Curve3` dispatcher this row and its evidence sections name is deleted or reads it:
+- the box rule, the axial carrier, `carrier_ball`/`conic_arc_ball`, the census curved box and the maximal-faces ball;
+- the shell boxes, geom-brep's `edge_reach_from` (deleted) and the `Reach` spans;
+- sweep's surgery and `sheet_clip`, and step-import's piece box.
+
+What remains is filed: `an-edges-diameter-and-exactness-have-no-cover-method`, and `certify_plane` and `lever_from` on `cover-levers`. (BOXES orchestrator)

@@ -88,11 +88,11 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: LEVER / 2.0,
-        },
-        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), LEVER)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
+        Some(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), LEVER)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     )
@@ -103,10 +103,10 @@ fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     super::classify(
         f,
         g,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: LEVER / 2.0,
-        },
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
         None,
         None,
         band(),
@@ -158,7 +158,7 @@ pub(super) fn tangent(s: &Section<f64>) -> &'static str {
     }
 }
 
-fn touch(s: &Section<f64>) -> Touch<f64> {
+pub(super) fn touch(s: &Section<f64>) -> Touch<f64> {
     match s {
         Section::Touch(t) => *t,
         other => panic!("not a touch: {other:?}"),
@@ -384,7 +384,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
     ] {
         let s = classify(&donut(), &partner);
         // At ε 1e-6 the tilted torus's march straddles its tube
-        // (`work/sectrung/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+        // (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
         if matches!(s, Section::Unmarched) && Tol::witness().eps() == 1e-6 {
             continue;
         }
@@ -425,10 +425,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
     let unmarched = super::classify(
         &donut(),
         &rod,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: LEVER / 2.0,
-        },
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
         None,
         None,
         band(),
@@ -612,18 +612,16 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
 // -------------------------------------------------------------------
 
 /// **The P0 saddle loop**: `r₁ = 1` about `z`, `r₂ = 0.5` about `x` at
-/// `y = 1.3`. One null loop, witnessed at `(±0.6, 0.8, 0)`. Reading the
-/// middle row as the first (two thin-essential loops) would let W2
-/// clear it on the arc face.
+/// `y = 1.3`. One null loop, witnessed on both walls by the ruling
+/// sweep. Reading the middle row as the first (two thin-essential loops)
+/// would let W2 clear it on the arc face.
 #[test]
 fn the_p0_saddle_loop_is_one_null_component() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
     let b = cylinder(p(-3.0, 1.3, 0.0), Vec3::unit_x(), 0.5);
     let s = classify(&a, &b);
     assert_eq!(shape(&s), (1, true, vec![false], vec![false], vec![false]));
-    let w = witness(&s);
-    on_both(w, &a, &b);
-    assert!((w.y - 0.8).abs() < 1e-12 && w.z.abs() < 1e-12, "{w:?}");
+    on_both(witness(&s), &a, &b);
     // Tilted 0.15 rad about y: the same class, the angle never read.
     let b = cylinder(
         p(0.0, 1.3, 0.0),
@@ -633,32 +631,22 @@ fn the_p0_saddle_loop_is_one_null_component() {
     on_both(witness(&classify(&a, &b)), &a, &b);
 }
 
-/// **The saddle witness's side is decided, per sign of `δ₀`.** Cylinder
-/// 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x` or
-/// `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
+/// **The saddle witness lies on both walls, per sign of `δ₀`.**
+/// Cylinder 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x`
+/// or `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
 /// of each sign on each side of the axis, taken with either wall the
-/// thinner. The witness is on the arc's middle ruling on cylinder 1's
-/// side of cylinder 2: on both carriers, at `y` of the offset's sign,
-/// `|y| = |offset| − r₂`. The far ruling never meets cylinder 1
-/// (`|δ₀| + r₂ > r₁` wherever the loop is a saddle), so a side chosen
-/// against `δ₀`'s sign reds every pose.
+/// thinner. The thinner is the ruled wall, so the sweep's frame (its
+/// foot, normal and signed gap) is read from either axis and either sign
+/// of the gap, and a frame read wrong puts its witness off a wall.
 #[test]
-fn the_saddle_witness_lies_on_cylinder_1s_side_for_either_sign() {
+fn the_saddle_witness_lies_on_both_walls_for_either_sign() {
     for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
         let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r1);
         for oy in [1.3, -1.3] {
             for run in [1.0, -1.0] {
                 let (o2, d2) = (p(-3.0 * run, oy, 0.0), v(run, 0.0, 0.0));
                 let b = cylinder(o2, d2, r2);
-                let delta = (o2 - p(0.0, 0.0, 0.0)).dot(Vec3::unit_z().cross(d2));
-                let pose = format!("r₁ = {r1}, r₂ = {r2}, offset y = {oy}, δ₀ = {delta}");
-                let w = witness(&classify(&a, &b));
-                on_both(w, &a, &b);
-                let near = oy.signum() * (oy.abs() - r2);
-                assert!(
-                    (w.y - near).abs() < 1e-12 && w.z.abs() < 1e-12,
-                    "{pose}: the witness {w:?} is not on the near ruling y = {near}"
-                );
+                on_both(witness(&classify(&a, &b)), &a, &b);
             }
         }
     }
@@ -747,23 +735,20 @@ fn near_parallel_walls_refuse_as_a_tangency() {
     assert_eq!(tangent(&classify(&a, &b)), "cc_axes_parallel");
 }
 
-/// **A cylinder pair the region cuts is marched, and its cut arcs clear
+/// **A cylinder pair the region cuts is counted, and its cut arcs clear
 /// as unbounded.** A wall of radius `0.5` about `z` and one `0.05` rad
 /// off it, `0.1` apart: their own ball (about `20` across) straddles a
-/// region of radius `1.5` about the origin, so the pair's components are
-/// the march's, two arcs that end on the region, each unbounded (W1).
+/// region of radius `1.5` about the origin, and the ruling sweep counts
+/// two arcs that end on the region, each unbounded (W1), with no march.
 #[test]
-fn a_cylinder_pair_the_region_cuts_marches_two_unbounded_arcs() {
+fn a_cylinder_pair_the_region_cuts_counts_two_unbounded_arcs() {
     let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 0.5);
     let b = cylinder(p(0.1, 0.0, 0.0), v(0.0, 0.05f64.sin(), 0.05f64.cos()), 0.5);
     let s = super::classify(
         &a,
         &b,
-        super::Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: 1.5,
-        },
-        Some(geom_brep::ExtentBall::new(p(0.0, 0.0, 0.0), 1.5)),
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.5)),
+        Some(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), 1.5)),
         Some(geom_brep::SsiLane::marched()),
         band(),
     );
@@ -1250,9 +1235,13 @@ fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
     }
 }
 
-/// **A touch clears only on a pair with no event, and only out of a
-/// face.** `Out` of either face clears on that side; a touch on both
-/// faces, or one no face places, refuses R-tan; and an event on the
+/// **A touch clears out of a face on a pair with no event, or at a
+/// vertex of both faces.** `Out` of either face clears on that side; a
+/// touch of two cones at their common apex, a vertex each face holds, is
+/// that vertex pair's, its event the pair's own, so it clears evented or
+/// not, and no other touch at a vertex does; a touch inside both
+/// faces, or at a vertex of one alone, or one no face places, refuses
+/// R-tan; and any other event on the
 /// pair refuses whatever the placement — the clearance argument needs
 /// the pair's own silence (mutant: reading the placement on an evented
 /// pair).
@@ -1261,6 +1250,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     let s = Section::Touch(Touch {
         name: "section_sphere_plane_reach",
         at: p(0.0, 0.0, 1.0),
+        apex: false,
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
@@ -1270,6 +1260,37 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
     assert_eq!(rule(false, [IN, IN]), tan);
     assert_eq!(rule(false, [None, None]), tan);
+    let vertex = Some(FaceContainment::OnVertex(
+        crate::entity::VertexKey::default(),
+    ));
+    // A touch at a vertex both faces hold is not cleared as a vertex
+    // pair's unless it is two cones' at their common apex, which the
+    // touch says by its type, not its name.
+    assert_eq!(rule(false, [vertex, vertex]), tan);
+    assert_eq!(rule(true, [vertex, vertex]), tan);
+    assert_eq!(rule(false, [vertex, IN]), tan);
+    assert_eq!(rule(true, [vertex, OUT]), tan);
+    for name in [
+        "section_cone_coaxial_apexes",
+        super::super::fan::CONES_SHARE_APEX,
+    ] {
+        let apex = Section::Touch(Touch {
+            name,
+            at: p(0.0, 0.0, 1.0),
+            apex: true,
+        });
+        let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
+            certify(&apex, evented, band(), |_| Sheet::Not, |_, _| place)
+        };
+        for evented in [false, true] {
+            assert_eq!(
+                rule(evented, [vertex, vertex]),
+                Ok(vec![Cleared::TouchAtVertex]),
+                "{name}, evented {evented}"
+            );
+        }
+        assert_eq!(rule(true, [vertex, IN]), Err(Refusal::Tangent(name)));
+    }
     assert_eq!(rule(true, [OUT, OUT]), tan);
     assert_eq!(rule(true, [OUT, IN]), tan);
 }
@@ -1409,12 +1430,7 @@ fn full_rim(
             pair: SurfacePair::new(cyl, rim_plane),
             selector: geom_brep::CurveSelector::Witness(p(-1.0, 0.0, z)),
         },
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, z),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(p(0.0, 0.0, z), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -1528,10 +1544,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body
-        .get_surface(band_body.get_face(band_face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = band_body.face_surface(band_face).unwrap().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1746,11 +1759,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| {
-        b.get_surface(b.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |b: &Body<f64>, f| b.face_surface(f).unwrap().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(
@@ -1800,12 +1809,7 @@ fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface
             pair: SurfacePair::new(key, cut_plane),
             selector: geom_brep::CurveSelector::Witness(c - u_ref * rho),
         },
-        carrier: Curve3::Circle {
-            center: c,
-            axis: k,
-            radius: rho,
-            u_ref,
-        },
+        carrier: Curve3::circle(c, k, rho, u_ref),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -2006,12 +2010,7 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
                 pair: SurfacePair::new(cone, rim_plane),
                 selector: geom_brep::CurveSelector::Witness(rim_at(0.5 * (t0 + t1))),
             },
-            carrier: Curve3::Circle {
-                center: p(0.0, 0.0, 1.0),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
+            carrier: Curve3::circle(p(0.0, 0.0, 1.0), Vec3::unit_z(), 1.0, Vec3::unit_x()),
             param_start: t0,
             param_end: t1,
         }
@@ -2237,20 +2236,20 @@ pub(super) fn cone_sheet(start: Point3<f64>, steps: &[Step]) -> (Body<f64>, Face
                     },
                     // A descending arc runs forward on the reversed
                     // axis, its seam moved to `t0`.
-                    carrier: Curve3::Circle {
-                        center: p(0.0, 0.0, h),
-                        axis: if t1 > t0 {
+                    carrier: Curve3::circle(
+                        p(0.0, 0.0, h),
+                        if t1 > t0 {
                             Vec3::unit_z()
                         } else {
                             -Vec3::unit_z()
                         },
-                        radius: h.abs(),
-                        u_ref: if t1 > t0 {
+                        h.abs(),
+                        if t1 > t0 {
                             Vec3::unit_x()
                         } else {
                             v(t0.cos(), t0.sin(), 0.0)
                         },
-                    },
+                    ),
                     param_start: if t1 > t0 { t0 } else { 0.0 },
                     param_end: if t1 > t0 { t1 } else { t0 - t1 },
                 };
@@ -2419,12 +2418,14 @@ fn torus_iso(
             pair: SurfacePair::new(torus, cut),
             selector: geom_brep::CurveSelector::Witness(torus_at((major, minor), mid)),
         },
-        carrier: Curve3::Circle {
-            center,
-            axis,
+        carrier: Curve3::Circle(geom::Circle {
+            frame: geom::Frame {
+                center,
+                axis,
+                u_ref,
+            },
             radius,
-            u_ref,
-        },
+        }),
         param_start: 0.0,
         param_end: sweep,
     }
@@ -2576,7 +2577,7 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
 #[test]
 fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -2622,7 +2623,7 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -2814,7 +2815,7 @@ fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
 #[test]
 fn the_smallest_notch_never_reads_in() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
-    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
     test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
@@ -3208,15 +3209,13 @@ fn a_plane_touch_near_the_top_parallel_stands_on_both_carriers() {
             for t in [1e-4, 1e-5, 1e-6, 1e-7, 1e-8] {
                 let x = tor.at(u, PI / 2.0 - t);
                 let pl = Partner::Plane(x, tor.normal(u, PI / 2.0 - t));
-                let reach = Reach {
-                    centre: tor.c,
-                    radius: 5.0 * scale,
-                };
+                let reach =
+                    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(tor.c, 5.0 * scale));
                 let label = format!("×{scale:e}, axis {axis:?}, u {u}, t {t:e}");
                 match super::classify(
                     &tor.surface(),
                     &pl.surface(),
-                    reach,
+                    &reach,
                     None,
                     Some(geom_brep::SsiLane::marched()),
                     band,
@@ -3259,10 +3258,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
     for scale in [1e-3, 1.0, 1e3] {
         let rc = scale;
         let base = Point3::origin() + v(0.3, -0.2, 0.1) * scale;
-        let reach = Reach {
-            centre: base,
-            radius: 2.0 * scale,
-        };
+        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(base, 2.0 * scale));
         let (mut touches, mut poses) = (0, 0);
         for i in 0..16 {
             let z = 1.0 - (f64::from(i) + 0.5) / 8.0;
@@ -3289,7 +3285,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                         super::classify(
                             &ball.surface(),
                             &wall.surface(),
-                            reach,
+                            &reach,
                             None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
@@ -3297,7 +3293,7 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
                         super::classify(
                             &wall.surface(),
                             &ball.surface(),
-                            reach,
+                            &reach,
                             None,
                             Some(geom_brep::SsiLane::marched()),
                             band,
@@ -3402,16 +3398,16 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                     }
                 }
             }
-            let reach = Reach {
-                centre: t.c,
-                radius: 2.0 * (t.big_r + t.r),
-            };
+            let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+                t.c,
+                2.0 * (t.big_r + t.r),
+            ));
             for partner in partners {
                 for section in [
                     super::classify(
                         &t.surface(),
                         &partner.surface(),
-                        reach,
+                        &reach,
                         None,
                         Some(geom_brep::SsiLane::marched()),
                         band,
@@ -3419,7 +3415,7 @@ fn every_torus_touch_holds_against_a_sampling_oracle() {
                     super::classify(
                         &partner.surface(),
                         &t.surface(),
-                        reach,
+                        &reach,
                         None,
                         Some(geom_brep::SsiLane::marched()),
                         band,

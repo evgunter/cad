@@ -138,7 +138,7 @@ pub fn place_in_world(doc: &Doc<ProfileProgram>, body: impl Into<Operand>, tol: 
 pub fn in_world_by(
     doc: &Doc<ProfileProgram>,
     body: impl Into<Operand>,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<Operand>, Formula)>,
     tol: Tol,
 ) -> Placed {
     written(doc, body.into(), world(), Answer::unmated(values), tol)
@@ -155,7 +155,7 @@ pub fn against(
     doc: &Doc<ProfileProgram>,
     target: impl Into<Operand>,
     body: impl Into<Operand>,
-    values: Vec<(Coord, Formula)>,
+    values: Vec<(Coord<Operand>, Formula)>,
     tol: Tol,
 ) -> Placed {
     let (target, body) = (target.into(), body.into());
@@ -165,14 +165,14 @@ pub fn against(
 
 /// **The slides along the space's `x`, `y` and `z`** by `by`, each
 /// that is not zero.
-pub fn slides(by: [f64; 3]) -> Vec<(Coord, Formula)> {
+pub fn slides(by: [f64; 3]) -> Vec<(Coord<Operand>, Formula)> {
     TargetAxis::ALL
         .into_iter()
         .zip(by)
         .filter(|&(_, by)| by != 0.0)
         .map(|(axis, by)| {
             let by = Formula::literal(by, Dimension::Length).expect("a finite length");
-            (Coord::Slide(axis), by)
+            (Coord::slide(axis), by)
         })
         .collect()
 }
@@ -253,7 +253,7 @@ pub fn on_axis(
         orient,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.
-    let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(slide.0), slide.1)]);
+    let placed = Answer::of(doc, vec![mate], vec![(Coord::slide(slide.0), slide.1)]);
     written(doc, Operand::output(revolve, 0), space, placed, tol)
 }
 

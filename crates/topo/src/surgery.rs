@@ -48,7 +48,7 @@
 //! `offset_charts_together` and `offset_charts_staged`'s doors
 //! (`replace_faces_offset`, `offset_surfaces_together`). Two kinds of
 //! door still derive it twice
-//! (`work/offset/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`):
+//! (`work/shell/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`):
 //! - a door whose typed gate is tier 3 (the boolean, `shell`, the
 //!   split, STEP import) runs the sweep at its close and the at-rest
 //!   gate later, over a body it has changed since;

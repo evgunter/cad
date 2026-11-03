@@ -274,8 +274,11 @@ carry that cost on top of its own. So the chain goes, not the link:
   twenty rims survive. The pip the union no longer reads is still
   defined, and out of the product because no placement names it;
   deleting it too is tidiness, not a requirement. An intersect's
-  argument, a placement's shape list and `Loft`'s `profiles` are the same
-  shape and take the same edit; nothing else in the vocabulary is a list.
+  argument and a placement's shape list are the same shape and take the
+  same edit. `Loft`'s sections (`first`, then `then`) are re-pointed by it
+  too, one read per section and the count kept; adding, dropping or
+  reordering them is `SetLoftSections`, since each section after the first
+  carries a station. Nothing else in the vocabulary is a list.
 - The viewer's combining doors take a union or intersect seat of N body
   picks, and a subtract's two (not yet built).
 
@@ -382,9 +385,17 @@ dimension, the slots' reads, the alignment and frame rules) — and
 acyclicity over reads. A list operand is the same door with a list. The
 write reports, and never refuses, the downstream names it strands, as DM7
 has a removal do; the N5 ladder diagnoses them and `Rebind` repairs them.
-No door picks a survivor: a delete leaves its readers unresolved and typed
-(D10), and "delete and reconnect" is a client's offer of explicit slot
-writes, the person choosing each. DM4's flat operators remain the way not
+No edit picks a survivor: the kernel's `DeleteNode` leaves its readers
+unresolved and typed (D10). The delete gesture hands each reader of a
+deleted node to the body that node continues, as explicit
+`SetParam`/`SetMembers`/`Rebind` edits in one action. A node continues
+a body when it is that body changed in place, in its space, carrying its
+entities: a fillet, chamfer or shell continues its input; an operator
+left with one operand continues that operand; a cut whose tool is
+deleted continues its target. Nothing else continues anything (a
+placement, a mirror image, a split half, a pattern, a construction), and
+the readers of such a node go with it. A name the deleted node carried
+returns to the name it carried; a name it minted strands (DM7). DM4's flat operators remain the way not
 to pay a pairwise chain's naming cost.
 
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused

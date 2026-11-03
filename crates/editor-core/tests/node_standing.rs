@@ -23,9 +23,7 @@
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
 use editor_core::analysis::ParamBox;
-use editor_core::clearance::{
-    ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
-};
+use editor_core::clearance::{ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal};
 use editor_core::{
     CancelToken, ChecksConfig, ChecksError, DocEdit, EntityKind, EvalOptions, Evaluation,
     HitTestError, InterrogateError, NameLookupError, Node, NodePick, NodePickError, NodeStanding,
@@ -227,13 +225,12 @@ fn every_standing_renders_one_way_through_every_door() {
         NodeStanding::NotInDocument { node: foreign },
     ] {
         let sel = Selection::body_of(standing.node());
-        let report = clearance(
+        let report = crate::fixture::dials_clearance(
             &s.doc,
             &leaf,
             &sel,
             &sel,
-            0.1,
-            &editor_core::Stop::default(),
+            editor_core::clearance::ClearanceBound::at_least(0.1),
             Tol::witness(),
         );
         let ClearanceVerdict::Refused(ClearanceRefusal::Selection(refusal)) = report.verdict()
@@ -495,7 +492,7 @@ fn reads(code: &str) -> usize {
 /// `#[cfg(test)]` items are not counted); a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 15] = [
+const READERS: [(&str, usize, &str); 16] = [
     (
         "crates/editor-core/src/eval/members.rs",
         18,
@@ -539,6 +536,12 @@ const READERS: [(&str, usize, &str); 15] = [
         "crates/pncad/src/document.rs",
         1,
         "re-exports the type on the public surface",
+    ),
+    (
+        "crates/pncad/src/analysis.rs",
+        5,
+        "the nominal clearance door reads each assertion's report off its value and, for one \
+         that has none, its own error's words",
     ),
     (
         "crates/editor-core/src/drive.rs",

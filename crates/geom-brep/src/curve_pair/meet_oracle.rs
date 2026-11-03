@@ -64,13 +64,7 @@ fn through(rng: &mut fuzz::Rng, kind: usize, x: Point3<f64>) -> (Curve3<f64>, f6
     if kind == 0 {
         let dir = direction(rng);
         let t = rng.range(-2.0, 2.0);
-        return (
-            Curve3::Line {
-                origin: x - dir * t,
-                dir,
-            },
-            t,
-        );
+        return (Curve3::line(x - dir * t, dir), t);
     }
     let axis = direction(rng);
     let u = {
@@ -87,20 +81,9 @@ fn through(rng: &mut fuzz::Rng, kind: usize, x: Point3<f64>) -> (Curve3<f64>, f6
     let t = rng.range(-PI, PI);
     let center = x - u * (a * t.cos()) - v * (b * t.sin());
     let carrier = if kind == 1 {
-        Curve3::Circle {
-            center,
-            axis,
-            radius: a,
-            u_ref: u,
-        }
+        Curve3::circle(center, axis, a, u)
     } else {
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u: a,
-            semi_v: b,
-            u_ref: u,
-        }
+        Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(center, axis, u), a, b))
     };
     (carrier, t)
 }
@@ -212,13 +195,7 @@ fn along(
 ) -> (Curve3<f64>, f64) {
     if kind == 0 {
         let at = rng.range(-2.0, 2.0);
-        return (
-            Curve3::Line {
-                origin: x - t * at,
-                dir: t,
-            },
-            at,
-        );
+        return (Curve3::line(x - t * at, t), at);
     }
     let a = rng.log_uniform(0.3, 3.0);
     let b = if kind == 1 {
@@ -234,20 +211,9 @@ fn along(
     let v = n.cross(u);
     let center = x - u * (a * theta.cos()) - v * (b * theta.sin());
     let carrier = if kind == 1 {
-        Curve3::Circle {
-            center,
-            axis: n,
-            radius: a,
-            u_ref: u,
-        }
+        Curve3::circle(center, n, a, u)
     } else {
-        Curve3::Ellipse {
-            center,
-            axis: n,
-            semi_u: a,
-            semi_v: b,
-            u_ref: u,
-        }
+        Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(center, n, u), a, b))
     };
     (carrier, theta)
 }
@@ -301,12 +267,7 @@ fn grazing(rng: &mut fuzz::Rng) -> Drawn {
     let d = rng.log_uniform(3e-8, 1e-4);
     let sign = if rng.below(2) == 0 { 1.0 } else { -1.0 };
     let r2 = r + sign * d + rng.range(-0.5, 0.5) * ZERO;
-    let mk = |center: Point3<f64>, radius: f64| Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref: u,
-    };
+    let mk = |center: Point3<f64>, radius: f64| Curve3::circle(center, axis, radius, u);
     let start = rng.range(-PI, PI);
     let (run_a, run_b) = (rng.range(PI, TAU - 0.1), rng.range(PI, TAU - 0.1));
     let (sa, sb) = ((start, start + run_a), (start - 1.0, start - 1.0 + run_b));
@@ -341,12 +302,7 @@ fn tilted(rng: &mut fuzz::Rng) -> Drawn {
         (centre + n * d, (radius * radius - d * d).sqrt())
     };
     let ((c1, r1), (c2, r2)) = (foot(n1), foot(n2));
-    let mk = |center, axis: Vec3<f64>, radius| Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref: u_for(axis),
-    };
+    let mk = |center, axis: Vec3<f64>, radius| Curve3::circle(center, axis, radius, u_for(axis));
     let start = rng.range(-PI, PI);
     let (a, b) = (mk(c1, n1, r1), mk(c2, n2, r2));
     let (sa, sb) = (
@@ -389,7 +345,7 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
             .min((s.carrier().eval(t1) - q).norm())
     };
     match *s.carrier() {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let t = (q - origin).dot(dir) / dir.dot(dir);
             if (t0.min(t1)..=t0.max(t1)).contains(&t) {
                 distance(s.carrier(), q)
@@ -397,12 +353,15 @@ fn off_span(s: &Span<'_, f64>, q: Point3<f64>) -> f64 {
                 ends()
             }
         }
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let w = q - center;
             let v = axis.cross(u_ref);
             let angle = (w.dot(v) * radius.signum()).atan2(w.dot(u_ref) * radius.signum());

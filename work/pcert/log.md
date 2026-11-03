@@ -861,6 +861,13 @@ E1c waits on the answer.
   - E1c is widened to the sphere/cone/torus class arms and the sphere/torus ellipse kind gates;
   - E1d2 seals topo's construction tier.
   Next: E1d2 → E1c → E1e → E2 → E3 → E4.
+- 2026-10-28 — **E1c (`pcert/mints-read-incidence`): every mint arm reads incidence before it images.**
+  - `derive_class` opens the plane, cylinder, cone, sphere and torus arms with the chart's incidence test. The general lane takes the witness (`general_lane(shown, undecided)`). The sphere and torus kind gates send an ellipse not shown off to the general lane.
+  - The spiric's plane cap and torus wall read it too (a sweep hit). `topo::chart_region`'s plane site ends an incidence refusal by the read (`TrimOffFace`).
+  - A carrier off its face ends by E1d's door rule, never `ChartResidual`.
+  - Moves: E1b's `set_edge_curve` and Euler-chord rows now refuse `CarrierOffChart`; `m10_bulge` pins `pcurve_cylinder_chart_incident` 16/4 and `pcurve_line_chart_incident` 18/4.
+  - The read is taken in the chart's own frame: the anchor at the origin and the axis unit. A read where the carrier sits misread an exact rim 1e7 m out as off at 1e-12 (a kernel defect), and a ruling high up an axis long by δ (inside the at-rest margin) as off at 1e-6. E1d's sphere, cone and torus reads had the same flaw.
+  - Closed `plane-and-cylinder-mints-meter-incidence-as-a-residual`. The cylinder meridian arm's `pcurve_chart_radial_moving` tie-break, which E2 re-reads, now sits behind the read.
 - 2026-10-28 — E1d2 (PR 5881) merged: topo's construction tier is sealed.
   - Its 46 doors are crate-private inherent methods of `Body`, public only through `topo::construction::Construct`, which is where they are documented.
   - `pncad::topo` is the topo glob, with the tier's modules shadowed. The shadow set is derived from `construction.rs`.
@@ -869,3 +876,33 @@ E1c waits on the answer.
   - The spec types stay nameable because `EdgeCurve::{mint, certify, …}` take and return them.
   - Review tier: single FULL review (the move is mechanical, but whether the seal is complete had to be probed from outside). 0 MAJOR; fix list K1–K5 (the pins could not see a door made public; the tier's docs had dropped out of rustdoc). The orchestrator read the fixes.
 - 2026-10-28 — E1c (PR 5889) dispatched at review tier dual, class H (the incidence read across five charts). The concurrent pair reads frozen head 6c29a7e439, scope c591ab53c7..6c29a7e439.
+- 2026-10-28 — **E1c fix pass L1–L10** (PR 5889).
+  - Every at-rest reader of a stored carrier now reads incidence first: the stated chart image (`run_checks`), the stored pcurve rows (`PcurveCache::certify`/`recertify`) and the planar tier's boundary (through `IncidenceRead`). This closes `select/a-stated-chart-image-meters-its-carriers-incidence-as-a-residual`.
+  - The pair description's two-surface residual is filed on select: `a-two-surface-residual-meters-a-moved-face-as-the-descriptions-miss`.
+  - The read is decided less its rounding, as a multiple of the distance, so the symbolic tier's zero theorem survives the charge (the box replay of `m10_10`).
+  - The envelope sweeps draw on the face and count what they drop.
+  - The sphere parallel reads the radius its image turns at near the pole (`polar_read_radius`).
+  - Filed closed: `a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies` (check 2 refuses it).
+  - Three rows at the 1 s line move to the slow set; base and head measure alike.
+- 2026-11-02 — Filed `the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive` (P2). Since PR 6105's `cylinder_rim_axial` decision (CLEAR's CAVITYDIAG, on this program's ground), m10_3's two-parameter drive refuses every leaf at every ε. Its two rows are pinned, and the decision's symbolic count is re-blessed in sym11, sym_9 and m10_9. (GREEN lane)
+- 2026-11-02 — **PCTAIL merged into PCERT.** Under the budget rule of 2026-11-02 (only dispatchable P0, P1 and unbanded rows count) PCTAIL had fallen far under budget, and its charter is one story with PCERT's. Its 14 item files moved here by `git mv`, ids and bodies unchanged, each with a dated note; its plan is folded into `plan.md` and its charter, `paths` and `keep_out` into `program.md`, and its directory left the tracker (`docs/doc-ledger/pctail-leaves-the-tracker.md`, which names the SHA its log is recoverable at).
+- 2026-11-02 — **To the PCERT orchestrator: PCTAIL's rows have landed on your track.** Ev, in chat 2026-11-02: "dumping pctail into pcert is ok (adding rows to an existing orchestrator is safe, but taking them away may not be)". The track budget now counts only dispatchable P0, P1 and unbanded rows, and PCTAIL (your 2026-10-01 priority-seam tail on `pcurve_cache.rs`) had fallen to 6 points. Its 14 item files are now in `work/pcert/`, ids and bodies unchanged, each with a dated note. Its slate is appended to `plan.md` as a separate section at the end; nothing in your own order, rows or branches was changed. `budget: 36` is set to the merged load. The unbanded PCTAIL rows (`a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one`, `pcurve-certify-error-arms-with-no-ending`) count against the budget until banded.
+- 2026-11-02 — The two unbanded rows from PCTAIL are banded:
+  - `pcurve-certify-error-arms-with-no-ending` is **P1**, cost M. `PcurveCertifyError::ending`'s grouped `None` and topo's at-rest fallback table (`DEFECT` / `NOT_YET` / `TOLERANCE`) are two implementations of one ending, which is the P1 definition.
+  - `a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one` is **P3**, cost M: latent unsoundness, since `ring_path`'s parity premise is unmeasured on the cone and the torus.
+  - Load 33/36. PCTAIL's slate runs after E1e → E2 → E3 → E4, with the P1 first (`plan.md`).
+- 2026-11-03 — **E1c merged** (PR 5889, `78027e0886`): every mint arm reads incidence before it images a carrier; the stated route, stored rows and the planar tier read through the same door, one read per carrier per certification, in the chart's own frame.
+  - Review tier: dual, class H. The concurrent pair read `6c29a7e439`. It is excluded from the pair count under 6(e): R2's worker restart killed its geom-brep slow run. Tallied 0: both executed MAJORs were bilateral. DR row `docs/dual-review-log/rows/PR-5889.md`.
+  - Four fix rounds:
+    - L1–L10 (the pair's union);
+    - M1–M6 (delta verifier on `2d0bf5a2f6`);
+    - N1–N5 (delta verifier on `76fd375d0f`: three slow rows triaged against a stale base, cost past the line);
+    - O1–O3 (delta verifier on `4ce2b4dffe`: 0 MAJOR, two MINOR). The orchestrator read O.
+  - Main was merged into the branch seven times.
+  - Rulings:
+    - N3 (a): the planar tier reads a conic over its edge's span, while the mint and certify keep the full turn. `a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span` stays open (about 2× to fix) and now names `topo::chart_region`'s plane path, pinned.
+    - Cost: accepted at 1.61× / 1.57× / 1.05× against main `1fcdbde7de`. The head's own times held, and main got about 10% faster. The owed cut, (ii), is on `the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads`.
+  - S5 (`TrimOffFace`'s Display) and the corner lever's wording are on E1e's plan row. Next: E1e.
+- 2026-11-03 — **E1e dispatched** (`pcert/display-payload-only`, from main `32ac2a0820`): a refusal's `Display` carries only its payload, and its ending exists only through `render(at)`, with a gate counting the production spelling sites per reading. It folds in `TrimOffFace`'s at-rest Display (S5) and the planar corner's lever wording.
+  - Review tier: single FULL. The design is ratified (Ev's PR 5838, Q1), and the change moves where endings are spelled, not what they mean. It is wide, though, and a missed door would silently drop an ending, so the review carries correctness claims.
+  - Sequencing: the newly banded P1 `pcurve-certify-error-arms-with-no-ending` runs right after E1e, ahead of E2. Both touch `PcurveCertifyError`'s endings, so running them in parallel would conflict, and E1e's door-rendering is the ground the arms' endings land on.

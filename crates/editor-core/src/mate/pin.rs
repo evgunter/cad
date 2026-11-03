@@ -30,7 +30,7 @@ pub struct Placed {
     pub mates: Vec<Mate<Formula>>,
     /// The values, the caller's first in the order written, then the
     /// constant `0` on each freedom left unnamed.
-    pub values: Vec<(Coord, Formula)>,
+    pub values: Vec<(Coord<Operand>, Formula)>,
 }
 
 impl Placed {
@@ -58,7 +58,7 @@ impl Placed {
     pub fn of<P>(
         doc: &crate::doc::Doc<P>,
         mates: Vec<Mate<Formula>>,
-        moves: Vec<(Coord, Formula)>,
+        moves: Vec<(Coord<Operand>, Formula)>,
     ) -> Self {
         let families: Vec<SubgroupFamily> = mates
             .iter()
@@ -72,25 +72,135 @@ impl Placed {
     /// leave unnamed — [`Self::of`] with no mate, which reads no
     /// document.
     #[must_use]
-    pub fn unmated(moves: Vec<(Coord, Formula)>) -> Self {
+    pub fn unmated(moves: Vec<(Coord<Operand>, Formula)>) -> Self {
         Self::with_families(Vec::new(), &[], moves)
+    }
+
+    /// **A bundle with no mate whose other slides run along `across`**:
+    /// [`Self::unmated`], the constant `0` written on the slides along
+    /// the target axes of `across` that no move names (a gesture reads
+    /// them off the directions it slides along,
+    /// [`super::turn::slides_across`]); `None` is [`Self::unmated`].
+    #[must_use]
+    pub fn unmated_across(
+        moves: Vec<(Coord<Operand>, Formula)>,
+        across: Option<super::SlideAxes>,
+    ) -> Self {
+        let written: Vec<Coord<Operand>> = moves.iter().map(|(c, _)| c.clone()).collect();
+        let mut values = moves;
+        values.extend(
+            unnamed(SubgroupFamily::Se3, &written, across)
+                .into_iter()
+                .map(|coord| {
+                    let zero = Formula::zero(coord.dimension());
+                    (coord, zero)
+                }),
+        );
+        Self {
+            mates: Vec::new(),
+            values,
+        }
     }
 
     /// [`Self::of`], the mates' families given.
     fn with_families(
         mates: Vec<Mate<Formula>>,
         families: &[SubgroupFamily],
-        moves: Vec<(Coord, Formula)>,
+        moves: Vec<(Coord<Operand>, Formula)>,
     ) -> Self {
         let left = residual(families.iter().copied());
-        let written: Vec<Coord> = moves.iter().map(|(c, _)| *c).collect();
+        let written: Vec<Coord<Operand>> = moves.iter().map(|(c, _)| c.clone()).collect();
         let mut values = moves;
-        values.extend(
-            unnamed(left, &written, None)
-                .into_iter()
-                .map(|coord| (coord, Formula::zero(coord.dimension()))),
-        );
+        values.extend(unnamed(left, &written, None).into_iter().map(|coord| {
+            let zero = Formula::zero(coord.dimension());
+            (coord, zero)
+        }));
         Self { mates, values }
+    }
+
+    /// **The freedoms a bundle of `mates` leaves**, each once, in the
+    /// order [`Self::of`] writes them: the slides the mates leave (with
+    /// `along`, the slides a gesture read off the copy's geometry,
+    /// [`super::turn::slides_left_along`]), then the spin about the
+    /// target's own direction, or the chain of turns about the target
+    /// space's axes where no direction is fixed. The mates' kinds are
+    /// read off the recipe of `doc`, nothing evaluated. What an editor
+    /// lists as the values a draft's mates leave.
+    #[must_use]
+    pub fn freedoms<P>(
+        doc: &crate::doc::Doc<P>,
+        mates: &[Mate<Formula>],
+        along: Option<super::SlideAxes>,
+    ) -> Vec<Coord<Operand>> {
+        let families = mates
+            .iter()
+            .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry));
+        unnamed(residual(families), &[] as &[Coord<Operand>], along)
+    }
+
+    /// **[`Self::freedoms`], keeping the loaded freedoms that name their
+    /// direction**: a slide along the mated direction or a read
+    /// direction, or a spin about a read axis, of `loaded` (a bundle
+    /// being edited) that the mates still leave stays as it is written,
+    /// and the target-space freedoms fill the rest. An editor lists these
+    /// so a re-edit never turns a ring's slide along its axis into a
+    /// slide along a target axis; one the mates no longer leave is the
+    /// editor's to say dropped.
+    #[must_use]
+    pub fn freedoms_keeping<P>(
+        doc: &crate::doc::Doc<P>,
+        mates: &[Mate<Formula>],
+        along: Option<super::SlideAxes>,
+        loaded: &[Coord<Operand>],
+    ) -> Vec<Coord<Operand>> {
+        let left = residual(
+            mates
+                .iter()
+                .filter_map(|m| operand_kind(doc, &m.on).and_then(crate::VarKind::symmetry)),
+        );
+        // A chain turning about a read axis is kept whole, in its order:
+        // turns do not commute.
+        let read_chain = loaded.iter().any(|c| matches!(c, Coord::SpinAbout(_)));
+        let named: Vec<Coord<Operand>> = loaded
+            .iter()
+            .filter(|c| match c {
+                Coord::Slide(None) | Coord::SlideAlong(_) => true,
+                Coord::Spin(Some(_)) | Coord::SpinAbout(_) => read_chain,
+                Coord::Slide(Some(_)) | Coord::Spin(None) => false,
+            })
+            .cloned()
+            .collect();
+        let keep = kept(left, &named, None);
+        let named: Vec<Coord<Operand>> = named
+            .into_iter()
+            .zip(keep)
+            .filter_map(|(c, k)| k.then_some(c))
+            .collect();
+        // Beside a kept slide naming its direction, the target-axis
+        // slides kept are the loaded ones, which with it span what the
+        // mates leave as written; a gesture's reading off the geometry
+        // chooses them otherwise.
+        let along = if named.iter().any(Coord::is_slide) {
+            Some(super::SlideAxes::of(loaded.iter().filter_map(
+                |c| match c {
+                    Coord::Slide(Some(axis)) => Some(*axis),
+                    _ => None,
+                },
+            )))
+        } else {
+            along
+        };
+        let fill = unnamed(left, &named, along);
+        let (fill_slides, fill_spins): (Vec<_>, Vec<_>) =
+            fill.into_iter().partition(Coord::is_slide);
+        let (named_slides, named_spins): (Vec<_>, Vec<_>) =
+            named.into_iter().partition(Coord::is_slide);
+        fill_slides
+            .into_iter()
+            .chain(named_slides)
+            .chain(named_spins)
+            .chain(fill_spins)
+            .collect()
     }
 
     /// **This bundle as one write** ([`crate::DocEdit::place`],
@@ -143,18 +253,15 @@ pub(crate) fn residual(families: impl IntoIterator<Item = SubgroupFamily>) -> Su
 /// slides a gesture read off the copy's geometry
 /// ([`super::turn::slides_left_along`]), the slides written are those
 /// alone: each of them no value writes.
-pub(crate) fn unnamed(
+pub(crate) fn unnamed<R: Clone + PartialEq>(
     left: SubgroupFamily,
-    written: &[Coord],
+    written: &[Coord<R>],
     along: Option<super::SlideAxes>,
-) -> Vec<Coord> {
+) -> Vec<Coord<R>> {
     let mut out = Vec::new();
-    let mut slides = TargetAxis::ALL
-        .into_iter()
-        .filter(|&a| written.contains(&Coord::Slide(a)))
-        .count();
+    let mut slides = slid(left, written, None).len();
     for axis in TargetAxis::ALL {
-        let coord = Coord::Slide(axis);
+        let coord = Coord::slide(axis);
         let open = along.map_or(slides < super::solve::slides_left(left), |set| {
             set.contains(axis)
         });
@@ -164,81 +271,89 @@ pub(crate) fn unnamed(
         }
     }
     if super::solve::chained(left) {
-        let chain: Vec<TargetAxis> = written
-            .iter()
-            .filter_map(|c| match c {
-                Coord::Spin(axis) => *axis,
-                Coord::Slide(_) => None,
-            })
-            .collect();
+        let chain: Vec<&Coord<R>> = written.iter().filter(|c| !c.is_slide()).collect();
         let mut turns = chain
             .iter()
             .enumerate()
-            .filter(|&(k, axis)| k == 0 || chain[k - 1] != *axis)
+            .filter(|&(k, link)| k == 0 || chain[k - 1] != *link)
             .count();
         for axis in TargetAxis::ALL {
-            if turns < 3 && !chain.contains(&axis) {
-                out.push(Coord::Spin(Some(axis)));
+            if turns < 3 && !written.contains(&Coord::spin(axis)) {
+                out.push(Coord::spin(axis));
                 turns += 1;
             }
         }
     } else {
         let spin = Coord::SPIN;
-        if super::solve::leaves(left, spin) && !written.contains(&spin) {
+        if super::solve::leaves(left, &spin) && !written.contains(&spin) {
             out.push(spin);
         }
     }
     out
 }
 
+/// **The written slides `left` keeps**, each once: those along the
+/// target space's axes in `x`, `y`, `z` order (with `along`, those of
+/// the set alone), then the mated one, then each read, in the order
+/// written, up to as many as `left` frees.
+fn slid<R: PartialEq>(
+    left: SubgroupFamily,
+    written: &[Coord<R>],
+    along: Option<super::SlideAxes>,
+) -> Vec<&Coord<R>> {
+    let axes = TargetAxis::ALL.into_iter().filter_map(|a| {
+        written
+            .iter()
+            .find(|&c| *c == Coord::slide(a))
+            .filter(|_| along.is_none_or(|set| set.contains(a)))
+    });
+    let rest = written
+        .iter()
+        .filter(|c| matches!(c, Coord::Slide(None)))
+        .chain(written.iter().filter(|c| matches!(c, Coord::SlideAlong(_))));
+    let mut out = super::solve::distinct_slides(left, axes.chain(rest));
+    out.truncate(super::solve::slides_left(left));
+    out
+}
+
 /// **Which of a bundle's values a new residual keeps**, in the order
 /// written: a value whose freedom `left` leaves, the first of each
-/// freedom, the slides along the first axes in `x`, `y`, `z` order up to
-/// as many as `left` frees (with `along`, the slides a gesture read off
-/// the copy's geometry, those alone), and, where no direction is fixed,
-/// each spin of the chain that turns from the one before it, up to
-/// three turns. What a mate added or taken away leaves of the values
-/// ([`crate::DocEdit::AddConstraint`], [`crate::DocEdit::RemoveConstraint`]);
-/// [`unnamed`] then writes the constant `0` on the rest.
-pub(crate) fn kept(
+/// freedom, the slides [`slid`] keeps (with `along`, the slides a
+/// gesture read off the copy's geometry, those alone among the target
+/// axes), and, where no direction is fixed, each spin of the chain that
+/// turns from the one before it, up to three turns. What a mate added or
+/// taken away leaves of the values ([`crate::DocEdit::AddConstraint`],
+/// [`crate::DocEdit::RemoveConstraint`]); [`unnamed`] then writes the
+/// constant `0` on the rest.
+pub(crate) fn kept<R: PartialEq>(
     left: SubgroupFamily,
-    written: &[Coord],
+    written: &[Coord<R>],
     along: Option<super::SlideAxes>,
 ) -> Vec<bool> {
     let chained = super::solve::chained(left);
-    let mut seen: Vec<Coord> = Vec::new();
-    let mut last: Option<TargetAxis> = None;
+    let mut seen: Vec<&Coord<R>> = Vec::new();
+    let mut last: Option<&Coord<R>> = None;
     let mut turns = 0;
-    // The slides kept are the first the residual leaves in axis order,
-    // as [`unnamed`] writes them.
-    let slid: Vec<TargetAxis> = TargetAxis::ALL
-        .into_iter()
-        .filter(|&a| written.contains(&Coord::Slide(a)))
-        .filter(|&a| along.is_none_or(|set| set.contains(a)))
-        .take(super::solve::slides_left(left))
-        .collect();
+    let slid = slid(left, written, along);
     written
         .iter()
-        .map(|&coord| {
+        .map(|coord| {
             if !super::solve::leaves(left, coord) {
                 return false;
             }
-            match coord {
-                Coord::Spin(Some(axis)) if chained => {
-                    if last == Some(axis) || turns == 3 {
-                        return false;
-                    }
-                    last = Some(axis);
-                    turns += 1;
-                    true
+            if chained && !coord.is_slide() {
+                if last == Some(coord) || turns == 3 {
+                    return false;
                 }
-                _ if seen.contains(&coord) => false,
-                Coord::Slide(a) if !slid.contains(&a) => false,
-                _ => {
-                    seen.push(coord);
-                    true
-                }
+                last = Some(coord);
+                turns += 1;
+                return true;
             }
+            if seen.contains(&coord) || (coord.is_slide() && !slid.contains(&coord)) {
+                return false;
+            }
+            seen.push(coord);
+            true
         })
         .collect()
 }
@@ -247,10 +362,7 @@ pub(crate) fn kept(
 /// kind, a node output's (a revolve's axis port), a definition's own,
 /// or, for a move, a flip or a carried pose, the kind of the read it
 /// keeps through its role. `None` where it reads nothing live.
-pub(crate) fn operand_kind<P>(
-    doc: &crate::doc::Doc<P>,
-    operand: &Operand,
-) -> Option<crate::VarKind> {
+pub fn operand_kind<P>(doc: &crate::doc::Doc<P>, operand: &Operand) -> Option<crate::VarKind> {
     match operand {
         Operand::Var(var) => doc.var(*var).map(crate::Var::kind),
         Operand::Output { node, port } => doc

@@ -67,10 +67,11 @@
 use std::collections::BTreeSet;
 
 use pncad::document::{
-    Doc, Evaluation, Formula, HeldNodes, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say,
-    Speaker, SpokenNode,
+    DimensionError, Doc, Evaluation, Formula, HeldNodes, NodeStanding, ProfileProgram,
+    RecipeNodeId, Said, Say, Speaker, SpokenNode,
 };
 use pncad::prelude::StableName;
+use pncad::quantity::{LengthUnit, WrittenLength};
 
 use editor_core::resolve::RimNameFault;
 
@@ -118,21 +119,31 @@ vocabulary! {
     pub const ALL;
 }
 
-impl BlendKindChoice {
-    /// What the one Length field means for this kind, for the field's
-    /// own label.
-    ///
-    /// The QUANTITY and not its unit: the field's unit is the picker
-    /// beside it to say ([`crate::widgets::length_picker`]), and a
-    /// label that carried one too would be a second place for it to be
-    /// stated — free to say metres beside a field written in
-    /// millimetres.
-    pub fn size_label(self) -> &'static str {
-        match self {
-            Self::Fillet => "radius",
-            Self::Chamfer => "setback",
-        }
-    }
+/// **The size a blend is inserted at**: a millimetre, written in
+/// `unit` at one significant figure, so the node's size row reads a
+/// round number in the unit the person works in (`1 mm`, `0.1 cm`,
+/// `0.04 in`). It is a constant and not a measure of the picked edges:
+/// how large a blend the body takes is bounded by the faces beside the
+/// edges, not by the edges' lengths, so no cheap measure of the picks
+/// is a size the body is sure to take. A size it cannot take is the
+/// node's refusal, on its badge.
+///
+/// # Errors
+///
+/// A unit whose millimetre is not finite.
+pub fn default_size(unit: LengthUnit) -> Result<Formula, DimensionError> {
+    const MILLIMETRE: f64 = 0.001;
+    let at = MILLIMETRE / WrittenLength::in_unit(1.0, unit).meters();
+    // One significant figure: `digit · 10^-places`, divided rather than
+    // multiplied so `0.04` is the double nearest four hundredths.
+    let places = -at.log10().floor();
+    let digit = (at * 10f64.powf(places)).round();
+    let value = if places >= 0.0 {
+        digit / 10f64.powf(places)
+    } else {
+        digit * 10f64.powf(-places)
+    };
+    Formula::written_length(WrittenLength::in_unit(value, unit))
 }
 
 /// A typed tool event the chrome renders — every state change, or
@@ -563,9 +574,11 @@ impl BlendTool {
     /// # Loading a set is not a promise that it builds
     ///
     /// The kernel's blend assembly refuses what it does not build by
-    /// name — mixed convexity, a turn of two edges at a corner,
-    /// tangential runs, and a blend of a blend are all typed refusals
-    /// on the node's own badge. This door hands over the edges that EXIST,
+    /// name — mixed convexity, a turn of two edges at a corner, a cusp
+    /// or slit, and a blend of a blend are all typed refusals on the
+    /// node's own badge — and leaves a smooth edge (a bore's strut, a
+    /// chart seam) as it is, silently: the blend's limit there is the
+    /// edge itself. This door hands over the edges that EXIST,
     /// which is a different claim, and the panel says so beside the
     /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(

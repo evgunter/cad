@@ -106,13 +106,16 @@ impl PlacePart for Recorder {
 /// world's `+y`**, its origin at the world's: `−turn/4` about `x`, so
 /// its own `y` lies along the world's `−z` — the values of a bundle with
 /// no mate ([`Recorder::in_world_by`]).
-pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
+pub fn spun_about_y() -> Vec<(
+    editor_core::Coord<editor_core::Operand>,
+    editor_core::Formula,
+)> {
     use editor_core::{Coord, Dimension, Formula, TargetAxis};
     let quarter = Formula::turn_over(4).expect("a quarter turn");
     let back = Formula::neg(quarter).expect("an angle negates");
     [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
+        .map(|axis| (Coord::slide(axis), Formula::zero(Dimension::Length)))
         .chain([
             (Coord::Spin(Some(TargetAxis::X)), back),
             (
@@ -334,7 +337,7 @@ pub fn documents() -> Vec<CorpusDoc> {
         // BESIDE this registry for a milestone, with its refusal
         // pinned: `Node::Fillet` was every-edge, and every pipped body
         // carries cap MERIDIAN edges (two half-caps on one sphere, no
-        // wedge) the battery honestly refuses `TangentialEdge`. M6-5
+        // wedge) the battery then refused. M6-5
         // gave the node a SELECTION and the surgery a naming emitter,
         // so the fourteen edges that do have wedges can be named and
         // the two that do not can be left out. The flipped pin and the
@@ -694,7 +697,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
-        | Node::Assertion { .. }
+        | Node::Assertion(_)
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -725,7 +728,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::Measure { .. } => "Measure",
-        Node::Assertion { .. } => "Assertion",
+        Node::Assertion(_) => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

@@ -1,7 +1,7 @@
 ---
 id: clear
 kind: program
-title: CLEAR — the E7 clearance engine: where it lives, what it composes with, and what its refusals say
+title: CLEAR — the E7 clearance engine: where it lives, what it composes with, what its refusals say, and its witness and seam tail
 status: ready
 opened: 2026-09-20
 group: api/assembly
@@ -9,7 +9,7 @@ prefix: clear/
 tag: (CLEAR orchestrator)
 ab_band: 8000-8099
 paths: [crates/editor-core/src/clearance.rs]
-keep_out: [opened by SHELL's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - SHELL measured 65.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are SHELL CLEAR OFFSET and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, TOPO and its cut siblings own topo/src, SYM owns geom_core::sym and the symbolic-tier row crosses to it by announced seam]
+keep_out: [opened by SHELL's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - SHELL measured 65.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are SHELL CLEAR OFFSET and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, TOPO and its cut siblings own topo/src, SYM owns geom_core::sym and the symbolic-tier row crosses to it by announced seam, CLEARTAIL (cut from here 2026-10-27 along the priority seam) folded back on 2026-11-02 once the budget counted only P0 and P1 rows - its rows moved back with ids and bodies unchanged, and SHELL-3 moves the engine's body-level half into topo so a tail row may find its code there by the time it is taken]
 ---
 The E7 clearance engine as its own track, which is what SHELL's two
 ruled units (SHELL-3, SHELL-4) were always about: moving the engine's
@@ -29,5 +29,15 @@ shape the doors rule names.
 The row that makes this a track rather than a lane is **the symbolic
 identity tier and the clearance engine do not compose**: two pieces of
 ratified machinery that were built to and do not.
+
+Behind the P0 and P1 slate sits the tail CLEARTAIL held from
+2026-10-27 to 2026-11-02 (`docs/doc-ledger/cleartail-leaves-the-tracker.md`):
+the `Violated` witness verified for distance and not for membership;
+`GeometryWitness`'s equality leaving its two chart axes out; the
+axis-order basis's diagonal seam refusing on the pair budget instead of
+the typed chart class; `replace_face_offset` metering no clearance
+against the faces it does not touch; refusals that state no recourse;
+and the edge-to-curve ladder that could read through
+`Body::stored_curve`.
 
 Charter and order: `work/clear/plan.md`; narrative in `work/clear/log.md`.

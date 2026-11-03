@@ -18,8 +18,7 @@
 //! boundary ([`face_read`]). A cylinder or sphere face lies at exactly
 //! its carrier's radius in the depth that carrier proposes, and a
 //! torus face at its minor radius from its core only on a ring torus
-//! (`r` and `R − r` decided positive, [`geom::require_ring_torus`]'s
-//! halves), since a spindle's points come nearer the core. A cone's
+//! (`r` and `R − r` decided positive, [`geom::is_ring_torus`]), since a spindle's points come nearer the core. A cone's
 //! faces have no one depth about its axis.
 //!
 //! **The bounds.** A face is covered by [`Piece`]s: rings (the points
@@ -69,9 +68,7 @@ use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boolean::boxes::{
-    ConicArc, EdgeBoxRule, FaceBoxRule, edge_box_rule, edge_end_point, face_box_rule, sweep_pad,
-};
+use crate::boolean::boxes::{FaceBoxRule, edge_end_point, face_box_rule, sweep_pad};
 use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EntityId, FaceKey};
 use crate::geometry::SurfaceKey;
@@ -181,15 +178,14 @@ fn point_piece<T: Decide>(p: Point3<T>) -> Piece<T> {
     Piece::Segment(p, p)
 }
 
-/// The ring an arc of `arc`'s conic lies in: an ellipse lies within its
+/// The ring an arc of the conic `k` lies in: an ellipse lies within its
 /// semi-axes' difference of its major circle, in its plane.
-pub(super) fn conic_ring<T: Decide>(arc: &ConicArc<'_, T>) -> Ring<T> {
-    let (u, v) = (arc.semi_u.abs(), arc.semi_v.abs());
+pub(super) fn conic_ring<T: Decide>(k: &dyn geom::Conic<T>) -> Ring<T> {
     Ring {
-        center: arc.center,
-        normal: arc.axis,
-        major: u.max(v),
-        minor: (u - v).abs(),
+        center: k.frame().center,
+        normal: k.frame().axis,
+        major: k.speed_hi(),
+        minor: k.speed_hi() - k.speed_lo(),
     }
 }
 
@@ -204,7 +200,6 @@ pub(super) fn carrier_depth<T: Decide>(
     key: SurfaceKey,
     band: Band,
 ) -> Option<Proposed<T>> {
-    let positive = |d: Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == Sign::Positive);
     match *rule {
         FaceBoxRule::CylinderSlab {
             origin,
@@ -235,9 +230,7 @@ pub(super) fn carrier_depth<T: Decide>(
             minor_radius,
             ..
         } => {
-            // The tube first: `R − r` alone passes a negative `r`.
-            let ring = positive(geom::torus_tube(minor_radius, band))
-                && positive(geom::ring_torus(major_radius, minor_radius, band));
+            let ring = geom::is_ring_torus(major_radius, minor_radius, band);
             Some(Proposed {
                 depth: Depth::Core {
                     center,
@@ -276,17 +269,21 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             BoundaryMember::Isolated { point, .. } => Some(point_piece(point)),
             BoundaryMember::Edge { ek, edge, .. } => {
                 let end = |he, field| edge_end_point(body, ek, he, field);
-                match edge_box_rule(body.edge_curve_linked(ek, edge).certified()) {
-                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) => None,
-                    EdgeBoxRule::Chord => Some(Piece::Segment(
+                let certified = body.edge_curve_linked(ek, edge).certified();
+                match certified.map(geom_brep::EdgeCurve::carrier) {
+                    None | Some(geom::Curve3::Nurbs(_)) => None,
+                    Some(geom::Curve3::Line(_)) => Some(Piece::Segment(
                         end(edge.he_plus, "he_plus"),
                         end(edge.he_minus, "he_minus"),
                     )),
-                    EdgeBoxRule::ConicAmplitude(arc) => {
+                    Some(carrier @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_))) => {
+                        let Some(conic) = carrier.conic() else {
+                            unreachable!("a circle or an ellipse reads as a conic")
+                        };
                         depths.push(Proposed {
                             depth: Depth::Axis {
-                                origin: arc.center,
-                                axis: arc.axis,
+                                origin: conic.frame().center,
+                                axis: conic.frame().axis,
                             },
                             level: None,
                             source: Source::Arc(
@@ -294,17 +291,17 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                                 end(edge.he_minus, "he_minus"),
                             ),
                         });
-                        Some(Piece::Ring(conic_ring(&arc)))
+                        Some(Piece::Ring(conic_ring(conic)))
                     }
-                    EdgeBoxRule::Spiric {
+                    Some(geom::Curve3::Spiric {
                         center,
                         axis,
                         major_radius,
                         minor_radius,
                         ..
-                    } => Some(Piece::Ring(Ring {
-                        center,
-                        normal: axis,
+                    }) => Some(Piece::Ring(Ring {
+                        center: *center,
+                        normal: *axis,
                         major: major_radius.abs(),
                         minor: minor_radius.abs(),
                     })),
@@ -942,21 +939,12 @@ mod tests {
     /// which puts the least depth at 2.
     #[test]
     fn an_ellipse_ring_holds_its_minor_vertices() {
-        let carrier = geom::Curve3::Ellipse {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            semi_u: 2.0,
-            semi_v: -1.0,
-            u_ref: v(1.0, 0.0, 0.0),
-        };
-        let ring = Piece::Ring(conic_ring(&ConicArc {
-            carrier: &carrier,
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
-            semi_u: 2.0,
-            semi_v: -1.0,
-            params: (0.0, core::f64::consts::TAU),
-        }));
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0)),
+            2.0,
+            1.0,
+        ));
+        let ring = Piece::Ring(conic_ring(carrier.conic().unwrap()));
         assert!(inf_on(z_axis(), &ring).unwrap() <= 1.0, "the minor vertex");
         assert!(sup_on(z_axis(), &ring).unwrap() >= 2.0, "the major vertex");
     }

@@ -398,7 +398,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 use super::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs, signs_across};
-use geom_brep::{AxisPose, ExtentBall, Turn, axis_pose};
+use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -407,27 +407,6 @@ pub(crate) enum Side {
     F,
     /// The pair's second face.
     G,
-}
-
-/// The region where a pair's section can matter: the ball about the
-/// centre of the overlap of the two faces' certified boxes, radius its
-/// half-diagonal (module docs, the lever and its pivot).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Reach<T: Real> {
-    /// The overlap box's centre.
-    pub centre: Point3<T>,
-    /// Its half-diagonal.
-    pub radius: T,
-}
-
-impl<T: Real> Reach<T> {
-    /// The reach as a consumed extent: its foot on an axis is the pivot
-    /// a datum on that axis is read at, and its farthest distance from a
-    /// point the travel of a turn about it (module docs, the lever and
-    /// its pivot).
-    fn ball(self) -> ExtentBall<T> {
-        ExtentBall::new(self.centre, self.radius)
-    }
 }
 
 /// One connected component of a pair's section.
@@ -526,6 +505,9 @@ pub(crate) struct Touch<T: Real> {
     /// stand deepest in each other, and on both carriers within the
     /// margin. Each arm says which point it reads.
     pub at: Point3<T>,
+    /// Whether it is two cones' touch at their common apex, which
+    /// [`certify`] clears as the vertex pair's ([`Cleared::TouchAtVertex`]).
+    pub apex: bool,
 }
 
 /// Why a component was cleared.
@@ -544,6 +526,11 @@ pub(crate) enum Cleared {
     /// A touch on a pair with no event, its centre placed `Out` of the
     /// named face.
     TouchOut(Side),
+    /// Two cones' touch at their common apex ([`Touch::apex`]), a vertex
+    /// of both faces: the touch is that vertex pair's, whose contact is
+    /// the pair's event there and whose neighbourhood the vertex lanes
+    /// read with their fan arms.
+    TouchAtVertex,
 }
 
 /// Why a pair refused.
@@ -684,6 +671,7 @@ fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<
         Section::Touch(Touch {
             name: p.name,
             at: at(),
+            apex: false,
         })
     } else {
         p.into()
@@ -738,7 +726,7 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
@@ -759,7 +747,7 @@ pub(crate) fn classify<T: Decide>(
 pub(crate) fn classify_known<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     region: Option<ExtentBall<T>>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
@@ -875,7 +863,7 @@ fn spline_implicit<T: Decide>(
 fn torus_pair<T: Decide>(
     t: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Torus {
@@ -1080,7 +1068,7 @@ pub(super) fn torus_plane_loops<T: Decide>(
 fn cone_pair<T: Decide>(
     k: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Cone {
@@ -1137,8 +1125,12 @@ fn cone_pair<T: Decide>(
             band,
         ) {
             // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
-            // two parallels, each essential on both; a common apex is the
-            // cones touching there or coinciding.
+            // two parallels, each essential on both. Apexes decided one
+            // (Zero) are a touch at the apex: the forms differ by
+            // `(cos²α₂ − cos²α₁)·|X − A|²` up to the apexes' gap, so the
+            // carriers meet within the band of the apex, about that one
+            // point (or are one double cone, whose faces' overlap is the
+            // glue door's). Undecided, it stays R-tan.
             AxisPose::Coaxial { slack, .. } => match signs_across(
                 [(
                     "section_cone_coaxial_apexes",
@@ -1149,7 +1141,10 @@ fn cone_pair<T: Decide>(
                 band,
             ) {
                 Ok(_) => essential_pair(true, true),
-                Err(tan) => tan.into(),
+                Err(tan) => match touch(tan, &["section_cone_coaxial_apexes"], || apex) {
+                    Section::Touch(t) => Section::Touch(Touch { apex: true, ..t }),
+                    other => other,
+                },
             },
             AxisPose::Parallel { .. } => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
@@ -1176,7 +1171,7 @@ struct Cone<T: Real> {
     u_ref: Vec3<T>,
 }
 
-impl<T: Real> Cone<T> {
+impl<T: geom_core::spline::SpanLocate> Cone<T> {
     fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
         let frame = geom::square_frame(axis, u_ref);
         Self {
@@ -1200,18 +1195,13 @@ impl<T: Real> Cone<T> {
         geom_brep::cone_elevation(self.apex, self.a, self.alpha, None, p)
     }
 
-    /// The farthest the pair's reach stands from the apex.
-    fn reach_lever(&self, reach: Reach<T>) -> T {
-        (reach.centre - self.apex).norm() + reach.radius
-    }
-
     /// The generator lines as a ruling chart: the azimuth `θ` from
     /// `u_ref`, `t` along the generator. Its reach speed is the turn's at
     /// the reach's farthest distance from the apex.
-    fn chart(&self, reach: Reach<T>) -> ruling::Chart<T> {
+    fn chart(&self, reach: &Reach<T>) -> ruling::Chart<T> {
         let (s, c) = self.sc;
         let zero = Vec3::new(T::zero(), T::zero(), T::zero());
-        let lever = self.reach_lever(reach);
+        let lever = reach.lever_from(self.apex).length();
         ruling::Chart {
             base: self.apex,
             offset: ruling::Swing::fixed(zero),
@@ -1270,19 +1260,22 @@ fn cone_cylinder<T: Decide>(
     o: Point3<T>,
     d: Vec3<T>,
     rc: T,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let (_, c) = cone.sc;
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;
-    let lever = cone.reach_lever(reach);
+    let lever = reach.lever_from(cone.apex).length();
     if let Err(tan) = signs([("section_cone_cylinder_apex", dist - rc)], band) {
         return tan.into();
     }
     match sign(
         "section_cone_cylinder_aperture",
-        Margin::levered(d.dot(cone.a).abs() - c, lever + lever),
+        Margin::levered(
+            d.dot(cone.a).abs() - c,
+            reach.ball().twice_lever_from(cone.apex),
+        ),
         band,
     ) {
         Some(Sign::Positive | Sign::Negative) => {}
@@ -1339,11 +1332,46 @@ fn cone_cone<T: Decide>(
     one: &Cone<T>,
     two: &Cone<T>,
     parallel: bool,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     const APEX: &str = "section_cone_pair_apex";
     const APERTURE: &str = "section_cone_pair_aperture";
+    const COMMON: &str = super::fan::CONES_SHARE_APEX;
+    const RULINGS: &str = "section_cone_pair_common_rulings";
+    // One apex, axes apart (parallel ones through one apex are the
+    // coaxial arm's): both forms are homogeneous about the apex, so the
+    // section is the lines through it both double cones hold, each a
+    // ruling `d` with `d·a₁ = ±cos α₁` and `d·a₂ = ±cos α₂`
+    // ([`geom_brep::cone_cone_apex_meeting`] for each pairing of
+    // nappes). None: the cones touch at the apex alone. Otherwise each
+    // line is an unbounded component, as the plane's line pair through an
+    // apex is ([`cone_plane`]). A pairing that touches along a ruling is
+    // R-tan.
+    if !parallel && super::fan::cones_share_apex(one.apex, two.apex, band) == Ok(true) {
+        let lever = reach.lever_from(one.apex).max(reach.lever_from(two.apex));
+        let mut lines = 0;
+        for a2 in [two.a, -two.a] {
+            let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
+            match sign(RULINGS, Margin::levered(m.disc, lever), band) {
+                Some(Sign::Positive) => lines += 2,
+                Some(Sign::Negative) => {}
+                Some(Sign::Zero) | None => return Section::Tangent(RULINGS),
+            }
+        }
+        if lines == 0 {
+            return Section::Touch(Touch {
+                name: COMMON,
+                at: one.apex,
+                apex: true,
+            });
+        }
+        let c = Component::closed_form(true, [false, false], None);
+        return Section::Components {
+            parts: vec![c; lines],
+            single: false,
+        };
+    }
     if let Err(tan) = signs(
         [
             (APEX, two.elevation(one.apex)),
@@ -1354,9 +1382,12 @@ fn cone_cone<T: Decide>(
         return tan.into();
     }
     if parallel {
-        let lever = one.reach_lever(reach).max(two.reach_lever(reach));
+        let ball = reach.ball();
+        let lever = ball
+            .twice_lever_from(one.apex)
+            .max(ball.twice_lever_from(two.apex));
         let gap = one.sc.1.powi(2) - two.sc.1.powi(2);
-        match sign(APERTURE, Margin::levered(gap, lever + lever), band) {
+        match sign(APERTURE, Margin::levered(gap, lever), band) {
             Some(Sign::Zero) => return cone_plane_pair(one, two, reach, band),
             Some(Sign::Positive | Sign::Negative) => {}
             None => return Section::Tangent(APERTURE),
@@ -1385,7 +1416,7 @@ fn cone_cone<T: Decide>(
 fn cone_plane_pair<T: Decide>(
     one: &Cone<T>,
     two: &Cone<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let delta = one.apex - two.apex;
@@ -1436,14 +1467,11 @@ fn cone_plane<T: Decide>(
     cone: &Cone<T>,
     p0: Point3<T>,
     n: Vec3<T>,
-    reach: Reach<T>,
+    reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
     let (s, _) = cone.sc;
-    let lever = (reach.centre - cone.apex).norm()
-        + (reach.centre - p0).dot(n).abs()
-        + reach.radius
-        + reach.radius;
+    let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
     let na = n.dot(cone.a);
     match sign(
         "section_cone_plane_aperture",
@@ -1824,36 +1852,27 @@ pub(super) fn of_pair_section<T: Decide>(
                 Some(at) => Section::Touch(Touch {
                     name: zero.decision.name(),
                     at,
+                    apex: false,
                 }),
                 None => Section::Tangent(zero.decision.name()),
             },
             _ => Section::Tangent(zero.decision.name()),
         };
     }
-    // Each component's set: the least node any arc of its node-joined set
-    // ends at, found by joining arcs that share a node.
-    let mut root: Vec<usize> = (0..section.nodes().len()).collect();
-    fn find(root: &[usize], k: usize) -> usize {
-        let mut k = k;
-        while root[k] != k {
-            k = root[k];
-        }
-        k
-    }
-    for c in components {
-        if let [Some(a), Some(b)] = ends(c).nodes {
-            let (ra, rb) = (find(&root, a), find(&root, b));
-            root[ra.max(rb)] = ra.min(rb);
-        }
-    }
+    // Each component's node-joined set, the value's own ([`geom_brep::NodeSet`]),
+    // which claims the set's winding: an arc of it claims none.
+    let sets = section.node_sets();
+    let set_of = |i: usize| sets.iter().position(|set| set.arcs.contains(&i));
     let mut parts: Vec<(Option<usize>, Component<T>)> = Vec::new();
-    for c in components {
+    for (i, c) in components.iter().enumerate() {
         let ends = ends(c);
         let [on_f, on_g] = ends.rims;
+        let set = set_of(i);
+        let winds = set.map_or(c.winds, |k| sets[k].winds);
         let part = Component {
             unbounded: ends.cut,
-            essential_f: c.winds[0],
-            essential_g: c.winds[1],
+            essential_f: winds[0],
+            essential_g: winds[1],
             witness: c.witness,
             // Only rim ends reach a chart side; a cut end or a node end
             // clears nothing here.
@@ -1866,7 +1885,6 @@ pub(super) fn of_pair_section<T: Decide>(
             },
             pad: c.pad,
         };
-        let set = ends.nodes.iter().flatten().next().map(|&k| find(&root, k));
         match parts.iter_mut().find(|(s, _)| set.is_some() && *s == set) {
             Some((_, joined)) => {
                 joined.unbounded |= part.unbounded;
@@ -1963,8 +1981,25 @@ pub(crate) fn certify<T: Decide>(
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
-        Section::Touch(t) if !evented => {
+        // Two cones' touch at their common apex, a vertex both faces hold,
+        // is that vertex pair's, whose contact is the pair's event there:
+        // the vertex lanes read the touch's neighbourhood with their fan
+        // arms, so it clears evented or not. Only an apex touch: any other
+        // touch at a vertex keeps the rules below, which no vertex lane
+        // has been shown to stand in for.
+        Section::Touch(t) => {
             let placed = place(t.at, band);
+            if t.apex
+                && let [
+                    Some(FaceContainment::OnVertex(_)),
+                    Some(FaceContainment::OnVertex(_)),
+                ] = placed
+            {
+                return Ok(vec![Cleared::TouchAtVertex]);
+            }
+            if evented {
+                return Err(Refusal::Tangent(t.name));
+            }
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
@@ -1972,7 +2007,6 @@ pub(crate) fn certify<T: Decide>(
                 .map(|(side, _)| vec![Cleared::TouchOut(side)])
                 .ok_or(Refusal::Tangent(t.name));
         }
-        Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
         Section::NoLane(scalar) => return Err(Refusal::NoLane(scalar)),
         Section::Unmarched => return Err(Refusal::Unmarched),

@@ -315,9 +315,9 @@ fn seat(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     mate: Mate<Formula>,
-    values: impl IntoIterator<Item = (Coord, Formula)>,
+    values: impl IntoIterator<Item = (Coord<editor_core::Operand>, Formula)>,
 ) -> ProfileDoc {
-    let mut values: Vec<(Coord, Formula)> = values.into_iter().collect();
+    let mut values: Vec<(Coord<editor_core::Operand>, Formula)> = values.into_iter().collect();
     let full = fixture::squared(&doc, mate.clone(), &values);
     for (coord, by) in full.values {
         if !values.iter().any(|(at, _)| *at == coord) {
@@ -333,10 +333,7 @@ fn seat(
 
 /// The value's number for `coord`: a length or an angle.
 fn number(coord: Coord, v: f64) -> Formula {
-    match coord {
-        Coord::Slide(_) => len(v),
-        Coord::SPIN | Coord::Spin(_) => ang(v),
-    }
+    if coord.is_slide() { len(v) } else { ang(v) }
 }
 
 /// `placement`'s copy where its bundle solved it, in its space.
@@ -375,7 +372,7 @@ fn box_on_the_floor(values: [f64; 3], order: [usize; 3]) -> (ProfileDoc, RecipeN
 /// `moves` (the world's `xy` moved by them, [`fixture::floor`]),
 /// flipped, with values `(slide x, slide y, spin)` written in `order`.
 fn box_resting_on(
-    moves: Vec<(Coord, Formula)>,
+    moves: Vec<(Coord<editor_core::Operand>, Formula)>,
     values: [f64; 3],
     order: [usize; 3],
 ) -> (ProfileDoc, RecipeNodeId) {
@@ -389,15 +386,15 @@ fn box_resting_on(
         orient: editor_core::Orientation::IDENTITY,
     };
     let coords = [
-        Coord::Slide(TargetAxis::X),
-        Coord::Slide(TargetAxis::Y),
+        Coord::slide(TargetAxis::X),
+        Coord::slide(TargetAxis::Y),
         Coord::SPIN,
     ];
     let doc = seat(
         doc,
         placement,
         written,
-        order.map(|k| (coords[k], number(coords[k], values[k]))),
+        order.map(|k| (coords[k].into(), number(coords[k], values[k]))),
     );
     (doc, placement)
 }
@@ -515,8 +512,8 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let twice = editor_core::Placed {
         mates: vec![written],
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(1.0)),
-            (Coord::Slide(TargetAxis::X), len(2.0)),
+            (Coord::slide(TargetAxis::X), len(1.0)),
+            (Coord::slide(TargetAxis::X), len(2.0)),
         ],
     };
     match doc.apply(&twice.write(placement), Tol::witness()) {
@@ -577,11 +574,11 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         // The wall faces `+x`, which the mate takes: the slides across it.
         [
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Z),
+                Coord::slide(TargetAxis::Z),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, ang(30.0_f64.to_radians())),
@@ -609,6 +606,31 @@ fn a_drafted_wall_under_a_held_spin_turns_by_its_draft() {
             turned <= draft.abs().to_radians() * 1.000_001,
             "a {draft}° draft turns the copy by {}°",
             turned.to_degrees()
+        );
+    }
+}
+
+/// **A drafted wall's rest stands at its seat** (A11: a carried slide
+/// beside a mate oblique in the source's coordinates runs along its part
+/// in what the mate leaves). The box's wall drafted 1° and −1° has a
+/// normal on no axis of the box; with its slides `0` the box stands
+/// where the mate seats it, the wall's point nearest the world's origin:
+/// its origin on the wall's normal, the `x` axis, `cos 1°` off it (the
+/// drafted plane passes through the foot edge at `x = 1`).
+///
+/// *Breaks if* a carried slide off the wall's plane is read as the
+/// copy's origin measured along it, which stands the zero `sin 1°`
+/// along the wall.
+#[test]
+fn a_drafted_walls_rest_stands_at_its_seat() {
+    for draft in [1.0_f64, -1.0] {
+        let at = box_on_the_wall(draft.to_radians(), 0.0);
+        let t = at.translation;
+        assert!(
+            t.y.abs() < 1e-12
+                && t.z.abs() < 1e-12
+                && (t.x.abs() - draft.to_radians().cos()).abs() < 1e-12,
+            "a {draft}° draft stands the box's origin at {t:?}"
         );
     }
 }
@@ -663,11 +685,11 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         placement,
         written,
         [
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
             Coord::SPIN,
         ]
-        .map(|coord| (coord, number(coord, 0.0))),
+        .map(|coord| (coord.into(), number(coord, 0.0))),
     );
     let at = solved(&doc, placement);
     assert!(
@@ -757,9 +779,9 @@ fn a_constraint_taken_out_leaves_its_bundle_pinned() {
     assert_eq!(
         coords(&freed),
         [
-            Coord::Slide(X),
-            Coord::Slide(Y),
-            Coord::Slide(Z),
+            Coord::slide(X),
+            Coord::slide(Y),
+            Coord::slide(Z),
             Coord::Spin(Some(X)),
             Coord::Spin(Some(Y)),
             Coord::Spin(Some(Z)),
@@ -998,9 +1020,9 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         placement,
         written,
         [
-            (Coord::Slide(TargetAxis::X), slide),
+            (Coord::slide(TargetAxis::X), slide),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -1072,7 +1094,7 @@ fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
     );
     let typed = TargetAxis::ALL
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .map(|axis| (Coord::slide(axis), len(0.0)))
         .chain(
             TargetAxis::ALL
                 .into_iter()
@@ -1171,11 +1193,11 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         written,
         [
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::zero(Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, turn),
@@ -1257,11 +1279,11 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         written,
         [
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::zero(Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, turn),

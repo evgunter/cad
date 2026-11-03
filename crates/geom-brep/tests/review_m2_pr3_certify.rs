@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
+use geom_core::test_support::fixture_lever;
 
 use crate::shared::surf::table;
 use crate::shared::tol::{band, eps};
@@ -65,12 +66,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
     });
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(desc),
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: t1,
     };
@@ -85,7 +81,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
             p0,
             p1,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -100,7 +96,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
         p0,
         p1,
         |_| None,
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -124,12 +120,7 @@ fn fixed_winding_aliased_full_period_refused() {
                 angle: TAU,
             },
         )),
-        carrier: Curve3::Circle {
-            center,
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(center, Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         // WRONG: nine revolutions; the description makes one.
         param_end: 9.0 * TAU,
@@ -140,7 +131,7 @@ fn fixed_winding_aliased_full_period_refused() {
             p,
             p,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -182,12 +173,7 @@ fn survives_wrong_carriers_are_rejected() {
     // possible for r != 1 through both endpoints + circular samples;
     // plain wrong radius fails at pinning already).
     let wrong_radius = base(
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.5,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.5, Vec3::unit_x()),
         0.0,
         FRAC_PI_2,
     );
@@ -197,7 +183,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -208,12 +194,7 @@ fn survives_wrong_carriers_are_rejected() {
     // Interior samples leave the described locus -> rejected.
     let c = Point3::new(-0.5, -0.5, 0.0);
     let wrong_center = base(
-        Curve3::Circle {
-            center: c,
-            axis: Vec3::unit_z(),
-            radius: c.distance(p0),
-            u_ref: (p0 - c) / c.distance(p0),
-        },
+        Curve3::circle(c, Vec3::unit_z(), c.distance(p0), (p0 - c) / c.distance(p0)),
         0.0,
         // Angle subtended at the false center.
         2.0 * ((p0.distance(p1) / 2.0) / c.distance(p0)).asin(),
@@ -224,7 +205,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -232,12 +213,7 @@ fn survives_wrong_carriers_are_rejected() {
     );
     // A 1-turn (not 8k) extra winding IS caught by the interior samples.
     let one_turn = base(
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         0.0,
         FRAC_PI_2 + TAU,
     );
@@ -247,7 +223,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -257,17 +233,14 @@ fn survives_wrong_carriers_are_rejected() {
     let l0 = Point3::origin();
     let l1 = Point3::new(1.0, 0.0, 0.0);
     let mut line = EdgeCurveSpec::line_between(l0, l1);
-    line.carrier = Curve3::Line {
-        origin: Point3::new(0.0, 100.0 * eps(), 0.0),
-        dir: Vec3::unit_x(),
-    };
+    line.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps(), 0.0), Vec3::unit_x());
     assert!(
         EdgeCurve::certify(
             line,
             l0,
             l1,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -276,12 +249,7 @@ fn survives_wrong_carriers_are_rejected() {
     // Interval affinely misaligned with s ∈ [0,1]: same correct circle,
     // parameters shifted a quarter turn — endpoint pinning fires.
     let shifted = base(
-        Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         FRAC_PI_2,
         PI,
     );
@@ -291,7 +259,7 @@ fn survives_wrong_carriers_are_rejected() {
             p0,
             p1,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -332,12 +300,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
             pair: SurfacePair::new(keys[0], keys[1]),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: PI,
     };
@@ -346,7 +309,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
         p0,
         p1,
         &lookup,
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -390,12 +353,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
             pair: SurfacePair::new(keys[0], keys[1]),
             selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
         },
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: t1,
     };
@@ -407,7 +365,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
             p0,
             p1,
             &lookup,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -424,7 +382,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
             p0,
             p1,
             &lookup,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -440,7 +398,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         p0,
         p1,
         &lookup,
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -461,7 +419,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         p0,
         p1,
         &lookup,
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -514,12 +472,7 @@ fn fixed_full_period_rim_intersection_certifies() {
             // The mid-parameter point of t: 0 → tau is carrier(pi).
             selector: geom_brep::CurveSelector::Witness(Point3::new(-1.0, 0.0, 0.0)),
         },
-        carrier: Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -528,7 +481,7 @@ fn fixed_full_period_rim_intersection_certifies() {
         p,
         p,
         &lookup,
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -558,7 +511,7 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
         u_ref: Vec3::unit_x(),
     };
     assert_eq!(
-        classify_dihedral(&plane, &cyl, Point3::origin(), 10.0, band()).unwrap(),
+        classify_dihedral(&plane, &cyl, Point3::origin(), fixture_lever(10.0), band()).unwrap(),
         DihedralClass::Smooth
     );
     // True corner: perpendicular planes at arm 1.
@@ -568,7 +521,7 @@ fn survives_exact_tangency_and_true_corner_classify_definitely() {
         u_ref: Vec3::unit_y(),
     };
     assert_eq!(
-        classify_dihedral(&plane, &wall, Point3::origin(), 1.0, band()).unwrap(),
+        classify_dihedral(&plane, &wall, Point3::origin(), fixture_lever(1.0), band()).unwrap(),
         DihedralClass::Transverse
     );
 }
@@ -600,17 +553,18 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     // Healthy arm: definitely transverse (sin theta = cos alpha ~ 0.87).
     let p = at(1.0);
     assert_eq!(
-        classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap(),
+        classify_dihedral(&cone, &plane_through(p), p, fixture_lever(1.0), band()).unwrap(),
         DihedralClass::Transverse
     );
     // In-band arm: honest escalation, as before.
     let p = at(3.0 * eps());
-    assert!(classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).is_err());
+    assert!(classify_dihedral(&cone, &plane_through(p), p, fixture_lever(1.0), band()).is_err());
     // Collapsed arm: now an honest escalation naming the arm gate —
     // never a definite classification. It quotes the wedge the arm
     // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
-    let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
+    let err =
+        classify_dihedral(&cone, &plane_through(p), p, fixture_lever(1.0), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes()))
@@ -653,13 +607,21 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
     // The arm gate escalates, quoting the wedge it meters where that is
     // nonzero and the arm offers a tolerance, and its own decided zero
     // where the arm is exactly zero.
-    let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
+    let err = classify_dihedral(
+        &floor,
+        &wall,
+        Point3::origin(),
+        fixture_lever(0.5 * eps()),
+        band(),
+    )
+    .unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some(sub_eps_arm_quotes())),
         "sub-eps extent"
     );
-    let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
+    let err =
+        classify_dihedral(&floor, &wall, Point3::origin(), fixture_lever(0.0), band()).unwrap_err();
     assert_eq!(
         (err.rung(), err.diag().predicate),
         (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
@@ -724,7 +686,7 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
             start,
             end,
             |k| arena.get(k).cloned(),
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -801,7 +763,14 @@ fn survives_curvature_arm_caps_huge_chord() {
     };
     // sin(theta) = 1, arm = min(r, 1000.0) = r = 3 eps -> in band.
     assert!(
-        classify_dihedral(&tilted, &cyl, Point3::origin(), 1000.0, band()).is_err(),
+        classify_dihedral(
+            &tilted,
+            &cyl,
+            Point3::origin(),
+            fixture_lever(1000.0),
+            band()
+        )
+        .is_err(),
         "tiny curvature arm must dominate a huge chord"
     );
 }
@@ -831,10 +800,7 @@ fn fixed_reversed_interval_refused() {
             },
         )),
         // Carrier parameterized from p0, walked BACKWARD: t: 1 -> 0.
-        carrier: Curve3::Line {
-            origin: p0,
-            dir: Vec3::unit_x(),
-        },
+        carrier: Curve3::line(p0, Vec3::unit_x()),
         param_start: 1.0,
         param_end: 0.0,
     };
@@ -844,7 +810,7 @@ fn fixed_reversed_interval_refused() {
             p1,
             p0,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -875,10 +841,7 @@ fn fixed_zero_length_edge_refused() {
                 vec: Vec3::zero(),
             },
         )),
-        carrier: Curve3::Line {
-            origin: p,
-            dir: Vec3::unit_x(),
-        },
+        carrier: Curve3::line(p, Vec3::unit_x()),
         param_start: 0.0,
         param_end: 0.0,
     };
@@ -888,7 +851,7 @@ fn fixed_zero_length_edge_refused() {
             p,
             p,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -916,7 +879,7 @@ fn survives_full_period_mapped_and_endpoint_pinning() {
         p,
         p,
         |_| None,
-        1.0,
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -930,7 +893,7 @@ fn survives_full_period_mapped_and_endpoint_pinning() {
             q,
             q,
             |_| None,
-            1.0,
+            fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified()
         )
@@ -1048,7 +1011,7 @@ mod interval_lane {
             &floor,
             &wall,
             p3(0.0, 0.0, 0.0),
-            Interval::from_f64(1.0),
+            fixture_lever(Interval::from_f64(1.0)),
             band(),
         )
         .unwrap();
@@ -1063,7 +1026,7 @@ mod interval_lane {
             &floor,
             &coplanar,
             p3(0.0, 0.0, 0.0),
-            Interval::from_f64(1.0),
+            fixture_lever(Interval::from_f64(1.0)),
             band(),
         )
         .unwrap();
@@ -1082,7 +1045,7 @@ mod interval_lane {
             p0,
             p1,
             |_| None,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -1115,12 +1078,12 @@ mod interval_lane {
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },
             )),
-            carrier: Curve3::Circle {
+            carrier: Curve3::circle(
                 center,
-                axis: v3(0.0, 0.0, 1.0),
-                radius: Interval::from_f64(1.0),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+                v3(0.0, 0.0, 1.0),
+                Interval::from_f64(1.0),
+                v3(1.0, 0.0, 0.0),
+            ),
             param_start: Interval::from_f64(0.0),
             param_end: Interval::from_f64(9.0 * core::f64::consts::TAU),
         };
@@ -1129,7 +1092,7 @@ mod interval_lane {
             p,
             p,
             |_| None,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -1172,7 +1135,7 @@ mod interval_lane {
             p,
             p,
             |_| None,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

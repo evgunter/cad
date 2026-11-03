@@ -55,7 +55,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, DocEdit, NodeId, name_text};
-use super::step::StepId;
+use super::step::{SectionId, StepId};
 use super::store::ContentPin;
 
 /// Parse the canonical 32-hex-digit identity spelling — the store
@@ -246,7 +246,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
         | E::NameOutsidePartWorld { name }
-        | E::NameOnDroppedStep { name, .. } => {
+        | E::NameOnDroppedStep { name, .. }
+        | E::NameOnDroppedSection { name, .. } => {
             (none(), none(), none(), none(), named(name), none())
         }
         E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => {
@@ -295,6 +296,17 @@ fn step_dict<'py>(
     Ok(dict)
 }
 
+fn section_dict<'py>(
+    py: Python<'py>,
+    map: &std::collections::BTreeMap<d::SectionId, d::SectionId>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (from, to) in map {
+        dict.set_item(SectionId(*from), SectionId(*to))?;
+    }
+    Ok(dict)
+}
+
 /// What a split produced: the two document VALUES and the recorded
 /// edits that make each.
 ///
@@ -312,6 +324,7 @@ pub(crate) struct SplitOutcome {
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
     step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
+    section_map: std::collections::BTreeMap<d::SectionId, d::SectionId>,
 }
 
 #[pymethods]
@@ -387,6 +400,13 @@ impl SplitOutcome {
         step_dict(py, &self.step_map)
     }
 
+    /// Each carried loft section's id → the id the other document
+    /// minted for it, as `step_map` is for profile steps.
+    #[getter]
+    fn section_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        section_dict(py, &self.section_map)
+    }
+
     fn __repr__(&self) -> String {
         format!("SplitOutcome(instance={})", self.instance.0.full())
     }
@@ -447,6 +467,7 @@ pub(crate) fn split(
         instance: NodeId(out.instance),
         node_map,
         step_map: out.step_map,
+        section_map: out.section_map,
     })
 }
 
@@ -515,7 +536,8 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::InstanceBodyNameReferenced { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
-        | E::NameOnDroppedStep { name, .. } => {
+        | E::NameOnDroppedStep { name, .. }
+        | E::NameOnDroppedSection { name, .. } => {
             (none(), named(name), none(), none(), none(), none())
         }
         E::Edit { .. } => (none(), none(), none(), none(), none(), none()),
@@ -548,6 +570,7 @@ pub(crate) struct InlineOutcome {
     maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
     step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
+    section_map: std::collections::BTreeMap<d::SectionId, d::SectionId>,
     placement: d::RecipeNodeId,
     space: d::VarId,
 }
@@ -608,6 +631,13 @@ impl InlineOutcome {
         step_dict(py, &self.step_map)
     }
 
+    /// Each carried loft section's id → the id the other document
+    /// minted for it, as `step_map` is for profile steps.
+    #[getter]
+    fn section_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        section_dict(py, &self.section_map)
+    }
+
     fn __repr__(&self) -> String {
         format!("InlineOutcome({} edit(s))", self.edits.len())
     }
@@ -658,6 +688,7 @@ pub(crate) fn inline(
         maintenance: out.maintenance,
         node_map,
         step_map: out.step_map,
+        section_map: out.section_map,
         placement: out.placement,
         space: out.space,
     })

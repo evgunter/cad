@@ -243,6 +243,20 @@ pub enum ChartRegionError {
         /// The inventory statement violated.
         what: &'static str,
     },
+    /// A plane face's trim edge, imaged on demand, refused on its
+    /// incidence on the plane: decided off it, read at a pose, or
+    /// undecided. It carries that read, which each reader ends at its own
+    /// door by the one map (`geom_brep::IncidenceRead::ending`; at rest,
+    /// the validator's classifier); its `Display` ends at rest, the ending
+    /// true at every door.
+    TrimOffFace {
+        /// The face whose loop refused.
+        face: FaceKey,
+        /// The half-edge whose carrier was read.
+        half_edge: HalfEdgeKey,
+        /// The image's incidence read.
+        read: geom_brep::IncidenceRead,
+    },
     /// A minting chart's stored cache is absent — the body must
     /// re-mint before region queries (the `props.rs` posture); only
     /// plane charts are derive-on-demand.
@@ -392,6 +406,20 @@ impl core::fmt::Display for ChartRegionError {
                  the pair on a chart the trim is straight in; the tilted-cut class \
                  is the named exclusion and has neither, so it waits on the curved \
                  region lane"
+            ),
+            // The at-rest ending holds at every door: a read in band ends
+            // in its lever at each, and a definite miss names the kernel or
+            // the file it was read from, either of which is the culprit
+            // wherever this is reported.
+            Self::TrimOffFace { read, .. } => write!(
+                f,
+                "chart-region: an edge of a plane face {}. {}",
+                if read.is_definite() {
+                    "does not lie on the face's plane"
+                } else {
+                    "is not shown on the face's plane"
+                },
+                read.ending(geom_brep::recourse::Reading::AtRest)
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
@@ -1115,13 +1143,10 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// A face's own surface description.
+/// **A face's surface, as this module refuses it**: [`Body::face_surface`],
+/// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    let key = body
-        .get_face(face)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    body.get_surface(key).ok_or(ChartRegionError::Corrupt)
+    body.face_surface(face).ok_or(ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -1536,7 +1561,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     signed_gate("chart_region_cyl_radius", Margin::of(a.radius - b.radius))?;
     norm_gate(
         "chart_region_cyl_tilt",
-        Margin::levered(a.axis.cross(b.axis).norm(), hyp),
+        Margin::levered(
+            a.axis.cross(b.axis).norm(),
+            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
+            // and the larger radius; no extent read computes it.
+            geom_core::Lever::unsourced(hyp),
+        ),
     )?;
     let d_ab = b.origin - a.origin;
     let d_ba = a.origin - b.origin;
@@ -1550,7 +1580,12 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     goes through the metres door with an honest length.
     let sigma = match decide(
         "chart_region_cyl_axis_sense",
-        Margin::levered(a.axis.dot(b.axis), hyp),
+        Margin::levered(
+            a.axis.dot(b.axis),
+            // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
+            // and the larger radius; no extent read computes it.
+            geom_core::Lever::unsourced(hyp),
+        ),
         band,
     ) {
         Ok(Sign::Positive) => T::one(),
@@ -2394,19 +2429,13 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let key_a = body_a
-        .get_face(face_a)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    let key_b = body_b
-        .get_face(face_b)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
-    if std::ptr::eq(body_a, body_b) && key_a == key_b {
+    let fa = body_a.get_face(face_a).ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b.get_face(face_b).ok_or(ChartRegionError::Corrupt)?;
+    let s_a = body_a.face_surface_linked(face_a, fa);
+    if std::ptr::eq(body_a, body_b) && fa.surface == fb.surface {
         return Ok(s_a.clone());
     }
-    let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+    let s_b = body_b.face_surface_linked(face_b, fb);
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {
@@ -2590,7 +2619,18 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             };
             let (t0, t1) = curve.params();
             let pcurve = geom_brep::chart_pcurve_over(curve.carrier(), t0, t1, surface, band)
-                .map_err(|_| refuse("no closed-form chart image for this carrier kind"))?;
+                .map_err(|refusal| {
+                    // An incidence refusal ends by its read (D3); any
+                    // other is a carrier the affine chart has no image of.
+                    match geom_brep::IncidenceRead::of(&refusal) {
+                        Some(read) => ChartRegionError::TrimOffFace {
+                            face,
+                            half_edge: he,
+                            read,
+                        },
+                        None => refuse("no closed-form chart image for this carrier kind"),
+                    }
+                })?;
             pcurve_entry(&pcurve, t0, t1, forward).map_err(refuse)?
         } else {
             return Err(ChartRegionError::MissingCache { half_edge: he });
@@ -3345,7 +3385,11 @@ fn proper_crossings<T: Decide>(
             let mut outcomes = [Sign::Positive; 4];
             let mut indeterminate = None;
             for (slot, (frac, len)) in outcomes.iter_mut().zip(spans) {
-                match decide("chart_region_cross_span", Margin::levered(frac, len), band) {
+                match decide(
+                    "chart_region_cross_span",
+                    Margin::metered(frac, InfSpeed::new(len)),
+                    band,
+                ) {
                     Ok(sign) => *slot = sign,
                     Err(diag) => indeterminate = indeterminate.or(Some(diag)),
                 }
@@ -3450,7 +3494,7 @@ fn intersection_pieces<T: Decide + Bounds>(
                 continue; // distinct edges order exactly by index
             }
             let edge_len = (poly[(ei + 1) % poly.len()] - poly[ei]).norm();
-            let sep = Margin::levered(fj - fi, edge_len);
+            let sep = Margin::metered(fj - fi, InfSpeed::new(edge_len));
             match decide("chart_region_cross_order", sep, band) {
                 Ok(Sign::Positive) => {}
                 Ok(_) => {
@@ -3853,6 +3897,11 @@ mod tests {
                 face: FaceKey::default(),
                 half_edge: HalfEdgeKey::default(),
                 what: "a Harmonic image",
+            },
+            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
             },
             ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
                 half_edge: HalfEdgeKey::default(),
@@ -4806,13 +4855,15 @@ mod tests {
         // sinusoid Harmonic (pa's v channel = 0.4·cos t).
         let k: f64 = 0.4;
         let major_len = (1.0 + k.powi(2)).sqrt();
-        let ellipse = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(-k, 0.0, 1.0).normalize(),
-            semi_u: major_len,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, k).normalize(),
-        };
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(-k, 0.0, 1.0).normalize(),
+                Vec3::new(1.0, 0.0, k).normalize(),
+            ),
+            major_len,
+            1.0,
+        ));
         let surface = cyl_surface(1.0);
         let pcurve = geom_brep::chart_pcurve(&ellipse, &surface, band()).unwrap();
         let Some((_, pa, _, _)) = pcurve.harmonic_form() else {
@@ -6133,10 +6184,12 @@ mod from_computed_rows {
         // contact probes (`bool_contact_edge`, `_vertex`, `_edge_length`
         // each) and 29 fewer opaque `point_in_loop_*` steps than one
         // picked in a chart off the world axes (1189 kept, 186 opaque).
+        // The plane mint reads each trim's incidence before it images it,
+        // and those reads re-value with the scale too: 12 kept.
         assert_eq!(
             found,
             Revalued {
-                kept: 1169,
+                kept: 1181,
                 opaque: 117,
                 laundered: 0,
             },

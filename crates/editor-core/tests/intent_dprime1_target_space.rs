@@ -178,7 +178,7 @@ fn an_empty_bundle_and_a_plane_mate_with_one_value_refuse_unpinned() {
     let one_value = editor_core::Placed {
         mates: vec![mate],
         values: vec![(
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             Formula::zero(Dimension::Length),
         )],
     };

@@ -122,7 +122,7 @@ impl<'c, T: Decide> Foot<'c, T> {
     /// carrier** (module docs): on a line and a circle, where it is found
     /// in closed form.
     pub fn is_nearest(&self) -> bool {
-        matches!(self.carrier, Curve3::Line { .. } | Curve3::Circle { .. })
+        matches!(self.carrier, Curve3::Line(_) | Curve3::Circle(..))
     }
 
     /// **Whether the point lies on the carrier** (module docs): on by the
@@ -281,33 +281,14 @@ impl<T: Decide> Curve3<T> {
     /// the interval it reads.
     pub fn foot(&self, q: Point3<T>, near: T) -> Foot<'_, T> {
         let seed = match self {
-            Self::Line { origin, dir } => (q - *origin).dot(*dir) / dir.dot(*dir),
-            Self::Circle {
-                center,
-                axis,
-                u_ref,
-                radius,
-            } => {
-                // Scaled by the radius, whose sign turns the angles.
-                let w = (q - *center) * *radius;
-                return self.foot_at(
-                    q,
-                    angle_near(w.dot(*u_ref), w.dot(axis.cross(*u_ref)), near),
-                );
+            Self::Line(line) => line.param(q),
+            Self::Circle(c) => {
+                let (x, y) = c.frame.in_plane(q);
+                return self.foot_at(q, angle_near(x, y, near));
             }
-            Self::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => {
-                let w = q - *center;
-                angle_near(
-                    w.dot(*u_ref) / *semi_u,
-                    w.dot(axis.cross(*u_ref)) / *semi_v,
-                    near,
-                )
+            Self::Ellipse(e) => {
+                let (x, y) = crate::Conic::unit_in_plane(e, q);
+                angle_near(x, y, near)
             }
             Self::Spiric {
                 center,
@@ -348,7 +329,7 @@ impl<T: Decide> Curve3<T> {
         };
         let at = self.foot_at(q, seed);
         match self {
-            Self::Line { .. } => at,
+            Self::Line(_) => at,
             _ => self.polish(q, at, None),
         }
     }
@@ -407,36 +388,19 @@ impl<T: Decide> Curve3<T> {
     /// piece walk ([`Self::clear_of`]).
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
-            Self::Line { origin, dir } => {
+            Self::Line(crate::Line { origin, dir }) => {
                 let w = q - origin;
                 let u = dir * (T::one() / dir.norm());
                 (w - u * w.dot(u)).norm()
             }
-            Self::Circle {
-                center,
-                axis,
-                radius,
-                ..
-            } => {
-                // The radius's magnitude: its sign turns the angles, not
-                // the circle.
-                let (h, rho) = height_and_radius(q - center, axis);
-                (h.powi(2) + (rho - radius.abs()).powi(2)).sqrt()
+            Self::Circle(c) => {
+                let (h, rho) = height_and_radius(q - c.frame.center, c.frame.axis);
+                (h.powi(2) + (rho - c.radius).powi(2)).sqrt()
             }
-            Self::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => {
-                let w = q - center;
-                let lower = ellipse_level_clearance(
-                    (w.dot(u_ref), w.dot(axis.cross(u_ref))),
-                    (semi_u, semi_v),
-                )
-                .abs();
-                (lower.powi(2) + w.dot(axis).powi(2)).sqrt()
+            Self::Ellipse(e) => {
+                let lower =
+                    ellipse_level_clearance(e.frame.in_plane(q), (e.semi_u, e.semi_v)).abs();
+                (lower.powi(2) + (q - e.frame.center).dot(e.frame.axis).powi(2)).sqrt()
             }
             Self::Spiric {
                 center,
@@ -465,10 +429,8 @@ impl<T: Decide> Curve3<T> {
     fn domain(&self) -> (T, T) {
         match self {
             Self::Nurbs(n) => n.knot_values().domain(),
-            Self::Circle { .. } | Self::Ellipse { .. } | Self::Spiric { .. } => {
-                (T::zero(), T::tau())
-            }
-            Self::Line { .. } => (T::zero(), T::zero()),
+            Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => (T::zero(), T::tau()),
+            Self::Line(_) => (T::zero(), T::zero()),
         }
     }
 
@@ -543,7 +505,7 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     let (u, v) = (x / a, y / b);
     let f = u.powi(2) + v.powi(2) - T::one();
     let g2 = (two * u / a).powi(2) + (two * v / b).powi(2);
-    let small = a.abs().min(b.abs());
+    let small = a.min(b);
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
 }
 

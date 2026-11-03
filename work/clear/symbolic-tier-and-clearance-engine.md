@@ -124,8 +124,8 @@ leaf on its verdict's lane.
   - The bracket re-enters `T` as a computed hull: the same bits at `Interval`, a fresh unknown at `Sym`.
   - The measure refusal narrowed to `topo::clearance::MinSeparationRefusal`, with 4 arms.
 - **Riders closed in the same PR:**
-  - The clearance doors replay on the certified lane. `clearance_over` uses the verdict's tier. The per-leaf doors use `ClearanceQuery::symbolic`, which defaults to the default drive's tier.
+  - The clearance doors replay on the certified lane. `clearance_over_at_dials` uses the verdict's tier. The per-leaf doors use `ClearanceQuery::symbolic`, which defaults to the default drive's tier.
   - The `NeedsEnclosure` door string is fixed.
 - **Review.** A single FULL review gave APPROVE-WITH-FIXES, with two MAJORs: a 5 s-per-leaf replay path, and per-leaf doors still replaying off-lane. The fix pass root-caused the first: the old numeric replay refused before sweeping. It hoisted `cell_region`'s per-call lift, and fixed both MAJORs. The orchestrator read and accepted the delta.
 - **Cost, measured.** A tier-on leaf is about 10× a numeric one. That is the tier's own evaluation, not the door. Ad hoc per-leaf queries now replay at the tier, and fifteen rows moved into the slow set.
-- **Filed:** `work/pctail/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md` (P2).
+- **Filed:** `work/pcert/loft-builds-at-interval-and-refuses-a-rational-column-at-sym.md` (P2).

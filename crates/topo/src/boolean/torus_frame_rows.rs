@@ -56,7 +56,7 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
             a,
             b,
             Point3::new(BIG_R, 0.0, 0.0),
-            FrameExtent::Reach(lever),
+            FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
             band(),
         )
     };
@@ -430,7 +430,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             &torus,
             &p,
             Point3::new(big_r, 0.0, 0.0),
-            FrameExtent::Reach(REACH),
+            FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
             b,
         );
         let Err(e) = got else {
@@ -511,14 +511,12 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         shape(&got)
     );
     let torus = donut();
-    for extent in [FrameExtent::Radii, FrameExtent::Span(REACH)] {
-        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent.clone(), b);
-        assert!(
-            matches!(got, Err(FrameError::Desync(_))),
-            "plane×torus under {extent:?}: got {}",
-            shape(&got)
-        );
-    }
+    let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
+    assert!(
+        matches!(got, Err(FrameError::Desync(_))),
+        "plane×torus under its radii: got {}",
+        shape(&got)
+    );
 }
 
 /// A planar face on the plane through the origin with unit normal `n`:
@@ -570,14 +568,9 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         (big_r, r),
         &[(0.0, -a), (quarter, -a), (quarter, a), (0.0, a)],
     );
-    let surface = |body: &crate::Body<f64>, f: FaceKey| {
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |body: &crate::Body<f64>, f: FaceKey| body.face_surface(f).unwrap().clone();
     let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
-    let probe = plane([0.0, 0.0, 0.0], Vec3::unit_x());
-    let (at, _) = frame_reading(&surface(&torus, face), &probe, on, Vec::new()).unwrap();
+    let at = frame_reading(&surface(&torus, face), on, Vec::new()).unwrap();
     let rho = big_r + r * a.cos();
     let reach = [
         (Point3::new(0.0, 0.0, r * a.sin()), rho),
@@ -596,11 +589,21 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         for (label, got) in [
             (
                 "plane, torus",
-                face_pair_section_loops((&flat, flat_face), (&torus, face), b),
+                face_pair_section_loops(
+                    &super::section_table::SectionTable::default(),
+                    (&flat, flat_face),
+                    (&torus, face),
+                    b,
+                ),
             ),
             (
                 "torus, plane",
-                face_pair_section_loops((&torus, face), (&flat, flat_face), b),
+                face_pair_section_loops(
+                    &super::section_table::SectionTable::default(),
+                    (&torus, face),
+                    (&flat, flat_face),
+                    b,
+                ),
             ),
         ] {
             let read = match &got {

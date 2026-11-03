@@ -33,7 +33,7 @@ use geom_core::spline::TensorCoeffs;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::{Band, Bounds, Interval, Margin, Vec3};
 
-use super::super::{ChartReach, Components, PairSection, Reached};
+use super::super::{ChartReach, Components, PairSection};
 use super::sweep::{self, Phi, Sweep};
 use super::{Hull, SplineImplicitPose, contact_reach, door_on, hull_verdict};
 use crate::intersect::SectionError;
@@ -91,15 +91,14 @@ pub(super) fn section(
         Phi::Curved(&curved),
         wall.account_floor(),
         band,
-        domain.extent,
+        pose.ball().certified_diameter(),
     ) {
         Sweep::Declined(_) => Err(unbuilt()),
-        Sweep::LoopFree => Ok(
-            match Reached::new(pose.order(ChartReach::default(), reach)) {
-                Some(reached) => pose.section(Components::Reaching(reached)),
-                None => pose.section(Components::Counted(Vec::new())),
-            },
-        ),
+        Sweep::LoopFree(decided) => {
+            let witnesses = super::witnesses(wall.boxes(), &decided);
+            drop(wall);
+            super::loop_free(pose, reach, &decided, &witnesses)
+        }
     }
 }
 

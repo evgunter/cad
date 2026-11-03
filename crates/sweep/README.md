@@ -388,6 +388,22 @@ tangential pair poisons the spine radius and escalates at predicate 3
 lentil's convex equator loses material to it, a two-sphere snowman's
 waist gains it, through one surgery.
 
+**A requested smooth edge is left as it is.** Predicate 5 reads each
+requested edge's dihedral through the kernel's one edge-wedge door,
+`geom_brep::classify_edge_wedge`: convex, concave, or a sign decided
+Zero read for its material side. Zero with the outward normals aligned
+is a smooth seam, wedge π (a bore's straight cut between its two
+half-cylinders, a chart seam, a profile fillet's tangent join): a ball
+resting on both faces touches them along the edge itself, so the blend
+of that edge is the edge, and requesting it is a silent no-op. The
+battery leaves it out of every chain and the request reads without it
+from there on, so the result is the same request's with that edge left
+out; a request every edge of which is smooth returns the operand as it
+is, key for key. Zero with the normals opposed is a cusp or slit,
+and refuses `BlendError::KnifeEdge`: its blend is defined (the ball
+rests where the supports' `r`-offsets meet, touching them away from the
+edge, where they open to `2r`) but not built (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
+
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
 latitude rim, the vertex has valence four: two rim arcs carrying one

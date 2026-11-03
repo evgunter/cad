@@ -481,17 +481,24 @@ same funnel as the other sign gates.
 
 Every point argument of a step (`at`, a target point, `Center` c, `Via`
 q, a circle's or rectangle's centre) holds one `Point2` variable, and
-every director (`toward`) one `Direction2`, in the profile's own
-coordinates (`[variables.poses]`). A written `(x, y)` mints an
-anonymous `Point2` whose `x` and `y` are anonymous `Length`s it owns;
-naming it lets two steps share it. Other 2-D poses are DEFINED by a
-read off a piece an earlier step drew, addressed by its N1 locator
-(step id and role):
+every director one `Direction2`, in the profile's own coordinates
+(`[variables.poses]`). A written `(x, y)` mints an anonymous `Point2`
+whose `x` and `y` are anonymous `Length`s it owns; naming it lets two
+steps share it. A written direction is a family of forms
+(`[recipe.forms]`), each kept as written and lowering through one
+reading, its unit ray: an angle from the profile's +x (`.angle(θ)`) or
+a ray (`.toward(dx, dy)`, §2a item 5). Other 2-D
+poses are DEFINED by a read off a piece an earlier step drew, addressed
+by its N1 locator (step id and role), or moved from one by a slide
+along a `Direction2` by a `Length` (`[variables.poses]`):
 
 - `Centre { piece }` — the centre of that piece's arc carrier, written
   or derived;
-- `Vertex { piece }` — where that piece starts, as the replay emitted
-  it;
+- `Vertex { piece }` — where that piece starts, as the replay
+  constructed it: a role the current values do not draw as its own
+  segment (a `Zero` fit's run, a run N1 merges onto its neighbour) still
+  has the start its construction gives it, though a name on it
+  vanishes;
 - `Heading { piece, sense }` — a straight piece's ray, with or against
   it; `AlongTrace` is the same read off a traced face's tangent.
 
@@ -620,9 +627,11 @@ on a directed point and the same fillet resolution on a bound arrival.
 `(dx, dy)` is normalized and the unit ray stored VERBATIM, with no trig
 round-trip. Axis-aligned and Pythagorean directions are therefore
 exact: `.toward(-1, 0)` gives `(-1, 0)`, where `.angle(PI)` gives
-`(-1, 1.2246e-16)`. Only the components' RATIO is read — the magnitude
-is not a length and binds nothing — so the author never has to
-normalize by hand.
+`(-1, 1.2246e-16)`. The components are `Length`s, a displacement, so
+a direction can aim along one written in the model's own dimensions
+(`.toward(w, h)` runs along a `w`×`h` diagonal and follows `w` and `h`).
+Only their RATIO is read — the magnitude binds nothing — so the author
+never has to normalize by hand.
 
 This kills the W1 drift class at its source. The corpus's one line×line
 fillet (the bracket, the #101 showcase) could not move to the algebra

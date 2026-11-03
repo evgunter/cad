@@ -97,7 +97,7 @@ use super::*;
 use crate::boolean::SideCode;
 use crate::boolean::sectors::BoolSector;
 use crate::boolean::vtxfac::{Partner, cone_classes};
-use crate::bound_side::Reach;
+use crate::bound_side::BoundSupport;
 use crate::entity::HalfEdgeKey;
 use geom_brep::OutwardNormal;
 use geom_core::Tol;
@@ -416,11 +416,11 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                 he: HalfEdgeKey::from(key(k as u64 + 1)),
                 start: v(s.start_far).normalize(),
                 end: v(s.end_far).normalize(),
-                start_reach: Reach::Chord {
+                start_reach: BoundSupport::Chord {
                     base: o,
                     far: o + v(s.start_far),
                 },
-                end_reach: Reach::Chord {
+                end_reach: BoundSupport::Chord {
                     base: o,
                     far: o + v(s.end_far),
                 },
@@ -429,7 +429,8 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     v(s.normal),
                     true,
                 )),
-                arm: s.arm,
+                arm: geom_core::test_support::fixture_lever(s.arm),
+                bend: crate::bound_side::FaceBend::Plane,
             }
         })
         .collect()
@@ -661,8 +662,8 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: Reach::Bisector(1.0),
-        end_reach: Reach::Chord {
+        start_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
+        end_reach: BoundSupport::Chord {
             base: o,
             far: o + d,
         },
@@ -671,7 +672,8 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             true,
         )),
-        arm: 1.0,
+        arm: geom_core::test_support::fixture_lever(1.0),
+        bend: crate::bound_side::FaceBend::Plane,
     }
 }
 
@@ -699,7 +701,7 @@ fn read_probe(partners: &[Vec<BoolSector<f64>>], far: [f64; 3], band: Band) -> R
 /// where it touches one (`touched`: its outward normal and the side the
 /// edge was read on against it), as the boolean reads the edge
 /// ([`cone_classes`]) and as its cone reads the edge's point at its
-/// reach ([`Reach::point`]).
+/// reach ([`BoundSupport::point`]).
 fn read_edge(
     partners: &[(Vec<BoolSector<f64>>, Point3<f64>)],
     probe: BoolSector<f64>,
@@ -713,12 +715,10 @@ fn read_edge(
     let gathered = Cone::gathered(o, corners, touched.map(|(n, _)| n)).expect("a cone of faces");
     let given: Vec<_> = touched
         .map(|(_, class)| {
-            let side = match class {
-                SideCode::In => Sign::Negative,
-                SideCode::On => Sign::Zero,
-                SideCode::Out => Sign::Positive,
-            };
-            (gathered.whole_planes()[0], side)
+            (
+                gathered.inside(0).expect("the touched disc"),
+                class.plane_side(),
+            )
         })
         .into_iter()
         .collect();
@@ -734,15 +734,25 @@ fn read_edge(
         })
         .collect();
     let he = probe.he;
-    let classes = [(he, touched.map_or(SideCode::On, |(_, class)| class))];
-    let touched = touched.map(|(n, _)| {
-        (
-            crate::entity::FaceKey::default(),
-            OutwardNormal::from_chart(n, true),
-            &classes[..],
-        )
+    // The touched face is a plane, against which the probe's straight
+    // bound reads its far point's side: the side given to the cone.
+    let datum = touched.map(|(n, _)| crate::boolean::vtxfac::PierceDatum {
+        normal: OutwardNormal::from_chart(n, true),
+        bend: crate::bound_side::FaceBend::Plane,
+        lever: crate::boolean::sectors::PierceLever::Everywhere(
+            crate::boolean::sectors::NO_CURVATURE(),
+        ),
     });
-    let published = match cone_classes(o, &[probe], &[he], &partners, touched, band) {
+    let against: Vec<_> = datum.into_iter().map(|d| (he, d)).collect();
+    let touched = datum.map(|d| (crate::entity::FaceKey::default(), d.normal, &against[..]));
+    let published = match cone_classes(
+        o,
+        &[probe],
+        &[he],
+        (crate::boolean::Operand::B, &partners),
+        touched,
+        band,
+    ) {
         Ok(Ok(rows)) => match rows.as_slice() {
             &[(h, class)] if h == he => Ok(Some(class)),
             _ => Err(format!("rows {rows:?}, not the probe edge's one")),
@@ -1178,8 +1188,8 @@ impl std::fmt::Display for Counts {
 /// **No decided class a gathered cone gives, or the boolean publishes
 /// through it, contradicts the exact oracle or lies in band**, over
 /// random stars, thin fins and slivers, turned stars, and the graze,
-/// bound and long-probe families, and over two partners of each read as
-/// one cone.
+/// bound and long-probe families, each probe read again far short of the
+/// rays' reach, and over two partners of each read as one cone.
 #[test]
 fn a_gathered_cone_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
@@ -1194,6 +1204,8 @@ fn a_gathered_cone_never_contradicts_the_exact_oracle() {
     for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         let mut counts = [Counts::default(), Counts::default()];
+        let mut short_counts = [Counts::default(), Counts::default()];
+        let mut short_wrong = 0;
         let mut read_cones = Vec::new();
         let before = wrong.len();
         for c in 0..cones {
@@ -1233,13 +1245,35 @@ fn a_gathered_cone_never_contradicts_the_exact_oracle() {
                 &mut rng,
                 &mut counts,
             ));
+            // The same directions far short of the rays' reach, where a
+            // reference out at its own reach stands far beyond `q`.
+            let mut short = Vec::with_capacity(probes.len());
+            for &far in &probes {
+                let l = rng.range(1e-8, 1e-7);
+                short.push(norm3(far).map(|x| x * l));
+            }
+            let found = check_cone(
+                &format!("{what}, short"),
+                &cone,
+                &short,
+                band,
+                &mut rng,
+                &mut short_counts,
+            );
+            short_wrong += found.len();
+            wrong.extend(found);
             read_cones.push((what, cone));
         }
         let [cone, published] = &counts;
         println!(
             "[fuzz] link_cone_fuzz at ε {eps:e}: {} wrong; the cone {cone}; the published \
              rows {published}",
-            wrong.len() - before,
+            wrong.len() - before - short_wrong,
+        );
+        let [cone, published] = &short_counts;
+        println!(
+            "[fuzz] link_cone_fuzz short probes at ε {eps:e}: {short_wrong} wrong; the cone \
+             {cone}; the published rows {published}",
         );
         pair_passes.push((eps, band, read_cones));
     }
@@ -1427,7 +1461,7 @@ enum Bounds {
 }
 
 /// A curved edge's bend, which the cone does not read: its departure
-/// tangent at its extent is its ray ([`Reach::point`]).
+/// tangent at its extent is its ray ([`BoundSupport::point`]).
 fn flat_bend() -> geom_brep::ConicBend<f64> {
     geom_brep::ConicBend {
         curvature: Vec3::new(0.0, 0.0, 0.0),
@@ -1437,33 +1471,34 @@ fn flat_bend() -> geom_brep::ConicBend<f64> {
 
 /// The reach a far point `f` (off the origin) is drawn with, as a
 /// corner's bound (`bound`) or a bisector between two of its pieces.
-fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
+fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, BoundSupport<f64>) {
     let o = Point3::new(0.0, 0.0, 0.0);
     let v = Vec3::new(f[0], f[1], f[2]);
     let reach = match bound {
-        Some(Bounds::Chord) => Reach::Chord {
+        Some(Bounds::Chord) => BoundSupport::Chord {
             base: o,
             far: o + v,
         },
-        Some(Bounds::Conic) => Reach::Conic {
-            extent: v.norm(),
+        Some(Bounds::Conic) => BoundSupport::Conic {
+            extent: geom_core::test_support::fixture_lever(v.norm()),
             bend: flat_bend(),
+            arc: None,
         },
-        None => Reach::Bisector(v.norm()),
+        None => BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(v.norm())),
     };
     (v.normalize(), reach)
 }
 
 /// The point a reach fixes, as the oracle reads it: a line edge's far
 /// point, and any other bound's direction out to its length, spelled
-/// here apart from the reader's [`Reach::point`] (the same `f64`
+/// here apart from the reader's [`BoundSupport::point`] (the same `f64`
 /// operations, so the same numbers where that reading is right).
-fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
+fn fixed(dir: Vec3<f64>, reach: BoundSupport<f64>) -> [f64; 3] {
     let x = match reach {
-        Reach::Chord { far, .. } => far,
-        Reach::Conic { extent: l, .. } | Reach::Bisector(l) | Reach::Extent(l) => {
-            Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
-        }
+        BoundSupport::Chord { far, .. } => far,
+        BoundSupport::Conic { extent: l, .. }
+        | BoundSupport::Bisector { arm: l, .. }
+        | BoundSupport::Extent(l) => Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l.length(),
     };
     [x.x, x.y, x.z]
 }
@@ -1495,7 +1530,8 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                 at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                     normal, true,
                 )),
-                arm: s.arm,
+                arm: geom_core::test_support::fixture_lever(s.arm),
+                bend: crate::bound_side::FaceBend::Plane,
             });
             face.push(Sector {
                 start_far: fixed(start, start_reach),
@@ -1732,12 +1768,11 @@ fn check_corners(
 /// **A vertex touching a face beside a partner**: the face's plane
 /// through the vertex (outward `n`, the material behind it) and a
 /// partner of the same solid, a small convex cone in front of it
-/// touching the plane only at the vertex. Each probe edge is given its
-/// side of the face as the pierce reads it ([`cone_classes`]'s
-/// `touched`): the side of its far point, or, for an edge that leaves
-/// a hair off the plane and bends back across it (a curved edge's tie
-/// read one order down), the other side, the exact class then the one
-/// of the far point mirrored across the plane.
+/// touching the plane only at the vertex. The boolean reads each probe
+/// edge's side of the face itself ([`cone_classes`]' `touched`), and the
+/// cone is given the side of its far point. Where the far point stands
+/// decidedly off the plane, the cone given the other side refuses it
+/// (`Unsettled::Contradicted`).
 fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> Vec<String> {
     let o = Point3::new(0.0, 0.0, 0.0);
     let n = norm3([
@@ -1839,6 +1874,7 @@ fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> 
         );
     }
     // Off the plane one way, given the other.
+    let mut contradicted = Vec::new();
     for k in 0..12 {
         let a = rng.range(0.0, std::f64::consts::TAU);
         let l = rng.range(0.5, 2.0);
@@ -1850,16 +1886,26 @@ fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> 
         if flip <= 4.0 * h.abs() + band.zero() {
             continue;
         }
-        let truth = union.class(mirror, rng);
-        read(
-            format!("{what}, bent probe {k} {far:?}, given {:?}", side(-h)),
-            far,
-            side(-h),
-            truth,
-            flip,
-            family,
-        );
+        let label = format!("{what}, bent probe {k} {far:?}, given {:?}", side(-h));
+        let against = side(-h).plane_side();
+        let cone = Cone::gathered(
+            o,
+            crate::boolean::sectors::fans(&sectors, o),
+            Some(Vec3::new(n[0], n[1], n[2])),
+        )
+        .expect("a cone of faces");
+        let disc = cone.inside(0).expect("the touched disc");
+        match cone.reads_tied(Point3::from_array(far), &[(disc, against)], band) {
+            Err(why) if why.contradicted() => {}
+            got => contradicted.push(format!(
+                "{label}: a side given against the cone's decided one reads {got:?}"
+            )),
+        }
+        // The boolean reads the edge's side of the face itself, the far
+        // point's own, and is judged there.
+        read(label, far, side(h), union.class(far, rng), flip, family);
     }
+    wrong.extend(contradicted);
     wrong
 }
 
@@ -1884,8 +1930,8 @@ fn check_offset(
         .into_iter()
         .map(|mut s| {
             for r in [&mut s.start_reach, &mut s.end_reach] {
-                if let Reach::Chord { far, .. } = *r {
-                    *r = Reach::Chord {
+                if let BoundSupport::Chord { far, .. } = *r {
+                    *r = BoundSupport::Chord {
                         base: apex,
                         far: apex + (far - Point3::new(0.0, 0.0, 0.0)),
                     };
@@ -2064,7 +2110,7 @@ enum PlaneAs {
     /// A sector the line runs inside (`LineSheet::Across`).
     Across,
     /// Its two halves parted by a bisector on the line
-    /// (`LineSheet::Start`/`End`, `Reach::Bisector`): a folded face.
+    /// (`LineSheet::Start`/`End`, `BoundSupport::Bisector`): a folded face.
     Halves,
     /// A face the vertex lies on, its whole plane, `q`'s side of it given
     /// as the touch reads it (`Cone::reads_given`): a held face.
@@ -2259,8 +2305,10 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = Reach::Bisector(len);
-        secs[k + 1].end_reach = Reach::Bisector(len);
+        secs[k].start_reach =
+            BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(len));
+        secs[k + 1].end_reach =
+            BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(len));
     }
     Some(LineMaterial {
         secs,
@@ -2384,7 +2432,7 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
                 m.held.map(Vec3::from_array),
             )
             .expect("a line cone");
-            let plane = cone.whole_planes().first().copied();
+            let plane = cone.inside(0);
             let slack = 2.0 * tie.norm();
             let mut probes = probes_about(&mut rng, &flat);
             for _ in 0..2 {
@@ -2467,4 +2515,546 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
         test_utils::fuzz::replay(),
         wrong.join("\n")
     );
+}
+
+/// **A side handed to a cone for any of its sectors, read under the one
+/// rule, never contradicts the exact oracle**
+/// ([`Cone::reads_given`]): a vertex's cone of fans (a star of corners)
+/// and a solid's line cone of half-planes (and a held plane), its
+/// corners off its point by up to `0.9·zero` (a tie, read over it), read
+/// about a representative inside one sector `k`'s face and displaced
+/// `±δ` along its normal, `k`'s side given from the exact oracle, as a
+/// bound's own reading gives it. In a third of the draws `band ≪ δ ≪`
+/// the geometry, where the cone's own reading of `k` decides and must agree;
+/// in another `δ` lies inside the zero band, where the cone reads `k`'s
+/// plane Zero and the given side is taken; in the third `δ` is about the
+/// tie and the side is given about the bound's own vertex, the apex,
+/// rather than `p`, the mismatch the slack is there for: it is never
+/// refused as contradicted, and where it is not `p`'s side it is judged
+/// as the point mirrored across `k`'s plane, where the other sectors
+/// stand clear of both. Each reading is checked
+/// against the exact class of the displaced point, the other sectors'
+/// flips judged over the slack; a given side refused as `Contradicted`
+/// is wrong, since the oracle's side is exact. It prints, per ε, the
+/// readings, those whose side was taken, and how many read nothing with
+/// the side given and how many without it.
+#[test]
+fn a_given_side_never_contradicts_the_exact_oracle() {
+    let mut rng = test_utils::fuzz::start("link_given_side_fuzz");
+    let draws = test_utils::fuzz::scaled(120);
+    let mut wrong = Vec::new();
+    let session = Tol::witness().get().eps;
+    let mut eps_set = vec![1e-9, 1e-6, 1e-12];
+    if !eps_set.contains(&session) {
+        eps_set.push(session);
+    }
+    let dot = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+    for eps in eps_set {
+        let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let before = wrong.len();
+        // Readings, read nothing with the side given, read nothing
+        // without it, and readings whose side the cone takes.
+        let (mut read, mut unread, mut unread_bare, mut taken) = (0, 0, 0, 0);
+        let (mut apex_given, mut apex_differs, mut apex_judged) = (0, 0, 0);
+        for c in 0..draws {
+            // Within the zero band, well clear of it, or about the tie and
+            // given about the bound's own vertex rather than `p`.
+            let mode = rng.below(3);
+            let within = mode == 0;
+            let own_vertex = mode == 2;
+            let delta = match mode {
+                0 => band.zero() * rng.range(0.05, 0.9),
+                1 => band.escalate() * rng.range(10.0, 100.0),
+                _ => band.zero() * rng.range(0.05, 2.0),
+            };
+            let tie_len = band.zero() * rng.range(0.0, 0.9);
+            let tie = Vec3::from_array(norm3([0; 3].map(|_| rng.range(-1.0, 1.0)))) * tie_len;
+            let apex = o + tie;
+            // The cone, and each of its sectors' pieces as the oracle reads
+            // them, in the cone's order.
+            let (cone, faces, what) = if c % 2 == 0 {
+                let n = 3 + rng.below(7);
+                let turn = rng.below(2) == 0;
+                let Some(ring) = star(&mut rng, n, -1.0, 3.0, false, turn) else {
+                    continue;
+                };
+                let drawn = sectors_from_ring(&ring, rng.below(2) == 0);
+                let fans = crate::boolean::sectors::fans(&bool_sectors(&drawn), apex);
+                let Ok(cone) = Cone::gathered(o, fans, Vec::new()) else {
+                    continue;
+                };
+                let faces: Vec<Vec<Sector>> = drawn.iter().map(|s| vec![s.clone()]).collect();
+                (cone, faces, format!("ε {eps:e}, fans {c} ({n} corners)"))
+            } else {
+                let Some(m) = line_material(&mut rng) else {
+                    continue;
+                };
+                let fans = crate::boolean::sectors::line_fans(
+                    &m.secs,
+                    &m.sheets,
+                    apex,
+                    apex + Vec3::from_array(m.l),
+                );
+                let Ok(cone) = Cone::gathered(
+                    o,
+                    fans.into_iter().map(|(_, f)| f),
+                    m.held.map(Vec3::from_array),
+                ) else {
+                    continue;
+                };
+                (
+                    cone,
+                    m.faces,
+                    format!("ε {eps:e}, line cone {c} ({:?})", m.plane),
+                )
+            };
+            if faces.len() != cone.sectors.len() {
+                wrong.push(format!(
+                    "{what}: the oracle's faces are not the cone's sectors"
+                ));
+                continue;
+            }
+            let flat: Vec<Sector> = faces.iter().flatten().cloned().collect();
+            let Some(oracle) = cone_oracle(&flat, band) else {
+                continue;
+            };
+            let k = rng.below(faces.len());
+            let piece = &faces[k][rng.below(faces[k].len())];
+            let n = piece.normal;
+            // Inside the piece, on its plane: a mix of its bounds' directions.
+            let t = rng.range(0.1, 0.9);
+            let (a, b) = (norm3(piece.start_far), norm3(piece.end_far));
+            let on = norm3([0, 1, 2].map(|i| a[i] * (1.0 - t) + b[i] * t));
+            let on = on.map(|x| x * rng.range(0.2, 1.5));
+            let h = dot(on, n);
+            let side = if rng.below(2) == 0 { 1.0 } else { -1.0 };
+            let far = [0, 1, 2].map(|i| on[i] - h * n[i] + side * delta * n[i]);
+            let exact = dot_q(n, far);
+            // The side about the bound's own vertex, the apex: what a
+            // bound's reading gives, which the slack is there to absorb.
+            let about_apex = dot_q_about(n, far, [apex.x, apex.y, apex.z]);
+            let sign_of = |h: &Q| match h.sign() {
+                1 => Some(Sign::Positive),
+                -1 => Some(Sign::Negative),
+                _ => None,
+            };
+            let (Some(at_p), Some(at_apex)) = (sign_of(&exact), sign_of(&about_apex)) else {
+                continue;
+            };
+            let given = if own_vertex { at_apex } else { at_p };
+            if own_vertex {
+                apex_given += 1;
+                if at_apex != at_p {
+                    apex_differs += 1;
+                }
+            }
+            let slack = 2.0 * tie_len;
+            if within {
+                taken += 1;
+            }
+            let truth = oracle.class(far, &mut rng);
+            let others: Vec<Sector> = faces
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| j != k)
+                .flat_map(|(_, f)| f.iter().cloned())
+                .collect();
+            let flip = least_flip(&others, far);
+            let in_band = truth == SideCode::On || flip <= band.zero();
+            let on_band = in_band || flip <= band.zero() + slack;
+            let q = Point3::from_array(far);
+            read += 1;
+            if cone.reads_tied(q, &[], band).is_err() {
+                unread_bare += 1;
+            }
+            let what = format!("{what}, sector {k}, δ {delta:.3e}, tie {tie_len:.3e}, at {far:?}");
+            let got = match cone.reads_tied(q, &[(k, given)], band) {
+                Ok(got) => got,
+                Err(why) => {
+                    if why.contradicted() {
+                        wrong.push(format!(
+                            "{what}: a given side within the tie refused as contradicted"
+                        ));
+                    }
+                    unread += 1;
+                    continue;
+                }
+            };
+            // A side about the apex that is not `p`'s is judged as the
+            // point mirrored across `k`'s plane, which stands on the given
+            // side: determinate where the other sectors stand clear of
+            // both points by more than the band and the slack.
+            let (truth, flip, in_band, on_band) = if given == at_p {
+                (truth, flip, in_band, on_band)
+            } else {
+                let h = dot(far, n);
+                let mirror = [0, 1, 2].map(|i| far[i] - 2.0 * h * n[i]);
+                let flip = least_flip(&others, far).min(least_flip(&others, mirror));
+                if flip <= band.zero() + slack {
+                    continue;
+                }
+                apex_judged += 1;
+                let truth = oracle.class(mirror, &mut rng);
+                (truth, flip, truth == SideCode::On, truth == SideCode::On)
+            };
+            let class = match got {
+                Material::In => SideCode::In,
+                Material::Out => SideCode::Out,
+                Material::On(_) | Material::Boundary => SideCode::On,
+            };
+            if let Some(d) = defect(class, truth, in_band, on_band) {
+                wrong.push(format!(
+                    "{what}: reads {got:?}, exactly {truth:?}, flipped by {flip:.3e} m: {d}"
+                ));
+            }
+        }
+        println!(
+            "[fuzz] link_given_side_fuzz at ε {eps:e}: {} wrong; {read} readings, {taken} with \
+             δ in the zero band, {apex_given} given about the apex ({apex_differs} not p's side, \
+             {apex_judged} of those judged); \
+             read nothing {unread} given, {unread_bare} without",
+            wrong.len() - before,
+        );
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} readings with a given side contradict the exact oracle; {}:\n{}",
+        wrong.len(),
+        test_utils::fuzz::replay(),
+        wrong.join("\n")
+    );
+}
+
+/// **A curved bound tied with a line cone's sheet at first order reads
+/// its bend's side, and the cone's material by it, against the exact
+/// oracle** ([`crate::boolean::sectors::given_side`], [`Cone::reads_given`]):
+/// a solid's line cone of half-planes (and a held plane), its corners at
+/// its point or up to `0.9·zero` off it, and a circle arc from the point leaving
+/// inside one sector `k`'s face on its plane, bending off it along its
+/// normal by a curvature drawn across two decades. The arc's side of
+/// `k`'s face is read as the boolean reads a sheet's side, through the
+/// one bound-side reading on the cone's reading, and must be its bend's
+/// exact side, and at one point a side (off it, a conic's bend on a
+/// plane reads no side over the slack, `conic-bend-side-reads-no-slack`);
+/// that side, taken from the exact oracle, is handed to the cone. The cone reads the arc at its tangent ray's point, on
+/// `k`'s plane, and its material is judged against the exact class of
+/// the arc's directions as they leave the point: a point just off the
+/// tangent ray on the bend's side, where the other sectors stand clear
+/// of the ray by more than the band and the slack. It prints, per ε, the
+/// readings, those the bound-side reading gave no side, and those the
+/// cone read nothing of.
+///
+/// The arc's tangent ray's point lies on `k`'s plane, inside its piece:
+/// where it is on no other sector, the cone reads it off `k`'s face by
+/// the side given ([`Cone::reads_given`]).
+///
+/// Beside it, cones no sector of which the cone's own reading decides:
+/// one face's plane cut into sectors about the point, its corners at the
+/// point or off it, `q` on the plane or within its zero, every sector
+/// given `q`'s side, the material the half-space behind the plane.
+#[test]
+fn a_curved_bound_tied_with_a_sheet_reads_its_bend_against_the_exact_oracle() {
+    use crate::boolean::sectors::{NO_CURVATURE, Unparted, given_side};
+    let mut rng = test_utils::fuzz::start("link_tied_sheet_fuzz");
+    let draws = test_utils::fuzz::scaled(120);
+    let mut wrong = Vec::new();
+    let session = Tol::witness().get().eps;
+    let mut eps_set = vec![1e-9, 1e-6, 1e-12];
+    if !eps_set.contains(&session) {
+        eps_set.push(session);
+    }
+    let dot = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+    for eps in eps_set {
+        let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let before = wrong.len();
+        let (mut read, mut given, mut ungiven, mut unread, mut near) = (0, 0, 0, 0, 0);
+        for c in 0..draws {
+            let Some(m) = line_material(&mut rng) else {
+                continue;
+            };
+            // At one point, or off it within the zero band.
+            let tie_len = band.zero() * [0.0, rng.range(0.0, 0.9)][rng.below(2)];
+            let tie = Vec3::from_array(norm3([0; 3].map(|_| rng.range(-1.0, 1.0)))) * tie_len;
+            let apex = o + tie;
+            let fans = crate::boolean::sectors::line_fans(
+                &m.secs,
+                &m.sheets,
+                apex,
+                apex + Vec3::from_array(m.l),
+            );
+            let Ok(cone) = Cone::gathered(
+                o,
+                fans.into_iter().map(|(_, f)| f),
+                m.held.map(Vec3::from_array),
+            ) else {
+                continue;
+            };
+            let what = format!("ε {eps:e}, line cone {c} ({:?})", m.plane);
+            if m.faces.len() != cone.sectors.len() {
+                wrong.push(format!(
+                    "{what}: the oracle's faces are not the cone's sectors"
+                ));
+                continue;
+            }
+            let flat: Vec<Sector> = m.faces.iter().flatten().cloned().collect();
+            let Some(oracle) = cone_oracle(&flat, band) else {
+                continue;
+            };
+            let k = rng.below(m.faces.len());
+            let piece = &m.faces[k][rng.below(m.faces[k].len())];
+            let n = piece.normal;
+            // A direction inside the piece, on its plane: in half the draws
+            // a few bands off one of its bound rays, so the arc's tangent
+            // point stands within the band of the sector across that ray.
+            let (a, b) = (norm3(piece.start_far), norm3(piece.end_far));
+            let t = if rng.below(2) == 0 {
+                rng.range(0.1, 0.9)
+            } else {
+                let sin = cross3(a, b).iter().map(|x| x * x).sum::<f64>().sqrt();
+                let t = band.zero() * rng.range(0.2, 3.0) / sin.max(1e-3);
+                if rng.below(2) == 0 { t } else { 1.0 - t }
+            };
+            let on = norm3([0, 1, 2].map(|i| a[i] * (1.0 - t) + b[i] * t));
+            let h = dot(on, n);
+            let u = norm3([0, 1, 2].map(|i| on[i] - h * n[i]));
+            // The arc, bending to `side` of the plane.
+            let side = if rng.below(2) == 0 { 1.0 } else { -1.0 };
+            let kappa = 10f64.powf(rng.range(-1.0, 1.0));
+            let x_axis = n.map(|x| -side * x);
+            let centre = o + Vec3::from_array(n) * (side / kappa);
+            let circle = geom::Curve3::circle(
+                centre,
+                Vec3::from_array(cross3(x_axis, u)),
+                1.0 / kappa,
+                Vec3::from_array(x_axis),
+            );
+            let span = rng.range(0.05, 0.6);
+            let extent = geom_brep::edge_extent_inf(
+                &circle,
+                0.0,
+                span,
+                (circle.eval(0.0), circle.eval(span)),
+            );
+            let tangent = circle.deriv(0.0);
+            let reach = BoundSupport::Conic {
+                extent,
+                bend: geom_brep::ConicBend::of(&circle, tangent, circle.deriv2(0.0), span),
+                arc: crate::bound_side::ConicArc::on(&circle, 0.0, span),
+            };
+            let dir = tangent.normalize() * extent.length();
+            let exact = if side > 0.0 {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            };
+            let datum = crate::bound_side::FaceDatum::of_face(
+                OutwardNormal::from_chart(Vec3::from_array(n), true),
+                crate::bound_side::FaceBend::Plane,
+                NO_CURVATURE(),
+            );
+            let rd = cone.reading(band);
+            read += 1;
+            // Handed nothing where unparted, as `cone_classes` hands it: a
+            // side given is the bend's exact side.
+            match given_side(dir, reach, datum, rd, Unparted::Nothing) {
+                Some(got) if got != exact => {
+                    wrong.push(format!(
+                        "{what}, sector {k}, κ {kappa:.3e}, tie {tie_len:.3e}: the bound-side \
+                         reading gives {got:?}, exactly {exact:?}"
+                    ));
+                    continue;
+                }
+                Some(_) => given += 1,
+                None if tie_len > 0.0 => ungiven += 1,
+                None => {
+                    wrong.push(format!(
+                        "{what}, sector {k}, κ {kappa:.3e}: at one point the bend reads no side"
+                    ));
+                    continue;
+                }
+            }
+            let q = reach.point(o, dir);
+            let qa = [q.x, q.y, q.z];
+            let others: Vec<Sector> = m
+                .faces
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| j != k)
+                .flat_map(|(_, f)| f.iter().cloned())
+                .collect();
+            let slack = 2.0 * tie_len;
+            let flip = least_flip(&others, qa);
+            // Where another sector stands within the band and the slack of
+            // the tangent ray's point, every sector is given that point's
+            // exact side of its plane too, and the exact oracle judges.
+            let mut sides = vec![(k, exact)];
+            if flip <= band.zero() + slack {
+                if flip == 0.0 {
+                    continue;
+                }
+                let mut all = true;
+                for (j, f) in m.faces.iter().enumerate().filter(|&(j, _)| j != k) {
+                    match dot_q(f[0].normal, qa).sign() {
+                        1 => sides.push((j, Sign::Positive)),
+                        -1 => sides.push((j, Sign::Negative)),
+                        _ => all = false,
+                    }
+                }
+                if !all {
+                    continue;
+                }
+                near += 1;
+            }
+            // The arc's directions as they leave: just off the tangent ray
+            // on the bend's side, nearer it than any other sector stands.
+            let off = flip.min(1e-3) * 0.25;
+            let leaving = [0, 1, 2].map(|i| qa[i] + side * off * n[i]);
+            let truth = oracle.class(leaving, &mut rng);
+            let what = format!("{what}, sector {k}, κ {kappa:.3e}, tie {tie_len:.3e}, at {qa:?}");
+            let got = match cone.reads_tied(q, &sides, band) {
+                Ok(got) => got,
+                Err(why) => {
+                    if why.contradicted() {
+                        wrong.push(format!("{what}: the exact side refused as contradicted"));
+                    }
+                    unread += 1;
+                    continue;
+                }
+            };
+            let class = match got {
+                Material::In => SideCode::In,
+                Material::Out => SideCode::Out,
+                Material::On(_) | Material::Boundary => SideCode::On,
+            };
+            if class != truth {
+                wrong.push(format!("{what}: reads {got:?}, exactly {truth:?}"));
+            }
+        }
+        // A cone of one face's plane cut into sectors about the point, as
+        // a solid whose one face holds a line reads about it: `q` on the
+        // plane or within its zero, so no sector the cone's own reading
+        // decides; every sector given `q`'s exact side, the material the
+        // half-space behind the plane.
+        let (mut flat_read, mut flat_unread) = (0, 0);
+        for c in 0..draws {
+            let n = norm3([0; 3].map(|_| rng.range(-1.0, 1.0)));
+            let seed = if n[0].abs() < 0.9 {
+                [1.0, 0.0, 0.0]
+            } else {
+                [0.0, 1.0, 0.0]
+            };
+            let e1 = norm3(cross3(n, seed));
+            let e2 = cross3(n, e1);
+            let about = |a: f64| [0, 1, 2].map(|i| e1[i] * a.cos() + e2[i] * a.sin());
+            let m = 2 + rng.below(4);
+            let mut cuts: Vec<f64> = (0..m)
+                .map(|_| rng.range(0.0, std::f64::consts::TAU))
+                .collect();
+            cuts.sort_by(f64::total_cmp);
+            // Each sector under half a turn: split any wider gap.
+            let mut angles = Vec::new();
+            for j in 0..m {
+                let (a, b) = (
+                    cuts[j],
+                    if j + 1 < m {
+                        cuts[j + 1]
+                    } else {
+                        cuts[0] + std::f64::consts::TAU
+                    },
+                );
+                let pieces = ((b - a) / 3.0).ceil().max(1.0) as usize;
+                for i in 0..pieces {
+                    angles.push(a + (b - a) * i as f64 / pieces as f64);
+                }
+            }
+            let tie_len = band.zero() * [0.0, rng.range(0.0, 0.9)][rng.below(2)];
+            let apex = o + Vec3::from_array(norm3([0; 3].map(|_| rng.range(-1.0, 1.0)))) * tie_len;
+            let rays = |a: f64, b: f64| {
+                let (u, w) = (about(a), about(b));
+                let mid = norm3([0, 1, 2].map(|i| u[i] + w[i]));
+                [u, mid, w].map(|d| apex + Vec3::from_array(d))
+            };
+            let k = angles.len();
+            let fans = (0..k).map(|j| {
+                let (a, b) = (
+                    angles[j],
+                    if j + 1 < k {
+                        angles[j + 1]
+                    } else {
+                        angles[0] + std::f64::consts::TAU
+                    },
+                );
+                Fan {
+                    outward: Vec3::from_array(n),
+                    apex,
+                    rays: rays(a, b).to_vec(),
+                }
+            });
+            let Ok(cone) = Cone::gathered(o, fans, Vec::new()) else {
+                continue;
+            };
+            let at = rng.range(0.0, std::f64::consts::TAU);
+            let l = rng.range(0.2, 1.5);
+            let h = band.zero() * [0.0, rng.range(-0.9, 0.9)][rng.below(2)];
+            let side = if rng.below(2) == 0 {
+                Sign::Positive
+            } else {
+                Sign::Negative
+            };
+            let far = [0, 1, 2].map(|i| l * about(at)[i] + h * n[i]);
+            let given: Vec<(usize, Sign)> = (0..cone.sectors.len()).map(|j| (j, side)).collect();
+            flat_read += 1;
+            let what = format!(
+                "ε {eps:e}, one plane {c} ({k} sectors), tie {tie_len:.3e}, at {far:?}, given {side:?}"
+            );
+            match cone.reads_tied(Point3::from_array(far), &given, band) {
+                Ok(got) => {
+                    let truth = if side == Sign::Negative {
+                        Material::In
+                    } else {
+                        Material::Out
+                    };
+                    if got != truth {
+                        wrong.push(format!("{what}: reads {got:?}, exactly {truth:?}"));
+                    }
+                }
+                Err(why) => {
+                    if why.contradicted() {
+                        wrong.push(format!("{what}: refused as contradicted"));
+                    }
+                    flat_unread += 1;
+                }
+            }
+        }
+        println!(
+            "[fuzz] link_tied_sheet_fuzz at ε {eps:e}, one plane: {flat_read} readings, \
+             {flat_unread} read nothing"
+        );
+        println!(
+            "[fuzz] link_tied_sheet_fuzz at ε {eps:e}: {} wrong; {read} readings, the bound-side \
+             reading giving {given} the bend's side and {ungiven} off the point none, {near} \
+             with another sector within the band and slack of it, {unread} read nothing",
+            wrong.len() - before,
+        );
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} tied curved bounds contradict the exact oracle; {}:\n{}",
+        wrong.len(),
+        test_utils::fuzz::replay(),
+        wrong.join("\n")
+    );
+}
+
+/// `n·x`, exactly.
+fn dot_q(n: [f64; 3], x: [f64; 3]) -> Q {
+    dot(&qv(n), &qv(x))
+}
+
+/// `n·(x − o)`, exactly.
+fn dot_q_about(n: [f64; 3], x: [f64; 3], o: [f64; 3]) -> Q {
+    let (x, o) = (qv(x), qv(o));
+    dot(&qv(n), &[x[0].sub(&o[0]), x[1].sub(&o[1]), x[2].sub(&o[2])])
 }

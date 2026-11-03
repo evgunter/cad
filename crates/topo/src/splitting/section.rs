@@ -22,12 +22,11 @@
 
 use geom_core::{Decide, Indeterminate, Point2, Point3, Real, Vec2, Vec3};
 
-use super::join::{SectionKind, Spur, spur_tips};
+use super::join::SectionKind;
 use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::loop_winding::ConicFrame;
 use crate::validate::AtRestBody;
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
@@ -312,9 +311,9 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut holes = Vec::new();
     for section in &completed {
         // A slit trace bounds no region: its slit lies inside an outline.
-        if section.kind != SectionKind::Area {
+        let SectionKind::Area { slit } = &section.kind else {
             continue;
-        }
+        };
         let halves = section_walk(&red.body, section.below_loop)?;
         // The caller's plane, which the frame is reported on: the below
         // loop's first chord, as the split's section face reads it.
@@ -322,18 +321,7 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
             let corners: Vec<_> = halves.iter().map(|h| h.corner).collect();
             section_loops::chord_u_ref(&red.body, section.below_loop, &corners, plane.normal)
         });
-        let slits: Vec<HalfEdgeKey> = spur_tips(&red.body, section.face, section.below_loop, band)
-            .map_err(|e| SectionError::from(SplitError::Join(e)))?
-            .into_iter()
-            .map(|tip| match tip {
-                Spur::Slit { out, .. } => out,
-                Spur::Strut { at, .. } => unreachable!(
-                    "a strut at {at:?} on a completed section's loop: the join kills every \
-                     strut before it records the section"
-                ),
-            })
-            .collect();
-        let halves = drop_slits(halves, &slits);
+        let halves = drop_slits(halves, slit);
         let points: Vec<_> = halves.iter().map(|h| h.corner).collect();
         let v = *v_ref.get_or_insert_with(|| normal.cross(u));
         let corner = points[0];
@@ -349,16 +337,24 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
         for half in &halves {
             let c = chart(half.corner - plane.origin);
             uv.push(Point2::new(c.x, c.y));
-            edges.push(match half.carrier {
+            edges.push(match &half.carrier {
                 HalfCarrier::Chord => SectionEdge::Line,
-                HalfCarrier::Conic { conic, start, end } => {
-                    let c = chart(conic.center - plane.origin);
+                HalfCarrier::Conic {
+                    carrier,
+                    start,
+                    end,
+                } => {
+                    let conic = carrier
+                        .conic()
+                        .unwrap_or_else(|| unreachable!("a conic half's carrier is a conic"));
+                    let c = chart(conic.frame().center - plane.origin);
+                    let (a, b) = conic.semi_axis_vectors();
                     SectionEdge::Arc {
                         center: Point2::new(c.x, c.y),
-                        a: chart(conic.a()),
-                        b: chart(conic.b()),
-                        start,
-                        end,
+                        a: chart(a),
+                        b: chart(b),
+                        start: *start,
+                        end: *end,
                     }
                 }
                 // The split's carrier gate admits no spiric or NURBS edge,
@@ -400,24 +396,28 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     })
 }
 
-/// Takes each slit out of a walked section loop. At a slit the loop
-/// runs out from a vertex along a line or a conic arc and back over the
-/// same curve, from its tip `out`, to a second copy of the vertex it
-/// left ([`super::join::Spur::Slit`]), where the side whose loop this is
-/// touches itself. The slit lies inside the section's region, so the
-/// outline goes on from the first copy along the second copy's run:
-/// the half into the tip takes that run, and the half out of the tip
-/// and the second copy's half leave it.
-fn drop_slits<T: Real>(mut halves: Vec<Half<T>>, slits: &[HalfEdgeKey]) -> Vec<Half<T>> {
+/// Takes the slit out of a walked section loop: the halves `slit` names,
+/// which run over a tree of the other loop ([`super::join::SectionKind::Area`])
+/// out to its tips and back to a second copy of the vertex they left, where
+/// the side whose loop this is touches itself. The slit lies inside the
+/// section's region, so the outline goes on from the first copy along the
+/// second copy's run: the first half of each run of slit halves keeps its
+/// corner and takes the run of the half after it, and the rest of the run
+/// and that half leave the walk.
+fn drop_slits<T: Real>(mut halves: Vec<Half<T>>, slit: &[HalfEdgeKey]) -> Vec<Half<T>> {
     let n = halves.len();
+    let in_slit: Vec<bool> = halves.iter().map(|h| slit.contains(&h.he)).collect();
     let mut gone = vec![false; n];
-    for k in 0..n {
-        if !slits.contains(&halves[k].he) {
+    for first in 0..n {
+        if !in_slit[first] || in_slit[(first + n - 1) % n] {
             continue;
         }
-        let (into, copy) = ((k + n - 1) % n, (k + 1) % n);
-        halves[into].carrier = core::mem::replace(&mut halves[copy].carrier, HalfCarrier::Chord);
-        gone[k] = true;
+        let mut copy = (first + 1) % n;
+        while in_slit[copy] {
+            gone[copy] = true;
+            copy = (copy + 1) % n;
+        }
+        halves[first].carrier = core::mem::replace(&mut halves[copy].carrier, HalfCarrier::Chord);
         gone[copy] = true;
     }
     halves
@@ -443,7 +443,7 @@ enum HalfCarrier<T: Real> {
     /// An arc of `conic` from parameter `start` to `end`, in traversal
     /// order.
     Conic {
-        conic: ConicFrame<T>,
+        carrier: geom::Curve3<T>,
         start: T,
         end: T,
     },
@@ -488,14 +488,18 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
             .certified();
         let carrier = match curve {
             None => HalfCarrier::Chord,
-            Some(curve) => match ConicFrame::of(curve.carrier()) {
-                Some(conic) => {
+            Some(curve) => match curve.carrier() {
+                carrier @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => {
                     let (t0, t1) = curve.params();
                     let (start, end) = if forward { (t0, t1) } else { (t1, t0) };
-                    HalfCarrier::Conic { conic, start, end }
+                    HalfCarrier::Conic {
+                        carrier: carrier.clone(),
+                        start,
+                        end,
+                    }
                 }
-                None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => HalfCarrier::Chord,
-                None => HalfCarrier::Unread,
+                geom::Curve3::Line(_) => HalfCarrier::Chord,
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => HalfCarrier::Unread,
             },
         };
         halves.push(Half {

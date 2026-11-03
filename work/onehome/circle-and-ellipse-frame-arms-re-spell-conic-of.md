@@ -2,10 +2,13 @@
 id: circle-and-ellipse-frame-arms-re-spell-conic-of
 kind: issue
 title: LoopArc::of and the section outline's Circle and Ellipse arms re-spell geom_brep::Conic::of
-status: open
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: E
+branch: onehome/conic-frame
+closed: 2026-11-02
+pr: 6349
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve`, which
@@ -55,3 +58,15 @@ DESIGN `[one-way]` gains the general rule: two types never carry the same fields
 - Every other spelling goes: `geom_brep::implicit::Conic`, `geom`'s private `curves/boxes.rs` `ConicFrame` and `carrier_speed::SemiAxes`, and topo's `ring_path::Conic`/`LoopArc::of`, `section_loops` outline conic, `ruled_region::Conic`, `loop_winding::ConicFrame`, `chord_join::SectionConic`, `containment::ConicArc` and `boolean/boxes.rs` `ConicArc`. Each keeps only what it adds (a span, an own loop, end points).
 - Both semi-axes are positive at every door. Certification's check 2 stops admitting a negative `semi_u`, and the magnitude `.abs()` sites and `loop_winding`'s signed hedge go.
 - Riding it: `semi-axes-by-size-misses-seven-inline-sites` and `a-conics-eccentric-anomaly-is-read-five-ways`.
+
+## Closed (ONEHOME, 2026-11-02, PR 6349)
+
+`geom::Frame` is the placement alone. `Curve3::Circle(Circle)` and `Curve3::Ellipse(Ellipse)` each hold one, and readings either kind answers go through the `Conic` trait (`point_at`, `jet_at`, `angle_of`, `param_near`, one span-branch rule `on_span_branch`, speed bounds, `along`, `unit_in_plane`, `running_point`, `major_frame`). About a dozen frame copies across geom, geom-brep and topo are deleted. Both semi-axes are positive at certification's check 2.
+
+It is named `Frame`, not `ConicFrame`, because the surfaces carry the same triple (parked row `analytic-surfaces-spell-their-frame-field-by-field`).
+
+What moved:
+- Ellipse points and circle angles moved bits (disclosed and measured).
+- Near-gap certified counts fell (for example ellipse k = 0.8, 7→1), every lost answer a typed `Meter` refusal. The fix is the vertex-relative evaluation (`a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex`).
+
+FULL review FIX-THEN-MERGE (the trait was not yet the easy path; the parity test was tautological); delta FIX-THEN-MERGE (small items).

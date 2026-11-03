@@ -2,10 +2,14 @@
 id: semi-axes-by-size-misses-seven-inline-sites
 kind: issue
 title: Seven inline readings of the larger semi-axis bypass Curve3::semi_axes_by_size, and one production bind still says major
-status: open
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: E
+branch: onehome/conic-frame
+rides_with: circle-and-ellipse-frame-arms-re-spell-conic-of
+closed: 2026-11-02
+pr: 6349
 ---
 
 Found by the narrow re-review of PR 4861 (`cleave/section-ellipse-re-pose`, verdict MERGE). A half-fix of the class that PR consolidated: its sweep matched `semi_*` names, so locals named `a`/`b` escaped it.

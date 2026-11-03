@@ -182,12 +182,12 @@ fn refusals_render_as_prose_not_debug_guts() {
     // The fourth `Display` this suite claims to pin. Its validate arm
     // holds a `profile::ProfileError`, so it forwards rather than
     // re-stating — the same rule as `NodeErrorKind`'s payload arms.
-    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::EmptyProfile);
+    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::PlaneNotFinite);
     assert_eq!(
         program.to_string(),
         format!(
             "the replayed loops failed profile validation: {}",
-            profile::ProfileError::EmptyProfile
+            profile::ProfileError::PlaneNotFinite
         )
     );
 
@@ -282,7 +282,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
-        K::Profile(profile::ProfileError::EmptyProfile),
+        K::Profile(profile::ProfileError::PlaneNotFinite),
         K::Expr {
             slot: editor_core::SlotId::Distance,
             source: editor_core::EvalError::NonFiniteResult,
@@ -333,6 +333,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: sweep::blend::BlendError::RepeatedEdge {
                 edge: topo::EdgeKey::default(),
             },
+            edge: None,
         },
         K::Transform(topo::transform::TransformError::NurbsPlaceholder),
         K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(

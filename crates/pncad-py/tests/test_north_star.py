@@ -886,16 +886,13 @@ class TestSnowman(unittest.TestCase):
         )
         self.assertTrue(set(waist) < set(described), "and they are two of the six")
 
-        # The description alone hands the roller the meridians, whose
-        # two sides are one sphere: no wedge to sit in.
+        # The description alone hands the roller the meridians too,
+        # whose two sides are one sphere: smooth seams it leaves as they
+        # are, so it rolls what the waist alone rolls.
         unsorted = doc.insert(Node.fillet(union, Formula.length_in(self.ROLL, m), described))
         rolled = doc.insert(Node.fillet(union, Formula.length_in(self.ROLL, m), waist))
         ev = evaluate(doc)
-        with self.assertRaises(EvaluationError) as refused:
-            ev.value(unsorted)
-        self.assertEqual(
-            (refused.exception.kind, refused.exception.inner_kind), ("fillet", "tangential_edge")
-        )
+        self.assert_volume(ev, unsorted, va + vb - vl + self.band_delta_v())
 
         self.assert_volume(ev, rolled, va + vb - vl + self.band_delta_v())
         self.assertEqual(len(ev.all_faces(rolled)), len(ev.all_faces(union)) + 1)
@@ -3981,11 +3978,16 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `drawn_profile` JOINED it at INTENT stage 6 C: a profile drawn
         # on a frame of a body's space, tracing its faces. The positive
         # form is `tests/test_traced_profile.py`.
+        #
+        # `clearance` is the clearance requirement, an assertion whose
+        # claim is a clearance between two seats rather than a value
+        # against a bound. The positive form is `tests/test_measures.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assemble", "assertion", "bolt_circle", "chamfer",
-                "circular_pattern", "drawn_profile", "extrude", "fillet", "grid",
+                "circular_pattern", "clearance", "drawn_profile", "extrude",
+                "fillet", "grid",
                 "hollow_tube", "instantiate_part", "intersect",
                 "linear_pattern", "loft", "measure", "mirror", "place",
                 "polygon", "profile", "revolve", "shell", "space",

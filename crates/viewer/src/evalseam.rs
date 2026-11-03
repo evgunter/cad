@@ -1,13 +1,14 @@
 //! The seams a landing is built across — where a document
 //! becomes a result DAG, where the display budget prices that result
 //! to choose the δ it is drawn at, where the DAG becomes the pick
-//! index the viewport draws and picks against, and where the landing's
+//! index the viewport draws and picks against, where the landing's
 //! checks report gets the coincidence door's answer at rest
-//! ([`DoorService`]) — and, beside the landing, where an operation
-//! staged and not committed is evaluated for its verdict
-//! ([`StagedService`]). **The one place in this crate that OWNS a
-//! thread**: `app` spawns every worker because
-//! it decides which implementation this build runs, and every join
+//! ([`DoorService`]), and where its clearance requirements get the
+//! certifying scalar's ([`CertifyService`]) — and, beside the landing,
+//! where an operation staged and not committed is evaluated for its
+//! verdict ([`StagedService`]). **The one place in this crate that OWNS
+//! a thread**: `app` spawns every worker because it decides which
+//! implementation this build runs, and every join
 //! handle, channel and hand-off between them is here. The options a
 //! session's evaluation runs under are spelled here too ([`options`]),
 //! for the seam's runs and for the ones a session takes beside the
@@ -122,6 +123,7 @@
 
 use std::sync::Arc;
 
+use pncad::analysis::{ClearanceAnswer, clearances_at_nominal};
 use pncad::document::{
     CancelToken, Doc, DoorFindings, DoorJob, EvalOptions, EvalOutcome, Evaluation, PartResolver,
     ProfileProgram, coincide, evaluate,
@@ -955,6 +957,107 @@ impl StagedService for InlineStager {
     }
 }
 
+/// **What the certify seam was asked**: a landing whose `f64` run
+/// holds a clearance requirement, answered at the certifying scalar
+/// (`pncad::analysis::clearances_at_nominal`) — the third state every
+/// clearance reads at `f64` is decided there.
+///
+/// **Keyed by generation alone**, as [`DoorRequest`] is: the answers
+/// are a question about the landing.
+#[derive(Clone, Debug)]
+pub struct CertifyRequest {
+    /// The landing whose clearance rows pend on this answer.
+    pub generation: Generation,
+    /// The landing's document, shared.
+    pub doc: Arc<Doc<ProfileProgram>>,
+    /// The resolver the landing's run resolved through.
+    pub resolver: Option<Arc<dyn PartResolver>>,
+    /// The ε the run decides at.
+    pub tol: Tol,
+}
+
+/// A finished certify job.
+#[derive(Debug)]
+pub struct CertifyDone {
+    /// The generation the request carried.
+    pub generation: Generation,
+    /// One answer per clearance assertion, in document order, or how
+    /// the run stopped before it answered: canceled, or out of its
+    /// member budget.
+    pub answers: Result<Vec<ClearanceAnswer>, pncad::document::Stopped>,
+}
+
+/// The certify job: the landing's document at the certifying scalar.
+fn run_certify(request: CertifyRequest, cancel: &CancelToken) -> CertifyDone {
+    let CertifyRequest {
+        generation,
+        doc,
+        resolver,
+        tol,
+    } = request;
+    CertifyDone {
+        generation,
+        answers: clearances_at_nominal(
+            &doc,
+            resolver,
+            &pncad::document::Stop::canceled_by(cancel),
+            tol,
+        ),
+    }
+}
+
+/// **The certify seam's vocabulary** — [`DoorService`]'s, cancel
+/// included: the run reads a token between nodes, so the next edit
+/// stops it. Its own seam, because a certified sweep costs what the
+/// coincidence door costs and answers a different row.
+pub trait CertifyService {
+    /// Ask for `request`. Cancels a job in flight and replaces any
+    /// waiting one.
+    fn submit(&mut self, request: CertifyRequest);
+
+    /// Cancel whatever is in flight: the next edit's request makes the
+    /// landing it answers stale.
+    fn cancel(&mut self);
+
+    /// Take a finished job, if one is ready. Never blocks.
+    fn poll(&mut self) -> Option<CertifyDone>;
+
+    /// Whether a job is in flight or waiting.
+    fn busy(&self) -> bool;
+}
+
+/// The certify seam with no thread behind it: `submit` records the
+/// request and `poll` runs it — [`InlineProver`]'s standing.
+#[derive(Debug, Default)]
+pub struct InlineCertifier {
+    pending: Option<CertifyRequest>,
+}
+
+impl InlineCertifier {
+    /// A seam that has certified nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl CertifyService for InlineCertifier {
+    fn submit(&mut self, request: CertifyRequest) {
+        self.pending = Some(request);
+    }
+
+    fn cancel(&mut self) {
+        self.pending = None;
+    }
+
+    fn poll(&mut self) -> Option<CertifyDone> {
+        Some(run_certify(self.pending.take()?, &CancelToken::new()))
+    }
+
+    fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// **The seam's traffic is `Send`, checked here rather than assumed.**
 ///
 /// The threaded implementation would fail to compile without it, but
@@ -974,13 +1077,16 @@ const _: fn() = || {
     assert_send::<DoorDone>();
     assert_send::<StagedRequest>();
     assert_send::<StagedDone>();
+    assert_send::<CertifyRequest>();
+    assert_send::<CertifyDone>();
     // The memo moves onto the worker thread with the loop that owns it.
     assert_send::<PickMemo>();
 };
 
 #[cfg(not(target_family = "wasm"))]
 pub use threaded::{
-    SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, ThreadStager, Worker,
+    SpawnError, ThreadCertifier, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver,
+    ThreadStager, Worker,
 };
 
 /// The native seam: one worker thread, a request channel, a result
@@ -998,9 +1104,10 @@ mod threaded {
     use pncad::document::CancelToken;
 
     use super::{
-        DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, FitDone,
-        FitRequest, FitService, IndexDone, IndexRequest, IndexService, PickMemo, PriorRun,
-        StagedDone, StagedRequest, StagedService, build_index, run_fit, run_once, run_staged,
+        CertifyDone, CertifyRequest, CertifyService, DoorDone, DoorRequest, DoorService, EvalDone,
+        EvalRequest, EvalService, FitDone, FitRequest, FitService, IndexDone, IndexRequest,
+        IndexService, PickMemo, PriorRun, StagedDone, StagedRequest, StagedService, build_index,
+        run_certify, run_fit, run_once, run_staged,
     };
 
     /// Which of this module's workers a refusal is about (D4 ¶3:
@@ -1018,6 +1125,8 @@ mod threaded {
         Door,
         /// The staged run's worker ([`ThreadStager`]).
         Staged,
+        /// The clearance certify worker ([`ThreadCertifier`]).
+        Certify,
     }
 
     impl core::fmt::Display for Worker {
@@ -1028,6 +1137,7 @@ mod threaded {
                 Self::Fit => "display fit",
                 Self::Door => "coincidence door",
                 Self::Staged => "staged run",
+                Self::Certify => "clearance certify",
             })
         }
     }
@@ -1671,8 +1781,8 @@ mod threaded {
     /// [`Coalescing`] over [`Tokened`] jobs and the token of the newest,
     /// which a submit cancels before it replaces it. Every such seam is
     /// one of these over its own request and answer
-    /// ([`ThreadProver`], [`ThreadStager`]), so its submit, cancel and
-    /// shutdown are written once.
+    /// ([`ThreadProver`], [`ThreadStager`], [`ThreadCertifier`]), so its
+    /// submit, cancel and shutdown are written once.
     #[derive(Debug)]
     struct Cancelling<R: core::fmt::Debug + Send + 'static, D: Send + 'static> {
         inner: Coalescing<Tokened<R, D>>,
@@ -1824,6 +1934,47 @@ mod threaded {
                 }
             }
             None
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    /// A background-thread certify seam: [`Cancelling`] over a
+    /// landing's clearance requirements at the certifying scalar. Its
+    /// own thread, so a certified sweep runs beside the index, the fit
+    /// and the coincidence door that answer the same landing.
+    #[derive(Debug)]
+    pub struct ThreadCertifier {
+        inner: Cancelling<CertifyRequest, CertifyDone>,
+    }
+
+    impl ThreadCertifier {
+        /// Spawn the worker. Nothing survives between jobs.
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread: every
+        /// clearance row would otherwise read certifying forever.
+        pub fn spawn() -> Result<Self, SpawnError> {
+            Ok(Self {
+                inner: Cancelling::spawn(Worker::Certify, "viewer-certify", run_certify)?,
+            })
+        }
+    }
+
+    impl CertifyService for ThreadCertifier {
+        fn submit(&mut self, request: CertifyRequest) {
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<CertifyDone> {
+            self.inner.poll()
         }
 
         fn busy(&self) -> bool {

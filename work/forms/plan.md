@@ -1,62 +1,81 @@
 # FORMS — the plan
 
-the creation forms' vocabulary and the seats they gate
+one editor per node kind: creating a thing commits it and hands it to
+the edit surface
 
-Opened 2026-09-22 by CHROME's priority-seam cut (`work/README.md`,
-Track size). Nothing dispatched.
+Opened 2026-09-22 by CHROME's priority-seam cut. Re-chartered
+2026-11-02, when Ev's create/edit reports (2026-10-31, 2026-11-01)
+took the track over budget. The vocabulary and seat-gate rows went to
+FORMWORDS (`work/formwords/`).
+
+## The rule (Ev, chat, 2026-11-01)
+
+Every node kind that has both a create form and an edit surface has
+two implementations, and they become one. The choice is made once for
+the whole viewer, and Ev prefers (a): **a create gesture commits the
+node, and the node's edit surface takes it from there.** Every change
+made while the thing is being created is then an ordinary edit in the
+history, and undo reaches it. The full statement is in
+`creating-a-thing-and-editing-it-are-two-implementations`.
 
 ## The slate
 
-**23 budget points** of dispatchable work against a ceiling of 30.
-
-| pri | item | cost | title |
+| pri | item | cost | role |
 |---|---|---|---|
-| P1 | `a-creation-forms-held-pick-survives-a-document-swap` | D | A creation form's held pick survives a document swap and resolves against the new document |
-| P1 | `a-fifth-spelling-of-this-seat-is-empty` | D | A fifth spelling of 'this seat is empty' |
-| P1 | `body-seat-reads-through-the-placer-chain` | D | denotes_body must read the body seat through the placer chain |
-| P1 | `denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one` | D | denotes_body names two of its differences from the operand door and there is a third |
-| P1 | `dimension-to-unit-ladders-have-six-homes-in-the-viewer` | D | Six Dimension-to-unit ladders in the viewer |
-| P1 | `drag-tick-has-three-homes` | E | The drag tick has three homes and a count field has two answers |
-| P1 | `four-pick-state-vocabularies-in-one-create-module` | D | create.rs answers 'what is this button waiting for' in four vocabularies |
-| P1 | `probe-seed-respells-props-authored-in` | E | probe_seed re-spells props::authored_in by hand |
-| P3 | `the-circle-split-cap-offers-counts-the-document-refuses` | D | The circle_split count cap offers counts the document escalates on |
-| P3 | `the-kernel-takes-any-count-has-four-homes-in-the-viewer` | D | The circle_split count rule is restated at four viewer sites |
-| P4 | `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice` | E | A per-kind sentence is hardcoded in the widget rather than beside its choice |
+| P1 | `creating-a-thing-and-editing-it-are-two-implementations` | H | the rule, and the census of pairs it is cut into |
+| P1 | `the-profile-create-form-is-a-second-profile-editor` | H | the instance Ev hit first: a new-profile button opens the one editor |
+| P1 | `the-add-profile-form-takes-numbers-and-no-formula` | E | rides with the profile unit, which subsumes it |
+| P1 | `the-extrude-and-revolve-forms-take-no-variables` | M | the extrude and revolve pair |
 
 ## Order
 
-**The one live wrong answer first**:
-`a-creation-forms-held-pick-survives-a-document-swap` — a pick held
-across a document swap resolves against the NEW document, which is a
-confident wrong answer rather than a refusal and wants a correctness
-arm on its review.
+1. **Designers first, on the rule's open points**: what a create
+   gesture must collect before a node can exist (picks), and what is
+   left to the edit surface (values); how a node committed with
+   defaults reads when it cannot evaluate yet; whether an empty
+   profile is a document state; where the circle and rectangle
+   templates go; and the census of pairs. Ev has chosen (a), so this
+   elaborates a ruling rather than reopening it. Only a sub-question
+   with several viable answers that Ev's words do not settle goes back
+   to Ev.
+2. **The profile unit**: the new-profile button, deleting the add-profile
+   form, with `the-add-profile-form-takes-numbers-and-no-formula`
+   riding along.
+3. **The extrude and revolve unit.**
+4. **The seated tools**, cut per tool from the census once the profile
+   unit has set the pattern.
 
-**Then the seat gate, as one unit**: `body-seat-reads-through-the-placer-chain`
-and `denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one`
-are the same function and the same repair — read the family through
-the placer chain, as `editor-core`'s `eval::node_value_kind` already
-does. AUTH-4 (#3052) added a third seat with the same shape
-(`NodeKindWanted::Instances`) and pinned it as a named exception in
-`crates/viewer/tests/combine_ops.rs`; the unit retires both exceptions.
-Take it after #3052 lands.
+**Where it stands (2026-11-03, hand-back).** Steps 1-3 are done (#6388,
+#6393, #6401, #6403). Step 4's agreed half landed as #6414: blend size,
+mirror label, clearance bounds as slots, and the count row. The rest of
+step 4 is parked on `[ev]` PR 6406 (fork row 247):
+- When Ev answers, the next orchestrator does three things:
+  - fills row 247's Ev, match, token and mapping columns (bytes 24 and
+    227: C = Fable, A and B = Opus; tokens A 154081/177453,
+    B 126435/147961, C 205783/230679);
+  - makes 6406's README text match the answers;
+  - takes `[ev]` off the title and merges it.
+- The next units are then:
+  - the split unit: face pick, offset row, `SlotId::PoseScalar`,
+    discovery;
+  - the pattern-fields unit, after PLACING's build of #6369, with
+    `the-pattern-gesture-names-its-index` riding along.
+- **Never merge an `[ev]` branch into forms/orchestrator.** Units are
+  cut from that branch, so they would carry the unratified text (#6414
+  did, and its review caught it).
 
-**Then the vocabulary rows**, cheapest first: `drag-tick-has-three-homes`
-and `probe-seed-respells-props-authored-in` (both E, fix written in the
-row), then `four-pick-state-vocabularies-in-one-create-module` with
-`a-fifth-spelling-of-this-seat-is-empty` (both are "what does this
-form say about its seats", and one pass over `create.rs` serves both),
-then `dimension-to-unit-ladders-have-six-homes-in-the-viewer`.
-
-**The circle-split pair goes together**, count rule before cap.
-`a-per-kind-sentence-lives-in-the-widget-not-on-the-choice` rides with
-whichever unit next edits `add_datum_ui`.
+**Not this track's to build.** The placement editor's Create door
+(PLACING, `crates/viewer/src/matetool.rs`) and the transform and
+duplicate tools, which PLACING is retiring into it. The add-variable
+widget is CHROME's
+(`a-variable-is-edited-in-a-separate-widget-not-on-its-own-row`).
+The rule binds them, and the census names them, but they are built on
+their owners' slates.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. CHROME's posture is the
-natural inheritance — **no duals and no row in `docs/MODEL-AB-LOG.md`**
-(Ev, in chat, 2026-09-04, reaffirmed 2026-09-15 and 2026-09-22: *"no
-AB protocol"*), a style review against
-`docs/prompts/reviewer-style-lane.md`, and a correctness arm where a
-unit's failure mode is a confident wrong answer — but nobody has
-re-asked it for this slate, so the first orchestrator answers it here.
+No duals and no `docs/MODEL-AB-LOG.md` row (Ev, in chat, 2026-09-04,
+reaffirmed 2026-09-22: *"no AB protocol"*). Each unit gets a full
+review: a style review against `docs/prompts/reviewer-style-lane.md`,
+plus claims to falsify. Deleting a form while undo has to reach the
+edits made during creation carries a real chance of correctness bugs.

@@ -17,7 +17,7 @@ ATTRIBUTES, never as prose to be parsed.
 Profile authoring is the PATHS lattice (`Open`, `PathOpen`,
 `PathPoint`, `PathDirectedPoint`, `PathAngle`, `PathDirected`,
 the arrival builders, `Start`, `circle`,
-`circle_split`) plus the straight-segment shortcut `Node.polygon`;
+`circle_split`, `rectangle`) plus the straight-segment shortcut `Node.polygon`;
 one loop or a list of them, drawn on the profile's own xy. Arcs — sharp legs
 and the fillet family alike — are authored by SPEC MODE (`Bulge`,
 `Via`, `Center`, `Radius`, `Sweep`, `ArcLen`).
@@ -1099,36 +1099,6 @@ class MeasureUnavailable(PncadError):
     variant: str
     param: str
 
-class MeasureUnavailableAt(PncadError):
-    """A measure whose answer is an ENCLOSURE, read at a build whose
-    scalar is a point.
-
-    `variant` is `needs_enclosure`, or `no_upper_bound` where the
-    engine's bracket has a lower end only (reached only at a certified
-    scalar, which this binding does not evaluate at); `verb` is the
-    primitive, `scalar` the scalar this build ran at, and `door` the one
-    that CAN answer — the recourse rides in the refusal rather than in a
-    reader's memory.
-
-    NOT MeasureUnavailable, whose name is one word away and whose
-    question is a different one: that is the analysis lane refusing to
-    price a mass over a band, this is the measurement lane. Neither
-    subclasses the other.
-
-    A typed ABSENCE rather than a failure. The measure node evaluated
-    fine and has no value, which is why an assertion over it reports
-    `Unevaluated` carrying this same reason instead of being poisoned.
-    At `f64`, the only scalar this binding evaluates at, it is always
-    `needs_enclosure` on a `min_clearance`: a station pair found by a
-    point-scalar search is an upper bound on the minimum rather than
-    the minimum, and reporting one would be a degradation ERROR-DESIGN
-    E7 forbids by name."""
-
-    variant: str
-    verb: str
-    scalar: str
-    door: str
-
 class McRefusal(PncadError):
     """A Monte-Carlo run produced nothing (ERROR-DESIGN E11.1).
 
@@ -1391,7 +1361,7 @@ class ClosedLoop:
     @property
     def step(self) -> AuthoredStep:
         """The handle of the loop's last step — the closing verb's, or
-        the one step of a `circle` or `circle_split`."""
+        the one step of a `circle`, `circle_split` or `rectangle`."""
 
 _T = TypeVar("_T")
 
@@ -1761,6 +1731,15 @@ def circle_split(
     n: int,
     phase: Angle,
 ) -> ClosedLoop: ...
+def rectangle(
+    centre: tuple[Length, Length],
+    width: Length,
+    height: Length,
+) -> ClosedLoop:
+    """The axis-aligned rectangle as written: one step keeping its
+    centre, width and height, lowered to four legs counterclockwise
+    from the lower-left corner. Its sides are `Role.piece(0)` to
+    `Role.piece(3)`: bottom, right, top, left."""
 
 # --- a profile drawn on a frame, tracing faces --------------------------
 # A chain written in the document's own vocabulary: the document replays
@@ -1840,6 +1819,13 @@ class StepId:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
+class SectionId:
+    """A minted loft section id: what a loft's wall, seam and ring
+    names spell. NOT a position."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class Role:
     """Which of its step's pieces a piece is."""
 
@@ -1849,7 +1835,8 @@ class Role:
     RunOut: Final[Role]
     @staticmethod
     def piece(k: int) -> Role:
-        """Piece `k` of a carrier form (`circle`, `circle_split`)."""
+        """Piece `k` of a complete-loop form (`circle`, `circle_split`,
+        `rectangle`)."""
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -2073,9 +2060,9 @@ class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
     two references.
 
-    Four verbs and no fifth: `distance` and `angle` are the geometric
-    readings, `gap` is CONTACT-DESIGN C5's signed mating gap, and
-    `min_clearance` is the one an engine answers.
+    Three verbs: `distance` and `angle` are the geometric readings, and
+    `gap` is CONTACT-DESIGN C5's signed mating gap. A clearance is not
+    a measure but a requirement, `Node.clearance`.
 
     Each reference is a `(node, name)` pair: the entity's stable name
     and the node its carrier is READ AT. A text that is not a name
@@ -2100,23 +2087,6 @@ class MeasurePrimitive:
         `slot_var_kind` at insert)."""
 
     @staticmethod
-    def min_clearance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
-        """The minimum clearance between two selections — a length, and
-        the one verb whose value is an ENCLOSURE.
-
-        Each reference's entity kind is its face scope: a body
-        reference selects every face of that body, a face reference
-        selects the one. An edge or a vertex refuses when the measure is
-        inserted (`slot_var_kind`).
-
-        At the `f64` scalar this library evaluates at, the measure has
-        NO VALUE: `Value.measure` raises MeasureUnavailableAt naming
-        the door that could answer, and an assertion over it reports
-        `Unevaluated` carrying the same reason. The node itself
-        evaluates successfully — the absence is a value, not a
-        failure."""
-
-    @staticmethod
     def gap(outer: _MeasureRef, inner: _MeasureRef) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
@@ -2136,8 +2106,8 @@ class MeasurePrimitive:
 
     @property
     def verb(self) -> str:
-        """`distance`, `angle`, `gap` or `min_clearance` — the same
-        word this primitive's refusals name themselves with."""
+        """`distance`, `angle` or `gap` — the same word this
+        primitive's refusals name themselves with."""
 
     @property
     def dimension(self) -> str:
@@ -2453,25 +2423,34 @@ class Node:
         index: VarName,
         source: _BodyArg,
         target: _SpaceArg,
-        steps: Sequence[tuple[Literal["x", "y", "z"], _LengthArg]],
+        steps: Sequence[tuple[Literal["x", "y", "z"] | _PoseRead, _LengthArg]],
+        across: Optional[Sequence[Literal["x", "y", "z"]]] = None,
     ) -> Node:
         """A ROW: `source` copied into `target`, member `k` slid
-        `scalar(k)·pitch` along each `(axis, pitch)` of `steps` on the
-        target's axes, with no mate — a `Node.place` whose values read
-        the index `index` (`VarDecl.index(n)`), so its copy is a family
-        of `n` members. Each pitch is a length (ValueError otherwise)."""
+        `scalar(k)·pitch` along each `(direction, pitch)` of `steps`,
+        with no mate — a `Node.place` whose values read the index
+        `index` (`VarDecl.index(n)`), so its copy is a family of `n`
+        members. A direction is a target axis (`"x"`, `"y"`, `"z"`) or
+        a `Direction` or `Axis` read off a body in the target space,
+        plainly or through a role, so the row follows that body. Every
+        other freedom is the constant `0`, its slides along the target
+        axes `across` names (independent of the row's directions), or
+        `x`, `y` and `z` in order. Each pitch is a length (ValueError
+        otherwise)."""
 
     @staticmethod
     def grid(
-        outer: tuple[VarName, Literal["x", "y", "z"], _LengthArg],
-        inner: tuple[VarName, Literal["x", "y", "z"], _LengthArg],
+        outer: tuple[VarName, Literal["x", "y", "z"] | _PoseRead, _LengthArg],
+        inner: tuple[VarName, Literal["x", "y", "z"] | _PoseRead, _LengthArg],
         source: _BodyArg,
         target: _SpaceArg,
+        across: Optional[Sequence[Literal["x", "y", "z"]]] = None,
     ) -> Node:
         """A GRID: `linear_pattern` over two indices, each
-        `(index, axis, pitch)`, `inner`'s declared within `outer`'s
+        `(index, direction, pitch)`, `inner`'s declared within `outer`'s
         (`VarDecl.index(n, within=outer)`) — the family indexed
-        `[outer, inner]`."""
+        `[outer, inner]`; along two read directions, a parallelogram
+        lattice."""
 
     @staticmethod
     def circular_pattern(
@@ -2479,17 +2458,21 @@ class Node:
         index: VarName,
         source: _BodyArg,
         target: _SpaceArg,
-        axis: tuple[_Operand, _Operand, Literal["x", "y", "z"]],
+        axis: tuple[_Operand, _Operand] | _PoseRead,
         *,
         count: Optional[_CountArg] = None,
         step: Optional[_AngleArg] = None,
+        slide: Optional[_LengthArg] = None,
     ) -> Node:
-        """A RING: `source` copied into `target` by one `Axis` mate
-        equating `axis[0]` (read off the copy) with `axis[1]` (in the
-        target), member `k` spun `scalar(k)·step` about it and slid zero
-        along the target axis `axis[2]`. Exactly one of `count` (a full
-        ring of that many) and `step` (the angle as written), or
-        TypeError. `doc` reads the mate's kinds, as `Placed.of`'s."""
+        """A RING: `source` copied into `target`, member `k` spun
+        `scalar(k)·step` about `axis`: `(on, to)`, one `Axis` mate
+        equating an axis read off the copy with one in the target, each
+        member slid `slide` (zero where None) along the mated direction;
+        or an `Axis` read off a body in the target space, each member
+        spun about that line with no mate (TypeError with a `slide`).
+        Exactly one of `count` (a full ring of that many) and `step`
+        (the angle as written), or TypeError. `doc` reads the mate's
+        kinds, as `Placed.of`'s."""
 
     @staticmethod
     def bolt_circle(
@@ -2498,7 +2481,7 @@ class Node:
         count: _CountArg,
         source: _BodyArg,
         target: _SpaceArg,
-        axis: tuple[_Operand, _Operand, Literal["x", "y", "z"]],
+        axis: tuple[_Operand, _Operand] | _PoseRead,
     ) -> Node:
         """A BOLT CIRCLE: a full ring of `count` copies of `source`
         about `axis` (`circular_pattern(..., count=count)`)."""
@@ -2558,10 +2541,8 @@ class Node:
         reader's.
 
         What each primitive reads is checked at insert: `distance` a
-        face, an edge or a vertex, `angle` a face or an edge,
-        `min_clearance` a body or a face, `gap` a face, an edge or a
-        vertex; any other
-        refuses `slot_var_kind`. The rest are the kernel's own typed
+        face, an edge or a vertex, `angle` a face or an edge, `gap` a
+        face, an edge or a vertex; any other refuses `slot_var_kind`. The rest are the kernel's own typed
         refusals at `evaluate`: a name that no longer resolves
         (`select_resolve`), a carrier pair with no v1 closed form
         (`measure_unsupported`) and a non-finite result
@@ -2595,6 +2576,37 @@ class Node:
         operand, the product gather skips an assertion as it skips a
         declaration, and nothing downstream changes shape because one
         is `Violated`. Read it with `Value.assertion`."""
+
+    @staticmethod
+    def clearance(
+        a: tuple[NodeId, str],
+        b: tuple[NodeId, str],
+        *,
+        at_least: Optional[Formula] = None,
+        at_most: Optional[Formula] = None,
+        equal: Optional[Formula] = None,
+    ) -> Node:
+        """A recorded clearance requirement: the clearance between seats
+        `a` and `b` lies within the bounds. A clearance is a requirement
+        and never a value — the minimum distance is not computed, and no
+        formula reads it.
+
+        Each seat is a `(node, name)` pair: a BODY name selects every
+        face of that body, a FACE name the one. An edge or a vertex
+        refuses when the node is inserted (`slot_var_kind`).
+
+        The bounds are lengths from `Doc.parse_formula`, in exactly one
+        shape: `at_least`, `at_most`, both (a band), or `equal` alone.
+        Any other combination raises ValueError. Each is a slot of the
+        node, `clearance_low` (`at_least`, `equal`, a band's lower end)
+        or `clearance_high` (`at_most`, a band's upper end), which
+        `DocEdit.set_param` rewrites.
+
+        The verdict needs the certified sweep, which reads enclosures.
+        At the `f64` scalar this library evaluates at it is the third
+        state: `Value.assertion` answers status `"Refused"`, `holds`
+        None, `refusal` `"needs_certifying_lane"`, and a `reason` naming
+        the lane that answers. The node evaluates; it is not failed."""
 
 _SlotArg: TypeAlias = Var | Formula | WrittenLength | WrittenAngle | Length | Angle | float | int
 """What a slot takes: a variable the document holds (every slot handed
@@ -3119,9 +3131,8 @@ class McMeasure:
     reachable without the McReport that carries the label.
 
     The statistics are over the samples that HAD a value; `unmeasured`
-    counts the rest and is never averaged over. A measure with no
-    `f64` value at any sample — a `min_clearance`, whose answer is an
-    enclosure — is unmeasured at every draw, which is why the count
+    counts the rest and is never averaged over. A measure that refuses
+    at every draw is unmeasured at every draw, which is why the count
     sits beside the statistics rather than behind them."""
 
     @property
@@ -3269,11 +3280,11 @@ class Recognised:
     def inner_index(self) -> Var | None:
         """A grid's inner index; None for a row or a ring."""
     @property
-    def steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+    def steps(self) -> list[tuple[Literal["x", "y", "z"] | Var | RoleRead, Formula]]:
         """A row's slides, or a grid's along its outer index, each axis
         and its pitch per member; empty for a ring."""
     @property
-    def inner_steps(self) -> list[tuple[Literal["x", "y", "z"], Formula]]:
+    def inner_steps(self) -> list[tuple[Literal["x", "y", "z"] | Var | RoleRead, Formula]]:
         """A grid's slides along its inner index; empty for a row or a
         ring."""
     @property
@@ -3446,13 +3457,14 @@ class DocEdit:
     @staticmethod
     def set_loft_sections(
         node: NodeId,
-        first: _Operand,
-        then: Sequence[tuple[_Operand, Sequence[StationMove]]],
+        first: tuple[_Operand, SectionId | None],
+        then: Sequence[tuple[_Operand, Sequence[StationMove], SectionId | None]],
     ) -> DocEdit:
         """Write a `Node.loft`'s sections whole, each with its station:
-        `first`'s profile, then each later section as `(profile,
-        station)`, `Node.loft`'s own shape. The edit that adds, drops or
-        reorders a loft's sections; the degree is kept.
+        `first` as `(profile, keep)`, then each later section as
+        `(profile, station, keep)`, `Node.loft`'s own shape with each
+        section's `keep` last. The edit that adds, drops or reorders a
+        loft's sections; the degree is kept.
 
         It admits a loft exactly where `Doc.insert` would, through the
         same kernel checks: `slot_var_kind` for a section that is not a
@@ -3460,7 +3472,15 @@ class DocEdit:
         wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
         `empty_station`, `station_in_first_plane`,
         `degree_out_of_range`). A node that is not a
-        loft refuses `set_loft_sections_on_non_loft`."""
+        loft refuses `set_loft_sections_on_non_loft`.
+
+        Each section's `keep` is the `SectionId` of the old section it
+        keeps (`Doc.section_ids`), or `None` for one it adds; it is part
+        of the tuple, so none is left out by omission. A loft's walls,
+        seams and rings are named by their sections' ids, so a kept
+        section's names survive the edit. Refuses `section_ids_refused`
+        (`inner_variant`: `not_this_lofts`, `repeated`) for a `keep`
+        this loft does not hold, or one kept twice."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
@@ -3792,6 +3812,11 @@ class Doc:
         values (a pair that contradicts, a pose that does not evaluate,
         an escalated verdict) is the placement's own refusal where it
         evaluates."""
+
+    def section_ids(self, loft: NodeId) -> list[SectionId]:
+        """The minted id of every section of the loft at `loft`, first
+        to last: what `DocEdit.set_loft_sections` keeps a section by.
+        Raises `ValueError` for a node that is not a loft."""
 
     def step_ids(self, profile: NodeId) -> list[list[StepId]]:
         """The minted id of every step of the profile at `profile`, one
@@ -4498,8 +4523,6 @@ class SegTag:
     CapVertex: Final[SegTag]
     LoftWall: Final[SegTag]
     LoftSeam: Final[SegTag]
-    LoftSlabWall: Final[SegTag]
-    LoftSlabSeam: Final[SegTag]
     LoftSectionEdge: Final[SegTag]
     LoftSectionVertex: Final[SegTag]
     Band: Final[SegTag]
@@ -5134,14 +5157,36 @@ class Measurement:
     @property
     def length(self) -> Optional[Length]: ...
 
+class ClearancePair:
+    """Two face points and their distance: the pair a clearance verdict
+    was decided on, verified at `f64`."""
+
+    @property
+    def a(self) -> tuple[Length, Length, Length]:
+        """The point on the first seat's face."""
+    @property
+    def b(self) -> tuple[Length, Length, Length]:
+        """The point on the second seat's face."""
+    @property
+    def distance(self) -> Length: ...
+
 class Verdict:
     """An `Assertion` node's verdict — REPORT ONLY: reading it changes
     nothing about the document, and a violated assertion gates no
-    build. Three states, kept three: `holds` is None where the run's
-    tolerance could not separate the measurement from the bound."""
+    build. Three states, kept three: `holds` is None where there is no
+    verdict — a value claim the run's tolerance could not separate from
+    its bound (`"Unevaluated"`), or a clearance the engine refused
+    (`"Refused"`).
+
+    A value claim carries `measured` and `bound`. A clearance claim
+    carries neither, since no clearance value exists: it carries the
+    `pair` that decided it when one did, and a refusal's class as
+    `refusal`. `reason` says why there is no verdict, with its
+    recourse."""
 
     @property
-    def status(self) -> str: ...
+    def status(self) -> str:
+        """`"Holds"`, `"Violated"`, `"Unevaluated"` or `"Refused"`."""
     @property
     def holds(self) -> Optional[bool]: ...
     @property
@@ -5150,6 +5195,15 @@ class Verdict:
     def bound(self) -> Optional[float]: ...
     @property
     def reason(self) -> Optional[str]: ...
+    @property
+    def refusal(self) -> Optional[str]:
+        """A refused clearance's class (`needs_certifying_lane`, ...)."""
+    @property
+    def pair(self) -> Optional[ClearancePair]:
+        """The pair that decided a clearance: closer than its lower
+        bound (`"Violated"`), or within its upper bound (`"Holds"`).
+        None for a value claim, a refusal, and a clearance decided over
+        every pair at once."""
 
 class Value:
     """A node's successful value."""
@@ -5518,9 +5572,8 @@ class Evaluation:
         an observed value outside an assertion.
 
         A measure under it that did not land raises as `value` of that
-        measure does (`EvaluationError`, `MeasureUnavailableAt` for a
-        `min_clearance` at this point scalar); an evaluation over the
-        bound values that refuses raises `ExprError`."""
+        measure does (`EvaluationError`); an evaluation over the bound
+        values that refuses raises `ExprError`."""
 
     def coincidences(self, node: NodeId) -> list[Coincidence]:
         """The coincidences `node` decided from values (D10), in
@@ -5968,10 +6021,14 @@ class Orientation:
 
 class Coord:
     """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`,
-    a slide along the chart's axis; `Coord.spin()`, the spin about the
+    a slide along the chart's axis; `Coord.slide()`, along the mated
+    direction itself; `Coord.slide_along(read)`, along a direction read
+    off a body in the target space; `Coord.spin()`, the spin about the
     target's own direction beside a mate fixing one; or `Coord.spin("x")`,
-    `"y"` or `"z"`, a link of a chain of turns about the target space's
-    axis where none is fixed.
+    `"y"` or `"z"` or `Coord.spin_about(read)`, a link of a chain of
+    turns about the target space's axis or a read axis where none is
+    fixed. The copy stands where its mates and spins seat it plus the
+    sum of its slides, each its value along its direction.
 
     Beside a mate fixing a direction, the chart is the target space's
     own axes carried by the least turn from where the mate's
@@ -5987,8 +6044,17 @@ class Coord:
     of spins about the target space's axes, in the order written."""
 
     @staticmethod
-    def slide(axis: Literal["x", "y", "z"]) -> Coord:
-        """Raises ValueError for any other axis word."""
+    def slide(axis: Optional[Literal["x", "y", "z"]] = None) -> Coord:
+        """Along the mated direction with no `axis`, along the chart's
+        `axis` with one. Raises ValueError for any other axis word."""
+    @staticmethod
+    def slide_along(along: _PoseRead) -> Coord:
+        """Along a `Direction`, or an `Axis` for its direction, read off
+        a body in the target space."""
+    @staticmethod
+    def spin_about(about: _PoseRead) -> Coord:
+        """A chain link about an `Axis` read off a body in the target
+        space, about its line."""
     @staticmethod
     def spin(axis: Optional[Literal["x", "y", "z"]] = None) -> Coord:
         """The spin about the target's own direction with no `axis`, a chain
@@ -5997,7 +6063,18 @@ class Coord:
     @property
     def variant(
         self,
-    ) -> Literal["slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z"]: ...
+    ) -> Literal[
+        "slide_x",
+        "slide_y",
+        "slide_z",
+        "slide",
+        "slide_along",
+        "spin",
+        "spin_x",
+        "spin_y",
+        "spin_z",
+        "spin_about",
+    ]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -6009,9 +6086,10 @@ class MateValue:
 
     Beside a mate fixing a direction it is charted on the target
     space's own axes carried by the least turn from where the mate's
-    orientation puts the copy's mated direction onto the mated one: a
-    slide is the copy's origin measured along a carried axis, the spin
-    the turn left about the target's own direction. Zero says the copy's own
+    orientation puts the copy's mated direction onto the mated one, the
+    spin the turn left about the target's own direction. The copy stands
+    where its mates and spins seat it plus the sum of its slides, each
+    its value along its direction (`Coord`). Zero says the copy's own
     coordinates agree with the target space's, up to the orientation,
     as far as the mates allow.
 
@@ -6591,6 +6669,9 @@ class SplitOutcome:
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Cut profile step id -> the id the part minted for it."""
+    @property
+    def section_map(self) -> dict[SectionId, SectionId]:
+        """Each carried loft section's id -> the id the other document minted for it."""
 
 def split(
     doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
@@ -6641,6 +6722,9 @@ class InlineOutcome:
     @property
     def step_map(self) -> dict[StepId, StepId]:
         """Part profile step id -> the id the host minted for it."""
+    @property
+    def section_map(self) -> dict[SectionId, SectionId]:
+        """Each carried loft section's id -> the id the other document minted for it."""
     @property
     def placement(self) -> NodeId:
         """The placement standing where the instance stood: the part's

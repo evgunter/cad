@@ -288,33 +288,23 @@ impl<'a, T: CertifiedBounds> Path<'a, T> {
         let (sheet, carrier) = (carrier.sheet.as_ref(), carrier.curve);
         let p = |p: Point3<T>| [p.x, p.y, p.z].map(Interval::from_certified);
         let v = |v: Vec3<T>| [v.x, v.y, v.z].map(Interval::from_certified);
-        let scaled = |v: [Interval; 3], s: T| v.map(|c| c * Interval::from_certified(s));
         let path = match *carrier {
-            Curve3::Line { origin, dir } => Self::Line {
+            Curve3::Line(geom::Line { origin, dir }) => Self::Line {
                 o: p(origin),
                 d: v(dir),
             },
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Self::Conic {
-                c: p(center),
-                e1: scaled(v(u_ref), radius),
-                e2: scaled(geom_core::interval::cross(&v(axis), &v(u_ref)), radius),
-            },
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Self::Conic {
-                c: p(center),
-                e1: scaled(v(u_ref), semi_u),
-                e2: scaled(geom_core::interval::cross(&v(axis), &v(u_ref)), semi_v),
-            },
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                let lifted = carrier.map_scalar(Interval::from_certified);
+                let conic = lifted.conic()?;
+                let (e1, e2) = conic.semi_axis_vectors();
+                let at = |v: Vec3<Interval>| [v.x, v.y, v.z];
+                let c = conic.frame().center;
+                Self::Conic {
+                    c: [c.x, c.y, c.z],
+                    e1: at(e1),
+                    e2: at(e2),
+                }
+            }
             Curve3::Nurbs(_) => {
                 return sheet.map(|s| Self::Spline {
                     boxes: Box::new(NurbsBoxes::new(s)),

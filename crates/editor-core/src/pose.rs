@@ -91,6 +91,16 @@ impl<T: Real> AxisLine<T> {
         self.foot
     }
 
+    /// The line's point nearest `p` ([`geom::Line::foot`]).
+    #[must_use]
+    pub fn foot_of(&self, p: Point3<T>) -> Point3<T> {
+        geom::Line {
+            origin: self.foot,
+            dir: self.dir.get(),
+        }
+        .foot(p)
+    }
+
     /// The line's direction.
     #[must_use]
     pub fn dir(&self) -> UnitVec3<T> {
@@ -457,7 +467,7 @@ impl core::fmt::Display for PoseRole {
 /// reads a finer pose at a coarser seat** (D10; VR4). A plain read
 /// carries no role, and is serialized as the bare read; a read through
 /// a role as `{"read": …, "role": …}`.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RoleRead<R> {
     /// The variable read.
     pub read: R,
@@ -1044,7 +1054,9 @@ pub fn role_kind(
     let admitted = match admits {
         crate::SlotKind::Is(is) => is == kind,
         crate::SlotKind::Pose(set) => set.kinds().contains(&kind),
-        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) => false,
+        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) | crate::SlotKind::Cleared => {
+            false
+        }
     };
     (found == role.of() && admitted).then_some(kind)
 }

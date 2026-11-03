@@ -251,8 +251,8 @@ fn seat(
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), x),
-            (Coord::Slide(TargetAxis::Y), y),
+            (Coord::slide(TargetAxis::X), x),
+            (Coord::slide(TargetAxis::Y), y),
             (Coord::SPIN, spin),
         ],
     )
@@ -368,15 +368,15 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
             named(turn(), Dimension::Angle),
         ),
         (
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),
         ),
         (
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             plus(metres(5.0, sin()), metres(s3, cos())),
         ),
         (
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
             plus(named(lift(), Dimension::Length), len(-c3)),
         ),
     ];
@@ -424,7 +424,7 @@ fn bolted(label: &str) -> Bolted {
     let (doc, k) = fixture::index(doc, "k", 3);
     let slide = Formula::mul(fixture::scalar_of(k), named(spacing(), Dimension::Length))
         .expect("a count times a length");
-    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::Slide(TargetAxis::X), slide)]);
+    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::slide(TargetAxis::X), slide)]);
     Bolted {
         doc,
         opts: p.opts(),
@@ -589,7 +589,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
-            (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
+            (Coord::slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
             (Coord::SPIN, ang(0.3)),
         ],
     );
@@ -797,9 +797,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb820_871c_94ff_0c0b),
-    (1e-6, 0xef7d_754d_6fdc_f337),
-    (1e-12, 0xf38a_1cb4_4a53_85fc),
+    (1e-9, 0xb45f_83ac_32e6_ae67),
+    (1e-6, 0x1480_cddd_152c_b481),
+    (1e-12, 0xabc4_cdbd_523f_e822),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -851,10 +851,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
 ///
-/// RE-BLESSED twice for the edge curve's `Debug` the digest feeds: when
-/// check 2's turn moved from the edge's `Certificate` onto the edge (PR
-/// 5728), and when `Intersection`'s witness became its selector
-/// (`selector: Witness(p)` where it spelled `witness: p`). Each time, with
+/// RE-BLESSED three times for the edge curve's `Debug` the digest feeds:
+/// when check 2's turn moved from the edge's `Certificate` onto the edge
+/// (PR 5728), when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`), and when
+/// `Curve3::Line` came to hold a `geom::Line` (`Line(Line { .. })` where
+/// it spelled `Line { .. }`). Each time, with
 /// that `Debug` written in main's shape, every digest here reproduced
 /// main's value at all three ε rows, so nothing else moved.
 #[test]
@@ -1059,7 +1061,7 @@ fn assert_encloses_corners(
 /// transform, which certifies each placed edge on its placed carrier,
 /// and a box-wide translation widens those two independently past the
 /// band — a refusal every boxed placer meets today
-/// (`work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
+/// (`work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
 /// its "Measured" section). A box a fraction of ε wide is placed, and
 /// the rows that read the BODY read it over one; the rows that read
 /// the SOLVE read it over a wide one ([`assert_pose_encloses_corners`]).
@@ -1479,7 +1481,7 @@ fn a2_a_box_on_a_value_encloses_the_mated_part() {
 /// (`NodeErrorKind::Motion`), which a widened rotation's enclosure
 /// cannot pass by its seven margins alone. Over a box this wide the
 /// bolt still refuses, at the placed edge's endpoint certification
-/// (`work/shelf/transform-rigid-recertifies-images-enclosed-apart.md`).
+/// (`work/shell/transform-rigid-recertifies-images-enclosed-apart.md`).
 ///
 /// *Breaks if* a placement's boxed rotation is decided by its widened
 /// matrix's orthogonality residuals rather than admitted as a rotation.
@@ -1525,8 +1527,8 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
             )),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), len(x)),
-            (Coord::Slide(TargetAxis::Y), len(y)),
+            (Coord::slide(TargetAxis::X), len(x)),
+            (Coord::slide(TargetAxis::Y), len(y)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
@@ -2127,7 +2129,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
 #[test]
 fn a5_certified_clearance_runs_over_a_seated_mate() {
     use editor_core::clearance::{
-        ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_with,
+        ClearanceQuery, ClearanceVerdict, FaceScope, Selection, clearance_at_dials,
     };
     let b = bolted("msolve14-a5-clearance");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
@@ -2142,13 +2144,17 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         faces: FaceScope::All,
     };
     let ask = |c: f64| {
-        clearance_with(
+        clearance_at_dials(
             &b.doc,
             &leaf,
             &Selection::body_of(b.bolt),
             &copy2,
-            &ClearanceQuery::at_least(c, &editor_core::Stop::default(), Tol::witness())
-                .resolved_by(&resolver),
+            &ClearanceQuery::at_dials(
+                editor_core::clearance::ClearanceBound::at_least(c),
+                crate::fixture::no_stop(),
+                Tol::witness(),
+            )
+            .resolved_by(&resolver),
         )
         .verdict()
         .clone()
@@ -2185,7 +2191,7 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
 /// frame answers alike.
 #[test]
 fn r1_clearance_answers_alike_in_either_order() {
-    use editor_core::clearance::{ClearanceQuery, FaceScope, Selection, clearance_with};
+    use editor_core::clearance::{ClearanceQuery, FaceScope, Selection, clearance_at_dials};
     let b = bolted("msolve14-a5-clearance");
     let resolver = b.opts.resolver.clone().expect("the store resolves");
     let (lo, hi) = narrow(0.05);
@@ -2200,13 +2206,17 @@ fn r1_clearance_answers_alike_in_either_order() {
     };
     let bolt = Selection::body_of(b.bolt);
     let ask = |x: &Selection, y: &Selection, c: f64| {
-        let r = clearance_with(
+        let r = clearance_at_dials(
             &b.doc,
             &leaf,
             x,
             y,
-            &ClearanceQuery::at_least(c, &editor_core::Stop::default(), Tol::witness())
-                .resolved_by(&resolver),
+            &ClearanceQuery::at_dials(
+                editor_core::clearance::ClearanceBound::at_least(c),
+                crate::fixture::no_stop(),
+                Tol::witness(),
+            )
+            .resolved_by(&resolver),
         );
         format!("{:?}", r.verdict())
             .chars()

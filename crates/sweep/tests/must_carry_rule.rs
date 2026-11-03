@@ -275,13 +275,13 @@ fn pairs_among(body: &Body<f64>, pick: impl Fn(&Curve3<f64>) -> bool) -> (usize,
 /// along the extrusion direction (`+z`). Its cap rims are the profile
 /// segments, which lie in the sketch plane.
 fn is_strut(c: &Curve3<f64>) -> bool {
-    matches!(c, Curve3::Line { dir, .. } if dir.z.abs() > 0.5)
+    matches!(c, Curve3::Line(geom::Line { dir, .. }) if dir.z.abs() > 0.5)
 }
 
 /// The bored ring's smooth latitude join: the one circle at the bore
 /// radius. Every other latitude circle of the fixture is wider.
 fn is_bore_circle(r_bore: f64) -> impl Fn(&Curve3<f64>) -> bool {
-    move |c| matches!(c, Curve3::Circle { radius, .. } if (radius - r_bore).abs() < r_bore * 1e-9)
+    move |c| matches!(c, Curve3::Circle(geom::Circle { radius, .. }) if (radius - r_bore).abs() < r_bore * 1e-9)
 }
 
 /// The typed escalation an in-band row must carry: the predicate name
@@ -504,10 +504,7 @@ fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         normal,
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
-    let carrier = Curve3::Line {
-        origin: Point3::new(dir.x, 0.0, dir.z),
-        dir,
-    };
+    let carrier = Curve3::line(Point3::new(dir.x, 0.0, dir.z), dir);
     (plane, cone, carrier)
 }
 
@@ -538,6 +535,7 @@ fn both_orders(
     t1: f64,
     extent: f64,
 ) -> (MustCarryVerdict, MustCarryVerdict) {
+    let extent = geom_core::test_support::fixture_lever(extent);
     (
         must_carry_over_edge(s1, s2, carrier, 0.0, t1, extent, band()),
         must_carry_over_edge(s2, s1, carrier, 0.0, t1, extent, band()),
@@ -558,10 +556,7 @@ fn resting_cylinder() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         radius: MERIDIAN_R,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let ruling = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let ruling = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     (plane, cylinder, ruling)
 }
 
@@ -601,12 +596,12 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
         radius: MERIDIAN_R,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let arc = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: MERIDIAN_R,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let arc = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        MERIDIAN_R,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     assert!(
         geom_brep::tangent_certificate_lane(&arc, &cap, &band_wall)
             && geom_brep::tangent_certificate_lane(&arc, &band_wall, &cap),
@@ -639,10 +634,7 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
         normal: Vec3::new(-sin_theta, cos_theta, 0.0),
         u_ref: Vec3::new(cos_theta, sin_theta, 0.0),
     };
-    let axis_line = Curve3::Line {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let axis_line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
     let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
     for (order, verdict) in [("flat first", a), ("tilted first", b)] {
         match verdict {
@@ -823,10 +815,10 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         normal: Vec3::new(pr(0.0), pr(1.0), pr(0.0)),
         u_ref: Vec3::new(pr(1.0), pr(0.0), pr(0.0)),
     };
-    let ruling = Curve3::Line {
-        origin: Point3::new(pr(0.0), pr(0.0), pr(0.0)),
-        dir: Vec3::new(pr(0.0), pr(0.0), pr(1.0)),
-    };
+    let ruling = Curve3::line(
+        Point3::new(pr(0.0), pr(0.0), pr(0.0)),
+        Vec3::new(pr(0.0), pr(0.0), pr(1.0)),
+    );
     k_stats::start_recording();
     let determinate = must_carry_over_edge(
         &plane,
@@ -834,7 +826,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(MERIDIAN_R),
-        pr(MERIDIAN_R),
+        geom_core::test_support::fixture_lever(pr(MERIDIAN_R)),
         band(),
     );
     let spent = count(k_stats::take_samples());
@@ -858,7 +850,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(short),
-        pr(short),
+        geom_core::test_support::fixture_lever(pr(short)),
         band(),
     );
     let spent_under = count(k_stats::take_samples());
@@ -907,7 +899,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
             &carrier,
             Probe(0.0),
             Probe(1.0),
-            Probe(1.0),
+            geom_core::test_support::fixture_lever(Probe(1.0)),
             band(),
         );
         let after = k_stats::take_samples();
@@ -1023,10 +1015,7 @@ fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
 fn probe_carrier(c: &Curve3<f64>) -> Curve3<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
     match *c {
-        Curve3::Line { origin, dir } => Curve3::Line {
-            origin: origin.map(Probe),
-            dir: dir.map(Probe),
-        },
+        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(origin.map(Probe), dir.map(Probe)),
         _ => panic!("only the out-of-lane triple's carrier is lifted here"),
     }
 }

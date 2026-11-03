@@ -414,7 +414,7 @@ fn an_open_arc_link_s_reach_is_its_whole_turn() {
             let c = b.get_curve_geom(e.curve).expect("its curve");
             matches!(
                 c.certified().expect("certified").carrier(),
-                geom::Curve3::Circle { .. }
+                geom::Curve3::Circle(..)
             )
         })
         .collect()

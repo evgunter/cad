@@ -30,12 +30,11 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::Formula;
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::PI;
 
-use common::{body_volume, len, near, scl3, session_insert, shape, translation};
+use common::{body_volume, circle_at, len, near, session_insert};
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, FreeVar, ProfileProgram, RecipeNodeId, SlotId, StepArg,
     VarName,
@@ -44,7 +43,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the variables are first declared:
@@ -103,7 +102,7 @@ fn drive_lift(session: &mut DocSession, placement: RecipeNodeId, lift: f64, text
     let slid = constraints
         .iter()
         .filter_map(|c| c.value())
-        .find_map(|value| (value.coord == Coord::Slide(TargetAxis::Z)).then_some(value.by))
+        .find_map(|value| (value.coord == Coord::slide(TargetAxis::Z)).then_some(value.by))
         .unwrap_or_else(|| panic!("{placement} slides along its space's z"));
     assert_eq!(
         props::variable_value(doc, slid),
@@ -159,8 +158,7 @@ fn spoken(doc: &Doc<ProfileProgram>, name: &VarName) -> pncad::document::SpokenV
 /// extruded up by a literal the caller may re-drive afterwards.
 ///
 /// Stacked extruded drums rather than one revolved silhouette: this
-/// scene predates `ProfileShape`'s `Path` arm, which can now spell
-/// one.
+/// scene predates the path verbs, which can now spell one.
 fn drum(
     session: &mut DocSession,
     radius_expr: &str,
@@ -169,12 +167,9 @@ fn drum(
     let profile = session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Circle {
-                // A positive placeholder; the expression takes over
-                // before anything downstream consumes it.
-                centre: [0.0, 0.0],
-                radius: 0.01,
-            })],
+            // A positive placeholder radius; the expression takes
+            // over before anything downstream consumes it.
+            loops: vec![circle_at([0.0, 0.0], 0.01)],
         },
     );
     let radius = radius_slot(session.committed_doc(), profile);
@@ -320,18 +315,10 @@ fn the_parametric_living_walk() {
     // tower wall crossing the base's top cap transversally.
     let (_tower_profile, tower) = drum(&mut session, "base_r * taper", 0.055);
     drive(&mut session, tower, SlotId::Distance, "height * 2.0");
-    let tower_up = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: tower.into(),
-            // 0.025 deliberately equals `height - embed` today, so the
-            // part is coherent before the drive lands; a literal that
-            // stayed driving would be caught by the stage-9/11 ripples.
-            translation: translation([0.0, 0.0, 0.025]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
+    // 0.025 deliberately equals `height - embed` today, so the part is
+    // coherent before the drive lands; a literal that stayed driving
+    // would be caught by the stage-9/11 ripples.
+    let tower_up = common::moved_to(&mut session, tower, [0.0, 0.0, 0.025]);
     let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -402,18 +389,10 @@ fn the_parametric_living_walk() {
         12.0,
         "shown as twelve millimetres"
     );
-    let lamp_up = session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: lamp.into(),
-            // 0.08 deliberately equals `height * 3 - embed * 2` today
-            // (coherent mid-build); a literal that stayed driving would
-            // be caught by the stage-9/11 variable ripples.
-            translation: translation([0.0, 0.0, 0.08]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
-    );
+    // 0.08 deliberately equals `height * 3 - embed * 2` today (coherent
+    // mid-build); a literal that stayed driving would be caught by the
+    // stage-9/11 variable ripples.
+    let lamp_up = common::moved_to(&mut session, lamp, [0.0, 0.0, 0.08]);
     let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {

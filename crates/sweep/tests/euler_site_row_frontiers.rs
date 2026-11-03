@@ -127,12 +127,7 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     // plane normal to world `X` is not a rim of this cone.
     let p = start_point(&body, he);
     let (r, theta) = (0.1, 0.5);
-    let carrier = Curve3::Circle {
-        center: p - Vec3::unit_y() * r,
-        axis: Vec3::unit_x(),
-        radius: r,
-        u_ref: Vec3::unit_y(),
-    };
+    let carrier = Curve3::circle(p - Vec3::unit_y() * r, Vec3::unit_x(), r, Vec3::unit_y());
     let end = carrier.eval(theta);
     let spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, theta).unwrap();
     let made = body
@@ -522,13 +517,10 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
             start_point(&body, e.he_minus),
         );
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        let Curve3::Line { origin, dir } = spec.carrier else {
+        let Curve3::Line(geom::Line { origin, dir }) = spec.carrier else {
             unreachable!("line_between builds a line")
         };
-        spec.carrier = Curve3::Line {
-            origin: origin - dir,
-            dir,
-        };
+        spec.carrier = Curve3::line(origin - dir, dir);
         spec.param_start += 1.0;
         spec.param_end += 1.0;
         let before = wall_images(&body);

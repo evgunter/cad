@@ -242,7 +242,7 @@ fn every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex() {
             let line = void
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line(_)));
             let at = |vk| {
                 *void
                     .get_vertex(vk)

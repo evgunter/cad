@@ -522,7 +522,9 @@ fn revalue_boss_union_apart_to_its_parting() {
         "boss_union",
         1619,
         &[],
-        "pcurve_chart_radial_moving",
+        // PCERT E1c (every mint reads incidence first, PR 5889): the apart move now parts
+        // at the read every mint makes first, before the radial decision.
+        "pcurve_cylinder_chart_incident",
         "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
     );
 }
@@ -570,9 +572,29 @@ rows! {
     // to snap it at rest, the builds would part at `pose_unit_norm`).
     revalue_cut_cylinder: "cut_cylinder", Apart, 1302, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
-    revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
+}
+
+/// Apart, a pinned red, and a main red before it was pinned: a census of
+/// the loft's edge pairs reads two edges as exactly parallel at the
+/// nominal (margin `0.0`), so the apart move flips it at decision 242 of
+/// 1539 and the row compares in step — at the merge bases of the PR that
+/// pinned it (#6341) as with it
+/// (`work/inlane/under-the-apart-move-loft-prism-parts-at-an-exactly-parallel-edge-pair.md`).
+#[test]
+fn revalue_loft_prism() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "loft_prism under the apart move",
+        &[
+            "loft_prism: the row compared under another move than its pin",
+            "after_flip: {}, flips: [], mode: Some(InStep), seen: {",
+            "left: Some(InStep)\n right: Some(Apart)",
+        ],
+        || holds("loft_prism", Move::Apart, 259, &[], &[], &[]),
+    );
 }
 
 /// Apart, a pinned red: a point-in-solid plane test the union of the

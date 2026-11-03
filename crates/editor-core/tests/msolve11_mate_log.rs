@@ -170,7 +170,7 @@ impl Scene {
         &mut self,
         block: RecipeNodeId,
         mate: Mate<Formula>,
-        values: &[(Coord, Formula)],
+        values: &[(Coord<editor_core::Operand>, Formula)],
     ) -> MateRef {
         let (doc, id) = fixture::mated(self.doc.clone(), block, mate, values);
         self.doc = doc;
@@ -185,7 +185,7 @@ impl Scene {
             self.cap,
             fixture::mate(self.block_edge(self.cap), self.copy_edge()),
             &[
-                (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
+                (Coord::slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
                 (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         );
@@ -198,8 +198,8 @@ impl Scene {
             self.other,
             fixture::rest(self.bottom(self.other), self.base_top()),
             &[
-                (Coord::Slide(TargetAxis::X), len(x)),
-                (Coord::Slide(TargetAxis::Y), len(y)),
+                (Coord::slide(TargetAxis::X), len(x)),
+                (Coord::slide(TargetAxis::Y), len(y)),
                 (Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         )
@@ -333,7 +333,7 @@ fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
 fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
     let (doc, top, _) = fixture::floor(
         s.doc.clone(),
-        vec![(Coord::Slide(editor_core::TargetAxis::Z), len(h))],
+        vec![(Coord::slide(editor_core::TargetAxis::Z), len(h))],
     );
     s.doc = doc;
     Mate {

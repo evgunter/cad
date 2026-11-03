@@ -29,12 +29,12 @@ const HALF_PI: f64 = core::f64::consts::FRAC_PI_2;
 fn rim(z: f64, r: f64, off: f64, tilt: f64, fwd: bool, tag: u32) -> LoopEdge<f64> {
     let (s, c) = tilt.sin_cos();
     LoopEdge::hand_built(
-        Curve3::Circle {
-            center: Point3::new(off, 0.0, z),
-            axis: Vec3::new(s, 0.0, c),
-            radius: r,
-            u_ref: Vec3::new(c, 0.0, -s),
-        },
+        Curve3::circle(
+            Point3::new(off, 0.0, z),
+            Vec3::new(s, 0.0, c),
+            r,
+            Vec3::new(c, 0.0, -s),
+        ),
         0.0,
         TAU,
         fwd,
@@ -186,19 +186,14 @@ fn unit(v: [f64; 3]) -> Vec3<f64> {
 
 /// A line from `p` along the unit `d` over `[0, len]`.
 fn line(p: Point3<f64>, d: Vec3<f64>, len: f64) -> (Curve3<f64>, f64, f64) {
-    (Curve3::Line { origin: p, dir: d }, 0.0, len)
+    (Curve3::Line(geom::Line { origin: p, dir: d }), 0.0, len)
 }
 
 /// A coaxial arc about `+z` at height `z`, radius `r`, from azimuth `a`
 /// to `b`.
 fn arc(z: f64, r: f64, a: f64, b: f64) -> (Curve3<f64>, f64, f64) {
     (
-        Curve3::Circle {
-            center: Point3::new(0.0, 0.0, z),
-            axis: Vec3::unit_z(),
-            radius: r,
-            u_ref: Vec3::unit_x(),
-        },
+        Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
         a,
         b,
     )
@@ -370,29 +365,14 @@ fn skew_sector<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
         LoopEdge::hand_built(carrier, T::zero(), t1, true, tag, (tag + 1) % 3)
     };
     let edges = vec![
+        edge(Curve3::line(apex, g(T::zero())), two, 0),
         edge(
-            Curve3::Line {
-                origin: apex,
-                dir: g(T::zero()),
-            },
-            two,
-            0,
-        ),
-        edge(
-            Curve3::Circle {
-                center: apex + a * (two * ca),
-                axis: a,
-                radius: two * sa,
-                u_ref: e1,
-            },
+            Curve3::circle(apex + a * (two * ca), a, two * sa, e1),
             T::one(),
             1,
         ),
         edge(
-            Curve3::Line {
-                origin: apex + g(T::one()) * two,
-                dir: Vec3::zero() - g(T::one()),
-            },
+            Curve3::line(apex + g(T::one()) * two, Vec3::zero() - g(T::one())),
             two,
             2,
         ),

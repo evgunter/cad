@@ -296,8 +296,8 @@ fn labelled_as_one_undo(
 
 /// **A refused creation applies no label**, whether the door refuses
 /// before its run (an extrude of a node that is no profile) or the run
-/// refuses inside it (a profile of no loops, which the edit door
-/// refuses): nothing is committed, the label included, no history state
+/// refuses inside it (a profile of a zero-radius circle, which the edit
+/// door refuses): nothing is committed, the label included, no history state
 /// is recorded and no evaluation is requested.
 #[test]
 fn a_refused_creation_applies_no_label() {
@@ -311,7 +311,9 @@ fn a_refused_creation_applies_no_label() {
             profile: extrude,
             distance: common::len(0.01),
         },
-        SessionOp::AddProfile { loops: Vec::new() },
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
+        },
     ];
     for op in refused {
         let what = format!("{op:?}");
@@ -449,15 +451,25 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "turned",
     );
-    let moved = run(
+    // The Transform tool's Apply on a body nothing places: the Create
+    // door, its slides typed.
+    let op = common::transformed(&mut session, block, &common::slides([0.005, 0.007, 0.003]));
+    let moved = run(&mut session, op, "moved");
+    // The Create door places a body not yet placed.
+    let loose = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
+    session.pump();
+    let home = session
+        .committed_doc()
+        .operand_space(&loose.into())
+        .expect("the box is in a space");
+    run(
         &mut session,
-        SessionOp::AddTransform {
-            input: block.into(),
-            translation: len3([0.005, 0.007, 0.003]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+        SessionOp::Place {
+            body: loose.into(),
+            target: home,
+            constraints: pncad::document::stand().bundle(),
         },
-        "moved",
+        "placed",
     );
     run(
         &mut session,
@@ -558,7 +570,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "traced",
     );
     let row = || PatternRuleSpec::Linear {
-        direction: scl3([1.0, 0.0, 0.0]),
+        direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
         spacing: len(0.05),
     };
     let pattern = run(
@@ -610,6 +622,15 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             },
         },
         "image",
+    );
+    run(
+        &mut session,
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(block.into()),
+            b: viewer::session::ClearedSeat::Body(block.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(len(0.001)),
+        },
+        "gap",
     );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
@@ -1161,7 +1182,7 @@ fn a_degenerate_creation_still_mints_the_node_it_labels() {
             input: block.into(),
             count: 1,
             rule: PatternRuleSpec::Linear {
-                direction: common::scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: common::len(0.05),
             },
         },

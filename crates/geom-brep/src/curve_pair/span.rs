@@ -221,7 +221,7 @@ impl<'a, T: Decide> Span<'a, T> {
     /// closed carrier; `t` itself on an open one.
     pub fn branch(&self, t: T) -> T {
         match self.carrier {
-            Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
+            Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => {
                 let mid = geom::mid_param(self.t0, self.t1);
                 let d = t - mid;
                 let r = d.reduce_periodic_centred(T::tau());
@@ -238,7 +238,7 @@ impl<'a, T: Decide> Span<'a, T> {
                     mid + (d + T::pi()).reduce_periodic_centred(T::tau()) - T::pi()
                 }
             }
-            Curve3::Line { .. } | Curve3::Nurbs(_) => t,
+            Curve3::Line(_) | Curve3::Nurbs(_) => t,
         }
     }
 

@@ -209,16 +209,11 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     let p = Point3::new(0.0, 0.0, 0.0);
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
-    let line = Curve3::Line {
+    let line = Curve3::Line(geom::Line {
         origin: p,
         dir: axis,
-    };
-    let circle = Curve3::Circle {
-        center: p,
-        axis,
-        radius: 1.0,
-        u_ref,
-    };
+    });
+    let circle = Curve3::circle(p, axis, 1.0, u_ref);
     let reps: Vec<Surface<f64>> = vec![
         Surface::Plane {
             origin: p,
@@ -273,10 +268,10 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
     }
     // The carrier kinds outside both lanes, so the census covers the
     // carrier axis too.
-    let arbitrary = Curve3::Line {
+    let arbitrary = Curve3::Line(geom::Line {
         origin: p,
         dir: axis,
-    };
+    });
     assert!(tangent_certificate_lane(&arbitrary, &reps[0], &reps[0]));
 }
 
@@ -349,7 +344,14 @@ fn a_pair_whose_kappa_rel_varies_along_the_carrier_decides_at_a_later_station() 
 /// first stations are definitely positive and a later one is not,
 /// whatever ε the run committed: with `arm² / 2 = √(ε·K·ε)` a station
 /// is positive while `κ_rel ≥ √K` and stops being so below it.
-fn varying_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>, f64, f64, f64) {
+fn varying_triple() -> (
+    Surface<f64>,
+    Surface<f64>,
+    Curve3<f64>,
+    f64,
+    f64,
+    geom_core::Lever<f64>,
+) {
     let sphere = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
@@ -362,14 +364,15 @@ fn varying_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>, f64, f64, f64) 
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let b = band();
-    let extent = (2.0 * (b.zero() * b.escalate()).sqrt()).sqrt();
+    let extent =
+        geom_core::test_support::fixture_lever((2.0 * (b.zero() * b.escalate()).sqrt()).sqrt());
     // Walked from the pole end, so the big curvatures come first.
     (
         sphere,

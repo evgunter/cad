@@ -358,6 +358,8 @@ pub enum ExtrudeError {
     /// The run's tolerance could not form a classification band (see
     /// [`BandError`]).
     Band(BandError),
+    /// The profile has no loops: the empty region sweeps nothing.
+    EmptyProfile,
     /// The extrusion is definitely degenerate: the vector's normal
     /// component (or the depth) is coincident with zero at tolerance —
     /// an in-plane vector or a sliver-thin extrusion.
@@ -504,6 +506,7 @@ impl fmt::Display for ExtrudeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
+            Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
             Self::DegenerateExtrusion => write!(
                 f,
                 "the extrusion has no definite length across the sketch plane (it is \
@@ -692,10 +695,7 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
 /// geometry in a pass whose whole contract is that only the
 /// DESCRIPTION moves.
 fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
-    Curve3::Line {
-        origin: q_bottom,
-        dir: w.normalize(),
-    }
+    Curve3::line(q_bottom, w.normalize())
 }
 
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
@@ -772,6 +772,9 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
     let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
+    if profile.loops().is_empty() {
+        return Err(ExtrudeError::EmptyProfile);
+    }
     let place = profile.plane().placement();
     let normal = profile.plane().normal().get();
 

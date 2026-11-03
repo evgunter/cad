@@ -603,7 +603,7 @@ fn leaning_prisms_match_the_slab_oracle_over_leans_setbacks_and_scales() {
     // prism (extent 2000) refuses to extrude as limb 2's kernel limit on a
     // plane, bound 1.08e-12. Whether that is an accepted kernel limit or a
     // regression is the question of
-    // `work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
+    // `work/shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`;
     // until it closes, the row stops there, and the pin goes red the day the
     // row passes.
     test_utils::kernel_limit::pinned_row(

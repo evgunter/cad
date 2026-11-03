@@ -15,11 +15,12 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{
     Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
+    ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection,
 };
 use editor_core::{
     CapEnd, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
@@ -105,9 +106,9 @@ fn translated(
         r.write(
             placement,
             editor_core::Placed::unmated(vec![
-                (Coord::Slide(TargetAxis::X), dx),
-                (Coord::Slide(TargetAxis::Y), dy),
-                (Coord::Slide(TargetAxis::Z), dz),
+                (Coord::slide(TargetAxis::X), dx),
+                (Coord::slide(TargetAxis::Y), dy),
+                (Coord::slide(TargetAxis::Z), dz),
             ]),
         );
         return placement;
@@ -156,8 +157,8 @@ fn translated(
         .values
         .into_iter()
         .map(|(coord, by)| match coord {
-            Coord::Slide(TargetAxis::X) => (coord, dx.clone()),
-            Coord::Slide(TargetAxis::Y) => (coord, dy.clone()),
+            Coord::Slide(Some(TargetAxis::X)) => (coord, dx.clone()),
+            Coord::Slide(Some(TargetAxis::Y)) => (coord, dy.clone()),
             _ => (coord, by),
         })
         .collect();
@@ -191,7 +192,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
         stop: crate::fixture::no_stop(),
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
@@ -294,7 +295,7 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let (doc, ell, block_node) = ell_with_a_planted_block();
     let cap = named(ell, vec![fixture::fname(ell, RoleSeg::Cap(CapEnd::Start))]);
     let block = Selection::body_of(block_node);
-    let report = editor_core::clearance::clearance_with(
+    let report = editor_core::clearance::clearance_at_dials(
         &doc,
         &box_of(&doc, "place"),
         &cap,
@@ -431,15 +432,7 @@ fn a_cylinder_band_answers_on_its_whole_turn_window() {
         vec![fixture::fname(solid, fixture::wall(&doc, solid, 3))],
     );
     let sp = Selection::body_of(probe);
-    let report = clearance(
-        &doc,
-        &box_of(&doc, "place"),
-        &ss,
-        &sp,
-        1.0,
-        &editor_core::Stop::default(),
-        Tol::witness(),
-    );
+    let report = clearance(&doc, &box_of(&doc, "place"), &ss, &sp, 1.0, Tol::witness());
     println!(
         "[E7] scalloped block vs the probe in the scallop at c = 1.0: decided {:?}, {}",
         report.decided(),
@@ -567,7 +560,6 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
         &wall,
         &Selection::body_of(block),
         0.3,
-        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(
@@ -659,7 +651,6 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         &sq,
         &sb,
         1.0,
-        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(
@@ -778,7 +769,6 @@ fn a_quarter_ball_beside_its_missing_quarters_holds_against_a_dense_distance() {
             &sq,
             &sb,
             c,
-            &editor_core::Stop::default(),
             Tol::witness(),
         )
     };
@@ -864,7 +854,6 @@ fn a_holed_cylinder_wall_drops_the_cells_in_its_hole() {
         &Selection::body_of(cut),
         &Selection::body_of(probe),
         0.05,
-        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!("[holed wall] c = 0.05: {}", report.serialize());

@@ -49,9 +49,12 @@ pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
-pub use turn::{LeastTurn, slides_left_along};
+pub use turn::{LeastTurn, slides_across, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
-pub use value::flipped;
+pub use value::{
+    ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,
+    read_back, side_flipped, spin_as_chain_turn,
+};
 
 /// Which side of a mate a diagnostic is about.
 #[derive(
@@ -285,7 +288,7 @@ pub(crate) trait BundleRows<S> {
 impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
     fn rows(&self) -> Vec<(crate::SlotId, &S)> {
         self.iter()
-            .filter_map(|c| c.value().map(|v| (value_slot(c.id, v.coord), &v.by)))
+            .filter_map(|c| c.value().map(|v| (value_slot(c.id, &v.coord), &v.by)))
             .collect()
     }
 
@@ -294,8 +297,7 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
         for c in self {
             let id = c.id;
             if let ConstraintKind::Value(v) = &mut c.kind {
-                let coord = v.coord;
-                out.push((value_slot(id, coord), &mut v.by));
+                out.push((value_slot(id, &v.coord), &mut v.by));
             }
         }
         out
@@ -303,10 +305,11 @@ impl<S: crate::Slot> BundleRows<S> for Vec<Constraint<S>> {
 }
 
 /// The slot of a value's number.
-fn value_slot(constraint: crate::node::ConstraintId, coord: Coord) -> crate::SlotId {
-    match coord {
-        Coord::Slide(_) => crate::SlotId::ValueSlide { constraint },
-        Coord::Spin(_) => crate::SlotId::ValueSpin { constraint },
+fn value_slot<R>(constraint: crate::node::ConstraintId, coord: &Coord<R>) -> crate::SlotId {
+    if coord.is_slide() {
+        crate::SlotId::ValueSlide { constraint }
+    } else {
+        crate::SlotId::ValueSpin { constraint }
     }
 }
 
@@ -409,24 +412,86 @@ impl<S: crate::Slot> Constraint<S> {
             }
     }
 
-    /// **This constraint in another slot form**: a mate's pose reads
-    /// mapped by `read` ([`Mate::try_map`]), a value's scalar by `slot`,
-    /// its id kept.
+    /// **Its pose reads, each at its seat**: a mate's `on` and `to`
+    /// ([`crate::OperandSlot::Side`]), a value's direction or axis
+    /// ([`crate::OperandSlot::Along`], [`crate::OperandSlot::About`]).
+    /// The one reading every walk of a bundle's reads takes.
+    #[must_use]
+    pub fn reads(&self) -> Vec<(crate::OperandSlot, &S::Read)> {
+        let id = self.id;
+        match &self.kind {
+            ConstraintKind::Mate(mate) => vec![
+                (
+                    crate::OperandSlot::Side {
+                        constraint: id,
+                        side: MateSide::On,
+                    },
+                    &mate.on,
+                ),
+                (
+                    crate::OperandSlot::Side {
+                        constraint: id,
+                        side: MateSide::To,
+                    },
+                    &mate.to,
+                ),
+            ],
+            ConstraintKind::Value(value) => value
+                .coord
+                .read()
+                .map(|r| (value.coord.seat(id), &r.read))
+                .into_iter()
+                .collect(),
+        }
+    }
+
+    /// **Its reads of the target space**: a mate's `to`, a value's
+    /// direction or axis — what the space walk asks and a re-target
+    /// would strand. A mate's `on` reads the copy.
+    #[must_use]
+    pub fn target_reads(&self) -> Vec<&S::Read> {
+        self.reads()
+            .into_iter()
+            .filter(|(seat, _)| {
+                !matches!(
+                    seat,
+                    crate::OperandSlot::Side {
+                        side: MateSide::On,
+                        ..
+                    }
+                )
+            })
+            .map(|(_, read)| read)
+            .collect()
+    }
+
+    /// **This constraint in another slot form**: each pose read mapped
+    /// by `read` at its seat (a mate's sides, a value's direction or
+    /// axis), a value's scalar by `slot`, its id kept.
     ///
     /// # Errors
     ///
     /// The first refusal of either.
     pub fn try_map<S2: crate::Slot, E>(
         &self,
-        read: impl FnMut(MateSide, &S::Read) -> Result<S2::Read, E>,
+        mut read: impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
         slot: &mut impl FnMut(&S) -> Result<S2, E>,
     ) -> Result<Constraint<S2>, E> {
+        let id = self.id;
         Ok(Constraint {
-            id: self.id,
+            id,
             kind: match &self.kind {
-                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(read)?),
+                ConstraintKind::Mate(mate) => ConstraintKind::Mate(mate.try_map(|side, r| {
+                    read(
+                        crate::OperandSlot::Side {
+                            constraint: id,
+                            side,
+                        },
+                        r,
+                    )
+                })?),
                 ConstraintKind::Value(value) => ConstraintKind::Value(Value {
-                    coord: value.coord,
+                    coord: value.coord.try_map(|r| read(value.coord.seat(id), r))?,
                     by: slot(&value.by)?,
                 }),
             },
@@ -436,52 +501,64 @@ impl<S: crate::Slot> Constraint<S> {
 
 /// **A value** (FORK-S3M; D10 `[placement.values]`): one freedom of a
 /// placement's motion that its mates leave — a slide or a spin — set
-/// to a `Length` or an `Angle`. A value names no mate: its bundle holds
-/// at most one mate fixing a direction, so its values have one chart.
+/// to a `Length` or an `Angle`, naming the direction it runs along or
+/// the axis it turns about ([`Coord`]). A value names no mate: its
+/// bundle holds at most one mate fixing a direction, so its values have
+/// one chart.
 ///
 /// Beside a mate fixing a direction `d`, the mate's orientation `O`
 /// puts the copy's mated direction `d_c` at `n = O·d_c`, and the least
-/// turn `S` carries `n` onto `d`; the copy's turn is `rot(d, θ)·S·O`.
-/// The one [`Coord::Spin`] with no axis is `θ`, and a slide is the
-/// copy's origin measured from the target space's along a target axis
-/// as `S` carries it.
-///
-/// Where no direction is fixed (no mate, or a lone point mate), a
-/// slide is the copy's origin measured from the target space's along
-/// its own `x`, `y` or `z`, and a spin is one link of a chain of turns
-/// about the target space's own axes (through the mated point, for a
-/// point mate), taken in the order the bundle lists them.
+/// turn `S` carries `n` onto `d`; the copy's turn is `rot(d, θ)·S·O`,
+/// the one [`Coord::Spin`] with no axis `θ`. Where no direction is fixed
+/// (no mate, or a lone point mate), a spin is one link of a chain,
+/// taken in the order the bundle lists them. Either way the copy stands
+/// where its mates and spins seat it plus the sum of its slides, each
+/// its value along its direction (`mate::value::settle`).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Value<S: crate::Slot = crate::VarId> {
-    /// Which freedom.
-    pub coord: Coord,
+    /// Which freedom, and the direction or axis it reads.
+    pub coord: Coord<S::Read>,
     /// The number: a `Length` for a slide, an `Angle` for a spin.
     pub by: S,
 }
 
-/// **Which freedom a value sets.**
+/// **Which freedom a value sets, and the direction it runs along or
+/// the axis it turns about** (D10 `[placement.values]`).
 ///
 /// The freedoms each bundle's mates leave: a plane mate two slides and
 /// the spin; an axis mate one slide and the spin; a direction mate the
 /// three slides and the spin; a point mate its rotation, a chain of
-/// spins about the target space's own axes; a frame mate nothing.
-/// Beside a mate, which slides a mate takes is the source's geometry's
-/// to say (the chart's span, [`NoChartWhy::SlidesDoNotSpan`]). With no
-/// mate, a value slides along the target space's `x`, `y` or `z`, or
-/// spins about one of them.
+/// spins; a frame mate nothing. A slide runs along the mated direction
+/// ([`Self::Slide`] with no axis), along a target axis as the least
+/// turn carries it, or along a `Direction` or `Axis` read off a body in
+/// the target space ([`Self::SlideAlong`]); where no mate fixes a
+/// direction a spin is one link of the chain, about a target axis or
+/// about an `Axis` read in the target space ([`Self::SpinAbout`]).
+/// `R` is the read's form: the stored [`crate::VarId`] or the authored
+/// [`crate::Operand`].
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "snake_case")]
-pub enum Coord {
-    /// A slide along the target space's axis (carried by the least turn
-    /// beside a mate).
-    Slide(TargetAxis),
+pub enum Coord<R = crate::VarId> {
+    /// A slide: with no axis, along the mated direction itself, beside a
+    /// mate fixing one that leaves a translation along it; along a
+    /// target space's axis otherwise, carried by the least turn beside a
+    /// mate.
+    Slide(Option<TargetAxis>),
     /// A spin: with no axis, the turn about the target's own direction
-    /// left after the least turn, beside a mate fixing a direction; about an
-    /// axis, one link of a written chain of turns where none is fixed.
+    /// left after the least turn, beside a mate fixing a direction; about
+    /// an axis, one link of a written chain of turns where none is fixed.
     Spin(Option<TargetAxis>),
+    /// A slide along a `Direction`, or an `Axis` for its direction, read
+    /// off a body in the target space that does not read this placement.
+    SlideAlong(crate::pose::RoleRead<R>),
+    /// One link of the chain where no mate fixes a direction: a spin
+    /// about an `Axis` read off a body in the target space, about that
+    /// line (about its direction through the mated point, beside a lone
+    /// point mate).
+    SpinAbout(crate::pose::RoleRead<R>),
 }
 
 /// **An axis of the target space**: its own where no mate fixes a
@@ -584,30 +661,120 @@ impl core::fmt::Display for SlideAxes {
     }
 }
 
-impl Coord {
+impl<R> Coord<R> {
     /// The spin about the target's own direction.
     pub const SPIN: Self = Self::Spin(None);
 
+    /// The slide along the mated direction.
+    pub const SLIDE: Self = Self::Slide(None);
+
+    /// The slide along the target space's axis `axis`.
+    #[must_use]
+    pub const fn slide(axis: TargetAxis) -> Self {
+        Self::Slide(Some(axis))
+    }
+
+    /// The spin about the target space's axis `axis`, a link of a chain.
+    #[must_use]
+    pub const fn spin(axis: TargetAxis) -> Self {
+        Self::Spin(Some(axis))
+    }
+
+    /// Whether it is a slide, of any form.
+    #[must_use]
+    pub fn is_slide(&self) -> bool {
+        matches!(self, Self::Slide(_) | Self::SlideAlong(_))
+    }
+
+    /// The direction or axis it reads, where it reads one.
+    #[must_use]
+    pub fn read(&self) -> Option<&crate::pose::RoleRead<R>> {
+        match self {
+            Self::SlideAlong(read) | Self::SpinAbout(read) => Some(read),
+            Self::Slide(_) | Self::Spin(_) => None,
+        }
+    }
+
+    /// The seat its read is addressed at, for the value `constraint`:
+    /// a slide's direction, or a spin's axis.
+    #[must_use]
+    pub fn seat(&self, constraint: crate::node::ConstraintId) -> crate::OperandSlot {
+        if self.is_slide() {
+            crate::OperandSlot::Along { constraint }
+        } else {
+            crate::OperandSlot::About { constraint }
+        }
+    }
+
+    /// The direction or axis it reads, writable.
+    pub fn read_mut(&mut self) -> Option<&mut crate::pose::RoleRead<R>> {
+        match self {
+            Self::SlideAlong(read) | Self::SpinAbout(read) => Some(read),
+            Self::Slide(_) | Self::Spin(_) => None,
+        }
+    }
+
+    /// **This freedom with its read in another form**, its role kept.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s.
+    pub fn try_map<R2, E>(&self, f: impl FnOnce(&R) -> Result<R2, E>) -> Result<Coord<R2>, E> {
+        Ok(match self {
+            Self::Slide(axis) => Coord::Slide(*axis),
+            Self::Spin(axis) => Coord::Spin(*axis),
+            Self::SlideAlong(read) => Coord::SlideAlong(read.try_map(f)?),
+            Self::SpinAbout(read) => Coord::SpinAbout(read.try_map(f)?),
+        })
+    }
+
     /// The dimension of the number that sets it.
     #[must_use]
-    pub fn dimension(self) -> crate::expr::Dimension {
-        match self {
-            Self::Slide(_) => crate::expr::Dimension::Length,
-            Self::Spin(_) => crate::expr::Dimension::Angle,
+    pub fn dimension(&self) -> crate::expr::Dimension {
+        if self.is_slide() {
+            crate::expr::Dimension::Length
+        } else {
+            crate::expr::Dimension::Angle
         }
     }
 
     /// Its name, for messages.
     #[must_use]
-    pub fn name(self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
-            Self::Slide(TargetAxis::X) => "slide along x",
-            Self::Slide(TargetAxis::Y) => "slide along y",
-            Self::Slide(TargetAxis::Z) => "slide along z",
+            Self::Slide(None) => "slide along the mated direction",
+            Self::Slide(Some(TargetAxis::X)) => "slide along x",
+            Self::Slide(Some(TargetAxis::Y)) => "slide along y",
+            Self::Slide(Some(TargetAxis::Z)) => "slide along z",
+            Self::SlideAlong(_) => "slide along a read direction",
             Self::Spin(None) => "spin",
             Self::Spin(Some(TargetAxis::X)) => "spin about x",
             Self::Spin(Some(TargetAxis::Y)) => "spin about y",
             Self::Spin(Some(TargetAxis::Z)) => "spin about z",
+            Self::SpinAbout(_) => "spin about a read axis",
+        }
+    }
+
+    /// The name of the number that sets it: `slide along z value`.
+    #[must_use]
+    pub fn value_label(&self) -> String {
+        format!("{} value", self.name())
+    }
+}
+
+impl From<Coord> for Coord<crate::Operand> {
+    fn from(stored: Coord) -> Self {
+        Self::authored(stored)
+    }
+}
+
+impl Coord<crate::Operand> {
+    /// **The authored form of a stored freedom**: its read by id.
+    #[must_use]
+    pub fn authored(stored: Coord) -> Self {
+        match stored.try_map(|&var| Ok::<_, core::convert::Infallible>(crate::Operand::Var(var))) {
+            Ok(coord) => coord,
+            Err(never) => match never {},
         }
     }
 }
@@ -635,6 +802,12 @@ pub enum NoChartWhy {
         /// ([`turn::slides_left_along`]).
         write: SlideAxes,
     },
+    /// The written slides, one or more along a direction read off a
+    /// body, do not span what the mates leave where they evaluate: a
+    /// read direction runs across the plane or the line the mates leave,
+    /// or along another slide. Decided at evaluation, since a read
+    /// direction moves with its body.
+    ReadSlidesDoNotSpan,
 }
 
 /// **The recourse a [`MateFault::Overconstrained`] ends on**: what an
@@ -865,6 +1038,14 @@ pub enum MateFault {
         /// The evaluation layer's refusal.
         refusal: Box<NodeRefusal>,
     },
+    /// **The direction or axis a value reads did not evaluate**, in the
+    /// evaluation layer's own words.
+    ReadUnevaluated {
+        /// The value.
+        value: MateRef,
+        /// The evaluation layer's refusal.
+        refusal: Box<NodeRefusal>,
+    },
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -894,6 +1075,7 @@ impl MateFault {
     pub fn carried(&self) -> Option<(RecipeNodeId, &NodeRefusal)> {
         match self {
             Self::SideUnevaluated { refusal, mate, .. } => Some((mate.placement, refusal)),
+            Self::ReadUnevaluated { refusal, value } => Some((value.placement, refusal)),
             Self::PosesOfAnotherDocument { .. }
             | Self::Overconstrained { .. }
             | Self::Unpinned { .. }
@@ -974,7 +1156,22 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "mate_chart_slides_span",
         "whether a placement's slides span what its mate leaves",
     ),
+    (
+        MATE_READ_SLIDE_WITHIN,
+        "whether a placement's slide along a read direction lies in what its mates leave",
+    ),
+    (
+        MATE_SLIDES_INDEPENDENT,
+        "whether a placement's slides, along the directions they name, are independent",
+    ),
 ];
+
+/// The predicate deciding a read direction lies in what the mates leave.
+pub(crate) const MATE_READ_SLIDE_WITHIN: &str = "mate_read_slide_within";
+
+/// The predicate deciding a bundle's slides, along the directions they
+/// name, are independent.
+pub(crate) const MATE_SLIDES_INDEPENDENT: &str = "mate_slides_independent";
 
 // Every node the fault names is in the mate's own document; a part's
 // face and refusal are numbered in the part and said by their own
@@ -1085,6 +1282,17 @@ impl crate::spoken::Say for MateFault {
                     mate_(*value)
                 )
             }
+            Self::NoChart {
+                value,
+                why: NoChartWhy::ReadSlidesDoNotSpan,
+            } => write!(
+                f,
+                "{}'s slides do not span what its mates leave where they evaluate: a direction \
+                 read off a body runs across the plane or the line the mates leave, or along \
+                 another slide. Recourse: read a direction that lies in what the mates leave, \
+                 or slide along a target axis or the mated direction",
+                mate_(*value)
+            ),
             Self::Backwards {
                 mate,
                 orient,
@@ -1109,6 +1317,12 @@ impl crate::spoken::Say for MateFault {
                  repair the pose's definition, or what it reads",
                 mate_(*mate),
                 side.name()
+            ),
+            Self::ReadUnevaluated { value, .. } => write!(
+                f,
+                "the direction or axis {} reads did not evaluate, so the bundle is not folded. \
+                 Recourse: repair the pose's definition, or what it reads",
+                mate_(*value)
             ),
         }
     }

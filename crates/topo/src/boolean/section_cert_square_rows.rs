@@ -62,15 +62,15 @@ fn answers(what: &str, ring: &Ring, wall: &Wall, want: &[Class]) {
         ring,
         wall,
         want,
-        Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius: super::section_cert_rows::LEVER / 2.0,
-        },
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(
+            p(0.0, 0.0, 0.0),
+            super::section_cert_rows::LEVER / 2.0,
+        )),
     );
 }
 
 /// [`answers`], the pair classified within `reach`.
-fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: Reach<f64>) {
+fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: &Reach<f64>) {
     let sec = classify(
         &ring.surface(),
         &wall.surface(),
@@ -422,16 +422,14 @@ fn the_square_reading_is_levered_by_the_tori_ball() {
     let lever = 2.0 * (f64::hypot(k.0, k.1) + 2.5);
     let tilt = |of_zero: f64| of_zero * band().zero() / lever;
     for radius in [50.0, 1.0] {
-        let reach = Reach {
-            centre: p(0.0, 0.0, 0.0),
-            radius,
-        };
+        let reach =
+            geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(p(0.0, 0.0, 0.0), radius));
         answers_within(
             "a tilt 0.6 of the band's Zero",
             &donut,
             &wall_along(v(1.0, 0.0, tilt(0.6)), k),
             &[ON_WALL; 4],
-            reach,
+            &reach,
         );
         let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
         assert!(

@@ -19,7 +19,7 @@ Three points about that home, filed rather than fixed in that PR.
 nothing in it depends on a plane: the same margins, radical foot and
 half-chord describe two spheres whose centres stand `d` apart, and
 sphere × sphere is a named future reader
-(`work/roots/sphere-sphere-section-radius-cancels-at-unequal-radii.md`).
+(`work/germ/sphere-sphere-section-radius-cancels-at-unequal-radii.md`).
 Yet it lives under `arc` (`arc.rs` is the planar arc carrier), and its
 module and type docs say "two circles in one plane". A sphere-pair
 reader would either find it under a planar name or mint a copy. Only

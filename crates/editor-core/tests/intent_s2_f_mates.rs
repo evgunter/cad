@@ -60,11 +60,11 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
         mate,
         &[
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::zero(Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -297,9 +297,9 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         p,
         seat(body, (b, b), (a, a)),
         &[
-            (Coord::Slide(TargetAxis::X), len(-5.0)),
+            (Coord::slide(TargetAxis::X), len(-5.0)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),

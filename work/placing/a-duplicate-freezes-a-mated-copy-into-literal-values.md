@@ -6,7 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-design: true
+rides_with: the-placement-editor-commits-on-apply-not-live
 ---
 
 
@@ -51,3 +51,22 @@ this: place a body, show it again, pick it, and get a second placement.
 `duplicate_moves`, the `DuplicateTool` and its panel, the duplicate
 tests (`crates/viewer/tests/duplicate_beside.rs`), and the duplicate
 sentences in the README's "A new body lands unplaced".
+
+## Conflict with PR 6356, to be undone by this unit (2026-11-02, PLACING orchestrator)
+
+PR 6356 (Transform's retirement) landed, in its review fix pass, two behaviours that contradict Ev's direction above. They were adjudicated without this direction in view:
+- **Routing:** `matetool::door_on` sends a body exactly one copy places to that copy's Edit door.
+- **Refusal:** `SessionOp::Place` on an already-placed body refuses `Refusal::BodyPlaced`, naming its copy.
+
+Under Ev's direction, a placed body shown in the View pane and picked as itself opens the Create door, which makes a second placement. This unit owes that:
+- `door_on` routes a body picked as itself (drawn because it is shown) to Create;
+- a pick that lands on a copy still routes to that copy's Edit door;
+- `BodyPlaced` narrows to whatever case remains genuinely wrong, or retires.
+
+Its done-when row (place, show, pick, get a second placement) fails on main today for exactly this reason.
+
+**Why parked on `[ev]` 6353:** its one open design point, a feature on either of two placements taking over both, is 6353's question. 6353's agreed half (a feature on a copy reads the copy) dissolves the coupling.
+
+## Unparked (2026-11-02): `[ev]` 6353 answered
+
+The coupling this row waited on is settled: a feature picked on one placement reads that placed copy only, so two placements of one body no longer move together under a feature. Duplicate retires into a second placement made through the Create door (Ev's direction above). This unit also undoes 6356's `BodyPlaced` refusal and its once-placed routing, as recorded above.

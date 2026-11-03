@@ -37,6 +37,7 @@ use geom_brep::intersect::{
 use geom_brep::{
     ExtentBall, OpenConic, Reach, SectionError, TangentLocus, TangentLocusError, tangent_locus,
 };
+use geom_core::test_support::fixture_lever;
 use geom_core::{Band, Point3, Vec3};
 
 /// Each term's share of the zero band where the sum escalates, and where
@@ -108,7 +109,7 @@ fn plane_and_wall(
         radius: R,
         u_ref: Vec3::unit_y(),
     };
-    let reach = Reach::Ball(ExtentBall::new(Point3::origin(), RHO));
+    let reach = Reach::Ball(ExtentBall::of_sphere(Point3::origin(), RHO));
     plane_cylinder_section(&plane, &wall, &reach, band)
 }
 
@@ -181,7 +182,7 @@ fn two_walls(tilt: f64, apart: f64, r2: f64) -> (Surface<f64>, Surface<f64>, Ext
         radius: r2,
         u_ref: Vec3::unit_z(),
     };
-    (c1, c2, ExtentBall::new(Point3::new(0.0, R, 0.0), RHO))
+    (c1, c2, ExtentBall::of_sphere(Point3::new(0.0, R, 0.0), RHO))
 }
 
 fn pair(
@@ -335,7 +336,7 @@ fn cone_and_wall(tilt: f64, off: f64) -> Result<ConeCylinderSection<f64>, Sectio
         radius: R,
         u_ref: Vec3::unit_z(),
     };
-    cone_cylinder_section(&cone, &wall, 1.0, band())
+    cone_cylinder_section(&cone, &wall, fixture_lever(1.0), band())
 }
 
 /// **Cone × cylinder.** At `0.8 + 0.8` a circle at station `0.9` stands
@@ -397,7 +398,7 @@ fn plane_torus_decides_the_cap_gap_and_the_tilt_as_one_sum() {
             normal: turned(Vec3::unit_z(), Vec3::unit_x(), tilt / (1.0 + 4.0 * R)),
             u_ref: Vec3::unit_y(),
         };
-        plane_torus_section(&plane, &torus(), 2.0, band())
+        plane_torus_section(&plane, &torus(), fixture_lever(2.0), band())
     };
     let got = cap(INSIDE * z, INSIDE * z);
     assert!(
@@ -434,7 +435,7 @@ fn axial_cut(tilt: f64, d: f64, lever: f64) -> Result<PlaneTorusSection<f64>, Se
         normal: turned(Vec3::unit_y(), Vec3::unit_z(), tilt / lever),
         u_ref: Vec3::unit_x(),
     };
-    plane_torus_section(&plane, &torus(), lever, band())
+    plane_torus_section(&plane, &torus(), fixture_lever(lever), band())
 }
 
 /// **Plane × torus, the axis-in-plane lane.** A meridian circle is
@@ -517,7 +518,7 @@ fn plane_torus_reads_the_cap_where_the_plane_crosses_the_axis() {
     let (big_r, r) = (1.0, 4.0 * R);
     for s in [0.0, 5.0, 50.0, 500.0] {
         let plane = stored_off_axis(SPLIT * z, 0.5 * r, s);
-        let got = plane_torus_section(&plane, &torus(), 2.0, band());
+        let got = plane_torus_section(&plane, &torus(), fixture_lever(2.0), band());
         let Ok(PlaneTorusSection::ConcentricCircles { c1, c2 }) = got else {
             panic!("{s} m off: the concentric circles, got {got:?}");
         };
@@ -538,7 +539,7 @@ fn plane_torus_reads_the_cap_where_the_plane_crosses_the_axis() {
         }
     }
     let plane = stored_off_axis(SPLIT * z, r + past_edge(1.0, FLOOR_OUT) + SPLIT * z, 200.0);
-    let got = plane_torus_section(&plane, &torus(), 2.0, band());
+    let got = plane_torus_section(&plane, &torus(), fixture_lever(2.0), band());
     assert!(
         matches!(got, Ok(PlaneTorusSection::Empty)),
         "a plane over the crest, stored 200 m off: nothing, got {got:?}"
@@ -578,10 +579,7 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
     };
     let got = at(INSIDE * z, INSIDE * z);
     assert!(
-        matches!(
-            got,
-            Ok(PlaneConeSection::ApexTangentLine(Curve3::Line { .. }))
-        ),
+        matches!(got, Ok(PlaneConeSection::ApexTangentLine(Curve3::Line(_)))),
         "inside: the tangent generator, got {got:?}"
     );
     let got = at(SPLIT * z, SPLIT * z);

@@ -890,12 +890,7 @@ macro_rules! fixture_turns {
         pub(crate) fn $name(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<$t>> {
             let lift = <$t as geom_core::Real>::from_f64;
             let band = Band::new(1e-9, 1e-8).ok()?;
-            let circle = geom::Curve3::Circle {
-                center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
-                axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-                radius: lift(1.0),
-                u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
-            };
+            let circle = geom::Curve3::circle(Point3::new(lift(0.0), lift(0.0), lift(0.0)), Vec3::new(lift(0.0), lift(0.0), lift(1.0)), lift(1.0), Vec3::new(lift(1.0), lift(0.0), lift(0.0)));
             let (t0, t1) = (lift(t0), lift(t1));
             let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
             let (start, end) = (circle.eval(t0), circle.eval(t1));
@@ -904,7 +899,8 @@ macro_rules! fixture_turns {
                 start,
                 end,
                 |_| None,
-                lift(1.0),
+                geom_brep::ExtentBall::of_circle(Point3::new(lift(0.0), lift(0.0), lift(0.0)), lift(1.0))
+                    .lever(),
                 band,
                 geom_brep::NurbsLane::certified(),
             )
@@ -964,10 +960,7 @@ mod tests {
 
     /// The segment `[x0, x1]` of the `x` axis.
     fn x_segment(x0: f64, x1: f64) -> RegionEdge<f64> {
-        let carrier = geom::Curve3::Line {
-            origin: Point3::origin(),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
         edge(carrier, (x0, x1))
     }
 
@@ -984,12 +977,12 @@ mod tests {
 
     /// The arc of [`unit_round`]'s circle over `[t0, t1]`.
     fn unit_arc(t0: f64, t1: f64) -> RegionEdge<f64> {
-        let carrier = geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = geom::Curve3::circle(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         edge(carrier, (t0, t1))
     }
 

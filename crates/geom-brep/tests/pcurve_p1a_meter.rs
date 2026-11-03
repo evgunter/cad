@@ -38,10 +38,7 @@ fn cone_seam(half_angle: f64, d: f64) -> (Surface<f64>, Curve3<f64>, f64, f64) {
     let (s, c) = half_angle.sin_cos();
     let generator = Vec3::new(s, 0.0, c);
     let outward = Vec3::new(c, 0.0, -s);
-    let carrier = Curve3::Line {
-        origin: Point3::origin() + outward * d,
-        dir: generator,
-    };
+    let carrier = Curve3::line(Point3::origin() + outward * d, generator);
     (cone, carrier, 0.5, 2.0)
 }
 
@@ -70,7 +67,7 @@ fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -132,10 +129,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
                 radius: 2.0,
                 u_ref: Vec3::unit_x(),
             },
-            Curve3::Line {
-                origin: Point3::new(2.0 + d, 0.0, 0.0),
-                dir: Vec3::unit_z(),
-            },
+            Curve3::line(Point3::new(2.0 + d, 0.0, 0.0), Vec3::unit_z()),
             0.0,
             3.0,
         ),
@@ -153,7 +147,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
             p0,
             p1,
             &lookup,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -175,7 +169,8 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
 /// feature instead of a wrong locus).
 #[test]
 fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
-    // A sphere chart images circles only; no ellipse lies on a sphere.
+    // An ellipse in the pole's tangent plane is off the sphere: the
+    // mint's incidence read refuses it, naming the pair.
     let sphere = Surface::Sphere {
         center: Point3::origin(),
         radius: 1.0,
@@ -183,13 +178,11 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         u_ref: Vec3::unit_x(),
     };
     let (keys, lookup) = table(vec![sphere]);
-    let carrier = Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 1.0),
-        axis: Vec3::unit_z(),
-        semi_u: 1.0,
-        semi_v: 0.5,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
+        1.0,
+        0.5,
+    ));
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
@@ -201,20 +194,24 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
     .expect_err("an ellipse is not a locus of any sphere chart image");
-    assert_eq!(
-        err,
-        CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Sphere,
-            carrier: geom::CurveKind::Ellipse,
-            why: "a sphere holds no line, and its plane sections are circles",
-            margin: None,
-        },
-        "the refusal must name the (chart, carrier) pair it could not state"
+    // The read quotes the miss it decided: the ellipse's far vertex is
+    // `√2 − 1` off the unit sphere.
+    assert!(
+        matches!(
+            &err,
+            CertifyError::CarrierOffChart {
+                chart: geom::SurfaceKind::Sphere,
+                carrier: geom::CurveKind::Ellipse,
+                why: "the carrier's points are not at the sphere's radius from its centre",
+                margin: Some(geom_brep::OffMargin::Past(m)),
+            } if (m.diagnostic_f64_for_error_text().value().unwrap_or(f64::NAN) - (2f64.sqrt() - 1.0)).abs() < 1e-12
+        ),
+        "the refusal must name the (chart, carrier) pair it could not state, and its miss: {err:?}"
     );
 }
 
@@ -228,6 +225,7 @@ mod at_intervals {
     use crate::shared::surf::table;
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::test_support::fixture_lever;
     use geom_core::{Band, Bounds, Point3, Vec3};
 
     /// The rows' own band, fixed rather than the run's — a row about the
@@ -249,10 +247,10 @@ mod at_intervals {
             radius: iv(r),
             u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
         }]);
-        let carrier = Curve3::Line {
-            origin: Point3::new(iv(r + d), iv(0.0), iv(0.0)),
-            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-        };
+        let carrier = Curve3::line(
+            Point3::new(iv(r + d), iv(0.0), iv(0.0)),
+            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        );
         let (t0, t1) = (iv(0.0), iv(3.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
@@ -265,7 +263,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )
@@ -303,10 +301,10 @@ mod at_intervals {
             half_angle: iv(alpha),
             u_ref: Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
         }]);
-        let carrier = Curve3::Line {
-            origin: Point3::new(iv(c * d), iv(0.0), iv(-s * d)),
-            dir: Vec3::new(iv(s), iv(0.0), iv(c)),
-        };
+        let carrier = Curve3::line(
+            Point3::new(iv(c * d), iv(0.0), iv(-s * d)),
+            Vec3::new(iv(s), iv(0.0), iv(c)),
+        );
         let (t0, t1) = (iv(0.5), iv(2.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
@@ -319,7 +317,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
-            geom_core::Real::from_f64(1.0),
+            fixture_lever(geom_core::Real::from_f64(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

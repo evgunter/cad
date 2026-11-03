@@ -43,7 +43,7 @@
 //! ([`crate::ssi::PairRowRefusal`]).
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Band, Decide, Point3, Real};
+use geom_core::{Band, Decide, Real};
 
 use super::{
     ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
@@ -130,31 +130,18 @@ impl<T: Real> SplinePairPose<T> {
     /// convex hull (its weights are positive), so the section in the ball
     /// about the first net's control points.
     pub fn ball(&self) -> ExtentBall<T> {
-        let control = self.nets[0].control();
-        let Some(&first) = control.first() else {
-            return ExtentBall::new(Point3::origin(), T::zero());
-        };
-        let (lo, hi) = control.iter().fold((first, first), |(lo, hi), &p| {
-            (
-                Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
-                Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
-            )
-        });
-        let center = lo + (hi - lo) * T::from_f64(0.5);
-        let radius = control
-            .iter()
-            .fold(T::zero(), |r, &p| r.max((p - center).norm()));
-        ExtentBall::new(center, radius)
+        ExtentBall::of_control_net(self.nets[0].control())
     }
 
     /// The pair's section with these components, nothing decided Zero.
     fn section(self, components: Components<T>) -> PairSection<T> {
-        let lever = self.ball().radius();
+        let lever = self.ball().lever();
         PairSection {
             pose: PairPose::SplinePair(Box::new(self)),
             decided: Vec::new(),
             components,
             nodes: Vec::new(),
+            node_sets: Vec::new(),
             lever,
         }
     }
@@ -284,6 +271,7 @@ fn listed(
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
             carrier: ClassCarrier::Unminted(UNCARRIED),
+            cut_ends: None,
         });
     }
     components.extend(reading.regions.iter().map(|region| {
@@ -297,6 +285,7 @@ fn listed(
             witness: None,
             pad: 0.0,
             carrier: ClassCarrier::Unminted(REGION),
+            cut_ends: None,
         }
     }));
     Ok(pose.section(Components::Counted(components)))

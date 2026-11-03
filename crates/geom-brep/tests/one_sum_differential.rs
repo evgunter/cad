@@ -28,6 +28,7 @@ use geom_brep::intersect::{
     plane_cylinder_section, plane_torus_section,
 };
 use geom_brep::{ExtentBall, Reach, SectionError, TangentLocus, tangent_locus};
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 
 struct Rng(u64);
@@ -88,12 +89,15 @@ fn head_of(s: String) -> String {
 
 fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
     match *c {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => {
+        }) => {
             let u = (u_ref - axis * u_ref.dot(axis)).normalize();
             let v = axis.cross(u);
             (0..n)
@@ -109,7 +113,7 @@ fn circle_pts(c: &Curve3<f64>, n: usize) -> Vec<Point3<f64>> {
 
 fn line_pts(c: &Curve3<f64>, from: Point3<f64>, len: f64, n: usize) -> Vec<Point3<f64>> {
     match *c {
-        Curve3::Line { origin, dir } => {
+        Curve3::Line(geom::Line { origin, dir }) => {
             let d = dir.normalize();
             let t0 = (from - origin).dot(d);
             (0..=n)
@@ -183,17 +187,12 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_torus_section(&plane, &torus, extent, b);
+            let got = plane_torus_section(&plane, &torus, fixture_lever(extent), b);
             let (label, truth) = match &got {
                 // A tangency's truth: the plane's stand-off from the
                 // tube's crest circle on its side, what flips it.
                 Ok(PlaneTorusSection::TangentCircle(_)) => {
-                    let crest = Curve3::Circle {
-                        center: c + a * (sign * r),
-                        axis: a,
-                        radius: big,
-                        u_ref: x,
-                    };
+                    let crest = Curve3::circle(c + a * (sign * r), a, big, x);
                     let t = circle_pts(&crest, 720)
                         .into_iter()
                         .map(|p| d_plane(p, q, nrm))
@@ -234,7 +233,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_torus_section(&plane, &torus, extent, b);
+            let got = plane_torus_section(&plane, &torus, fixture_lever(extent), b);
             let (label, truth) = match &got {
                 Ok(PlaneTorusSection::MeridianCircles { c1, c2 }) => {
                     let t = circle_pts(c1, 720)
@@ -335,7 +334,7 @@ fn one_sum_differential() {
                 radius: if coax { r1 } else { r2 },
                 u_ref: perp(a2, &mut rng),
             };
-            let ball = ExtentBall::new(
+            let ball = ExtentBall::of_sphere(
                 o1 + y * (r1 * rng.r(0.5, 1.0)) + a1 * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
@@ -395,10 +394,7 @@ fn one_sum_differential() {
                     format!(
                         "{:.4} {:.4}",
                         stations().map(|dd| (touch - dd).abs()).fold(0.0, f64::max) / z,
-                        ruling(&Curve3::Line {
-                            origin: *origin,
-                            dir: *dir
-                        })
+                        ruling(&Curve3::line(*origin, *dir))
                     )
                 }
                 _ => "nan".into(),
@@ -438,7 +434,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let ball = ExtentBall::new(
+            let ball = ExtentBall::of_sphere(
                 o - nrm * (r * rng.r(0.5, 1.0)) + a * (s * rng.r(-1.0, 1.0)),
                 rad,
             );
@@ -502,7 +498,7 @@ fn one_sum_differential() {
                 radius: rr,
                 u_ref: y,
             };
-            let got = cone_cylinder_section(&cone, &wall, extent, b);
+            let got = cone_cylinder_section(&cone, &wall, fixture_lever(extent), b);
             let (label, truth) = match &got {
                 Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                     let t = circle_pts(c1, 720)

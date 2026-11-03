@@ -709,9 +709,9 @@ fn holding_measures<'a, P, T: Decide>(
     doc.ids()
         .into_iter()
         .flat_map(move |id| {
-            let Some(Node::Assertion {
+            let Some(Node::Assertion(crate::measure::Claim::Value {
                 value, relation, ..
-            }) = doc.node(id)
+            })) = doc.node(id)
             else {
                 return None;
             };
@@ -1034,7 +1034,14 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
     let Some(read) = pairing_read(body, outer, inner, band) else {
         return false;
     };
-    let arm = geom_brep::folded_lever_arm(read.outer.0, read.inner.0, read.at, read.reach);
+    let arm = geom_brep::folded_lever_arm(
+        read.outer.0,
+        read.inner.0,
+        read.at,
+        // Unsourced lever: the faces' wedge reach (`crate::eval::measure::reach_of`), measured as a
+        // bare length outside the extent home.
+        geom_core::Lever::unsourced(read.reach),
+    );
     geom_brep::classify_material_pairing_as(
         AT_REST_QUIET_OPPOSED,
         read.outer.0,
@@ -1116,7 +1123,9 @@ fn constant_pairing<T: Decide>(
             let rel = *o2 - *o1;
             zero(
                 AT_REST_QUIET_AXES_PARALLEL,
-                Margin::levered(a1.cross(*a2).norm(), extent),
+                // Unsourced lever: two faces' reaches from one point summed
+                // (`crate::eval::measure::reach_of`), a sum no extent read spells.
+                Margin::levered(a1.cross(*a2).norm(), geom_core::Lever::unsourced(extent)),
             ) && zero(
                 AT_REST_QUIET_CENTRED,
                 Margin::of((rel - *a1 * rel.dot(*a1)).norm()),

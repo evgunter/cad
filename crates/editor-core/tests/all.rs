@@ -59,6 +59,8 @@ mod fixture;
 // one is not, because its subject is `serde_json`.
 mod wire;
 
+#[path = "a_blend_refusal_names_its_edge.rs"]
+mod a_blend_refusal_names_its_edge;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "aligned_overlap_quiets.rs"]
@@ -239,6 +241,8 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "placement_values_direction.rs"]
+mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refactor_pose_definitions.rs"]
@@ -307,6 +311,8 @@ mod load_door_payload_param_ref;
 mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
+#[path = "loft_section_ids.rs"]
+mod loft_section_ids;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]
@@ -384,10 +390,10 @@ mod m10_5_r1_probes_interval;
 mod m10_5_r2_probes_interval;
 #[path = "m10_6_ci_rows_interval.rs"]
 mod m10_6_ci_rows_interval;
+#[path = "m10_6_clearance_assertion_interval.rs"]
+mod m10_6_clearance_assertion_interval;
 #[path = "m10_6_mc_draws.rs"]
 mod m10_6_mc_draws;
-#[path = "m10_6_min_clearance_interval.rs"]
-mod m10_6_min_clearance_interval;
 #[path = "m10_6_r1_probes_interval.rs"]
 mod m10_6_r1_probes_interval;
 #[path = "m10_6_reports_interval.rs"]

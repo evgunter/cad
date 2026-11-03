@@ -24,7 +24,9 @@
 //!   Seams stay: a Green form written in a lifted chart coordinate (the
 //!   torus's tube angle) reads a seam's two traversals a period apart, and
 //!   that term is the face's area. Every integrator and chart reader
-//!   takes this view (`props::chart_image_edges`). A chart image that is
+//!   takes this view (`props::chart_image_edges`), and so does the split's
+//!   reading of a section loop's tree (`splitting::join::Tree`: what the
+//!   chart image drops). A chart image that is
 //!   empty on a closed surface is the whole surface, signed by the face's
 //!   sense (`geom_brep::props::whole_surface`).
 //!

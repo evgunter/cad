@@ -2,11 +2,12 @@
 id: torus-wall-fixture-reverses-a-parallel-by-hand
 kind: issue
 title: The torus_wall test fixture spells a reversed parallel by hand rather than through Curve3::reversed
-status: open
+status: parked
 opened: 2026-10-03
 priority: P4
 cost: E
 refs: [3895]
+blocked_on: [cover-topo-faces]
 ---
 
 

@@ -87,7 +87,7 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
         let (doc, c) = fixture::in_world_by(
             doc,
             plate,
-            Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(100.0))]).values,
+            Placed::unmated(vec![(Coord::slide(TargetAxis::X), len(100.0))]).values,
         );
         let (doc, both) = fixture::union_over(doc, &[b, c]);
         let name = fixture::member_name(&doc, both, b, side);
@@ -100,9 +100,9 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
     let placed = Placed {
         mates: vec![fixture::rest(head(start), target)],
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(10.0)),
+            (Coord::slide(TargetAxis::X), len(10.0)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -206,9 +206,9 @@ fn inline_keeps_a_variable_driving() {
         part,
         body,
         Placed::unmated(vec![
-            (Coord::Slide(TargetAxis::X), len(3.0)),
+            (Coord::slide(TargetAxis::X), len(3.0)),
             (
-                Coord::Slide(TargetAxis::Z),
+                Coord::slide(TargetAxis::Z),
                 editor_core::Formula::named(lift(), Dimension::Length),
             ),
         ])
@@ -241,7 +241,7 @@ fn inline_keeps_a_variable_driving() {
         .into_iter()
         .find_map(|c| {
             c.value()
-                .filter(|v| v.coord == Coord::Slide(TargetAxis::Z))
+                .filter(|v| v.coord == Coord::slide(TargetAxis::Z))
                 .cloned()
         })
         .expect("the part's slide");
@@ -320,7 +320,7 @@ fn inlined(dx: f64) -> (ProfileDoc, editor_core::InlineOutcome, RecipeNodeId) {
     let bundle = if dx == 0.0 {
         Placed::identity()
     } else {
-        Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(dx))])
+        Placed::unmated(vec![(Coord::slide(TargetAxis::X), len(dx))])
     };
     let host = fixture::written(host, instance, bundle);
     let resolver: Arc<dyn PartResolver> = Arc::new(store);
@@ -401,7 +401,7 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
     let (shared, _) = fixture::in_world_by(
         out.doc.clone(),
         Operand::Var(source),
-        Placed::unmated(vec![(Coord::Slide(TargetAxis::Y), len(5.0))]).values,
+        Placed::unmated(vec![(Coord::slide(TargetAxis::Y), len(5.0))]).values,
     );
     assert!(matches!(
         refused(&shared, out.placement),
@@ -418,7 +418,7 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
     let (part, _) = fixture::in_world_by(
         part,
         b,
-        Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(3.0))]).values,
+        Placed::unmated(vec![(Coord::slide(TargetAxis::X), len(3.0))]).values,
     );
     let mut store = PartStore::default();
     let part = crate::fixture::assemble_world_copies(part);
@@ -490,8 +490,8 @@ fn a_slide_value_sets_its_translation_with_no_width() {
             orient: editor_core::Orientation::IDENTITY,
         }],
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(3.0)),
-            (Coord::Slide(TargetAxis::Y), len(2.0)),
+            (Coord::slide(TargetAxis::X), len(3.0)),
+            (Coord::slide(TargetAxis::Y), len(2.0)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
@@ -525,7 +525,7 @@ fn chained_block(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 
 /// The chain `Z(0.1), X(0.2), Z(0.3)` and the slides `(3, 0, 7)`, the
 /// link at `zero` written `0`.
-fn chain(zero: Option<usize>) -> Vec<(Coord, editor_core::Formula)> {
+fn chain(zero: Option<usize>) -> Vec<(Coord<editor_core::Operand>, editor_core::Formula)> {
     let links = [
         (TargetAxis::Z, 0.1),
         (TargetAxis::X, 0.2),
@@ -539,8 +539,8 @@ fn chain(zero: Option<usize>) -> Vec<(Coord, editor_core::Formula)> {
             (Coord::Spin(Some(axis)), fixture::ang(a))
         })
         .collect();
-    out.push((Coord::Slide(TargetAxis::X), len(3.0)));
-    out.push((Coord::Slide(TargetAxis::Z), len(7.0)));
+    out.push((Coord::slide(TargetAxis::X), len(3.0)));
+    out.push((Coord::slide(TargetAxis::Z), len(7.0)));
     out
 }
 
@@ -668,7 +668,7 @@ fn a_mate_reports_each_value_it_drops() {
             Coord::Spin(Some(TargetAxis::Z)),
             Coord::Spin(Some(TargetAxis::X)),
             Coord::Spin(Some(TargetAxis::Z)),
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
         ],
         "the three links and the z slide go, each reported"
     );
@@ -696,8 +696,8 @@ fn a_mate_reports_each_value_it_drops() {
     assert_eq!(
         kept,
         [
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
             Coord::SPIN,
         ],
         "the x slide, then the 0 on the y slide and on the spin"

@@ -323,7 +323,7 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 fn r5_crossing_vertex_on_is_declared_not_measured() {
     // Pinned to limb 2's kernel limit at ε = 1e-12: its 2 km edges,
     // outside the session box
-    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
+    // (`work/shell/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
     // at [0, 1.5e-11], the data's own rounding at that length — an
     // enclosure reaching zero, so only an upper bound, and the
@@ -516,11 +516,11 @@ fn r7_enters_material_oblique_independent() {
     let into = Vec3::new(-1.0, 1.0, 0.5);
     assert!(into.dot(chart) < 0.0, "fixture sanity");
     assert_eq!(
-        enters_material(into, n, 2.0, band).unwrap(),
+        enters_material(into, n, geom_core::test_support::fixture_lever(2.0), band).unwrap(),
         EntersMaterial::Enters
     );
     assert_eq!(
-        enters_material(-into, n, 2.0, band).unwrap(),
+        enters_material(-into, n, geom_core::test_support::fixture_lever(2.0), band).unwrap(),
         EntersMaterial::Exits
     );
     // The rule-(a) reading: a coplanar face whose outward normal AGREES
@@ -529,11 +529,17 @@ fn r7_enters_material_oblique_independent() {
     // face senses through the same primitive:
     let n_sp = chart; // coplanar: the split plane's normal, no sense
     assert_eq!(
-        enters_material(n_sp, n, 1.0, band).unwrap(),
+        enters_material(n_sp, n, geom_core::test_support::fixture_lever(1.0), band).unwrap(),
         EntersMaterial::Exits, // agree ⇒ Exits ⇒ rule (a) BELOW
     );
     assert_eq!(
-        enters_material(n_sp, n_rev, 1.0, band).unwrap(),
+        enters_material(
+            n_sp,
+            n_rev,
+            geom_core::test_support::fixture_lever(1.0),
+            band
+        )
+        .unwrap(),
         EntersMaterial::Enters, // oppose ⇒ Enters ⇒ rule (a) ABOVE
     );
 }

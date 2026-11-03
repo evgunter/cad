@@ -28,8 +28,9 @@
 //! move's place in the station; and `value_slide` and `value_spin` a
 //! value's number, completed by the constraint; `side` names one side of a constraint,
 //! completed by the constraint and the side; a loft's `section`, a
-//! union's or a `⊔`'s `member` and a measure's `measured` name one
-//! entry of a list, completed by its position; `index` names
+//! union's or a `⊔`'s `member`, a measure's `measured` and a clearance
+//! assertion's `cleared` name one entry of a list, completed by its
+//! position; `index` names
 //! one index of an indexed read, completed by the seat it reads at and
 //! the index's position. There is nothing to answer with, so each
 //! answers nothing —
@@ -37,7 +38,7 @@
 //! says which kind of slot it is and the rest of the address is in the
 //! refusal's prose.
 
-use pncad::document::{Axis3, OperandSlot, SlotId};
+use pncad::document::{Axis3, BoundEnd, OperandSlot, SlotId};
 
 /// The [`SlotId`] a stable slot word names, or `None` for a word
 /// outside the alphabet.
@@ -67,6 +68,8 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "tube_wall" => SlotId::TubeWall,
         "v_degree" => SlotId::VDegree,
         "stations" => SlotId::Stations,
+        "clearance_low" => SlotId::ClearanceBound(BoundEnd::Low),
+        "clearance_high" => SlotId::ClearanceBound(BoundEnd::High),
         // The operands, by their field's word (D10: an operand is a
         // slot written through the same door).
         "profile" => SlotId::Operand(OperandSlot::Profile),

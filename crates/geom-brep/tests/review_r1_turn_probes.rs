@@ -50,13 +50,15 @@ fn steep(ratio: f64) -> Steep {
     Steep {
         surfaces,
         pair: SurfacePair::new(plane, cyl),
-        ellipse: Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: a,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        },
+        ellipse: Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            a,
+            1.0,
+        )),
         a,
     }
 }
@@ -78,7 +80,7 @@ impl Steep {
             e.eval(t0),
             e.eval(t1),
             |k| self.surfaces.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         )
@@ -291,7 +293,7 @@ fn r1_spiric_whole_ovals_certify_whole() {
                 carrier.eval(t0),
                 carrier.eval(t1),
                 |k| surfaces.get(k).cloned(),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             );

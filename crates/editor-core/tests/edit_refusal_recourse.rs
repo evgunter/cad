@@ -270,14 +270,16 @@ const WORDLESS: &[(&str, &[&str])] = &[
     (
         // Tier 3 at the boolean door: the at-rest gate the door runs on
         // its result and the boolean seat runs on each operand it
-        // finishes (`AtRestPolicy::gate_at_rest_kept`), and its +V
-        // reading (check 7) with its interval re-derivation. The kernel
-        // checking its own bodies through tier 3's rules, so no model
-        // question to put in words.
+        // finishes (`AtRestPolicy::gate_at_rest_kept`), its flat faces'
+        // corners and edges read on their planes by the mint's incidence
+        // decider (`geom_brep::read_point_incidence`, `read_incidence`),
+        // and its +V reading (check 7) with its interval re-derivation.
+        // The kernel checking its own bodies through tier 3's rules, so no
+        // model question to put in words.
         "tier 3, at the boolean door",
         &[
-            "planar_boundary_residual",
-            "planar_face_residual",
+            "pcurve_line_chart_incident",
+            "pcurve_point_chart_incident",
             "positive_volume_exact",
         ],
     ),
@@ -297,6 +299,14 @@ const WORDLESS: &[(&str, &[&str])] = &[
         // of it.
         "one name, several decisions",
         &["bool_ring_run_winding"],
+    ),
+    (
+        // `geom_brep::parting_side`'s two gates, raised by every
+        // second-order parting that reads one: a bound tied with a face
+        // (`topo::bound_side`), a declared tangency's lump, a curve
+        // against a plane, so no one decision's words are true of them.
+        "one parting, several decisions",
+        &["tangent_sector_order2", "tangent_sector_order2_arm"],
     ),
     (
         // Filed: work/doctail/flip-reports-name-no-decision-for-most-predicates.md.
