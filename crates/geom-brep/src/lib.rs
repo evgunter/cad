@@ -118,8 +118,8 @@ pub use description::{
     Structural, authority_of,
 };
 pub use dihedral::{
-    Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, Dihedral,
-    DihedralClass, DihedralReading, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
+    Convexity, Corner, DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DIHEDRAL_SIGN,
+    Dihedral, DihedralClass, DihedralReading, EdgeWedge, EdgeWedgeEscalation, MATERIAL_PAIRING,
     MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
     MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, PositiveArm, RestLocus,
     SeamEscalation, SeamFace, SecondOrder, SmoothJoin, Station, Tangency, WedgeEscalation,

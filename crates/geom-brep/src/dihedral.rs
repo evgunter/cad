@@ -472,6 +472,21 @@ fn signed_wedge<T: Real>(
     Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm)
 }
 
+/// The name a corner's sign is decided under ([`Corner::convexity`]).
+///
+/// **What its verdicts are.** Each records which way one corner turns at
+/// one station: a reading of the body's shape, taken by tier 3's check 4
+/// and the boolean's shared-rim routing over a body that is already
+/// built. Its population is the body's mix of convex and concave
+/// stations, so an edit that trades corners of one turn for corners of
+/// the other (a through slot becoming a blind pocket) moves the
+/// population across signs although no corner turned, and a population
+/// diff cannot tell the two apart. A flip among them changes whether a
+/// body is accepted (a sign that turns along one edge, or reads in band),
+/// never which body was built: `editor_core::resolve`'s flip lane passes
+/// over it, as it does over the side reader's family.
+pub const DIHEDRAL_SIGN: &str = "dihedral_sign";
+
 impl<T: Decide> Corner<T> {
     /// **`dihedral_sign`** — the corner's convexity at `station`: the
     /// signed wedge `((n₊ × n₋)·τ̂)·arm` over the token's normals, each
@@ -496,7 +511,7 @@ impl<T: Decide> Corner<T> {
     ) -> Result<Convexity, WedgeEscalation> {
         let [n_plus, n_minus] = self.0.outward(senses);
         decide_nonzero(
-            "dihedral_sign",
+            DIHEDRAL_SIGN,
             signed_wedge(n_plus, n_minus, station.tau, self.0.arm),
             band,
         )
