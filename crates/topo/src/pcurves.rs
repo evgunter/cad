@@ -391,6 +391,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
 use crate::live::{linked, proven};
+use crate::null::Scaffolding;
 use crate::props::AtRestPolicy;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
@@ -2258,6 +2259,10 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
 /// same chain moved by one deck transformation, and every reader reads
 /// the chain, not its offset.
 ///
+/// A rowless half is a gap, whatever its edge: a finished body holds
+/// no null edge, and mid-operation a reader that steps over one asks
+/// the crate's lift past placeholders.
+///
 /// # Errors
 ///
 /// [`LiftGap`] naming the first half-edge, in cycle order, that stores
@@ -2273,6 +2278,45 @@ pub fn loop_lift<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
 ) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    lift_loop(body, r#loop, Scaffolding::Refused)
+}
+
+/// **[`loop_lift`] past the loop's placeholders**
+/// ([`crate::null::is_placeholder`]): a placeholder's rowless halves are
+/// left out of the chain, as the analytic region reader leaves the edge
+/// out of its boundary ([`Scaffolding::Skipped`]). The skip is exact.
+/// The edge is one point, so the halves either side of it meet there,
+/// and the mint gives the joints into its halves
+/// [`JointElement::IDENTITY`](crate::joint::JointElement::IDENTITY) while
+/// the joint out of it keeps its successor's element
+/// (`Body::mev_fan_execute`), so every other member's lift is the one
+/// it has with the placeholder gone. A null edge whose ends have parted
+/// is no placeholder, and any other rowless half is a gap, as in
+/// [`loop_lift`].
+///
+/// # Errors
+///
+/// [`loop_lift`]'s, but for a placeholder's half.
+///
+/// # Panics
+///
+/// [`loop_lift`]'s, and [`crate::null::is_placeholder`]'s.
+#[track_caller]
+pub(crate) fn loop_lift_past_placeholders<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
+    lift_loop(body, r#loop, Scaffolding::Skipped)
+}
+
+/// The one lift [`loop_lift`] and [`loop_lift_past_placeholders`]
+/// read, a placeholder's half as `scaffolding` says.
+#[track_caller]
+fn lift_loop<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    scaffolding: Scaffolding,
+) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
     let cycle = loop_rows(body, r#loop);
     let face = proven(&body.loops, r#loop, EntityId::Loop).face;
     let surface = body.proven_face_surface(face);
@@ -2283,9 +2327,16 @@ pub fn loop_lift<T: Decide>(
     let mut rows = Vec::with_capacity(cycle.len());
     let mut elements = Vec::with_capacity(cycle.len());
     for &half_edge in &cycle {
-        let (Some(row), Some(element)) = (body.pcurve(half_edge), body.joint(half_edge)) else {
+        let Some(element) = body.joint(half_edge) else {
             return Err(LiftGap { half_edge });
         };
+        let row = body.pcurve(half_edge);
+        if row.is_none()
+            && !(scaffolding == Scaffolding::Skipped
+                && crate::null::is_placeholder(body, edge_record(body, half_edge).0))
+        {
+            return Err(LiftGap { half_edge });
+        }
         rows.push(row);
         elements.push(element);
     }
@@ -2293,7 +2344,8 @@ pub fn loop_lift<T: Decide>(
         .into_iter()
         .zip(rows)
         .zip(lift_decks(&elements))
-        .map(|((half_edge, row), lift)| {
+        .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, lift)))
+        .map(|(half_edge, row, lift)| {
             let pcurve = lift
                 .apply(row.pcurve(), surface, periods)
                 .ok_or(LiftGap { half_edge })?;

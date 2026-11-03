@@ -760,3 +760,248 @@ fn a_meetings_chart_point_is_placed_on_its_own_sheet() {
         "the lower-half meeting under it is in: {lower:?}"
     );
 }
+
+/// **A spline face's trim reads past a placeholder, and past no other
+/// rowless half**: the sheet with a null edge fanned into its outer
+/// loop (`region::with_null_edge`, the sweep's crossing-vertex
+/// scaffolding) places every point as the sheet without it does, its
+/// lift past placeholders skipping the null edge's halves and lifting
+/// the rest exactly as the bare sheet's, while the strict lift gaps at
+/// a null half. What is no placeholder gaps under both lifts: a null
+/// edge whose ends have parted (a straight segment would otherwise
+/// close the gap unseen), a certified half with its row detached, and
+/// a closed certified edge, whose halves start on one point.
+#[test]
+fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
+    use crate::pcurves::{LiftGap, loop_lift_past_placeholders};
+    let c = 0.6;
+    let chart = twisted(c);
+    let uv = rect((0.25, 0.75), (0.25, 0.75));
+    let (plain, plain_face) = sheet(&chart, &uv);
+    let (mut nulled, face) = sheet(&chart, &uv);
+    super::super::region::with_null_edge(&mut nulled, face);
+    let outer = |body: &Body<f64>, face: FaceKey| body.get_face(face).unwrap().outer;
+    let nulls: Vec<_> = nulled
+        .edges()
+        .filter(|&(e, d)| nulled.edge_curve_linked(e, d).null_scaffold().is_some())
+        .map(|(e, _)| e)
+        .collect();
+    let [null] = nulls[..] else {
+        panic!("one null edge: {nulls:?}");
+    };
+    assert!(
+        crate::null::is_placeholder(&nulled, null),
+        "a fresh null edge is one point"
+    );
+    let halves_of = |body: &Body<f64>, e| {
+        let d = body.get_edge(e).unwrap();
+        [d.he_plus, d.he_minus]
+    };
+    let null_halves = halves_of(&nulled, null);
+
+    let lifted = |body: &Body<f64>, face| -> Vec<_> {
+        loop_lift_past_placeholders(body, outer(body, face))
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+            .collect()
+    };
+    let (skipped, bare) = (lifted(&nulled, face), lifted(&plain, plain_face));
+    assert_eq!(skipped.len(), bare.len(), "the null halves are left out");
+    for ((_, lift, start), (_, bare_lift, bare_start)) in skipped.iter().zip(&bare) {
+        assert_eq!(lift, bare_lift, "each row lifts as on the bare sheet");
+        assert_eq!(
+            (start.x, start.y),
+            (bare_start.x, bare_start.y),
+            "each row starts as on the bare sheet"
+        );
+    }
+    let Err(LiftGap { half_edge }) = nulled.loop_lift(outer(&nulled, face)) else {
+        panic!("the strict lift refuses the null edge");
+    };
+    assert!(
+        null_halves.contains(&half_edge),
+        "it gaps at a null half: {half_edge:?}"
+    );
+    for q in [
+        chart.eval(0.5, 0.5),
+        chart.eval(0.9, 0.4),
+        chart.eval(0.3, 0.6),
+    ] {
+        let got = place(&nulled, face, q);
+        assert!(
+            matches!(got, CurvedPlacement::Trim(Some(_))),
+            "the nulled sheet places {q:?}: {got:?}"
+        );
+        assert_eq!(
+            got,
+            place(&plain, plain_face, q),
+            "as the bare sheet at {q:?}"
+        );
+    }
+
+    // Each shape that is no placeholder gaps under both lifts, at one of
+    // the halves named.
+    let gaps_at = |body: &Body<f64>, lk, at: &[crate::HalfEdgeKey], what: &str| {
+        for (lift, got) in [
+            ("strict", body.loop_lift(lk).map(|_| ())),
+            (
+                "past placeholders",
+                loop_lift_past_placeholders(body, lk).map(|_| ()),
+            ),
+        ] {
+            let Err(LiftGap { half_edge }) = got else {
+                panic!("{what}: the {lift} lift gaps, got {got:?}");
+            };
+            assert!(
+                at.contains(&half_edge),
+                "{what}: the {lift} lift gaps at {half_edge:?}"
+            );
+        }
+    };
+    let unread = |body: &Body<f64>, what: &str| {
+        assert_eq!(
+            place(body, face, chart.eval(0.5, 0.5)),
+            CurvedPlacement::Trim(None),
+            "{what} leaves the trim unread"
+        );
+    };
+
+    // A null edge whose far end has parted from its near one.
+    let mut parted = nulled.clone();
+    let far = parted.get_half_edge(null_halves[1]).unwrap().start;
+    let moved = parted.add_point(chart.eval(0.3, 0.3));
+    parted.get_vertex_mut(far).unwrap().point = moved;
+    assert!(
+        !crate::null::is_placeholder(&parted, null),
+        "a parted null edge is no placeholder"
+    );
+    gaps_at(
+        &parted,
+        outer(&parted, face),
+        &null_halves,
+        "a parted null edge",
+    );
+    unread(&parted, "a parted null edge");
+
+    // A certified half with its row detached.
+    let (dropped, _, _) = skipped[1];
+    let mut torn = nulled.clone();
+    torn.detach_pcurve(dropped).unwrap();
+    gaps_at(
+        &torn,
+        outer(&torn, face),
+        &[dropped],
+        "a rowless certified half",
+    );
+    unread(&torn, "a rowless certified half");
+
+    // A closed certified edge: a circle planted in a box's top face, one
+    // edge whose halves both start on its one vertex, rowless on the
+    // plane.
+    let tol = Tol::witness();
+    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    let prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, tol);
+    let mut disc = prism.body;
+    let crate::LoopBoundary::Cycle { first } = disc
+        .get_loop(disc.get_face(prism.top_face).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("the top's outer loop is a cycle");
+    };
+    let planted = crate::test_support_fixtures::plant_disc_face(
+        &mut disc,
+        first,
+        Point3::new(1.0, 1.0, 1.0),
+        0.2,
+        tol,
+    );
+    let circle = halves_of(&disc, planted.edge);
+    let d = disc.get_edge(planted.edge).unwrap();
+    assert!(
+        disc.edge_curve_linked(planted.edge, d)
+            .certified()
+            .is_some()
+            && disc.get_half_edge(circle[0]).unwrap().start
+                == disc.get_half_edge(circle[1]).unwrap().start,
+        "the circle is certified and closes on its one vertex"
+    );
+    assert!(
+        !crate::null::is_placeholder(&disc, planted.edge),
+        "a closed certified edge is no placeholder"
+    );
+    gaps_at(&disc, planted.r#loop, &circle, "a closed certified edge");
+}
+
+/// **A placeholder at any joint of a face across a closed chart's seam,
+/// outer loop and hole alike, is read past.** Each half of each loop in turn gets a null strut fanned
+/// at its start (the seam-crossing joints among them); the trim lifts
+/// every other half as the bare face does and places each probe point
+/// as the bare face does.
+#[test]
+fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_face() {
+    let chart = square_tube();
+    let outer = [
+        (0.9, 0.2),
+        (1.0, 0.2),
+        (1.1, 0.2),
+        (1.1, 0.8),
+        (1.0, 0.8),
+        (0.9, 0.8),
+    ];
+    let hole = [(1.02, 0.4), (1.06, 0.4), (1.06, 0.6), (1.02, 0.6)];
+    let probes = [
+        (0.95, 0.5),
+        (0.05, 0.5),
+        (0.5, 0.5),
+        (0.2, 0.5),
+        (0.04, 0.5),
+        (0.95, 0.3),
+        (0.05, 0.3),
+        (0.99, 0.21),
+        (0.01, 0.79),
+    ];
+    for ring in [None, Some(&hole[..])] {
+        let (bare, face) = holed_sheet(&chart, &outer, ring);
+        let loops: Vec<_> = bare.get_face(face).unwrap().loop_keys().collect();
+        let want: Vec<_> = probes
+            .iter()
+            .map(|&(u, v)| place(&bare, face, chart.eval(u, v)))
+            .collect();
+        let rows = |b: &Body<f64>, lk| -> Vec<_> {
+            crate::pcurves::loop_lift_past_placeholders(b, lk)
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+                .collect()
+        };
+        for &lk in &loops {
+            for he in crate::pcurves::loop_rows(&bare, lk) {
+                let mut nulled = bare.clone();
+                nulled
+                    .mev_null(
+                        crate::construction::MevSite::Fan { he1: he, he2: he },
+                        crate::construction::NewVertexSide::Above,
+                    )
+                    .unwrap();
+                for &l in &loops {
+                    let (got, base) = (rows(&nulled, l), rows(&bare, l));
+                    assert_eq!(got.len(), base.len(), "ring {ring:?} at {he:?}");
+                    for (g, b) in got.iter().zip(&base) {
+                        assert_eq!(g.0, b.0, "same halves, same order at {he:?}");
+                        assert_eq!(g.1, b.1, "same deck at {he:?}");
+                        assert_eq!((g.2.x, g.2.y), (b.2.x, b.2.y), "same start at {he:?}");
+                    }
+                }
+                for (&(u, v), w) in probes.iter().zip(&want) {
+                    assert_eq!(
+                        place(&nulled, face, chart.eval(u, v)),
+                        *w,
+                        "ring {ring:?}, placeholder at {he:?}: ({u}, {v})"
+                    );
+                }
+            }
+        }
+    }
+}
