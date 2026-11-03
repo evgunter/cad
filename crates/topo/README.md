@@ -37,9 +37,9 @@ re-exported by `lib.rs`, and it declares nothing `pub(crate)`. Nothing
 outside it imports from it, test code included, and neither operation
 imports the other. A shared reading refuses in its own error type,
 never in an operation's. A K name's prefix is the module that decides
-the margin, never a caller's lane. The source walk's engine-door row
-holds this, and a red there means that what you need belongs at the
-root or below.
+the margin, never a caller's lane. The gate
+`scripts/gates/engine-leaves.sh` holds this, and a red there means
+that what you need belongs at the root or below.
 
 ## Where in the code
 
