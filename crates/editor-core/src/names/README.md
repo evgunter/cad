@@ -545,7 +545,9 @@ member face's area is named for that face; a face holding several is `Merged`
 of them, flat and in name order. Where several finished faces hold area of
 one member face, each of them takes one `Fragment(Borders)` over its divider
 walls (the other members' walls between them), the rule above; a finished
-face that is alone in holding each member face it holds needs none. A
+face that is alone in holding each member face it holds needs none, and
+neither does one that meets the others only along edges inside the held
+region, where what they hold differs and their bases tell them apart. A
 qualifier is read off the face's own holdings and walls, never a count of
 its siblings.
 

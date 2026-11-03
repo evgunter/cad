@@ -345,10 +345,8 @@ fn one_node_reads_a_family_plainly_at_one_seat_and_indexed_at_another() {
 }
 
 /// **A ring of unit blocks meeting on its axis edge**: no pair is
-/// certified apart, so every pair is judged. Rings of 5 and 6 build one
-/// solid, as the spelled union of the same turned copies does; a ring of
-/// 8 refuses its borders, as the spelled union does
-/// (`work/borders/a-ring-of-eight-blocks-meeting-on-one-edge-refuses-its-borders.md`).
+/// certified apart, so every pair is judged, and rings of 5, 6 and 8
+/// build one solid.
 #[test]
 fn a_ring_of_unit_blocks_meeting_on_its_axis_judges_every_pair() {
     for n in [5_i64, 6, 8] {
@@ -362,23 +360,10 @@ fn a_ring_of_unit_blocks_meeting_on_its_axis_judges_every_pair() {
             .since(before)
             .judgements;
         assert_eq!(judged, u64::try_from(n * (n - 1) / 2).unwrap(), "ring {n}");
-        match (n, ev.value(u).map(|v| &v.payload)) {
-            (5 | 6, Some(ValuePayload::Boolean(BooleanValue::Body { body, .. }))) => {
+        match ev.value(u).map(|v| &v.payload) {
+            Some(ValuePayload::Boolean(BooleanValue::Body { body, .. })) => {
                 assert_eq!(body.body().solids().count(), 1, "ring {n}");
             }
-            (8, None) => assert!(
-                matches!(
-                    ev.result(u),
-                    Some(editor_core::NodeResult::Failed(editor_core::NodeError {
-                        kind: editor_core::NodeErrorKind::Naming(
-                            editor_core::NamingError::Emission { .. }
-                        ),
-                        ..
-                    }))
-                ),
-                "ring {n}: {:?}",
-                ev.result(u)
-            ),
             _ => panic!("ring {n}: {:?}", ev.result(u)),
         }
     }

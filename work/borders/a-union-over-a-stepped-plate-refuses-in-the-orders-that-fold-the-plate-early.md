@@ -102,3 +102,23 @@ Controls:
 - with `Links::judged` restricted to cross-member pairs (main before PR 6342), every order refuses as the typed `UnsupportedUnjudgedGlue`.
 
 So PR 6342's same-member link moves this recipe from a uniform typed refusal into this row's order-dependent class. The reviewer's probe source, with these fixtures, is in the PR 6342 review record; the fixtures above are enough to rebuild it.
+
+## Measured under the per-face rule (REFS, PR 6381, 2026-11-03)
+
+PR 6381 names a boolean's faces for exactly the member faces each holds,
+read off the kernel's holdings, and takes a face's `Borders` walls over
+the lost region of the member faces the finished faces join. A holder
+that meets no divider takes no wall, and the emission refuses only where
+two faces would then share one name. On the three stepped-plate fixtures
+of `tests/emit_union_borders.rs`:
+
+- `a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited`: all
+  24 orders publish one table (16 refused before).
+- `a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider`:
+  all 24 orders publish; the 8 that fold the diamond after the plate and
+  `m` do not cite the diamond, the rest do. That split is
+  `borders-records-a-join-twice-and-reads-lineage-three-ways`'s.
+- `a_divider_beside_a_joined_seam_does_not_reach_across_it`: unchanged
+  in shape; (plate, m, t) and (m, plate, t) still over-link.
+
+The flush engulf and the three-box reproducer were not re-measured.

@@ -608,28 +608,28 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// "Holds" is read off the finished body and the members' own bodies,
 /// never off the fold:
 /// - a finished EDGE lies within member `n`'s edge `e` when its two
-///   faces descend from `e`'s two faces in `n` (their names cite them,
-///   through a `Merged` set or a `Fragment`) and it lies within `e`
+///   faces hold `e`'s two faces in `n` (their parents cite them, alone
+///   or through a `Merged` set) and it lies within `e`
 ///   along `e`'s carrier: a segment of its line where `e` is straight,
 ///   a span of its certified curve where `e` is curved
 ///   ([`joined_along`], [`ON_MEMBER_EDGE`]); it runs ALONG `e` when
 ///   instead the two overlap over a length of that carrier;
 /// - a finished VERTEX sits at member `n`'s vertex `w` when it is at
-///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it descends
-///   from a face of `n` that `w` lies on.
+///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it holds a face
+///   of `n` that `w` lies on.
 ///
 /// The face test is what keeps two shells apart that only touch: a
 /// shell's entity lies on the other member's edge or corner, but none
-/// of its faces descends from that member.
+/// of its faces holds a face of that member.
 struct Flush<'a, T: geom_core::Decide> {
     union: RecipeNodeId,
     body: &'a topo::Body<T>,
     members: &'a [Member<'a, T>],
     inc: Incidence,
-    /// Finished face → the member faces it descends from, each by its
-    /// member's index: a tied name's candidates are separate parents
-    /// spelled alike, so a member face is read by its key and never
-    /// looked up by name.
+    /// Finished face → the member faces it holds, each by its member's
+    /// index: a tied name's candidates are separate parents spelled
+    /// alike, so a member face is read by its key and never looked up by
+    /// name.
     face_ents: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
     /// Finished edge → the member edges it lies within.
     edges: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
@@ -690,8 +690,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     /// How finished edge `k`, between faces `fs`, lies along the member
-    /// edges between two faces of one member that its faces descend
-    /// from ([`joined_candidates`], [`joined_along`]), each by its
+    /// edges between two faces of one member that its faces hold
+    /// ([`joined_candidates`], [`joined_along`]), each by its
     /// member's name for it, a tied one included.
     ///
     /// # Errors
@@ -903,10 +903,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// Its lines are the member edges the finished edges at `v` lie on,
     /// those that run flush on one line once as the set of them
     /// ([`sets_per_line`], [`Flush::line_sense`]), and each seam
-    /// at `v` whose two faces descend from no face of those member edges,
+    /// at `v` whose two faces hold no face of those member edges,
     /// cited by its group's base ([`EdgeLines`]). One member edge and no
     /// seam is the `Crossing` of that edge and the one face at `v` that
-    /// descends from none of its faces, cited by its parent; two or more
+    /// holds none of its faces, cited by its parent; two or more
     /// lines are their `EdgeCrossing` run. Each line carries its sense
     /// against the members of the name's other entries: a line of member
     /// edges from the pairwise judgements ([`Flush::line_sense`]), a seam
@@ -1218,7 +1218,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         Ok(sides)
     }
 
-    /// The members finished face `f` descends from a face of, by read.
+    /// The members finished face `f` holds a face of, by read.
     fn members_of(&self, f: &topo::FaceKey) -> BTreeSet<VarId> {
         self.face_ents
             .get(f)
@@ -1610,7 +1610,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// **The name of the member vertices finished vertex `v` sits at**,
     /// if any: each vertex `w` of a member `n` at `v`'s point that lies on
-    /// a face of `n` a face around `v` descends from, the one such vertex
+    /// a face of `n` a face around `v` holds, the one such vertex
     /// or `Merged` of the several; whether a member's table ties one of
     /// them, a tie its citing name descends from (N2); and the vertices,
     /// each by its member's index.
@@ -1698,7 +1698,7 @@ struct MemberVertices {
     corners: BTreeSet<(usize, topo::VertexKey)>,
 }
 
-/// The member faces a face name of the union descends from: its own
+/// The member faces a face name of the union cites: its own
 /// member face, or every constituent's of a `Merged` set, through any
 /// `Fragment` after either.
 fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
