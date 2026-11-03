@@ -124,6 +124,8 @@ mod a_pole_and_an_apex_join_nothing;
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
+#[path = "a_rim_arc_on_a_cylinder_beside_a_spline_wall.rs"]
+mod a_rim_arc_on_a_cylinder_beside_a_spline_wall;
 #[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
 mod a_rim_covering_part_of_its_row_re_mints_the_rows_arc;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]

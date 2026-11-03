@@ -3001,8 +3001,8 @@ pub enum BooleanError {
     /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's
-    /// generator, an undeclared on-carrier
-    /// edge or conic, a root the band cannot place, or a
+    /// generator, an edge or a conic lying on the face's carrier beside a
+    /// face not read distinct from it, a root the band cannot place, or a
     /// trim the chart door declines to express (the M5 envelope's
     /// frontier; the C5 table routes the SECTIONS, this is the crossing
     /// layer). The

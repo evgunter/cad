@@ -605,70 +605,43 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: half of the loop's start-cap rim, the
-/// circle arc at `z = 3` from `(0.275, 0, 3)` to `(−0.275, 0, 3)`, against
-/// the bulb's neck cylinder (radius 0.275 about the `z` axis), which the
-/// arc lies on. The loop's sections start their circles on the start
-/// frame's `+x`, so the rim's vertices sit in the plane `y = 0`, one of
-/// them on the neck cylinder's seam point, and the curved pierce door
-/// takes no conic lying on the face it is read against. The refusal
-/// names the loop's edge and the bulb's face, not the site. Shared with
+/// Wall 3's pinned refusal: a germ pair of the bulb's cone face and the
+/// loop's spline wall, whose section has no arm to name the frame its
+/// germ line turns in (the NURBS × cone section). The loop's start-cap
+/// rim arc, which lies on the bulb's neck cylinder beside the loop's
+/// spline wall, is taken before it. Both faces are pinned by key and by
+/// their surfaces' kinds as the two operands hold them. Shared with
 /// `verbs_gate_r1_probes`, so the two cannot drift.
 pub fn wall3_pinned<S: Scalar>(
     e: &BooleanError,
     bulb: &AtRestBody<S>,
     top: &AtRestBody<S>,
 ) -> bool {
-    let BooleanError::CurvedPierceUnsupported {
-        operand: Operand::B,
-        face,
-        edge,
-        ..
+    let BooleanError::GermFrameUnsupported {
+        a_face,
+        a_kind: SurfaceKind::Cone,
+        b_face,
+        b_kind: SurfaceKind::Nurbs,
     } = e
     else {
         return false;
     };
-    let near = |p: Point3<S>, q: [f64; 3]| {
-        [(p.x, q[0]), (p.y, q[1]), (p.z, q[2])]
-            .iter()
-            .all(|&(c, k)| {
-                let (lo, hi) = (
-                    pncad::geom_core::Bounds::lo(c),
-                    pncad::geom_core::Bounds::hi(c),
-                );
-                (lo - k).abs() < 1e-3 && (hi - k).abs() < 1e-3
-            })
+    let kind_of = |body: &AtRestBody<S>, f| {
+        body.get_face(f)
+            .and_then(|f| body.get_surface(f.surface))
+            .map(|s| s.kind())
     };
-    let the_rim_arc = top.get_edge(*edge).is_some_and(|e| {
-        let ends = [e.he_plus, e.he_minus].map(|he| top.half_edge_start_point(he));
-        let circle = matches!(
-            top.get_curve_geom(e.curve),
-            Some(pncad::topo::CurveGeom::Certified(c))
-                if matches!(c.carrier(), pncad::geom::Curve3::Circle(_))
-        );
-        circle
-            && matches!(ends, [Some(p), Some(q)]
-                if near(p, [0.275, 0.0, 3.0]) && near(q, [-0.275, 0.0, 3.0]))
-    });
-    let the_neck = bulb
-        .get_face(*face)
-        .and_then(|f| bulb.get_surface(f.surface))
-        .is_some_and(|s| match s {
-            pncad::geom::Surface::Cylinder { axis, radius, .. } => {
-                let r = pncad::geom_core::Bounds::lo(*radius);
-                (r - 0.275).abs() < 1e-3
-                    && near(Point3::new(axis.x, axis.y, axis.z), [0.0, 0.0, 1.0])
-            }
-            _ => false,
-        });
-    the_rim_arc && the_neck
+    format!("{a_face:?}") == "FaceKey(6v1)"
+        && format!("{b_face:?}") == "FaceKey(4v1)"
+        && kind_of(bulb, *a_face) == Some(SurfaceKind::Cone)
+        && kind_of(top, *b_face) == Some(SurfaceKind::Nurbs)
 }
 
 /// Wall 4's pinned refusal: one of the loop's rational NURBS walls
 /// against a planar face of the bulb, at the ∖/∩ revert roster. Both
 /// kinds and the op are pinned, so a pair that changed kind reds. A
 /// NURBS face has no seam lane under ∖ and ∩, and the roster has no
-/// covered rung whatever the pair; it answers before the pierce that
+/// covered rung whatever the pair; it answers before the join that
 /// stops wall 3.
 pub fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
@@ -1121,10 +1094,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
-    // annular faces — the REST mate — and the union refuses past them:
-    // half of the loop's start-cap rim lies on the bulb's neck
-    // cylinder, and the curved pierce door takes no conic lying on the
-    // face it is read against.
+    // annular faces — the REST mate — and the union refuses past them,
+    // at the join: the loop's spline wall against the bulb's cone has
+    // no section arm to frame its germ line.
     crate::walls::wall(
         "bottle",
         3,
