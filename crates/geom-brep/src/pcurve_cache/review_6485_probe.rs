@@ -377,3 +377,48 @@ fn review_6485_thin_torus_terms() {
         println!("    total: f64 {:e}  Interval hi {:e}", t.total(), ti.total().hi());
     }
 }
+
+/// `PcurveCache::certify` alone (no mint-time incidence read) on a
+/// projected crest-circle row standing past `zero` on a thin torus.
+#[test]
+fn review_6485_thin_torus_certify_door_past_zero() {
+    let b = band();
+    let f = Interval::from_f64;
+    let mut wrong = 0;
+    for &major in &[1.0, 5.0, 20.0, 50.0] {
+        for &ratio in &[1e-2, 1e-3, 1e-4] {
+            let minor = major * ratio;
+            let surface = Surface::Torus {
+                center: Point3::new(0.3, -0.7, 0.2),
+                axis: Vec3::new(0.2, -0.4, 1.0).normalize(),
+                major_radius: major,
+                minor_radius: minor,
+                u_ref: Vec3::new(0.2, -0.4, 1.0).normalize().cross(Vec3::unit_x()).normalize(),
+            };
+            for i in 0..30 {
+                let target = b.zero() * (1.2 + 0.2 * f64::from(i));
+                let delta = (2.0 * minor * target).sqrt();
+                let phi = 0.3 + 0.1 * f64::from(i);
+                let c = Vec3::new(phi.cos() * delta, phi.sin() * delta, minor);
+                let carrier = framed_circle(&surface, c, Vec3::unit_z(), major);
+                let span = (0.0, TAU);
+                let Ok(p) = projected::project(&carrier, Some(span), &surface, b) else { continue };
+                let image = Pcurve::Projected(Box::new(p));
+                let Ok(cache) = PcurveCache::certify(image.clone(), span.0, span.1, &carrier, &surface, b) else {
+                    continue;
+                };
+                let sup = residual(&image, span, &carrier, &surface);
+                let env = cache.certificate().envelope;
+                let noise = 1e3 * f64::EPSILON * major;
+                if sup > b.zero() + noise {
+                    wrong += 1;
+                    let interval = projected::project(&carrier.map_scalar(f), Some((f(0.0), f(TAU))), &surface.map_scalar(f), b)
+                        .ok()
+                        .map(|p| PcurveCache::certify(Pcurve::Projected(Box::new(p)), f(0.0), f(TAU), &carrier.map_scalar(f), &surface.map_scalar(f), b).is_ok());
+                    println!("[door-wrong] R {major} r {minor:e}: f64 certify Ok, envelope {env:e}, residual {sup:e} = {:.2}·zero (Interval certifies: {interval:?})", sup / b.zero());
+                }
+            }
+        }
+    }
+    println!("[door] wrong {wrong}");
+}
