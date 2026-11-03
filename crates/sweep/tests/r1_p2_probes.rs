@@ -509,7 +509,12 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
                 &Surface::Nurbs(Arc::new(chart.clone())),
                 band(),
             )
-            .unwrap_or_else(|e| panic!("the interior column certifies exactly: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "the interior column certifies exactly: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert!(
                 cache.certificate().envelope <= eps,
                 "its collapsed-row hull is inside ε = {eps:e}: {:e} m",

@@ -10,9 +10,8 @@ moved to WIRETAIL (`log.md`, same date).
 
 ## The slate
 
-**30 budget points** against a ceiling of 30. Nothing here stands on
-ground D10 is still rebuilding; a lane that finds it does stops and
-says so.
+**30 budget points** against a ceiling of 30. Nothing here waits on
+D10, whose build closed with INTENT (2026-10-30, #6103).
 
 | pri | item | cost | note |
 |---|---|---|---|

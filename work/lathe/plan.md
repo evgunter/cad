@@ -69,14 +69,15 @@ Opened 2026-10-06 by CARVE's second priority-seam cut
 | P2 | `carve-refusals-short-of-the-shape-guard` | M | refusals the viewer draws that state no recourse, by the shape guard's census |
 | P2 | `copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls` | E | the nappe selector and the revolve max-fold spell a two-way choice with copysign |
 | P2 | `loft-arc-columns-end-on-the-carrier-not-the-vertex` | M | an arc's NURBS column starts and ends on the carrier, not on the stored vertices |
-| P1 | `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint` | H | the skin cuts a spline wall at each sub-arc joint, so a lofted arc wall carries a C⁰ knot inside it |
+| P0 | `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint` | H | the skin cuts a spline wall at each sub-arc joint, so a lofted arc wall carries a C⁰ knot inside it |
 | P3 | `revolve-angle-is-a-signed-size-beside-a-directed-axis` | E | the revolve's signed angle stays (Ev, PR 3941); its zero and full-turn refusals state no recourse |
 | P4 | `tube-escalated-runs-past-the-word-budget` | E | TubeError::Escalated renders 52 words |
 
-Parked on `d10-one-way-to-say-intent-is-unbuilt`:
-`half-revolve-caps-are-never-an-operand`,
-`loft-walls-keyed-per-segment-on-a-declared-carrier`,
-`loft-between-opposite-turning-joints-reverses-a-seam-between-stations`.
+Once parked on the D10 hold, which lifted when INTENT closed
+(2026-10-30, #6103): `half-revolve-caps-are-never-an-operand` and
+`loft-walls-keyed-per-segment-on-a-declared-carrier` are open, and
+`loft-between-opposite-turning-joints-reverses-a-seam-between-stations`
+is parked on `self-overlapping-spines-build-and-validate`.
 
 ### Order
 

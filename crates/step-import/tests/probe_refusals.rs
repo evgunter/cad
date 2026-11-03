@@ -45,7 +45,7 @@ fn orphan_curve_set_refuses() {
          #952 = CIRCLE('',#11,1.);",
     );
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
-        Err(e) => println!("orphan curve set refuses typed: {e}"),
+        Err(e) => println!("orphan curve set refuses typed: {e_at}", e_at = e.render()),
         other => panic!("an orphan curve set must refuse, got {other:?}"),
     }
 }

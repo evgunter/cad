@@ -159,7 +159,8 @@ pub fn narration(tol: Tol) {
         tol,
     );
     let cfg = ChecksConfig::default();
-    let report = run_checks(&doc, &ev, &cfg, tol).expect("checks run");
+    let report =
+        run_checks(&doc, &ev, &cfg, &pncad::document::Stop::default(), tol).expect("checks run");
     println!("   a two-cube DISJOINT union, checked at the default expectation:");
     println!("   {}", report.spoken(&doc));
     assert_eq!(report.findings.len(), 1);
@@ -185,7 +186,14 @@ pub fn narration(tol: Tol) {
         expected_components: BTreeMap::from([((placement, 0), 2)]),
         ..ChecksConfig::default()
     };
-    let report = run_checks(&doc, &ev, &acknowledged, tol).expect("checks run");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &acknowledged,
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("checks run");
     println!("   the same document, disjointness ACKNOWLEDGED (expected_components = 2):");
     println!("   {}", report.spoken(&doc));
     assert!(report.findings.is_empty());
@@ -199,7 +207,14 @@ pub fn narration(tol: Tol) {
         (0.0, 0.5, 1.0, 1.0),
         tol,
     );
-    let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("checks run");
+    let report = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("checks run");
     println!("   a subtract with the tool strictly interior (outer shell + void shell):");
     println!("   {}", report.spoken(&doc));
     assert!(report.findings.is_empty());

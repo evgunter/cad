@@ -137,7 +137,10 @@ fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
                 );
             }
             Ok(other) => panic!("{name}: not an Approx: {other:?}"),
-            Err(e) => eprintln!("E2E {name}: REFUSED typed: {e}"),
+            Err(e) => eprintln!(
+                "E2E {name}: REFUSED typed: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -183,7 +186,10 @@ fn a_global_weight_scale_does_not_move_the_certificate() {
                     c.hull_sup / first
                 );
             }
-            Err(e) => eprintln!("weight scale k={k:.0e}: REFUSED {e}"),
+            Err(e) => eprintln!(
+                "weight scale k={k:.0e}: REFUSED {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -246,7 +252,10 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
                     c.hull_sup
                 );
             }
-            Err(e) => eprintln!("hostile [{name}]: refused typed: {e}"),
+            Err(e) => eprintln!(
+                "hostile [{name}]: refused typed: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -263,7 +272,10 @@ fn the_elliptic_wall_certifies_at_the_tolerance_the_probes_ask_of_it() {
     let base = elliptic_wall(2.0, 1.0, 1.0);
     let (d, tol) = (0.1, 1e-3);
     let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
-        panic!("LIVENESS: the elliptic wall refused at d = {d}, tol = {tol}: {e}")
+        panic!(
+            "LIVENESS: the elliptic wall refused at d = {d}, tol = {tol}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
     });
     assert!(
         cert.hull_sup <= tol,

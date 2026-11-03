@@ -294,8 +294,12 @@ fn validated_halves(
     volumes: [f64; 2],
 ) {
     let plane = topo::test_support::split_plane(q, n, tol());
-    let got = topo::splitting::split(body, &plane, tol())
-        .unwrap_or_else(|e| panic!("{what}: the split refused: {e}"));
+    let got = topo::splitting::split(body, &plane, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the split refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     for (side, part, want) in [
         ("above", &got.above, volumes[0]),
         ("below", &got.below, volumes[1]),
@@ -499,8 +503,12 @@ fn a_near_square_rod_minus_a_box_builds() {
         for s in gap_sines(r, r / 2.0) {
             let what = format!("r {r:e}, sin θ {s:e}");
             let rod = rotated(&rod(r), Vec3::unit_y(), s.asin());
-            let got = topo::subtract(&rod, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&rod, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cos = (1.0 - s * s).sqrt();
             assert_volume(
                 &what,
@@ -716,8 +724,12 @@ fn a_near_square_frustum_minus_a_box_builds() {
                 Vec3::unit_z(),
                 s.asin(),
             );
-            let got = topo::subtract(&turned, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&turned, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let delta = f.apex * (1.0 - s * s).sqrt() - y0;
             let want = PI * f.r0 * f.r0 * f.apex / 3.0 - apex_cone_volume(delta, s);
             assert_volume(&what, &got.body().expect("a body").body, want);
@@ -883,8 +895,12 @@ fn a_turned_near_square_rod_minus_a_box_builds() {
             let what = format!("turned, r {r:e}, sin θ {s:e}");
             let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), s.asin());
             let rod = moved_body(&rod(r), &(map * tilt));
-            let got = topo::subtract(&rod, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&rod, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cos = (1.0 - s * s).sqrt();
             assert_volume(
                 &what,

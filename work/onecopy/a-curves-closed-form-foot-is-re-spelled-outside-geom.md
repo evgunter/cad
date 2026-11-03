@@ -20,3 +20,7 @@ The line arms now read `geom::Line::param`/`foot`; the circle arms are still the
 Inside `geom` itself, `Curve3::param_near`'s `Line` arm reads `(p − origin)·dir`, taking `dir` as unit, while `Curve3::foot` and `geom::Line::param` divide by `dir·dir`. They agree on a unit `dir` up to rounding and disagree on any other; `geom::Line::param` is the one that holds for every nonzero `dir` (pinned by `geom` `curves::tests::a_lines_foot_is_square_to_it_at_any_dir_length`). Routing `param_near` through it moves the last bits of every line edge's endpoint parameter, which is why it was left for its own review.
 
 Fix: one foot reading in `geom` (a closed-form arm in `Curve3::foot` for the circle, if the polish is the cost these copies avoid), with the copies repointed and `param_near`'s line arm reading `Line::param`.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

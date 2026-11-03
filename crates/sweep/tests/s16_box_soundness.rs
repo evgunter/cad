@@ -58,10 +58,9 @@ use crate::common::operands::{
 };
 use geom_core::Tol;
 use geom_core::{Point2, Vec3};
-use std::collections::BTreeSet;
 use sweep::test_support::{brick, finished};
 use topo::{
-    Body, BooleanError, BooleanResult, ContactRecords, SweepStrategy, SweepTrace, ValidationError,
+    Body, BooleanError, BooleanResult, ContactRecords, SweepStrategy, ValidationError,
     sweep_traces, validate_pseudomanifold,
 };
 
@@ -389,12 +388,6 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
     v
 }
 
-type Pair = (topo::EdgeKey, topo::FaceKey);
-
-fn examined(t: &SweepTrace) -> BTreeSet<Pair> {
-    t.examined.iter().copied().collect()
-}
-
 /// **Soundness, at the door that prunes.** On every corpus pair where
 /// the brute-force reference runs, the realized sweep's candidate set
 /// contains every pair the reference ACCEPTED an event on — per
@@ -415,18 +408,17 @@ fn conic_pruning_never_loses_an_accepted_pair() {
             continue;
         };
         for (dir, r, i) in [("A→B", &real.0, &ideal.0), ("B→A", &real.1, &ideal.1)] {
-            let ex = examined(r);
-            let lost: Vec<Pair> = i
-                .accepted
-                .iter()
-                .copied()
-                .filter(|p| !ex.contains(p))
-                .collect();
+            assert!(
+                r.is_restriction_of(i),
+                "{name} {dir}: the realized examined sequence is not a restriction of the \
+                 reference's"
+            );
+            let lost = r.lost_accepted(i);
             assert!(
                 lost.is_empty(),
                 "{name} {dir}: the realized sweep never examined accepted pairs {lost:?}"
             );
-            if !i.accepted.is_empty() && !accepting.contains(&name) {
+            if !i.accepted().is_empty() && !accepting.contains(&name) {
                 accepting.push(name.clone());
             }
         }
@@ -454,7 +446,7 @@ fn a_plate_clear_of_the_rim_by_more_than_the_pad_is_not_examined() {
     let count = |b: &Body<f64>| {
         let (ab, ba) =
             sweep_traces(&cyl, b, SweepStrategy::Realized, None, Tol::witness()).unwrap();
-        ab.examined.len() + ba.examined.len()
+        ab.examined().len() + ba.examined().len()
     };
     assert!(
         count(&rim_plate(-0.499)) > 0,
@@ -482,7 +474,7 @@ fn a_plate_clear_of_the_rim_by_more_than_the_pad_is_not_examined() {
     let (ab, ba) =
         sweep_traces(&cyl, &apart, SweepStrategy::Realized, None, Tol::witness()).unwrap();
     assert_eq!(
-        ab.examined.len() + ba.examined.len(),
+        ab.examined().len() + ba.examined().len(),
         0,
         "two cylinders 1e-3 apart must be pruned outright"
     );

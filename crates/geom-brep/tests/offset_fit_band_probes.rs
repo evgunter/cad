@@ -45,7 +45,7 @@ fn every_door_refuses(tol: Tol, want: BandError) {
             panic!("{door} did not refuse at eps={:e}", tol.eps());
         };
         assert_eq!(error, OffsetFitError::Band(want), "{door}");
-        let msg = error.to_string();
+        let msg = error.render(geom_brep::recourse::Reading::Build);
         assert!(
             msg.contains("Recourse: run at a less extreme tolerance"),
             "{door}: {msg}"

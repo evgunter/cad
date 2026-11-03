@@ -108,15 +108,23 @@ impl Say for ExportError {
                 "export: {}'s body is not at rest ({} finding(s), first: {})",
                 by.node(*node),
                 errors.len(),
-                errors
-                    .first()
-                    .map_or_else(|| "none".to_owned(), ToString::to_string)
+                // The export reads a body at rest.
+                errors.first().map_or_else(
+                    || "none".to_owned(),
+                    |e| e.render(geom_brep::recourse::Reading::AtRest)
+                )
             ),
+            // The composition is a map the export runs: a build.
             ExportError::Compose(e) => write!(
                 f,
-                "export: the body could not be composed into its space's coordinates: {e}"
+                "export: the body could not be composed into its space's coordinates: {}",
+                e.render(geom_brep::recourse::Reading::Build)
             ),
-            ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
+            ExportError::Step(e) => write!(
+                f,
+                "export: the STEP writer refused: {}",
+                e.render(geom_brep::recourse::Reading::AtRest)
+            ),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
         }
     }

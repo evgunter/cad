@@ -44,7 +44,7 @@ use sweep::blend::ALL_RECOURSES as ALL;
 /// Assert that the rendered refusal carries `expect` (or nothing, when
 /// `expect` is `None`) and NO other recourse sentence.
 fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     if let Some(e) = expect {
         assert!(
             text.contains(e),

@@ -60,7 +60,12 @@ fn a_spline_capped_box_moves_every_chart_onto_its_closed_form() {
         crate::common::approx::band(),
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("eps {eps:e}: every chart moves together: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "eps {eps:e}: every chart moves together: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let mut corners = 0;
     for (_, v) in body.vertices() {
         let p = *body.get_point(v.point).expect("a live vertex's point");
@@ -196,7 +201,12 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
         );
         return;
     }
-    moved.unwrap_or_else(|e| panic!("eps {eps:e}: every chart moves together: {e}"));
+    moved.unwrap_or_else(|e| {
+        panic!(
+            "eps {eps:e}: every chart moves together: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let mut corners = 0;
     for (_, v) in body.vertices() {
         let p = *body.get_point(v.point).expect("a live vertex's point");
@@ -236,11 +246,15 @@ fn shelling_a_spline_capped_box_refuses_past_the_door() {
     let e = topo::shell(&at_rest, T, Tol::witness())
         .expect_err("the fitted cavity cap's quadrature is not built");
     let ShellError::NotValid { errors } = &e else {
-        panic!("expected the thin solid's tier-3 refusal, got {e}");
+        panic!(
+            "expected the thin solid's tier-3 refusal, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         only_the_fitted_caps_quadrature(errors),
-        "expected only the fitted cap's quadrature refusal, got {e}"
+        "expected only the fitted cap's quadrature refusal, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     let e = topo::shell_open(&at_rest, T, &[cap], Tol::witness())
         .expect_err("an offset of a fit is not built");
@@ -303,8 +317,12 @@ fn tangent_charts_shell_onto_their_closed_forms() {
     ] {
         let at_rest = finished(name, body, Tol::witness());
         for t in [0.1, 0.05] {
-            let shelled = topo::shell(&at_rest, t, Tol::witness())
-                .unwrap_or_else(|e| panic!("eps {eps:e}, {name} at {t}: the shell builds: {e}"));
+            let shelled = topo::shell(&at_rest, t, Tol::witness()).unwrap_or_else(|e| {
+                panic!(
+                    "eps {eps:e}, {name} at {t}: the shell builds: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let props = topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
@@ -314,7 +332,12 @@ fn tangent_charts_shell_onto_their_closed_forms() {
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap_or_else(|e| panic!("eps {eps:e}, {name} at {t}: the thin solid weighs: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "eps {eps:e}, {name} at {t}: the thin solid weighs: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                )
+            });
             let want = closed(t);
             assert!(
                 (props.enclosure.volume - want).abs() <= props.enclosure.volume_pad + 10.0 * eps,
@@ -377,8 +400,14 @@ fn a_collapse_names_the_move_that_made_it() {
         "eps {eps:e}: expected the collapse at the side's distance, got {e:?}"
     );
     let mut inside = body.clone();
-    topo::offset_surfaces_together(&mut inside, &moves(-1.0), band, Tol::witness())
-        .unwrap_or_else(|e| panic!("eps {eps:e}: a side moved inside the box moves: {e}"));
+    topo::offset_surfaces_together(&mut inside, &moves(-1.0), band, Tol::witness()).unwrap_or_else(
+        |e| {
+            panic!(
+                "eps {eps:e}: a side moved inside the box moves: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        },
+    );
 }
 
 /// A stadium prism: a 2 × 1 rectangle with half discs on its short

@@ -711,8 +711,15 @@ fn a_split_carries_a_held_slits_band() {
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
         doc.ids().iter().copied().filter(|&n| n != lead).collect();
-    let out = split(&doc, &cut, DocumentId::derive("teapot-lid-part"), tol, None)
-        .expect("the lid splits out whole");
+    let out = split(
+        &doc,
+        &cut,
+        DocumentId::derive("teapot-lid-part"),
+        tol,
+        None,
+        &pncad::document::Stop::default(),
+    )
+    .expect("the lid splits out whole");
     let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);
     let held = match out.part.node(part_holder) {
         Some(Node::Fillet { selection, .. }) => out

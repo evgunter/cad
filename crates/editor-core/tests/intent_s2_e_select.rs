@@ -403,6 +403,7 @@ fn a_split_keeps_a_named_crossing_selection_shared() {
         editor_core::DocumentId::derive("s2e-split-shared-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("the placed prism splits out");
     let rem = &out.remainder;
@@ -453,6 +454,7 @@ fn inline_rehosts_a_selection_downstream_of_the_instance() {
         editor_core::DocumentId::derive("s2e-inline-downstream-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("the placed prism splits out");
     let mut store = PartStore::new();

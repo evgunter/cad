@@ -128,40 +128,15 @@ pub(crate) struct Drafts {
     /// The trace the two latches show, as last read against the landed
     /// evaluation ([`Self::sync_trace_shown`]).
     pub(crate) trace_shown: Option<TraceShown>,
-    /// The split form's plane: a point on it, metres, in the target's
-    /// own coordinates.
-    pub(crate) split_origin: [f64; 3],
-    /// The split form's plane normal (unitless).
-    pub(crate) split_normal: [f64; 3],
-    /// The split target the plane's point was last seeded for: a new
-    /// target seeds it at that body's centre
-    /// ([`crate::splitplane::centre`]), and the person's edits stand
-    /// until the target changes.
-    pub(crate) split_seeded: Option<pncad::document::Operand>,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
     /// calls, and so whether the placements come out as separate
     /// instances or as one fused body.
     pub(crate) pattern_output: PatternOutputChoice,
-    /// Its instance count — an INTEGER all the way from the field,
-    /// because the slot it lands in is Count-typed and a number that
-    /// was rounded on the way could differ from the one on screen.
-    pub(crate) pattern_count: i64,
-    /// The linear rule's direction: one of the space's axes, or `None`
-    /// for the edge or face the tool holds picked.
-    pub(crate) pattern_along: Option<pncad::document::TargetAxis>,
-    /// The linear rule's spacing, metres.
-    pub(crate) pattern_spacing: f64,
-    /// The circular rule's angular step, radians.
-    pub(crate) pattern_step: f64,
-    /// The circular rule's axis: one of the space's axes through its
-    /// origin, or `None` for the edge or face the tool holds picked.
-    pub(crate) pattern_about: Option<pncad::document::TargetAxis>,
     /// Which instance of a pattern it projects — an INTEGER all the
-    /// way from the field, for [`Drafts::pattern_count`]'s reason: the
-    /// slot it lands in is Count-typed and a number rounded on the way
-    /// could differ from the one on screen.
+    /// way from the field: the slot it lands in is Count-typed and a
+    /// number rounded on the way could differ from the one on screen.
     pub(crate) part_instance: i64,
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
@@ -293,14 +268,22 @@ pub(crate) enum Pending {
     Shape(RecordedProgramError),
 }
 
-impl std::fmt::Display for Pending {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Pending {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
-            Self::Door(refusal) => write!(f, "{refusal}"),
+            Self::Door(refusal) => {
+                write!(f, "{}", pncad::geom_brep::recourse::read_at(refusal, at))
+            }
             Self::Shape(error) => write!(f, "{error}"),
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(Pending);
 
 /// **One change to the shape of the profile editor's draft** — what a
 /// click asks for, applied after the fields of its frame
@@ -1165,17 +1148,8 @@ impl Default for Drafts {
             trace_face: None,
             trace_gesture: sketch::TraceGesture::default(),
             trace_shown: None,
-            split_origin: [0.0; 3],
-            split_normal: [0.0, 0.0, 1.0],
-            split_seeded: None,
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
-            pattern_count: 3,
-            // The one home both stepping gestures open on.
-            pattern_along: Some(pncad::document::TargetAxis::X),
-            pattern_spacing: 0.02,
-            pattern_step: core::f64::consts::FRAC_PI_2,
-            pattern_about: Some(pncad::document::TargetAxis::Z),
             // The FIRST instance, which is the copy rather than the
             // original: a projection of instance 0 is the master where
             // it already stands, so the index a person opening this
@@ -1752,22 +1726,6 @@ pub(crate) fn traced_template() -> (Vec<Step<f64>>, usize) {
     )
 }
 
-/// Three dimensionless literals — a normal, a direction, a rotation
-/// axis. Not a [`Drafts`] method, because there is no notation to
-/// carry from the form: a dimensionless number has one spelling, and
-/// `Formula::literal` stores that row itself.
-///
-/// # Errors
-///
-/// A non-finite component.
-pub(crate) fn scalars(v: [f64; 3]) -> Result<[Formula; 3], DimensionError> {
-    Ok([
-        Formula::literal(v[0], Dimension::Scalar)?,
-        Formula::literal(v[1], Dimension::Scalar)?,
-        Formula::literal(v[2], Dimension::Scalar)?,
-    ])
-}
-
 /// **A face's trace as the traced path's form shows it**: the latches
 /// it was read for, the evaluation it was read against, and what the
 /// read said.
@@ -1797,8 +1755,11 @@ pub(crate) enum CommitFault {
     Program(RecordedProgramError),
     /// A traced path does not lower.
     Traced(sketch::TracedLoopError),
-    /// A pattern's direction is the picked geometry, and none is picked.
-    NoDirection,
+    /// The session refused what a default is read off: a pattern's
+    /// spacing, measured off its body.
+    Refused(Box<Refusal>),
+    /// A pattern row's default spacing could not be written.
+    Spacing(crate::combine::RowSpacingFault),
 }
 
 impl From<SeatError> for CommitFault {
@@ -1810,6 +1771,18 @@ impl From<SeatError> for CommitFault {
 impl From<RecordedProgramError> for CommitFault {
     fn from(error: RecordedProgramError) -> Self {
         Self::Program(error)
+    }
+}
+
+impl From<crate::combine::RowSpacingFault> for CommitFault {
+    fn from(fault: crate::combine::RowSpacingFault) -> Self {
+        Self::Spacing(fault)
+    }
+}
+
+impl From<Refusal> for CommitFault {
+    fn from(refusal: Refusal) -> Self {
+        Self::Refused(Box::new(refusal))
     }
 }
 
@@ -1826,10 +1799,8 @@ impl std::fmt::Display for CommitFault {
             Self::Dimension(error) => error.fmt(f),
             Self::Program(error) => error.fmt(f),
             Self::Traced(error) => error.fmt(f),
-            Self::NoDirection => f.write_str(
-                "no direction is picked: pick an edge or a face of the body, or choose one of \
-                 the space's axes",
-            ),
+            Self::Refused(refusal) => refusal.fmt(f),
+            Self::Spacing(fault) => fault.fmt(f),
         }
     }
 }

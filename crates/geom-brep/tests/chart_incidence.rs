@@ -471,7 +471,11 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     };
     let got = chart_pcurve(&rim, &surface, band());
     if let Err(e) = &got {
-        assert!(e.to_string().contains("(margin "), "{e}");
+        assert!(
+            e.render(geom_brep::recourse::Reading::Build)
+                .contains("(margin "),
+            "{e}"
+        );
     }
     check(got.map(|p| format!("{p:?}")), "f64");
     let rim_i: Curve3<Interval> = rim.map_scalar(Interval::from_f64);
@@ -528,7 +532,8 @@ fn only_an_incidence_reading_ends_as_one() {
                 && err
                     .render(Reading::Build)
                     .ends_with(geom_core::KERNEL_DEFECT_ENDING),
-            "{what}: {err}"
+            "{what}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     };
     let both = |what: &str,
@@ -693,7 +698,8 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
             && err
                 .render(Reading::Build)
                 .ends_with(geom_core::KERNEL_DEFECT_ENDING),
-        "{err}"
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -890,7 +896,7 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
                 Vec3::unit_y(),
             ),
             (0.0, 1.0),
-            Some("Recourse: the edge's curve is not shown on the face it bounds"),
+            Some("Recourse: move the geometry so the boundary lies clearly on the face it bounds"),
         ),
         (
             "at a pose",

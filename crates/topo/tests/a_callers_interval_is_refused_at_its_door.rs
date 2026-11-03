@@ -41,7 +41,7 @@ fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> Sp
     else {
         panic!("{row}: not the caller's interval: {error:?}");
     };
-    let text = error.to_string();
+    let text = error.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.ends_with(&format!("Recourse: {}", refused.decision().lever())),
         "{row}: {text}"

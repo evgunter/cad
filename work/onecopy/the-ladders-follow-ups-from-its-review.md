@@ -17,3 +17,7 @@ From the FULL review and delta review of PR 6333 (`identity-data-reads-its-ladde
 4. **A stale doc.** `rim_wedge::shared_rim`'s "why the comparison is written here rather than consumed … a ladder bent to cover two subjects" predates `same_circle` reading `read_identity`; it is false now.
 
 The probe-gated test that no CI job runs is filed on CIW (`probe-gated-lib-unit-tests-never-run-in-ci`).
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

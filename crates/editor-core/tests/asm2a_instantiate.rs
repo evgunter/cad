@@ -1523,7 +1523,7 @@ fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
             &[(union, &rows[..])],
             resolver,
             Tol::witness(),
-            &CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("an uncanceled door");
         for proof in proofs.into_iter().flatten() {
@@ -1552,7 +1552,13 @@ fn a_canceled_door_stops_in_its_replay() {
     let cancel = CancelToken::new();
     cancel.cancel();
     assert_eq!(
-        editor_core::coincide::prove(&doc, &[(union, &rows[..])], None, Tol::witness(), &cancel),
+        editor_core::coincide::prove(
+            &doc,
+            &[(union, &rows[..])],
+            None,
+            Tol::witness(),
+            &editor_core::Stop::canceled_by(&cancel)
+        ),
         Err(editor_core::coincide::Canceled)
     );
 }

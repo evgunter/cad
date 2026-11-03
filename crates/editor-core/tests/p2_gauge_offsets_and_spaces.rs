@@ -597,6 +597,7 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
         DocumentId::derive("r1-split-plain-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("the cut splits");
     let mut store = p.store.clone();
@@ -698,6 +699,7 @@ fn a_parametric_pin_read_on_both_sides_of_a_cut_refuses() {
         DocumentId::derive("r1-promote-param-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect_err("the cut base's pin reads a kept node's parameter");
     assert!(
@@ -963,6 +965,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run");

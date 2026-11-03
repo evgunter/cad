@@ -1,0 +1,3 @@
+# ONECOPY — the log
+
+- 2026-11-03 — Opened by cutting ONEHOME (`work/README.md` Track size) after ONEHOME's orchestrator ran out of usage: ONEHOME measured 70 budget points against 35. The 16 rows it had not started (no lane, no design fork, no in-flight PR riding them) moved here from `work/onehome/` by `git mv`, ids and bodies unchanged, each with a dated `## Slate triage` note; the two unbanded rows (`circle-frame-structs-re-spell-geom-circle`, `interval-safe-point-angle-read-two-ways`) were banded P1 and priced M. 30 budget points dispatchable. Nothing is dispatched. (cut by a session at the user's request)
