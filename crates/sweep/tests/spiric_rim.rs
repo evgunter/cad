@@ -350,7 +350,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 /// **Row 11 — the census refusals reachable through public doors**,
 /// on the vessel's cavity: the mesh's trimmed lane (its torus/plane
 /// roster is the MESH frontier,
-/// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
+/// `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
 /// and the STEP writer, which now WRITES an export-only spline and
 /// refuses this body for a different reason than "no arm": the
 /// sagitta certificate cannot state `ε/4` under the node cap at the

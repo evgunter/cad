@@ -144,7 +144,7 @@ slates and on `work/issues/`:
 - `work/wire/wire-refusals-short-of-the-shape-guard.md`: 3
 - `work/profilerest/paths-refusals-short-of-the-shape-guard.md`: 1, plus a
   question on `SHARED_CLAUSE_ONLY`
-- `work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md`: 2
+- `work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md`: 2
 - `work/topo/topo-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
 - `work/trim/trim-escalations-offer-a-declaration-the-door-cannot-take.md`: 1
 - `work/curved/curved-escalations-offer-a-declaration-the-door-cannot-take.md`: 1

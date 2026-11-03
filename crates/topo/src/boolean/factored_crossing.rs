@@ -178,6 +178,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
                     on,
                     branch: Some(branch_of(i)),
                     chart: None,
+                    on_edge: None,
                 }));
             }
             Landing::Out => {}

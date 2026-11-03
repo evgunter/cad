@@ -295,7 +295,7 @@ reproduce command.
 
 **Pinned, filed elsewhere:**
 - `ray_wall_margin_twins` at 62 pairs:
-  `work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+  `work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
   for the six; `work/charttail/…` keeps the widening.
 - `m4_pr8_k_probe`: the content and naming keys split on 26 documents,
   pinned as a set:

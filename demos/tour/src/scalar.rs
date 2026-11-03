@@ -100,7 +100,7 @@ pub fn axis_frame<S: Scalar>(
 /// `SplitPlane` takes a `UnitVec3`, and the kernel has no door from a
 /// point and a direction, so a scene that cuts writes the mint — band,
 /// funnel name and all — itself; this is the tour writing it once. The
-/// friction is recorded at `work/issues/kernel-split-plane-has-no-direction-door.md`.
+/// friction is recorded at `work/lib/kernel-split-plane-has-no-direction-door.md`.
 ///
 /// # Panics
 ///

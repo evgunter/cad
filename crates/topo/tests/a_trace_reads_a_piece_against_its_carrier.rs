@@ -191,3 +191,50 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
         "a non-finite sphere"
     );
 }
+
+/// A piece through a cone's apex crosses it where the cone has no
+/// outward normal, so no sense to read: a line through the apex (its one
+/// double root there) and a circle through it in a meridian plane (the
+/// apex's double root among its crossings) refuse
+/// [`TraceFault::Apex`]. The root doors answer that double root
+/// (`reduce::line_cone_roots`, `conic_quadric`'s "Through the apex");
+/// the trace's own apex row (`trace_crossing_apex`) refuses it.
+#[test]
+fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let line = ray_crossings(
+        &cone,
+        true,
+        Point3::new(-2.0, 0.0, 0.3),
+        Vec3::new(1.0, 0.0, -0.15),
+        4.0,
+        band(),
+    );
+    assert_eq!(
+        line.map(|c| c.len()),
+        Err(TraceFault::Apex),
+        "a line through the apex"
+    );
+    let (cx, cz) = (0.5f64, 0.2f64);
+    let circle = circle_crossings(
+        &cone,
+        true,
+        (
+            Point3::new(cx, 0.0, cz),
+            Vec3::new(0.0, 1.0, 0.0),
+            cx.hypot(cz),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        band(),
+    );
+    assert_eq!(
+        circle.map(|c| c.len()),
+        Err(TraceFault::Apex),
+        "a circle through the apex"
+    );
+}

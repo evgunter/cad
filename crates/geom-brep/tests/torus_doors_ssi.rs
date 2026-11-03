@@ -298,7 +298,7 @@ fn oracle_loops(t: &Surface<f64>, partner: &Surface<f64>, n: usize) -> usize {
 /// placements whose verdict differs at another ε row, measured: at
 /// `1e-6` a transverse pose may refuse on the tube, at `1e-12` on the
 /// step budget
-/// (`work/sect/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
+/// (`work/secttorus/the-torus-doors-tube-straddles-transverse-poses-at-a-coarse-band.md`).
 fn germ_row(
     pair: impl Fn(Option<(f64, Vec3<f64>, Vec3<f64>)>) -> [Surface<f64>; 2],
     want: [&str; 6],
@@ -588,7 +588,7 @@ fn a_parallel_wall_round_the_hole_winds_the_torus() {
 fn a_tube_circle_tangency_refuses_at_each_door() {
     // `u_ref = +x` puts the tangency on a cell edge of the gap's sweep,
     // where it decides at every ε; elsewhere it escalates at ε = 1e-12
-    // (`work/sect/the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin.md`).
+    // (`work/secttorus/the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin.md`).
     let t = Surface::Torus {
         center: Point3::origin(),
         axis: Vec3::unit_z(),

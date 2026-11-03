@@ -1802,7 +1802,7 @@ fn trim_frontier(
                        circle-bounded faces; the remaining analytic \
                        charts have no trimmed lane (the spiric-bounded torus wall and \
                        plane cap of a hollowed partial revolve land here: \
-                       `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
+                       `work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
             });
         }
     }
@@ -1894,7 +1894,7 @@ fn trim_polygon(
             // a harmonic one. Unreachable at this head for a different
             // reason: `tessellate_trimmed`'s chart roster has no torus
             // or plane arm, so a spiric-bounded face refuses before
-            // this walk (`work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
+            // this walk (`work/tess/trimmed-tessellation-lacks-torus-and-plane-arms.md`).
             Pcurve::Spiric { .. } => {}
             // A focal section's image is likewise a closed form of the
             // carrier's own parameter, read exactly at the chord pass's
