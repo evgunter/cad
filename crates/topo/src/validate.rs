@@ -18607,6 +18607,7 @@ mod door_roster {
     /// `DegenerateSpindle` naming that end, and one on a lemon reports
     /// none (its edges' own refusals are other checks').
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn a_stored_spindle_sheet_is_refused_outside_its_range() {
         use geom::SpindleEnd;
         let tol = geom_core::Tol::witness();
