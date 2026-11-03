@@ -498,36 +498,33 @@ enum Near<T> {
 }
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
-/// [`Curve3::foot`] seeded at `from`, where that is the nearest point of
-/// the whole carrier (a line and a circle), a circle's brought to the
-/// turn at or past `from` and short of a turn beyond it. `None` for any
-/// other carrier.
+/// [`Curve3::nearest_foot`] seeded at `from`, `None` where the carrier
+/// has none. A closed carrier's is brought into `[from, from + τ]`, the
+/// turn at or past `from`: the upper end is reached only where the
+/// reduction rounds, a point a hair behind `from` reading `from + τ`. A
+/// point on a circle's axis, where every point of the circle is nearest,
+/// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
-    match carrier {
-        Curve3::Line(_) => Some(carrier.foot(x, from).t()),
-        Curve3::Circle(_) => {
-            let t = carrier.foot(x, from).t();
-            Some(from + (t - from).reduce_periodic(T::tau()))
-        }
-        Curve3::Ellipse(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
-    }
+    let t = carrier.nearest_foot(x, from)?.t();
+    // A carrier with a nearest foot is a line or a circle: the one that
+    // is not straight is closed.
+    Some(match carrier.as_line() {
+        Some(_) => t,
+        None => from + (t - from).reduce_periodic(T::tau()),
+    })
 }
 
 /// **The point of `e` nearest `x`**, decided once at `band`
-/// ([`on_boundary`]): a line's or circle's closed-form [`foot`], kept
+/// ([`on_boundary`]): the closed-form [`foot`] where there is one, kept
 /// where it lies strictly inside the edge's interval (its ends are
 /// vertices, which [`locate`] reads first); any other carrier by
 /// [`sampled_near`].
 fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T> {
     let (t0, t1) = (e.t0, e.t1);
-    let speed = match e.carrier {
-        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
-        Curve3::Circle(geom::Circle { radius, .. }) => radius,
-        _ => return sampled_near(e, x, band),
-    };
     let Some(t) = foot(&e.carrier, x, t0) else {
-        unreachable!("a line or a circle has a closed-form foot")
+        return sampled_near(e, x, band);
     };
+    let speed = e.carrier.deriv(t).norm();
     if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
         return Near::Off;
     }

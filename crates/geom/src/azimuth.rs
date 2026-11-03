@@ -227,10 +227,21 @@ impl<T: Decide> Azimuth<T> {
     /// read's one jump is the window's cut. A direction of no length reads
     /// `0`, in every window.
     pub fn principal_in(self, window: Window, band: Band) -> T {
+        self.read_in(window, "pcurve_chart_cut_side", band)
+    }
+
+    /// The angle window's read ([`Azimuth::principal`]) for a reader
+    /// that is not a chart's, its cut-side decision recorded under `row`,
+    /// the reader's own predicate.
+    pub fn principal_as(self, row: &'static str, band: Band) -> T {
+        self.read_in(Window::Angle, row, band)
+    }
+
+    fn read_in(self, window: Window, row: &'static str, band: Band) -> T {
         if !(T::one() / self.length()).is_bounded() {
             return T::zero();
         }
-        stable_azimuth(self.y, self.x, window.start(), band)
+        stable_azimuth(row, self.y, self.x, window.start(), band)
     }
 }
 
@@ -285,16 +296,17 @@ impl Window {
 /// `atan2(−y, −x) + π`, its cut on the positive-`x` axis.
 ///
 /// Which one is decided across the line through the angles `start` and
-/// `start + π` (`pcurve_chart_cut_side`), `start` in `(−π, 0]`: on the
+/// `start + π` (under `row`: `pcurve_chart_cut_side` for a chart's
+/// read), `start` in `(−π, 0]`: on the
 /// side that holds angle `0`, the first; on the other, in band or
 /// undecided, the second. So a direction decided on either side reads in
 /// `(start, start + τ]`, and the read jumps only across the line's band
 /// at `start`, on the angle-`0` side of it (`Azimuth::principal`'s doc
 /// says what a direction in that band reads); the geom-brep README's C4
 /// says why the windows' starts are generic angles.
-fn stable_azimuth<T: Decide>(y: T, x: T, start: T, band: Band) -> T {
+fn stable_azimuth<T: Decide>(row: &'static str, y: T, x: T, start: T, band: Band) -> T {
     let (s, c) = start.sin_cos();
-    match decide("pcurve_chart_cut_side", Margin::of(c * y - s * x), band) {
+    match decide(row, Margin::of(c * y - s * x), band) {
         Ok(Sign::Positive) => y.atan2(x),
         Ok(Sign::Negative | Sign::Zero) | Err(_) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
     }

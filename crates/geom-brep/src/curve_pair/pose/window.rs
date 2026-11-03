@@ -253,7 +253,7 @@ impl<T: Decide> Window<'_, T> {
         if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
             return Some(Read::Recedes);
         }
-        let foot = self.carrier_b.foot(q, self.foot_seed(q, band));
+        let foot = self.carrier_b.foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
         let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();
         let on = |x: T| decide("curve_pair_window_on", Margin::of(x), band) == Ok(Sign::Zero);
@@ -288,9 +288,9 @@ impl<T: Decide> Window<'_, T> {
 
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
     /// `b`'s unit coordinates.
-    fn foot_seed(&self, q: Point3<T>, band: Band) -> T {
+    fn foot_seed(&self, q: Point3<T>) -> T {
         let (x, y) = self.b.unit_in_plane(q);
-        geom::Azimuth::of(y, x).principal(band)
+        geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
     }
 
     /// **The pieces of `(l, r)`, each read**, halved until each reads or

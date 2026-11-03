@@ -1498,6 +1498,26 @@ mod tests {
         }
     }
 
+    /// **A line's `param_near` is its foot's parameter at any `dir`
+    /// length**: the parameter whose point is the foot, so a reading that
+    /// took `dir` as unit, `t·|dir|²`, fails at every length but one.
+    #[test]
+    fn a_lines_param_near_is_its_foots_at_any_dir_length() {
+        let origin = Point3::new(0.5, -1.0, 2.0);
+        let p = Point3::new(3.0, 1.0, -0.5);
+        for scale in [0.25, 3.0] {
+            let line = Line {
+                origin,
+                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+            };
+            let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
+            assert!(
+                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
+                "|dir| = {scale}: param_near's point is the foot"
+            );
+        }
+    }
+
     /// **A reversed carrier is the same locus run back**: its point at
     /// `t` is the original's at `−t`, on every kind it reverses — a
     /// carrier that flipped the wrong vector would meet the original at

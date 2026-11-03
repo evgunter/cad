@@ -71,7 +71,7 @@
 //! escalates.
 
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::{decide, decide_reported, straddle};
+use geom_core::k_stats::{check_unlogged, decide, decide_reported, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3,
 };
@@ -119,10 +119,9 @@ impl<'c, T: Decide> Foot<'c, T> {
     }
 
     /// **Whether the foot is the point's nearest point of the whole
-    /// carrier** (module docs): on a line and a circle, where it is found
-    /// in closed form.
+    /// carrier** ([`Curve3::foot_is_nearest`]).
     pub fn is_nearest(&self) -> bool {
-        matches!(self.carrier, Curve3::Line(_) | Curve3::Circle(..))
+        self.carrier.foot_is_nearest()
     }
 
     /// **Whether the point lies on the carrier** (module docs): on by the
@@ -274,6 +273,24 @@ impl<T: Decide> Curve3<T> {
                 PieceStep::Stop(answer) => Step::Stop(answer),
             }
         })
+    }
+
+    /// **Whether a point's foot on the carrier is its nearest point of
+    /// the whole carrier** (module docs): on a line and a circle, where
+    /// it is found in closed form. The one list of those kinds, matched
+    /// exhaustively so a new kind decides here.
+    pub fn foot_is_nearest(&self) -> bool {
+        match self {
+            Self::Line(_) | Self::Circle(_) => true,
+            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => false,
+        }
+    }
+
+    /// **`q`'s foot on the carrier where it is the nearest point of the
+    /// whole carrier** ([`Self::foot_is_nearest`], asked before the foot
+    /// is found); `None` on every other kind.
+    pub fn nearest_foot(&self, q: Point3<T>, near: T) -> Option<Foot<'_, T>> {
+        self.foot_is_nearest().then(|| self.foot(q, near))
     }
 
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
@@ -514,12 +531,16 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
 /// it, so the angle's own branch cut is never crossed and an enclosure of
 /// the point's direction stays an enclosure of one angle. The result lies
 /// within a turn and a half of `near` (half a turn of `near` or of
-/// `near + π`); a reader that needs a branch chooses it.
+/// `near + π`); a reader that needs a branch chooses it. The flip is
+/// decided outside the log (ledger row F31): where `along` is undecided
+/// the point lies a quarter turn from `near`, clear of both formulas'
+/// cuts, or at the centre, where every angle is a foot; no foot rests on
+/// the outcome.
 fn angle_near<T: Decide>(x: T, y: T, near: T) -> T {
     let (sin, cos) = near.sin_cos();
     let (along, across) = (x * cos + y * sin, y * cos - x * sin);
     let behind =
-        decide("curve_foot_branch", Margin::of(along), Band::least()) == Ok(Sign::Negative);
+        check_unlogged("curve_foot_branch", along, Band::least(), "F31") == Ok(Sign::Negative);
     if behind {
         near + T::pi() + (T::zero() - across).atan2(T::zero() - along)
     } else {

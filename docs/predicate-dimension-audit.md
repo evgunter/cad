@@ -1552,6 +1552,25 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F31** (added by ONECOPY's foot-and-angle unit) `curve_foot_branch`
+  — `geom/src/curves/on_carrier.rs` `angle_near`, the angle of a point
+  about a closed carrier's centre read relative to the foot's seed:
+  `along`, the point's in-plane component along the seed's direction
+  (metres on a circle, unit coordinates on an ellipse, the tube's
+  section on a spiric). It picks between `near + atan2(across, along)`
+  and its half-turn twin, two formulas equal modulo a turn. What keeps
+  it off the logged doors is that no outcome of it is a reading: where
+  `along` is undecided the point lies a quarter turn from the seed,
+  clear of both formulas' cuts (or at the centre, where every angle is
+  a foot), and a foot's parameter is not reduced to any branch
+  (`Foot::t`). Logged, an undecided flip at `Interval` would hand the
+  driver an escalation no box answers, on every closed-form circle foot
+  a quarter turn from its seed.
+
+  **Carried as `k_stats::check_unlogged(.., "F31")`**. Its K samples
+  still reach the sink under `curve_foot_branch`. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

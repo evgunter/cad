@@ -948,7 +948,12 @@ fn line_conic<T: Decide>(
             pose: "a conic the band reads as thin as the line it lies beside",
         });
     }
-    let range = Range::first_harmonic(c0, swing, Azimuth::of(sp, cp).principal(band), noise);
+    let range = Range::first_harmonic(
+        c0,
+        swing,
+        Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
+        noise,
+    );
     let place = |theta: T| {
         let point = k.point_at(theta);
         Candidate {
@@ -1125,7 +1130,12 @@ fn transverse<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    let range = Range::first_harmonic(c0, swing, Azimuth::of(sp, cp).principal(band), noise);
+    let range = Range::first_harmonic(
+        c0,
+        swing,
+        Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
+        noise,
+    );
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -1226,7 +1236,8 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref)).principal(band);
+    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref))
+        .principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
         hi,
