@@ -21,3 +21,13 @@
 - 2026-11-03 — **Ev ruled on PR 6464** ("1. H1 works 2. sure 3. sounds good!"): `Surface::Spindle`, one sheet of a spindle or horn torus, with the horn as the sheet's closed end and the [surfaces] locus sentence. Merged with fork row 252 completed. The horn row is priced X/20 and staged: (1) the sheet away from its apexes, which lands the football with conical ends; (2) the apex as a pole, which lands the football.
   - **Dispatched stage 1** as `the-spindle-sheet-away-from-its-apexes` (H; review tier **dual**, a new surface kind). It opens with a phase 0: a census of the exhaustive and the non-exhaustive kind tests, and a unit cut.
   - **Sequencing (unilateral)**: it runs concurrently with the rotational lane's stage 1. Their files barely overlap (`quad_lane.rs` will gain a `Spindle` refusal arm, a textual merge only). The build mutex serialises their local builds; hosted CI is unaffected.
+- 2026-11-03 — **Spindle stage 1, piece 1 is up as PR 6473** (head `dd0018c0ee`). It adds the `Surface::Spindle` variant with every arm answered across the workspace: 80 files, a census of the non-exhaustive kind tests, and seven sweep defects fixed. Nothing builds a sheet yet, because the revolve still refuses one.
+  - **The unit cut:** piece 2 is the revolve's arc classification plus the readers that make the conical-ended football build. It may split into 2a (revolve, pcurves, tier 3) and 2b (props, mesh, oracles, demo).
+  - **CI:** the one red job is python's teapot north-star row. It has been red on main since PR 6441 and is filed as `splice/the-teapot-north-star-row-still-expects-the-point-split-refusal` (P1). So it is inherited, and does not block the merge.
+  - **Filed by the lane:**
+    - `shell/an-outward-ring-offset-past-the-spine-could-mint-a-spindle-sheet`;
+    - `band/a-blend-whose-spine-is-inside-its-ball-could-mint-a-spindle-sheet`;
+    - `exch/degenerate-toroidal-surface-imports-as-a-spindle-sheet`;
+    - `export/a-spindle-sheet-exports-as-degenerate-toroidal-surface`;
+    - `spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut`.
+  - **Dual review dispatched**, a concurrent pair (letter H) on the frozen head `dd0018c0ee`, lanes `spiricarm-rev6473-r1` and `-r2`, with identical briefs and nine claims to falsify.
