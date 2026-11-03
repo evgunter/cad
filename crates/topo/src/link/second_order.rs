@@ -269,7 +269,9 @@ pub(super) fn parts<T: Decide>(link: &Link<T>, r: Point3<T>, rd: Reading<T>) -> 
                 }
                 sheets.push(Sheet {
                     anchor: Vec3::zero(),
-                    at: unit,
+                    // The ray as the plane holds it: what the ray leans
+                    // off the plane is a residue the readings charge.
+                    at: (unit - t.outward * t.outward.dot(unit)).normalize(),
                     normal: t.outward,
                     run: Run::Line(t.outward.cross(unit).normalize()),
                     edge: None,

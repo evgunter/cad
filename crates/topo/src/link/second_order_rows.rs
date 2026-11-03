@@ -547,3 +547,94 @@ fn a_sheet_along_anothers_line_is_read_with_its_lean_charged_f64() {
 fn a_sheet_along_anothers_line_is_read_with_its_lean_charged_interval() {
     a_sheet_along_anothers_line_is_read_with_its_lean_charged::<Interval>();
 }
+
+/// [`wedge_over_a_plane`], its arc's departure along `+x` leaning
+/// `lean` toward `−z` at the arm, and the plane `z = 0` a ball's tangent
+/// plane where `curved`.
+fn wedge_over_a_sheet<T: Decide>(
+    p: Point3<T>,
+    up: f64,
+    lean: f64,
+    curved: bool,
+) -> Vec<TangentPiece<T>> {
+    let k = edges(1);
+    let e = bound(k[0], [0.0, 0.0, up]);
+    let (x, out) = (v::<T>(2.0, 0.0, 0.0), v::<T>(2.0, 0.0, -lean));
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    let n = v::<T>(0.0, 0.0, 1.0);
+    let sheet = if curved {
+        let fan = TangentFan::Inside {
+            reach: T::from_f64(2.0),
+            frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
+        };
+        let ball = geom::Surface::Sphere {
+            center: p - n * T::from_f64(2.0),
+            radius: T::from_f64(2.0),
+            axis: n,
+            u_ref: v(1.0, 0.0, 0.0),
+        };
+        FaceSector::tangent_piece(ball, true, n, p, fan, band()).expect("a ball's plane")
+    } else {
+        whole(p, n)
+    };
+    vec![
+        corner(p, v(0.0, 1.0, 0.0), (-x, out), [e, e]),
+        corner(p, v(0.0, -s, -s), (out, -x), [e, e]),
+        sheet,
+    ]
+}
+
+/// A fin along `±x` from `p`: two faces in `z = 0` reaching toward `+y`
+/// from one curved edge, outward `+z` and `−z`; and the whole plane
+/// `y = 0` outward `−y`, the edge one order down at `(0, 1, 0)` off it.
+fn a_fin_on_a_plane<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
+    let k = edges(1);
+    let e = bound(k[0], [0.0, 1.0, 0.0]);
+    let x = v::<T>(2.0, 0.0, 0.0);
+    vec![
+        corner(p, v(0.0, 0.0, 1.0), (x, -x), [e, e]),
+        corner(p, v(0.0, 0.0, -1.0), (-x, x), [e, e]),
+        whole(p, v(0.0, -1.0, 0.0)),
+    ]
+}
+
+/// **What one order down leaves unread stays unread**: an arc bending
+/// off a plane by just past the escalation rests, and refuses where its
+/// departure leans toward the plane by nine tenths of the band's zero,
+/// the lean charged; an arc over a ball's tangent plane refuses, the
+/// ball's line in the cut not read; a fin, an edge's two faces running
+/// on along one line one way, refuses as unread, not as faces on each
+/// other. Red where an anchor's first-order residue is not charged, a
+/// curved sheet is read as its plane, or a fold is passed.
+fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let up = (escalate + 0.5 * zero) / 2.0;
+    for p in apexes::<T>() {
+        assert!(
+            matches!(read(p, wedge_over_a_sheet(p, up, 0.0, false)), TouchVerdict::Rest(_)),
+            "an arc just past the escalation off a plane at {p:?}"
+        );
+        assert_eq!(
+            read(p, wedge_over_a_sheet(p, up, 0.9 * zero, false)),
+            unread,
+            "the arc leaning toward the plane at {p:?}"
+        );
+        assert_eq!(
+            read(p, wedge_over_a_sheet(p, 1.0, 0.0, true)),
+            unread,
+            "an arc over a ball's tangent plane at {p:?}"
+        );
+        assert_eq!(read(p, a_fin_on_a_plane(p)), unread, "a fin at {p:?}");
+    }
+}
+
+#[test]
+fn what_one_order_down_leaves_unread_stays_unread_f64() {
+    what_one_order_down_leaves_unread_stays_unread::<f64>();
+}
+
+#[test]
+fn what_one_order_down_leaves_unread_stays_unread_interval() {
+    what_one_order_down_leaves_unread_stays_unread::<Interval>();
+}
