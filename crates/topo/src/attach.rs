@@ -1578,10 +1578,9 @@ impl<T: Decide> Body<T> {
     }
 
     /// Whether `edge`'s STORED description is adjacency-coherent with
-    /// the two faces it lies between: [`require_description_adjacent`]'s
-    /// reading of the description at rest, tier 3's
-    /// `DescriptionNotAdjacent`. Exact: it compares keys and reads no
-    /// coordinate.
+    /// the two faces it lies between at rest ([`Named::adjacent_at_rest`],
+    /// tier 3's `DescriptionNotAdjacent`). Exact: it compares keys and
+    /// reads no coordinate.
     ///
     /// `edge` is one the caller resolved.
     ///
@@ -1591,18 +1590,15 @@ impl<T: Decide> Body<T> {
     pub(crate) fn stored_description_adjacent(&self, edge: EdgeKey) -> bool {
         let data = proven(&self.edges, edge, EntityId::Edge);
         let stored = self.edge_curve_linked(edge, data);
-        let sides = self.sides(edge, |_, _, _| None);
-        Named::of(stored).adjacent_to(sides.before.map(Slot::Kept), Slot::Kept)
+        Named::of(stored).adjacent_at_rest(crate::readback::edge_sides_of(self, edge, data))
     }
 }
 
 /// The **description-adjacency coherence** check (module docs), one
 /// home for [`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve) and the minting doors that take a
-/// caller's description ([`Body::mef`](crate::construction::Construct::mef)): an intrinsic description's two
-/// surfaces are exactly `faces`, a chart image names one of them, a
-/// wrap edge names the one surface on both sides (that its halves bound
-/// one face is tier 3's), and a scaffold names
-/// none. `faces` are the surfaces the edge's two faces wear, `he_plus`'s
+/// caller's description ([`Body::mef`](crate::construction::Construct::mef)): the write gate's surface-only
+/// reading ([`Named::adjacent_in_construction`]), not the at-rest one.
+/// `faces` are the surfaces the edge's two faces wear, `he_plus`'s
 /// first; `edge` is the edge the refusal names, `None` for the one a
 /// minting door mints. Pure.
 ///
@@ -1615,7 +1611,7 @@ pub(crate) fn require_description_adjacent<T: Real>(
     description: &geom_brep::EdgeDescriptionSpec<T>,
     faces: [Slot; 2],
 ) -> Result<(), EulerOpError> {
-    if Named::of_spec(description).adjacent_to(faces, Slot::Kept) {
+    if Named::of_spec(description).adjacent_in_construction(faces, Slot::Kept) {
         Ok(())
     } else {
         Err(EulerOpError::DescriptionNotAdjacent { edge })
@@ -1830,7 +1826,7 @@ impl Sides {
     }
 
     fn coherent_before(self, named: Named) -> bool {
-        named.adjacent_to(self.before.map(Slot::Kept), Slot::Kept)
+        named.adjacent_in_construction(self.before.map(Slot::Kept), Slot::Kept)
     }
 
     /// What `key`, named in a description spelled `spelling`, stands
@@ -1843,7 +1839,7 @@ impl Sides {
     }
 
     fn coherent_after(self, named: Named, spelling: Spelling) -> bool {
-        named.adjacent_to(self.after, self.slot_of(spelling))
+        named.adjacent_in_construction(self.after, self.slot_of(spelling))
     }
 
     /// The sides that move and land on no key `named` names, its keys
@@ -2056,7 +2052,7 @@ impl Named {
         })
     }
 
-    fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
+    pub(crate) fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
         match description {
             geom_brep::EdgeDescription::Intersection { pair, .. }
             | geom_brep::EdgeDescription::TangentIntersection { pair, .. }
@@ -2096,13 +2092,21 @@ impl Named {
         a.into_iter().chain(b)
     }
 
-    /// Whether the description is coherent with faces wearing `plus`
-    /// and `minus`, its own keys read through `slot_of`. A chart image
-    /// names ONE of the two faces' surfaces (a wall–wall seam is the
-    /// u-boundary iso of either wall, and the minted convention picks
-    /// one); a wrap edge names the one surface on both sides, its two
-    /// halves bounding one face on it (D1); a scaffold names none.
-    fn adjacent_to(self, [plus, minus]: [Slot; 2], slot_of: impl Fn(SurfaceKey) -> Slot) -> bool {
+    /// **The in-construction reading**, the write gate's: whether the
+    /// description is coherent with faces wearing `plus` and `minus`,
+    /// its own keys read through `slot_of`, by surface alone. A pair
+    /// form names exactly the two; a chart image names ONE of them (a
+    /// wall–wall seam is the u-boundary iso of either wall, and the
+    /// minted convention picks one); a wrap edge names the one surface
+    /// on both sides; a scaffold names none. Which faces wear them is
+    /// not read: a mint passes through states where both halves of a
+    /// new edge bound one face (`mev` before `mef`), so the face count
+    /// is [`Named::adjacent_at_rest`]'s.
+    fn adjacent_in_construction(
+        self,
+        [plus, minus]: [Slot; 2],
+        slot_of: impl Fn(SurfaceKey) -> Slot,
+    ) -> bool {
         match self {
             Self::Pair(pair) => pair
                 .keys()
@@ -2118,6 +2122,29 @@ impl Named {
             }
             Self::Nothing => true,
         }
+    }
+
+    /// **The at-rest reading**, tier 3's `DescriptionNotAdjacent` and
+    /// every at-rest reader's: [`Named::adjacent_in_construction`]
+    /// against the surfaces `sides`' faces wear, and the wrap flag and
+    /// the face count agree both ways (D1). A wrap edge's halves bound
+    /// ONE face, the face whose chart closes across it, and an edge
+    /// whose halves bound one face is that face's wrap edge, so a pair
+    /// form or a non-wrap chart needs two faces. Nothing at rest is a
+    /// slit: a bridge between a face's loops is construction
+    /// scaffolding that `kemr` retires before the op returns. A
+    /// scaffold names no surface and passes here; tier 3's transience
+    /// fence is the complaint it earns.
+    pub(crate) fn adjacent_at_rest(self, sides: crate::readback::EdgeSides) -> bool {
+        let (f_plus, f_minus) = sides.faces();
+        let (s_plus, s_minus) = sides.surfaces();
+        let wrap = matches!(self, Self::Chart { wrap: true, .. });
+        matches!(self, Self::Nothing)
+            || (wrap == (f_plus == f_minus)
+                && self.adjacent_in_construction(
+                    [Slot::Kept(s_plus), Slot::Kept(s_minus)],
+                    Slot::Kept,
+                ))
     }
 }
 
@@ -4663,5 +4690,92 @@ mod tests {
              against {small}: more than 4.5 times as many, so the pass grows faster than the \
              writes"
         );
+    }
+
+    /// The two adjacency readings, row by row: the at-rest one adds
+    /// face identity to the gate's surface-only one, so they part
+    /// exactly on a description whose wrap flag disagrees with the face
+    /// count.
+    #[test]
+    fn the_at_rest_reading_is_the_gates_plus_the_face_count() {
+        use super::{Named, Slot};
+        use crate::readback::{EdgeSide, EdgeSides};
+        let mut faces = slotmap::SlotMap::<FaceKey, ()>::with_key();
+        let mut surfaces = slotmap::SlotMap::<SurfaceKey, ()>::with_key();
+        let (f1, f2) = (faces.insert(()), faces.insert(()));
+        let (s1, s2, s3) = (
+            surfaces.insert(()),
+            surfaces.insert(()),
+            surfaces.insert(()),
+        );
+        let side = |face, surface| EdgeSide {
+            half_edge: HalfEdgeKey::default(),
+            face,
+            surface,
+        };
+        let sides = |plus, minus| EdgeSides { plus, minus };
+        let two = sides(side(f1, s1), side(f2, s2));
+        let two_on_one_surface = sides(side(f1, s1), side(f2, s1));
+        let one = sides(side(f1, s1), side(f1, s1));
+        let chart = |surface, wrap| Named::Chart { surface, wrap };
+        let pair = |a, b| Named::Pair(SurfacePair::new(a, b));
+        // (row, description, sides, at rest, gate)
+        let rows = [
+            ("pair on its two faces", pair(s2, s1), two, true, true),
+            (
+                "pair naming a third surface",
+                pair(s1, s3),
+                two,
+                false,
+                false,
+            ),
+            ("pair on one face", pair(s1, s1), one, false, true),
+            (
+                "chart on one of two faces",
+                chart(s2, false),
+                two,
+                true,
+                true,
+            ),
+            ("chart on neither face", chart(s3, false), two, false, false),
+            (
+                "chart between two faces of one surface",
+                chart(s1, false),
+                two_on_one_surface,
+                true,
+                true,
+            ),
+            (
+                "non-wrap chart on one face",
+                chart(s1, false),
+                one,
+                false,
+                true,
+            ),
+            ("wrap on its one face", chart(s1, true), one, true, true),
+            (
+                "wrap on two faces of one surface",
+                chart(s1, true),
+                two_on_one_surface,
+                false,
+                true,
+            ),
+            ("wrap on two surfaces", chart(s1, true), two, false, false),
+            ("scaffold on one face", Named::Nothing, one, true, true),
+            ("scaffold on two faces", Named::Nothing, two, true, true),
+        ];
+        for (row, named, sides, at_rest, gate) in rows {
+            let (plus, minus) = sides.surfaces();
+            assert_eq!(
+                named.adjacent_at_rest(sides),
+                at_rest,
+                "{row}: at-rest reading"
+            );
+            assert_eq!(
+                named.adjacent_in_construction([Slot::Kept(plus), Slot::Kept(minus)], Slot::Kept),
+                gate,
+                "{row}: gate reading"
+            );
+        }
     }
 }
