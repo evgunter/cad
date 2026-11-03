@@ -1134,7 +1134,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // against the piercing side, and the remainder fragment
                 // is re-queued so the second root of the same span is
                 // found on the next pass.
-                let (t, p, at, on, branch, chart) = match event {
+                let (t, p, at, on, branch, chart, on_edge) = match event {
                     CurvedEvent::Pierce {
                         t,
                         p,
@@ -1142,7 +1142,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         on,
                         branch,
                         chart,
-                    } => (t, p, at, on, branch, chart),
+                        on_edge,
+                    } => (t, p, at, on, branch, chart, on_edge),
                     CurvedEvent::Deferred => {
                         deferred.push(DeferredTouch {
                             x_is,
@@ -1204,7 +1205,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             y,
                             x_is.other(),
                             ey,
-                            p,
+                            (p, on_edge),
                             super::Cell::Edge(edge_key),
                             band,
                             tol,
@@ -1478,7 +1479,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         y,
                                         x_is.other(),
                                         ey,
-                                        p,
+                                        (p, None),
                                         super::Cell::Edge(edge_key),
                                         band,
                                         tol,
@@ -1621,7 +1622,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 y,
                                 x_is.other(),
                                 ey,
-                                p,
+                                (p, None),
                                 super::Cell::Edge(edge_key),
                                 band,
                                 tol,
@@ -2787,6 +2788,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     on,
                     branch: None,
                     chart: None,
+                    on_edge: None,
                 }),
                 // A constant residual cannot be zero at one end and
                 // definite at the other, and a definite miss cannot
@@ -2922,6 +2924,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     on,
                     branch: None,
                     chart: None,
+                    on_edge: None,
                 }),
                 // The straddle's crossing, found and certified OFF this
                 // face: every root inside the span is on the carrier
@@ -2969,6 +2972,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     on,
                     branch: None,
                     chart: None,
+                    on_edge: None,
                 }),
                 SpanVerdict::NoInterior
                 | SpanVerdict::Elsewhere
@@ -3089,6 +3093,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             on,
                             branch: None,
                             chart: None,
+                            on_edge: None,
                         }),
                         // No interior root, or no root at all:
                         // definitely clear, and exactly so — the bound
@@ -3267,7 +3272,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
     };
     let swept = Span::new(curve.carrier(), curve.params());
     match read_boundary(y, face, &swept, band)? {
-        Some(Ok(Boundary::Meets { t, .. })) => {
+        Some(Ok((Boundary::Meets { t, .. }, held))) => {
             let p = curve.carrier().eval(t);
             match super::contain::curved_boundary_containment(y, face, p, band)
                 .map_err(|e| esc(e, x_is.other(), face))?
@@ -3279,17 +3284,18 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
                     on: Some(margin),
                     branch: None,
                     chart: None,
+                    on_edge: super::carrier_cross::held_on(at, held),
                 }),
                 None => Err(disagree()),
             }
         }
-        Some(Ok(Boundary::Along { .. })) => {
+        Some(Ok((Boundary::Along { .. }, _))) => {
             for end in ends {
                 along_boundary(x_is, y, end, face, contacts, band, tol)?;
             }
             Ok(CurvedEvent::Along { recorded: true })
         }
-        Some(Ok(Boundary::Clear)) => {
+        Some(Ok((Boundary::Clear, _))) => {
             if !twin_edge(y, (x_is, face, edge_key), &swept, ends, band)? {
                 return spline_interior(
                     (x, x_is, edge_key),
@@ -3412,6 +3418,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                 on: Some(margin),
                 branch: None,
                 chart: None,
+                on_edge: None,
             });
         }
         match super::spline_region::spline_chart_placement(y, face, m.uv, band).map_err(esc_y)? {
@@ -3423,6 +3430,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     on: None,
                     branch: None,
                     chart: Some(m.uv),
+                    on_edge: None,
                 });
             }
             Some(FaceContainment::Out) => {}
@@ -3448,7 +3456,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                     y,
                     x_is.other(),
                     ey,
-                    pw,
+                    (pw, None),
                     super::Cell::Vertex(w),
                     band,
                     tol,
@@ -3602,7 +3610,7 @@ fn along_boundary<T: Decide + crate::props::AtRestPolicy>(
                 y,
                 x_is.other(),
                 ey,
-                pw,
+                (pw, None),
                 super::Cell::Vertex(w),
                 band,
                 tol,
@@ -3665,7 +3673,7 @@ fn interior<T: Decide>(
     ),
 ) -> Result<Interior<T>, BooleanError> {
     use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
-    let pierce = |t, p, at, margin| {
+    let pierce = |t, p, at, margin, on_edge| {
         Interior::Crossing(CurvedEvent::Pierce {
             t,
             p,
@@ -3673,6 +3681,7 @@ fn interior<T: Decide>(
             on: Some(margin),
             branch: None,
             chart: None,
+            on_edge,
         })
     };
     let read = boundary_crossing(
@@ -3684,17 +3693,35 @@ fn interior<T: Decide>(
         band,
     )?;
     match (read, on_carrier) {
-        (BoundaryCrossing::At { t, p, at, margin }, true) => Ok(pierce(t, p, at, margin)),
-        (BoundaryCrossing::At { t, p, at, margin }, false) => Ok(
+        (
+            BoundaryCrossing::At {
+                t,
+                p,
+                at,
+                margin,
+                on_edge,
+            },
+            true,
+        ) => Ok(pierce(t, p, at, margin, on_edge)),
+        (
+            BoundaryCrossing::At {
+                t,
+                p,
+                at,
+                margin,
+                on_edge,
+            },
+            false,
+        ) => Ok(
             if sheets_part(
                 (x, x_is, edge),
                 (y, face, at),
                 declared,
                 curve,
-                (t, p),
+                (t, p, on_edge),
                 band,
             )? {
-                pierce(t, p, at, margin)
+                pierce(t, p, at, margin, on_edge)
             } else {
                 Interior::Unseen
             },
@@ -3723,9 +3750,11 @@ fn interior<T: Decide>(
 /// seam ruling).
 ///
 /// The boundary edge's direction at `p` is its carrier's derivative at
-/// the parameter read back from `p` ([`point_param`]), as the covered
-/// edge's is at `t`. A spline boundary edge, which has no such
-/// parameter, refuses there, before either face's normal is read.
+/// `on_edge`, the parameter the meeting reading put `p` at on it, else
+/// at the one read back from `p` ([`point_param`]), as the covered
+/// edge's is at `t`. A spline boundary edge with no held parameter,
+/// which has no such read-back, refuses there, before either face's
+/// normal is read.
 ///
 /// `false`, with nothing read, where there is nothing to read: a
 /// landing on a vertex, a boundary edge both of whose halves bound
@@ -3745,7 +3774,7 @@ fn sheets_part<T: Decide>(
     (y, face, at): (&Body<T>, FaceKey, FaceContainment),
     declared: &super::GluedPairs<T>,
     curve: &geom_brep::EdgeCurve<T>,
-    (t, p): (T, Point3<T>),
+    (t, p, on_edge): (T, Point3<T>, Option<T>),
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -3784,9 +3813,11 @@ fn sheets_part<T: Decide>(
         .certified()
         .ok_or(desync("a boundary edge a crossing lands on is scaffolding"))?;
     let along = |dir: Vec3<T>, forward: bool| if forward { dir } else { -dir };
-    let tau_y = c_y
-        .carrier()
-        .deriv(point_param(y, x_is.other(), e_y, c_y, p)?);
+    let s = match on_edge {
+        Some(s) => s,
+        None => point_param(y, x_is.other(), e_y, c_y, p)?,
+    };
+    let tau_y = c_y.carrier().deriv(s);
     let normal = |body: &Body<T>, f: FaceKey| -> Result<Option<Vec3<T>>, BooleanError> {
         match crate::face_normal::face_outward_normal_at(body, f, p, band) {
             Ok(Some(n)) => Ok(Some(n.vec())),
@@ -3985,13 +4016,20 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
             curve.params(),
             band,
         )? {
-            BoundaryCrossing::At { t, p, at, margin } => Some(CurvedEvent::Pierce {
+            BoundaryCrossing::At {
+                t,
+                p,
+                at,
+                margin,
+                on_edge,
+            } => Some(CurvedEvent::Pierce {
                 t,
                 p,
                 at,
                 on: Some(margin),
                 branch: None,
                 chart: None,
+                on_edge,
             }),
             BoundaryCrossing::Clear => interior_clear(),
             BoundaryCrossing::Unread => None,
@@ -4468,6 +4506,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         on,
                         branch: None,
                         chart: None,
+                        on_edge: None,
                     });
                 }
             }
@@ -5235,6 +5274,11 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
         /// placed in the trim at: the pierce reads the face's normal there
         /// ([`ContactAcc::charts`]).
         chart: Option<(f64, f64)>,
+        /// Where on the boundary edge `at` names a meeting reading put
+        /// `p`, where one did ([`super::carrier_cross::held_on`]): the
+        /// split of that edge is made there rather than read back from
+        /// `p` on its carrier.
+        on_edge: Option<T>,
     },
 }
 
@@ -5423,7 +5467,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
                 y,
                 x_is.other(),
                 ey,
-                px,
+                (px, None),
                 super::Cell::Vertex(vx),
                 band,
                 tol,
@@ -5599,7 +5643,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 y,
                 x_is.other(),
                 ey,
-                px,
+                (px, None),
                 super::Cell::Vertex(vx),
                 band,
                 tol,
@@ -5697,17 +5741,25 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// A `Nurbs` carrier has no point parameter and keeps the typed refusal
 /// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
 /// because this precondition is NOT the operand gate's.
+///
+/// `held` is a parameter the caller already holds for `p` on this edge's
+/// span, the one a meeting reading certified there (`Hit::On`, on the
+/// carrier and on the branch inside the span): the split is made there,
+/// on any carrier, and nothing above is read again.
 #[allow(clippy::too_many_arguments)]
 fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     y: &mut Body<T>,
     y_is: Operand,
     edge: EdgeKey,
-    p: Point3<T>,
+    (p, held): (Point3<T>, Option<T>),
     by: super::Cell,
     band: Band,
     tol: Tol,
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
+    if let Some(t) = held {
+        return split_logged(y, y_is, edge, t, Some(p), by, tol, contacts);
+    }
     let curve = certified(y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)))?.clone();
     let t = if let circle @ geom::Curve3::Circle(_) = curve.carrier() {
         let (t0, t1) = curve.params();
@@ -7555,7 +7607,7 @@ mod lying_on_rows {
             &mut y,
             Operand::B,
             bottom,
-            mid,
+            (mid, None),
             crate::boolean::Cell::Vertex(vertex_at(&x, mid)),
             band(),
             Tol::witness(),
@@ -8807,6 +8859,116 @@ mod spline_face_rows {
         assert_eq!(acc.records.vv.len(), 2, "both ends at corners");
     }
 
+    /// **A meeting on a spline boundary edge splits it where the meeting
+    /// reading put the point**: a flat spline patch bounded by the
+    /// parabola `(2t, 4t(1−t), 0)` (a quadratic NURBS edge) and its chord,
+    /// and a line in the patch's plane from inside the face across the
+    /// parabola's apex `(1, 1, 0)`, at `t = ½`. The pierce lands on the
+    /// spline edge and carries `½`, the split there mints the vertex at
+    /// the pierce point, and the same split without the carried parameter
+    /// is the spline's typed refusal, since its carrier has no point
+    /// parameter to read back.
+    #[test]
+    fn a_meeting_on_a_spline_boundary_edge_splits_it_at_the_meetings_parameter() {
+        use crate::boolean::contain::FaceContainment;
+        use geom::surfaces::nurbs::NurbsSurface;
+        use geom_core::spline::KnotVector;
+        let tol = Tol::witness();
+        let (mut y, face, arc) = super::curved_lane_spline_rows::spline_sheet(
+            [
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 2.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            [1.0; 3],
+            Vec3::unit_z(),
+        );
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(1).unwrap());
+        let control = vec![
+            Point3::new(-1.0, -1.0, 0.0),
+            Point3::new(-1.0, 3.0, 0.0),
+            Point3::new(3.0, -1.0, 0.0),
+            Point3::new(3.0, 3.0, 0.0),
+        ];
+        let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
+        y.lifting_rechart_refusals_for_tests(|body| {
+            body.set_face_surfaces_describing(
+                vec![crate::construction::Rechart::new(
+                    Surface::Nurbs(std::sync::Arc::new(patch)),
+                    face,
+                    true,
+                )],
+                &[],
+                tol,
+            )
+        })
+        .unwrap();
+        let apex = Point3::new(1.0, 1.0, 0.0);
+        let mut x = Body::<f64>::new();
+        let seed = x.mvfs(Point3::new(1.0, 0.5, 0.0), true).unwrap();
+        let ek = x
+            .mev_line(
+                crate::construction::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 1.5, 0.0),
+                tol,
+            )
+            .unwrap()
+            .edge;
+        let mut acc = ContactAcc::default();
+        let (p, on_edge) = match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                t,
+                p,
+                at: FaceContainment::OnEdge(e),
+                on_edge,
+                ..
+            }) => {
+                assert_eq!(e, arc, "the pierce lands on the spline edge");
+                assert!((t - 0.5).abs() < 1e-9, "half way along the line: {t}");
+                assert!((p - apex).norm() < 1e-9, "at the apex: {p:?}");
+                let s = on_edge.expect("the meeting holds its parameter on the spline edge");
+                assert!((s - 0.5).abs() < 1e-9, "at the arc's apex: {s}");
+                (p, on_edge)
+            }
+            other => panic!("a pierce on the spline edge: {other:?}"),
+        };
+        let by = crate::boolean::Cell::Edge(ek);
+        match super::split_other_at_point(
+            &mut y.clone(),
+            Operand::B,
+            arc,
+            (p, None),
+            by,
+            band(),
+            tol,
+            &mut ContactAcc::default(),
+        ) {
+            Err(BooleanError::PointSplitCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+            }) => assert_eq!(edge, arc, "the spline edge's own refusal"),
+            other => panic!("read back on a spline carrier: {other:?}"),
+        }
+        let w = super::split_other_at_point(
+            &mut y,
+            Operand::B,
+            arc,
+            (p, on_edge),
+            by,
+            band(),
+            tol,
+            &mut acc,
+        )
+        .expect("the spline edge splits at the carried parameter");
+        let at = y.resolve_vertex_point(w, crate::live::Proven);
+        assert!(
+            (at - p).norm() == 0.0,
+            "the vertex holds the pierce point's own bits: {at:?}"
+        );
+    }
+
     /// The twisted sheet `(u, v, 0.6·u·v)` over `[¼, ¾]²`, and a body
     /// holding the one line edge from `p` to `q`.
     fn twisted_and_a_line(
@@ -9193,7 +9355,7 @@ mod spline_face_rows {
                     &mut y,
                     Operand::B,
                     ek,
-                    p,
+                    (p, None),
                     crate::boolean::Cell::Vertex(corner),
                     band(),
                     tol,

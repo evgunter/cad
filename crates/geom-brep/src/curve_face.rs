@@ -133,6 +133,11 @@ pub enum Boundary<T: geom_core::Real> {
         point: Point3<T>,
         /// The boundary edge, by its index in the walk.
         edge: usize,
+        /// The parameter on the boundary edge's span where the meeting
+        /// reading placed the point strictly inside it; `None` where the
+        /// meeting is the edge's start vertex or within the band of one
+        /// of its ends, which split no boundary edge.
+        on_edge: Option<T>,
     },
     /// The span lies along the boundary: a boundary edge shares a run of
     /// positive length with it, and no boundary edge or vertex meets the
@@ -285,13 +290,21 @@ pub fn boundary<T: Decide>(
         .meetings
         .iter()
         .filter_map(|m| match (m.on_span, m.on_boundary) {
-            (Hit::On { t, .. }, OnBoundary::Vertex(edge) | OnBoundary::Edge(edge, _)) => {
-                Some(Boundary::Meets {
-                    t,
-                    point: m.point,
-                    edge,
-                })
-            }
+            (Hit::On { t, .. }, OnBoundary::Vertex(edge)) => Some(Boundary::Meets {
+                t,
+                point: m.point,
+                edge,
+                on_edge: None,
+            }),
+            (Hit::On { t, .. }, OnBoundary::Edge(edge, on_edge)) => Some(Boundary::Meets {
+                t,
+                point: m.point,
+                edge,
+                on_edge: match on_edge {
+                    Hit::On { t, .. } => Some(t),
+                    Hit::End(_) => None,
+                },
+            }),
             _ => None,
         })
         .min_by_key(|b| match *b {

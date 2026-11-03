@@ -70,6 +70,9 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
         at: FaceContainment,
         /// The margin that decided `p` on that boundary entity.
         margin: geom_core::MarginDiag,
+        /// Where on the boundary edge `at` names the meeting reading put
+        /// `p` ([`held_on`]).
+        on_edge: Option<T>,
     },
     /// Certified: no boundary vertex or crossing lies strictly inside the
     /// edge. Its interior meets the boundary nowhere, or runs along one
@@ -117,9 +120,11 @@ pub(super) fn boundary_crossing<T: Decide>(
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
     let swept = Span::new(carrier, (t0, t1));
-    let t = match read_boundary(y, face, &swept, band)? {
-        Some(Ok(Boundary::Meets { t, .. })) => t,
-        Some(Ok(Boundary::Along { .. } | Boundary::Clear)) => return Ok(BoundaryCrossing::Clear),
+    let (t, held) = match read_boundary(y, face, &swept, band)? {
+        Some(Ok((Boundary::Meets { t, .. }, held))) => (t, held),
+        Some(Ok((Boundary::Along { .. } | Boundary::Clear, _))) => {
+            return Ok(BoundaryCrossing::Clear);
+        }
         Some(Err(BoundaryRefusal::Touch(diag))) => return Ok(BoundaryCrossing::Touch(diag)),
         Some(Err(refusal)) => {
             return boundary_refusal(refusal, (y_is.other(), face, edge), on_carrier)
@@ -132,14 +137,22 @@ pub(super) fn boundary_crossing<T: Decide>(
         match super::contain::curved_boundary_containment(y, face, p, band)
             .map_err(|e| super::reduce::esc(e, y_is, face))?
         {
-            Some((at, margin)) => BoundaryCrossing::At { t, p, at, margin },
+            Some((at, margin)) => BoundaryCrossing::At {
+                t,
+                p,
+                at,
+                margin,
+                on_edge: held_on(at, held),
+            },
             None => BoundaryCrossing::Unread,
         },
     )
 }
 
 /// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
-/// read against `swept`: its answer or refusal, or `None` where the
+/// read against `swept`: its answer, with a [`Boundary::Meets`]'
+/// parameter on its boundary edge and that edge's key, or its refusal;
+/// or `None` where the
 /// boundary holds a lone vertex (a pierce ring), which the pre-pass that
 /// places a crossing cannot read, or an edge with no certified curve,
 /// which the pass cannot. Such a face answers `None` before any decision
@@ -158,14 +171,46 @@ pub(super) fn read_boundary<T: Decide>(
     face: FaceKey,
     swept: &Span<'_, T>,
     band: Band,
-) -> Result<Option<Result<Boundary<T>, BoundaryRefusal>>, BooleanError> {
+) -> Result<Option<Result<(Boundary<T>, Held<T>), BoundaryRefusal>>, BooleanError> {
     Ok(face_boundary(y, face)?
         .filter(|b| b.lone.is_empty())
-        .map(|b| curve_face::boundary(swept, &b.spans(), band)))
+        .map(|b| {
+            curve_face::boundary(swept, &b.spans(), band).map(|read| {
+                let held = match read {
+                    Boundary::Meets {
+                        edge,
+                        on_edge: Some(s),
+                        ..
+                    } => Some((b.edges[edge].key, s)),
+                    Boundary::Meets { on_edge: None, .. }
+                    | Boundary::Along { .. }
+                    | Boundary::Clear => None,
+                };
+                (read, held)
+            })
+        }))
+}
+
+/// A boundary edge a [`Boundary::Meets`] lies strictly inside, and the
+/// parameter on its span where the meeting reading put the point.
+pub(super) type Held<T> = Option<(EdgeKey, T)>;
+
+/// **The split parameter a meeting holds** for the boundary entity the
+/// pre-pass placed its point on: the meeting reading's parameter where
+/// both name the same boundary edge, else `None`, and the split reads the
+/// point on that edge's carrier itself. A meeting at a vertex holds none,
+/// and splits no boundary edge.
+pub(super) fn held_on<T: Copy>(at: FaceContainment, held: Held<T>) -> Option<T> {
+    match (at, held) {
+        (FaceContainment::OnEdge(ey), Some((e, s))) if e == ey => Some(s),
+        _ => None,
+    }
 }
 
 /// A boundary edge as the pass reads it.
 pub(super) struct BoundaryEdge<'a, T: geom_core::Real> {
+    /// The edge.
+    pub(super) key: EdgeKey,
     /// Its half-edge's start vertex, and that vertex's point.
     pub(super) start: (VertexKey, Point3<T>),
     /// Its certified curve.
@@ -244,6 +289,7 @@ pub(super) fn face_boundary<T: Decide>(
                     .start
                 };
                 boundary.edges.push(BoundaryEdge {
+                    key: ek,
                     start: (half.start, start),
                     curve,
                     // A span runs forward from its `he_plus`'s start.
