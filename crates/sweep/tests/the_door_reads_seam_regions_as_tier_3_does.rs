@@ -488,16 +488,18 @@ fn an_over_cover_whose_region_encodes_its_side_is_refused_by_the_census() {
 }
 
 /// **A corrupt body never finishes, and the raw door panics on it only
-/// where it always did**: a two-ball union with one entity removed at a
-/// time (a face, a loop, an edge or a half-edge). No removal passes
-/// `AtRestBody::validate`, so the typed door never reads one. Read
-/// through the raw door, the seam pass refuses what it cannot follow
-/// `MassPropsError::Corrupt`, and six removals panic in the walk's own
-/// face resolution (`live.rs`, a shell's or a face's record naming a
-/// removed key) before any seam is read — as they did before the seam
-/// pass — so the row admits those six and no other.
+/// where a record names the removed key**: a two-ball union with one
+/// entity removed at a time (a face, a loop, an edge or a half-edge). No
+/// removal passes `AtRestBody::validate`, so the typed door never reads
+/// one. Read through the raw door, the seam pass refuses what it cannot
+/// follow `MassPropsError::Corrupt`; five removals panic in the walk's
+/// own face resolution (`live.rs`, a shell's or a face's record naming a
+/// removed key) before any seam is read, and every removed loop panics
+/// where the seam pass walks a face's loops (`Body::face_loops_linked`,
+/// the face's record naming it), so the row admits those and no other.
 #[test]
-fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
+fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_a_record_names_the_removed_key()
+ {
     use topo::EntityId;
     let tol = Tol::witness();
     let unit = finished(
@@ -518,6 +520,11 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
     }
     ids.extend(b.edges().map(|(k, _)| EntityId::Edge(k)));
     ids.extend(b.half_edges().map(|(k, _)| EntityId::HalfEdge(k)));
+    let loops: Vec<String> = ids
+        .iter()
+        .filter(|id| matches!(id, EntityId::Loop(_)))
+        .map(|id| format!("{id:?}"))
+        .collect();
     let mut panicked = Vec::new();
     for id in ids {
         let c = b.with_entity_removed_for_tests(id).unwrap();
@@ -543,16 +550,20 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         "Face(FaceKey(2v1))",
         "Face(FaceKey(3v5))",
         "Face(FaceKey(6v5))",
-        "Loop(LoopKey(1v1))",
         "HalfEdge(HalfEdgeKey(25v1))",
     ];
     let new: Vec<_> = panicked
         .iter()
-        .filter(|id| !before_any_seam.contains(&id.as_str()))
+        .filter(|id| !before_any_seam.contains(&id.as_str()) && !id.starts_with("Loop("))
         .collect();
     assert!(
         new.is_empty(),
         "the door panics past its face resolution on: {new:?}"
+    );
+    let unread: Vec<_> = loops.iter().filter(|l| !panicked.contains(l)).collect();
+    assert!(
+        unread.is_empty(),
+        "a removed loop the face walk reads past: {unread:?}"
     );
 }
 
