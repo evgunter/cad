@@ -398,3 +398,11 @@ and bodies unchanged. No orchestrator yet.
   Three issues filed (P3), and one item declined with a reason. The row is the last commit (`7b8f4e3`, tally 0), and the PR merges on green.
   
   Process note: the lane's local clippy never ran, because another lane's nextest held the build slot for over an hour. CI lint stands in.
+
+- 2026-11-03 — **Re-cut on Ev's request** (chat: "sectarms has grown quite a bit, so that it's over budget … would it make sense to recut it … or if any of those neighbors have no orchestrator, recutting them as well to pull out another coherent track"; "sectarms will ideally land well under 30, to reflect that this sitting isn't just starting"). SECTARMS was 38/30 and SECT 46/30, with no orchestrator. Rows moved by `git mv`, ids and bodies unchanged:
+  - **SECTCONE (new, 24/30):** the cone on the section value. From SECT: `the-cone-has-no-implicit-enclosure-or-metres-conversion` (P0 H), `cone-torus-rung-three-arm-waits-on-the-cone` (parked) and `a-cone-against-a-parallel-axis-torus-has-no-section-arm`. From SECTARMS: `cone-germ-pairs-…` (P1 H) and `conic-germ-pairs-rank-…` (P1 H).
+  - **SECTTORUS (new, 16/30):** SECT's torus thread. `c5-plane-torus-cone-cylinder-arms` (P0 X16, now plane × torus only, lily wall 8), plus the tilted plane × torus, torus doors, torus gaps, hour-long torus rows, sphere × tube circle and tilted torus pairs.
+  - **SPIRICARM:** `a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses` (P1 M). Its refusal is the volume lane's.
+  - **SECTARMS (now 11/30):** `a-nurbs-face-against-a-torus-has-no-section-arm` is parked on `c5-plane-torus-cone-cylinder-arms`, lily wall 8's next stop. SECTARMS keeps the NURBS × implicit arm and the cylinder pairs.
+  - **SECT (now 22/30):** keeps the one-site and on-carrier join arms, the ball × cylinder cost row and its remainder.
+  - **Citations:** paths citing the moved rows in crates, demos, docs and other programs' rows were re-pointed. The fork log is left as the historical record.
