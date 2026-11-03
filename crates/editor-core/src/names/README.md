@@ -466,7 +466,7 @@ lies on, read off the finished body and the members' own bodies
   chosen over another's, so the name is the same whichever member was
   authored first, and two members with identical tables (a body and its
   exact copy) are told apart by their reads. An edge lies within a member edge when it lies within that
-  edge along its carrier and both of its faces descend from that member edge's
+  edge along its carrier and both of its faces hold that member edge's
   two faces. An edge one of whose member faces was glued away, another
   member's face lying over it, does not: it is the seam of the faces it
   separates, as a subtract's pocket rim is, and it vanishes when the junction
@@ -537,46 +537,32 @@ pairwise judgements, never from the fold, so every member order spells it
 alike. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
-**A union's face is named for its PARENT.** Member faces are linked,
-transitively, when any of these holds:
+**A boolean's face is named for the member faces it holds.** A finished
+face's parent is exactly the set of member faces whose area it holds, read
+geometrically off the finished body: a member face lying under another
+member's coplanar face is held by the finished face over both. A face holding one
+member face's area is named for that face; a face holding several is `Merged`
+of them, flat and in name order. Where several finished faces hold area of
+one member face, each of them takes one `Fragment(Borders)` over its divider
+walls (the other members' walls between them), the rule above; a finished
+face that is alone in holding each member face it holds needs none, and
+neither does one that meets the others only along edges inside the held
+region, where what they hold differs and their bases tell them apart. A
+qualifier is read off the face's own holdings and walls, never a count of
+its siblings.
 
-1. a pairwise judgement (DM4) merged them (`BooleanNaming::merge_groups`),
-   whether they are faces of its two members or two faces of one;
-2. a judgement held one face's region through the other
-   (`BooleanNaming::substituted`);
-3. the finished body holds area of both in one face, read exactly: by the
-   area each holds, never by the fold's lineage, which only grows and would
-   make the names depend on member order.
+The rule is one for the union, the intersect and the subtract. It reads the
+finished body and the members, never the fold: which faces a fold step merged,
+kept or discarded does not enter, so every member order names alike. An edit
+renames only the faces whose own holdings or walls it changed. A divider that
+slides across a member boundary a glue erased renames the faces on either side
+of it and nothing else; a member face that joins or leaves a glued surface
+renames only the faces that gain or lose its area. A cited member face always
+lies under the face that cites it.
 
-The member faces so linked are one parent, named `Merged` of all of them, and
-a member face nothing links is its own parent. A parent is a set of
-member-face entities, never a name: the candidates of a tied row are separate
-parents that happen to be spelled alike. A union covers material, so its
-members together can glue faces no two of them glue: a run of faces exposed
-only once several members are in. The union reads a finished face's descent
-off the fold's lineage, not exactly, so a face whose member faces only clause
-3 links refuses as that missing rule (`NamingError::UnsupportedUnjudgedGlue`),
-before any edge or vertex is named.
-
-A finished face takes the parent of the member faces it descends from; which
-faces a fold step merged, kept or discarded does not enter. So a member face
-another member's coplanar face covers, and one a later member swallows after
-it merged, are cited alike in every member order. A parent the finished body
-holds as one face is that face's name. A parent it holds as several faces
-qualifies each with one `Fragment(Borders)` over its divider walls, the rule
-above, which the subtract reads too. So a face merged and then cut, and a
-face cut and then merged, are both `Merged(set)` + `Borders`; a face cut by two
-members is one `Borders` over both members' walls, whether one fold step cut
-it or two. The fold's spellings are replaced, not refined: which step cut a
-face, and whether it met the cut or the merge first, depend on member order,
-whereas the parent and its seam partners depend only on the members' consumed
-pairs and the finished body.
-
-A two-member union or intersect is the union with one step: its pairwise
-judgement is its one fold step, and its table is the union's. The pair
-boolean's own table is published only by the subtract, which tells its
-operands apart and so links nothing: a tool face lying over a face of `from`
-is cited nowhere, and the face is named for the `from` face it descends from.
+A two-member union or intersect is the union with one step, and the subtract
+names its faces by the same rule over its two operands: a tool face lying over
+a face of `from` is held by that face.
 
 **Verdicts and ties.** The verdicts run through `k_stats`, so fragment
 identity changes only at a recorded flip. An in-band margin refuses
@@ -607,16 +593,17 @@ a group that holds section faces is `Merged` of the plane and the operand
 faces it absorbed: the plane is a parent linked as an operand face is,
 cited once and bare, whatever number of sections the join completed, and
 every plane piece of the half is a piece of that parent. A split's group that holds no section
-face is named as a boolean names it: `Merged` of the operand faces its faces
-descend from, the faces of one such parent in one half told apart by `Keeps`
+face is `Merged` of the operand faces its merge group's faces descend
+from, the faces of one such parent in one half told apart by `Keeps`
 (N2). A `Merged` whose set has one element is that
 element: a face glued to its twin, the same read spelled twice (REFERENCES
 DM5), is named as the face. A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
-constituents retire. In a union no face publishes under a constituent's
-name: every piece of a member face a merge links is a piece of its parent
-(N2), including a piece that never itself merged. At every boolean, a
+constituents retire from the merged face that covers them: a reference to
+a constituent fails with that face offered. A piece of a member face that
+holds no other member face's area keeps that face's name, with its
+`Borders` (N2), at a pair boolean as at a union. At every boolean, a
 pair as much as a union, a seam cites, as each side, the parent of the face
 beside it as this boolean's own table names it (a merged face's `Merged`
 set; an unmerged face's own name, with the read it came in through), and a

@@ -2,10 +2,11 @@
 id: joining-a-spline-carrier-is-unbuilt
 kind: issue
 title: A curved join on a spline carrier refuses JoinCarrierUnsupported: the kept edge cannot be run on along a carrier with no period or parameter inverse
-status: open
+status: dispatched
 opened: 2026-10-07
 priority: P0
 cost: H
+branch: splice/spline-join
 ---
 
 ## The finding
