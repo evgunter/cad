@@ -2,11 +2,12 @@
 id: a-boundary-touch-refusal-locates-no-window
 kind: issue
 title: The boundary pass's Touch refusal carries only an Indeterminate and no located window, so boundary_cuts refuses a true contact a located window would settle
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
 refs: [6451]
+branch: onecopy/meet-reads
 ---
 
 
