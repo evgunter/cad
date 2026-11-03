@@ -60,7 +60,7 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
         p0,
         p1,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         Band::linear(Tol::witness()).unwrap(),
         geom_brep::NurbsLane::certified(),
     )

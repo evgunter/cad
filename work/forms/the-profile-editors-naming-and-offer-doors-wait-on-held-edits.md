@@ -4,6 +4,8 @@ kind: issue
 title: The profile editor's naming and offer doors are withheld while the draft holds edits
 status: open
 opened: 2026-11-02
+priority: P3
+cost: E
 ---
 
 
@@ -39,3 +41,17 @@ reverting first; and the doors vanish rather than saying why.
 This touches the profile unit (the editor commits each change live,
 Ev on `[ev]` PR 6388): with no held state between changes, the
 `untouched` gate may stop mattering, which may settle the row.
+
+## 2026-11-02 — the editor commits live (profile unit)
+
+Evidence from branch `forms/profile-unit`. Each change now lands as it
+is made whenever the edited program passes the edit door
+(`pane::profile::edit_door_ui`), and the draft reloads untouched from
+the program that landed. So `untouched` is false only while the editor
+holds a draft the door refused (`ProfileEdit::refused`), or for the
+frames of a drag before its release. Between ordinary changes, the
+naming and offer doors are drawn. What remains of this row is the
+refused-and-held case: a person whose chain is half-closed still
+cannot name another corner's value until the draft lands or is
+discarded (`DISCARD`, "Discard changes"), and the doors vanish rather
+than saying why.

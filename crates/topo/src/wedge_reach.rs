@@ -66,7 +66,7 @@ pub fn wedge_reach<T: Decide>(
     faces: [FaceKey; 2],
     carrier: &Curve3<T>,
     interval: (T, T),
-) -> T {
+) -> geom_core::Lever<T> {
     WedgeReach::new(body).reach(faces, carrier, interval)
 }
 
@@ -79,7 +79,7 @@ pub fn wedge_reach<T: Decide>(
 /// Where `edge` or a record on the walk from it does not resolve: every
 /// caller read `edge` out of `body`.
 #[must_use]
-pub fn edge_wedge_reach<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
+pub fn edge_wedge_reach<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<geom_core::Lever<T>> {
     WedgeReach::new(body).edge(edge)
 }
 
@@ -108,25 +108,24 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     ///
     /// As [`wedge_reach`].
     #[must_use]
-    pub fn reach(&self, faces: [FaceKey; 2], carrier: &Curve3<T>, (t0, t1): (T, T)) -> T {
-        let at: Point3<T> = carrier.mid_point(t0, t1);
-        // `norm_squared` squares each coordinate (`powi(2)`), which an
-        // enclosure never reads below zero, where `d.dot(d)` would.
-        let square = |p: Point3<T>| (p - at).norm_squared();
+    pub fn reach(
+        &self,
+        faces: [FaceKey; 2],
+        carrier: &Curve3<T>,
+        (t0, t1): (T, T),
+    ) -> geom_core::Lever<T> {
         // The edge's own ends: a door minting the edge reads a face it
         // does not bound yet. Its middle is `at`.
-        let mut far = square(carrier.eval(t0)).max(square(carrier.eval(t1)));
+        let at: Point3<T> = carrier.mid_point(t0, t1);
         let [a, b] = faces;
-        let mut fold = |face| {
-            for &p in self.face_points(face).iter() {
-                far = far.max(square(p));
-            }
-        };
-        fold(a);
-        if b != a {
-            fold(b);
-        }
-        far.sqrt()
+        let (pa, pb) = (self.face_points(a), (b != a).then(|| self.face_points(b)));
+        geom_brep::points_lever_from(
+            at,
+            [carrier.eval(t0), carrier.eval(t1)]
+                .into_iter()
+                .chain(pa.iter().copied())
+                .chain(pb.iter().flat_map(|p| p.iter().copied())),
+        )
     }
 
     /// [`edge_wedge_reach`], reading faces through this cache.
@@ -135,7 +134,7 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     ///
     /// As [`edge_wedge_reach`].
     #[must_use]
-    pub fn edge(&self, edge: EdgeKey) -> Option<T> {
+    pub fn edge(&self, edge: EdgeKey) -> Option<geom_core::Lever<T>> {
         let data = &self.body.edges[edge];
         let curve = self.body.curves.get(data.curve)?.certified()?;
         Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))

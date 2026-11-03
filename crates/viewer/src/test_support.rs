@@ -325,7 +325,7 @@ pub fn mated(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
     mate: pncad::document::Mate<Formula>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
     // A mate into another space re-targets the copy here, an explicit
@@ -1010,7 +1010,8 @@ pub fn row_of_copies(
         &index,
         pncad::document::BodyRead::plain(body),
         pncad::document::Operand::Var(space),
-        &[(axis, len(pitch))],
+        &[(pncad::pattern::RowDirection::Axis(axis), len(pitch))],
+        None,
     )
     .expect("a length pitch");
     inserted(&declared, row, tol)
@@ -1023,7 +1024,7 @@ pub fn row_of_copies(
 /// ([`pncad::document::MateFault::Overconstrained`]).
 fn valued(
     held: Vec<pncad::document::Constraint<Formula>>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
 ) -> Vec<pncad::document::Constraint<Formula>> {
     use pncad::document::{Constraint, ConstraintId, Value};
     let mut values = values;

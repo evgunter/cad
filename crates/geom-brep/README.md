@@ -958,7 +958,14 @@ extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
 or ends at a node (Edge descriptions): a node is
 decided on the pose as a Zero tangency whose section still has
-carriers, placed in closed form, and a site at it reads as the node.
+carriers, placed in closed form or enclosed alone in a certified box,
+and a site at it reads as the node. The value lists each node with the
+surfaces' common normal, its two tangent lines and the side of each
+other the surfaces lie on in the sectors between them, all read off
+their relative second fundamental form there, indefinite and
+nondegenerate. Each arc end at a node names its line and the sense it
+leaves along. A germ leaving a node is minted from its arc end, and no
+reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
 connected component: the set claims its winding about each surface,
 and its arcs claim none.
@@ -1186,7 +1193,12 @@ the first order's own ladder: decided, it leaves the face; within the
 zero band, it rides it; in the gap between the zero band and the
 escalation band, or where no bend is certified (a spline face, a
 spiric or spline edge against a curved face), it falls back to its
-first-order tie until a witness reads it; a poisoned reading refuses.
+first-order tie; a poisoned reading refuses. A tied line or conic edge
+against a sphere or a cylinder is read on its witness as well, its own
+point at the arm the parting was read at, by the carrier's signed
+distance on the same reading (`topo::link::Round`): off the zero band
+the verdict stands only on that point's side; a point back within the
+zero band reads as the tie, and one on the other side refuses.
 Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not

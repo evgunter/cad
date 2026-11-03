@@ -42,11 +42,16 @@ pub(crate) type SlotValues<T> = Vec<(SlotId, SlotVal<T>)>;
 /// the C6 f64 pin), never at the lane scalar, and their key
 /// contribution is the resolved program stream, not slot values
 /// (`super::tag::slot` carries what that means for the nominal half).
+///
+/// Assertion nodes are exempt too: a clearance's bound slots may read a
+/// measured value, which no construction's environment holds, so
+/// `eval_node` reads them with the measured values bound
+/// (`super::measure::observe`), beside a value claim's payload.
 pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &VarEnv<T>,
 ) -> Result<SlotValues<T>, (SlotId, EvalError)> {
-    if matches!(node, Node::Profile(_)) {
+    if matches!(node, Node::Profile(_) | Node::Assertion(_)) {
         return Ok(Vec::new());
     }
     eval_rows(node.rows(), env)

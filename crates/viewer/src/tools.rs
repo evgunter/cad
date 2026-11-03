@@ -179,6 +179,27 @@ impl ToolKind {
         }
     }
 
+    /// **Whether this tool's form holds a label field.** A tool under
+    /// the create rule's "a creation proposes no label"
+    /// (`crates/viewer/README.md`, "A create gesture commits the
+    /// node") holds none: its insert stores `Kind N` on the node its
+    /// noun names, and the node's label row renames it. A tool brought
+    /// under the rule joins the list here.
+    pub fn offers_label(self) -> bool {
+        match self {
+            Self::Mirror => false,
+            Self::Mate
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend
+            | Self::Part
+            | Self::Duplicate
+            | Self::Clearance => true,
+        }
+    }
+
     /// **Whether this operation is this tool's one committed edit** —
     /// the rule that closes the tool that authored it, once the edit
     /// has actually landed. Which op belongs to which tool is
@@ -355,19 +376,18 @@ fn compose(name: &str, what: &impl core::fmt::Display) -> String {
 vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
-    /// pane's add-profile form, the extrude and revolve buttons beside
-    /// a selected profile, the profile
-    /// editor's apply, and the label field a create form and
-    /// the properties pane each carry.
+    /// pane's traced-profile form, the extrude and revolve buttons
+    /// beside a selected profile, the profile editor, and the label
+    /// field a create form and the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
-        /// The creation pane's add-profile form.
-        AddProfile,
+        /// The creation pane's traced-profile form.
+        TracedProfile,
         /// The extrude button beside a selected profile.
         Extrude,
         /// The revolve button beside a selected profile.
         Revolve,
-        /// The profile editor's apply.
+        /// The profile editor.
         EditProfile,
         /// A node's label field, on a create form or in the properties
         /// pane.
@@ -382,7 +402,7 @@ impl FormKind {
     /// The form's name, as its sentences open.
     pub fn label(self) -> &'static str {
         match self {
-            Self::AddProfile => "add profile",
+            Self::TracedProfile => "traced profile",
             Self::Extrude => "extrude",
             Self::Revolve => "revolve",
             Self::EditProfile => "edit profile",
@@ -866,7 +886,13 @@ impl Tools {
                     }
                 }
                 Some(OpenTool::Pattern(tool)) => {
-                    on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
+                    match selection {
+                        Selection::Edge(edge) => tool
+                            .pick_direction(doc, crate::combine::DirectionPick::Edge(edge.clone())),
+                        Selection::Face(face) => tool
+                            .pick_direction(doc, crate::combine::DirectionPick::Face(face.clone())),
+                        _ => on_body_pick(selection, |node, body| tool.pick_at(doc, node, body)),
+                    }
                 }
                 Some(OpenTool::Part(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));

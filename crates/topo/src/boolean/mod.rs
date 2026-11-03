@@ -104,11 +104,15 @@ mod fragments;
 mod glue;
 #[cfg(test)]
 mod glued_pair_rows;
+mod holdings;
+#[cfg(test)]
+mod holdings_rows;
 pub(crate) mod insert;
 mod join;
 mod nary;
 mod node;
 mod ops;
+mod overlap;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
@@ -143,6 +147,7 @@ pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
 mod slit;
+pub use boxes::EdgeUncovered;
 pub use slit::EdgeInFaceGap;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
@@ -199,10 +204,13 @@ pub use edge_join::{
     EdgeJoin, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
+pub use holdings::{Held, HeldRefusal, Holdings};
 pub use join::CompletedPolygonPair;
+#[doc(hidden)]
+pub use nary::MemberLineage;
 pub use nary::{
-    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryEnd, NaryJudgement,
-    NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
+    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
+    NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
 };
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
@@ -210,6 +218,7 @@ pub use ops::{
 };
 #[cfg(feature = "sweep-testing")]
 pub use ops::{StagePoints, arm_output_stage_points, take_output_stage_points};
+pub use overlap::{OverlapRefusal, overlap};
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation, oriented_plane_eq};
 pub use records::{CarryRefusal, Contact, ContactKind, ContactPairError, ContactRecords};
 pub(crate) use records::{Parting, incident};
@@ -268,6 +277,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        "bool_overlap_on_plane" => "whether a point of one face lies on the other face's plane",
+        "bool_overlap_cut_order" => "where along an edge its meetings with a face's boundary lie",
+        "bool_overlap_senses" => "whether two faces on one carrier face one way",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
         "bool_point_in_solid_beside" => "whether a face lies to one side of a ray along its plane",
         "bool_point_in_solid_clearance" => {
@@ -555,6 +567,17 @@ impl SideCode {
             Self::In => Self::Out,
             Self::Out => Self::In,
             Self::On => Self::On,
+        }
+    }
+
+    /// The side of a face's plane the code reads, as a cone is given it
+    /// ([`crate::link::Cone::reads_given`]): out of the material, in
+    /// front of the face, positive.
+    pub(crate) fn plane_side(self) -> Sign {
+        match self {
+            Self::In => Sign::Negative,
+            Self::On => Sign::Zero,
+            Self::Out => Sign::Positive,
         }
     }
 }
@@ -1166,7 +1189,16 @@ pub(crate) struct Glue<T: Real> {
     /// The pairs the glue door read in band and left unglued, each with
     /// the reading it could not decide ([`InBandPair`]).
     pub(crate) in_band: Vec<InBandPair>,
+    /// Where the caller asks for them, each operand's clone as the
+    /// operation's cuts left it, before any discard, A's then B's: the
+    /// operation puts them here, so the caller can read a discarded
+    /// fragment's region. Clones of the glue share the one slot.
+    pub(crate) clones: Option<CloneSlot<T>>,
 }
+
+/// Where an operation puts its operand clones for its caller
+/// ([`Glue::clones`]).
+pub(crate) type CloneSlot<T> = std::sync::Arc<std::sync::Mutex<[Option<Body<T>>; 2]>>;
 
 /// **A pair the glue door read in band** over both faces and left
 /// unglued: its faces and what the carrier ladder could not decide
@@ -1209,6 +1241,7 @@ impl<T: Real> Glue<T> {
             records_b: OperandRecords::default(),
             verdicts: Verdicts::Decided,
             in_band: Vec::new(),
+            clones: None,
         }
     }
 
@@ -1229,6 +1262,18 @@ impl<T: Real> Glue<T> {
             records_b: records_b.clone(),
             verdicts,
             in_band: Vec::new(),
+            clones: None,
+        }
+    }
+
+    /// Puts `operand`'s clone where the caller asked for it, if it did
+    /// ([`Self::clones`]).
+    pub(crate) fn keep_clone(&self, operand: Operand, clone: impl FnOnce() -> Body<T>) {
+        if let Some(slot) = &self.clones {
+            let mut held = slot
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            held[usize::from(operand == Operand::B)] = Some(clone());
         }
     }
 }
@@ -6174,6 +6219,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     (operand, c.vertex),
                     Touch {
                         classes: out.classes,
+                        read_against: out.read_against,
                         datum: out.datum,
                         flush: out.flush,
                         face: c.face,
@@ -6327,23 +6373,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
-        for (operand, vertex, own, other, partner, at) in [
-            (
-                Operand::A,
-                c.a,
-                &a_sectors,
-                &b_sectors,
-                c.b,
-                b.resolve_vertex_point(c.b, Proven),
-            ),
-            (
-                Operand::B,
-                c.b,
-                &b_sectors,
-                &a_sectors,
-                c.a,
-                a.resolve_vertex_point(c.a, Proven),
-            ),
+        let (a_at, b_at) = (
+            a.resolve_vertex_point(c.a, Proven),
+            b.resolve_vertex_point(c.b, Proven),
+        );
+        for (operand, vertex, own, other, partner, at, own_at) in [
+            (Operand::A, c.a, &a_sectors, &b_sectors, c.b, b_at, a_at),
+            (Operand::B, c.b, &b_sectors, &a_sectors, c.a, a_at, b_at),
         ] {
             let pair = vtxfac::Partner {
                 vertex: partner,
@@ -6360,7 +6396,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         partner,
                         along,
                     };
-                    match vtxfac::partner_side(other, touch.datum, touch.flush, band)? {
+                    match vtxfac::partner_side(&pair, own_at, touch.datum, touch.flush, band)? {
                         vtxfac::PartnerRead::Side { along: on } => {
                             if on {
                                 along.get_or_insert(along_face(AlongFace::FacesInOnePlane));
@@ -6446,7 +6482,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own,
             &edges,
             &touch.pairs,
-            Some((touch.face, touch.datum.normal, &touch.classes)),
+            Some((touch.face, touch.datum.normal, &touch.read_against)),
             band,
         )?
         .map_err(|edge| BooleanError::VertexReadTwice {
@@ -6573,7 +6609,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         .collect();
     #[cfg(any(test, feature = "test-support"))]
     insert::reverse_when_asked(&mut plans, &mut orbits);
-    insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
+    insert::reconcile_shared(&mut plans, &orbits, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges)?;
     null_pairs.extend(out.pairs);
@@ -6749,7 +6785,9 @@ fn held_faces<T: Real>(
 struct Touch<T: Real> {
     /// Its pierce's classes, as first read.
     classes: Vec<(HalfEdgeKey, SideCode)>,
-    /// The pierced face's datum they were read against.
+    /// The datum each of them was read against.
+    read_against: Vec<(HalfEdgeKey, vtxfac::PierceDatum<T>)>,
+    /// The pierced face's datum.
     datum: vtxfac::PierceDatum<T>,
     /// Whether a sector of its pierce lies in the face's plane.
     flush: bool,

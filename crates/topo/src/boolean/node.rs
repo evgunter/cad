@@ -150,7 +150,7 @@ pub(super) fn mint_nodes<T: Decide + crate::props::AtRestPolicy>(
                 (fa, fb),
                 (node, node - centre),
                 tangents,
-                radius,
+                geom_core::Lever::curvature_radius(radius),
                 band,
                 tol,
             )?);

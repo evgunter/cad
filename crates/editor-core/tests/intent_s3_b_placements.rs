@@ -106,11 +106,11 @@ fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formu
         mates: vec![mate],
         values: vec![
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                editor_core::Coord::slide(editor_core::TargetAxis::X),
                 len(0.0),
             ),
             (
-                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
+                editor_core::Coord::slide(editor_core::TargetAxis::Y),
                 len(0.0),
             ),
             (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -665,7 +665,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
                 editor_core::Constraint::of_value(
                     editor_core::ConstraintId::placeholder(3),
                     editor_core::Value {
-                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
+                        coord: editor_core::Coord::slide(editor_core::TargetAxis::X),
                         by: len(0.1),
                     },
                 ),
@@ -717,8 +717,8 @@ fn a_mate_on_a_copy_pinned_by_values_takes_the_freedoms_it_fixes() {
     assert_eq!(
         kept,
         [
-            Coord::Slide(TargetAxis::X),
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::X),
+            Coord::slide(TargetAxis::Y),
             Coord::SPIN,
         ],
         "the values the rest leaves, and none it fixes"

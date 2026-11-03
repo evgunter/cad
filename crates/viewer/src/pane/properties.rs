@@ -170,6 +170,12 @@ impl ViewerBehavior<'_> {
                     ) {
                         crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
                     }
+                } else if crate::props::index_count_row(self.session.doc(), var).is_some() {
+                    crate::widgets::message(
+                        ui,
+                        format!("index {}", self.session.doc().spoken_var(var)),
+                    );
+                    self.index_count_ui(ui, var);
                 }
                 // No row is an undeclared variable, and nothing is
                 // drawn for it here: the header above has said so
@@ -208,7 +214,7 @@ impl ViewerBehavior<'_> {
     }
 
     /// **A feature's editing rows**: its slot rows — or, for a
-    /// profile, the add-profile form's own editor
+    /// profile, the profile editor
     /// ([`ViewerBehavior::edit_profile_ui`]), whose fields ARE its
     /// slots' fields. Only a profile the editor cannot hold shows its
     /// refusal and the slot rows instead.
@@ -219,6 +225,39 @@ impl ViewerBehavior<'_> {
         }
         for group in groups {
             self.slot_group_ui(ui, node, group);
+        }
+        for index in crate::props::indices_read(self.session.doc(), node) {
+            self.index_count_ui(ui, index);
+        }
+    }
+
+    /// **An index's count row** (D10 `[repetition]`): the one widget
+    /// that edits it, drawn on the index variable's own row and on the
+    /// rows of each node that reads it, a pattern's placement among
+    /// them. A number or a formula goes through the variable's doors,
+    /// which write an index's count by `props::index_count_edit`.
+    pub(crate) fn index_count_ui(&mut self, ui: &mut egui::Ui, index: VarId) {
+        let Some(row) = crate::props::index_count_row(self.session.doc(), index) else {
+            return;
+        };
+        ui.horizontal(|ui| {
+            ui.label(format!("count of {}", row.label));
+            value_field_ops(
+                ui,
+                defined_showing(&row, *self.notation),
+                value_gesture(ValueGestureName::Variable(index)),
+                variable_doors(index),
+                self.ops,
+                self.notices,
+            );
+        });
+        for line in reading_notes(
+            &format!("the count of {}", row.label),
+            &row.value,
+            row.dimension,
+            *self.notation,
+        ) {
+            crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
         }
     }
 
