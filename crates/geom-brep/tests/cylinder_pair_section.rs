@@ -49,7 +49,7 @@ fn placed(about: Vec3<f64>, angle: f64, to: (f64, f64, f64)) -> Surface<f64> {
 /// The operation's region for two unit-long drums about the origin: the
 /// ball about their boxes' overlap, padded.
 fn region() -> ExtentBall<f64> {
-    ExtentBall::new(Point3::origin(), 2.0)
+    ExtentBall::of_sphere(Point3::origin(), 2.0)
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>, region: ExtentBall<f64>) -> PairSection<f64> {
@@ -230,7 +230,7 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
 #[test]
 fn a_region_that_cuts_the_loop_carries_cut_components() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
-    let region = ExtentBall::new(Point3::origin(), 0.6);
+    let region = ExtentBall::of_sphere(Point3::origin(), 0.6);
     let section = built(&a, &b, region);
     let arcs = listed(&section);
     assert!(!arcs.is_empty(), "the region cuts the loop");
@@ -393,7 +393,7 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
     let tilt = 0.3 * band().zero() / r;
     let a = wall(Point3::origin(), Vec3::unit_z(), r);
     let b = wall(Point3::new(5e-4, 0.0, 0.0), turned(Vec3::unit_x(), tilt), r);
-    let near = built(&a, &b, ExtentBall::new(Point3::origin(), r));
+    let near = built(&a, &b, ExtentBall::of_sphere(Point3::origin(), r));
     assert!(
         matches!(
             near.pose(),
@@ -402,7 +402,7 @@ fn thin_rods_read_crossing_at_the_region_and_refuse_typed() {
         ),
         "levered at the rods' size the tilt reads parallel"
     );
-    let far_region = ExtentBall::new(Point3::origin(), 1.0);
+    let far_region = ExtentBall::of_sphere(Point3::origin(), 1.0);
     // At ε 1e-12 the tilt is 3e-10 rad, and the meetings' rounding,
     // levered by its inverse, outgrows the band about the region's sphere:
     // the sweep cannot place a cut end and escalates on the cut's row.
@@ -608,7 +608,7 @@ fn meeting_axes_of_two_radii_cut_in_two_loops_about_the_thinner_wall() {
 /// 0.1 at `(0, 0, 30)`.
 #[test]
 fn a_region_clear_of_the_pair_lists_nothing() {
-    let far = ExtentBall::new(Point3::new(0.0, 0.0, 30.0), 0.1);
+    let far = ExtentBall::of_sphere(Point3::new(0.0, 0.0, 30.0), 0.1);
     let a = drum();
     let poses = [
         ("rulings", placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05))),
@@ -653,7 +653,7 @@ fn a_region_that_cuts_the_bisector_flags_the_long_arcs_cut() {
     let (a, b) = (drum(), placed(Vec3::unit_y(), 0.4, (0.6, 0.0, 0.0)));
     let whole = built(&a, &b, region());
     let meet = whole.nodes()[0] + (whole.nodes()[1] - whole.nodes()[0]) * 0.5;
-    let section = built(&a, &b, ExtentBall::new(meet, 0.6));
+    let section = built(&a, &b, ExtentBall::of_sphere(meet, 0.6));
     let got = listed(&section);
     assert_eq!(got.len(), 4, "four arcs");
     let cut: Vec<bool> = got
@@ -683,7 +683,7 @@ fn a_ruling_the_region_misses_is_not_listed() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.0, (0.45, 0.1, 0.05)));
     let whole = built(&a, &b, region());
     let p = listed(&whole)[0].witness.expect("a witness");
-    let section = built(&a, &b, ExtentBall::new(p, 0.05));
+    let section = built(&a, &b, ExtentBall::of_sphere(p, 0.05));
     let got = listed(&section);
     assert_eq!(got.len(), 1, "one ruling reaches the region");
     let w = got[0].witness.expect("a witness");
@@ -700,7 +700,11 @@ fn a_ruling_the_region_misses_is_not_listed() {
 #[test]
 fn a_region_off_the_pair_counts_the_arc_it_cuts() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
-    let section = built(&a, &b, ExtentBall::new(Point3::new(0.0, 0.0, 3.0), 3.2));
+    let section = built(
+        &a,
+        &b,
+        ExtentBall::of_sphere(Point3::new(0.0, 0.0, 3.0), 3.2),
+    );
     let got = listed(&section);
     assert_eq!(got.len(), 1, "one arc: {got:?}");
     assert_eq!(
@@ -757,7 +761,7 @@ fn a_region_through_a_branch_point_escalates() {
     match geom_brep::pair_section(
         &a,
         &b,
-        Some(ExtentBall::new(Point3::origin(), through)),
+        Some(ExtentBall::of_sphere(Point3::origin(), through)),
         None,
         band(),
     ) {
@@ -771,7 +775,7 @@ fn a_region_through_a_branch_point_escalates() {
     // Either side of it the sphere cuts the saddle-shaped loop in arcs
     // the march carries one to one.
     for (what, radius) in [("smaller", through - 1e-3), ("larger", through + 1e-3)] {
-        let section = built(&a, &b, ExtentBall::new(Point3::origin(), radius));
+        let section = built(&a, &b, ExtentBall::of_sphere(Point3::origin(), radius));
         let got = listed(&section);
         assert!(
             !got.is_empty() && got.iter().all(|c| c.cut_ends.is_some()),
@@ -784,6 +788,28 @@ fn a_region_through_a_branch_point_escalates() {
             carried.components().len(),
             got.len(),
             "{what}: one branch per arc"
+        );
+    }
+}
+
+/// **A branch point on one of the sweep's first cuts is counted**:
+/// perpendicular walls `r = 0.5` about `z` and `ρ = 0.2` about `x`, the
+/// gap `e = 0.5 − 0.2·cos(π/4)` placing a branch point of the thinner
+/// wall's sweep at `φ = π/4` or `3π/4` (as the frame falls), both cuts of
+/// the turn's first 32. There `Δ` reads zero, so a cell ending there
+/// could not decide its end; the sweep cuts off the zero and counts the
+/// one loop the region holds, in both orders.
+#[test]
+fn a_branch_point_on_a_first_cut_is_counted() {
+    let a = drum();
+    let e = 0.5 - 0.2 * core::f64::consts::FRAC_PI_4.cos();
+    let b = wall(Point3::new(0.0, e, 0.0), Vec3::unit_x(), 0.2);
+    for (label, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
+        let section = built(x, y, region());
+        let got = listed(&section);
+        assert!(
+            got.len() == 1 && got[0].shape == ComponentShape::Loop,
+            "{label}: one loop, {got:?}"
         );
     }
 }

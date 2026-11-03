@@ -889,8 +889,8 @@ pub(super) fn gate_maximal_faces<T: Decide>(
         );
         // The ball about the edge's start that holds all of it: out to
         // its cover's farthest distance from there.
-        let arm = match super::boxes::edge_cover_linked(body, edge_key, edge) {
-            Ok(cover) => cover.distance_range(&geom::cover::Site::Point(at)).1,
+        let cover = match super::boxes::edge_cover_linked(body, edge_key, edge) {
+            Ok(cover) => Some(cover),
             Err(super::EdgeUncovered::Scaffold) => unreachable!(
                 "{operand:?}'s edge {edge_key:?}, read out of its arena, has no certified \
                  carrier: the operand gate refuses a null edge as scaffolding"
@@ -900,11 +900,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // number), or an end vertex that is not a finite point: the
             // edge bounds no region, and levers at poison, which the
             // ladder escalates as its orientation rung's refusal.
-            Err(super::EdgeUncovered::Carrier(_) | super::EdgeUncovered::Ends) => {
-                (T::zero() - T::one()).sqrt()
-            }
+            Err(super::EdgeUncovered::Carrier(_) | super::EdgeUncovered::Ends) => None,
         };
-        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::new(at, arm));
+        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::of_cover_from(
+            cover.as_ref(),
+            at,
+        ));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
         match super::oriented_plane_eq(&p1, &p2, &extent, band) {
@@ -5061,7 +5062,9 @@ fn line_cone_roots<T: Decide>(
         super::solid_contain::About::Start,
     )
     .coeffs;
-    let length = dir.norm() * (t1 - t0).abs();
+    // Unsourced lever: a length read off the parameter span, not the
+    // edge's end points; the end points' distance rounds differently.
+    let length = geom_core::Lever::unsourced(dir.norm() * (t1 - t0).abs());
     match decide(
         "bool_line_cone_lead",
         Margin::levered(a2 / dd, length),
@@ -7950,7 +7953,7 @@ mod neighbour_extent_rows {
                 p0,
                 p1,
                 |_| None,
-                s,
+                geom_brep::ExtentBall::point(p0).lever_from(p1),
                 fine,
                 geom_brep::NurbsLane::certified(),
             )

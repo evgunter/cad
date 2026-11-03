@@ -114,7 +114,7 @@ pub(super) fn off_face<T: Decide + Bounds>(
 
 /// A carrier's reach, ρ in the module docs.
 #[derive(Clone, Copy, Debug)]
-pub(super) enum Reach<T> {
+pub(super) enum MedialDistance<T> {
     /// The distance to the medial axis.
     Bounded(T),
     /// A plane's: it has no medial axis, and its level sets do not bend.
@@ -122,19 +122,19 @@ pub(super) enum Reach<T> {
 }
 
 /// The carrier's reach; `None` for a kind with no distance here.
-pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<Reach<T>> {
+pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistance<T>> {
     match *surface {
         geom::Surface::Sphere { radius, .. } | geom::Surface::Cylinder { radius, .. } => {
-            Some(Reach::Bounded(radius))
+            Some(MedialDistance::Bounded(radius))
         }
         geom::Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => Some(Reach::Bounded(
+        } => Some(MedialDistance::Bounded(
             minor_radius.min(major_radius - minor_radius),
         )),
-        geom::Surface::Plane { .. } => Some(Reach::Unbounded),
+        geom::Surface::Plane { .. } => Some(MedialDistance::Unbounded),
         geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
@@ -207,7 +207,7 @@ fn clusters<T: Decide + Bounds>(
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     (speed, bend): (SupSpeed<T>, T),
-    rho: Reach<T>,
+    rho: MedialDistance<T>,
     (t0, t1): (T, T),
     band: Band,
 ) -> Option<Vec<(T, T)>> {
@@ -216,9 +216,9 @@ fn clusters<T: Decide + Bounds>(
     // curvature. A bend with no finite bound sets no floor, and the walk
     // runs to its budget.
     let parting = match rho {
-        Reach::Bounded(rho) => rho,
-        Reach::Unbounded if geom_core::is_finite_length(bend) => T::one() / bend,
-        Reach::Unbounded => T::zero(),
+        MedialDistance::Bounded(rho) => rho,
+        MedialDistance::Unbounded if geom_core::is_finite_length(bend) => T::one() / bend,
+        MedialDistance::Unbounded => T::zero(),
     };
     let floor = geom_core::bisect::tangency_floor(parting, band.escalate()).hi();
     let mut out: Vec<(T, T)> = Vec::new();
@@ -242,8 +242,8 @@ fn clusters<T: Decide + Bounds>(
         // first's. A plane's level sets do not bend.
         let curl = match rho {
             _ if !geom_core::is_finite_length(bend) => None,
-            Reach::Unbounded => Some(bend),
-            Reach::Bounded(rho) => {
+            MedialDistance::Unbounded => Some(bend),
+            MedialDistance::Bounded(rho) => {
                 let axis_gap = rho - dist.abs() - ell;
                 matches!(
                     decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band),
@@ -294,10 +294,10 @@ fn ball_off_face<T: Decide + Bounds>(
     face: FaceKey,
     foot: Point3<T>,
     radius: T,
-    rho: Reach<T>,
+    rho: MedialDistance<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    if let Reach::Bounded(rho) = rho
+    if let MedialDistance::Bounded(rho) = rho
         && !matches!(
             decide("bool_touch_ball_in_reach", Margin::of(rho - radius), band),
             Ok(Sign::Positive)

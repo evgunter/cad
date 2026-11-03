@@ -2193,20 +2193,6 @@ pub fn committed(
     out
 }
 
-/// **One committed profile's drawing** — [`committed`]'s answer for
-/// `node` alone, `None` where that pass would leave it out of both
-/// lists or could not flatten it. What a tool drawing over one held
-/// profile reads (the revolve tool's axis, `pane::viewport`), so it
-/// sees the loops and the plane the picture already draws.
-pub fn committed_profile(
-    doc: &Doc<ProfileProgram>,
-    evaluation: &Evaluation<f64>,
-    chord: f64,
-    node: RecipeNodeId,
-) -> Option<CommittedProfile> {
-    drawing(doc, evaluation, chord, node)?.ok()
-}
-
 /// `node`'s drawing: `None` for a node that is no profile or has no
 /// validated value, `Err` for one whose loops cannot be flattened.
 fn drawing(
@@ -2767,7 +2753,7 @@ mod tests {
     /// nothing.
     #[test]
     fn a_drawn_previews_hold_is_read_off_one_partition() {
-        let open_and_invalid = planted(false, Some(ProfileError::EmptyProfile));
+        let open_and_invalid = planted(false, Some(ProfileError::PlaneNotFinite));
         let hold = open_and_invalid.hold();
         assert!(matches!(hold, Some(PreviewHold::OpenChain)), "{hold:?}");
         assert_eq!(hold.map(|hold| hold.tone()), Some(Tone::Advisory));
@@ -2776,7 +2762,7 @@ mod tests {
         assert!(matches!(open.hold(), Some(PreviewHold::OpenChain)));
         assert_eq!(open.hold().map(|hold| hold.tone()), Some(Tone::Advisory));
 
-        let invalid = planted(true, Some(ProfileError::EmptyProfile));
+        let invalid = planted(true, Some(ProfileError::PlaneNotFinite));
         assert!(matches!(invalid.hold(), Some(PreviewHold::Invalid(_))));
         assert_eq!(
             invalid.hold().map(|hold| hold.tone()),

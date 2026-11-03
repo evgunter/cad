@@ -1322,7 +1322,12 @@ pub(crate) fn face_box_rule<T: Decide>(
             ..
         } => {
             let (read, log) = geom_core::k_stats::detached(|| {
-                UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius)
+                UnitVec3::levered(
+                    *axis,
+                    BOX_CYLINDER_AXIS,
+                    band,
+                    geom_core::Lever::curvature_radius(*radius),
+                )
             });
             match read {
                 Ok(unit) => {
@@ -1610,7 +1615,10 @@ fn sphere_window<T: Decide>(
             matches!(
                 crate::validate::decide(
                     BOX_SPHERE_SEAM,
-                    Margin::levered(seam.get().dot(unit.get()), *radius),
+                    Margin::levered(
+                        seam.get().dot(unit.get()),
+                        geom_brep::ExtentBall::of_sphere(*center, *radius).lever()
+                    ),
                     band
                 ),
                 Ok(Sign::Zero)
@@ -2079,10 +2087,8 @@ pub(crate) fn arc_cover<T: SpanLocate>(
 }
 
 /// **How far `edge` reaches from `pivot`, bounded from both sides**
-/// ([`geom_brep::edge_reach_bounds`]), its bound from above the far
-/// distance of the edge's cover ([`edge_cover_linked`]) from `pivot`;
-/// poison where the edge has no cover, which the reading levered at it
-/// escalates. `None` for null scaffolding.
+/// ([`piece_reach_bounds`] over the edge's whole span, its ends its
+/// vertices). `None` for null scaffolding.
 pub(crate) fn edge_reach_bounds<T: SpanLocate>(
     body: &Body<T>,
     edge: EdgeKey,
@@ -2090,16 +2096,34 @@ pub(crate) fn edge_reach_bounds<T: SpanLocate>(
     pivot: Point3<T>,
 ) -> Option<geom_brep::LeverBounds<T>> {
     let curve = body.edge_curve_linked(edge, e).certified()?;
-    let above = edge_cover_linked(body, edge, e).map_or_else(
-        |_| (T::zero() - T::one()).sqrt(),
-        |c| c.distance_range(&geom::cover::Site::Point(pivot)).1,
+    let ends = (
+        edge_end_point(body, edge, e.he_plus, "he_plus"),
+        edge_end_point(body, edge, e.he_minus, "he_minus"),
     );
-    Some(geom_brep::edge_reach_bounds(
+    Some(piece_reach_bounds(
         curve.carrier(),
         curve.params(),
+        ends,
         pivot,
-        above,
     ))
+}
+
+/// **How far a piece of an edge reaches from `pivot`, bounded from both
+/// sides** ([`geom_brep::edge_reach_bounds`]): the piece of `carrier`
+/// over `span` with its two ends `ends`, its bound from above the far
+/// distance of its cover ([`edge_cover_over`]) from `pivot`, poison
+/// where it has no cover, which the reading levered at it escalates.
+/// The whole edge's ([`edge_reach_bounds`]), or a piece from a point
+/// inside it to one of its vertices (`overlap`'s half-turns).
+pub(crate) fn piece_reach_bounds<T: SpanLocate>(
+    carrier: &geom::Curve3<T>,
+    span: (T, T),
+    ends: (Point3<T>, Point3<T>),
+    pivot: Point3<T>,
+) -> geom_brep::LeverBounds<T> {
+    let cover = edge_cover_over(carrier, span, ends).ok();
+    let above = geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever_from(pivot);
+    geom_brep::edge_reach_bounds(carrier, span, pivot, above)
 }
 
 /// [`edge_cover_of`] for `edge`, its ends read through its half-edges.
@@ -3125,7 +3149,13 @@ pub(crate) mod tests {
             ] {
                 let what = format!("[{u0}, {u1}] {what}");
                 assert!(
-                    UnitVec3::levered(*axis, BOX_CYLINDER_AXIS, band, *radius).is_err(),
+                    UnitVec3::levered(
+                        *axis,
+                        BOX_CYLINDER_AXIS,
+                        band,
+                        geom_core::Lever::curvature_radius(*radius)
+                    )
+                    .is_err(),
                     "{what}: the levered axis must not decide, or the row reads the slab"
                 );
                 // Not the band's sweep pad: at these bands it is wider

@@ -97,7 +97,7 @@ pub(crate) struct GermFoot<T: Real> {
 pub(crate) struct ApexLines<T: Real> {
     pub(crate) apex: geom_core::Point3<T>,
     pub(crate) dirs: [geom_core::Vec3<T>; 2],
-    pub(crate) lever: T,
+    pub(crate) lever: geom_core::Lever<T>,
 }
 
 /// Why a germ has no place on its section.
@@ -129,6 +129,9 @@ pub(crate) struct SectionTable<T: Real> {
     lane: Option<SsiLane<T>>,
     region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
+    /// Whether a glue door read the table ([`Self::reader`]), not a
+    /// sweep-only door's empty one (`Default`).
+    at_a_door: bool,
     plane_cone: BTreeMap<PairKey, PlaneCone<T>>,
 }
 
@@ -152,6 +155,7 @@ impl<T: Real> Default for SectionTable<T> {
             lane: None,
             region: None,
             feet: RefCell::new(BTreeMap::new()),
+            at_a_door: false,
             plane_cone: BTreeMap::new(),
         }
     }
@@ -231,6 +235,7 @@ impl<T: geom_core::Decide> SectionTable<T> {
             table: Self {
                 lane,
                 region,
+                at_a_door: true,
                 ..Self::default()
             },
             band,
@@ -248,6 +253,15 @@ impl<T: geom_core::Decide> SectionTable<T> {
         geom_brep::pair_section::traced_in_r3(sa.kind(), sb.kind())
             .then_some(self.region)
             .flatten()
+    }
+
+    /// **Whether a pair this table does not hold is a desync**: a glue
+    /// door reads every pair whose faces' boxes meet, so a pair the join
+    /// meets and the table lacks is one the door never read; a
+    /// sweep-only door's table (`Default`) reads none, and its pairs keep
+    /// the routes that read their surfaces.
+    pub(crate) fn unheld_is_desync(&self) -> bool {
+        self.at_a_door
     }
 
     /// The section held for A's face `fa` against B's `fb`, by their
@@ -281,38 +295,6 @@ impl<T: geom_core::Decide> SectionTable<T> {
                 .as_ref()
                 .map_err(Uncarried::Carry),
         )
-    }
-
-    /// **Whether the join reads the pair of `a` and `b` from the table**:
-    /// every pair the table holds but two cylinders, which the join reads
-    /// through its own frame and bisector lanes
-    /// (`join::cylinder_pair_frame`, `node.rs`) and not the value, whose
-    /// bisector arcs a site at a node lies on more than one of. The one
-    /// gate both of the join's readings ([`Self::held_at_the_join`],
-    /// [`Self::carried_at_the_join`]) take.
-    fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
-        let cylinder = |(body, f): (&Body<T>, FaceKey)| {
-            matches!(body.proven_face_surface(f), geom::Surface::Cylinder { .. })
-        };
-        !(cylinder(a) && cylinder(b))
-    }
-
-    /// [`Self::held`], for the join ([`Self::join_reads`]).
-    pub(crate) fn held_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<&Result<PairSection<T>, SectionError>> {
-        Self::join_reads(a, b).then(|| self.held(a, b)).flatten()
-    }
-
-    /// [`Self::carried`], for the join ([`Self::join_reads`]).
-    pub(crate) fn carried_at_the_join(
-        &self,
-        a: (&Body<T>, FaceKey),
-        b: (&Body<T>, FaceKey),
-    ) -> Option<Result<&CarriedSection<T>, Uncarried<'_>>> {
-        Self::join_reads(a, b).then(|| self.carried(a, b)).flatten()
     }
 
     /// **Component `k` of the pair's carried section, seated**

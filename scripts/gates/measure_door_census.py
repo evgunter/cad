@@ -8,11 +8,12 @@ all spell the name once, so none of them is a way around the count. The
 names' own declarations (`topo::test_support`'s `pub use … as NAME;`)
 are not references.
 
-    measure_door_census.py BASELINE NAME... [--reasons]
+    measure_door_census.py BASELINE NAME... [--reasons] [--marker=TEXT] [--per-file]
 
 Prints `ROSE key: was -> now` / `FELL key: was -> now` per key that
 moved, then `TOTAL n`. With `--reasons`, also prints `UNREASONED
-path:line` for each reference with no `// Raw door:` comment on its own
+path:line` for each reference with no `// Raw door:` comment (or the
+`--marker` text, for another gate's census) on its own
 line or above it in the same statement (read from the file itself, since
 the records carry no comments). The walk up from a reference passes
 comment-only lines and the lines of its own statement, and stops at the
@@ -26,6 +27,9 @@ import sys
 
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
 reasons = '--reasons' in sys.argv
+per_file = '--per-file' in sys.argv
+marker = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--marker=')),
+              '// Raw door:')
 baseline, names = args[0], args[1:]
 word = re.compile(r'\b(' + '|'.join(map(re.escape, names)) + r')\b')
 decl = re.compile(r'\bas\s+(' + '|'.join(map(re.escape, names)) + r')\s*;')
@@ -40,6 +44,8 @@ with open(baseline, encoding='utf-8') as fh:
 
 
 def key_of(path):
+    if per_file:
+        return path
     parts = path.split('/')
     if parts[0] in ('crates', 'demos') and len(parts) > 2:
         return '/'.join(parts[:2])
@@ -76,10 +82,10 @@ if reasons:
 
     for path, ln in refs:
         lines = cache.setdefault(path, open(path, encoding='utf-8').read().split('\n'))
-        ok = '// Raw door:' in lines[ln - 1]
+        ok = marker in lines[ln - 1]
         k = ln - 2
         while not ok and k >= 0 and not stop.match(lines[k]):
-            if '// Raw door:' in lines[k]:
+            if marker in lines[k]:
                 ok = True
             elif ends_a_statement(lines[k]):
                 break

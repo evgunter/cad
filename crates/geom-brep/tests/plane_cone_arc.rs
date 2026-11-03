@@ -40,10 +40,7 @@ fn plane(q: Point3<f64>, n: Vec3<f64>) -> Surface<f64> {
 
 /// A reach of `lever` metres about the apex.
 fn reach(lever: f64) -> Reach<f64> {
-    Reach::Measured {
-        at: Point3::new(0.0, 0.0, 1.0),
-        lever,
-    }
+    Reach::fixture(Point3::new(0.0, 0.0, 1.0), lever)
 }
 
 /// A point's distance from the double cone `cone(alpha)`: exact for a
@@ -442,8 +439,8 @@ fn the_extent_on_a_steep_arc() {
             .flat_map(|a| pts.iter().map(move |b| a.distance(*b)))
             .fold(0.0, f64::max);
         let chord = from.distance(to);
-        let inf = geom_brep::edge_extent_inf(&arc, lo, hi, chord);
-        let sup = geom_brep::edge_extent_sup(&arc, lo, hi, chord);
+        let inf = geom_brep::edge_extent_inf(&arc, lo, hi, (from, to)).length();
+        let sup = geom_brep::edge_extent_sup(&arc, lo, hi, (from, to)).length();
         println!(
             "[measured] steep arc α {alpha}, y {y0}..{y1}: chord {chord}, diameter {diameter}, \
              inf {inf}, sup {sup}, chord/D {}, inf/D {}, sup/D {}",
