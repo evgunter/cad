@@ -148,7 +148,8 @@ fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol()).unwrap_err();
     assert!(
         matches!(e, topo::ReplaceFaceError::TogetherPartialSet { face } if solid_of(&three, face) == solids[2]),
-        "{e}"
+        "{e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -416,7 +417,10 @@ fn r2_no_solid_is_only_the_empty_operand() {
     )
     .unwrap_err();
     assert!(matches!(e, ShellError::NoSolid));
-    println!("[r2] NoSolid display: {e}");
+    println!(
+        "[r2] NoSolid display: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     // Three solids build.
     let two = beside(
         &block(2.0, 3.0, 4.0, Tol::witness()),
@@ -878,8 +882,10 @@ fn r2_point_in_solid_of_one_cap_answers_beside_a_shared_sphere_chart() {
     let (up, down) = (Point3::new(0.0, 0.0, 0.6), Point3::new(0.0, 0.0, -0.6));
     let mut read = Vec::new();
     for (solid, _) in body.solids() {
-        let at =
-            |q| topo::point_in_solid_of(&body, solid, q, band, tol()).map_err(|e| e.to_string());
+        let at = |q| {
+            topo::point_in_solid_of(&body, solid, q, band, tol())
+                .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
+        };
         read.push((at(up), at(down)));
     }
     use topo::SolidContainment::{In, Out};
@@ -1033,7 +1039,12 @@ fn r2_open_on_a_chart_two_solids_share_opens_only_the_named_solids() {
             &faces,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("opposed pair opened at {faces:?}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "opposed pair opened at {faces:?}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(s.body.solids().count(), 2, "opposed pair at {faces:?}");
         assert_volume(&s.body, want, &format!("opposed pair opened at {faces:?}"));
         assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
@@ -1060,7 +1071,12 @@ fn r2_open_on_a_chart_two_solids_share_opens_only_the_named_solids() {
             &faces,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("split slab opened at {faces:?}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "split slab opened at {faces:?}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(s.body.solids().count(), 2, "split slab at {faces:?}");
         assert_volume(&s.body, want, &format!("split slab opened at {faces:?}"));
         assert_eq!(topo::validate_geometric(&s.body, tol()), Ok(()));
@@ -1155,8 +1171,12 @@ fn r2_three_solids_on_one_sphere_chart_open_additively() {
     assert_eq!(topo::validate_geometric(&closed.body, tol), Ok(()));
     let closed = volume(&closed.body);
     let delta = |faces: &[FaceKey]| -> f64 {
-        let s = topo::shell_open(&body, t, faces, tol)
-            .unwrap_or_else(|e| panic!("opened at {faces:?}: {e}"));
+        let s = topo::shell_open(&body, t, faces, tol).unwrap_or_else(|e| {
+            panic!(
+                "opened at {faces:?}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(topo::validate_geometric(&s.body, tol), Ok(()));
         assert_eq!(s.body.solids().count(), 3, "opened at {faces:?}");
         volume(&s.body) - closed
@@ -1213,7 +1233,8 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
     let e = topo::replace_faces_offset(&mut one.clone(), &tops[..1], -0.1, tol()).unwrap_err();
     assert!(
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
-        "one shell's wearer of the solid's chart: {e}"
+        "one shell's wearer of the solid's chart: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     // Raw door: `one` files two pieces under one solid, which tier 3 refuses (SolidOuterShells).
     let before = topo::test_support::measure_unvalidated(

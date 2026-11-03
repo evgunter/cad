@@ -2811,7 +2811,8 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             .pairing([true, true], band)
             .expect_err("the pairing stops the walk");
         assert_eq!(stop.rung(), geom_brep::WedgeRung::Pairing, "{label}");
-        let text = crate::validate::dihedral_finding(edge, stop).to_string();
+        let text = crate::validate::dihedral_finding(edge, stop)
+            .render(geom_brep::recourse::Reading::AtRest);
         assert!(text.starts_with(lead), "{label}: {text}");
         let quoted = offered_tolerance(&text);
         assert!(
@@ -2831,7 +2832,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             check: crate::validate::WedgeCheck::MaterialSide,
             cause,
         }
-        .to_string(),
+        .render(geom_brep::recourse::Reading::AtRest),
         format!(
             "which side of an edge the material of its two smoothly meeting faces lies on could \
              not be read consistently along it. {}",

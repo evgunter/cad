@@ -2543,7 +2543,7 @@ mod tests {
                 .kev(strut.he_minus)
                 .map(|_| ())
                 .unwrap_err()
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(lever), "{pose}: {text}");
             assert_eq!(
                 test_utils::refusal::recourse_markers(&text),
@@ -3680,7 +3680,7 @@ mod tests {
             },
         ];
         for err in &errors {
-            assert!(!err.to_string().is_empty());
+            assert!(!err.render(geom_brep::recourse::Reading::Build).is_empty());
             let _: &dyn std::error::Error = err;
         }
     }

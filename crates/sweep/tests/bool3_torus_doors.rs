@@ -176,8 +176,12 @@ fn quarter_spool() -> Body<f64> {
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
-    point_in_solid(body, q, band(), Tol::witness())
-        .unwrap_or_else(|e| panic!("point_in_solid refused at {q:?}: {e}"))
+    point_in_solid(body, q, band(), Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "point_in_solid refused at {q:?}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// The probe offset — **BOOL-2's expression, unchanged**, because this
@@ -622,7 +626,8 @@ fn a_disjoint_union_with_a_donut_now_assembles() {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
             "the containment door still refuses a torus operand — this is the \
-             refusal issue 1011's torus half retires: {e}"
+             refusal issue 1011's torus half retires: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Err(other) => panic!("unexpected refusal: {other:?}"),
     };
@@ -669,7 +674,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         face: body.faces().next().unwrap().0,
         kind: geom::SurfaceKind::Nurbs,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
@@ -685,7 +690,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
     let msg = PointInSolidError::PartialTorusFace {
         face: body.faces().next().unwrap().0,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(

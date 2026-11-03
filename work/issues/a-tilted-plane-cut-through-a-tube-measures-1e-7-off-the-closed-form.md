@@ -35,3 +35,12 @@ is not settled.
 Measure the same pose with a third reading (a finer slice sum, or
 `mass_properties` at a tighter tolerance); then either fix the side
 that is off or record why `1.2e-7` is inside that side's stated error.
+
+## Same shape seen elsewhere (SPLICE `splice/far-union-volume`, 2026-11-03)
+
+`spline_spiric_operands`' lofted cylinder far union read 3.2e-5 off its
+closed form at ε = 1e-6 with every face's reading inside its certified
+`volume_pad` (2.8e-3): the row held a quadrature midpoint to a band
+tighter than its bracket, and the fix was the row's (closed form within
+the readings' pads), as `split_across_a_revolve_seam` did in PR 4083.
+Check this row's 1.2e-7 against the measured body's `volume_pad` first.

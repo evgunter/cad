@@ -681,8 +681,13 @@ pub enum ShellError<T: Real> {
     },
 }
 
-impl<T: Real> core::fmt::Display for ShellError<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl<T: Real> ShellError<T> {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Band { error } => write!(f, "{error}"),
             Self::Thickness { thickness } => {
@@ -705,11 +710,13 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::Roles { error } => write!(
                 f,
                 "the body's shells could not be sorted into one outer boundary and its \
-                 voids: {error}"
+                 voids: {}",
+                read_at(error, at)
             ),
             Self::Partition { shell, error } => write!(
                 f,
-                "the thin solid around void {shell:?} could not be partitioned out: {error}"
+                "the thin solid around void {shell:?} could not be partitioned out: {}",
+                read_at(error, at)
             ),
             Self::WallClearance { gap, needed, .. } => write!(
                 f,
@@ -753,10 +760,14 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             Self::Lift { error, .. } => write!(
                 f,
                 "the rim could not be lifted back onto a designated open face: {}",
-                AsShelled(error)
+                core::fmt::from_fn(|f| AsShelled(error, at).write(f))
             ),
             Self::Face { error, .. } => {
-                write!(f, "a face could not be offset inward: {}", AsShelled(error))
+                write!(
+                    f,
+                    "a face could not be offset inward: {}",
+                    core::fmt::from_fn(|f| AsShelled(error, at).write(f))
+                )
             }
             Self::OpenFaceStale { .. } => {
                 write!(
@@ -787,7 +798,11 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "the cavity could not be inserted: {error}. {KERNEL_DEFECT_ENDING}"
             ),
             Self::Rim { face, error } => {
-                write!(f, "the rim surgery on face {face:?} refused: {error}")
+                write!(
+                    f,
+                    "the rim surgery on face {face:?} refused: {}",
+                    read_at(error, at)
+                )
             }
             // The shell op takes no declaration: its levers are the
             // wall and the geometry.
@@ -806,14 +821,16 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             // payload (in `Debug`) names keys the user never saw.
             Self::Pcurve { source } => write!(
                 f,
-                "the finished thin solid's edges could not be parametrized on its faces. {}",
-                shell_mint_ending(source)
+                "the finished thin solid's edges could not be parametrized on its faces{}",
+                ended(at.map(|at| shell_mint_ending(source, at)))
             ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
                 "a wall seam the rim shortens, {stations}. Recourse: {WALL_OR_GEOMETRY}"
             ),
-            Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
+            Self::Join { refusal } => {
+                write!(f, "the assembled thin solid: {}", read_at(refusal, at))
+            }
             Self::NotValid { errors } => write!(
                 f,
                 "the assembled thin solid is not valid ({}) and is discarded. \
@@ -824,6 +841,8 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
     }
 }
 
+geom_brep::ended_by_write!([T: Real] ShellError<T>);
+
 impl<T: Real> std::error::Error for ShellError<T> {}
 
 /// **A face-replacement refusal as the shell op's user reads it.** The
@@ -832,7 +851,7 @@ impl<T: Real> std::error::Error for ShellError<T> {}
 /// moves each face by the wall thickness, signed by the face's sense,
 /// so an arm about the offset's length speaks of the wall. Every other
 /// arm reads as the door's own refusal.
-struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
+struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>, Option<geom_brep::recourse::ReadAt>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
@@ -901,17 +920,31 @@ fn cavity_refusal_ending(
 /// The ending of a pcurve mint the shell op ran: a certification
 /// refusal's own at the build door ([`PcurveMintError::ending`]), the
 /// kernel's defect for a refusal of the pass itself.
-fn shell_mint_ending(source: &PcurveMintError) -> std::borrow::Cow<'static, str> {
+fn shell_mint_ending(
+    source: &PcurveMintError,
+    at: geom_brep::recourse::ReadAt,
+) -> std::borrow::Cow<'static, str> {
     source
-        .ending(geom_brep::recourse::Reading::Build)
+        .ending(at)
         .map_or(KERNEL_DEFECT_ENDING.into(), Into::into)
 }
 
-impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `". {ending}"`, or nothing for a payload read at no door.
+fn ended(ending: Option<impl core::fmt::Display>) -> impl core::fmt::Display {
+    core::fmt::from_fn(move |f| match &ending {
+        Some(ending) => write!(f, ". {ending}"),
+        None => Ok(()),
+    })
+}
+
+impl<T: Real> AsShelled<'_, T> {
+    /// The face-replacement refusal as the shell op's user reads it,
+    /// ended at the door it carries, or its payload alone at none.
+    fn write(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use ReplaceFaceError as R;
         use geom_brep::offset_meters::{Meter, MeterError as M};
-        use geom_brep::recourse::{Reading, Refused};
+        use geom_brep::recourse::{Refused, read_at};
+        let at = self.1;
         use geom_brep::{OffsetError as O, OffsetFitError as F};
         let asked = match self.0 {
             R::StaleFace { .. } => Some("a face that is not in the body"),
@@ -966,7 +999,7 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                 error: fit @ F::Meter(error),
                 ..
             } if error.meter() == Meter::CurvatureHeadroom => {
-                let ending = error.ending_with_lever(THINNER_WALL, Reading::Build);
+                let ending = ended(at.map(|at| error.ending_with_lever(THINNER_WALL, at)));
                 match error {
                     M::CurvatureHeadroom {
                         reach,
@@ -975,7 +1008,7 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                     } => write!(
                         f,
                         "a wall this thick passes the face's radius of curvature on the wall's \
-                         side, {} m (margin {} m), so its offset folds over itself. {ending}",
+                         side, {} m (margin {} m), so its offset folds over itself{ending}",
                         geom_core::Readable(*reach),
                         verdict.margin().readable()
                     ),
@@ -986,13 +1019,14 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                     } => write!(
                         f,
                         "a wall this thick is not shown below the face's radius of curvature on \
-                         the wall's side, {} m (margin {} m), so its offset may fold. {ending}",
+                         the wall's side, {} m (margin {} m), so its offset may fold{ending}",
                         geom_core::Readable(*reach),
                         verdict.margin().readable()
                     ),
-                    M::Escalated { .. } | M::NormalFloor { .. } => {
-                        f.write_str(&fit.render_with_lever(THINNER_WALL))
-                    }
+                    M::Escalated { .. } | M::NormalFloor { .. } => match at {
+                        Some(at) => f.write_str(&fit.render_with_lever(THINNER_WALL, at)),
+                        None => write!(f, "{fit}"),
+                    },
                 }
             }
             R::Fit {
@@ -1022,10 +1056,10 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
             ),
             R::Pcurve { source } => write!(
                 f,
-                "the offset body's edges could not be parametrized on their faces. {}",
-                shell_mint_ending(source)
+                "the offset body's edges could not be parametrized on their faces{}",
+                ended(at.map(|at| shell_mint_ending(source, at)))
             ),
-            error => write!(f, "{error}"),
+            error => write!(f, "{}", read_at(error, at)),
         }
     }
 }
@@ -3476,7 +3510,7 @@ mod rim_seam_rows {
             panic!("a mixed re-ask is the rim seam's refusal, got {refusal:?}");
         };
         assert_eq!(got, stations);
-        let text = refusal.to_string();
+        let text = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with("a wall seam the rim shortens, ")
                 && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
@@ -3524,7 +3558,7 @@ mod mint_endings {
                 }),
             };
             for refusal in [shell, face] {
-                let text = refusal.to_string();
+                let text = refusal.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.matches(KERNEL_DEFECT_ENDING).count(),
                     usize::from(defect),
@@ -3560,7 +3594,8 @@ mod mint_endings {
                 true,
             ),
         ] {
-            let text = ShellError::<f64>::Pcurve { source }.to_string();
+            let text =
+                ShellError::<f64>::Pcurve { source }.render(geom_brep::recourse::Reading::Build);
             assert_eq!(
                 text.matches(KERNEL_DEFECT_ENDING).count(),
                 usize::from(defect),
@@ -5392,7 +5427,11 @@ mod tests {
                 face: FaceKey::default(),
                 error: geom_brep::OffsetFitError::Meter(meter),
             };
-            (AsShelled(&error).to_string(), ending)
+            (
+                core::fmt::from_fn(|f| AsShelled(&error, Some(Reading::Build.into())).write(f))
+                    .to_string(),
+                ending,
+            )
         };
         let (zero, ending) = render(Refused::Zero(Classified {
             margin: geom_core::MarginDiag::value(5e-10),

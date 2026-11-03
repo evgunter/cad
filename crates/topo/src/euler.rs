@@ -246,7 +246,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::recourse::{ReadAt, Reading};
+use geom_brep::recourse::ReadAt;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
 use crate::policy_lane::{KernelSite, Origin};
@@ -1381,18 +1381,23 @@ impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at `at`
     /// ([`CertifyError::render`]): the door that reports the refusal
     /// decides where it is read, the STEP import door with the file's
-    /// ε_in. Every other arm ignores `at`. `Display`
-    /// reads it at [`Reading::Build`], the operation that built the edge.
+    /// ε_in. Every other arm ignores `at`. Its `Display` is the payload
+    /// alone.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
-        let at = at.into();
+        self.text(Some(at.into()))
+    }
+
+    /// The text ended at `at`, or the payload alone where it is `None`.
+    fn text(&self, at: Option<ReadAt>) -> String {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Certification { error } => {
-                format!("geometry attachment gate: {}", error.render(at))
+                format!("geometry attachment gate: {}", read_at(error, at))
             }
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
-                error.render(at)
+                read_at(error, at)
             ),
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
@@ -1443,7 +1448,7 @@ impl EulerOpError {
                 "{}: edge {edge:?}'s re-description does not certify on the charts the move \
                  gives it: {}",
                 door.name(),
-                error.render(at)
+                read_at(error, at)
             ),
             Self::RechartOffBoundary { door, face, on } => format!(
                 "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \
@@ -1538,7 +1543,7 @@ impl EulerOpError {
             // crossing (the split, the blend, the Boolean) forwards them
             // whole.
             Self::SplitParamNotInterior { verdict, .. } => format!(
-                "{}. {}",
+                "{}{}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => format!(
                         "a crossing is not shown strictly inside its edge (margin {} m from an \
@@ -1549,16 +1554,20 @@ impl EulerOpError {
                         "a crossing lands outside its edge".to_owned()
                     }
                 },
-                crate::split::split_param_ending(verdict.arm())
+                at.map(|at| format!(". {}", crate::split::split_param_ending(verdict.arm(), at)))
+                    .unwrap_or_default()
             ),
-            Self::SplitParamEscalated { diag, .. } => diag
-                .undecided(
-                    crate::split::CROSSING_INTERIOR,
-                    crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(
-                        diag,
-                    )),
-                )
-                .to_string(),
+            Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
+                diag,
+                crate::split::CROSSING_INTERIOR,
+                at.map(|at| {
+                    crate::split::split_param_ending(
+                        geom_brep::recourse::RefusedArm::Undecided(diag),
+                        at,
+                    )
+                }),
+            )
+            .to_string(),
             Self::SplitSmoothEscalated { diag, .. } => diag
                 .undecided(
                     "whether a piece of a split smooth edge stays smooth along its span",
@@ -1601,7 +1610,10 @@ impl EulerOpError {
             } => format!(
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {}",
-                error.render(geom_brep::recourse::Reading::Build)
+                // A stored row re-certified over a child is the
+                // split's own construction, ended at a build at every
+                // door that reports the split.
+                read_at(error, geom_brep::recourse::at_build(at))
             ),
             Self::SplitJointUndecided {
                 edge,
@@ -1743,9 +1755,17 @@ impl EulerOpError {
     }
 }
 
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`EulerOpError::render`]).
 impl fmt::Display for EulerOpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.render(Reading::Build))
+        f.write_str(&self.text(None))
+    }
+}
+
+impl geom_brep::recourse::Ended for EulerOpError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -7016,7 +7036,10 @@ mod tests {
     #[test]
     fn every_error_displays() {
         for error in every_euler_op_error_once() {
-            assert!(!error.to_string().is_empty(), "{error:?}");
+            assert!(
+                !error.render(geom_brep::recourse::Reading::Build).is_empty(),
+                "{error:?}"
+            );
         }
     }
 
@@ -7047,7 +7070,7 @@ mod tests {
                 he2: HalfEdgeKey::default(),
             }),
         ]) {
-            let text = error.to_string();
+            let text = error.render(geom_brep::recourse::Reading::Build);
             assert!(
                 !text.contains("kernel defect") && !text.contains("malformed"),
                 "{text}"
@@ -7073,7 +7096,13 @@ mod tests {
                 margin: None,
             },
         };
-        assert!(split.to_string().contains("kernel defect"), "{split}");
+        assert!(
+            split
+                .render(geom_brep::recourse::Reading::Build)
+                .contains("kernel defect"),
+            "{split_at}",
+            split_at = split.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
@@ -7129,7 +7158,7 @@ mod tests {
             ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
-        let zero_text = zero.to_string();
+        let zero_text = zero.render(geom_brep::recourse::Reading::Build);
         let printed = zero_text
             .split_once("not shown strictly inside its edge (margin ")
             .and_then(|(_, rest)| rest.split_once(" m from an end)"))
@@ -7143,7 +7172,7 @@ mod tests {
             "the zero arm states its margin and claims no size: {zero_text}"
         );
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"

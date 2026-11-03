@@ -406,7 +406,12 @@ pub fn parallelepiped_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> Bod
         topo::boolean::SweepStrategy::Realized,
         tol,
     )
-    .unwrap_or_else(|e| panic!("the parallelepiped builds, got {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "the parallelepiped builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
     .body()
     .expect("the parallelepiped is a body")
     .body

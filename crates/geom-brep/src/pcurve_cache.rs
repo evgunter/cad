@@ -190,9 +190,10 @@ pub use geom::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START};
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
+#[cfg(test)]
+use crate::recourse::Reading;
 use crate::recourse::{
-    ReadAt, Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
-    Unsized,
+    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2251,9 +2252,20 @@ impl PcurveCertifyError {
                 "pcurve certification: the fitted lane's certificate refused at limb 2 — \
                  {refusal}"
             ),
-            Self::FittedEscalated { .. } | Self::Escalated { .. } => {
-                unreachable!("`render` writes an escalation")
-            }
+            Self::FittedEscalated { decision, cause } => write!(
+                f,
+                "pcurve certification: the fitted lane's certificate escalated — {}",
+                crate::recourse::undecided_at(cause, decision, None)
+            ),
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } => write!(
+                f,
+                "pcurve certification: {check:?} at sample {sample} escalated: {}",
+                cause.payload()
+            ),
             Self::IntervalNotForward => write!(
                 f,
                 "pcurve certification: the carrier-parameter interval is not forward — a \
@@ -2323,11 +2335,17 @@ impl PcurveCertifyError {
     }
 }
 
-/// Read at a build: the mint or certification a body's own operation
-/// runs.
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`PcurveCertifyError::render`]).
 impl core::fmt::Display for PcurveCertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(Reading::Build))
+        self.write_payload(f)
+    }
+}
+
+impl crate::recourse::Ended for PcurveCertifyError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -2430,7 +2448,7 @@ impl PcurveCertifyError {
             Self::Escalated { check, cause, .. } => {
                 self.with_ending(&check.recourse(RefusedArm::Undecided(cause), at))
             }
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+            _ => self.payload().to_string(),
         }
     }
 
@@ -2462,20 +2480,12 @@ impl PcurveCertifyError {
     /// The refusal's text followed by `ending`: the one spelling of an
     /// escalation's text and of a payload with its ending.
     fn with_ending(&self, ending: &str) -> String {
-        match self {
-            Self::Escalated {
-                check,
-                sample,
-                cause,
-            } => format!(
-                "pcurve certification: {check:?} at sample {sample} escalated: {}. {ending}",
-                cause.payload()
-            ),
-            _ => format!(
-                "{}. {ending}",
-                core::fmt::from_fn(|f| self.write_payload(f))
-            ),
-        }
+        format!("{}. {ending}", self.payload())
+    }
+
+    /// The payload alone, as `Display` writes it.
+    fn payload(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(|f| self.write_payload(f))
     }
 
     /// Whether this is a definite refusal on a certified upper bound on
@@ -9294,10 +9304,12 @@ pub enum IsoFamilyRefusal {
 /// edge, after "whether": the one spelling of that question.
 pub const ISO_FAMILY_CLAUSE: &str = "runs along a cylinder's ruling or around it";
 
-impl core::fmt::Display for IsoFamilyRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends the image's own refusal at the door that reads it; `None`
+/// writes the payload alone, as `Display` does.
+impl IsoFamilyRefusal {
+    fn write(&self, f: &mut core::fmt::Formatter<'_>, at: Option<ReadAt>) -> core::fmt::Result {
         match self {
-            Self::Image(e) => write!(f, "{e}"),
+            Self::Image(e) => write!(f, "{}", crate::recourse::read_at(e, at)),
             Self::Undecided(diag) => write!(
                 f,
                 concat!("whether the edge {}", geom_core::undecided!(), ": {}"),
@@ -9307,6 +9319,8 @@ impl core::fmt::Display for IsoFamilyRefusal {
         }
     }
 }
+
+crate::ended_by_write!(IsoFamilyRefusal);
 
 /// The iso family `carrier`'s image on `surface`'s chart lies on, read
 /// off the class arm [`chart_pcurve`]'s derivation selects for it, so
@@ -11593,8 +11607,8 @@ mod tests {
 
     /// **A pcurve escalation renders at the door it is read at**
     /// ([`PcurveCertifyError::render`]): its defect ending names the
-    /// kernel at a build, as its `Display` does, the kernel or the file at
-    /// rest, and the file at the import door. Red if a door's render
+    /// kernel at a build, the kernel or the file at rest, and the file at
+    /// the import door; its `Display` names none. Red if a door's render
     /// reads a build.
     #[test]
     fn a_pcurve_escalation_renders_at_its_door() {
@@ -11613,7 +11627,13 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        assert!(error.to_string().ends_with(KERNEL_DEFECT_ENDING), "{error}");
+        assert!(
+            error
+                .render(crate::recourse::Reading::Build)
+                .ends_with(KERNEL_DEFECT_ENDING),
+            "{error_at}",
+            error_at = error.render(crate::recourse::Reading::Build)
+        );
         for (at, want) in [
             (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
             (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
@@ -11986,7 +12006,7 @@ mod tests {
             sample: 0,
             cause,
         }
-        .to_string();
+        .render(crate::recourse::Reading::Build);
         assert!(
             escalated.contains(&format!("escalated: {told}Recourse:")),
             "`Escalated`: {escalated}"
@@ -11995,7 +12015,7 @@ mod tests {
             decision: SsiDecision::Trace(TraceDecision::ClosureReturn),
             cause,
         }
-        .to_string();
+        .render(crate::recourse::Reading::Build);
         assert!(
             fitted.contains(&format!(" is undecided: {told}")),
             "`FittedEscalated`: {fitted}"
@@ -12540,8 +12560,11 @@ mod tests {
             "a loose envelope contradicts nothing stored"
         );
         assert!(
-            loose.to_string().contains("the certificate cannot show"),
-            "{loose}"
+            loose
+                .render(crate::recourse::Reading::Build)
+                .contains("the certificate cannot show"),
+            "{loose_at}",
+            loose_at = loose.render(crate::recourse::Reading::Build)
         );
         // The rim moved off the axis by 100·ε: the mint reads it off the
         // cylinder (D3), and so does the row stored for the rim,
@@ -12862,7 +12885,7 @@ mod tests {
                 ),
                 "{lane}: {err:?}"
             );
-            let shown = err.to_string();
+            let shown = err.render(crate::recourse::Reading::Build);
             assert!(
                 !shown.contains("not on its face") && shown.contains("within the band"),
                 "{lane}: {shown}"
@@ -13089,7 +13112,7 @@ mod tests {
             ),
         ];
         for (err, payload) in rows {
-            let msg = err.to_string();
+            let msg = err.render(crate::recourse::Reading::Build);
             for word in payload {
                 assert!(msg.contains(word), "{word} missing from: {msg}");
             }
@@ -13369,7 +13392,7 @@ mod tests {
             },
         };
         assert_eq!(
-            escalated.to_string(),
+            escalated.render(crate::recourse::Reading::Build),
             "pcurve certification: AzimuthPeriod at sample 3 escalated: margin 5e-9 lies inside \
              the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so this arc stays \
              clearly short of a full turn, or, if this arc is intended, tighten the tolerance \
@@ -13408,7 +13431,8 @@ mod tests {
             assert_eq!(
                 pcurve.ending(Reading::AtRest).as_deref(),
                 Some(want.as_str()),
-                "the pcurve door ends as the SSI door: {pcurve}"
+                "the pcurve door ends as the SSI door: {pcurve_at}",
+                pcurve_at = pcurve.render(crate::recourse::Reading::Build)
             );
         }
     }
@@ -13844,8 +13868,12 @@ mod fitted_lane_tests {
     fn a_line_carrier_is_bounded_against_its_chart_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (wall, image) = (flat_wall(), image());
-        let sup = fitted_lane(&line(0.0), &image, &wall, (0.0, 1.0), band)
-            .unwrap_or_else(|e| panic!("the line on its image certifies: {e}"));
+        let sup = fitted_lane(&line(0.0), &image, &wall, (0.0, 1.0), band).unwrap_or_else(|e| {
+            panic!(
+                "the line on its image certifies: {e_at}",
+                e_at = e.render(crate::recourse::Reading::Build)
+            )
+        });
         assert!(sup <= 1e-12, "the bound is the composite's rounding: {sup}");
         assert!(
             matches!(
@@ -13989,7 +14017,7 @@ mod iso_family {
             terminal_sliver: false,
         });
         assert_eq!(
-            refusal.to_string(),
+            refusal.render(crate::recourse::Reading::Build),
             "whether the edge runs along a cylinder's ruling or around it is undecided: margin \
              5e-8 lies inside the ambiguity band (1e-9, 1e-6)"
         );

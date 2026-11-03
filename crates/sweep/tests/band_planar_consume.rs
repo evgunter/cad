@@ -166,8 +166,12 @@ fn assert_consumed(
     let at_rest = sweep::test_support::at_rest(body, tol());
     let what = format!("{what} ({verb:?})");
     let what = what.as_str();
-    let out = blend(verb, &at_rest, edges, r)
-        .unwrap_or_else(|e| panic!("{what}: the feature goes with the band, got {e}"));
+    let out = blend(verb, &at_rest, edges, r).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the feature goes with the band, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′, {e:?}"));
@@ -279,8 +283,12 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
         square::<Interval>(1.0, poly(&[(0.4, 0.4), (0.6, 0.4), (0.6, 0.6), (0.4, 0.6)]));
     let census = |b: &Body<Interval>| (b.faces().count(), b.edges().count(), b.vertices().count());
     for verb in VERBS {
-        let out = blend(verb, &body, &[crease(&body, 1.0)], iv(D))
-            .unwrap_or_else(|e| panic!("{verb:?}: the bore goes at Interval, got {e}"));
+        let out = blend(verb, &body, &[crease(&body, 1.0)], iv(D)).unwrap_or_else(|e| {
+            panic!(
+                "{verb:?}: the bore goes at Interval, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol)
             .unwrap_or_else(|e| panic!("{verb:?} at Interval: tier 3, {e:?}"));
         validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
@@ -296,8 +304,13 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
             out.body.faces().all(|(_, f)| f.rings.is_empty()),
             "{verb:?} at Interval: no face keeps a ring"
         );
-        let plain = blend(verb, &plain_body, &[crease(&plain_body, 1.0)], iv(D))
-            .unwrap_or_else(|e| panic!("{verb:?}: the block with a clear slot carves, got {e}"));
+        let plain =
+            blend(verb, &plain_body, &[crease(&plain_body, 1.0)], iv(D)).unwrap_or_else(|e| {
+                panic!(
+                    "{verb:?}: the block with a clear slot carves, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         let (f, e, v) = census(&plain.body);
         assert_eq!(
             census(&out.body),
@@ -986,7 +999,12 @@ fn a_tilted_bore_leaving_the_chamfers_prism_refuses() {
     };
     let out = Verb::Fillet
         .run_finished(&body, &[front(&body)])
-        .unwrap_or_else(|e| panic!("the fillet keeps the bore in its ball, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the fillet keeps the bore in its ball, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("the kept bore: tier 3, {e:?}"));
     let ((v0, p0), (v1, p1)) = (volume_enclosure(&body), volume_enclosure(&out.body));
     let want = section(Verb::Fillet, D) * 2.0;
@@ -1092,8 +1110,12 @@ fn a_bore_a_hair_across_the_chord_at_interval_crosses_and_one_inside_goes() {
     );
     let body = at(a + hair);
     let walls = curved_walls(&body);
-    let out = blend(Verb::Chamfer, &body, &[crease(&body, 1.0)], iv(D))
-        .unwrap_or_else(|e| panic!("Interval: a hair inside the chord goes, got {e}"));
+    let out = blend(Verb::Chamfer, &body, &[crease(&body, 1.0)], iv(D)).unwrap_or_else(|e| {
+        panic!(
+            "Interval: a hair inside the chord goes, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("Interval: tier 3, {e:?}"));
     assert!(
         walls.iter().all(|w| out.body.get_face(*w).is_none()),

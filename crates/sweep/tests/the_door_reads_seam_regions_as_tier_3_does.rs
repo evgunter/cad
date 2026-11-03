@@ -73,17 +73,19 @@ fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String 
 }
 
 /// Where each of a part's booleans of a ball with a cylinder stops at
-/// this build: none builds a body yet, so these rows read no door; a
-/// changed refusal, or an operation that starts to build, goes red here,
-/// and a part whose operations build then reads the door's assertion
-/// instead.
+/// this build: a changed refusal, or an operation that starts to build,
+/// goes red here, and an operation that builds (`body`) hands its body to
+/// the door's assertion with the corpus's other valid bodies. The tilted
+/// ball's four booleans with the upright rod build since the join's
+/// carried lane chords closed-form components (SECTARMS stage 3b-i);
+/// they stopped at the join's lane dispatch before.
 fn pinned(part: Part) -> Stops {
     const PROJECTED: &str =
         "VolumeUncomputable: QuadratureUnsupported, a projected image on an analytic chart";
     const CONIC: &str =
         "VolumeUncomputable: QuadratureUnsupported, a conic trim on the sphere's chart";
     const RING: &str = "VolumeUncomputable: RingOnCurvedFace";
-    const CATCH_ALL: &str = "CurvedBooleanUnsupported at the join's lane dispatch";
+    const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
         Part::Rest => &[],
         Part::Rod => &[
@@ -91,10 +93,10 @@ fn pinned(part: Part) -> Stops {
             ("unit i rod", CONIC),
             ("unit a-b rod", PROJECTED),
             ("unit b-a rod", PROJECTED),
-            ("tilt u rod", CATCH_ALL),
-            ("tilt i rod", CATCH_ALL),
-            ("tilt a-b rod", CATCH_ALL),
-            ("tilt b-a rod", CATCH_ALL),
+            ("tilt u rod", BODY),
+            ("tilt i rod", BODY),
+            ("tilt a-b rod", BODY),
+            ("tilt b-a rod", BODY),
         ],
         Part::UnitTurnedRod => &[
             ("unit u rodx", RING),

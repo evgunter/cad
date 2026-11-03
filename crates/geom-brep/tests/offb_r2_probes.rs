@@ -241,8 +241,12 @@ fn torus_patch(major: f64, minor: f64) -> NurbsSurface<f64> {
 }
 
 fn contains_dense_sample(name: &str, base: &NurbsSurface<f64>, d: f64, tol: f64) {
-    let (fit, cert) = fit_offset_at(base, d, tol, band())
-        .unwrap_or_else(|e| panic!("{name}: fit_offset refused at d = {d}: {e}"));
+    let (fit, cert) = fit_offset_at(base, d, tol, band()).unwrap_or_else(|e| {
+        panic!(
+            "{name}: fit_offset refused at d = {d}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(
         cert.hull_sup <= tol,
         "{name}: certified sup {} exceeds {tol}",
@@ -315,7 +319,11 @@ fn p3_offset_just_inside_the_certified_reach_still_bounds_the_sample() {
                 coll.reach, cert.hull_sup
             );
         }
-        Err(e) => eprintln!("P3 d={d:.4} (reach {:.4}) refused loud: {e}", coll.reach),
+        Err(e) => eprintln!(
+            "P3 d={d:.4} (reach {:.4}) refused loud: {e_at}",
+            coll.reach,
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -414,7 +422,10 @@ fn p4_certify_offset_on_a_rational_fit() {
     // ratio below. The ceiling is this row's, and it is re-taken.
     let tol = worst * 8.0;
     let cert = certify_offset_at(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
-        panic!("P4: certify_offset refused a rational fit it can now bound (residual {worst}): {e}")
+        panic!(
+            "P4: certify_offset refused a rational fit it can now bound (residual {worst}): {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
     });
     assert!(
         cert.hull_sup >= worst,
@@ -476,7 +487,10 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
             "P6: d = {d:.0e} -> {}",
             match &r {
                 Ok((_, c)) => format!("certified, hull_sup = {:.3e}", c.hull_sup),
-                Err(e) => format!("REFUSED: {e}"),
+                Err(e) => format!(
+                    "REFUSED: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
             }
         );
         assert!(
@@ -512,7 +526,10 @@ fn p5_cap_refusal_payload_is_the_bound_the_door_re_derives() {
             // must now certify — i.e. `achieved` is a real bound the
             // loop reached, not a number it printed.
             let (_, cert) = fit_offset_at(&base, d, achieved * 1.5, band()).unwrap_or_else(|e| {
-                panic!("the achieved bound {achieved} is not reachable by the same door: {e}")
+                panic!(
+                    "the achieved bound {achieved} is not reachable by the same door: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
             });
             assert!(cert.hull_sup <= achieved * 1.5);
             eprintln!(

@@ -64,7 +64,10 @@ fn probe_overthick_box_fails_loud() {
         Tol::witness(),
     );
     match r {
-        Err(e) => println!("[probe] overthick box: LOUD: {e}"),
+        Err(e) => println!(
+            "[probe] overthick box: LOUD: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(topo::Shelled { body, .. }) => panic!(
             "overthick box returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
@@ -89,7 +92,10 @@ fn probe_overhalf_slab_fails_loud() {
         Tol::witness(),
     );
     match r {
-        Err(e) => println!("[probe] over-half slab: LOUD: {e}"),
+        Err(e) => println!(
+            "[probe] over-half slab: LOUD: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(topo::Shelled { body, .. }) => panic!(
             "over-half slab returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
@@ -113,7 +119,10 @@ fn probe_exact_half_slab_fails_loud() {
         Tol::witness(),
     );
     match r {
-        Err(e) => println!("[probe] exact-half slab: LOUD: {e}"),
+        Err(e) => println!(
+            "[probe] exact-half slab: LOUD: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(topo::Shelled { body, .. }) => panic!(
             "exact-half slab returned Ok — degenerate cavity; shells = {}, volume = {:?}",
             body.shells().count(),
@@ -151,7 +160,10 @@ fn probe_lshape_colliding_cavity_fails_loud() {
         Tol::witness(),
     );
     match r {
-        Err(e) => println!("[probe] L-shape: LOUD: {e}"),
+        Err(e) => println!(
+            "[probe] L-shape: LOUD: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(topo::Shelled { body, .. }) => panic!(
             "L-shape returned Ok — colliding cavity; shells = {}, volume = {:?}",
             body.shells().count(),
@@ -208,9 +220,13 @@ fn probe_dumbbell_neck_collision_fails_loud() {
     let e = r.expect_err("the neck is thinner than two walls");
     assert!(
         matches!(e, ShellError::WallClearance { .. }),
-        "expected the wall-clearance gate, got {e}"
+        "expected the wall-clearance gate, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
-    println!("[probe] MAJ-1: dumbbell refuses LOUD: {e}");
+    println!(
+        "[probe] MAJ-1: dumbbell refuses LOUD: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// Shelling an ALREADY-HOLLOW body: the operand has two shells, the
@@ -347,7 +363,10 @@ fn probe_adjacent_two_face_opening() {
         &[top, side],
         Tol::witness(),
     ) {
-        Err(e) => println!("[probe] adjacent pair: typed refusal: {e}"),
+        Err(e) => println!(
+            "[probe] adjacent pair: typed refusal: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
         Ok(topo::Shelled { body: open, .. }) => {
             assert_eq!(
                 topo::validate_geometric(&open, Tol::witness()),
@@ -433,8 +452,9 @@ fn probe_opened_vessel_cup() {
     ) {
         Err(e) => panic!(
             "the revolved vessel cup must BUILD ({} top faces designated); the verb \
-             refused with {e}",
-            top.len()
+             refused with {e_at}",
+            top.len(),
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         ),
         Ok(topo::Shelled { body: cup, .. }) => {
             assert_eq!(
@@ -537,7 +557,8 @@ fn probe_stale_designation_refuses_typed() {
     .expect_err("a stale designation must refuse");
     assert!(
         matches!(e, topo::ShellError::OpenFaceStale { .. }),
-        "expected OpenFaceStale, got {e}"
+        "expected OpenFaceStale, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -573,7 +594,8 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         .expect_err("a partial group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
-        "expected SharedSurfaceKey for the partial group, got {e}"
+        "expected SharedSurfaceKey for the partial group, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     assert_eq!(
         before,
@@ -592,7 +614,8 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         .expect_err("a mixed group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::GroupChartsDiffer { .. }),
-        "expected GroupChartsDiffer, got {e}"
+        "expected GroupChartsDiffer, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     assert_eq!(
         before,
@@ -603,7 +626,11 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     // The empty group.
     let e = topo::replace_faces_offset(&mut work, &[], -0.2, Tol::witness())
         .expect_err("an empty group must refuse");
-    assert!(matches!(e, topo::ReplaceFaceError::EmptyGroup), "got {e}");
+    assert!(
+        matches!(e, topo::ReplaceFaceError::EmptyGroup),
+        "got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     assert_eq!(
         before,
         format!("{work:?}"),
@@ -645,7 +672,10 @@ fn probe_late_err_leaves_body_untouched() {
     let e = topo::replace_face_offset(&mut work, cap, -0.05, Tol::witness())
         .expect_err("a seam's arc record cannot follow the moved corner");
     let topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. } = e else {
-        panic!("expected the arc record's refusal, got {e}");
+        panic!(
+            "expected the arc record's refusal, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(what.contains("sketch arc"), "{what}");
     assert_eq!(

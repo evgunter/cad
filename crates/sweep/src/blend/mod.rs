@@ -152,7 +152,7 @@ use core::fmt;
 
 use geom_brep::LeverRung;
 use geom_brep::recourse::{
-    Classified, LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass,
+    Classified, LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
 use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
@@ -223,11 +223,22 @@ pub struct BlendRefusal {
     pub error: BlendError,
 }
 
-impl fmt::Display for BlendRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.verb, self.error)
+impl BlendRefusal {
+    fn write(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{}: {}",
+            self.verb,
+            geom_brep::recourse::read_at(&self.error, at)
+        )
     }
 }
+
+geom_brep::ended_by_write!(BlendRefusal);
 
 impl core::error::Error for BlendRefusal {}
 
@@ -528,15 +539,25 @@ impl BlendDecision {
     /// The one ending a refusal of this decision carries on `arm`
     /// ([`Self::recourse_with`] at the decision's own lever).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>) -> String {
-        self.recourse_with(self.lever(), arm)
+    pub fn recourse(
+        self,
+        arm: RefusedArm<'_>,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        self.recourse_with(self.lever(), arm, at)
     }
 
     /// The one ending a refusal of this decision carries on `arm`, led
     /// by `lever`: through [`SizedDecision`] where the decision is
     /// sized, read at the build; otherwise the lever alone, with the
     /// unreadable-margin note on a poisoned reading.
-    fn recourse_with(self, lever: &'static str, arm: RefusedArm<'_>) -> String {
+    fn recourse_with(
+        self,
+        lever: &'static str,
+        arm: RefusedArm<'_>,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let at = at.into();
         match self.sized_on(&arm) {
             Some((size, passes)) => SizedDecision {
                 lever,
@@ -545,8 +566,8 @@ impl BlendDecision {
                 side: RefusedSide::Lever,
                 no_size: None,
             }
-            .recourse(arm, Reading::Build),
-            None => LeverOnly { lever }.recourse(arm, Reading::Build),
+            .recourse(arm, at),
+            None => LeverOnly { lever }.recourse(arm, at),
         }
     }
 }
@@ -1996,8 +2017,13 @@ impl From<topo::Unfinished> for BlendError {
 /// proves the rule: an arm only a fillet run can mint (the rolling
 /// ball's headroom and spine) speaks of the ball, because the ball is
 /// the fact, not the verb.
-impl fmt::Display for BlendError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl BlendError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        door: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        let ended = |ending: Option<String>| ending.map(|e| format!(". {e}")).unwrap_or_default();
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::ChainNotConnected { .. } => write!(
@@ -2008,8 +2034,8 @@ impl fmt::Display for BlendError {
             Self::RadiusHeadroom { margin, radius, .. } => write!(
                 f,
                 "radius {radius} m exceeds a support face's curvature headroom \
-                 ({margin} at lever arm {radius} m). {}",
-                BlendDecision::RadiusHeadroom.recourse(margin.arm())
+                 ({margin} at lever arm {radius} m){}",
+                ended(door.map(|door| BlendDecision::RadiusHeadroom.recourse(margin.arm(), door)))
             ),
             Self::FaceClearanceUncertified {
                 gap,
@@ -2026,9 +2052,13 @@ impl fmt::Display for BlendError {
                     f,
                     "the clearance screen cannot certify that a support face survives: two \
                      of its boundary features are {} m apart, nearer than the blend sets \
-                     back from them; the screen is conservative by direction. {}",
+                     back from them; the screen is conservative by direction{}",
                     Measured(*gap),
-                    BlendDecision::FaceClearance.recourse_with(lever, margin.arm())
+                    ended(door.map(|door| BlendDecision::FaceClearance.recourse_with(
+                        lever,
+                        margin.arm(),
+                        door
+                    )))
                 )
             }
             Self::FaceClearance {
@@ -2052,28 +2082,30 @@ impl fmt::Display for BlendError {
                 };
                 write!(
                     f,
-                    "{whom} {how} the material its band {what} ({margin}). {}",
-                    BlendDecision::FaceClearance.recourse(margin.arm())
+                    "{whom} {how} the material its band {what} ({margin}){}",
+                    ended(
+                        door.map(|door| BlendDecision::FaceClearance.recourse(margin.arm(), door))
+                    )
                 )
             }
             Self::KnifeEdge { margin, .. } => write!(
                 f,
                 "an edge is a cusp or slit ({margin}), whose blend is not built yet: its ball \
-                 touches the supports away from the edge, where they open to 2r. {}",
-                BlendDecision::ConvexitySign.recourse(margin.arm())
+                 touches the supports away from the edge, where they open to 2r{}",
+                ended(door.map(|door| BlendDecision::ConvexitySign.recourse(margin.arm(), door)))
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
                 "the rolling-ball spine folds at radius {radius} m ({margin} at lever \
-                 arm {radius} m). {}",
-                BlendDecision::SpineRegularity.recourse(margin.arm())
+                 arm {radius} m){}",
+                ended(door.map(|door| BlendDecision::SpineRegularity.recourse(margin.arm(), door)))
             ),
             Self::ChainNotG1 { margin, arm, .. } => write!(
                 f,
                 "the chain is not tangent-continuous at a vertex ({margin} at lever arm \
-                 {} m). {}",
+                 {} m){}",
                 Measured(*arm),
-                BlendDecision::ChainG1.recourse(margin.arm())
+                ended(door.map(|door| BlendDecision::ChainG1.recourse(margin.arm(), door)))
             ),
             Self::ConvexitySignFlip { margin, chain, .. } => write!(
                 f,
@@ -2120,12 +2152,15 @@ impl fmt::Display for BlendError {
             // ending is the only recourse.
             Self::Escalated {
                 decision, source, ..
-            } => source
-                .undecided(
+            } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    source,
                     decision.subject(),
-                    decision.recourse(RefusedArm::Undecided(source)),
+                    door.map(|door| decision.recourse(RefusedArm::Undecided(source), door)),
                 )
-                .fmt(f),
+            ),
             Self::RepeatedEdge { .. } => write!(
                 f,
                 "the request names one edge twice. Recourse: request each edge once"
@@ -2204,8 +2239,10 @@ impl fmt::Display for BlendError {
                 };
                 write!(
                     f,
-                    "{what} the part of a face the blend {fate} ({margin}{how}). {}",
-                    BlendDecision::RingClearance.recourse(margin.arm())
+                    "{what} the part of a face the blend {fate} ({margin}{how}){}",
+                    ended(
+                        door.map(|door| BlendDecision::RingClearance.recourse(margin.arm(), door))
+                    )
                 )
             }
             Self::WhollyInside { at, chain, margin } => {
@@ -2225,15 +2262,21 @@ impl fmt::Display for BlendError {
                 )
             }
             Self::Certify { site, source } => {
-                write!(f, "{site} — {source}")
+                write!(f, "{site} — {}", geom_brep::recourse::read_at(source, door))
             }
             Self::Op { site, source } => {
-                write!(f, "assembly refused at {site} — {source}")
+                write!(
+                    f,
+                    "assembly refused at {site} — {}",
+                    geom_brep::recourse::read_at(source.as_ref(), door)
+                )
             }
-            Self::Join { refusal } => write!(f, "{refusal}"),
+            Self::Join { refusal } => write!(f, "{}", geom_brep::recourse::read_at(refusal, door)),
         }
     }
 }
+
+geom_brep::ended_by_write!(BlendError);
 
 impl core::error::Error for BlendError {}
 
@@ -2312,7 +2355,7 @@ mod recourse_tests {
                 decision,
                 source,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(want.lever()), "{want:?}: {text}");
             assert!(text.contains(want.subject()), "{want:?}: {text}");
             assert_eq!(
@@ -2667,7 +2710,7 @@ mod recourse_tests {
                 breach,
                 detail: "a support",
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
         };
         let none = "There is no way through".to_owned();
         let finish = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
@@ -2705,7 +2748,7 @@ mod recourse_tests {
     #[test]
     fn a_recourse_is_appended_only_where_the_table_allows_it() {
         for seed in seeds() {
-            let text = seed.to_string();
+            let text = seed.render(geom_brep::recourse::Reading::Build);
             let found = recourses_in(&text);
             match contract(&seed) {
                 Recourse::Exactly(one) => assert!(
@@ -2736,7 +2779,7 @@ mod recourse_tests {
     fn every_recourse_sentence_is_rendered_by_some_variant() {
         let rendered: Vec<&'static str> = seeds()
             .iter()
-            .flat_map(|seed| recourses_in(&seed.to_string()))
+            .flat_map(|seed| recourses_in(&seed.render(geom_brep::recourse::Reading::Build)))
             .collect();
         for (_, sentence) in super::ALL_RECOURSES {
             assert!(
@@ -2777,7 +2820,7 @@ mod recourse_tests {
                 },
                 bounded: false,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(says), "{chain}: {text}");
             assert!(!text.contains(never), "{chain}: {text}");
         }
@@ -2800,7 +2843,7 @@ mod recourse_tests {
                 },
                 bounded,
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
         };
         let (bound, measured) = (render(true), render(false));
         assert!(
@@ -2815,7 +2858,7 @@ mod recourse_tests {
     /// **No refusal this enum can render carries a `Debug` field
     /// dump.**
     ///
-    /// A `BlendError` reaches Python as the text of its `Display`, and
+    /// A `BlendError` reaches Python as its text rendered at a build, and
     /// `pncad-py`'s prose gate asserts on every raise that the text
     /// carries no `" { "` — the fingerprint `Debug` puts on a
     /// named-field struct or struct variant. That assertion is live in
@@ -2830,7 +2873,7 @@ mod recourse_tests {
     #[test]
     fn no_refusal_renders_a_field_brace_dump() {
         for seed in seeds() {
-            let text = seed.to_string();
+            let text = seed.render(geom_brep::recourse::Reading::Build);
             assert!(
                 !text.contains(" { "),
                 "{seed:?} renders a payload through `Debug`, which panics the \
