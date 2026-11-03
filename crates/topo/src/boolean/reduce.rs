@@ -1790,34 +1790,15 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     settle_in_plane([a, b], contacts, band)
 }
 
-/// The vertices bounding `face` of `body`, outer loop and rings.
+/// The vertices bounding `face` of `body`, outer loop and rings, for a
+/// face the contact record names ([`Body::proven_face_boundary`]).
 fn face_vertices<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<std::collections::BTreeSet<VertexKey>, BooleanError> {
-    let lost = |what| BooleanError::ClassificationInvariant { what };
-    let f = body
-        .get_face(face)
-        .ok_or(lost("a face an edge lies in vanished"))?;
-    let mut out = std::collections::BTreeSet::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        match body
-            .get_loop(lk)
-            .ok_or(lost("a loop of a face an edge lies in vanished"))?
-            .boundary
-        {
-            crate::LoopBoundary::Empty { vertex } => {
-                out.insert(vertex);
-            }
-            crate::LoopBoundary::Cycle { first } => out.extend(
-                body.loop_cycle(first)
-                    .ok_or(lost("a loop of a face an edge lies in does not walk"))?
-                    .into_iter()
-                    .filter_map(|he| body.get_half_edge(he).map(|h| h.start)),
-            ),
-        }
-    }
-    Ok(out)
+) -> std::collections::BTreeSet<VertexKey> {
+    body.proven_face_boundary(face)
+        .map(|member| member.vertex())
+        .collect()
 }
 
 /// A fragment of a line edge the line lane read lying in a planar face's
@@ -1864,10 +1845,13 @@ fn settle_in_plane<T: Decide>(
             Operand::A => (a, b),
             Operand::B => (b, a),
         };
+        // The contact record names the face, so its walk proves it first
+        // and panics on a stale one; the plane's `None` is then a face
+        // that is not planar.
+        let bounding = face_vertices(y, lie.face);
         let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
-        let bounding = face_vertices(y, lie.face)?;
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
@@ -4100,22 +4084,18 @@ fn arc_chain_reaches<T: Decide>(
 }
 
 /// A circle's on-carrier refusal ([`geom::Curve3::on_carrier`]): its
-/// escalation, by `escalated`. Only a spline's walk runs past its budget
-/// or lacks a speed bound, so on a circle those are a misread carrier.
+/// escalation, by `escalated`. Only a spline walks, so on a circle an
+/// [`geom::PieceWalkRefusal`] is a misread carrier.
 fn circle_refusal(
     refusal: geom::CarrierRefusal,
     escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,
 ) -> BooleanError {
-    match refusal {
-        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
-            escalated(diag)
-        }
-        geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
-            BooleanError::ClassificationInvariant {
-                what: "a circle's on-carrier reading refused as a spline's walk",
-            }
-        }
-    }
+    refusal.escalation().map_or(
+        BooleanError::ClassificationInvariant {
+            what: "a circle's on-carrier reading refused as a spline's walk",
+        },
+        escalated,
+    )
 }
 
 /// Whether `face`'s boundary meets `circle`, the whole carrier, nowhere
@@ -4133,7 +4113,7 @@ fn circle_refusal(
 ///
 /// [`BooleanError::ClassificationInvariant`] where `face`, a key the
 /// caller carries, does not resolve, or where the pass reports a kernel
-/// fault ([`super::carrier_cross::boundary_fault`]).
+/// fault ([`geom_brep::curve_face::BoundaryRefusal::Fault`]).
 ///
 /// # Panics
 ///
@@ -4156,8 +4136,8 @@ fn boundary_meets_circle_only_at<T: Decide>(
     let whole = Span::new(circle, (T::zero(), T::tau())).endless();
     let reading = match boundary.read(&whole, band) {
         Ok(reading) => reading,
-        Err(BoundaryRefusal::Fault(fault)) => {
-            return Err(super::carrier_cross::boundary_fault(fault));
+        Err(BoundaryRefusal::Fault { what }) => {
+            return Err(BooleanError::ClassificationInvariant { what });
         }
         Err(
             BoundaryRefusal::Escalated(_)
@@ -5748,9 +5728,11 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// On a circle, `p` must lie ON the carrier for the azimuth to name the
 /// event. One foot ([`geom::Curve3::foot`]) answers both: the carrier's
 /// own reading at it decides that `p` is on the circle
-/// ([`geom::Foot::on_carrier`]), and its azimuth, on the branch about the
-/// span's middle ([`geom_brep::curve_pair::Span::branch`]), is the
-/// parameter. The angular half of "on the ARC" is not repeated here: `split_edge`'s
+/// ([`geom::Foot::on_carrier`]), and its azimuth is the parameter, as
+/// every other carrier's is [`point_param`]. Either is then read on the
+/// branch within half a turn of the span's middle
+/// ([`geom_brep::curve_pair::Span::branch`]), the one placement of a
+/// parameter in the span for every kind. The angular half of "on the ARC" is not repeated here: `split_edge`'s
 /// interiority gate is exactly that question, metered in metres at the
 /// radius.
 ///
@@ -5803,13 +5785,14 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 }));
             }
         }
-        // The edge's certificate holds its turn, which is never over one
-        // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
-        // middle is the one inside it.
-        geom_brep::curve_pair::Span::new(circle, (t0, t1)).branch(foot.t())
+        foot.t()
     } else {
         point_param(y, y_is, edge, &curve, p)?
     };
+    // The edge's certificate holds its turn, which is never over one
+    // ([`geom_brep::CertifiedTurn`]), so the branch about the span's
+    // middle is the one inside it.
+    let t = geom_brep::curve_pair::Span::new(curve.carrier(), curve.params()).branch(t);
     split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
 }
 
@@ -5835,9 +5818,9 @@ fn held_param<T: Copy>(
 }
 
 /// **The parameter of `p` on `edge`'s curve**: its carrier's
-/// [`geom::Curve3::param_near`] anchored at the span's midpoint, the
-/// branch inside the stored span ([`split_other_at_point`] carries the
-/// derivation). `p` must lie on the carrier.
+/// [`geom::Curve3::param_near`] anchored at the span's midpoint, which
+/// [`split_other_at_point`] reads on the branch inside the stored span.
+/// `p` must lie on the carrier.
 ///
 /// # Errors
 ///

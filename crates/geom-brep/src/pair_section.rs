@@ -2367,7 +2367,7 @@ impl<T: Decide> CarriedComponent<T> {
     ///
     /// [`SiteRefusal`]: an undecided reading escalates.
     pub fn reads(&self, p: Point3<T>, band: Band) -> Result<Option<T>, SiteRefusal> {
-        use geom::{CarrierRefusal, OnCarrier};
+        use geom::OnCarrier;
         let padded = band
             .padded(self.pad)
             .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
@@ -2375,11 +2375,9 @@ impl<T: Decide> CarriedComponent<T> {
         match foot.on_carrier(padded) {
             Ok(OnCarrier::On { .. }) => self.within_span(foot.t(), band),
             Ok(OnCarrier::Off) => Ok(None),
-            Err(CarrierRefusal::Escalated(diag) | CarrierRefusal::Straddle(diag)) => {
-                Err(SiteRefusal::Escalated(diag))
-            }
-            Err(CarrierRefusal::Exhausted | CarrierRefusal::Unbounded) => Err(SiteRefusal::Desync(
-                "a point's distance from a fitted component could not be read",
+            Err(refusal) => Err(refusal.escalation().map_or(
+                SiteRefusal::Desync("a point's distance from a fitted component could not be read"),
+                SiteRefusal::Escalated,
             )),
         }
     }

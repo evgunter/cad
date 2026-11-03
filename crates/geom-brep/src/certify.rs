@@ -65,7 +65,7 @@ use crate::description::{
     SurfacePair, authority_of,
 };
 use crate::dihedral::{
-    DihedralClass, WedgeEscalation, decide_positive, decide_reported, wedge_decided,
+    DihedralClass, FirstOrderEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
@@ -979,7 +979,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the shared row's image on surface {surface:?} is not the edge: its \
-                 certificate refused at its {check:?} check"
+                 certificate refused at its {} check",
+                check.words()
             ),
             Self::Row {
                 surface,
@@ -1145,8 +1146,8 @@ impl CertifyError {
     pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
         let at = at.into();
         match self {
-            Self::PlaneNurbs(refusal) => refusal.ending(at),
-            Self::AnalyticRung3(refusal) => refusal.ending(at),
+            Self::PlaneNurbs(refusal) => Some(refusal.ending(at)),
+            Self::AnalyticRung3(refusal) => Some(refusal.ending(at)),
             Self::StatedInterval { refused } => Some(refused.ending(at)),
             // A carrier's incidence ends by what was read, through the one
             // map every incidence ending goes through
@@ -1461,6 +1462,15 @@ impl core::fmt::Display for StatedSpan {
 const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
 
 impl CertCheck {
+    /// The one ending a refusal of this check carries on `arm`, read at
+    /// `at` ([`recourse`]), as [`crate::PcurveCheck::recourse`] gives
+    /// the pcurve door's: the public spelling of this door's table, for
+    /// a holder that names the decision a refusal restates.
+    #[must_use]
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        recourse(self, arm, at)
+    }
+
     /// Whether this check refuses on a certified upper bound on a miss
     /// rather than on the miss: its refusal says only that the
     /// certificate cannot show the cache is the description.
@@ -4134,6 +4144,7 @@ fn mint_refusal<T: Real>(
         // caller looking for a missing feature instead of a wrong locus.
         PcurveCertifyError::UnsupportedChart { .. }
         | PcurveCertifyError::ImageMismatch { .. }
+        | PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
         | PcurveCertifyError::FittedLaneUnsupported { .. }
         | PcurveCertifyError::SectorRefused { .. }
         | PcurveCertifyError::IsoUnsupported { .. }
@@ -4266,7 +4277,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 verdict,
                             });
                         }
-                        Err(WedgeEscalation::Lever(escalation)) => {
+                        Err(FirstOrderEscalation::Lever(escalation)) => {
                             if let Some(verdict) = escalation.collapsed_arm() {
                                 return Err(CertifyError::ArmCollapsed { sample: i, verdict });
                             }
@@ -4279,7 +4290,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 cause: escalation.diag(),
                             });
                         }
-                        Err(WedgeEscalation::NoTangentPlane(cause)) => {
+                        Err(FirstOrderEscalation::NoTangentPlane(cause)) => {
                             return Err(CertifyError::Escalated {
                                 check: CertCheck::TangentPlanes,
                                 sample: i,
@@ -7123,7 +7134,7 @@ mod tests {
         };
         for reading in [Reading::Build, Reading::AtRest] {
             let end = |e: CertifyError| e.ending(reading).unwrap();
-            let lane = |p: P| p.ending(reading).unwrap();
+            let lane = |p: P| p.ending(reading);
             let pairs = [
                 (
                     CertCheck::Transversality,
@@ -7391,7 +7402,11 @@ mod tests {
                 verdict: straddle,
                 boxes: 4,
             };
-            let mut endings = vec![lane.ending(at), edge.ending(at), analytic.ending(at)];
+            let mut endings = vec![
+                Some(lane.ending(at)),
+                edge.ending(at),
+                Some(analytic.ending(at)),
+            ];
             if let ReadAt::Run(reading) = at {
                 endings.push(Some(ssi.ending(reading)));
             }
@@ -8121,14 +8136,13 @@ mod tests {
             ),
         ];
         for (reading, definite, undecided, exact) in rows {
-            assert_eq!(limb.ending(reading).unwrap(), definite, "{reading:?}");
+            assert_eq!(limb.ending(reading), definite, "{reading:?}");
             assert_eq!(
                 P::Escalated {
                     limb: crate::ssi::SsiLimb::OnLocus,
                     cause
                 }
-                .ending(reading)
-                .unwrap(),
+                .ending(reading),
                 undecided,
                 "{reading:?}"
             );
@@ -8190,7 +8204,7 @@ mod tests {
         ] {
             let (got_check, _) = refusal.decision().unwrap();
             assert_eq!(got_check, check, "{refusal:?}");
-            assert_eq!(refusal.ending(Reading::Build).unwrap(), want, "{refusal:?}");
+            assert_eq!(refusal.ending(Reading::Build), want, "{refusal:?}");
             // Through certification: the same check, and no schedule
             // point the limb never visited.
             let certified = from_plane_nurbs(refusal);

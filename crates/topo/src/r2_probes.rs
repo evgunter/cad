@@ -2,7 +2,7 @@
 //! review; written on the reviewer's branch and since merged to main.
 //!
 //! The point of this module is that it does NOT call
-//! `classify_material_pairing` or `material_kappa_rel`. It re-derives
+//! the material pairing or `material_kappa_rel`. It re-derives
 //! the cusp/slit question from an independent datum — the body's own
 //! SIGNED VOLUME, and a point-membership test built from
 //! `implicit_residual` and the face sense bits — and then asks whether

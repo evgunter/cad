@@ -1820,6 +1820,47 @@ pub enum FittedMagnitude {
     },
 }
 
+/// **The decision a fitted certificate's structural refusal ends by**
+/// ([`PcurveCertifyError::FittedCertificate`]): the ending the SSI door
+/// gives the refusal it flattened ([`crate::ssi::SsiError::ending`]), or,
+/// for the image producer's own, the one its decision earns.
+///
+/// It names the SSI arm rather than holding the error: `SsiError` has no
+/// `PartialEq`, which this crate's refusals derive. Each SSI arm named
+/// here ends alike whatever its fields hold, so [`FittedEnding::ending`]
+/// reads that arm's ending off a stand-in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FittedEnding {
+    /// A certificate class no enclosure is written for yet
+    /// ([`crate::ssi::SsiError::UnsupportedCertificate`]): "not yet".
+    NotYet,
+    /// Limb 1's certified foot point would not settle on its locus
+    /// ([`crate::ssi::SsiError::FootPointInconclusive`]): limb 1's own
+    /// decision ([`SsiLimb::check`]).
+    FootUnsettled,
+    /// The kernel's own image producer refused, or the image stops short
+    /// of the edge it is stored for: the door's defect.
+    Defect,
+}
+
+impl FittedEnding {
+    /// The ending at `at`.
+    #[must_use]
+    pub fn ending(self, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        use crate::ssi::SsiError;
+        match self {
+            Self::NotYet => SsiError::UnsupportedCertificate { what: "" }.ending(at),
+            Self::FootUnsettled => SsiError::FootPointInconclusive {
+                t: 0.0,
+                last_distance: 0.0,
+            }
+            .ending(at),
+            Self::Defect => Unsized::Defect.recourse(RefusedArm::SignCertain(None), at),
+        }
+    }
+}
+
 /// The closed kind tag of a [`Pcurve`] variant (D3), for a refusal
 /// that names the image it was handed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1921,17 +1962,24 @@ pub enum PcurveCertifyError {
         /// or a band-decided Zero not shown away from it (D4 ¶1 (i)).
         margin: Option<OffMargin>,
     },
-    /// The image offered is not the carrier's image, or not this
-    /// door's: a fitted or general image at the closed-form door, a
-    /// harmonic image for a carrier with no `{1, cos, sin, t}` form, a
-    /// spiric image whose stored scalars are not the carrier's. No
-    /// constructor mints one, so it is a wiring defect or a hand-built
-    /// image.
+    /// The image offered is not the carrier's image: a harmonic image
+    /// for a carrier with no `{1, cos, sin, t}` form, a spiric image
+    /// whose stored scalars are not the carrier's, a fitted-grade image
+    /// on an analytic chart. No constructor mints one, so it is a wiring
+    /// defect or a hand-built image.
     ImageMismatch {
         /// The image kind.
         image: PcurveKind,
         /// What disagrees, named.
         why: &'static str,
+    },
+    /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image was handed to
+    /// the closed-form door ([`PcurveCache::certify`]), which certifies
+    /// closed-form images only: a call at the wrong door, whose lever is
+    /// the door the image certifies at.
+    FittedGradeAtClosedFormDoor {
+        /// The image kind.
+        image: PcurveKind,
     },
     /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image needed the
     /// fitted door with **none in hand** — at check 4 of the fitted
@@ -2008,14 +2056,12 @@ pub enum PcurveCertifyError {
         /// What the classifier saw of its value.
         margin: geom_core::MarginDiag,
     },
-    /// The fitted lane's SSI certificate refused, **flattened to its
-    /// three actionable parts** rather than nested whole.
-    ///
-    /// The triple IS the actionable content — which limb, why, and the
-    /// number measured — which is what a consumer can act on and what
-    /// this module's other refusals carry; nesting `SsiError` whole
-    /// would add nothing a caller can act on. A limb's decided refusal
-    /// is [`PcurveCertifyError::FittedLimb`].
+    /// The fitted lane's SSI certificate, or its image producer,
+    /// refused structurally, **flattened to its actionable parts** rather
+    /// than nested whole: which limb, why, the number measured, and the
+    /// decision it ends by ([`FittedEnding`], the SSI door's ending of
+    /// the refusal it flattened). A limb's decided refusal is
+    /// [`PcurveCertifyError::FittedLimb`].
     FittedCertificate {
         /// The SSI limb that refused, when the refusal names one.
         limb: Option<SsiLimb>,
@@ -2029,6 +2075,8 @@ pub enum PcurveCertifyError {
         /// variant ([`PcurveCertifyError::FittedEscalated`]), which
         /// carries the classifier's diagnostic whole.
         magnitude: Option<FittedMagnitude>,
+        /// The decision the refusal ends by.
+        ending: FittedEnding,
     },
     /// The general image's producer could not re-express its image on
     /// the carrier's own parameter domain: the domain door's refusal,
@@ -2195,20 +2243,20 @@ impl PcurveCertifyError {
             Self::ImageMismatch { image, why } => write!(
                 f,
                 "pcurve certification: the {} image offered is not its carrier's image at \
-                 this door — {why}. Recourse: re-mint the image from the carrier \
-                 (chart_pcurve, or the body's pcurve mint) rather than building it by hand, \
-                 and hand a Fitted or General image to certify_fitted or certify_general",
+                 this door — {why}",
+                image.name()
+            ),
+            Self::FittedGradeAtClosedFormDoor { image } => write!(
+                f,
+                "pcurve certification: a {} image is fitted-grade, and the closed-form door \
+                 certifies closed-form images only",
                 image.name()
             ),
             Self::FittedLaneUnsupported { scalar } => write!(
                 f,
                 "pcurve certification: a fitted chart image needs the fitted door at the \
                  {scalar} scalar, which derives such an image and certifies its \
-                 between-samples bound, and none was in hand. Only a scalar with certification rights holds the door, {holders} \
-                 (the {sym} one over a certifying base): replay the body at one, or, if the run \
-                 is at one already, pass the call its door",
-                holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS),
-                sym = <geom_core::Sym<f64> as geom_core::Real>::NAME,
+                 between-samples bound, and none was in hand"
             ),
             Self::IsoUnsupported { what } => write!(
                 f,
@@ -2217,12 +2265,14 @@ impl PcurveCertifyError {
             Self::ChartRow { source } => write!(
                 f,
                 "pcurve certification: the chart's control net, or the row or column read \
-                 from it, is not valid spline structure — {source}"
+                 from it, is not valid spline structure — {}",
+                source.payload()
             ),
             Self::FittedCertificate {
                 limb,
                 what,
                 magnitude,
+                ..
             } => write!(
                 f,
                 "pcurve certification: the fitted lane's certificate refused{} — {what}{}",
@@ -2246,7 +2296,9 @@ impl PcurveCertifyError {
                  certificate limb exceeded ε (limb residual {margin:e} m)",
                 limb.name()
             ),
-            Self::CarrierDomain(refusal) => write!(f, "pcurve certification: {refusal}"),
+            Self::CarrierDomain(refusal) => {
+                write!(f, "pcurve certification: {}", refusal.payload())
+            }
             Self::CarrierEnclosure(refusal) => write!(
                 f,
                 "pcurve certification: the fitted lane's certificate refused at limb 2 — \
@@ -2295,27 +2347,23 @@ impl PcurveCertifyError {
             Self::SectorRefused { piece, channel } => write!(
                 f,
                 "pcurve certification: piece {piece} of the projected image is not in one \
-                 atan2 sector — {}. Recourse: a carrier through a pole, the cone's apex or \
-                 the torus's core has no one-branch image there; split the edge at it, or \
-                 re-aim the chart's axis away from it",
+                 atan2 sector — {}",
                 channel.describe()
             ),
             Self::PlacementTurnsExceeded => write!(
                 f,
                 "pcurve certification: the edge's parameter span sits more than 2³¹ turns \
-                 from its chart's window, and its image names no copy the kernel stores — \
-                 restate the carrier's parameter near zero"
+                 from its chart's window, and its image names no copy the kernel stores"
             ),
             Self::AzimuthPeriodExceeded => write!(
                 f,
                 "pcurve certification: the pcurve winds more than one full period around \
-                 the chart — split the edge first (the winding gate, chart side)"
+                 the chart (the winding gate, chart side)"
             ),
             Self::TubePeriodExceeded => write!(
                 f,
                 "pcurve certification: the projected image's tube angle sweeps more than \
-                 one full period of the torus — split the edge first (the winding gate, tube \
-                 side)"
+                 one full period of the torus (the winding gate, tube side)"
             ),
             Self::ResidualExceeded { check, sample } => {
                 let claim = if check.bounds_a_miss() {
@@ -2330,7 +2378,7 @@ impl PcurveCertifyError {
                      metres)"
                 )
             }
-            Self::Band(e) => write!(f, "pcurve certification: {e}"),
+            Self::Band(e) => write!(f, "pcurve certification: {}", e.payload()),
         }
     }
 }
@@ -2359,122 +2407,132 @@ impl PcurveCertifyError {
         self.decided().map(|(check, _)| check)
     }
 
-    /// The check this refusal restates and the arm it refused on, or
-    /// `None` for a refusal no check of this door owns: an unsupported
-    /// class, a missing operand, a band the tolerance cannot form, a
-    /// fitted certificate's structural refusal, or an escalation at the
-    /// SSI door (which ends by that door's decision).
+    /// The check this refusal restates and the arm it refused on: its
+    /// decision where that is a check of this door
+    /// ([`Decision::Check`]), `None` for every other decision.
     fn decided(&self) -> Option<(PcurveCheck, RefusedArm<'_>)> {
-        Some(match self {
-            Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
-            Self::ResidualExceeded { check, .. } => (*check, RefusedArm::SignCertain(None)),
-            Self::FittedLimb { limb, margin } => (
-                PcurveCheck::of_fitted_limb(*limb)?,
-                RefusedArm::SignCertain(Some(*margin)),
-            ),
-            Self::IntervalNotForward => (PcurveCheck::ParamSpan, RefusedArm::SignCertain(None)),
-            Self::AzimuthPeriodExceeded => {
-                (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain(None))
+        match self.decision() {
+            Decision::Check(check, arm) => Some((check, arm)),
+            Decision::SsiUndecided(..)
+            | Decision::SsiLimb(..)
+            | Decision::Unsized(_)
+            | Decision::NotYet
+            | Decision::Fitted(_)
+            | Decision::Lever(_) => None,
+        }
+    }
+
+    /// **The decision this refusal is a refused arm of**, one per arm
+    /// (D4 ¶1 (i)): the exhaustive match a new arm names its decision in
+    /// before it compiles, which [`Self::ending`] and [`Self::decided`]
+    /// both read.
+    fn decision(&self) -> Decision<'_> {
+        let definite = RefusedArm::SignCertain(None);
+        match self {
+            Self::Escalated { check, cause, .. } => {
+                Decision::Check(*check, RefusedArm::Undecided(cause))
             }
-            Self::PlacementTurnsExceeded => {
-                (PcurveCheck::ChartWinding, RefusedArm::SignCertain(None))
+            Self::ResidualExceeded { check, .. } => Decision::Check(*check, definite),
+            Self::FittedLimb { limb, margin } => {
+                match PcurveCheck::of_fitted_limb(*limb) {
+                    Some(check) => Decision::Check(check, RefusedArm::SignCertain(Some(*margin))),
+                    // A limb this door never decides ends as the SSI
+                    // door ends it.
+                    None => Decision::SsiLimb(*limb, *margin),
+                }
             }
-            Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
-            // The check and the arm its read carries; its ending is
-            // the read's ([`Self::ending`], [`IncidenceRead::ending`]).
-            Self::CarrierOffChart { margin, .. } => (
+            Self::IntervalNotForward => Decision::Check(PcurveCheck::ParamSpan, definite),
+            Self::AzimuthPeriodExceeded => Decision::Check(PcurveCheck::AzimuthPeriod, definite),
+            Self::PlacementTurnsExceeded => Decision::Check(PcurveCheck::ChartWinding, definite),
+            Self::TubePeriodExceeded => Decision::Check(PcurveCheck::TubePeriod, definite),
+            // The check and the arm its read carries, which a row
+            // restates; it ends by the read ([`Self::ending`]).
+            Self::CarrierOffChart { margin, .. } => Decision::Check(
                 PcurveCheck::ChartIncidence,
                 RefusedArm::SignCertain(margin.map(OffMargin::diag)),
             ),
             Self::NoGeneralLane {
                 gap: LaneGap::Unwritten,
                 ..
-            } => (PcurveCheck::ChartClass, RefusedArm::SignCertain(None)),
+            } => Decision::Check(PcurveCheck::ChartClass, definite),
             Self::NoGeneralLane {
                 gap: LaneGap::Pose { .. },
                 ..
-            } => (PcurveCheck::GeneralLane, RefusedArm::SignCertain(None)),
-            Self::FittedEscalated { .. }
-            | Self::UnsupportedChart { .. }
-            | Self::ImageMismatch { .. }
-            | Self::FittedLaneUnsupported { .. }
-            | Self::SectorRefused { .. }
-            | Self::IsoUnsupported { .. }
-            | Self::ChartRow { .. }
-            | Self::FittedCertificate { .. }
-            | Self::CarrierDomain(_)
-            | Self::CarrierEnclosure(_)
-            | Self::ChartWindingUnsupported
+            } => Decision::Check(PcurveCheck::GeneralLane, definite),
+            // A stored image's copied structure: its identity, its
+            // channels' kinds, its windings (C4), compared exactly.
+            Self::ImageMismatch { .. }
             | Self::ChannelKindMismatch { .. }
-            | Self::WindingMismatch { .. }
-            | Self::PlaceholderChart
-            | Self::Band(_) => return None,
-        })
+            | Self::WindingMismatch { .. } => Decision::Check(PcurveCheck::ImageIdentity, definite),
+            // A stored piece's sector condition decided refused (the
+            // derivation's own refusal is relabelled `NoGeneralLane`).
+            Self::SectorRefused { .. } => Decision::Check(PcurveCheck::Sector, definite),
+            Self::FittedEscalated { decision, cause } => Decision::SsiUndecided(*decision, cause),
+            // A lane choice (D3) or a lane's capability gap: a chart, an
+            // iso class, a winding count or a carrier span no lane covers
+            // yet.
+            Self::UnsupportedChart { .. }
+            | Self::IsoUnsupported { .. }
+            | Self::ChartWindingUnsupported
+            | Self::CarrierEnclosure(_) => Decision::NotYet,
+            // A validated chart re-wraps every row it is read at.
+            Self::ChartRow { .. } => Decision::Unsized(Unsized::Defect),
+            Self::FittedCertificate { ending, .. } => Decision::Fitted(*ending),
+            Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
+            Self::FittedLaneUnsupported { .. } => Decision::Lever(Lever::FittedDoor),
+            Self::FittedGradeAtClosedFormDoor { .. } => Decision::Lever(Lever::FittedGradeDoor),
+            Self::PlaceholderChart => Decision::Lever(Lever::Placeholder),
+            // The run's linear band: K·ε overflowed or rounded back onto
+            // ε (`Band::linear`), so a smaller tolerance; a lever arm is
+            // no linear band's, so a band its caller built, by its own.
+            Self::Band(BandError::InvalidValue { .. } | BandError::Empty { .. }) => {
+                Decision::Lever(Lever::Tolerance)
+            }
+            Self::Band(e @ BandError::InvalidLeverArm { .. }) => {
+                Decision::Lever(Lever::Band(e.recourse()))
+            }
+        }
     }
 
     /// The ending this refusal's decision gives it, read at `at`
-    /// ([`PcurveCheck::recourse`], or the SSI decision an escalation
-    /// there names), or `None` for a refusal that is no decision's
-    /// refused arm (an unsupported class, a missing operand, a band the
-    /// tolerance cannot form, a fitted certificate's structural refusal).
+    /// ([`Self::decision`]): an incidence refusal by its read
+    /// ([`IncidenceRead::ending`], E1d's door rule), a check's refused arm
+    /// by its routing ([`PcurveCheck::recourse`]), an SSI decision as the
+    /// SSI door ends it, a lane's gap "not yet", a structural
+    /// contradiction the door's defect, and a lever its own.
     #[must_use]
-    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> String {
         let at = at.into();
-        if let Self::FittedEscalated { decision, cause } = self {
-            return Some(decision.ending(cause, at));
-        }
         if let Some(read) = IncidenceRead::of(self) {
-            return Some(read.ending(at));
+            return read.ending(at);
         }
-        self.decided().map(|(check, arm)| check.recourse(arm, at))
+        match self.decision() {
+            Decision::Check(check, arm) => check.recourse(arm, at),
+            Decision::SsiUndecided(decision, cause) => decision.ending(cause, at),
+            // The SSI door's own ending, which reads no margin.
+            Decision::SsiLimb(limb, margin) => {
+                crate::ssi::SsiError::CertificateLimb { limb, margin }.ending(at)
+            }
+            Decision::Unsized(decision) => decision.recourse(RefusedArm::SignCertain(None), at),
+            Decision::NotYet => crate::recourse::not_yet(RefusedArm::SignCertain(None), at),
+            Decision::Fitted(ending) => ending.ending(at),
+            Decision::Lever(lever) => lever.recourse(at),
+        }
     }
 
-    /// This refusal's text read at `at`: an incidence refusal
-    /// ([`IncidenceRead::of`]) ends through the one map
-    /// ([`IncidenceRead::ending`]); an escalation ends as its decision
-    /// does there; every other decided refusal is its payload alone, its
-    /// ending left to the reader ([`Self::ending`]).
+    /// This refusal's text read at `at`: its payload ended by its
+    /// decision's ending there ([`Self::ending`]), an escalation at the
+    /// SSI door in that door's undecided sentence.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
         let at = at.into();
-        if let Some(read) = IncidenceRead::of(self) {
-            return self.with_ending(&read.ending(at));
-        }
         match self {
             Self::FittedEscalated { decision, cause } => format!(
                 "pcurve certification: the fitted lane's certificate escalated — {}",
                 cause.undecided(decision, decision.ending(cause, at))
             ),
-            Self::Escalated { check, cause, .. } => {
-                self.with_ending(&check.recourse(RefusedArm::Undecided(cause), at))
-            }
-            _ => self.payload().to_string(),
+            _ => self.with_ending(&self.ending(at)),
         }
-    }
-
-    /// **This refusal's text ended by its own ending at `at`**
-    /// ([`Self::ending`]), the decided refusal's included, which
-    /// [`Self::render`] leaves to its reader; a payload that carries its
-    /// own recourse (a hand-built image, a scalar without the fitted
-    /// door, a piece outside one sector) is that payload, ended once.
-    /// `None` for a refusal no decision owns and whose payload carries no
-    /// recourse, which a door holding it ends itself.
-    #[must_use]
-    pub fn render_ended(&self, at: impl Into<ReadAt>) -> Option<String> {
-        let at = at.into();
-        if matches!(
-            self,
-            Self::ImageMismatch { .. }
-                | Self::FittedLaneUnsupported { .. }
-                | Self::SectorRefused { .. }
-        ) {
-            return Some(self.render(at));
-        }
-        let ending = self.ending(at)?;
-        Some(match self {
-            Self::FittedEscalated { .. } => self.render(at),
-            _ => self.with_ending(&ending),
-        })
     }
 
     /// The refusal's text followed by `ending`: the one spelling of an
@@ -2499,6 +2557,91 @@ impl PcurveCertifyError {
     }
 }
 
+/// **The decision a [`PcurveCertifyError`] is a refused arm of**
+/// ([`PcurveCertifyError::decision`]).
+#[derive(Clone, Copy)]
+enum Decision<'a> {
+    /// A check of this door, on the arm it refused.
+    Check(PcurveCheck, RefusedArm<'a>),
+    /// An SSI decision the fitted lane's certificate could not decide.
+    SsiUndecided(SsiDecision, &'a Indeterminate),
+    /// A certificate limb this door never decides, refused definitely.
+    SsiLimb(SsiLimb, geom_core::MarginDiag),
+    /// A decision with no size the user chose.
+    Unsized(Unsized),
+    /// A lane choice or a lane's capability gap: lever-only "not yet".
+    NotYet,
+    /// A fitted certificate's structural refusal.
+    Fitted(FittedEnding),
+    /// A lever on the input no margin reads.
+    Lever(Lever),
+}
+
+/// A refusal whose recourse is a lever on the input no margin reads, the
+/// same at every door: the one table of these levers, which the lane
+/// refusals read too (`edge_nurbs::LaneDecision`).
+#[derive(Clone, Copy)]
+pub(crate) enum Lever {
+    /// The carrier's parameter range cannot carry the image.
+    CarrierDomain,
+    /// A fitted image needs the fitted door, which only a scalar with
+    /// certification rights holds.
+    FittedDoor,
+    /// A fitted-grade image certifies at its own doors, not the
+    /// closed-form one.
+    FittedGradeDoor,
+    /// The chart is the placeholder.
+    Placeholder,
+    /// The run's tolerance forms no band.
+    Tolerance,
+    /// A band its caller built is refused: its own recourse.
+    Band(&'static str),
+}
+
+impl Lever {
+    pub(crate) fn recourse(self, at: ReadAt) -> String {
+        match self {
+            Self::CarrierDomain => crate::CARRIER_DOMAIN_RECOURSE.to_owned(),
+            Self::FittedDoor => fitted_door_recourse(at),
+            Self::FittedGradeDoor => FITTED_GRADE_DOOR_RECOURSE.to_owned(),
+            Self::Placeholder => PLACEHOLDER_RECOURSE.to_owned(),
+            Self::Tolerance => crate::recourse::BAND_TOLERANCE_RECOURSE.to_owned(),
+            Self::Band(recourse) => recourse.to_owned(),
+        }
+    }
+}
+
+/// **The recourse for a fitted image read with no fitted door in hand**
+/// ([`PcurveCertifyError::FittedLaneUnsupported`]): read the body at a
+/// scalar with certification rights. At a build the call that refused
+/// may also be at one already and have withheld its door.
+#[must_use]
+pub fn fitted_door_recourse(at: impl Into<ReadAt>) -> String {
+    let holders = crate::ScalarList(crate::FITTED_DOOR_HOLDERS);
+    let sym = <geom_core::Sym<f64> as geom_core::Real>::NAME;
+    if at.into().is_build() {
+        format!(
+            "Recourse: replay the body at a scalar with certification rights, which alone \
+             holds the fitted door ({holders}, the {sym} one over a certifying base), or, if \
+             the run is at one already, pass the call its door"
+        )
+    } else {
+        format!(
+            "Recourse: check the body at a scalar with certification rights ({holders}, the \
+             {sym} one over a certifying base)"
+        )
+    }
+}
+
+/// The recourse for a fitted-grade image handed to the closed-form door
+/// ([`PcurveCertifyError::FittedGradeAtClosedFormDoor`]).
+pub const FITTED_GRADE_DOOR_RECOURSE: &str =
+    "Recourse: hand a Fitted or General image to certify_fitted or certify_general";
+
+/// The recourse for a chart that is still the placeholder
+/// ([`Surface::is_placeholder_chart`]).
+pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, then ask again";
+
 /// How a refusal of a [`PcurveCheck`] ends: as a span decision read on
 /// the image where the check restates one ([`SpanDecision`]), and
 /// otherwise as a decision with no size.
@@ -2519,6 +2662,25 @@ enum Routing {
 }
 
 impl PcurveCheck {
+    /// The check's name in words, for a holder that names the check a
+    /// refusal restates.
+    #[must_use]
+    pub const fn words(self) -> &'static str {
+        match self {
+            Self::ParamSpan => "parameter-span",
+            Self::MapResidual => "map-residual",
+            Self::Envelope | Self::EnvelopeTerm(_) => "between-samples envelope",
+            Self::ChartWinding => "placement",
+            Self::ChartClass => "chart-class",
+            Self::GeneralLane => "general-lane",
+            Self::ImageIdentity => "image-identity",
+            Self::AzimuthPeriod => "azimuth-period",
+            Self::TubePeriod => "tube-period",
+            Self::ChartIncidence => "chart-incidence",
+            Self::Sector => "sector",
+        }
+    }
+
     fn routing(self) -> Routing {
         match self {
             // The image's span is the edge's image-span check.
@@ -2562,7 +2724,7 @@ impl PcurveCheck {
     /// `at` (D4 ¶1 (i)). An incidence refusal ends by its read instead
     /// ([`PcurveCertifyError::ending`], [`IncidenceRead::ending`]).
     #[must_use]
-    pub(crate) fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let at = at.into();
         match self.routing() {
             Routing::Sized(decision) => decision.recourse(arm, at),
@@ -2704,12 +2866,11 @@ pub enum EnvelopeStatement {
     ///
     /// - **Cylinder, moving** (`β = ±1`; the image's radial is
     ///   `R·(â_r·cos t + β·e×â_r·sin t)` and `R·â_r = a_r·(1 + k)`):
-    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t − l_r·t` ⇒
-    ///   **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 + k) −
-    ///   b_r)` + **line** `‖l_r‖·T`. The axial channel is the carrier's
-    ///   own and cancels.
-    /// - **Cylinder, meridian** (radial motion decided Zero — or
-    ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
+    ///   `−w_r + k·a_r·cos t + (β·e×a_r·(1 + k) − b_r)·sin t` (a conic,
+    ///   `l = 0`) ⇒ **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 +
+    ///   k) − b_r)`. The axial channel is the carrier's own and cancels.
+    /// - **Cylinder, meridian** (radial motion decided Zero):
+    ///   `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
     ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
     /// - **Cone, rim** (slant `v = h·cos α + n·‖a_r‖·sin α`, the rim's
@@ -2991,10 +3152,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
     let (domain, ends) = crate::carrier_net::carrier_span(carrier, params);
     let schedule = crate::edge_nurbs::Schedule::new(&eval, domain, ends);
     let (t0, t1) = schedule.domain();
-    let certificate = |what| PcurveCertifyError::FittedCertificate {
+    let certificate = |what, ending| PcurveCertifyError::FittedCertificate {
         limb: None,
         what,
         magnitude: None,
+        ending,
     };
     crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(())).map_err(|e| match e {
         P::FootPointInconclusive {
@@ -3015,10 +3177,13 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
                 ),
                 last_distance,
             }),
+            ending: FittedEnding::FootUnsettled,
         },
-        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL),
+        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        P::Unsupported { what } => certificate(what),
+        // The wall this door was handed, as the foot producer refuses it
+        // (`chart_foot_lane`): one lever at both doors.
+        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
         other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
@@ -3028,7 +3193,11 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::ArcRim(_)
         | P::ReportedTransversalityPoisoned(_)
         | P::ChartSpeed(_)
-        | P::CarrierEnclosure(_)) => unreachable!(
+        | P::CarrierEnclosure(_)
+        | P::Unsupported { .. }
+        | P::WrongLane { .. }
+        | P::Tube(_)
+        | P::OutsideVocabulary) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -3050,8 +3219,15 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             what: "an edge endpoint has no certified foot on this chart, so where its \
                    image sits cannot be measured",
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
+            ending: FittedEnding::FootUnsettled,
         }),
-        Err(_) => Err(PcurveCertifyError::PlaceholderChart),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
+            Err(PcurveCertifyError::PlaceholderChart)
+        }
+        Err(other) => unreachable!(
+            "the chart foot producer refuses an unsettled foot or the placeholder wall \
+             alone: {other:?}"
+        ),
     }
 }
 
@@ -3065,8 +3241,8 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::ImageMismatch`] for a circle's image (it takes
-/// no door) or a net the composite refuses.
+/// [`PcurveCertifyError::ImageMismatch`] for a circle's or a line's image
+/// (it takes no door) or a net the composite refuses.
 pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     image: &ProjectedImage<T>,
     twin_net: &NurbsCurve3<T>,
@@ -3080,7 +3256,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         why,
     };
     let FramedCarrier::Net(net) = &image.carrier else {
-        return Err(refuse("a circle's projected row takes no door"));
+        return Err(refuse("a circle's or a line's projected row takes no door"));
     };
     // The stored net at the certification scalar: control points, held
     // knots and weights, each through the certified enclosure of its
@@ -4169,6 +4345,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             what: "the image's domain stops short of the edge's interval, so its hull \
                    bound says nothing about the edge's ends",
             magnitude: None,
+            ending: FittedEnding::Defect,
         });
     }
     use crate::ssi::certify::{CHART_HULL, Refused, carrier_chart_round, chart_grid, hull_limb};
@@ -4197,12 +4374,9 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     hull_limb(&CHART_HULL, stopped, band, &mut Refused::default()).map_err(ssi_refusal)
 }
 
-/// The hull limb's refusal, reduced to the three parts this module's
-/// closed enum carries — the limb, the reason (including the
-/// escalating predicate's own name) and the offending margin. That
-/// triple is the actionable content; see the
-/// [`PcurveCertifyError::FittedCertificate`] docs for what the
-/// flattening buys and, honestly, what it does not.
+/// The hull limb's refusal, reduced to the parts this module's closed
+/// enum carries: the limb, the reason, the offending margin, and the
+/// ending the SSI door gives it ([`FittedEnding`]).
 ///
 /// Its one producer is [`fitted_lane`], which runs limb 2's hull
 /// against the row's chart and nothing else: the composite refuses
@@ -4217,7 +4391,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 /// [`PcurveCertifyError::FittedEscalated`].
 fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     use crate::ssi::SsiError as E;
-    let (limb, what, magnitude) = match e {
+    let (limb, what, magnitude, ending) = match e {
         E::CertificateEscalated { limb, cause } => {
             return PcurveCertifyError::FittedEscalated {
                 decision: SsiDecision::Limb(limb),
@@ -4227,14 +4401,15 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::CertificateLimb { limb, margin } => {
             return PcurveCertifyError::FittedLimb { limb, margin };
         }
-        E::UnsupportedCertificate { what } => (None, what, None),
+        E::UnsupportedCertificate { what } => (None, what, None, FittedEnding::NotYet),
         E::CarrierEnclosure(refusal) => return PcurveCertifyError::CarrierEnclosure(refusal),
         // Exhaustive BY VARIANT rather than by catch-all: a new
         // `SsiError` must be dispositioned here deliberately, and the
         // compiler is what enforces that. The hull limb raises none of
         // these (the trace's, the tube's, the foot projection's and the
         // marching doors' refusals); were one to reach here it is a
-        // structural refusal whose full text lives at the SSI door.
+        // structural refusal whose full text lives at the SSI door, and
+        // the kernel's defect here, since this door ran no march.
         E::Escalated { .. }
         | E::ChartRow { .. }
         | E::RefinementExhausted { .. }
@@ -4285,12 +4460,14 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             "the hull limb refused structurally (see geom_brep::SsiError for the full text \
              at the SSI door)",
             None,
+            FittedEnding::Defect,
         ),
     };
     PcurveCertifyError::FittedCertificate {
         limb,
         what,
         magnitude,
+        ending,
     }
 }
 
@@ -4462,10 +4639,8 @@ impl<T: Decide> PcurveCache<T> {
         let shown = read_shown(carrier, t0, t1, surface, band)?;
         let certificate = match &pcurve {
             Pcurve::Fitted(_) | Pcurve::General(_) => {
-                return Err(PcurveCertifyError::ImageMismatch {
+                return Err(PcurveCertifyError::FittedGradeAtClosedFormDoor {
                     image: PcurveKind::of(&pcurve),
-                    why: "a fitted-grade image certifies at certify_fitted or certify_general, \
-                          never at the closed-form door",
                 });
             }
             // The iso lane (M6-3): closed-form like the harmonic one —
@@ -5934,7 +6109,6 @@ fn incidence<T: Decide>(
         ) => {
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (w_r, a_r, b_r) = (radial(c - origin), radial(a), radial(b));
-            terms.add(Line, radial(l).norm() * reach);
             match derivation {
                 Derivation::CylinderMoving { beta } => {
                     terms.add(Centre, w_r.norm());
@@ -5948,7 +6122,10 @@ fn incidence<T: Decide>(
                         None,
                     );
                 }
+                // Only a line reaches the meridian with a linear part:
+                // the moving arm is a conic's, whose `l` is zero.
                 _ => {
+                    terms.add(Line, radial(l).norm() * reach);
                     terms.add(Radius, norm_gap(radius, radius.powi(2), w_r));
                     terms.add(Drift, harmonic_sup(a_r, b_r));
                 }
@@ -8877,9 +9054,8 @@ impl<T: Decide> Placement<T> {
 
 /// A carrier's own parameter interval, for a derivation no edge spans:
 /// one turn `[0, τ]` of a periodic carrier, a spline's knot domain, and
-/// a unit `[0, 1]` of a line, whose image has no moving angular channel
-/// but whose placement reads its lever at the interval's points
-/// ([`Levers`]).
+/// a unit `[0, 1]` of a line, whose placement reads its lever at the
+/// interval's points ([`Levers`]).
 pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
     match carrier {
         Curve3::Line(_) => (T::zero(), T::one()),
@@ -8916,14 +9092,15 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, a spline on any analytic chart), and otherwise
+/// circle on a sphere, a line on a cylinder, a spline on any analytic
+/// chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. A circle on a cone, torus or cylinder, a line and an
-/// ellipse have no general lane yet (units E2 and E4, `work/pcert/plan.md`).
-/// Where the projected lane is taken, a circle's lane choice or a
-/// spline's only image, the lane's own capability gap also ends "not yet":
+/// was definite. A circle on a cone, torus or cylinder, a line on a cone
+/// and an ellipse have no general lane yet (unit E4, `work/pcert/plan.md`).
+/// Where the projected lane is taken, a circle's or a line's lane choice
+/// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
 /// reading is in band, and [`PcurveCertifyError::NoGeneralLane`]
 /// ([`LaneGap::Pose`]) where its partition finds no sector
@@ -9290,16 +9467,19 @@ pub enum IsoFamily {
 pub enum IsoFamilyRefusal {
     /// The chart image's derivation refused ([`chart_pcurve`]'s).
     Image(PcurveCertifyError),
-    /// The cylinder arm read the carrier's radial amplitude in the band
+    /// The cylinder arm's class reading was in the band
     /// (`pcurve_chart_radial_moving`): a ruling or a moving carrier,
-    /// undecided. The mint takes the ruling's form there as a structure
-    /// tie-break that its envelope keeps honest; a family cannot be
-    /// read off a tie-break. Its sentence is the question
-    /// ([`ISO_FAMILY_CLAUSE`]) and the payload, with no ending; the join,
-    /// which holds it, reads the escalation and writes its own sentence
-    /// on the same clause.
+    /// undecided. The mint takes the general lane there (D3), which lies
+    /// on no family, so the family is the question. Its sentence is the
+    /// question ([`ISO_FAMILY_CLAUSE`]) and the payload, with no ending;
+    /// the join, which holds it, reads the escalation and writes its own
+    /// sentence on the same clause.
     Undecided(Indeterminate),
 }
+
+/// The cylinder arm's ruling reading: whether the carrier's radial part
+/// moves.
+const RADIAL_MOVING: &str = "pcurve_chart_radial_moving";
 
 /// What the chart-class reading of [`chart_iso_family`] asks of an
 /// edge, after "whether": the one spelling of that question.
@@ -9325,19 +9505,16 @@ crate::ended_by_write!(IsoFamilyRefusal);
 
 /// The iso family `carrier`'s image on `surface`'s chart lies on, read
 /// off the class arm [`chart_pcurve`]'s derivation selects for it, so
-/// the family is the mint's own structure. One reading is taken again:
-/// where the derivation took the cylinder's ruling form, its class
-/// verdict (`pcurve_chart_radial_moving`, the same margin) is re-read,
-/// because the mint takes that form for an in-band verdict too, as a
-/// tie-break. `None` for a planar chart, a spiric carrier, and an image
-/// on no family (a cylinder's oblique section, a cone's tilted one, a
+/// the family is the mint's own structure. `None` for a planar chart, a
+/// spiric carrier, and an image on no family (a cylinder's oblique
+/// section or a line shown off its rulings, a cone's tilted section, a
 /// torus's Villarceau circle).
 ///
 /// # Errors
 ///
 /// [`IsoFamilyRefusal::Image`] with [`chart_pcurve`]'s refusal, and
 /// [`IsoFamilyRefusal::Undecided`] where the cylinder arm's class
-/// reading is in the band, which the mint settles by a tie-break.
+/// reading is in the band, where the mint takes the general lane.
 pub fn chart_iso_family<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -9346,18 +9523,23 @@ pub fn chart_iso_family<T: Decide>(
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let (_, derivation) = derive_harmonic(carrier, surface, Placement::own(carrier, surface), band)
-        .map_err(IsoFamilyRefusal::Image)?;
-    if let (Derivation::CylinderMeridian, Surface::Cylinder { axis, .. }, Some(form)) =
-        (derivation, surface, carrier_harmonic(carrier))
-    {
-        decide(
-            "pcurve_chart_radial_moving",
-            Margin::of(radial_amplitude(&form, *axis)),
-            band,
-        )
-        .map_err(IsoFamilyRefusal::Undecided)?;
-    }
+    let derivation = match derive_class(carrier, surface, Placement::own(carrier, surface), band) {
+        Ok((_, derivation)) => derivation,
+        // The ruling reading in band; any other class reading in band
+        // keeps its own ending.
+        Err(Underived::General {
+            undecided: Some(cause),
+            ..
+        }) if cause.predicate == Some(RADIAL_MOVING) => {
+            return Err(IsoFamilyRefusal::Undecided(cause));
+        }
+        // A line shown off the ruling: its image is the general one, on
+        // no family.
+        Err(Underived::General {
+            undecided: None, ..
+        }) if matches!(surface, Surface::Cylinder { .. }) => return Ok(None),
+        Err(underived) => return Err(IsoFamilyRefusal::Image(harmonic_refusal(underived))),
+    };
     Ok(match derivation {
         Derivation::CylinderMeridian
         | Derivation::ConeRuling { .. }
@@ -9441,29 +9623,25 @@ fn derive_class<T: Decide>(
             // section/rim case — and β is its orientation against the
             // chart frame.
             let w_r = radial(w);
-            // The amplitude of the radial oscillation IS metres (the
-            // harmonic coefficients are displacement vectors) — it is
-            // compared against the band directly. Weighting it by the
-            // chart radius again (the pre-M6-3 form) squared the
-            // scale and misread a genuinely-moving rim on a
-            // near-band-radius cylinder as a meridian, which then
-            // failed the residual schedule loudly (the 100ε washer).
+            // The reading is `σ(a_r, b_r) + ‖l_r‖`, compared against
+            // the band directly. A conic's part is metres: the radial
+            // oscillation's amplitude. A line's `‖l_r‖` is metres per
+            // unit of its parameter, so it reads the line's radial
+            // speed, not how far it leaves a ruling over the edge
+            // (`work/pcert/the-ruling-question-is-read-in-two-units.md`).
             let moving = radial_amplitude(&form, axis);
-            match decide("pcurve_chart_radial_moving", Margin::of(moving), band) {
-                // Zero — AND the in-band arm (Err): a sub-escalation
-                // radial amplitude takes the meridian form as a D9
-                // tie-break (the `stable_azimuth` posture): this is
-                // STRUCTURE selection, not a topological decision —
-                // check 4's envelope is built from the true difference
-                // of forms, so the discarded drift lands in the
-                // certified sup bound and an amplitude that matters
-                // refuses there in metres. (The executed case: a wild
-                // NIST import whose near-meridian line carries a
-                // few-nanometre radial tilt.)
-                // The meridian's constant azimuth is read here only: a
-                // moving carrier's centre may sit on the axis, where its
-                // radial part names no direction to place.
-                Ok(Sign::Zero) | Err(_) => Ok((
+            let reading = decide(RADIAL_MOVING, Margin::of(moving), band);
+            #[cfg(test)]
+            let reading = match reading {
+                Err(_) if mutants::radial_fold() => Ok(Sign::Zero),
+                reading => reading,
+            };
+            match reading {
+                // A ruling shown (Zero) takes the meridian form. Its
+                // constant azimuth is read here only: a moving carrier's
+                // centre may sit on the axis, where its radial part names
+                // no direction to place.
+                Ok(Sign::Zero) => Ok((
                     Pcurve::Harmonic {
                         u: Channel::fixed_angle(place.phase(
                             Along::Azimuth,
@@ -9480,11 +9658,16 @@ fn derive_class<T: Decide>(
                     },
                     Derivation::CylinderMeridian,
                 )),
+                // A ruling not shown is D3's lane choice: in band, the
+                // general lane; and definite, too, for a line, whose only
+                // class here is the ruling.
+                Err(cause) => Err(incidence::general_lane(shown, Some(cause))),
+                Ok(Sign::Positive | Sign::Negative) if matches!(carrier, Curve3::Line(_)) => {
+                    Err(incidence::general_lane(shown, None))
+                }
                 Ok(Sign::Positive | Sign::Negative) => {
-                    // The moving case: radial(t) = a_r·cos t + b_r·sin t
-                    // (a linear radial part would not close a chart
-                    // circle; certification refuses it through the
-                    // residual). α is the azimuth of `a_r`; β is the
+                    // The moving case, a conic's: radial(t) = a_r·cos t +
+                    // b_r·sin t. α is the azimuth of `a_r`; β is the
                     // orientation of (a_r, b_r) against the chart's own
                     // frame, a named trilean metered at the radius.
                     let orient = a_r.cross(b_r).dot(axis);
@@ -10350,7 +10533,13 @@ fn derive_harmonic<T: Decide>(
     place: Placement<T>,
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), PcurveCertifyError> {
-    derive_class(carrier, surface, place, band).map_err(|u| match u {
+    derive_class(carrier, surface, place, band).map_err(harmonic_refusal)
+}
+
+/// [`derive_harmonic`]'s refusal for an [`Underived`]: the general lane
+/// is no closed form.
+fn harmonic_refusal(underived: Underived) -> PcurveCertifyError {
+    match underived {
         Underived::Refused(e) => e,
         // The class reading is in band: not shown either way, so a
         // closed form re-read here is undecided, never a contradiction.
@@ -10365,7 +10554,7 @@ fn derive_harmonic<T: Decide>(
             why: "the carrier is none of the chart's own classes, so it has no closed-form \
                   image; its image is the general one",
         },
-    })
+    }
 }
 
 /// The margin a [`PcurveCertifyError::CarrierOffChart`]'s incidence
@@ -11584,6 +11773,9 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod cylinder_line_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
 #[cfg(test)]
 mod mutants;
@@ -11956,11 +12148,11 @@ mod tests {
         };
         assert_eq!(
             PcurveCertifyError::AzimuthPeriodExceeded.ending(Reading::Build),
-            Some(format!("Recourse: {}", SpanDecision::Winding.lever())),
+            format!("Recourse: {}", SpanDecision::Winding.lever()),
             "definite, at a build"
         );
         assert_eq!(
-            PcurveCertifyError::AzimuthPeriodExceeded.ending(Reading::AtRest),
+            Some(PcurveCertifyError::AzimuthPeriodExceeded.ending(Reading::AtRest)),
             CertifyError::WindingExceeded.ending(Reading::AtRest),
             "definite, at rest"
         );
@@ -11972,11 +12164,11 @@ mod tests {
             };
             assert_eq!(
                 escalated.ending(reading),
-                Some(recourse(
+                recourse(
                     CertCheck::ParamWinding,
                     RefusedArm::Undecided(&cause),
                     reading
-                )),
+                ),
                 "in band, {reading:?}"
             );
         }
@@ -12556,8 +12748,8 @@ mod tests {
             "a definite refusal on the axial fidelity: {loose:?}"
         );
         assert_eq!(
-            loose.ending(Reading::AtRest).as_deref(),
-            Some(geom_core::KERNEL_LIMIT_RECOURSE),
+            loose.ending(Reading::AtRest),
+            geom_core::KERNEL_LIMIT_RECOURSE,
             "a loose envelope contradicts nothing stored"
         );
         assert!(
@@ -12606,8 +12798,8 @@ mod tests {
             "its samples read the miss: {miss:?}"
         );
         assert_eq!(
-            miss.ending(Reading::AtRest).as_deref(),
-            Some(defect_ending(Reading::AtRest)),
+            miss.ending(Reading::AtRest),
+            defect_ending(Reading::AtRest),
             "a sample's residual is the miss"
         );
     }
@@ -13121,18 +13313,18 @@ mod tests {
                 test_utils::refusal::recourse_markers(&msg) >= 1,
                 "no recourse in: {msg}"
             );
-            let Some(read) = IncidenceRead::of(&err) else {
-                assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
-                continue;
-            };
-            // An incidence refusal's payload carries no recourse: its
-            // ending is the door's, through the one map.
+            // The payload carries no recourse: its ending is the door's,
+            // an incidence refusal's through the one map, an image's that
+            // is not its carrier's the door's defect.
             let text = core::fmt::from_fn(|f| err.write_payload(f)).to_string();
             assert!(!text.contains("Recourse"), "{text}");
-            assert_eq!(
-                err.ending(Reading::Build),
-                Some(read.ending(Reading::Build))
-            );
+            for at in [Reading::Build, Reading::AtRest] {
+                let want = match IncidenceRead::of(&err) {
+                    Some(read) => read.ending(at),
+                    None => crate::recourse::defect_ending(at).to_owned(),
+                };
+                assert_eq!(err.ending(at), want, "{err:?} at {at:?}");
+            }
             assert!(!msg.contains("repair the body"), "{msg}");
         }
     }
@@ -13192,11 +13384,7 @@ mod tests {
                 (ReadAt::from(file), geom_core::DAMAGED_FILE_ENDING),
             ] {
                 let ending = read.ending(door);
-                assert_eq!(
-                    err.ending(door).as_deref(),
-                    Some(ending.as_str()),
-                    "{err:?}"
-                );
+                assert_eq!(err.ending(door), ending, "{err:?}");
                 assert!(err.render(door).ends_with(&ending), "{err:?} at {door:?}");
                 assert!(!ending.contains("ε_in"), "{err:?} at {door:?}: {ending}");
                 if definite {
@@ -13225,10 +13413,7 @@ mod tests {
             check: PcurveCheck::ChartIncidence,
             sample: 3,
         };
-        assert_eq!(
-            pcurve.ending(Reading::Build).as_deref(),
-            Some(KERNEL_DEFECT_ENDING)
-        );
+        assert_eq!(pcurve.ending(Reading::Build), KERNEL_DEFECT_ENDING);
         assert!(
             pcurve
                 .render(Reading::AtRest)
@@ -13430,11 +13615,71 @@ mod tests {
                 "{pcurve:?}"
             );
             assert_eq!(
-                pcurve.ending(Reading::AtRest).as_deref(),
-                Some(want.as_str()),
+                pcurve.ending(Reading::AtRest),
+                want,
                 "the pcurve door ends as the SSI door: {pcurve_at}",
                 pcurve_at = pcurve.render(crate::recourse::Reading::Build)
             );
+        }
+    }
+
+    /// **A flattened SSI refusal keeps the SSI door's ending**: the
+    /// composite's unsupported class and the carrier span it cannot
+    /// enclose end at the pcurve door, at every door, as at the SSI door.
+    #[test]
+    fn a_flattened_ssi_refusal_ends_as_at_the_ssi_door() {
+        use geom_core::FileCoincidence;
+        for ssi in [
+            crate::ssi::SsiError::UnsupportedCertificate { what: "probe" },
+            crate::ssi::SsiError::CarrierEnclosure(crate::CarrierEnclosureRefusal {
+                kind: geom::CurveKind::Nurbs,
+                span: (0.0, 1.0),
+            }),
+        ] {
+            let doors = [
+                ReadAt::from(Reading::Build),
+                Reading::AtRest.into(),
+                FileCoincidence::new(1e-6).into(),
+            ];
+            let want: Vec<String> = doors.iter().map(|at| ssi.ending(*at)).collect();
+            let pcurve = ssi_refusal(ssi);
+            for (at, want) in doors.into_iter().zip(want) {
+                assert_eq!(pcurve.ending(at), want, "{pcurve:?} at {at:?}");
+                assert!(pcurve.render(at).ends_with(&want), "{pcurve:?} at {at:?}");
+            }
+        }
+    }
+
+    /// **The arms no door reaches end by their decision**: a band the
+    /// run's tolerance cannot form (no producer raises it), a limb this
+    /// door never decides (the hull limb runs only the chart limbs), and
+    /// a chart row that will not re-wrap (a validated chart's rows do).
+    #[test]
+    fn the_arms_no_door_reaches_end_by_their_decision() {
+        use crate::recourse::{BAND_TOLERANCE_RECOURSE, defect_ending};
+        let band = PcurveCertifyError::Band(BandError::InvalidValue {
+            field: geom_core::predicate::BandField::Escalate,
+            value: f64::INFINITY,
+        });
+        let on_locus = PcurveCertifyError::FittedLimb {
+            limb: SsiLimb::OnLocus,
+            margin: geom_core::MarginDiag::value(1e-7),
+        };
+        let row = PcurveCertifyError::ChartRow {
+            source: SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+        };
+        for at in [Reading::Build, Reading::AtRest] {
+            assert_eq!(band.ending(at), BAND_TOLERANCE_RECOURSE, "{at:?}");
+            assert_eq!(
+                on_locus.ending(at),
+                crate::ssi::SsiError::CertificateLimb {
+                    limb: SsiLimb::OnLocus,
+                    margin: geom_core::MarginDiag::value(1e-7),
+                }
+                .ending(at),
+                "{at:?}"
+            );
+            assert_eq!(row.ending(at), defect_ending(at), "{at:?}");
         }
     }
 
@@ -13946,8 +14191,8 @@ mod iso_family {
     //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
     //! `V`, an oblique section no family; a line tilted off the wall is
     //! refused by its incidence read, and one whose tilt off the axis is
-    //! in the band refuses undecided — the mint's tie-break takes the
-    //! ruling's form there, which no family may be read off.
+    //! in the band refuses undecided — the mint takes the general lane
+    //! there, which lies on no family.
     use super::{IsoFamily, IsoFamilyRefusal, chart_iso_family};
     use geom::{Curve3, Surface};
     use geom_core::{Band, Point3, Vec3};
@@ -14258,7 +14503,7 @@ mod check_4_class_rows {
         };
         for reading in [Reading::Build, Reading::AtRest] {
             for e in [&undecided, &unwritten, &lane_undecided, &uncovered] {
-                let ending = e.ending(reading).unwrap();
+                let ending = e.ending(reading);
                 assert!(
                     ending.starts_with(geom_core::NOT_YET_ENDING),
                     "{reading:?}: {e:?} ends {ending}"
@@ -14273,7 +14518,7 @@ mod check_4_class_rows {
             sample: 0,
             cause,
         };
-        let ending = identity.ending(Reading::AtRest).unwrap();
+        let ending = identity.ending(Reading::AtRest);
         assert!(
             !ending.starts_with(geom_core::NOT_YET_ENDING),
             "an identity check ends as a defect: {ending}"

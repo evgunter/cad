@@ -223,24 +223,22 @@ fn on_interior_at<T: Decide>(
     match span.contact(q, geom::mid_param(r.span.0, r.span.1), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
-        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
-        }
-        Err(geom::CarrierRefusal::Exhausted) => {
-            refuse(
-                r.edge,
-                "the census's reading of a point on a spline edge ran past its budget",
-                errors,
-            );
-            None
-        }
-        Err(geom::CarrierRefusal::Unbounded) => {
-            refuse(
-                r.edge,
-                "a spline edge whose speed bound is zero or poison",
-                errors,
-            );
+        Err(refusal) => {
+            match refusal.escalation() {
+                Ok(cause) => errors.push(ValidationError::CensusEscalated { cause }),
+                Err(why) => refuse(
+                    r.edge,
+                    match why {
+                        geom::PieceWalkRefusal::Exhausted => {
+                            "the census's reading of a point on a spline edge ran past its budget"
+                        }
+                        geom::PieceWalkRefusal::Unbounded => {
+                            "a spline edge whose speed bound is zero or poison"
+                        }
+                    },
+                    errors,
+                ),
+            }
             None
         }
     }
@@ -286,6 +284,19 @@ impl<T: Decide> EdgeSpan<T> {
     pub(crate) fn span(&self) -> Span<'_, T> {
         let span = Span::new(&self.read.curve, self.read.span);
         if self.endless { span.endless() } else { span }
+    }
+
+    /// A span of `curve` with its ends, owned by no edge.
+    #[cfg(test)]
+    pub(crate) fn of(curve: Curve3<T>, span: (T, T)) -> Self {
+        Self {
+            read: Read {
+                edge: EdgeKey::default(),
+                curve,
+                span,
+            },
+            endless: false,
+        }
     }
 }
 

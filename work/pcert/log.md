@@ -912,3 +912,62 @@ E1c waits on the answer.
   - Filed by the lane: `a-nested-refusal-ends-at-its-holders-door-not-its-readers`, `a-displays-constant-ending-answers-one-door-at-every-door`, and the wrappers of payload-only refusals that never end them.
   - The topo `depth_gap_fuzz` red seen on this PR was main's. The orchestrator's `work/issues/a-sampled-depth-on-a-zero-minor-ring-lies-past-its-core-bound` is closed as a duplicate of restread's row.
   - Next: the P1 `pcurve-certify-error-arms-with-no-ending`, then E2 → E3 → E4.
+- 2026-11-03 — **P1 `pcurve-certify-error-arms-with-no-ending` merged** (PR 6448), dispatched 11:22Z, run right after E1e because both touch `PcurveCertifyError`'s endings.
+  - `PcurveCertifyError::ending(at)` returns a `String` for every arm: 14 had none (13 in the row, re-derived), plus `FittedLimb` off the chart limbs. One exhaustive private `decision()` covers them, with no grouped `None` and no `_ =>`. topo's at-rest fallback table is retired.
+  - `FittedCertificate` carries the SSI door's ending (`FittedEnding`). A new arm, `FittedGradeAtClosedFormDoor`, keeps the hand-off lever for a caller giving a fitted image to the closed-form door.
+  - Named at-rest meaning changes:
+    - `SectorRefused` is now a defect; a stored piece, noted on `pcurve-winding-incidence-and-sector-refusals-end-as-a-kernel-defect`;
+    - `FittedLaneUnsupported` has one lever, worded per door;
+    - `FittedCertificate` follows its ending, its reason included;
+    - the off-limb `FittedLimb` was a panic on main and is now a defect.
+  - Review tier: single FULL (each arm's ending is a correctness question; nothing structural). Review: APPROVE-WITH-FIXES, 0 MAJOR / 6 MINOR. The fix list Q, read by the orchestrator, covered:
+    - the public door that reached `ImageMismatch`;
+    - the placeholder mapped to one arm;
+    - the at-rest reason;
+    - double recourses on `Band` / `ChartRow`;
+    - levers pinned by identity, with the reviewer's mutant red;
+    - the missed existing row, with the duplicate folded in.
+  - Ruled: `NoGeneralLane::Pose` keeps its pre-existing pair (the pose lever plus D3's "not yet"). Splitting at the pole is a real way through at a build door (`m6_3` pole fence), and the lever-vs-not-yet choice is filed on `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`. `pcurve-image-mismatch-at-the-body-mint-asks-to-re-mint` stays open with the measurement.
+  - Filed:
+    - `wrappers-that-flatten-a-pcurve-certify-error-end-it-by-their-own-decision`;
+    - `geom-brep-public-certify-doors-end-caller-input-as-the-kernels-defect-at-a-build`;
+    - `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`.
+  - Next: E2 → E3 → E4.
+- 2026-11-03 — **Tail banded; the sitting continues on six P1 rows.** After the P1 `pcurve-certify-error-arms-with-no-ending` merged (PR 6448), no P0 or P1 row was dispatchable, and 19 unbanded rows had put the load at 54/36. They are now banded by `work/README.md`'s definitions; load is 21/36.
+  - **P1, the D3 lane units:** E2 `a-line-on-a-cylinder-has-no-general-lane` (re-banded from P3), E4 `a-circles-general-lane-is-written-only-on-the-sphere` and E5 `a-mint-side-class-pick-escalates-in-band-where-its-general-lane-exists`. Ev ruled on `[ev]` PR 5186 that every class a lane choice reads has a general lane; until each is built, a class is handled by a special case. That is the P1 definition, and the same band the 3617 ruling gave the C4 routes.
+  - **P1, two implementations of one thing:** `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` (the sibling of the P1 just closed), `harmonic3-circle-and-ellipse-arms-re-spell-conic-of` and `the-projected-image-inverts-chart-points-by-a-second-spelling`.
+  - **P2:** the full-turn conic read, `site_rows`' spline-carrier bypass, and the spiric run edge.
+  - **P3:** the rest of the refusal-vocabulary residue.
+  - **P4:** the frozen-node cost item.
+  - Order: E2 → E3 → E4, E5 beside. `plane-nurbs-refusal-ending…` and the two second-spelling rows fit between units, wherever they touch different code from the unit in flight.
+- 2026-11-03 — **P1 `plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none` merged** (PR 6474). Every `PlaneNurbsRefusal` and `AnalyticRung3Refusal` arm ends by its decision through an exhaustive match: no grouped `None`, no `_ =>`.
+  - Shared refusals end from one home with `PcurveCertifyError`:
+    - the placeholder wall ends in `PLACEHOLDER_RECOURSE`;
+    - `CarrierEnclosure` ends "not yet";
+    - an unsettled foot reads `SsiError::FootPointInconclusive`'s ending, which is now "not yet" at every reading, never a defect or a damaged file. That ending also corrects 6448's `FootUnsettled` and the SSI door's own golden.
+    - A wrong-lane call ends as `WrongLane`.
+    - The SSI flattens carry the `SsiError`'s own ending, which closes `wrappers-that-flatten-an-ssi-error-end-it-by-their-own-decision`.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR / 6 MINOR, with the fix list S read by the orchestrator.
+  - **The pose gap was reverted.** The lane had routed `GeneralLane` to the pose lever. The review found the gap also catches in-band poses *beside* a pole, where "split the edge at it" names no passage, and the same apex fact ending two ways. The 6448 pair stands, and the evidence is recorded on the row.
+  - The every-arm row now reads the other doors' homes, so the reviewer's mutant D reds at every door, and the edge-door lever is pinned by identity.
+  - Filed **`two-decision-tables-for-one-ending` (P1)**: `LaneDecision` and `pcurve_cache`'s `Decision` drift apart.
+- 2026-11-03 — **`harmonic3-circle-and-ellipse-arms-re-spell-conic-of` closed** (PR 6468): there was no code to change. PR 6349 (onehome) had already made `carrier_harmonic` read `Conic::of` / `semi_axis_vectors()`, bit-identical at f64 and at Interval. Filed `work/shell/topo-stands-and-shell-moved-walls-re-spell-a-conics-frame-by-kind.md`. Review tier: the orchestrator's read.
+- 2026-11-03 — **E2 merged** (PR 6470): a line on a cylinder has a general (projected) lane, as Ev ruled on `[ev]` PR 5186.
+  - The lane: `has_lane` admits (Line, Cylinder), and check 4's line arm bounds incidence by a Bernstein convex-hull sup of ρ² − R², converted through the cylinder arm's own `over`.
+  - The fold goes: a Zero radial reading takes the meridian form, and an in-band reading takes the general lane. `chart_iso_family`'s re-read is gone.
+  - The departure, accepted: a definite non-Zero radial reading on a line now takes the general lane, not the moving arm. The moving arm built an atan2(0,0) channel that certification always refused; the review measured 12,517 such lines on main, none certifying.
+  - The retired D3 clause is out of the README C4 page and the code prose.
+  - Review tier: single FULL. Review: APPROVE-WITH-FIXES, 0 MAJOR. A 150k-draw counterexample search found nothing, and the `line-cylinder-ends` mutant reds it. No public verb regressed.
+  - Fix list R, read by the orchestrator:
+    - the stale prose;
+    - a third consumer (`props_meridian_axial`) named on the filed row;
+    - the 88/14,412 lane changes disclosed, with a band-scale row;
+    - G1's pin;
+    - the shared residual sampler;
+    - the iso guard narrowed;
+    - the row closed.
+  - Cost about 1.0× main.
+  - Filed:
+    - `a-ruling-read-in-band-meets-consumers-that-read-no-projected-image` (P2);
+    - **`the-ruling-question-is-read-in-two-units` (P1)**: props meters a ruling's tilt over the edge, while the mint reads its radial speed per unit parameter.
+  - Next: E4 and the projected-image second spelling (both on `projected.rs`), E5 after plane-nurbs, and E3.

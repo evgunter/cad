@@ -148,6 +148,8 @@ mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
+#[path = "a_split_edge_joins_back_on_its_carrier.rs"]
+mod a_split_edge_joins_back_on_its_carrier;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -188,6 +190,8 @@ mod an_arc_rim_picks_the_row_it_lies_on;
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
 mod an_arcs_sweep_structure_is_certified_for_every_member;
+#[path = "an_edge_on_a_ruling_lying_in_its_own_face.rs"]
+mod an_edge_on_a_ruling_lying_in_its_own_face;
 #[path = "an_edge_running_past_a_face_reads_its_crossings.rs"]
 mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]

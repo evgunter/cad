@@ -22,11 +22,8 @@ use crate::construction::{MefSite, MevSite};
 use crate::euler::FaceSurface;
 use crate::fixtures::{refile_shells, test_curve};
 use crate::policy_lane::KernelSite;
-use crate::validate::{
-    MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
-    validate_geometric,
-};
-use geom_brep::MaterialWedge;
+use crate::validate::{ValidationError, validate, validate_geometric, wedge_reading};
+use geom_brep::WedgeEnd;
 use geom_core::Indeterminate;
 use geom_core::Tol;
 
@@ -1632,7 +1629,7 @@ fn a_section_rechart_of_an_arc_past_a_turn_is_a_kernel_bug() {
     let charts = vec![crate::attach::Rechart::shared(onto, split.face, true)];
     let stranded = body.stranded_by(&charts).unwrap();
     let restated =
-        crate::splitting::finish::section_plane_restatements(&body, split.face, &stranded).unwrap();
+        crate::splitting::finish::section_plane_restatements(&body, split.face, &stranded);
     assert!(
         restated.iter().any(|(e, _)| *e == split.edge),
         "the re-chart strands the planted arc: {restated:?}"
@@ -2192,7 +2189,7 @@ fn a_jet_determinate_cusp_is_legal_at_rest_with_nothing_declared() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
-    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(material_end(&p.body, kiss), WedgeEnd::Cusp);
     assert_eq!(validate_geometric(&p.body, tol), Ok(()));
     let marks = crate::validate::contact_marks(&p.body, tol).expect("the cusp prism is valid");
     assert_eq!(
@@ -2253,10 +2250,10 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let kiss = kiss_edge(&p);
     let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
-    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(material_end(&p.body, kiss), WedgeEnd::Cusp);
     assert_eq!(
         material_end(&reverted, kiss),
-        MaterialWedge::Slit,
+        WedgeEnd::Slit,
         "the cusp's revert image is the slit"
     );
     assert_eq!(
@@ -2332,17 +2329,22 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// **Check 4 and the shared-rim routing spell no second-order reading
-/// of their own.** Both read the second-order margin through
-/// `geom_brep::second_order_walk` once, with the material reads in
-/// `validate::MaterialStations`; the validator takes its stations from
-/// `geom_brep::interior_stations`. So the rows that pin the walk and
-/// the hook speak for both: a loop, a `"tangent_second_order"` decide
-/// or a material read inlined back into either file's production code
-/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
-/// asserting a predicate name is not a second spelling.
+/// **Check 4 and the shared-rim routing spell no wedge reading of their
+/// own.** Both read an edge's wedge through `geom_brep::edge_wedge_over`
+/// once, over a walk built by its one door: the validator's
+/// `WedgeWalk::along_edge` (inside `edge_wedge_walk`), the rim's
+/// `WedgeWalk::around_circle`. The walk, its hook, the edge's interior
+/// stations and the pairing of a corner are out of their reach by type
+/// (crate-private, or asked only of a tangency token), so what this row
+/// pins is the rest: a class read (`classify_dihedral`, `dihedral_class`),
+/// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
+/// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
+/// hand, a `"tangent_second_order"` decide or a material read inlined
+/// back into either file's production code reds here. The
+/// `#[cfg(test)]` modules are blanked first: a row there asserting a
+/// predicate name is not a second spelling.
 #[test]
-fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
     // The code-and-literals view with every `#[cfg(test)] mod … { … }`
     // blanked, carved on the code-only view where every bracket is real.
     let production = |text: &str| {
@@ -2385,27 +2387,42 @@ fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
             );
         }
     };
-    let walk = [
+    let reads = [
         "\"tangent_second_order\"",
         "tangent_second_order(",
         "tangent_jet(",
+        "classify_dihedral(",
+        "dihedral_class(",
+        ".convexity(",
+        "\"dihedral_sign\"",
+        ".pairing(",
+        "pairing_as(",
+        "classify_material_pairing_as(",
+        "Station::on(",
+        "material_kappa_rel(",
     ];
     let material = [
         "\"material_cusp_side\"",
         "\"material_wedge_side\"",
-        "classify_material_pairing(",
-        "material_kappa_rel(",
         "folded_lever_arm(",
     ];
     scan(
         "src/validate.rs",
-        &[("second_order_walk(", 1), ("interior_stations(", 1)],
-        &walk,
+        &[
+            ("edge_wedge_over(", 1),
+            ("WedgeWalk::along_edge(", 1),
+            ("WedgeWalk::around_circle(", 0),
+        ],
+        &reads,
     );
     scan(
         "src/boolean/rim_wedge.rs",
-        &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
-        &[walk.as_slice(), material.as_slice()].concat(),
+        &[
+            ("edge_wedge_over(", 1),
+            ("WedgeWalk::around_circle(", 1),
+            ("WedgeWalk::along_edge(", 0),
+        ],
+        &[reads.as_slice(), material.as_slice()].concat(),
     );
 }
 
@@ -2555,7 +2572,7 @@ fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
 /// signed into the plus face's outward frame, positive the cusp and
 /// negative the slit. For an edge whose faces' material sides oppose
 /// and whose κ_rel is definite — the caller's fixture guarantees both.
-fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge {
+fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> WedgeEnd {
     let e = body.get_edge(edge).unwrap();
     let curve = body
         .get_curve_geom(e.curve)
@@ -2574,9 +2591,9 @@ fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge
     let signed = geom_brep::material_kappa_rel(jet.kappa_rel, plus.sense);
     assert!(signed != 0.0, "a definite κ_rel is the fixture's premise");
     if signed > 0.0 {
-        MaterialWedge::Cusp
+        WedgeEnd::Cusp
     } else {
-        MaterialWedge::Slit
+        WedgeEnd::Slit
     }
 }
 
@@ -2644,164 +2661,116 @@ fn kissing_cylinder_pillow(
     )
 }
 
-/// **The material arm's fold, state by state** — including the two
-/// states no certified geometry is known to reach.
-///
-/// `material_arm_outcome` is the whole of check 4's material verdict:
-/// the sample loop accumulates flags, and this fold turns them into the
-/// ONE outcome the edge earns. Two of its states are the reason it is a
-/// separate function at all:
-///
-/// - **the pairing SPLIT** (`aligned == opposed`): different samples
-///   along one edge disagreed about which way the material faces, or
-///   no sample classified;
-/// - **the end SPLIT** (`side_mixed`): the pairing agreed, the jet was
-///   determinate, and different samples still called different ends.
-///
-/// Silence there would validate a wedge end CLEAN on an edge whose own
-/// samples contradicted one another. They escalate, and because no fixture can force them,
-/// calling the fold directly is the only way to pin that. The row also
-/// pins the exclusivity the outcome type exists to guarantee: no input
-/// yields both a lamina and a wedge.
-#[test]
-fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
-    use MaterialArmOutcome as O;
-    let cusp = Some(MaterialWedge::Cusp);
-
-    // Aligned at every sample: the legal seam, whatever the jet says
-    // (a seam's legality is a first-order fact).
-    assert_eq!(
-        material_arm_outcome(true, false, true, None, false),
-        O::Wedge(MaterialWedge::Seam)
-    );
-    assert_eq!(
-        material_arm_outcome(true, false, false, None, false),
-        O::Wedge(MaterialWedge::Seam)
-    );
-    // Opposed at every sample, jet determinate, one end: that end.
-    assert_eq!(
-        material_arm_outcome(false, true, true, cusp, false),
-        O::Wedge(MaterialWedge::Cusp)
-    );
-    assert_eq!(
-        material_arm_outcome(false, true, true, Some(MaterialWedge::Slit), false),
-        O::Wedge(MaterialWedge::Slit)
-    );
-    // Opposed with a collapsed jet: the lamina refusal — and NOT a
-    // wedge, which is why no edge can earn both refusals.
-    assert_eq!(
-        material_arm_outcome(false, true, false, None, false),
-        O::Lamina
-    );
-    assert_eq!(
-        material_arm_outcome(false, true, false, cusp, false),
-        O::Lamina
-    );
-    // The two split states escalate, each naming the predicate whose
-    // per-sample verdicts disagreed.
-    assert_eq!(
-        material_arm_outcome(false, true, true, cusp, true),
-        O::Split {
-            predicate: "material_cusp_side"
-        },
-        "the end split must escalate, never validate as the end it saw first"
-    );
-    assert_eq!(
-        material_arm_outcome(false, true, true, None, false),
-        O::Split {
-            predicate: "material_cusp_side"
-        },
-        "opposed, determinate, and no end at all is the same non-verdict"
-    );
-    assert_eq!(
-        material_arm_outcome(false, false, true, cusp, false),
-        O::Split {
-            predicate: "material_wedge_side"
-        },
-        "a pairing that split across samples must escalate"
-    );
-    assert_eq!(
-        material_arm_outcome(true, true, true, cusp, false),
-        O::Split {
-            predicate: "material_wedge_side"
-        },
-        "no sample classified at all: also a non-verdict, never silence"
-    );
-
-    // Exhaustive: over every flag combination, the fold is total and
-    // never returns a legal-looking wedge on a split input.
-    for aligned in [false, true] {
-        for opposed in [false, true] {
-            for determinate in [false, true] {
-                for mixed in [false, true] {
-                    for side in [None, cusp, Some(MaterialWedge::Slit)] {
-                        let out = material_arm_outcome(aligned, opposed, determinate, side, mixed);
-                        if aligned == opposed {
-                            assert!(matches!(out, O::Split { .. }), "{aligned} {opposed}");
-                        }
-                        if mixed && aligned != opposed && opposed && determinate {
-                            assert!(matches!(out, O::Split { .. }), "a mixed end never resolves");
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// **What each material outcome EMITS** — the fold's other half.
-///
-/// `material_arm_outcome` decides what the edge is; this table decides
-/// what the validator says about it, and the two are separate functions
-/// because both have states no fixture can reach. Pinning the fold
-/// alone would leave the escalation PUSH unpinned: a mutation dropping
-/// `Split` on the floor would keep every row green while restoring
-/// exactly the silence item 6 removed.
+/// **What each verdict of the fold EMITS at tier 3, and the mark it
+/// earns** — `wedge_reading`, check 4's half of the decision, called
+/// with every verdict because the pairing and end disagreements are
+/// states no fixture can reach: a mutation dropping their finding on the
+/// floor would keep every fixture green while restoring the silence the
+/// finding exists to end.
 ///
 /// Every settled wedge is legal — the two ends included, because the
 /// fold hands one out only over a jet-determinate tangency — and the
-/// lamina and both splits are what refuse.
+/// lamina and every mixed edge are what refuse. A crease refuses only a
+/// conventional description; a wrap edge is marked a seam by kind
+/// wherever its wedge settled.
 #[test]
-fn material_arm_error_table() {
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+fn wedge_reading_table() {
+    use crate::validate::ContactMark as M;
+    use geom_brep::{Bend, Convexity, MixedStations, WedgeVerdict as V};
     let edge = crate::fixtures::raw_prism(3, Tol::witness())
         .body
         .edges()
         .next()
         .expect("the fixture has edges")
         .0;
-    let err = |outcome| material_arm_error(outcome, edge, band);
-
-    // No outcome at all: exempt by kind, or already escalated.
-    assert!(err(None).is_none());
-    // Every settled wedge is legal on its own terms.
-    for wedge in [
-        MaterialWedge::Seam,
-        MaterialWedge::Transverse,
-        MaterialWedge::Cusp,
-        MaterialWedge::Slit,
-    ] {
-        assert!(
-            err(Some(MaterialArmOutcome::Wedge(wedge))).is_none(),
-            "{wedge:?} is legal at rest"
+    let read = |verdict, wrap, conventional| wedge_reading(verdict, edge, wrap, conventional);
+    let settled = [
+        (V::Crease(Convexity::Convex), M::Transverse),
+        (V::Crease(Convexity::Concave), M::Transverse),
+        (
+            V::Seam {
+                bend: Bend::Determinate,
+            },
+            M::Tangent,
+        ),
+        (
+            V::Seam {
+                bend: Bend::UnderDetermined,
+            },
+            M::SmoothUnderdetermined,
+        ),
+        (V::End(WedgeEnd::Cusp), M::Tangent),
+        (V::End(WedgeEnd::Slit), M::Tangent),
+    ];
+    for (verdict, mark) in settled {
+        assert_eq!(
+            read(verdict, false, false),
+            (mark, None),
+            "{verdict:?} is legal at rest"
+        );
+        assert_eq!(
+            read(verdict, true, false),
+            (M::Seam, None),
+            "{verdict:?} on a wrap edge"
         );
     }
-    // The lamina refuses.
     assert!(
         matches!(
-            err(Some(MaterialArmOutcome::Lamina)),
-            Some(ValidationError::LaminaWedge { .. })
+            read(V::Crease(Convexity::Convex), false, true),
+            (
+                M::Transverse,
+                Some(ValidationError::TransverseNotIntrinsic { .. })
+            )
+        ),
+        "a crease refuses a conventional description"
+    );
+    assert!(
+        matches!(
+            read(V::Lamina, false, false),
+            (
+                M::SmoothUnderdetermined,
+                Some(ValidationError::LaminaWedge { .. })
+            )
         ),
         "a lamina is refused"
     );
-    // Both splits escalate, carrying the predicate that split.
-    for predicate in ["material_wedge_side", "material_cusp_side"] {
-        match err(Some(MaterialArmOutcome::Split { predicate })) {
-            Some(ValidationError::SliverDihedral { check, cause, .. }) => {
-                assert_eq!(check, crate::validate::WedgeCheck::MaterialSide);
-                assert_eq!(cause.predicate, Some(predicate));
-            }
-            other => panic!("a split must escalate, got {other:?}"),
+    for (stations, ending) in [
+        (
+            MixedStations::Sign {
+                convex: 2,
+                concave: 3,
+            },
+            None,
+        ),
+        (
+            MixedStations::Class {
+                transverse: 1,
+                smooth: 2,
+            },
+            None,
+        ),
+        (
+            MixedStations::Pairing {
+                aligned: 1,
+                opposed: 2,
+            },
+            Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ),
+        (
+            MixedStations::End { cusp: 3, slit: 4 },
+            Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+        ),
+    ] {
+        let (mark, finding) = read(V::Mixed(stations), true, false);
+        assert_eq!(mark, M::Unmarked, "{stations:?}");
+        let Some(finding @ ValidationError::MixedDihedral { stations: s, .. }) = finding else {
+            panic!("a mixed edge is refused, naming its stations, wrap or not: {stations:?}");
+        };
+        assert_eq!(s, stations);
+        let text = finding.render(geom_brep::recourse::Reading::AtRest);
+        match ending {
+            Some(defect) => assert!(text.ends_with(defect), "{text}"),
+            None => assert!(text.contains("Recourse: move the geometry"), "{text}"),
         }
     }
 }
@@ -2824,14 +2793,10 @@ fn offered_tolerance(text: &str) -> f64 {
 /// pairing decision — the arm's lever with a tolerance that decides it.
 /// At 30° the wedge reads zero at the pairing's own `m/K`, which is
 /// offered; at 42° it would not, so the offer is the wedge's `w/K`,
-/// where the wedge and the pairing both decide. The cusp side reads a
-/// jet whose relative curvature is zero: its gate's decided Zero
-/// carries the margin tagged, not a mint.
+/// where the wedge and the pairing both decide. An end read that decided
+/// Zero, past a magnitude decided positive, ends as a defect.
 #[test]
 fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
-    use core::ops::ControlFlow;
-    use geom_brep::StationHook;
-    use geom_core::{MarginDiag, Sign};
     let (eps, k) = (1e-9, 1.2);
     let band = geom_core::Band::new(eps, k * eps).unwrap();
     let arm = 1.3 * eps;
@@ -2855,20 +2820,6 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             u_ref: Vec3::unit_y(),
         }
     };
-    let station = |arm: f64, kappa_rel: f64| geom_brep::Station {
-        p: origin,
-        jet: geom_brep::TangentJet {
-            sin_theta: 0.0,
-            kappa_rel,
-        },
-        arm: geom_core::test_support::fixture_lever(arm),
-    };
-    // Check 4's one push of a stop.
-    let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
-        edge,
-        check: stop.check,
-        cause: stop.cause,
-    };
     let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
                 is undecided. Recourse: move the geometry so that edge's faces clearly run farther \
                 and none curves tightly there, or, if this length is intended, tighten the \
@@ -2880,22 +2831,22 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         ("in band", 30.0, cos30 * arm / k),
     ] {
         let wall = leaning(degrees);
-        assert_eq!(
-            geom_brep::classify_dihedral(
-                &floor,
-                &wall,
-                origin,
-                geom_core::test_support::fixture_lever(arm),
-                band
-            ),
-            Ok(geom_brep::DihedralClass::Smooth),
-            "{label}: check 4 reaches the pairing"
-        );
-        let mut stations = crate::validate::MaterialStations::new(&floor, true, &wall, true, band);
-        let ControlFlow::Break(stop) = stations.before_decision(&station(arm, 1.0)) else {
-            panic!("{label}: the pairing stops the walk");
+        let geom_brep::Dihedral::Tangent(tangency) = geom_brep::classify_dihedral(
+            &floor,
+            &wall,
+            origin,
+            geom_core::test_support::fixture_lever(arm),
+            band,
+        )
+        .unwrap() else {
+            panic!("{label}: check 4 reaches the pairing");
         };
-        let text = finding(stop).render(geom_brep::recourse::Reading::AtRest);
+        let stop = tangency
+            .pairing([true, true], band)
+            .expect_err("the pairing stops the walk");
+        assert_eq!(stop.rung(), geom_brep::WedgeRung::Pairing, "{label}");
+        let text = crate::validate::dihedral_finding(edge, stop)
+            .render(geom_brep::recourse::Reading::AtRest);
         assert!(text.starts_with(lead), "{label}: {text}");
         let quoted = offered_tolerance(&text);
         assert!(
@@ -2903,23 +2854,22 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             "{label}: offers {quoted:e}, wants {offered:e}"
         );
     }
-    let mut stations = crate::validate::MaterialStations::new(&floor, true, &floor, true, band);
-    let ControlFlow::Break(stop) = stations.after_positive(&station(1.0, 0.0)) else {
-        panic!("a zero cusp-side margin stops the walk");
-    };
-    assert_eq!(
-        (
-            stop.cause.predicate,
-            stop.cause.margin.rejected_sign(),
-            stop.cause.margin == MarginDiag::INVALID
+    // The end read's own stop, as the fold raises it, through check 4's
+    // finding: a broken rung-to-check mapping reds this.
+    let stop = geom_brep::edge_wedge::zero_end_stop(band);
+    let finding = crate::validate::dihedral_finding(edge, stop);
+    assert!(
+        matches!(
+            finding,
+            ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::MaterialSide,
+                ..
+            }
         ),
-        (Some("material_cusp_side"), Some(Sign::Zero), false),
-        "the cusp side stops with its gate's decided Zero, not a hand-minted poison"
+        "{finding:?}"
     );
-    // Its magnitude decided positive one decision before, so the Zero
-    // contradicts it: the defect ending, as a split's.
     assert_eq!(
-        finding(stop).render(geom_brep::recourse::Reading::AtRest),
+        finding.render(geom_brep::recourse::Reading::AtRest),
         format!(
             "which side of an edge the material of its two smoothly meeting faces lies on could \
              not be read consistently along it. {}",
@@ -2970,10 +2920,8 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
     let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     for &face in &body.get_shell(shell).expect("a live shell").faces {
         let f = body.get_face(face).expect("a live face");
-        for &lp in core::iter::once(&f.outer).chain(f.rings.iter()) {
-            let crate::entity::LoopBoundary::Cycle { first } =
-                body.get_loop(lp).expect("a live loop").boundary
-            else {
+        for (_, l, _) in body.face_loops_linked(face, f) {
+            let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
                 panic!("a cube's loops are cycles")
             };
             for he in body.loop_cycle(first).expect("a closed cycle") {
@@ -4257,4 +4205,55 @@ fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
         !matches!(&read, Err(e) if e.contains(&ValidationError::NegativeVolume { solid })),
         "upright through the structural door: {read:?}"
     );
+}
+
+/// **Check 4's door reads each corner's sign by the kernel's convention**
+/// (`geom_brep::Convexity`): on an L-shaped prism every edge is a convex
+/// crease but the one vertical edge at the inner corner, which is
+/// concave. A door that handed the fold its faces swapped against the
+/// walk, or a fold whose convention flipped, reads every row the other
+/// way round.
+#[test]
+fn the_wedge_door_signs_an_l_prisms_corners() {
+    let tol = Tol::witness();
+    let body = crate::test_support_fixtures::prism_z::<f64>(
+        &[
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ],
+        0.0,
+        1.0,
+        tol,
+    )
+    .body;
+    let band = geom_core::Band::linear(tol).unwrap();
+    let mut concave = Vec::new();
+    for (edge, e) in body.edges() {
+        let walk = crate::validate::edge_wedge_walk(&body, edge).expect("a live edge");
+        let reach = crate::edge_wedge_reach(&body, edge).expect("a certified curve");
+        let verdict = geom_brep::edge_wedge_over(&walk, reach, band);
+        let geom_brep::WedgeVerdict::Crease(sign) = verdict else {
+            panic!("every edge of a prism is a crease: {verdict:?}");
+        };
+        if sign == geom_brep::Convexity::Concave {
+            let p = |he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+            };
+            concave.push((p(e.he_plus), p(e.he_minus)));
+        }
+    }
+    let [(a, b)] = concave[..] else {
+        panic!("one concave edge, got {concave:?}");
+    };
+    for q in [a, b] {
+        assert!(
+            (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12,
+            "the concave edge is the inner corner's: {a:?} {b:?}"
+        );
+    }
 }
