@@ -564,7 +564,17 @@ impl<T: Real> Body<T> {
     /// loop walk does not close on the half-edges that claim the loop, or
     /// an edge does not claim a half-edge that names it (D2 row 4).
     pub(crate) fn proven_face_edges(&self, face: FaceKey) -> Vec<FaceEdge> {
-        let data = proven(&self.faces, face, EntityId::Face);
+        self.face_edges_linked(face, proven(&self.faces, face, EntityId::Face))
+    }
+
+    /// [`Body::proven_face_edges`] from a record in hand, `face`'s record
+    /// `data`: every hop past it is a link.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`], past the face.
+    #[track_caller]
+    pub(crate) fn face_edges_linked(&self, face: FaceKey, data: &Face) -> Vec<FaceEdge> {
         self.face_boundary_linked(face, data)
             .filter_map(|member| {
                 let BoundaryMember::Edge { he, half, ek, edge } = member else {

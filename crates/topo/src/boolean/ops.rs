@@ -8094,13 +8094,13 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             Operand::A => &red.a,
             Operand::B => &red.b,
         };
-        for (face, _) in body.faces() {
+        for (face, data) in body.faces() {
             let root = div.root(face);
             let whole = uncut.iter().any(|u| (u.operand, u.face) == (operand, root));
             if gone(operand, root) && !whole && !cuts.is_substituted(operand, face) {
                 discards.push(super::discard::discard_row(
                     body,
-                    face,
+                    (face, data),
                     operand,
                     &|_| false,
                     &refuse,

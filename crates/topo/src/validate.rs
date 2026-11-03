@@ -11437,8 +11437,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                     face: face_key,
                     named_loop,
                 });
-            } else if face.is_some_and(|f| f.outer != named_loop && !f.rings.contains(&named_loop))
-            {
+            } else if face.is_some_and(|f| !f.holds_loop(named_loop)) {
                 errors.push(ValidationError::StaleNullFaceOwnership {
                     face: face_key,
                     named_loop,

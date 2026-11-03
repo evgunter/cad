@@ -580,9 +580,16 @@ fn discarded<T: Decide>(
             .faces
         {
             if !sides.contains_key(face) && !chords.cuts.is_substituted(operand, face) {
+                let data = crate::live::linked(
+                    &body.faces,
+                    face,
+                    crate::entity::EntityId::Face,
+                    crate::entity::EntityId::Shell(shell),
+                    "faces",
+                );
                 out.push(discard_row(
                     body,
-                    face,
+                    (face, data),
                     operand,
                     &kept_across,
                     &kept_ends,
