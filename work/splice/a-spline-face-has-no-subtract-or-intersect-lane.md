@@ -2,10 +2,12 @@
 id: a-spline-face-has-no-subtract-or-intersect-lane
 kind: issue
 title: Subtract and intersect refuse any spline (loft or sweep) face whose box may meet the other operand, at the revert roster: NURBS is on the union's roster only
-status: dispatched
+status: closed
 opened: 2026-11-03
 priority: P0
 cost: H
+closed: 2026-11-03
+pr: 6476
 refs: [torus-onto-the-subtract-and-intersect-roster, a-saddle-cut-by-its-tangent-plane-builds-at-its-closed-form, the-spline-rider-arm-is-pinned-by-no-fixture]
 branch: splice/nurbs-revert-roster
 ---
@@ -173,3 +175,7 @@ B-first orders. The Phase 0 placements never put a cap on a partner's
 face, so they missed it. What every op does owe, and the census now
 asserts, is a typed refusal at any door or a built body that passes
 its oracles.
+
+## Closed (SPLICE, PR 6476, 2026-11-03)
+
+NURBS joins the subtract and intersect revert roster: `revert` flips a NURBS face's sense with the rest of the subtrahend, so ∖ and ∩ admit spline (loft or sweep) faces whose box may meet the other operand. Both operands are classified as given through the op-dependent tables; the subtrahend is reverted afterwards (the finish step, the operand-B fallback, the void door). The ∖/∩ census (`crates/sweep/tests/common/op_census.rs`, shared by both censuses) runs 61 placements under six ops and asserts what every op owes: a typed refusal at any door, or a built body that passes its oracles, and its build branch runs (a brick under the loft prism builds under every op at its closed-form volume). Two sense rows pin the reverted spline walls of brick ∖ prism's void. Klein wall 4 stops at wall 3's refusal by payload, `CurvedPierceUnsupported` on the loop's start-cap rim arc (`a-rim-arc-lying-on-a-cylinder-refuses-as-a-curved-pierce`). Dual review (concurrent, H): both APPROVE-WITH-FIXES, no MAJOR; the fix pass took the union. Residue: the at-rest gate admits a cavity with mis-sensed spline walls at the true volume, filed as residual 3 of `verdict/m6-sense-gate-recorded-residuals`.
