@@ -3896,6 +3896,7 @@ fn off_face_ending(
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
     use crate::pcurves::PcurveMintError as M;
     use geom_brep::PcurveCertifyError as C;
+    use geom_brep::pcurve_cache::FittedEnding;
     const BOUND: &str = bound_reason!("the stored boundary strays from the face");
     const KIND: &str = "the kernel cannot yet map a boundary of this kind";
     let (why, recourse) = match e {
@@ -3957,11 +3958,22 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 }
                 C::CarrierEnclosure(_) => CARRIER_ENCLOSURE,
                 C::CarrierOffChart { .. } => unreachable!("`off_face_ending` ends it"),
+                // Its reason follows the decision it ends by.
+                C::FittedCertificate { ending, .. } => match ending {
+                    FittedEnding::NotYet => KIND,
+                    FittedEnding::FootUnsettled => {
+                        "a boundary curve's foot on its face could not be settled, so where its \
+                         image sits cannot be measured"
+                    }
+                    FittedEnding::Defect => WRONG,
+                },
+                C::FittedGradeAtClosedFormDoor { .. } => {
+                    "a fitted-grade boundary image was read at the closed-form check"
+                }
                 C::ChartRow { .. }
                 | C::ImageMismatch { .. }
                 | C::ChannelKindMismatch { .. }
                 | C::WindingMismatch { .. }
-                | C::FittedCertificate { .. }
                 | C::IntervalNotForward
                 | C::AzimuthPeriodExceeded
                 | C::TubePeriodExceeded => WRONG,
@@ -13149,6 +13161,37 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A fitted certificate's reason at rest follows the decision it
+    /// ends by**: a class no enclosure is written for is the kernel's
+    /// "cannot yet", never a boundary that does not match its face; the
+    /// image producer's own defect is.
+    #[test]
+    fn a_fitted_certificates_reason_at_rest_follows_its_ending() {
+        use geom_brep::pcurve_cache::FittedEnding;
+        let reason = |ending| {
+            classify_pcurve(&crate::pcurves::PcurveMintError::Certify {
+                half_edge: crate::entity::HalfEdgeKey::default(),
+                error: geom_brep::PcurveCertifyError::FittedCertificate {
+                    limb: None,
+                    what: "probe",
+                    magnitude: None,
+                    ending,
+                },
+            })
+        };
+        let (why, recourse) = reason(FittedEnding::NotYet);
+        assert_eq!(why, "the kernel cannot yet map a boundary of this kind");
+        assert!(
+            recourse.starts_with(geom_core::NOT_YET_ENDING),
+            "{recourse}"
+        );
+        let (why, recourse) = reason(FittedEnding::Defect);
+        assert_eq!(why, WRONG);
+        assert_eq!(recourse, DEFECT);
+        let (why, _) = reason(FittedEnding::FootUnsettled);
+        assert!(why.contains("foot") && why != WRONG, "{why}");
     }
 
     /// **An edge certificate's incidence refusal at rest takes the reason

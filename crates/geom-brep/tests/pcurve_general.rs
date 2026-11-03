@@ -116,13 +116,23 @@ fn the_closed_form_door_refuses_a_general_image() {
     assert!(
         matches!(
             got,
-            Err(PcurveCertifyError::ImageMismatch {
+            Err(PcurveCertifyError::FittedGradeAtClosedFormDoor {
                 image: geom_brep::PcurveKind::General,
-                ..
             })
         ),
         "the closed-form door has no general arm: {got:?}"
     );
+    // A call at the wrong door, not the kernel's defect: its lever is the
+    // door the image certifies at, at every reading.
+    let got = got.unwrap_err();
+    for at in [Reading::Build, Reading::AtRest] {
+        let text = got.render(at);
+        assert!(
+            text.ends_with(geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE)
+                && !text.contains("defect"),
+            "{at:?}: {text}"
+        );
+    }
 }
 
 /// **An analytic chart holds no fitted-grade image.** Its image of a

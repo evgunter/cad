@@ -1745,6 +1745,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         | C::NoGeneralLane { .. }
         | C::SectorRefused { .. }
         | C::FittedLaneUnsupported { .. }
+        | C::FittedGradeAtClosedFormDoor { .. }
         | C::CarrierDomain(_)
         | C::PlacementTurnsExceeded
         | C::CarrierEnclosure(_)

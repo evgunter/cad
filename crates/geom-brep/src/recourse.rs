@@ -109,9 +109,9 @@ impl Reading {
 /// `ended` through [`read_at`]. The trait exists for that generic half.
 pub trait Ended: core::fmt::Display {
     /// This refusal's payload, followed by the ending, if any, that the
-    /// door `at` gives it. A refusal no decision ends at that door (a
-    /// decided arm whose ending its holder states, a structural refusal
-    /// carrying its own recourse) is its payload alone.
+    /// door `at` gives it. An implementor whose every arm names a
+    /// decision ends every arm; one with an arm no decision ends at that
+    /// door writes that arm's payload alone, and its holder ends it.
     fn ended(&self, at: ReadAt) -> String;
 }
 

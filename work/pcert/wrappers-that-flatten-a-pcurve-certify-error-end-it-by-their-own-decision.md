@@ -20,12 +20,15 @@ pcurve arm's was.
 
 - `geom_brep::certify`'s `mint_refusal` (`crates/geom-brep/src/certify.rs`,
   the grouped arm ending `=> CertifyError::ChartImageUnavailable`) folds
-  twenty arms into `ChartImageUnavailable`, which ends by
-  `CertCheck::ChartImage` (`CertifyError::decision`). A lane gap
-  (`UnsupportedChart`, `IsoUnsupported`, `ChartWindingUnsupported`), a
-  stored contradiction (`ImageMismatch`, `WindingMismatch`), a lever on
-  the input (`CarrierDomain`, `FittedLaneUnsupported`) and a check's
-  refused arm (`ResidualExceeded`, `IntervalNotForward`) all end alike.
+  22 arms into `ChartImageUnavailable` (21 on main `82938e97`, and
+  `FittedGradeAtClosedFormDoor`, new on this branch), which ends by
+  `CertCheck::ChartImage` (`CertifyError::decision`) on its definite
+  arm. A lane gap (`UnsupportedChart`, `IsoUnsupported`,
+  `ChartWindingUnsupported`), a stored contradiction (`ImageMismatch`,
+  `WindingMismatch`), a lever on the input (`CarrierDomain`,
+  `FittedLaneUnsupported`) and a check's refused arm (`ResidualExceeded`,
+  `IntervalNotForward`) all end alike. So does `FittedEscalated`, an
+  undecided SSI reading, which the fold turns into a definite refusal.
 - `AnalyticRung3Refusal::of_offset` (`crates/geom-brep/src/edge_nurbs.rs`)
   ends every arm but the escalation, the carrier enclosure and the
   sector in `_ => Self::NoOffsetBound`.

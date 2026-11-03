@@ -746,6 +746,9 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
+        PcurveCertifyError::FittedGradeAtClosedFormDoor {
+            image: geom_brep::PcurveKind::General,
+        },
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,
@@ -2179,11 +2182,11 @@ mod tests {
     #[test]
     fn every_pcurve_certify_refusal_ends_by_its_decision_at_every_door() {
         use geom_brep::IncidenceRead;
+        use geom_brep::PcurveCheck;
         use geom_brep::pcurve_cache::{
             FittedEnding, PcurveCertifyError as C, PcurveCertifyErrorKind as K,
         };
-        use geom_brep::recourse::{BAND_TOLERANCE_RECOURSE, ReadAt, defect_ending};
-        use geom_core::NOT_YET_ENDING;
+        use geom_brep::recourse::{BAND_TOLERANCE_RECOURSE, ReadAt, RefusedArm, defect_ending};
 
         let file = FileCoincidence::new(1e-6);
         let mut wrong = Vec::new();
@@ -2214,103 +2217,129 @@ mod tests {
                 }
             }
             // The payload states what was refused; its recourse is the
-            // ending. A pose the general lane does not cover names its
-            // lever beside "not yet", and a band or a chart row carries the
-            // nested refusal's own text (`BandError`, `SplineError`).
+            // ending, stated once at every door.
             let payload = e.to_string();
-            if payload.contains("Recourse")
-                && !matches!(
-                    e,
-                    C::NoGeneralLane {
-                        gap: geom_brep::LaneGap::Pose { .. },
-                        ..
-                    } | C::Band(_)
-                        | C::ChartRow { .. }
-                )
-            {
+            if test_utils::refusal::recourse_markers(&payload) != 0 {
                 wrong.push(format!("{e:?}: the payload spells a recourse: {payload}"));
             }
             for at in [Reading::Build, Reading::AtRest] {
-                let ending = e.ending(at);
-                let defect = ending == defect_ending(at);
-                let not_yet = ending.starts_with(NOT_YET_ENDING);
-                let lever = ending.starts_with("Recourse:")
-                    && ending == e.ending(Reading::Build)
-                    && ending == e.ending(Reading::AtRest);
-                let held = match K::from(&e) {
+                let definite = RefusedArm::SignCertain(None);
+                let check = |check: PcurveCheck, arm| check.recourse(arm, at);
+                let not_yet = || geom_brep::recourse::not_yet(definite, at);
+                let defect = || defect_ending(at).to_owned();
+                // The ending each arm's decision gives it, spelled from that
+                // decision's own table, never from `ending`.
+                let want = match K::from(&e) {
+                    // By its read (E1d's door rule), whatever arm carries it.
+                    _ if let Some(read) = IncidenceRead::of(&e) => read.ending(at),
                     // A lane choice or a lane's gap (D3): never a defect.
                     K::UnsupportedChart
-                    | K::NoGeneralLane
                     | K::IsoUnsupported
                     | K::ChartWindingUnsupported
-                    | K::CarrierEnclosure => not_yet,
+                    | K::CarrierEnclosure => not_yet(),
+                    K::NoGeneralLane => match &e {
+                        C::NoGeneralLane {
+                            gap: geom_brep::LaneGap::Unwritten,
+                            ..
+                        } => check(PcurveCheck::ChartClass, definite),
+                        _ => check(PcurveCheck::GeneralLane, definite),
+                    },
                     // A stored image's structure, or a validated chart's
                     // rows: the door's culprit.
                     K::ImageMismatch
                     | K::ChannelKindMismatch
                     | K::WindingMismatch
                     | K::SectorRefused
-                    | K::ChartRow => defect,
-                    // By its read (E1d's door rule).
-                    K::CarrierOffChart => {
-                        IncidenceRead::of(&e).is_some_and(|read| ending == read.ending(at))
-                    }
+                    | K::ChartRow => defect(),
+                    K::CarrierOffChart => unreachable!("an incidence read, ended above"),
                     // The ending the SSI door gives what it flattened.
                     K::FittedCertificate => match &e {
                         C::FittedCertificate {
                             ending: FittedEnding::NotYet,
                             ..
-                        } => not_yet,
+                        } => {
+                            geom_brep::SsiError::UnsupportedCertificate { what: "probe" }.ending(at)
+                        }
                         C::FittedCertificate {
                             ending: FittedEnding::Defect,
                             ..
-                        } => defect,
-                        C::FittedCertificate {
-                            ending: FittedEnding::FootUnsettled,
-                            ..
-                        } => {
-                            ending
-                                == geom_brep::SsiError::FootPointInconclusive {
-                                    t: 0.5,
-                                    last_distance: 1e-7,
-                                }
-                                .ending(at)
+                        } => defect(),
+                        _ => geom_brep::SsiError::FootPointInconclusive {
+                            t: 0.5,
+                            last_distance: 1e-7,
                         }
-                        _ => unreachable!("the kind is the arm"),
+                        .ending(at),
                     },
-                    // A limb this door never decides ends as the SSI door
-                    // ends it; one it decides, by its check.
+                    // A limb this door decides, by its check; any other as
+                    // the SSI door ends it.
                     K::FittedLimb => match &e {
                         C::FittedLimb {
-                            limb:
-                                geom_brep::SsiLimb::HullSupChart | geom_brep::SsiLimb::HullValueChart,
-                            ..
-                        } => !ending.is_empty(),
-                        C::FittedLimb { limb, margin } => {
-                            ending
-                                == geom_brep::SsiError::CertificateLimb {
-                                    limb: *limb,
-                                    margin: *margin,
-                                }
-                                .ending(at)
+                            limb: geom_brep::SsiLimb::HullSupChart,
+                            margin,
+                        } => check(
+                            PcurveCheck::Envelope,
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
+                        C::FittedLimb {
+                            limb: geom_brep::SsiLimb::HullValueChart,
+                            margin,
+                        } => check(
+                            PcurveCheck::MapResidual,
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
+                        C::FittedLimb { limb, margin } => geom_brep::SsiError::CertificateLimb {
+                            limb: *limb,
+                            margin: *margin,
                         }
+                        .ending(at),
                         _ => unreachable!("the kind is the arm"),
                     },
-                    // A lever on the input, the same at every door.
-                    K::FittedLaneUnsupported | K::CarrierDomain | K::PlaceholderChart => lever,
-                    K::Band => ending == BAND_TOLERANCE_RECOURSE,
-                    // A check's refused arm, by its routing: pinned per
-                    // check by geom-brep's rows.
-                    K::FittedEscalated
-                    | K::IntervalNotForward
-                    | K::AzimuthPeriodExceeded
-                    | K::PlacementTurnsExceeded
-                    | K::TubePeriodExceeded
-                    | K::ResidualExceeded
-                    | K::Escalated => !ending.is_empty(),
+                    K::FittedEscalated => match &e {
+                        C::FittedEscalated { decision, cause } => decision.ending(cause, at),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // A lever on the input, by identity.
+                    K::FittedLaneUnsupported => geom_brep::pcurve_cache::fitted_door_recourse(at),
+                    K::FittedGradeAtClosedFormDoor => {
+                        geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE.to_owned()
+                    }
+                    K::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
+                    K::PlaceholderChart => geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned(),
+                    K::Band => match &e {
+                        C::Band(
+                            geom_core::BandError::InvalidValue { .. }
+                            | geom_core::BandError::Empty { .. },
+                        ) => BAND_TOLERANCE_RECOURSE.to_owned(),
+                        C::Band(band) => band.recourse().to_owned(),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // A check's refused arm, by its routing.
+                    K::Escalated => match &e {
+                        C::Escalated {
+                            check: c, cause, ..
+                        } => check(*c, RefusedArm::Undecided(cause)),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    K::ResidualExceeded => match &e {
+                        C::ResidualExceeded { check: c, .. } => check(*c, definite),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    K::IntervalNotForward => check(PcurveCheck::ParamSpan, definite),
+                    K::AzimuthPeriodExceeded => check(PcurveCheck::AzimuthPeriod, definite),
+                    K::PlacementTurnsExceeded => check(PcurveCheck::ChartWinding, definite),
+                    K::TubePeriodExceeded => check(PcurveCheck::TubePeriod, definite),
                 };
-                if !held {
-                    wrong.push(format!("{e:?} at {at:?} ends outside its class: {ending}"));
+                let ending = e.ending(at);
+                let text = finding.render(at);
+                if test_utils::refusal::recourse_markers(&text) != 1 {
+                    wrong.push(format!(
+                        "{e:?} at {at:?} states other than one recourse: {text}"
+                    ));
+                }
+                if ending != want {
+                    wrong.push(format!(
+                        "{e:?} at {at:?} ends outside its decision: {ending}, not {want}"
+                    ));
                 }
             }
         }
