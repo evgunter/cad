@@ -52,51 +52,8 @@
 //! `splitting::neighborhood`'s module docs, which own them, and are not
 //! restated here.
 //!
-//! # Why the code is here and not in either lane
-//!
-//! These three rungs used to exist **twice**, once per lane,
-//! dimensionally identical line-for-line under the correspondence
-//! `dir_a ↔ dir_end`, `dir_b ↔ dir_start` — the same `min` of the same
-//! two chord norms, the same `Margin::levered(sin, arm)`, the same
-//! `.dot()` fallback, the same bisectors, the same spike guard. This
-//! module is a **top-level sibling** of `boolean/` and `splitting/`
-//! precisely so neither half hosts the other's core: both lanes already
-//! depend on this scope (`crate::body`, `crate::entity`,
-//! `crate::validate::decide`), so sharing here adds no dependency edge
-//! between the halves and no public API.
-//!
-//! **The alternative considered and rejected: `geom-brep`.** The body
-//! is pure vector algebra over [`Vec3`], [`Band`] and a name — no
-//! `Body`, no arena keys — and `geom-brep` already hosts exactly this
-//! shape (`enters_material` is a named K predicate consumed by both
-//! lanes, and [`geom_brep::edge_extent_inf`], the arm's source, is already
-//! there). It sits BELOW both halves, so it is strictly more neutral
-//! than the crate root. Two things ruled it out, and only one of them
-//! is permanent:
-//!
-//! - **Permanent:** it would promote an internal algebra to public API
-//!   in a crate re-exported into four others, for no consumer outside
-//!   `topo`.
-//! - **Expired, and recorded as having expired:** `crates/geom-brep/src/`
-//!   was held by an in-flight lane (#639) this module's unit was told
-//!   not to collide with. #639 has since landed, so that reason is
-//!   spent and carries no weight here any more.
-//!
-//! **Re-open trigger — FIRED, and it resolves the other way.** The
-//! `sector_face` twins are now unified as [`crate::sector_face`], the
-//! second consumer this paragraph was waiting for. That consumer takes
-//! a [`Body`] and three arena keys, so `geom-brep` —
-//! which has neither — cannot host IT at any price. That settles where
-//! `sector_face` goes; it does not by itself settle this module, whose
-//! own body is still pure [`Vec3`]/[`Band`] algebra and would compile
-//! in `geom-brep` today. What keeps it here is the PERMANENT bullet
-//! above (public API in a crate re-exported into four others, for no
-//! consumer outside `topo`) plus the weaker preference that the two
-//! shared sector modules be read together. The expired bullet is not
-//! load-bearing, and the second consumer's arrival strengthened the
-//! case for `geom-brep` for THIS module rather than weakening it — so
-//! whoever re-opens it should weigh the public-API cost, which is the
-//! only argument still standing.
+//! Its Body-free rungs owe the move `[topo.homes]` arm 1 asks
+//! (`crates/topo/README.md`; `work/onedoor/crossing-doors-leave-topo-for-geom-brep`).
 //!
 //! # Which scalars the argument-order equality is proven for
 //!
@@ -512,10 +469,25 @@ pub(crate) enum TurnOrder {
     FromOwn,
 }
 
+impl TurnOrder {
+    /// **The quarter cuts of a whole turn, as fractions of it from the
+    /// next bound**, listed in this order: a quarter, a half and three
+    /// quarters from [`TurnOrder::FromNext`], the reverse from
+    /// [`TurnOrder::FromOwn`]. The one home of the cut both whole turns
+    /// take: a slit tip's ([`FullTurn::quarters`]) and a cone apex
+    /// corner's in the vertex–vertex lane (`boolean::sectors`).
+    pub(crate) const fn quarter_fractions(self) -> [f64; 3] {
+        match self {
+            Self::FromNext => [0.25, 0.5, 0.75],
+            Self::FromOwn => [0.75, 0.5, 0.25],
+        }
+    }
+}
+
 impl<T: Real> FullTurn<T> {
     /// The three directions that cut the turn into convex quarters:
-    /// `unit_next` turned a quarter, a half and three quarters, listed
-    /// in `order`.
+    /// `unit_next` turned [`TurnOrder::quarter_fractions`] of the turn,
+    /// listed in `order`.
     pub(crate) fn quarters(&self, order: TurnOrder) -> [Vec3<T>; 3] {
         let (q, back) = (self.quarter, -self.unit_next);
         match order {
@@ -696,6 +668,17 @@ const SECTOR_APEX_WINDOW: &str = "sector_apex_window";
 pub(crate) struct ApexShape<T: Real> {
     /// The metering arm, as [`SectorShape::arm`].
     pub arm: T,
+    /// The azimuth the face's sweep turns through from the next bound to
+    /// its own ([`crate::sector_face::ConeApex::azimuth_from`]), as the
+    /// window was decided: the whole turn `2π` where the corner is one
+    /// (a strut's one edge, a wrap edge's tip), whatever the two bounds'
+    /// rounding reads. Its one reader is the Boolean's apex corner
+    /// (`boolean::sectors::push_apex_corner`), which cuts the window by
+    /// it.
+    pub window: T,
+    /// Whether the window is the whole turn, decided by the corner's
+    /// bounds ([`Self::window`]).
+    pub whole_turn: bool,
     /// The unit rulings the sector is subdivided at, in orbit order (from
     /// its own bound toward the next): none, one or two.
     pub rulings: Vec<Vec3<T>>,
@@ -774,6 +757,8 @@ fn apex_shape<T: Decide>(
     {
         return Ok(ApexShape {
             arm,
+            window,
+            whole_turn: full_circle,
             rulings: Vec::new(),
         });
     }
@@ -803,7 +788,12 @@ fn apex_shape<T: Decide>(
             rulings.push(g);
         }
     }
-    Ok(ApexShape { arm, rulings })
+    Ok(ApexShape {
+        arm,
+        window,
+        whole_turn: full_circle,
+        rulings,
+    })
 }
 
 /// [`apex_shape`], with a window that reads no width read by `bounds`

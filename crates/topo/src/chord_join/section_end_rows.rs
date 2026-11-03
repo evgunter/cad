@@ -390,7 +390,7 @@ fn a_chord_carries_the_tables_reading_of_the_plane() {
 /// it (`pt_axis_normal`), as a cylinder's rim is, so a chord on either
 /// carries the square reading. The meridian circles of a plane through
 /// the axis carry the plane's own: no pose reaches their pins
-/// (`work/cleave/a-torus-meridian-circle-is-a-stood-in-section-read-on-its-own-plane.md`).
+/// (`work/honejoin/a-torus-meridian-circle-is-a-stood-in-section-read-on-its-own-plane.md`).
 #[test]
 fn a_torus_square_to_its_axis_is_read_square() {
     let torus = geom::Surface::Torus {

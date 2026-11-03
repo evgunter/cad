@@ -128,3 +128,7 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **The pattern again (the fifth, still open):** every guard so far closed the spellings it was shown, so this time the gate removes the means of making a new spelling.
   - (ONEDOOR orchestrator)
 - 2026-11-03 — **PR 6458's adversarial check: NOT-MERGEABLE-AS-IS.** It found four plausible defeats, one already in the tree: `use crate::Cell::{…}` in census.rs, uncounted. The other three are `super::` from a root file, `#[macro_use]` on an engine module, and a function-local `type`/`macro_rules!`. The lane takes exactly those, plus the honesty fixes, and then the scanner stops iterating. Its replacement is filed: `engine-leaves-by-visibility` (P2, parked). Once the moves land, Rust's visibility makes non-door engine items unreachable from root code, and the gate shrinks to the checks that are exact. This follows the fifth class finding through: read the fact (visibility) instead of approximating resolution. (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6458](https://github.com/evgunter/cad/pull/6458) closes `engine-directories-are-leaves-guard`.** The `[topo.homes]` gate runs per PR.
+  - Review tier: single style review, then a re-review and an adversarial check after each rework. The last one's four plausible defeats are closed and red-trialed, and 34 one-line mutations each turn the self-test red.
+  - `crossing-doors-leave-topo-for-geom-brep` is unparked.
+  - (ONEDOOR orchestrator)

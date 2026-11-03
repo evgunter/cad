@@ -1860,7 +1860,7 @@ fn cite_member_edges<T: geom_core::Decide>(
         // in every member order only where every order's fold ties the
         // corner; the suite holds no order that does not, and the
         // corner rule taking these rows retires the exception
-        // (`work/wire/a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule.md`).
+        // (`work/wirerest/a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule.md`).
         if let (Entry::Tied(es), [_, .., RoleSeg::Fragment(_)]) = (&entry, cited.path.as_slice())
             && at_member_corners(flush, es)?
         {

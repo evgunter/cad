@@ -1260,7 +1260,7 @@ fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
 /// **The plate less the wedges' union, and the wedges' union less the
 /// plate, carry the union's name for the point where the legs meet alike
 /// in every member order of the union**
-/// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`):
+/// (`a-pinch-vertex-is-named-by-the-fold-step-that-mints-it` (closed with WIRE: `docs/doc-ledger/wire-leaves-the-tracker.md`)):
 /// the union's run is order-free, so what a subtract carries of it is
 /// too. Each subtract names the point by the union's vertex alone, every
 /// name it binds there carried from it (N2: a vertex of either operand is

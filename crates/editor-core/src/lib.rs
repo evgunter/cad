@@ -60,7 +60,7 @@ pub mod program;
 /// query whose answer is meant to REPLACE the sampling probe's
 /// reading, in a consumer nothing in this tree has built yet
 /// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/lib/certified-range-has-no-python-door`). The certificate IS
+/// `work/pydoor/certified-range-has-no-python-door`). The certificate IS
 /// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
 /// be the sampler it exists to improve on.
 pub mod range;

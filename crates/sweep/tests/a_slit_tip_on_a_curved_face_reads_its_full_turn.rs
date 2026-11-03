@@ -363,7 +363,7 @@ fn a_box_round_the_slits_tip_cuts_it() {
 /// **The box less the block refuses typed**: it keeps the trench's V
 /// and the bore's (or slot's) space, which meet along the keel, four
 /// sheets on one line, a pairing the Boolean does not build
-/// (`work/cleave/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
+/// (`work/cleavetail/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
 /// It refuses by name, on the keel.
 #[test]
 fn the_box_less_the_block_refuses_the_four_sheets_at_the_keel() {
