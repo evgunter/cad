@@ -382,3 +382,27 @@ The dual row is `docs/dual-review-log/rows/PR-6383.md` (tally 0: the one MAJOR w
 **Class finding, logged.** Deleting the f64 charges per `[simple.conditioned]` exposed a formula the charge had been hiding (a squared residual near zero). Under that rule, a charge removed is a conditioning question asked: every later cover unit that deletes a charge re-poses what it covered rather than dropping it.
 
 Unparked: `cover-edge-doors`, `cover-topo-faces`. `torus-extent-overreaches-…` re-parked on `cover-topo-faces`, which deletes `torus_extent`. Filed `a-covers-nearest-distance-from-a-line-is-a-squared-residual` (P3, M).
+
+## 2026-11-02 — `cover-edge-doors` (PR 6399) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `eb133f2e`: APPROVE-WITH-FIXES, no MAJOR.
+
+**Confirmed:**
+- edge-cover soundness on 80 real edges;
+- the radicand re-posing (proof plus 400 near-fold cases);
+- `point_far`;
+- `crest_outside` (200k windows);
+- the maximal-faces verdict move, which is right for that body.
+
+**Adjudicated into the fix pass:**
+- **Reader-side tightening** (`edge_reach_from`'s Lipschitz `min`, step-import's restricted hull) moves into `cover_over`'s spline and spiric arms, which honor the window. Two edge-reach spellings and several topo doors calling `cover_over` directly are pointed at the one topo edge reading.
+- **`SPEED_MARGIN`:** decided under `[simple.conditioned]`, either a rounding charge (deleted) or a sampling bound (named and derived).
+- **Restored panics** where `gate_operand`'s precondition makes a null carrier a kernel bug.
+- **Red rows** for the vertex hull (M6), the Gram fix (M4b), the window (M9) and the gate's old intent.
+- **`Curve3::cover()`** for the whole carrier, replacing `whole_cover`'s kind dispatch.
+- **Stale docs.**
+
+**Scheduled on `cover-levers`:** the `lever_from` narrowing, and `certify_plane`, which the sweep missed.
+
+**Class finding, logged.** The ratified "tighter construction is written into the arm, never at a reader" is exactly the rule a door-repointing unit breaks. Repointing a door that had its own tightening tends to keep that tightening at the reader, `min`'d with the cover. Every later cover unit's brief names this.
+- 2026-11-03 — **Coupling with ONEHOME** (PR 6391, `onehome/one-extent`): it re-minted the retired `of_torus` and added five more per-kind `ExtentBall` constructors. They are folded onto `cover-levers`, with a seam note on ONEHOME's log. Class instance: a door retired in one program is re-minted by a parallel program that never saw the retirement. The `cover-kind-match-gate` unit is what stops that structurally; until it lands, seam notes are the only defence. (BOXES orchestrator)

@@ -312,10 +312,7 @@ fn a_refused_creation_applies_no_label() {
             distance: common::len(0.01),
         },
         SessionOp::AddProfile {
-            loops: vec![common::shape(&viewer::session::ProfileShape::Circle {
-                centre: [0.0, 0.0],
-                radius: 0.0,
-            })],
+            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
         },
     ];
     for op in refused {
