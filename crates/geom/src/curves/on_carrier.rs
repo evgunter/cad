@@ -159,11 +159,8 @@ impl<'c, T: Decide> Foot<'c, T> {
                 _,
             ) => Ok(OnCarrier::Off),
             (_, Err(diag)) | (Err(diag), _) => Err(diag.into()),
-            (Ok(low), Ok(high)) => Err(CarrierRefusal::Straddle(straddle(
-                "curve_carrier_straddle",
-                low,
-                high,
-                band,
+            (Ok(low), Ok(high)) => Err(CarrierRefusal::Escalated(CarrierEscalation::Straddle(
+                straddle("curve_carrier_straddle", low, high, band),
             ))),
         }
     }
@@ -194,18 +191,38 @@ pub enum OnCarrier {
     Off,
 }
 
-/// Why [`Foot::on_carrier`] gives no answer.
+/// Why [`Foot::on_carrier`] gives no answer: the band's escalation, or a
+/// spline's walk that could not run. The two are one fact about the
+/// refusal, so a consumer sorts them by these two arms
+/// ([`Self::escalation`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CarrierRefusal {
+    /// The band's escalation.
+    Escalated(CarrierEscalation),
+    /// A spline's piece walk could not run: no closed-form carrier
+    /// walks.
+    Unwalked(Unwalked),
+}
+
+/// How the band escalated a carrier reading ([`CarrierRefusal::Escalated`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CarrierEscalation {
     /// A decision the answer rests on fell in the band's gap.
-    Escalated(Indeterminate),
+    InBand(Indeterminate),
     /// The lower bound on the band's zero side and the gap past it
     /// straddle the whole band (`curve_carrier_straddle`): two decided
     /// readings of one distance that no margin of either says.
     Straddle(Indeterminate),
-    /// A spline's piece walk could not run: no closed-form carrier
-    /// walks.
-    Unwalked(Unwalked),
+}
+
+impl CarrierEscalation {
+    /// The diagnostics, either way.
+    #[must_use]
+    pub const fn diag(self) -> Indeterminate {
+        match self {
+            Self::InBand(diag) | Self::Straddle(diag) => diag,
+        }
+    }
 }
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
@@ -219,16 +236,16 @@ pub enum Unwalked {
 }
 
 impl CarrierRefusal {
-    /// **The band's escalation this refusal is**: a decision in the
-    /// band's gap or the straddle, one [`Indeterminate`] either way;
-    /// `Err` where a spline's walk could not run.
+    /// **The band's escalation this refusal is**, its diagnostics
+    /// ([`CarrierEscalation::diag`]); `Err` where a spline's walk could not
+    /// run.
     ///
     /// # Errors
     ///
     /// [`Unwalked`]: the refusal is no escalation.
     pub fn escalation(self) -> Result<Indeterminate, Unwalked> {
         match self {
-            Self::Escalated(diag) | Self::Straddle(diag) => Ok(diag),
+            Self::Escalated(how) => Ok(how.diag()),
             Self::Unwalked(why) => Err(why),
         }
     }
@@ -236,7 +253,7 @@ impl CarrierRefusal {
 
 impl From<Indeterminate> for CarrierRefusal {
     fn from(diag: Indeterminate) -> Self {
-        Self::Escalated(diag)
+        Self::Escalated(CarrierEscalation::InBand(diag))
     }
 }
 
