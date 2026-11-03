@@ -6908,6 +6908,35 @@ fn line_unread(
         crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
             read_containment([a, b][i], Err::<(), _>(e), held);
         }
+        crate::boolean::FaceUnread::Boundary(refusal) => {
+            use geom_brep::curve_face::BoundaryRefusal;
+            held.push(match refusal {
+                BoundaryRefusal::Escalated(cause)
+                | BoundaryRefusal::Meeting(cause)
+                | BoundaryRefusal::Touch(cause) => ValidationError::CensusEscalated { cause },
+                BoundaryRefusal::Unread(_) => pair_lane_refused(
+                    a,
+                    b,
+                    crate::contact::ContactRefusal::NotCertifiable {
+                        what: "a face of a two-carrier face pair whose boundary the meeting \
+                               reading cannot read against the tangent line",
+                    },
+                ),
+                BoundaryRefusal::Fault { what } => pair_lane_refused(
+                    a,
+                    b,
+                    crate::contact::ContactRefusal::NotCertifiable { what },
+                ),
+            });
+        }
+        crate::boolean::FaceUnread::Uncertified => held.push(pair_lane_refused(
+            a,
+            b,
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: "a face of a two-carrier face pair whose boundary holds an edge with no \
+                       certified curve",
+            },
+        )),
     }
 }
 
@@ -19691,6 +19720,66 @@ mod two_carrier_records {
                 );
                 eprintln!("{s}");
                 assert!(!stale(&errors), "{s}");
+            }
+
+            /// A plate whose only run under the line is a 0.01 spike at
+            /// x = 2, beside an apex at x = 1.1 standing `d` off the line.
+            fn apex_beside_a_spike(d: f64) -> Vec<(f64, f64)> {
+                vec![
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, -0.5),
+                    (2.02, -0.5),
+                    (2.0, 0.01),
+                    (1.98, -0.5),
+                    (1.2, -0.5),
+                    (1.1, d),
+                    (1.0, -0.5),
+                    (0.0, -0.5),
+                ]
+            }
+
+            /// **An apex in band of the line does not hide a spike
+            /// elsewhere on it**: the apex's reading may refuse, never
+            /// answer the line clear of the spike's run. Red where a
+            /// refusal at the apex drops the face's cuts and a coarser
+            /// reading misses the spike.
+            #[test]
+            fn an_apex_in_band_of_the_line_does_not_hide_a_spike_elsewhere() {
+                let eps = Tol::witness().eps();
+                for d in [3.0 * eps, 6.0 * eps, -10.0 * eps] {
+                    let (body, top) = top_of(&apex_beside_a_spike(d));
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                    assert!(oracle, "{d:e}: the spike holds the line");
+                    assert!(!matches!(read, Ok(false)), "{d:e}: {read:?}");
+                }
+            }
+
+            /// **A record through that spike is not stale**, whichever
+            /// face the record names first.
+            #[test]
+            fn a_record_through_a_spike_beside_an_apex_in_band_is_not_stale() {
+                let r = rig(
+                    &apex_beside_a_spike(3.0 * Tol::witness().eps()),
+                    (-1.0, 5.0),
+                    (-0.5, 0.5),
+                );
+                let b = Band::linear(Tol::witness()).unwrap();
+                for swap in [false, true] {
+                    let (x, y) = if swap {
+                        (r.top, r.wall)
+                    } else {
+                        (r.wall, r.top)
+                    };
+                    let errors = census_and_certify(
+                        &r.body,
+                        &one(&r.body, Cell::Face(x), Cell::Face(y)),
+                        b,
+                        Tol::witness(),
+                        None,
+                    );
+                    assert!(!stale(&errors), "swap {swap}: {errors:?}");
+                }
             }
 
             /// The unit half-disc cap (arc through +y, chord y = 0) and
