@@ -310,31 +310,53 @@ pub enum BandError {
     },
 }
 
-impl fmt::Display for BandError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
+impl BandError {
+    /// What was refused, without its recourse ([`Self::recourse`]), for a
+    /// holder that ends it at its own door.
+    pub fn payload(&self) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| match self {
             Self::InvalidValue { field, value } => write!(
                 f,
-                "the band's {} threshold is {value:e}, and must be finite and positive. \
-                 Recourse: for a band derived from the tolerance, set a smaller tolerance or \
-                 name a longer lever arm, so that its thresholds stay finite; a band built \
-                 directly wants finite, positive ones",
+                "the band's {} threshold is {value:e}, and must be finite and positive",
                 field.name()
             ),
             Self::InvalidLeverArm { value } => write!(
                 f,
-                "the band's lever arm is {value:e}, and must be finite and positive. \
-                 Recourse: name the lever arm the decision turns on (a radius of curvature \
-                 or an extent), or classify a linear margin instead"
+                "the band's lever arm is {value:e}, and must be finite and positive"
             ),
             Self::Empty { zero, escalate } => write!(
                 f,
                 "the band's zero threshold {zero:e} is not below its escalate threshold \
-                 {escalate:e}, so the band is empty. Recourse: raise the escalate threshold \
-                 above the zero threshold; a band derived from the tolerance does, with its \
-                 multiplier K > 1"
+                 {escalate:e}, so the band is empty"
             ),
+        })
+    }
+
+    /// The recourse of a band built by its caller, whose thresholds or
+    /// lever arm the caller named.
+    #[must_use]
+    pub const fn recourse(&self) -> &'static str {
+        match self {
+            Self::InvalidValue { .. } => {
+                "Recourse: for a band derived from the tolerance, set a smaller tolerance or \
+                 name a longer lever arm, so that its thresholds stay finite; a band built \
+                 directly wants finite, positive ones"
+            }
+            Self::InvalidLeverArm { .. } => {
+                "Recourse: name the lever arm the decision turns on (a radius of curvature \
+                 or an extent), or classify a linear margin instead"
+            }
+            Self::Empty { .. } => {
+                "Recourse: raise the escalate threshold above the zero threshold; a band \
+                 derived from the tolerance does, with its multiplier K > 1"
+            }
         }
+    }
+}
+
+impl fmt::Display for BandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}. {}", self.payload(), self.recourse())
     }
 }
 
@@ -4303,6 +4325,10 @@ mod tests {
         assert_eq!(arms.len(), 4, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
+            // The text is the payload, then the recourse, each once.
+            let payload = arm.payload().to_string();
+            assert!(!payload.contains("Recourse"), "{payload}");
+            assert_eq!(msg, format!("{payload}. {}", arm.recourse()));
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_VERBS.iter().any(|v| lower.contains(v)),

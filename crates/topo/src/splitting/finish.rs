@@ -1900,16 +1900,29 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                 Ok(geom_brep::DihedralClass::Smooth) => {
                     if !matches!(surf_other, Surface::Plane { .. }) {
                         let sense_of = |f| body.get_face(f).map(|d| d.sense).ok_or_else(corrupt);
-                        let pairing = geom_brep::classify_material_pairing(
-                            surf_self,
-                            sense_of(face)?,
-                            surf_other,
-                            sense_of(other_face)?,
-                            witness,
-                            geom_brep::folded_lever_arm(surf_self, surf_other, witness, reach),
-                            band,
-                        )
-                        .map_err(|diag| SplitFinishError::DescribeSideEscalated { edge, diag })?;
+                        // The pairing reads the faces' implicit normals off
+                        // the dihedral's own token: on two analytic faces
+                        // the seam reading above is this reading bit for
+                        // bit, so it reads the tangency again; a spline
+                        // face's implicit form is poison, and escalates.
+                        let side = |diag| SplitFinishError::DescribeSideEscalated { edge, diag };
+                        let tangency = match geom_brep::classify_dihedral(
+                            surf_self, surf_other, witness, reach, band,
+                        ) {
+                            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
+                            Ok(geom_brep::Dihedral::Corner(_)) => unreachable!(
+                                "{edge:?}: classify_seam reads two analytic faces as \
+                                 classify_dihedral does, and a spline face's implicit \
+                                 form escalates rather than read a corner"
+                            ),
+                            Err(e) => return Err(side(e.diag())),
+                        };
+                        let pairing = tangency
+                            .pairing([sense_of(face)?, sense_of(other_face)?], band)
+                            .map_err(|e| SplitFinishError::DescribeSideEscalated {
+                                edge,
+                                diag: e.diag(),
+                            })?;
                         if pairing == geom_brep::MaterialPairing::Opposed {
                             return Err(SplitFinishError::KnifeEdge(KnifeEdge {
                                 wall: other_face,
@@ -2543,7 +2556,7 @@ mod smooth_arm_rows {
                 assert_eq!(refused, edge, "the refusal names the mixed edge");
                 assert_eq!(
                     stations,
-                    geom_brep::MixedStations {
+                    geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4
                     },

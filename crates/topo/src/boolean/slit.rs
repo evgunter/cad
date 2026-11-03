@@ -2571,10 +2571,9 @@ fn on_span<T: Decide>(
     match span.contact(point, geom::mid_param(t0, t1), band) {
         Ok(Some(Hit::On { t, .. })) => Ok(t),
         Ok(Some(Hit::End(_)) | None) => Err(outside),
-        Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
-            Err(crossing_escalated(diag))
-        }
-        Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => Err(outside),
+        // A spline's walk that could not run leaves the point unplaced,
+        // the refusal `outside` names.
+        Err(refusal) => Err(refusal.escalation().map_or(outside, crossing_escalated)),
     }
 }
 

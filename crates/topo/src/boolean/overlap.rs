@@ -125,8 +125,8 @@ impl OverlapRefusal {
                 BoundaryRefusal::Unread(_) => {
                     write!(f, "an edge's meeting with the boundary could not be read")
                 }
-                BoundaryRefusal::Fault(_) => {
-                    write!(f, "the meeting table misread a carrier (a kernel fault)")
+                BoundaryRefusal::Fault { what } => {
+                    write!(f, "the meeting table's kernel fault: {what}")
                 }
             },
             Self::Boundary(e) => {

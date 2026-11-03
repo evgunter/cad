@@ -1,5 +1,5 @@
 //! **The frame witness, exercised from outside geom-core** — the
-//! aiming ladders against the arithmetic they replaced, a tube built
+//! aiming door against the arithmetic it replaced, a tube built
 //! the way a user builds one, the sketch-plane door's repair of a
 //! skewed pair.
 //!
@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::linalg::frame::{path_start_frame, point_at};
+use geom_core::linalg::frame::point_at;
 use geom_core::{Affine3, Band, Mat3, Point3, RigidMotion, Tol, Vec3};
 use profile::SketchPlane;
 use sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
@@ -31,7 +31,7 @@ fn bits12(a: &Affine3<f64>) -> [u64; 12] {
 }
 
 // ---------------------------------------------------------------
-// The aiming ladders against the arithmetic they replaced
+// The aiming door against the arithmetic it replaced
 // ---------------------------------------------------------------
 
 /// The retired aiming frame constructor's arithmetic, spelled out:
@@ -46,14 +46,14 @@ fn old_recipe(origin: Point3<f64>, aim: Vec3<f64>, reference: Vec3<f64>) -> Affi
     Affine3::from_parts(Mat3::from_cols(x, y, unit), origin - Point3::origin())
 }
 
-/// **The two aiming doors return the retired recipe bit for bit.**
-/// Both are now `RigidMotion::from_aim` plus `to_affine`, and the claim
-/// that costs nothing is that the twelve stored components did not
-/// move: the spelling changed, the arithmetic did not. Asserted from
-/// OUTSIDE `geom-core`, over a sweep of eyes, targets, references and
-/// tangents, so it is the public doors' bits and not an internal one's.
+/// **The aiming door returns the retired recipe bit for bit.** It is
+/// now `RigidMotion::from_aim` plus `to_affine`, and the claim that
+/// costs nothing is that the twelve stored components did not move:
+/// the spelling changed, the arithmetic did not. Asserted from OUTSIDE
+/// `geom-core`, over a sweep of eyes, targets and references, so it is
+/// the public door's bits and not an internal one's.
 #[test]
-fn point_at_and_path_start_frame_are_the_retired_recipe_bit_for_bit() {
+fn point_at_is_the_retired_recipe_bit_for_bit() {
     for k in 0..200 {
         let t = f64::from(k) * 0.37 + 0.11;
         let eye = Point3::new(t.sin() * 3.0, -t, t * t * 0.01);
@@ -62,16 +62,6 @@ fn point_at_and_path_start_frame_are_the_retired_recipe_bit_for_bit() {
         let got = point_at(eye, target, reference, Tol::witness()).unwrap();
         let want = old_recipe(eye, target - eye, reference);
         assert_eq!(bits12(&got.to_affine()), bits12(&want), "point_at at k={k}");
-        let tangent = Vec3::new(t.cos(), t.sin(), 0.3 * t);
-        let got = path_start_frame(eye, tangent, Tol::witness()).unwrap();
-        // The ladder's first rung is world +Z; for these tangents it
-        // is always off the tangent line.
-        let want = old_recipe(eye, tangent, Vec3::unit_z());
-        assert_eq!(
-            bits12(&got.to_affine()),
-            bits12(&want),
-            "path_start_frame at k={k}"
-        );
     }
 }
 
