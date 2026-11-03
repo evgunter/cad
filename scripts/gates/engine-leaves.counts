@@ -52,13 +52,13 @@ crate-visible              10  boolean/carrier_eq.rs
 crate-visible               5  boolean/carrier_pair.rs
 crate-visible               9  boolean/combine.rs
 crate-visible               2  boolean/contact_verify.rs
-crate-visible              16  boolean/contain.rs
+crate-visible              13  boolean/contain.rs
 crate-visible               5  boolean/edge_join.rs
 crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             178  boolean/mod.rs
+crate-visible             177  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              31  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
