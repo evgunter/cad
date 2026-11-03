@@ -2,10 +2,11 @@
 id: engine-directories-are-leaves-guard
 kind: unit
 title: "[topo.homes]'s guard: a source_walk row that no file outside boolean/ or splitting/ names them, neither names the other, and neither declares pub(crate), over a committed shrink-only allowlist of today's violations"
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: M
+branch: onedoor/engine-leaves-guard
 ---
 
 

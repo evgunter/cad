@@ -98,3 +98,4 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Filed:** `engine-directories-are-leaves-guard` (P1, M) and `crossing-doors-leave-topo-for-geom-brep` (P1, H, parked on the guard).
   - The plan carries the unit order. The `boolean/` library moves are a successor program's, chartered by the guard's allowlist.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **Dispatched `engine-directories-are-leaves-guard`** on `onedoor/engine-leaves-guard`. Review tier: single style review. It moves no code, and the allowlist it commits is the move list. (ONEDOOR orchestrator)
