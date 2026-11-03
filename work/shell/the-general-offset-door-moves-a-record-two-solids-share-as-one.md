@@ -30,16 +30,23 @@ The corner-kiss rows pin the refusal until then.
 
 The same keying meets a revolve's caps. A half-turn revolve now leaves
 its two coplanar caps on one record (`sweep::revolve`,
-`RevolvedKind::Partial::coplanar_caps`), the two worn at opposite senses.
+`RevolvedKind::Partial::coplanar_caps`), split by the axis edge.
 `crates/sweep/tests/torax_axial.rs`
 `torax_the_half_turn_lune_refuses_the_parallel_cap_pair` pins `topo::shell`
-refusing at the corner (`TogetherAxialCorner`, "parallel"). It now refuses
-`TogetherEdgeDisagreement` at the axis edge: the door moves the one record
-by one distance, where the two caps' material sides want it moved two ways.
+refusing at the corner (`TogetherAxialCorner`, "parallel"), and is red.
 
-2026-11-03: the torax pin is not moved. No public build reaches the
-meridian-pair arm's parallel-caps refusal any more: two caps containing
-the axis that are parallel are coplanar, and a revolve now leaves
-coplanar caps on one record. The arm's other `TogetherAxialCorner`
-refusals keep their witnesses (`crates/sweep/tests/shell_curved_mouth.rs`
+2026-11-03: `lune(0.3, π)` is three faces: the sphere wall on its own
+record, and the two caps on one plane record, both at sense `true`, so
+they share one material side. `shell` at `t = 0.05` refuses
+`ShellError::Face { TogetherEdgeDisagreement { edge, gap: 0.05 } }` at
+the axis edge, whose two sides are the two caps on that one record. The
+door moves the record by `t`, and the gap reads as the edge's curve left
+where it was. A hollow half ball is buildable, so this is the
+door's: an edge both of whose faces wear one moved record moves with
+that record, and no corner solve is needed for it. No public build
+reaches the meridian-pair arm's parallel-caps refusal any more: two
+caps containing the axis that are parallel are coplanar, and a revolve
+now leaves coplanar caps on one record. The arm's other
+`TogetherAxialCorner` refusals keep their witnesses
+(`crates/sweep/tests/shell_curved_mouth.rs`
 `opening_a_tangent_dome_refuses_two_equidistant_roots`, the tie).
