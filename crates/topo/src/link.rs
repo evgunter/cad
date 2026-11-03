@@ -2554,7 +2554,12 @@ impl<T: Decide> FaceSector<T> {
     /// decided, put the arc on `q`'s side (to within `z/(2K)` of the
     /// plane, `z` the band's zero), and the face is read as the
     /// half-plane from the edge through `q`, oriented as the face. Its
-    /// ball is the distance from `p` to the carrier's ruling through `q`.
+    /// ball is the distance from `p` to the carrier's ruling through `q`,
+    /// inside which the face lies between its two rulings: the radius the
+    /// stand-in answers for. The fan's own chords stand `1.01·ℓ` off, so
+    /// the cap moves where a crossing is confirmed by a hundredth of the
+    /// lever on a cylinder and by the cone's shortfall on a cone; it is
+    /// kept as the honest radius, not for a verdict it changes.
     /// The argument is `crates/topo/README.md`'s (tier 3′, the chord
     /// reading); it needs every other sheet of the edge outside the lens
     /// between the arc and the chord, which [`chords_clear`] reads before
