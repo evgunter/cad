@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 18] = [
+pub(super) const SITES: [&str; 19] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -43,6 +43,7 @@ pub(super) const SITES: [&str; 18] = [
     "skip-incidence",
     "radial-fold",
     "line-cylinder-ends",
+    "circle-chart-incidence",
 ];
 
 fn on(site: &str) -> bool {
@@ -198,4 +199,11 @@ pub(super) fn radial_fold() -> bool {
 /// chord that dips toward the axis (its rows are `cylinder_line_rows`).
 pub(super) fn line_off_cylinder<T: Real>(f0: T, f1: T, _middle: T) -> Option<T> {
     on("line-cylinder-ends").then(|| f0.abs().max(f1.abs()))
+}
+
+/// A circle's distance from a cylinder, cone or torus dropped from its
+/// projected envelope: the envelope misses a circle off the chart (its
+/// rows are `circle_lane_rows`).
+pub(super) fn circle_chart_incidence<T: Real>(surface: &Surface<T>) -> Option<T> {
+    (on("circle-chart-incidence") && !matches!(surface, Surface::Sphere { .. })).then(T::zero)
 }

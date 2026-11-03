@@ -405,14 +405,15 @@ fn the_envelope_covers_an_admitted_error() {
 }
 
 /// **A circle the incidence test reads on the torus that is none of its
-/// circles grazes it**, and one the test reads off it is off the chart.
-/// A circle ⊥ the axis through the tube's crest centred `2·K·ε` off the
-/// axis leaves the torus by only the square of that, so it passes the
-/// incidence test while the centring gate fails; a Villarceau circle
+/// circles takes the general lane**, and one the test reads off it is
+/// off the chart. A circle ⊥ the axis through the tube's crest centred
+/// `2·K·ε` off the axis leaves the torus by only the square of that, so
+/// it passes the incidence test while the centring gate fails, and its
+/// projected image certifies over a whole turn; a Villarceau circle
 /// moved `5·K·ε` along the axis is off the torus by that much at its
 /// crest; one tilted `1e-3` off its family's plane is off it outright.
 #[test]
-fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
+fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_the_chart() {
     let surface = torus();
     let Surface::Torus {
         center,
@@ -429,16 +430,17 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
     let crest = Curve3::circle(center + axis * MINOR + u_ref * delta, axis, MAJOR, cv);
     assert!(off_torus(&crest) < 0.5 * eps(), "the crest circle grazes");
     let got = chart_pcurve(&crest, &surface, band());
+    let Ok(image @ Pcurve::Projected(_)) = got else {
+        panic!(
+            "a crest circle centred off the axis, on the torus within the band, is none of its \
+             circles, and takes its projected image: {got:?}"
+        )
+    };
+    let cache = PcurveCache::certify(image, 0.0, TAU, &crest, &surface, band())
+        .unwrap_or_else(|e| panic!("the crest circle's projected image certifies: {e:?}"));
     assert!(
-        matches!(
-            got,
-            Err(PcurveCertifyError::NoGeneralLane {
-                gap: geom_brep::LaneGap::Unwritten,
-                ..
-            })
-        ),
-        "a crest circle centred off the axis, on the torus within the band, is none of its \
-         circles, and its general lane is not written yet on a torus: {got:?}"
+        cache.certificate().envelope < band().zero(),
+        "the crest circle's envelope is inside the band"
     );
 
     let Curve3::Circle(geom::Circle {
@@ -696,14 +698,14 @@ fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
 /// against the 64 samples, and the gates escalate on
 /// `pcurve_torus_villarceau_plane`. Moved `3e-8`, with the pinch on a
 /// sample, it is read on the torus with the plane gate past the band.
-/// Either way the Villarceau class is not shown, a lane choice (D3), and
-/// a circle's general lane on a torus is not written yet, so it refuses
-/// lever-only "not yet" (`ChartClass`): escalating on the plane gate in
-/// band, and as `NoGeneralLane` past it. Never the focal
-/// section: a ladder that read an in-band gate as Zero would image it as
-/// the Villarceau circle it is not shown to be.
+/// Either way the Villarceau class is not shown, a lane choice (D3): the
+/// circle takes the general lane, its projected image or the lane's own
+/// "not yet" where the image's sectors do not hold so near the horn's
+/// pinch (`GeneralLane` in band, `NoGeneralLane` at a pose). Never the
+/// focal section: a ladder that read an in-band gate as Zero would image
+/// it as the Villarceau circle it is not shown to be.
 #[test]
-fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section() {
+fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane_never_the_focal_section() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
     let big = 2.0;
     let r = big - 1e-6;
@@ -729,34 +731,32 @@ fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section
             pinch * psi.cos() - side * psi.sin(),
         )
     };
-    let mut wrong = Vec::new();
-    for half in [0.0, 0.5] {
-        for by in [3e-9, 6e-9] {
-            let got = chart_pcurve(&moved(by, half), &surface, band);
-            if !matches!(
-                &got,
-                Err(PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartClass,
-                    cause: geom_core::Indeterminate {
-                        predicate: Some("pcurve_torus_villarceau_plane"),
-                        ..
-                    },
+    let general = |got: &Result<Pcurve<f64>, PcurveCertifyError>| {
+        matches!(
+            got,
+            Ok(Pcurve::Projected(_))
+                | Err(PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::GeneralLane,
                     ..
                 })
-            ) {
-                wrong.push(format!("moved {by:e}, phase {half}: {got:?}"));
-            }
+                | Err(PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Pose { .. },
+                    ..
+                })
+        )
+    };
+    let mut wrong = Vec::new();
+    for (by, half) in [
+        (3e-9, 0.0),
+        (3e-9, 0.5),
+        (6e-9, 0.0),
+        (6e-9, 0.5),
+        (3e-8, 0.0),
+    ] {
+        let got = chart_pcurve(&moved(by, half), &surface, band);
+        if !general(&got) {
+            wrong.push(format!("moved {by:e}, phase {half}: {got:?}"));
         }
-    }
-    let got = chart_pcurve(&moved(3e-8, 0.0), &surface, band);
-    if !matches!(
-        got,
-        Err(PcurveCertifyError::NoGeneralLane {
-            gap: geom_brep::LaneGap::Unwritten,
-            ..
-        })
-    ) {
-        wrong.push(format!("moved 3e-8: {got:?}"));
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }

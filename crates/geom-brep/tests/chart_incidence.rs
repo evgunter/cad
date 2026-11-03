@@ -152,8 +152,8 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
 /// cone, where it is a rim and images in closed form, and past it on a
 /// wide one, where the centring gate fails. There the incidence test,
 /// not the gate, decides — and the circle is not shown off the cone, a
-/// circle that is none of its rims (a cone holds no other circle), whose
-/// general lane is not written yet.
+/// circle that is none of its rims (a cone holds no other circle), which
+/// takes the general lane: its projected image, which certifies.
 #[test]
 fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
     let e = eps();
@@ -176,10 +176,24 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
                 "alpha = {alpha}: the centre offset is past the band: {:e}",
                 centre.x
             );
+            let Ok(image @ Pcurve::Projected(_)) = got else {
+                panic!(
+                    "alpha = {alpha}: an on-cone circle that is no rim takes its projected \
+                     image, never off the chart: {got:?}"
+                )
+            };
+            let cache = geom_brep::PcurveCache::certify(
+                image,
+                0.0,
+                core::f64::consts::TAU,
+                &circle,
+                &cone(alpha),
+                band(),
+            )
+            .unwrap_or_else(|e| panic!("alpha = {alpha}: the projected image certifies: {e:?}"));
             assert!(
-                matches!(got, Err(PcurveCertifyError::NoGeneralLane { .. })),
-                "alpha = {alpha}: an on-cone circle that is no rim refuses not yet (its general \
-                 lane is unwritten), never off the chart: {got:?}"
+                cache.certificate().envelope < band().zero(),
+                "alpha = {alpha}: its envelope is inside the band"
             );
         }
     }
@@ -780,9 +794,10 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
 
 /// **An edge described on a chart whose general lane is unwritten for
 /// its carrier ends lever-only "not yet" at the edge certificate, never
-/// as the description's defect** (D3). The carrier is the on-cone
-/// circle that is no rim (`a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone`'s
-/// wide cone): the mint refuses `NoGeneralLane`, and the edge
+/// as the description's defect** (D3). The carrier is an ellipse
+/// within the band of the unit sphere (a parallel's circle whose semi-axis
+/// along `x` is lengthened by `ε/4`), which no general lane images: the
+/// mint refuses `NoGeneralLane`, and the edge
 /// certificate carries it as its own `NoGeneralLane` under the
 /// class check, not folded into `ChartImageUnavailable`'s defect. Read
 /// at a build and at rest.
@@ -791,28 +806,39 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
     use geom_brep::recourse::Reading;
     use geom_brep::{CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
     let e = eps();
-    let alpha = 1.55_f64;
-    let h = 1.0;
-    let theta = 0.5 * e / (h * alpha.tan());
-    let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
-    let circle = Curve3::circle(centre, axis, (major * minor).sqrt(), u_ref);
-    let (keys, lookup) = crate::shared::surf::table(vec![cone(alpha)]);
+    let (h, rho) = (0.6, 0.8);
+    let ellipse = Curve3::ellipse(
+        Point3::new(0.0, 0.0, h),
+        Vec3::unit_z(),
+        rho + 0.25 * e,
+        rho,
+        Vec3::unit_x(),
+        band(),
+    )
+    .expect("an ellipse");
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let (keys, lookup) = crate::shared::surf::table(vec![sphere]);
     let (t0, t1) = (0.0, 1.0);
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(keys[0]),
-            carrier: circle.clone(),
+            carrier: ellipse.clone(),
             param_start: t0,
             param_end: t1,
         },
-        circle.eval(t0),
-        circle.eval(t1),
+        ellipse.eval(t0),
+        ellipse.eval(t1),
         &lookup,
         geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
-    .expect_err("an on-cone circle that is no rim has no image yet");
+    .expect_err("an ellipse on a sphere has no image yet");
     assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
     assert_eq!(
         err.decision().map(|(check, _)| check),

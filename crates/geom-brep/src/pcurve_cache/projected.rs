@@ -1114,16 +1114,23 @@ pub(crate) fn chart_at<T: Decide>(
 /// **Whether `carrier` has a projected image on `surface`**: the one
 /// home of the (carrier, chart) pairs the general lane is written for, read
 /// by the mint's lane choice (`chart_image`) and by check 4's two gates
-/// here. A spline net on any analytic chart; a circle on a sphere, whose
-/// incidence term is the sphere's exact off-sphere sup; and a line on a
-/// cylinder, whose incidence term is the cylinder's form along the line,
-/// a quadratic, bounded by its Bernstein coefficients over the edge. A
-/// circle on a cone, torus or cylinder has none yet (unit E4,
-/// `work/pcert/a-circles-general-lane-is-written-only-on-the-sphere.md`).
+/// here. A spline net on any analytic chart; a circle on a sphere,
+/// cylinder, cone or torus, whose incidence term is the chart's form
+/// along the circle, a trigonometric polynomial, bounded by its
+/// harmonics' sups (`sphere_circle::off_sphere_sup` on the sphere,
+/// `circle_chart::form_sup` elsewhere); and a line on a cylinder, whose
+/// incidence term is the cylinder's form along the line, a quadratic,
+/// bounded by its Bernstein coefficients over the edge.
 pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
     match carrier {
         Curve3::Nurbs(_) => crate::edge_nurbs::is_analytic(surface),
-        Curve3::Circle(..) => matches!(surface, Surface::Sphere { .. }),
+        Curve3::Circle(..) => matches!(
+            surface,
+            Surface::Sphere { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Cone { .. }
+                | Surface::Torus { .. }
+        ),
         Curve3::Line(_) => matches!(surface, Surface::Cylinder { .. }),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } => false,
     }
@@ -1626,15 +1633,28 @@ impl<S: Real> Meters<S> {
         z: (f64, f64),
         positive: impl FnOnce(S) -> Result<S, E>,
     ) -> Result<S, E> {
+        let axial = match self {
+            Self::Cone { nappe, .. } => axial_floor(z, nappe),
+            _ => S::zero(),
+        };
+        self.over_at(f, rho, axial, positive)
+    }
+
+    /// [`Self::over`] with the cone's `(σz)_min` given as `axial` at
+    /// `S` (read on the cone alone).
+    pub(crate) fn over_at<E>(
+        self,
+        f: S,
+        rho: S,
+        axial: S,
+        positive: impl FnOnce(S) -> Result<S, E>,
+    ) -> Result<S, E> {
         Ok(match self {
             Self::Plane => f,
             Self::Cylinder { radius } | Self::Sphere { radius } => {
                 f / (radius + rho.max(radius - f / radius))
             }
-            Self::Cone { sin, cos, nappe } => {
-                let z: S = axial_floor(z, nappe);
-                f / positive(rho * cos + z * sin)?
-            }
+            Self::Cone { sin, cos, .. } => f / positive(rho * cos + axial * sin)?,
             Self::Torus { major, minor } => {
                 let outer = positive((rho + major).powi(2) - minor.powi(2))?;
                 let first = f / (minor * outer);
@@ -2215,29 +2235,96 @@ pub(super) fn projected_envelope<T: Decide>(
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
-            let (true, &Surface::Sphere { center, radius, .. }) =
-                (has_lane(carrier, surface), surface)
-            else {
-                return Err(refuse("a circle's projected image is written for a sphere"));
-            };
+            if !has_lane(carrier, surface) {
+                return Err(refuse(
+                    "a circle's projected image is written for a sphere, cylinder, cone or torus",
+                ));
+            }
+            let (tc, ta, tb) = (
+                to_frame(form.c - o, &e),
+                to_frame(form.a, &e),
+                to_frame(form.b, &e),
+            );
             // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
             // exact sup.
-            let d = (*centre - to_frame(form.c - o, &e)).norm()
-                + harmonic_sup(*a - to_frame(form.a, &e), *b - to_frame(form.b, &e));
+            let d = (*centre - tc).norm() + harmonic_sup(*a - ta, *b - tb);
+            // The stored circle's radial floor and axial range over the
+            // pieces the edge reads, off each piece's box.
+            let mut rho_lo: Option<T> = None;
+            let mut z: Option<(T, T)> = None;
             for &k in &met {
                 let b = image.frame_box(k, t0, t1);
                 holds(b.x.0, band, k, SectorChannel::Azimuth)?;
+                if let ProjectedChart::Torus { major } = image.chart {
+                    holds(
+                        image.tube_box(k, &b, major).0.0,
+                        band,
+                        k,
+                        SectorChannel::Tube,
+                    )?;
+                }
+                let rho = ProjectedImage::rho_range(&b).0;
+                rho_lo = Some(rho_lo.map_or(rho, |m| m.min(rho)));
+                z = Some(z.map_or(b.z, |(lo, hi)| (lo.min(b.z.0), hi.max(b.z.1))));
             }
-            let incidence = crate::sphere_circle::off_sphere_sup(
-                crate::sphere_circle::off_sphere_coefficients(
-                    form.c - center,
-                    form.a,
-                    form.b,
+            let (Some(rho_lo), Some((z_lo, z_hi))) = (rho_lo, z) else {
+                unreachable!("`overlapped` names at least one piece")
+            };
+            // The larger of the boxes' radial floor and the whole
+            // circle's (a quarter piece's box may hold the axis); the
+            // twin is within `d` of the stored circle, and so is every
+            // point of the segment between them.
+            let rho_lo = rho_lo.max(crate::circle_chart::rho_floor(*centre, *a, *b));
+            let rho_floor = (rho_lo - d).max(T::zero());
+            let incidence = match *surface {
+                Surface::Sphere { center, radius, .. } => crate::sphere_circle::off_sphere_sup(
+                    crate::sphere_circle::off_sphere_coefficients(
+                        form.c - center,
+                        form.a,
+                        form.b,
+                        radius,
+                    ),
                     radius,
                 ),
-                radius,
-            );
-            (incidence, d, T::zero())
+                _ => {
+                    let Some(meters) = Meters::of(&twin, &image.chart, |x| x) else {
+                        unreachable!("a projected chart is analytic")
+                    };
+                    let chart = match meters {
+                        Meters::Cylinder { radius } => {
+                            crate::circle_chart::ChartForm::Cylinder { radius }
+                        }
+                        Meters::Cone { sin, cos, .. } => {
+                            crate::circle_chart::ChartForm::Cone { sin, cos }
+                        }
+                        Meters::Torus { major, minor } => {
+                            crate::circle_chart::ChartForm::Torus { major, minor }
+                        }
+                        Meters::Plane | Meters::Sphere { .. } => unreachable!("answered above"),
+                    };
+                    let f = crate::circle_chart::form_sup(chart, tc, ta, tb);
+                    let axial = match image.chart {
+                        ProjectedChart::Cone {
+                            nappe: Nappe::Mirror,
+                            ..
+                        } => T::zero() - z_hi,
+                        _ => z_lo,
+                    } - d;
+                    meters.over_at(f, rho_floor, axial, |lever| {
+                        require_positive(
+                            "pcurve_projected_lever",
+                            lever,
+                            band,
+                            PcurveCheck::Sector,
+                            0,
+                            sector_refused(0, SectorChannel::Lever),
+                        )
+                    })?
+                }
+            };
+            #[cfg(test)]
+            let incidence = super::mutants::circle_chart_incidence(surface).unwrap_or(incidence);
+            (incidence, d, rho_floor)
         }
         (
             &FramedCarrier::Line { point, dir, .. },
@@ -2475,7 +2562,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         _ => {
             return Err(refuse(
                 "the stored carrier is not the edge's carrier kind (a spline's net, a circle on \
-                 a sphere, or a line on a cylinder)",
+                 a curved analytic chart, or a line on a cylinder)",
             ));
         }
     }

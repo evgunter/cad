@@ -11762,6 +11762,9 @@ fn channels_of<T: Real>(image: &Pcurve<T>) -> (Channel<T>, Channel<T>) {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod circle_lane_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
@@ -13222,8 +13225,7 @@ mod tests {
         // Near the tube's top an off-axis centre `δ` leaves the torus
         // only by `δ²/2r`, so a circle ⊥ the axis centred off it — past
         // the centring band — is not shown off the chart, and no closed
-        // form images it. Its general lane is not written yet on a torus
-        // (D3: lever-only "not yet").
+        // form images it: it takes the general lane, the projected image.
         let delta = 2.0 * Tol::witness().k() * Tol::witness().eps();
         let crest = circle(
             Point3::new(delta, 0.0, minor),
@@ -13233,13 +13235,7 @@ mod tests {
         );
         let got = chart_pcurve(&crest, &torus, band());
         assert!(
-            matches!(
-                got,
-                Err(PcurveCertifyError::NoGeneralLane {
-                    gap: LaneGap::Unwritten,
-                    ..
-                })
-            ),
+            matches!(got, Ok(Pcurve::Projected(_))),
             "a crest parallel centred off the axis: {got:?}"
         );
     }
