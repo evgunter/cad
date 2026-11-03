@@ -1,50 +1,78 @@
-//! **The cylinder-cut lane** ([`cylinder_cut_face_rounds`]): the
-//! kernel's first quadrature, the divergence-theorem contributions of a
-//! cylinder face whose trim loops are *curved* (conic cuts), and the
-//! loop windings and ring readings the face rests on.
+//! **The rotational-chart Green lane** ([`rotational_cut_face_rounds`]):
+//! the divergence-theorem contributions of a face on a chart of
+//! revolution whose trim loops are curved, and the loop windings and
+//! ring readings the face rests on. The chart table
+//! ([`RotationalChartQ`]) holds the cylinder.
 //!
-//! # Formulation (cylinder chart)
+//! # Formulation
 //!
-//! With chart `S(u, v) = o + û·r·cos u + v̂·r·sin u + â·v` the chart
-//! normal is radial and `dA = r du dv`, so for a face whose trim region
-//! is Ω (bounded by its loops, the outer one and its rings, each
-//! traversed with the interior on its left about the outward normal):
+//! On a chart of revolution, `u` the azimuth about its axis, the flux
+//! density about the chart's own origin and the area density depend on
+//! the level `v` alone. With `F` and `G` their antiderivatives in `v`, a
+//! face whose trim region is Ω (bounded by its loops, the outer one and
+//! its rings, each traversed with the interior on its left about the
+//! outward normal) has
 //!
 //! ```text
-//! A_s   = −Σ_loops ∮ (v − v_a) du   (signed UV area; A_s = s_f·|Ω|)
-//! area  = r·|A_s|
-//! flux  = ∮ p·n dA = r²·A_s + o·A⃗    (A⃗ the exact vector area, summed over the loops)
+//! A     = −Σ_loops ∮ G(v) du   (signed chart area; A = s_f·|Ω|)
+//! area  = |A|
+//! flux  = −Σ_loops ∮ F(v) du + o·A⃗
 //! ```
 //!
-//! — `v du` because it is a global 1-form on the cylinder (the azimuth
-//! is periodic, its differential is not), so the form reads a loop
-//! that winds the cylinder — a seamless band's rim — and a loop whose
-//! images sit in different branches of the chart alike; `u dv` reads
-//! neither. The loops' own traversal signs carry `s_f`, a ring's
-//! opposite to its face's, so no separate orientation classification
-//! is needed; what is decided is that the stored loops say so (every
-//! junction closes, a whole number of turns apart in the azimuth; each
-//! loop winds at most once and the face's loops none together, which
-//! makes the form independent of the anchor level `v_a`; every loop
-//! that does not wind, other than a non-band face's own, is wound
-//! against its face).
-//! The boundary is the face's **pcurves** (PR 6 caches; C4's first hot
-//! consumer): per edge the contribution is
-//! `σ·∫ (v_a − v(t))·u'(t) dt` over the stored carrier interval.
+//! with the chart term `o·A⃗` (`o` the chart origin less the point the
+//! flux is about, `A⃗` the exact vector area of the face's carriers,
+//! summed over the loops). On the cylinder
+//! `S(u, v) = o + û·r·cos u + v̂·r·sin u + â·v` the normal is radial and
+//! `dA = r du dv`, so `F(v) = r²·(v − v_a)` and `G(v) = r·(v − v_a)`.
 //!
-//! # The integrand
+//! `v du` because it is a global 1-form on the chart (the azimuth is
+//! periodic, its differential is not), so the form reads a loop that
+//! winds the chart — a seamless band's rim — and a loop whose images
+//! sit in different branches of the chart alike; `u dv` reads neither.
+//! The loops' own traversal signs carry `s_f`, a ring's opposite to its
+//! face's, so no separate orientation classification is needed; what is
+//! decided is that the stored loops say so (every junction closes, a
+//! whole number of turns apart in the azimuth; each loop winds at most
+//! once and the face's loops none together, which makes the form
+//! independent of the anchor level `v_a`; every loop that does not wind,
+//! other than a non-band face's own, is wound against its face).
 //!
-//! Every minted cylinder-chart pcurve is harmonic,
-//! `u, v(t) = c₀ + c_a·cos t + c_b·sin t + c_l·t`. Trigonometric
-//! values enter only as **enclosures propagated from the edge
-//! endpoints**: the caller supplies `(cos t₀, sin t₀)` brackets at the
-//! limits the lane integrates between ([`trig_at_limit`](super::trig::trig_at_limit), rotated from
-//! the exact `(1, 0)`), and the engine advances them by exact rotation
-//! with polynomial alternating-series bounds on the step's
-//! `(cos, sin)` (valid for |step| ≤ 1.5; every step here is ≤ 1).
-//! Sound and transcendental-free.
+//! # The edge terms
 //!
-//! # The rule and its remainder
+//! The boundary is the face's **pcurves**, one [`EdgeTermQ`] per edge,
+//! each contributing `σ·∫ −F(v(t))·u′(t) dt` (and `G`'s) over its stored
+//! carrier interval, `σ` its traversal:
+//!
+//! - **Harmonic** ([`TrimEdgeQ`]): a minted cylinder pcurve
+//!   `u, v(t) = c₀ + c_a·cos t + c_b·sin t + c_l·t`, by the composite
+//!   midpoint rule below. A rim (`v` constant, `u` linear) gives
+//!   `−F(V)·Δu` and a ruling (`u` constant) nothing, both read exactly.
+//! - **Projected** ([`ProjectedEdgeQ`]): the chart's inverse applied to
+//!   the carrier written in the chart's frame (`Pcurve::Projected`), a
+//!   rational net ([`FramedQ::Net`]) or a circle ([`FramedQ::Circle`]).
+//!   At the frame point `(x, y, z)` the azimuth's rate is
+//!   `u′ = (x·y′ − y·x′)/(x² + y²)`, which reads no branch, and the
+//!   cylinder's level is `v = v_off + v_sign·z` (the image's deck map).
+//!   On a net `P = B/w`, `u′ = (B_x·B_y′ − B_y·B_x′)/(B_x² + B_y²)` (the
+//!   weight cancels) and `z = B_z/w`. Both read through the curved rims'
+//!   Taylor rule ([`crate::props::taylor`]; a net span by span,
+//!   [`crate::props::rational_rim`]), with every span, and the circle's
+//!   interval, cut at the image's sector breaks. The edge's ends are the
+//!   image's own, read at the lane scalar; its turn `Δu = ∫u′` is the
+//!   rule's, and the closure reads the two against each other, so an
+//!   image whose evaluator reads a branch its integral does not is
+//!   caught rather than integrated through.
+//!
+//! # The harmonic integrand
+//!
+//! Trigonometric values enter only as **enclosures propagated from the
+//! edge endpoints**: the caller supplies `(cos t₀, sin t₀)` brackets at
+//! the limits the lane integrates between
+//! ([`trig_at_limit`](super::trig::trig_at_limit), rotated from the
+//! exact `(1, 0)`), and the engine advances them by exact rotation with
+//! polynomial alternating-series bounds on the step's `(cos, sin)`
+//! (valid for |step| ≤ 1.5; every step here is ≤ 1). Sound and
+//! transcendental-free.
 //!
 //! Per piece `[p, q]`, `h = q − p`, `m` the midpoint (Taylor with
 //! integral remainder; `∫(t−m)² dt = h³/12`):
@@ -63,30 +91,65 @@
 //! - **Map residual**: each pcurve tracks its carrier within its
 //!   certificate envelope `e` (metres through the map). The cylinder
 //!   metric is `ds² = r²du² + dv²`, so the true trim boundary lies
-//!   within metric distance `e` of the pcurve and the UV-area defect is
-//!   ≤ Σ (metric edge length)·e / r — added to `A_s` symmetrically.
-//! - **Endpoint parameter brackets**: a non-thin `t₀/t₁` bracket
-//!   contributes `mag(f)·width` at each end.
+//!   within metric distance `e` of the pcurve and the chart-area defect
+//!   is ≤ Σ (metric edge length)·e, `r²/r` of it in flux per unit area —
+//!   added symmetrically.
+//! - **Endpoint parameter brackets**: a non-thin `t₀/t₁` bracket of a
+//!   harmonic edge contributes `mag(f)·width` at each end. A projected
+//!   edge's carrier interval is exact.
 //!
-//! The closed-form `o·A⃗` term rides at the caller's scalar exactly as
+//! The closed-form part of `o·A⃗` rides at the caller's scalar exactly as
 //! the closed-form lanes do (f64 rounding of closed forms is the
-//! documented slack there, unchanged).
+//! documented slack there, unchanged); a rational carrier's part is the
+//! curved rims' rule, per round.
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
-use geom_core::{Band, Decide};
+use geom_core::{Band, Bounds, CertifiedBounds, Decide, SpanLocate};
 
+use super::RVec3;
 use super::run::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use super::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, mid, pt};
+use crate::pcurve_cache::{FramedCarrier, Pcurve, ProjectedChart, ProjectedImage};
+use crate::props::rational_rim::{
+    RationalEdgeQ, rational_edge_q_split, rational_integrals, rational_rate_bound,
+    rational_vector_area_split,
+};
+use crate::props::spiric::{W_SPIRIC, w_rational};
+use crate::props::taylor::{Jet, composite, node, trig_jets, trig_range};
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
 const W_CYLINDER: usize = 3;
 
-/// The work of round `round` on a face of `edges` trim edges.
+/// The work of round `round` on a face of `edges` harmonic trim edges.
+#[cfg(test)]
 pub(super) fn round_cost(edges: usize, round: usize) -> usize {
     W_CYLINDER * edges * (EDGE_INIT_PIECES << round)
+}
+
+/// The work of round `round` on `face`: a harmonic edge's pieces at
+/// [`W_CYLINDER`], a projected net's and a rational chart term's at a
+/// rational rim's weight per span ([`w_rational`]: the same piece forms,
+/// read by Horner), and a projected circle's at a spiric's per
+/// interval ([`W_SPIRIC`]: the same trig jets and one reciprocal).
+fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
+    let rational = |e: &RationalEdgeQ| w_rational(e.degree()) * e.span_count();
+    let edges: usize = face
+        .loops
+        .iter()
+        .flatten()
+        .map(|e| match e {
+            EdgeTermQ::Harmonic(_) => W_CYLINDER,
+            EdgeTermQ::Projected(p) => match &p.carrier {
+                FramedQ::Net(net) => rational(net),
+                FramedQ::Circle { cuts, .. } => W_SPIRIC * cuts.len().saturating_sub(1),
+            },
+        })
+        .sum();
+    let terms: usize = face.chart_term.rationals.iter().map(rational).sum();
+    (edges + terms) * (EDGE_INIT_PIECES << round)
 }
 
 /// One harmonic chart channel `c₀ + c_a·cos t + c_b·sin t + c_l·t`
@@ -103,7 +166,7 @@ pub struct HarmChan {
     pub cl: Interval,
 }
 
-/// One trim-loop edge of the quadrature lane, fully bracketed by the
+/// One harmonic trim-loop edge of the lane, fully bracketed by the
 /// caller (key-free, like [`crate::props::LoopEdge`]).
 #[derive(Clone, Copy, Debug)]
 pub struct TrimEdgeQ {
@@ -141,6 +204,239 @@ impl TrimEdgeQ {
     }
 }
 
+/// The carrier of a projected edge in its chart's frame (origin at the
+/// chart's origin, `z` along its axis).
+#[derive(Clone, Debug)]
+pub enum FramedQ {
+    /// A spline net's Bézier spans about the frame's origin over the
+    /// edge's carrier interval, cut at the image's sector breaks
+    /// ([`crate::props::rational_rim::rational_edge_q_split`], built
+    /// forward: the edge's traversal is [`ProjectedEdgeQ::forward`]).
+    Net(RationalEdgeQ),
+    /// A circle `centre + a·cos t + b·sin t`, read over `cuts`: the
+    /// edge's carrier interval, its ends and the image's sector breaks
+    /// inside it, increasing, each an exact parameter.
+    Circle {
+        /// The centre.
+        centre: RVec3,
+        /// The `cos t` coefficient.
+        a: RVec3,
+        /// The `sin t` coefficient.
+        b: RVec3,
+        /// The interval's ends and the breaks between them.
+        cuts: Vec<f64>,
+    },
+}
+
+/// One projected trim-loop edge of the lane (module docs), bracketed by
+/// the caller.
+#[derive(Clone, Debug)]
+pub struct ProjectedEdgeQ {
+    /// The carrier in the chart's frame.
+    pub carrier: FramedQ,
+    /// The deck map's level offset `v_off`.
+    pub v_off: Interval,
+    /// The deck map's level sign `v_sign`, exactly `±1`.
+    pub v_sign: f64,
+    /// Loop traversal direction.
+    pub forward: bool,
+    /// The image's chart points `(u, v)` at the carrier interval's start
+    /// and its end, in that order whatever the traversal.
+    pub ends: [(Interval, Interval); 2],
+    /// The pcurve certificate envelope (metres through the map).
+    pub env: Interval,
+}
+
+impl ProjectedEdgeQ {
+    /// **A projected cylinder image as the lane reads it**: `image`'s
+    /// carrier in the chart's frame over the edge's carrier interval
+    /// `(t0, t1)`, cut at its sector breaks; its deck map's level part;
+    /// and its ends, `pcurve`'s own evaluator's at the lane scalar
+    /// crossed into certification arithmetic, in carrier order. `pcurve`
+    /// is the image as the loop reads it (its lift), `image` its
+    /// projected row.
+    ///
+    /// # Errors
+    ///
+    /// [`PropsError::QuadratureUnsupported`] for an image whose inverse is
+    /// not the cylinder's, a deck sign other than exactly `±1`, inexact
+    /// carrier interval ends, or a net the curved rims' rule cannot
+    /// decompose ([`crate::props::rational_rim::rational_edge_q_split`]).
+    pub fn of_image<T: SpanLocate + CertifiedBounds>(
+        pcurve: &Pcurve<T>,
+        image: &ProjectedImage<T>,
+        (t0, t1): (T, T),
+        forward: bool,
+        env: Interval,
+    ) -> Result<Self, PropsError> {
+        let unsupported = |what| PropsError::QuadratureUnsupported { what };
+        let iv = Interval::from_certified;
+        let exact = |x: Interval| (x.is_certified() && x.lo() == x.hi()).then_some(x.lo());
+        if !matches!(image.chart(), ProjectedChart::Cylinder) {
+            return Err(unsupported(
+                "a projected image on the cylinder lane whose inverse is another chart's",
+            ));
+        }
+        let (_, v_off, v_sign) = image.deck();
+        let v_sign = match exact(iv(v_sign)) {
+            Some(s) if s == 1.0 || s == -1.0 => s,
+            _ => {
+                return Err(unsupported(
+                    "a projected image whose deck map's level sign is not exactly ±1",
+                ));
+            }
+        };
+        let (Some(lo), Some(hi)) = (exact(iv(t0)), exact(iv(t1))) else {
+            return Err(unsupported(
+                "a projected edge whose carrier interval ends are not exact parameters",
+            ));
+        };
+        let breaks = image.breaks().interior();
+        let carrier = match image.carrier() {
+            FramedCarrier::Net(net) => FramedQ::Net(rational_edge_q_split(
+                &net.map_scalar(iv),
+                (iv(t0), iv(t1)),
+                true,
+                geom_core::Point3::origin(),
+                breaks,
+            )?),
+            FramedCarrier::Circle {
+                centre,
+                a,
+                b,
+                origin,
+                span,
+            } => {
+                // A break is read where the image placed it, at the lane
+                // scalar: any `f64` cut tiles the interval exactly.
+                let mut cuts = vec![lo];
+                cuts.extend(
+                    breaks
+                        .iter()
+                        .map(|&s| mid(iv(*origin + *span * T::from_f64(s))))
+                        .filter(|&t| lo < t && t < hi),
+                );
+                cuts.push(hi);
+                let vec = |v: geom_core::Vec3<T>| [iv(v.x), iv(v.y), iv(v.z)];
+                FramedQ::Circle {
+                    centre: vec(*centre),
+                    a: vec(*a),
+                    b: vec(*b),
+                    cuts,
+                }
+            }
+        };
+        let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
+        Ok(Self {
+            carrier,
+            v_off: iv(v_off),
+            v_sign,
+            forward,
+            ends: [pair(pcurve.eval(t0)), pair(pcurve.eval(t1))],
+            env,
+        })
+    }
+}
+
+/// One trim-loop edge of the lane: how its Green-form terms are read
+/// (module docs).
+#[derive(Clone, Debug)]
+pub enum EdgeTermQ {
+    /// A harmonic pcurve.
+    Harmonic(TrimEdgeQ),
+    /// A projected pcurve.
+    Projected(ProjectedEdgeQ),
+}
+
+/// The chart a rotational face's Green form runs on: the per-chart
+/// `F`/`G` table (module docs).
+#[derive(Clone, Copy, Debug)]
+pub enum RotationalChartQ {
+    /// A cylinder of radius `r`: `F = r²·(v − v_a)`, `G = r·(v − v_a)`.
+    Cylinder {
+        /// `r`.
+        radius: Interval,
+    },
+}
+
+impl RotationalChartQ {
+    /// The metres one radian of azimuth moves a point of the chart: what
+    /// meters a junction's azimuth gap and an edge's chart length.
+    fn azimuth_lever(self) -> Interval {
+        match self {
+            Self::Cylinder { radius } => radius,
+        }
+    }
+
+    /// `[F, G]` as jets, at a projected image's frame height `z` under
+    /// its deck map's level `v_off + v_sign·z`.
+    fn projected_forms(self, v_off: Interval, v_sign: f64, z: Jet, anchor: f64) -> [Jet; 2] {
+        match self {
+            Self::Cylinder { radius } => {
+                let g = z
+                    .scale(pt(v_sign))
+                    .add(Jet::cst(v_off - pt(anchor)))
+                    .scale(radius);
+                [g.scale(radius), g]
+            }
+        }
+    }
+
+    /// `[−∫F du, −∫G du]` from the level integral `−∫(v − v_a) du`, on a
+    /// chart whose `F` and `G` are that integral's multiples: what the
+    /// harmonic rule reads.
+    fn of_level(self, level: Interval) -> [Interval; 2] {
+        match self {
+            Self::Cylinder { radius } => [radius.sqr() * level, radius * level],
+        }
+    }
+
+    /// The factor the harmonic rule's level width is read at in flux.
+    fn level_flux_scale(self) -> f64 {
+        match self {
+            Self::Cylinder { radius } => radius.sqr().mag(),
+        }
+    }
+
+    /// The map-residual pad `[flux, area]` of an edge of metric length
+    /// `length` whose image is within `env` of its carrier: the chart
+    /// area it may move, `length·env`, at the flux density's sup.
+    fn residual(self, length: f64, env: Interval) -> [f64; 2] {
+        match self {
+            Self::Cylinder { radius } => {
+                let area = (pt(length) * env).mag();
+                [(pt(area) * radius).mag(), area]
+            }
+        }
+    }
+}
+
+/// The chart term `o·A⃗` of a face (module docs): the closed-form edges'
+/// part, bracketed by the caller, and each rational carrier's vector
+/// area about the chart origin, read through `lever` (the chart origin
+/// less the point the flux is about) per round.
+#[derive(Clone, Debug)]
+pub struct ChartTermQ {
+    /// The closed-form edges' `o·A⃗`.
+    pub closed: Interval,
+    /// The chart origin less the point the flux is about.
+    pub lever: RVec3,
+    /// The rational carriers, about the chart origin.
+    pub rationals: Vec<RationalEdgeQ>,
+}
+
+/// One face of the lane, bracketed by the caller: its chart, its chart
+/// term and its loops, the outer first.
+#[derive(Clone, Debug)]
+pub struct RotationalFaceQ {
+    /// The chart.
+    pub chart: RotationalChartQ,
+    /// The chart term `o·A⃗`.
+    pub chart_term: ChartTermQ,
+    /// Every loop of the face, each in traversal order.
+    pub loops: Vec<Vec<EdgeTermQ>>,
+}
+
 // ---------------------------------------------------------------------
 // Harmonic channels
 // ---------------------------------------------------------------------
@@ -162,24 +458,25 @@ impl HarmChan {
     fn eval(self, c: Interval, s: Interval, t: Interval) -> Interval {
         self.c0 + self.ca * c + self.cb * s + self.cl * t
     }
+
+    /// Whether the channel's harmonic part is exactly zero, and so its
+    /// linear one too when `linear` is false.
+    fn is_flat(self, linear: bool) -> bool {
+        let zero = |x: Interval| x.is_certified() && x.lo() == 0.0 && x.hi() == 0.0;
+        zero(self.ca) && zero(self.cb) && (linear || zero(self.cl))
+    }
 }
 
 // ---------------------------------------------------------------------
-// The composite rule (module docs: h·f(m) + F₂·h³/24 per piece)
+// The harmonic rule (module docs: h·f(m) + F₂·h³/24 per piece)
 // ---------------------------------------------------------------------
 
 /// `σ·∫_{a}^{b} (anchor − v(t))·u'(t) dt` for one harmonic edge at
 /// `pieces` resolution — its share of `−∮ (v − anchor) du` — plus the
-/// edge's two honesty pads (endpoint-bracket and map-residual — the
-/// latter needs `radius` for the metric length); and the summed width
-/// of its remainder terms `F₂·h³/24`, the part of its width a later
-/// round removes.
-fn harmonic_edge_integral(
-    e: &TrimEdgeQ,
-    anchor: f64,
-    pieces: usize,
-    radius: Interval,
-) -> (Interval, f64) {
+/// edge's endpoint-bracket pad; and the summed width of its remainder
+/// terms `F₂·h³/24`, the part of its width a later round removes. A rim
+/// and a ruling are read exactly (module docs).
+fn harmonic_edge_integral(e: &TrimEdgeQ, anchor: f64, pieces: usize) -> (Interval, f64) {
     let (a, b) = e.limits();
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
@@ -191,6 +488,29 @@ fn harmonic_edge_integral(
         cb: -e.v.cb,
         cl: -e.v.cl,
     };
+    let dq = e.u.deriv();
+    let (total, removable) = if e.u.is_flat(false) {
+        (Interval::zero(), 0.0)
+    } else if e.u.is_flat(true) && e.v.is_flat(false) {
+        (p.c0 * e.u.cl * pt(span), 0.0)
+    } else {
+        harmonic_rule(e, p, pieces)
+    };
+    // Endpoint-bracket pad: |f| near the ends times the t-bracket
+    // widths (module docs).
+    let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
+    let t_all = Interval::from_bounds(a, b);
+    let f_mag = (p.eval(c_all, s_all, t_all) * dq.eval(c_all, s_all, t_all)).mag();
+    let wt = e.t0.width() + e.t1.width();
+    let pad = f_mag * wt;
+    let total = total + Interval::from_bounds(-pad, pad);
+    (if e.forward { total } else { -total }, removable)
+}
+
+/// The composite rule of [`harmonic_edge_integral`] for `f = p·u′`.
+fn harmonic_rule(e: &TrimEdgeQ, p: HarmChan, pieces: usize) -> (Interval, f64) {
+    let (a, b) = e.limits();
+    let span = b - a;
     let dp = p.deriv();
     let dq = e.u.deriv();
     // f = p·q'; f'' = p''·q' + 2·p'·q'' + p·q'''.
@@ -208,7 +528,7 @@ fn harmonic_edge_integral(
     // (a cursor march would amplify it by ~e^span).
     // Per-piece spread: midpoint ± h/2 (the interval rotation of
     // `trig_over`, midpoint-anchored).
-    // `h` is finite by the `span`/`pieces` guard above, so — as in
+    // `h` is finite by the caller's `span`/`pieces` guard, so — as in
     // `trig_over` — the `.max`/`.min` here operate on refusal-free ring
     // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
@@ -230,55 +550,216 @@ fn harmonic_edge_integral(
         removable += remainder.width();
         total = total + pt(h) * fm + remainder;
     }
-    // Endpoint-bracket pad: |f| near the ends times the t-bracket
-    // widths (module docs).
-    let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
-    let t_all = Interval::from_bounds(a, b);
-    let f_mag = (p.eval(c_all, s_all, t_all) * dq.eval(c_all, s_all, t_all)).mag();
-    let wt = e.t0.width() + e.t1.width();
-    let pad = f_mag * wt;
-    let total = total + Interval::from_bounds(-pad, pad);
-    // Map-residual pad: metric length ≤ (r·mag(u') + mag(v'))·span,
-    // UV-area defect ≤ length·env/r (module docs).
-    let uv_pad = (pt(edge_metric_length(e, radius)) * e.env / radius).mag();
-    let total = total + Interval::from_bounds(-uv_pad, uv_pad);
-    (if e.forward { total } else { -total }, removable)
+    (total, removable)
 }
 
-/// A certified upper bound on the edge's METRIC length (metres):
+/// A certified upper bound on a harmonic edge's METRIC length (metres):
 /// `∫ √(r²u'² + v'²) dt ≤ (r·sup|u'| + sup|v'|)·span`.
-fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
+fn harmonic_metric_length(e: &TrimEdgeQ, lever: Interval) -> f64 {
     let (a, b) = e.limits();
     let span = b - a;
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
     let t_all = Interval::from_bounds(a, b);
     let du = e.u.deriv();
     let dv = e.v.deriv();
-    ((radius * du.eval(c_all, s_all, t_all).abs_enclosure()
+    ((lever * du.eval(c_all, s_all, t_all).abs_enclosure()
         + dv.eval(c_all, s_all, t_all).abs_enclosure())
         * pt(span))
     .mag()
 }
 
-/// The flux and area enclosures of a **cylinder** face with a curved
-/// trim (module docs: the Green form, the composite rule, the honesty
-/// pads), over every loop of the face, the outer first: the Green form
-/// is a sum over edges, so a ring contributes its own `−∮ v du` with
-/// its own winding. Rounds run until `accept` takes one or the lane
-/// stops ([`LaneStop`](super::run::LaneStop)).
-///
-/// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed, `A⃗`
-/// summed over the same loops.
+// ---------------------------------------------------------------------
+// Projected edges (module docs: the curved rims' rule over the frame)
+// ---------------------------------------------------------------------
+
+/// The frame point's jets `(x, y, z)` and the azimuth's rate's numerator
+/// and denominator, `x·y′ − y·x′` and `x² + y²`, of a projected net in
+/// homogeneous coordinates (the weight cancels from `u′`).
+fn net_rate(b: [Jet; 3], db: [Jet; 3], w: Jet) -> (Jet, Jet) {
+    let du = b[0]
+        .mul(db[1])
+        .sub(b[1].mul(db[0]))
+        .mul(b[0].sqr().add(b[1].sqr()).recip());
+    (du, b[2].mul(w.recip()))
+}
+
+/// The jets of `u′` and `z` of a projected circle at the trig jets `c`,
+/// `s` of its parameter.
+fn circle_rate(centre: RVec3, a: RVec3, b: RVec3, c: Jet, s: Jet) -> (Jet, Jet) {
+    let at = |k: usize| Jet::cst(centre[k]).add(c.scale(a[k])).add(s.scale(b[k]));
+    let slope = |k: usize| c.scale(b[k]).sub(s.scale(a[k]));
+    let (x, y) = (at(0), at(1));
+    let du = x
+        .mul(slope(1))
+        .sub(y.mul(slope(0)))
+        .mul(x.sqr().add(y.sqr()).recip());
+    (du, at(2))
+}
+
+/// `[−∫F du, −∫G du, ∫du]` of a projected edge in its carrier's own
+/// order at `pieces` per span or cut interval, and the part of each
+/// width a later round removes.
+fn projected_integrals(
+    e: &ProjectedEdgeQ,
+    chart: RotationalChartQ,
+    anchor: f64,
+    pieces: usize,
+) -> ([Interval; 3], [f64; 3]) {
+    let terms = |du: Jet, z: Jet| {
+        let [f, g] = chart.projected_forms(e.v_off, e.v_sign, z, anchor);
+        let minus = -Interval::one();
+        [f.mul(du).scale(minus), g.mul(du).scale(minus), du]
+    };
+    match &e.carrier {
+        FramedQ::Net(net) => rational_integrals(net, pieces, |b, db, w| {
+            let (du, z) = net_rate(b, db, w);
+            terms(du, z)
+        }),
+        FramedQ::Circle { centre, a, b, cuts } => {
+            let mut total = [Interval::zero(); 3];
+            let mut removable = [0.0_f64; 3];
+            for w in cuts.windows(2) {
+                let (part, rem) = composite(pt(w[0]), pt(w[1]), pieces, |_, c, s| {
+                    let (du, z) = circle_rate(*centre, *a, *b, c, s);
+                    terms(du, z)
+                });
+                for k in 0..3 {
+                    total[k] = total[k] + part[k];
+                    removable[k] += rem[k];
+                }
+            }
+            (total, removable)
+        }
+    }
+}
+
+/// Pieces per span or cut interval at which a projected edge's metric
+/// length and its turn are read once, before the rounds.
+const PROJECTED_ENTRY_PIECES: usize = 4 * EDGE_INIT_PIECES;
+
+/// A certified upper bound on a projected edge's metric length (metres),
+/// `Σ h·(lever·sup|u′| + sup|z′|)` over its pieces; `NaN` where a piece
+/// reads no bound.
+fn projected_metric_length(e: &ProjectedEdgeQ, lever: Interval) -> f64 {
+    let rate = |du: Jet, z: Jet| {
+        let speed = lever * du.0[0].abs_enclosure() + z.0[1].abs_enclosure();
+        if speed.is_certified() {
+            speed.hi()
+        } else {
+            f64::NAN
+        }
+    };
+    match &e.carrier {
+        FramedQ::Net(net) => rational_rate_bound(net, PROJECTED_ENTRY_PIECES, |b, db, w| {
+            let (du, z) = net_rate(b, db, w);
+            rate(du, z)
+        }),
+        FramedQ::Circle { centre, a, b, cuts } => {
+            let mut total = 0.0_f64;
+            for w in cuts.windows(2) {
+                for i in 0..PROJECTED_ENTRY_PIECES {
+                    let (p, q) = (
+                        node(w[0], w[1], PROJECTED_ENTRY_PIECES, i),
+                        node(w[0], w[1], PROJECTED_ENTRY_PIECES, i + 1),
+                    );
+                    let over = Interval::from_bounds(p, q);
+                    let (c, s) = trig_range(p, q);
+                    let (_, cj, sj) = trig_jets(over, c, s);
+                    let (du, z) = circle_rate(*centre, *a, *b, cj, sj);
+                    total += (pt(rate(du, z)) * (pt(q) - pt(p))).hi();
+                }
+            }
+            total
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// One edge, whatever its term
+// ---------------------------------------------------------------------
+
+/// What the lane reads of each edge once, before the rounds: its metric
+/// length, and a projected edge's turn `Δu` in its carrier's order.
+struct EdgeEntry {
+    length: f64,
+    turn: Option<Interval>,
+}
+
+fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, PropsError> {
+    let lever = chart.azimuth_lever();
+    Ok(match e {
+        EdgeTermQ::Harmonic(h) => EdgeEntry {
+            length: harmonic_metric_length(h, lever),
+            turn: None,
+        },
+        EdgeTermQ::Projected(p) => {
+            let length = projected_metric_length(p, lever);
+            let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, PROJECTED_ENTRY_PIECES);
+            if !(length.is_finite() && turn.is_certified()) {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a projected edge whose chart speed or turn reads no enclosure — its \
+                           carrier reaches the chart's axis",
+                });
+            }
+            EdgeEntry {
+                length,
+                turn: Some(turn),
+            }
+        }
+    })
+}
+
+/// One edge's `[−∫F du, −∫G du]` at `pieces`, traversal and pads folded
+/// in, and the part of its flux width a later round removes.
+fn edge_terms(
+    e: &EdgeTermQ,
+    entry: &EdgeEntry,
+    chart: RotationalChartQ,
+    anchor: f64,
+    pieces: usize,
+) -> ([Interval; 2], f64) {
+    let (terms, removable, env) = match e {
+        EdgeTermQ::Harmonic(h) => {
+            let (level, rem) = harmonic_edge_integral(h, anchor, pieces);
+            (chart.of_level(level), rem * chart.level_flux_scale(), h.env)
+        }
+        EdgeTermQ::Projected(p) => {
+            let ([f, g, _], [rf, _, _]) = projected_integrals(p, chart, anchor, pieces);
+            let terms = if p.forward { [f, g] } else { [-f, -g] };
+            (terms, rf, p.env)
+        }
+    };
+    let pad = chart.residual(entry.length, env);
+    (
+        [0, 1].map(|k| terms[k] + Interval::from_bounds(-pad[k], pad[k])),
+        removable,
+    )
+}
+
+/// The face's chart term at `pieces`, and the part of its width a later
+/// round removes.
+fn chart_term_at(term: &ChartTermQ, pieces: usize) -> (Interval, f64) {
+    term.rationals
+        .iter()
+        .fold((term.closed, 0.0), |(acc, removable), e| {
+            let (va, rem) = rational_vector_area_split(e, pieces);
+            let flux = (0..3).fold(acc, |a, k| a + term.lever[k] * va[k]);
+            let rem: f64 = (0..3).map(|k| term.lever[k].mag() * rem[k]).sum();
+            (flux, removable + rem)
+        })
+}
+
+// ---------------------------------------------------------------------
+// The lane
+// ---------------------------------------------------------------------
+
+/// The flux and area enclosures of a **cylinder** face whose loops are
+/// all harmonic: [`rotational_cut_face_rounds`] on the cylinder chart,
+/// with `o_dot_va` its whole chart term, over the full schedule.
 ///
 /// # Errors
 ///
-/// [`PropsError`] — `accept`'s own refusal, an escalated funnel
-/// decision, a degenerate face, a loop that winds the cylinder by no
-/// whole number of turns, or loops that wind it together
-/// ([`PropsError::LoopsWindChart`]), a ring wound with its face at the
-/// round the call ends ([`PropsError::RingWoundWithFace`]), one wholly
-/// inside the band, or one still straddling it there (an accepted round
-/// whose ring straddles refines on, [`Run::ringed`]).
+/// As [`rotational_cut_face_rounds`].
 pub fn cylinder_cut_face<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
@@ -289,17 +770,11 @@ pub fn cylinder_cut_face<T: Decide>(
     cylinder_cut_face_rounds::<T>(radius, o_dot_va, loops, band, RoundWindow::SCHEDULE, accept)
 }
 
-/// [`cylinder_cut_face`] over a [`RoundWindow`] — the same schedule,
-/// entered and left where the window says (that type's docs carry why
-/// the pieces of a schedule compose).
-///
-/// `pub` because its consumer is `topo`'s `props::quad_lane`, across
-/// the crate boundary; there is no narrower visibility that reaches
-/// it.
+/// [`cylinder_cut_face`] over a [`RoundWindow`].
 ///
 /// # Errors
 ///
-/// As [`cylinder_cut_face`].
+/// As [`rotational_cut_face_rounds`].
 pub fn cylinder_cut_face_rounds<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
@@ -308,47 +783,93 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
     window: RoundWindow,
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
-    let winds = loop_windings::<T>(loops, radius, band)?;
-    let anchor = level_anchor(loops)?;
-    let edges: usize = loops.iter().map(|l| l.len()).sum();
-    let cost = |round: usize| round_cost(edges, round);
+    let face = RotationalFaceQ {
+        chart: RotationalChartQ::Cylinder { radius },
+        chart_term: ChartTermQ {
+            closed: o_dot_va,
+            lever: [Interval::zero(); 3],
+            rationals: Vec::new(),
+        },
+        loops: loops
+            .iter()
+            .map(|edges| edges.iter().copied().map(EdgeTermQ::Harmonic).collect())
+            .collect(),
+    };
+    rotational_cut_face_rounds::<T>(&face, band, window, accept)
+}
+
+/// The flux and area enclosures of a face on a chart of revolution with
+/// a curved trim (module docs: the Green form, the edge terms, the
+/// rules, the honesty pads), over every loop of the face, the outer
+/// first: the Green form is a sum over edges, so a ring contributes its
+/// own `−∮ G du` with its own winding. Rounds run over `window` until
+/// `accept` takes one or the lane stops
+/// ([`LaneStop`](super::run::LaneStop)); the pieces of a schedule
+/// compose ([`RoundWindow`]).
+///
+/// `pub` because its consumer is `topo`'s `props::quad_lane`, across
+/// the crate boundary; there is no narrower visibility that reaches
+/// it.
+///
+/// # Errors
+///
+/// [`PropsError`] — `accept`'s own refusal, an escalated funnel
+/// decision, a degenerate face, a projected edge whose chart speed reads
+/// no enclosure, a loop that winds the chart by no whole number of
+/// turns, or loops that wind it together
+/// ([`PropsError::LoopsWindChart`]), a ring wound with its face at the
+/// round the call ends ([`PropsError::RingWoundWithFace`]), one wholly
+/// inside the band, or one still straddling it there (an accepted round
+/// whose ring straddles refines on, [`Run::ringed`]).
+pub fn rotational_cut_face_rounds<T: Decide>(
+    face: &RotationalFaceQ,
+    band: Band,
+    window: RoundWindow,
+    accept: &mut Accept<'_>,
+) -> Result<LaneRun, PropsError> {
+    let chart = face.chart;
+    let entries: Vec<Vec<EdgeEntry>> = face
+        .loops
+        .iter()
+        .map(|edges| edges.iter().map(|e| edge_entry(e, chart)).collect())
+        .collect::<Result<_, _>>()?;
+    let winds = loop_windings::<T>(face, &entries, band)?;
+    let anchor = level_anchor(&face.loops)?;
+    let cost = |round: usize| face_cost(face, round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     let mut pieces = EDGE_INIT_PIECES << round;
     loop {
-        // Signed UV area at this resolution, per loop:
-        // A_s = −Σ ∮ (v − anchor) du.
+        // Per loop: [−∮F du, −∮G du] at this resolution.
         let mut removable = 0.0_f64;
-        let per_loop: Vec<Interval> = loops
+        let per_loop: Vec<[Interval; 2]> = face
+            .loops
             .iter()
-            .map(|edges| {
-                edges.iter().fold(Interval::zero(), |a, e| {
-                    let (term, rem) = harmonic_edge_integral(e, anchor, pieces, radius);
-                    removable += rem;
-                    a + term
-                })
+            .zip(&entries)
+            .map(|(edges, entries)| {
+                edges
+                    .iter()
+                    .zip(entries)
+                    .fold([Interval::zero(); 2], |acc, (e, entry)| {
+                        let (terms, rem) = edge_terms(e, entry, chart, anchor, pieces);
+                        removable += rem;
+                        [acc[0] + terms[0], acc[1] + terms[1]]
+                    })
             })
             .collect();
-        let a_s = per_loop.iter().fold(Interval::zero(), |a, &l| a + l);
-        let area = (radius * a_s).abs_enclosure();
-        let flux = radius.sqr() * a_s + o_dot_va;
+        let (term, term_rem) = chart_term_at(&face.chart_term, pieces);
+        let (flux, signed) = per_loop
+            .iter()
+            .fold((term, Interval::zero()), |(f, a), l| (f + l[0], a + l[1]));
+        let area = signed.abs_enclosure();
         let bounds = FaceCutBounds { flux, area };
-        let (stop, accepted) = run.ask(
-            round,
-            bounds,
-            radius.sqr().mag() * removable,
-            accept,
-            || {
-                let perim: f64 = loops
-                    .iter()
-                    .flat_map(|edges| edges.iter())
-                    .map(|e| edge_metric_length(e, radius))
-                    .sum();
+        let (stop, accepted) =
+            run.ask(round, bounds, removable + term_rem, accept, || {
+                let perim: f64 = entries.iter().flatten().map(|e| e.length).sum();
                 face_extent::<T>(area, perim, band)
-            },
-        )?;
+            })?;
         if let Some(out) = run.ringed(round, stop, accepted, bounds, || {
-            require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)
+            require_holes_wound_against(&entries, &per_loop, &winds, signed, band)
         })? {
             return Ok(out);
         }
@@ -358,71 +879,94 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 }
 
 /// An edge's chart point `(u, v)` where its traversal starts (`end`
-/// false) or ends, at its [`TrimEdgeQ::limits`].
-fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
-    let (a, b) = e.limits();
-    let (trig, t) = if end == e.forward {
-        (e.trig1.unwrap_or_else(|| trig_at(e.trig0, b - a)), b)
-    } else {
-        (e.trig0, a)
-    };
-    (
-        e.u.eval(trig.0, trig.1, pt(t)),
-        e.v.eval(trig.0, trig.1, pt(t)),
-    )
+/// false) or ends — a harmonic edge's at its [`TrimEdgeQ::limits`].
+fn chart_end(e: &EdgeTermQ, end: bool) -> (Interval, Interval) {
+    match e {
+        EdgeTermQ::Harmonic(e) => {
+            let (a, b) = e.limits();
+            let (trig, t) = if end == e.forward {
+                (e.trig1.unwrap_or_else(|| trig_at(e.trig0, b - a)), b)
+            } else {
+                (e.trig0, a)
+            };
+            (
+                e.u.eval(trig.0, trig.1, pt(t)),
+                e.v.eval(trig.0, trig.1, pt(t)),
+            )
+        }
+        EdgeTermQ::Projected(p) => p.ends[usize::from(end == p.forward)],
+    }
 }
 
-/// How far an edge's chart point at one end of its traversal, read at
-/// its [`TrimEdgeQ::limits`], may sit from the image of the vertex it
-/// stands for, in the chart metric `R·|Δu| + |Δv|`: the pcurve's
-/// certificate envelope (a distance in metres, which that metric
-/// exceeds by at most `√2`, taken as `3/2`), plus the end's parameter
-/// bracket half-width times the edge's speed bound in that metric. The
-/// trig brackets need no term: [`chart_end`]'s enclosures carry them.
-fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
-    let (a, b) = e.limits();
-    let bracket = if end == e.forward { e.t1 } else { e.t0 };
-    let span = b - a;
-    let speed = if span > 0.0 {
-        edge_metric_length(e, radius) / span
-    } else {
-        0.0
+/// How far an edge's chart point at one end of its traversal may sit
+/// from the image of the vertex it stands for, in the chart metric
+/// `lever·|Δu| + |Δv|`: the pcurve's certificate envelope (a distance in
+/// metres, which that metric exceeds by at most `√2`, taken as `3/2`),
+/// plus, on a harmonic edge, the end's parameter bracket half-width
+/// times the edge's speed bound in that metric. The trig brackets need
+/// no term: [`chart_end`]'s enclosures carry them.
+fn end_slack(e: &EdgeTermQ, entry: &EdgeEntry, end: bool) -> f64 {
+    let (env, bracket) = match e {
+        EdgeTermQ::Harmonic(e) => {
+            let (a, b) = e.limits();
+            let bracket = if end == e.forward { e.t1 } else { e.t0 };
+            let span = b - a;
+            let speed = if span > 0.0 { entry.length / span } else { 0.0 };
+            (e.env, speed * bracket.width() * 0.5)
+        }
+        EdgeTermQ::Projected(p) => (p.env, 0.0),
     };
-    (1.5 * certified_hi(e.env) + speed * bracket.width() * 0.5) * (1.0 + 1e-12)
+    (1.5 * certified_hi(env) + bracket) * (1.0 + 1e-12)
 }
 
-/// **Every junction of every loop closes on the cylinder, and the
-/// loops wind it as a face's boundary does** — the periodic-chart
-/// closure decision ([`crate::props::closure`]) on the quadrature's chart
-/// images.
+/// **Every junction of every loop closes on the chart, and the loops
+/// wind it as a face's boundary does** — the periodic-chart closure
+/// decision ([`crate::props::closure`]) on the lane's chart images.
 ///
-/// Each junction's gap is read off the two ends' chart images, each
-/// through its own end's trig bracket at its limit ([`chart_end`]): the azimuth
-/// metered at the radius, the level bare, and the slack the two ends'
-/// [`end_slack`] ([`crate::props::closure::interval_loop_turns`]).
+/// Each junction's gap is read off the two ends' chart images
+/// ([`chart_end`]): the azimuth metered at the chart's lever, the level
+/// bare, and the slack the two ends' [`end_slack`]
+/// ([`crate::props::closure::interval_loop_turns`]). A projected edge
+/// adds one junction of its own, its image's end less its start less its
+/// turn `Δu` (its ends are the image's evaluator's and its turn the
+/// rule's), so its whole turns count as the integral reads them.
 ///
 /// Returns, per loop, whether it winds.
 fn loop_windings<T: Decide>(
-    loops: &[&[TrimEdgeQ]],
-    radius: Interval,
+    face: &RotationalFaceQ,
+    entries: &[Vec<EdgeEntry>],
     band: Band,
 ) -> Result<Vec<bool>, PropsError> {
-    let mut windings = Vec::with_capacity(loops.len());
-    for edges in loops {
-        let junctions = edges
-            .iter()
-            .zip(edges.iter().cycle().skip(1))
-            .map(|(e, next)| {
-                let (u1, v1) = chart_end(e, true);
-                let (u0, v0) = chart_end(next, false);
-                crate::props::closure::IntervalJunction {
-                    delta: [u1 - u0, v1 - v0],
-                    lever: [radius, pt(1.0)],
-                    slack: end_slack(e, true, radius) + end_slack(next, false, radius),
-                }
-            });
-        let [k, _] =
-            crate::props::closure::interval_loop_turns::<T, 2>(junctions, [true, false], band)?;
+    let lever = face.chart.azimuth_lever();
+    let mut windings = Vec::with_capacity(face.loops.len());
+    for (edges, entries) in face.loops.iter().zip(entries) {
+        let n = edges.len();
+        let junctions = (0..n).map(|i| {
+            let (e, next) = (&edges[i], &edges[(i + 1) % n]);
+            let (u1, v1) = chart_end(e, true);
+            let (u0, v0) = chart_end(next, false);
+            crate::props::closure::IntervalJunction {
+                delta: [u1 - u0, v1 - v0],
+                lever: [lever, pt(1.0)],
+                slack: end_slack(e, &entries[i], true)
+                    + end_slack(next, &entries[(i + 1) % n], false),
+            }
+        });
+        let internal = edges.iter().zip(entries).filter_map(|(e, entry)| {
+            let (EdgeTermQ::Projected(p), Some(turn)) = (e, entry.turn) else {
+                return None;
+            };
+            Some(crate::props::closure::IntervalJunction {
+                delta: [p.ends[1].0 - p.ends[0].0 - turn, Interval::zero()],
+                lever: [lever, pt(1.0)],
+                slack: 0.0,
+            })
+        });
+        let [k, _] = crate::props::closure::interval_loop_turns::<T, 2>(
+            junctions.chain(internal),
+            [true, false],
+            band,
+        )?;
         windings.push([k]);
     }
     crate::props::closure::require_boundary_windings(&windings)?;
@@ -442,10 +986,10 @@ fn loop_windings<T: Decide>(
 /// # Errors
 ///
 /// [`PropsError::DegenerateFace`] for a face whose loops hold no edge.
-fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
+fn level_anchor(loops: &[Vec<EdgeTermQ>]) -> Result<f64, PropsError> {
     let (lo, hi) = loops
         .iter()
-        .flat_map(|edges| edges.iter())
+        .flatten()
         .map(|e| mid(chart_end(e, false).1))
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
             (lo.min(v), hi.max(v))
@@ -457,8 +1001,8 @@ fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
     }
 }
 
-/// **Every ring that does not wind the cylinder winds against its
-/// face**, through the closed forms' own decision
+/// **Every ring that does not wind the chart winds against its face**,
+/// through the closed forms' own decision
 /// ([`crate::props::curved::require_holes_wound_against`], the mean width
 /// `2·A/P` of the face's whole and of each such ring, in m² over m) at
 /// the interval scalar: a ring definitely opposite to the whole passes,
@@ -471,25 +1015,19 @@ fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
 /// wind is a hole, the first one stored included. A face with one loop
 /// decides nothing here.
 fn require_holes_wound_against(
-    loops: &[&[TrimEdgeQ]],
-    per_loop: &[Interval],
+    entries: &[Vec<EdgeEntry>],
+    per_loop: &[[Interval; 2]],
     winds: &[bool],
-    a_s: Interval,
-    radius: Interval,
+    signed: Interval,
     band: Band,
 ) -> Result<(), PropsError> {
-    if loops.len() < 2 {
+    if entries.len() < 2 {
         return Ok(());
     }
-    let length = |edges: &[TrimEdgeQ]| {
-        pt(edges
-            .iter()
-            .map(|e| edge_metric_length(e, radius))
-            .sum::<f64>())
-    };
+    let length = |entries: &[EdgeEntry]| pt(entries.iter().map(|e| e.length).sum::<f64>());
     let whole = (
-        radius * a_s,
-        loops
+        signed,
+        entries
             .iter()
             .fold(Interval::zero(), |l, edges| l + length(edges)),
     );
@@ -497,13 +1035,13 @@ fn require_holes_wound_against(
     // others are its holes; with one, the face is a band and every loop
     // that does not wind is a hole, wherever it is stored.
     let band_face = winds.iter().any(|&w| w);
-    let holes: Vec<(Interval, Interval)> = loops
+    let holes: Vec<(Interval, Interval)> = entries
         .iter()
         .zip(per_loop)
         .zip(winds)
         .enumerate()
         .filter(|&(i, (_, &winds))| !winds && (band_face || i > 0))
-        .map(|(_, ((edges, &ring), _))| (radius * ring, length(edges)))
+        .map(|(_, ((edges, ring), _))| (ring[1], length(edges)))
         .collect();
     crate::props::curved::require_holes_wound_against("props_chart_area_side", whole, &holes, band)
 }
@@ -739,13 +1277,16 @@ mod tests {
         let target = eps.max(1e-9);
         // Round 0's convergence reading, as the lane takes it.
         let converges_at_round_0 = |loops: &[&[TrimEdgeQ]]| {
-            let anchor = level_anchor(loops).unwrap();
-            let a_s = loops
+            let chart = RotationalChartQ::Cylinder { radius: pt(1.0) };
+            let loops: Vec<Vec<EdgeTermQ>> = loops
                 .iter()
-                .flat_map(|edges| edges.iter())
-                .fold(Interval::zero(), |a, e| {
-                    a + harmonic_edge_integral(e, anchor, EDGE_INIT_PIECES, pt(1.0)).0
-                });
+                .map(|edges| edges.iter().copied().map(EdgeTermQ::Harmonic).collect())
+                .collect();
+            let anchor = level_anchor(&loops).unwrap();
+            let a_s = loops.iter().flatten().fold(Interval::zero(), |a, e| {
+                let entry = edge_entry(e, chart).unwrap();
+                a + edge_terms(e, &entry, chart, anchor, EDGE_INIT_PIECES).0[0]
+            });
             let bounds = FaceCutBounds {
                 flux: a_s,
                 area: a_s.abs_enclosure(),
@@ -1409,7 +1950,7 @@ mod tests {
                 trig1: None,
                 env: pt(0.0),
             };
-            let (enclosure, _) = harmonic_edge_integral(&e, 0.0, 65_536, pt(1.0));
+            let (enclosure, _) = harmonic_edge_integral(&e, 0.0, 65_536);
             // Dense Kahan-summed midpoint oracle of the TRUE integral,
             // `∫ −v·u' dt`.
             let minus_v = chan(-2.0, -0.7, -0.4, -0.3);

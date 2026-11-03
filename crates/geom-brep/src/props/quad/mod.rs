@@ -10,9 +10,10 @@
 //! Five engines, one file each; each file's docs carry its rule and its
 //! honesty pads:
 //!
-//! - [`cylinder`]: [`cylinder_cut_face_rounds`], a cylinder face with a
-//!   curved trim, by the Green form on its harmonic pcurves (on the
-//!   transcendental-free enclosures of [`trig`]);
+//! - [`rotational`]: [`rotational_cut_face_rounds`], a face on a chart
+//!   of revolution (the cylinder) with a curved trim, by the Green form
+//!   on its harmonic pcurves (on the transcendental-free enclosures of
+//!   [`trig`]) and its projected ones (on the curved rims' Taylor rule);
 //! - [`green`]: the B-spline Green integral, [`bspline_green_integral`],
 //!   the same boundary rule on spline channels, with no at-rest consumer;
 //! - [`patch`]: [`nurbs_patch_face_rounds`], the polynomial patch over a
@@ -58,7 +59,7 @@
 
 mod area;
 mod cells;
-mod cylinder;
+mod rotational;
 mod green;
 mod net;
 mod patch;
@@ -69,7 +70,10 @@ mod trimmed;
 
 pub use area::boundary_chord_perimeter_lo;
 
-pub use cylinder::{HarmChan, TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds};
+pub use rotational::{
+    ChartTermQ, EdgeTermQ, FramedQ, HarmChan, ProjectedEdgeQ, RotationalChartQ, RotationalFaceQ,
+    TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds, rotational_cut_face_rounds,
+};
 pub use green::bspline_green_integral;
 pub use net::{PatchNet, RVec3};
 pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};

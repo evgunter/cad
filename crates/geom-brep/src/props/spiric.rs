@@ -85,44 +85,8 @@ use geom_core::{Band, Bounds, Decide};
 use super::PropsError;
 use super::bracket::{AbsEnclosure, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
-use super::quad::{
-    Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent, rotate,
-    spread_cos, spread_sin, trig_at,
-};
-use super::taylor::{Jet, composite_by, node};
-
-/// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
-fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
-    let z = Interval::zero();
-    (
-        Jet([t, Interval::one(), z, z, z]),
-        Jet([c, -s, -c / pt(2.0), s / pt(6.0), c / pt(24.0)]),
-        Jet([s, c, -s / pt(2.0), -c / pt(6.0), s / pt(24.0)]),
-    )
-}
-
-/// `(cos t, sin t)` over every `t ∈ [lo, hi]`, exact `f64` ends: rotated
-/// from the exact `(1, 0)` at `t = 0` to the midpoint, then widened over
-/// the half-width by the interval rotation — the one widening every
-/// enclosure here reads (a parameter bracket, a piece, an edge's span).
-/// Exact for `lo = hi`; the whole circle past a half-width of `1.5`.
-fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
-    let m = lo + (hi - lo) * 0.5;
-    if !(m.is_finite() && lo <= hi) {
-        return (Interval::refused(), Interval::refused());
-    }
-    let at = trig_at((Interval::one(), Interval::zero()), m);
-    let hw = (pt(hi) - pt(m)).hi().max((pt(m) - pt(lo)).hi());
-    rotate(at.0, at.1, spread_cos(hw), spread_sin(hw))
-}
-
-/// [`trig_range`] over a parameter bracket.
-fn trig_of(x: Interval) -> (Interval, Interval) {
-    if !x.is_certified() {
-        return (Interval::refused(), Interval::refused());
-    }
-    trig_range(x.lo(), x.hi())
-}
+use super::quad::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent};
+use super::taylor::{Jet, composite, node, trig_of, trig_range};
 
 /// **The one home of a spiric edge's rate bounds over a window `[lo, hi]`
 /// of its parameter**, `sup|sin t|` and `inf f` read apart:
@@ -238,32 +202,6 @@ fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
         .filter(|v| v.is_certified())
         .map(Bounds::hi)
         .reduce(f64::min)
-}
-
-/// `∫_a^b g` for `N` integrands at once, `pieces` equal pieces (the rule
-/// in the module docs), plus the endpoint-bracket pad: `a`, `b` are the
-/// brackets' midpoints, and `widths` their summed half-widths, paid at
-/// `sup|g|` over the span's own window; and per integrand the summed
-/// width of its remainder terms `g₄·∫(t − x)⁴`, the part of its width a
-/// later round removes. The integrands see `t`, `cos t` and `sin t` as
-/// jets ([`composite_by`] over them).
-fn composite<const N: usize>(
-    t0: Interval,
-    t1: Interval,
-    pieces: usize,
-    g: impl Fn(Jet, Jet, Jet) -> [Jet; N],
-) -> ([Interval; N], [f64; N]) {
-    composite_by(
-        t0,
-        t1,
-        pieces,
-        |_, _| (),
-        |(), t| {
-            let (c, s) = trig_range(t.lo(), t.hi());
-            let (tj, cj, sj) = trig_jets(t, c, s);
-            g(tj, cj, sj)
-        },
-    )
 }
 
 /// `ρ = R + r·cos t` and `f = √(ρ² − d²)` as jets.

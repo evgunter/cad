@@ -79,7 +79,7 @@ pub(super) fn limit(t: Interval) -> f64 {
 }
 
 /// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is
-/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`](super::cylinder::TrimEdgeQ::limits) takes it),
+/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`](super::rotational::TrimEdgeQ::limits) takes it),
 /// by `trig_at` from the exact `(1, 0)` at `a = 0`: transcendental-free,
 /// and its width grows with `|a|` by the double-angle steps, 1.7e-13 at
 /// `a = π` and 3.4e-13 at `2π`. Refused for a refused bracket.

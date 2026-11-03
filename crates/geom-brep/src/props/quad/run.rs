@@ -457,7 +457,7 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// by round, as an O(h²) rule must. The payload lied, and the
 /// convergence predicate was decided by a division artifact instead of
 /// by the enclosure. When the flux width is also
-/// zero — [`cylinder_cut_face`](super::cylinder::cylinder_cut_face)'s `area = [0, 0]` for a zero-UV-area
+/// zero — [`cylinder_cut_face`](super::rotational::cylinder_cut_face)'s `area = [0, 0]` for a zero-UV-area
 /// trim loop — the same division is `0/0 = NaN`, which the funnel
 /// turns into `Indeterminate{margin: Invalid}`: a MIS-TYPED refusal,
 /// since [`PropsError::Escalated`] means an *in-band* margin, not a
@@ -526,7 +526,7 @@ mod tests {
 
     use super::super::net::PatchRect;
     use super::super::trimmed::{Curvature, OuterRule};
-    use super::super::{cylinder, patch, rational};
+    use super::super::{patch, rational, rotational};
     use crate::props::bracket::pt;
     use crate::props::spiric;
 
@@ -574,7 +574,7 @@ mod tests {
                 &|r| rational::round_cost(unit, bare, true, r),
                 11,
             ),
-            ("cylinder, 4 edges", &|r| cylinder::round_cost(4, r), 15),
+            ("cylinder, 4 edges", &|r| rotational::round_cost(4, r), 15),
             ("spiric, 1 edge", &|r| spiric::round_cost(1, 0, r), 13),
             (
                 "rational rim, degree 2, 4 spans (the vase's cap)",
