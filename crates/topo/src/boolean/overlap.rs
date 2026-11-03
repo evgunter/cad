@@ -39,7 +39,7 @@ use std::sync::Arc;
 use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::{Hit, Span};
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
 use super::contain::{CurvedPlacement, FaceContainment, PlacementError, face_placement};
@@ -221,9 +221,9 @@ fn one_sense<T: Decide>(
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
         "bool_overlap_senses",
-        // Unsourced lever: the cosine of two unit normals is read at unit arm, an angle
-        // with no length behind it.
-        Margin::levered(na.dot(nb), geom_core::Lever::unsourced(T::one())),
+        // Unsourced lever: the unit normals' cosine is read at a unit arm,
+        // not over the faces' extent; the holdings row owns its source.
+        Margin::levered(na.dot(nb), Lever::unsourced(T::one())),
         band,
     ) {
         Ok(Sign::Positive) => Ok(()),

@@ -14,7 +14,7 @@
 //! cross, so they cut the orbit into regions, one per piece of the
 //! material round the vertex on one side of the plane, and each region's
 //! edges belong at one vertex: the regions are the nodes of a tree whose
-//! edges are the corners ([`crate::null::ring_tree`], the boolean pierce
+//! edges are the corners ([`crate::star::ring_tree`], the boolean pierce
 //! ring's reading).
 //!
 //! Where the runs lie apart, every corner pairs one Above run's two cuts,
@@ -42,18 +42,13 @@
 //! first, at the vertex holding its parent region: its copy takes the
 //! corner's arc of the orbit, the side away from the anchor, so the copy
 //! stands for the child region and is that side's end of the null edge.
-//! The fan site is resolved **at execution time**: `he1` = the arc's
-//! first real half-edge, `he2` = the orbit successor of its last
-//! ([`Body::run_site`]) in the current body, which counts the splices of
-//! the corners minted before it. An arc with no real half-edge (only
-//! subdivision duplicates of one sector) becomes the **dangling** null
-//! edge: the strut site `Fan { he, he }` at the sector's next real
-//! half-edge. A sector holds at most one such arc: the plane's side
-//! changes sign at most twice inside it. An
-//! arc holding every half-edge of the vertex is the mirror case
-//! ([`crate::euler::RunSite::WholeOrbit`]): a strut inside the one sector
-//! the arc leaves, whose tip stands for the parent region, while the
-//! vertex keeps the arc and stands for the child.
+//! Each corner's site is its arc's ([`crate::star::arc_site`]),
+//! resolved **at execution time** in the current body, which counts the
+//! splices of the corners minted before it: a fan, a strut inside the
+//! arc's sector where the arc holds only subdivision duplicates of one
+//! sector, or, where the arc holds every real half-edge of the vertex,
+//! the strut whose tip stands for the parent region while the vertex
+//! keeps the arc and stands for the child.
 //!
 //! Orientation is **data** (F9): the end standing for an Above region is
 //! the above end ([`Body::mev_null_run`]). Each copy's side verdict is
@@ -65,55 +60,16 @@ use slotmap::SecondaryMap;
 
 use super::neighborhood::{EntryRay, sector_face};
 use super::{
-    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
-    SplitPlane, SplitReduceError,
+    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SplitPlane,
+    SplitReduceError,
 };
 use crate::body::Body;
 use crate::chord_join::ApexRulingFault;
-use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
-use crate::euler::{MevSite, RunSite};
-use crate::live::{Proven, proven};
+use crate::entity::{HalfEdgeKey, VertexKey};
+use crate::live::Proven;
 use crate::null::NewVertexSide;
 use crate::sector_face::VertexFace;
 use crate::validate::{decide, decide_nonzero};
-
-/// A maximal cyclic run of ABOVE entries, by entry index.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct AboveRun {
-    /// Index of the run's first entry.
-    pub start: usize,
-    /// Number of entries in the run (≥ 1).
-    pub len: usize,
-}
-
-/// Enumerates the maximal cyclic ABOVE runs of a fully reclassified
-/// entry array, in deterministic order (first run after the anchor
-/// BELOW entry with the lowest index). A one-sided neighborhood (no
-/// ABOVE, or no BELOW — a vertex the plane merely touches) has no runs:
-/// nothing to separate, no null edge (ch. 14 §14.6).
-pub(super) fn above_runs(entries: &[SectorEntry]) -> Vec<AboveRun> {
-    let n = entries.len();
-    let Some(anchor) = entries.iter().position(|e| e.class == PlaneSide::Below) else {
-        return Vec::new(); // no BELOW anywhere: one-sided
-    };
-    let mut runs = Vec::new();
-    let mut k = 0;
-    while k < n {
-        let idx = (anchor + 1 + k) % n;
-        if entries[idx].class == PlaneSide::Above {
-            let start = idx;
-            let mut len = 0;
-            while k < n && entries[(anchor + 1 + k) % n].class == PlaneSide::Above {
-                len += 1;
-                k += 1;
-            }
-            runs.push(AboveRun { start, len });
-        } else {
-            k += 1;
-        }
-    }
-    runs
-}
 
 /// **The section's corners at the vertex** (module docs): `cuts` (two or
 /// more pairs) paired as the material lies between their germs round
@@ -476,167 +432,69 @@ pub(super) fn insert_null_edges<T: Decide>(
         order[q] = Some(2 * i + 1);
     }
     let order: Vec<usize> = order.into_iter().flatten().collect();
-    let tree = crate::null::ring_tree(&order, Some(0))
+    let tree = crate::star::ring_tree(&order, Some(0))
         .ok_or_else(|| unordered(SectionGermFault::Crossing))?;
-    // The vertex standing for each corner's child region, once minted.
-    let mut child: Vec<Option<VertexKey>> = vec![None; arcs.len()];
-    for strut in tree {
+    // Each strut hangs at the vertex standing for its parent region, and
+    // the end its mint leaves on its arc's side stands for its own.
+    crate::star::hang(&tree, |strut, parent| {
         let (p, q) = arcs[strut.run];
-        let at = match strut.parent {
-            None => vertex,
-            Some(parent) => child[parent].unwrap_or_else(|| {
-                unreachable!("ring_tree mints each strut after the one it hangs at")
-            }),
+        let at = parent.unwrap_or(vertex);
+        let arc = crate::star::Run {
+            start: (anchor + p + 1) % n,
+            len: q - p,
         };
-        let arc = |j: usize| &entries[(anchor + p + 1 + j) % n];
-        let side = arc(0).class;
+        let side = entries[arc.start].class;
         // A corner pairs a start with an end, and either way round the
         // orbit its arc leaves the one and reaches the other on one side.
-        if arc(q - p - 1).class != side {
+        let end = entries[(anchor + q) % n].class;
+        if end != side {
             unreachable!(
-                "the corner {:?} at {vertex:?} has an arc from {:?} to {:?}",
-                (p, q),
-                side,
-                arc(q - p - 1).class
+                "the corner {:?} at {vertex:?} has an arc from {side:?} to {end:?}",
+                (p, q)
             );
         }
-        let mut real = (0..q - p)
-            .map(arc)
-            .filter(|e| e.kind == SectorEntryKind::Edge);
-        let first = real.next();
-        let last = real.next_back().or(first);
-        // `whole_orbit`: the copy is the strut tip standing for the
-        // parent region.
-        let (site, dangling, whole_orbit) = match (first, last) {
-            // he2 at execution time (module docs).
-            (Some(first), Some(last)) => {
-                match body.run_site(first.he, last.he).unwrap_or_else(|| {
-                    unreachable!(
-                        "the arc {:?} ..= {:?} at {at:?} has no orbit successor: its halves come \
-                     from the orbit the reduction just walked, the reduction kills nothing, and \
-                     {}",
-                        first.he,
-                        last.he,
-                        crate::live::NAMES_ONLY_LIVE
-                    )
-                }) {
-                    site @ RunSite::Fan { .. } => (site.mev_site(), false, false),
-                    site @ RunSite::WholeOrbit { .. } => (site.mev_site(), true, true),
-                }
-            }
-            // Duplicates alone: the strut inside their sector P, before the
-            // sector's next real edge Q, the first `Edge` entry past the arc
-            // (an apex sector may hold a second duplicate between the arc
-            // and Q). A sector holds at most one such arc: its arc is the
-            // stretch between two sign changes of the plane's side inside
-            // the sector, and that side changes sign at most twice in a
-            // sector (once in a tangent plane's wide sector; twice in a
-            // slit tip's full turn, which a plane through the tip meets
-            // along one line; at a cone's apex, `c + k cos(φ − φ₀)` has at
-            // most two zeros). P and Q lie
-            // just outside the arc, in the parent region, and another
-            // corner's mint splices only at its own arc's ends, so Q's
-            // corner is still at `at`.
-            _ => {
-                let next_real = body.strut_before_next_real(
-                    (at, arc(0).he),
-                    (q + 1..q + 1 + n).map(|j| {
-                        let e = &entries[(anchor + j) % n];
-                        (e.he, e.kind == SectorEntryKind::Edge)
-                    }),
-                    || format!("the duplicate arc {:?}", (p, q)),
-                );
-                (
-                    MevSite::Fan {
-                        he1: next_real,
-                        he2: next_real,
-                    },
-                    true,
-                    false,
-                )
-            }
-        };
+        // An arc of duplicates alone hangs its strut inside their sector
+        // P, before the sector's next real edge Q, the first `Edge` entry
+        // past the arc (an apex sector may hold a second duplicate between
+        // the arc and Q). A sector holds at most one such arc: its arc is
+        // the stretch between two sign changes of the plane's side inside
+        // the sector, and that side changes sign at most twice in a sector
+        // (once in a tangent plane's wide sector; twice in a slit tip's
+        // full turn, which a plane through the tip meets along one line;
+        // at a cone's apex, `c + k cos(φ − φ₀)` has at most two zeros). P
+        // and Q lie just outside the arc, in the parent region, and
+        // another corner's mint splices only at its own arc's ends, so
+        // Q's corner is still at `at`.
+        let site = crate::star::arc_site(body, at, entries, arc, || {
+            format!("the arc {:?} of {vertex:?}", (p, q))
+        });
         let side = match side {
             PlaneSide::Above => NewVertexSide::Above,
             _ => NewVertexSide::Below,
         };
-        let mint = body.mev_null_run(site, at, side, !whole_orbit)?;
-        let (created, attr) = (mint.created, mint.attr);
-        child[strut.run] = Some(if whole_orbit { at } else { created.vertex });
-        sides.insert(created.vertex, PlaneSide::On);
-        // The half leaving `at` lies in the sector the orbit reaches just
-        // before it, its mate in the one just after: the arc's first cut
-        // and its last where the copy takes the arc, the other way round
-        // where `at` keeps it.
-        let edge = proven(&body.edges, created.edge, EntityId::Edge);
-        let (from_at, to_at) =
-            if proven(&body.half_edges, edge.he_plus, EntityId::HalfEdge).start == at {
-                (edge.he_plus, edge.he_minus)
-            } else {
-                (edge.he_minus, edge.he_plus)
-            };
-        let [first, last] = [apex_germs[(anchor + p) % n], apex_germs[(anchor + q) % n]];
-        let (from_at_germ, to_at_germ) = if whole_orbit {
-            (last, first)
-        } else {
-            (first, last)
-        };
-        for (half, germ) in [(from_at, from_at_germ), (to_at, to_at_germ)] {
+        let mint = body.mev_null_run(site, side)?;
+        sides.insert(mint.created.vertex, PlaneSide::On);
+        // The halves face the arc's first cut and its last.
+        let germs_at = [apex_germs[(anchor + p) % n], apex_germs[(anchor + q) % n]];
+        for (half, germ) in mint.halves.into_iter().zip(germs_at) {
             if let Some(germ) = germ {
                 germs.insert(half, germ);
             }
         }
         records.push(NullEdgeRecord {
-            at_vertex: at,
-            edge: created.edge,
-            attr,
-            dangling,
+            at_vertex: mint.at,
+            edge: mint.created.edge,
+            attr: mint.attr,
+            dangling: site.dangling(),
         });
-    }
-    Ok(())
+        Ok::<_, SplitReduceError>(mint.run_end)
+    })
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::*;
-    use crate::entity::HalfEdgeKey;
     use crate::live::Proven;
-
-    fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
-        classes
-            .iter()
-            .map(|&class| SectorEntry {
-                he: HalfEdgeKey::default(),
-                kind: SectorEntryKind::Edge,
-                class,
-            })
-            .collect()
-    }
-
-    use PlaneSide::{Above as A, Below as B};
-
-    /// One-sided neighborhoods produce no runs (tangent vertex — no
-    /// surgery); mixed neighborhoods produce one run per maximal ABOVE
-    /// stretch, including the wrap-around and ≥2 disjoint runs
-    /// (Fig. 14.9 / the Program 14.7 erratum case).
-    #[test]
-    fn run_enumeration() {
-        assert_eq!(above_runs(&entries(&[A, A, A])), vec![]);
-        assert_eq!(above_runs(&entries(&[B, B])), vec![]);
-        // Single run, wrapping the seam: entries 3,0 are one run.
-        assert_eq!(
-            above_runs(&entries(&[A, B, B, A])),
-            vec![AboveRun { start: 3, len: 2 }]
-        );
-        // Two disjoint runs around one vertex.
-        assert_eq!(
-            above_runs(&entries(&[A, B, A, A, B, B])),
-            vec![AboveRun { start: 2, len: 2 }, AboveRun { start: 0, len: 1 },]
-        );
-        // Three runs, each a single entry.
-        assert_eq!(above_runs(&entries(&[A, B, A, B, A, B])).len(), 3);
-    }
 
     /// **A reflex corner whose two Below edges bound different pieces
     /// hangs its corners as a path.** A plane through the L-prism's
