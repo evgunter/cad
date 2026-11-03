@@ -64,6 +64,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
+#[path = "a_conical_ended_football_revolves.rs"]
+mod a_conical_ended_football_revolves;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -82,8 +84,6 @@ mod a_face_off_the_tangent_ruling;
 mod a_face_reads_its_chart_image;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
-#[path = "a_conical_ended_football_revolves.rs"]
-mod a_conical_ended_football_revolves;
 #[path = "a_flat_frustum_revolves.rs"]
 mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]

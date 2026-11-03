@@ -3553,24 +3553,24 @@ fn spans_of(
                 && z.1.is_finite()
             {
                 meters
-                        .over(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                            if lower(lever, true) > 0.0 {
-                                Ok(lever)
-                            } else {
-                                Err(())
-                            }
-                        })
-                        .map_or_else(
-                            |()| {
-                                meters
-                                    .apex_root(point(f_sup))
-                                    .map_or(f64::INFINITY, |m| upper(m, true))
-                            },
-                            |m| upper(m, true),
-                        )
-                } else {
-                    f64::NAN
-                };
+                    .over(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+                        if lower(lever, true) > 0.0 {
+                            Ok(lever)
+                        } else {
+                            Err(())
+                        }
+                    })
+                    .map_or_else(
+                        |()| {
+                            meters
+                                .apex_root(point(f_sup))
+                                .map_or(f64::INFINITY, |m| upper(m, true))
+                        },
+                        |m| upper(m, true),
+                    )
+            } else {
+                f64::NAN
+            };
             // A Bézier part interpolates its end controls, so they are
             // its points at its ends.
             let floors = match (ok, controls.first(), controls.last()) {
@@ -14752,12 +14752,8 @@ mod limb2_memo_rows {
         };
         let base = |lift: &dyn Fn(f64) -> Interval| net(0.5, 1.0, false, 1.3, lift);
         let (_, wall) = rim(1.25);
-        let parts = |n: &NurbsCurve3<Interval>| {
-            format!(
-                "{:?}",
-                twin_span_hulls(n, &wall, None, 4, &[0.5])
-            )
-        };
+        let parts =
+            |n: &NurbsCurve3<Interval>| format!("{:?}", twin_span_hulls(n, &wall, None, 4, &[0.5]));
         let first = parts(&base(&Interval::from_f64));
         let (h2, m2) = span_memo::counts();
         assert_eq!(

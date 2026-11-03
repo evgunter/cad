@@ -81,8 +81,13 @@ fn a_conical_ended_football_revolves() {
             },
         ),
     ] {
-        let built = revolve(&validated(vec![band.profile()]), band.axis(), Revolution::Full, tol)
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let built = revolve(
+            &validated(vec![band.profile()]),
+            band.axis(),
+            Revolution::Full,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
         topo::AtRestBody::validate(built.body, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
     }
 }

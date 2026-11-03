@@ -9,7 +9,7 @@
 
 use crate::revolve_common;
 
-use core::f64::consts::{PI};
+use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom_core::Vec2;
