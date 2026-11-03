@@ -1745,6 +1745,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         | C::NoGeneralLane { .. }
         | C::SectorRefused { .. }
         | C::FittedLaneUnsupported { .. }
+        | C::FittedGradeAtClosedFormDoor { .. }
         | C::CarrierDomain(_)
         | C::PlacementTurnsExceeded
         | C::CarrierEnclosure(_)
@@ -5707,7 +5708,7 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
 /// Booleans), for the two doors that share it: the Boolean's [`gate`]
 /// and [`crate::splitting::split`]. The other doors that gate at rest
 /// type on their own
-/// (`work/cleave/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
+/// (`work/onehome/the-at-rest-result-gate-and-its-typing-live-in-five-homes.md`).
 /// A result read in band is the operands' ill-conditioning, which
 /// definite cuts can compose: where every finding is a reading in band of
 /// a shell's role (check 10) or a solid's orientation (check 7) — an

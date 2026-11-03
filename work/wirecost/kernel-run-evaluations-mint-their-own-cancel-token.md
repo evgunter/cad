@@ -2,11 +2,13 @@
 id: kernel-run-evaluations-mint-their-own-cancel-token
 kind: issue
 title: Evaluations the kernel runs on a caller's behalf mint a fresh CancelToken, so the caller's cancel never reaches them
-status: dispatched
+status: closed
 priority: P2
 cost: M
 opened: 2026-11-02
+closed: 2026-11-03
 branch: wirecost/kernel-evaluations-take-the-callers-stop
+pr: 6436
 ---
 
 

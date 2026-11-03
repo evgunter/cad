@@ -979,7 +979,8 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the shared row's image on surface {surface:?} is not the edge: its \
-                 certificate refused at its {check:?} check"
+                 certificate refused at its {} check",
+                check.words()
             ),
             Self::Row {
                 surface,
@@ -4134,6 +4135,7 @@ fn mint_refusal<T: Real>(
         // caller looking for a missing feature instead of a wrong locus.
         PcurveCertifyError::UnsupportedChart { .. }
         | PcurveCertifyError::ImageMismatch { .. }
+        | PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
         | PcurveCertifyError::FittedLaneUnsupported { .. }
         | PcurveCertifyError::SectorRefused { .. }
         | PcurveCertifyError::IsoUnsupported { .. }

@@ -20,7 +20,7 @@
 
 ## Order
 
-`step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process` first (P1, the fix is written). `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches` goes to the designer pair early: ENCL's panic arms and [ev] PR 5113's decision 2 wait on it. `the-per-instance-tier-3-gate-reads-every-assembly-face-twice` is parked on the D10 refactor hold: whether a per-instance gate buys anything depends on how D10's placement carries its source's at-rest result.
+`step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process` first (P1, the fix is written). `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches` goes to the designer pair early: ENCL's panic arms and [ev] PR 5113's decision 2 wait on it. `the-per-instance-tier-3-gate-reads-every-assembly-face-twice` is parked on COINCIDE's `step-import-anchor-rows-are-recorded-and-not-linted`: the D10 refactor hold it first waited on lifted when INTENT closed (2026-10-30, #6103), and what it waits for now is an import that places its instances as a document operation.
 
 ## Review posture
 

@@ -25,8 +25,10 @@ Opened 2026-10-20 by GERM's closing cut (`work/README.md`, Track size): GERM mea
 
 ## Ratified ground (cited, not re-litigated)
 
-- `docs/DESIGN.md` D1–D9 as ratified, and D10 **as held**: a row that
-  needs a touching pose (F0) waits on D10 and is not dispatched round it.
+- `docs/DESIGN.md` D1–D10 as ratified. The D10 hold lifted when
+  INTENT closed (2026-10-30, #6103), so a row that needs a touching
+  pose (F0) no longer waits on it; its lane measures the pose on main
+  first.
 - Ev's PR 5156 decision: a near-square plane × cylinder/cone section is
   the exact Ellipse, decided once on the pose; no reader re-decides its
   kind from the semi-axes.

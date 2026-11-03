@@ -4,6 +4,8 @@ kind: issue
 title: tier 3's face-whole excusal has no fixture: no uncovered class is reachable through a public strut on an analytic chart
 status: open
 opened: 2026-10-07
+priority: P3
+cost: E
 ---
 
 Filed by `pcert/torus-villarceau-route`. `topo::pcurves::not_owed`

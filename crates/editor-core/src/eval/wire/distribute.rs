@@ -16,7 +16,7 @@
 //! operand stands.
 //!
 //! A `⊔` read as the TOOL of a cut is cut by whole
-//! (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`).
+//! (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`).
 
 use std::sync::Arc;
 

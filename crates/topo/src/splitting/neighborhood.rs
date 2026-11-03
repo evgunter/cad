@@ -329,7 +329,7 @@ pub(crate) fn wide_entries<T: Decide>(
             }
         }
         VertexFace::Apex(apex) => {
-            let ApexShape { arm, rulings } =
+            let ApexShape { arm, rulings, .. } =
                 apex_corner_shape((dir_a, dir_b), &apex, bounds, normal, band).map_err(fault)?;
             (arm, rulings)
         }

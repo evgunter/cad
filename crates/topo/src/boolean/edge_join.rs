@@ -840,17 +840,12 @@ impl JoinRefusal {
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => match at.map(|at| (at, e.render_ended(at))) {
-                None => write!(f, "{IMAGE}: {e}"),
+            }) => {
                 // The image's refusal ends by its own ending at this door:
                 // an incidence read by the one map (D3), a lane gap "not
                 // yet", an escalation once, as its decision ends it.
-                Some((_, Some(ended))) => write!(f, "{IMAGE}: {ended}"),
-                // A refusal no decision owns whose payload carries no
-                // recourse (an unsupported class, a band the tolerance
-                // cannot form), on a body the kernel built.
-                Some((at, None)) => write!(f, "{IMAGE} ({e}). {}", defect_ending(at)),
-            },
+                write!(f, "{IMAGE}: {}", geom_brep::recourse::read_at(e, at))
+            }
             Self::CarrierUnsupported { carrier, closed } => write!(
                 f,
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
@@ -1516,7 +1511,7 @@ mod undecided_text {
             });
             for at in [Reading::Build, Reading::AtRest] {
                 let text = r.render(at);
-                let ending = e.ending(at).unwrap_or_default();
+                let ending = e.ending(at);
                 assert!(
                     !ending.is_empty() && text.ends_with(&ending),
                     "{e:?} at {at:?}: {text}"
@@ -1528,11 +1523,11 @@ mod undecided_text {
     }
 
     /// **A refusal whose payload already ends gets no second ending**
-    /// (review on PR 5844, H5): a piece outside one sector carries its own
-    /// recourse and ends there, with no defect after it; an unsupported
-    /// chart carries none, and the join ends it in its defect, once.
+    /// (review on PR 5844, H5), and every refusal ends once, by its own
+    /// decision: a stored piece outside one sector in the door's defect,
+    /// an unsupported chart (a lane choice) "not yet", never a defect.
     #[test]
-    fn the_joins_image_arm_ends_a_self_ended_payload_once() {
+    fn the_joins_image_arm_ends_each_refusal_once_by_its_decision() {
         use geom_brep::recourse::Reading;
         let render = |e| {
             JoinRefusal::Undecided(JoinUndecided {
@@ -1545,14 +1540,26 @@ mod undecided_text {
             piece: 1,
             channel: geom_brep::SectorChannel::Azimuth,
         });
-        assert_eq!(sector.matches("Recourse").count(), 1, "{sector}");
-        assert!(!sector.contains("defect"), "{sector}");
+        assert_eq!(sector.matches("Recourse").count(), 0, "{sector}");
+        assert_eq!(
+            sector.matches(geom_core::KERNEL_DEFECT_ENDING).count(),
+            1,
+            "{sector}"
+        );
+        assert!(
+            sector.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "{sector}"
+        );
         let unsupported = render(geom_brep::PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Sphere,
         });
         assert_eq!(
-            unsupported.matches(geom_core::KERNEL_DEFECT_ENDING).count(),
+            unsupported.matches(geom_core::NOT_YET_ENDING).count(),
             1,
+            "{unsupported}"
+        );
+        assert!(
+            unsupported.ends_with(geom_core::NOT_YET_ENDING) && !unsupported.contains("defect"),
             "{unsupported}"
         );
     }
@@ -1644,13 +1651,11 @@ mod undecided_text {
     }
 
     /// A chart image that did not derive is no class reading: the
-    /// Boolean names the image's refusal, which ends in whatever it
-    /// carries, here none (an incidence read among them ends by its own
-    /// ending, never as undecided).
-    /// `work/honejoin/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
-    /// owns giving it one verdict, and re-baselines this text.
+    /// Boolean names the image's refusal, which ends by its own decision,
+    /// here a lane choice's "not yet" (an incidence read among them ends
+    /// by its own ending, never as undecided).
     #[test]
-    fn a_chart_image_that_did_not_derive_ends_without_a_recourse_today() {
+    fn a_chart_image_that_did_not_derive_ends_by_its_own_decision() {
         let got = boolean_text(JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
             geom_brep::PcurveCertifyError::UnsupportedChart {
                 chart: geom::SurfaceKind::Sphere,
@@ -1662,7 +1667,8 @@ mod undecided_text {
                  that did not derive: pcurve certification: no sphere-chart lane covers this pcurve — every analytic \
              chart certifies its closed-form (Harmonic) classes, a NURBS chart routes through \
              its description-driven iso/fitted lanes instead of this door, and an image outside \
-             the chart's harmonic family belongs to the fitted lane where one exists"
+             the chart's harmonic family belongs to the fitted lane where one exists. \
+             There is no way through yet"
         );
     }
 }

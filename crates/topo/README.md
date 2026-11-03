@@ -13,6 +13,34 @@ seat. Orientation conventions are stated once, in `src/entity.rs`.
 Determinism (DESIGN `[determinism]`): arena iteration is slot-index order, no hash container
 feeds a decision, every walk is bounded.
 
+## One home, by what the code is about `[topo.homes]`
+
+A module's home follows its signature, tested in this order. Who else
+reads it is never part of the answer.
+
+1. **It takes no `Body` and no arena key.** It is a reading of a
+   carrier or a carrier pair, so it lives in `geom-brep` (or `geom`),
+   whichever operation first needed it. `geom_brep::curve_face::route`
+   is the one table of how a curve span meets a face, and every door
+   it names is built beside it.
+2. **It reads or constructs over a `Body` and names no type declared
+   under an operation's directory.** It is a reading of a body (a
+   face's outward normal, a point against a loop, a corner's shape,
+   which shells a piece keeps), a construction over one (the Euler
+   operators, `join_edges`, the chord join), or surgery on one. It is
+   a crate-root module or a `Body` method, named by what it reads.
+3. **It names a type declared under an operation's directory.** It
+   belongs to that operation (`boolean/`, `splitting/`).
+
+An operation's directory is a leaf. Its `pub` items are its doors,
+re-exported by `lib.rs`, and it declares nothing `pub(crate)`. Nothing
+outside it imports from it, test code included, and neither operation
+imports the other. A shared reading refuses in its own error type,
+never in an operation's. A K name's prefix is the module that decides
+the margin, never a caller's lane. The gate
+`scripts/gates/engine-leaves.sh` holds this, and a red there means
+that what you need belongs at the root or below.
+
 ## Where in the code
 
 | Area | Modules |
@@ -895,8 +923,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
   mouth's cycle on the face the fill covers).
   Recipe-layer sugar may wrap any of these; the door stays the one
-  birthplace. `UnsupportedToroid` is permanent: a [surfaces] ring-torus
-  boundary — spindle tori have no representation.
+  birthplace. A revolve reads an arc by its interior: an arc whose
+  interior crosses the axis refuses, and otherwise the signed distance
+  of its circle's centre from the axis picks the [surfaces] kind — zero,
+  a sphere; more than the minor radius, a ring torus; otherwise one
+  sheet of a spindle or horn torus, whose points on the axis are apex
+  vertices in the pole form.
 - **∅, disjoint, and voids are typed results.** ∅ is a typed success
   value (`BooleanResult::Empty`), not an error. **A solid is one piece
   of material**: the `Outer` shell around it and the `Void` shells of

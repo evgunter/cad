@@ -4,6 +4,8 @@ kind: issue
 title: topo::pcurves::site_rows certifies without the fitted door, so a site mint clears a spline carrier's projected row on an analytic face instead of deriving it
 status: open
 opened: 2026-10-07
+priority: P2
+cost: M
 ---
 
 

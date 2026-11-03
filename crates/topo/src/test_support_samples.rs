@@ -39,7 +39,7 @@
 use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetLimb};
-use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
+use geom_brep::pcurve_cache::{FittedEnding, FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
 use geom_core::k_stats::Magnitude;
@@ -746,6 +746,9 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
+        PcurveCertifyError::FittedGradeAtClosedFormDoor {
+            image: geom_brep::PcurveKind::General,
+        },
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,
@@ -763,6 +766,23 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
                 t: 0.5,
                 last_distance: 1e-7,
             }),
+            ending: FittedEnding::FootUnsettled,
+        },
+        PcurveCertifyError::FittedCertificate {
+            limb: None,
+            what: "the composite cannot enclose this chart",
+            magnitude: None,
+            ending: FittedEnding::NotYet,
+        },
+        PcurveCertifyError::FittedCertificate {
+            limb: Some(geom_brep::SsiLimb::HullSupChart),
+            what: "the image's domain stops short of the edge's interval",
+            magnitude: None,
+            ending: FittedEnding::Defect,
+        },
+        PcurveCertifyError::FittedLimb {
+            limb: geom_brep::SsiLimb::OnLocus,
+            margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::FittedLimb {
             limb: geom_brep::SsiLimb::HullSupChart,
@@ -2149,5 +2169,190 @@ mod tests {
             Some(DAMAGED_FILE_ENDING),
             "at the import door"
         );
+    }
+
+    /// **Every `PcurveCertifyError` ends in the recourse its decision
+    /// earns, at every door, through its one ending**
+    /// (`PcurveCertifyError::ending`). Over the roster, which
+    /// `nested_coverage_gaps` holds to every variant: the at-rest
+    /// classifier's text, a nested mint refusal's at a build, at rest and
+    /// at the import door, each ends in that ending; and each arm's class,
+    /// named below by an exhaustive match, holds at a build and at rest.
+    /// Red where a door ends an arm by a table of its own, or an arm ends
+    /// outside its class.
+    #[test]
+    fn every_pcurve_certify_refusal_ends_by_its_decision_at_every_door() {
+        use geom_brep::IncidenceRead;
+        use geom_brep::PcurveCheck;
+        use geom_brep::pcurve_cache::{
+            FittedEnding, PcurveCertifyError as C, PcurveCertifyErrorKind as K,
+        };
+        use geom_brep::recourse::{BAND_TOLERANCE_RECOURSE, ReadAt, RefusedArm, defect_ending};
+
+        let file = FileCoincidence::new(1e-6);
+        let mut wrong = Vec::new();
+        for e in super::pcurve_certify_errors() {
+            let finding = crate::PcurveMintError::Certify {
+                half_edge: crate::HalfEdgeKey::default(),
+                error: e.clone(),
+            };
+            let at_rest = crate::ValidationError::Pcurve {
+                finding: finding.clone(),
+            }
+            .render(Reading::AtRest);
+            if !at_rest.ends_with(&e.ending(Reading::AtRest)) {
+                wrong.push(format!(
+                    "{e:?}: the at-rest classifier ends apart: {at_rest}"
+                ));
+            }
+            for at in [
+                ReadAt::from(Reading::Build),
+                Reading::AtRest.into(),
+                file.into(),
+            ] {
+                let text = finding.render(at);
+                if !text.ends_with(&e.ending(at)) {
+                    wrong.push(format!(
+                        "{e:?} at {at:?}: the mint's text ends apart: {text}"
+                    ));
+                }
+            }
+            // The payload states what was refused; its recourse is the
+            // ending, stated once at every door. A pose the general lane
+            // does not cover names its lever beside "not yet"
+            // (`plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none`).
+            let pose = matches!(
+                e,
+                C::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Pose { .. },
+                    ..
+                }
+            );
+            let payload = e.to_string();
+            if test_utils::refusal::recourse_markers(&payload) != usize::from(pose) {
+                wrong.push(format!("{e:?}: the payload spells a recourse: {payload}"));
+            }
+            for at in [Reading::Build, Reading::AtRest] {
+                let definite = RefusedArm::SignCertain(None);
+                let check = |check: PcurveCheck, arm| check.recourse(arm, at);
+                let not_yet = || geom_brep::recourse::not_yet(definite, at);
+                let defect = || defect_ending(at).to_owned();
+                // The ending each arm's decision gives it, spelled from that
+                // decision's own table, never from `ending`.
+                let want = match K::from(&e) {
+                    // By its read (E1d's door rule), whatever arm carries it.
+                    _ if let Some(read) = IncidenceRead::of(&e) => read.ending(at),
+                    // A lane choice or a lane's gap (D3): never a defect.
+                    K::UnsupportedChart
+                    | K::IsoUnsupported
+                    | K::ChartWindingUnsupported
+                    | K::CarrierEnclosure => not_yet(),
+                    K::NoGeneralLane => match &e {
+                        C::NoGeneralLane {
+                            gap: geom_brep::LaneGap::Unwritten,
+                            ..
+                        } => check(PcurveCheck::ChartClass, definite),
+                        _ => check(PcurveCheck::GeneralLane, definite),
+                    },
+                    // A stored image's structure, or a validated chart's
+                    // rows: the door's culprit.
+                    K::ImageMismatch
+                    | K::ChannelKindMismatch
+                    | K::WindingMismatch
+                    | K::SectorRefused
+                    | K::ChartRow => defect(),
+                    K::CarrierOffChart => unreachable!("an incidence read, ended above"),
+                    // The ending the SSI door gives what it flattened.
+                    K::FittedCertificate => match &e {
+                        C::FittedCertificate {
+                            ending: FittedEnding::NotYet,
+                            ..
+                        } => {
+                            geom_brep::SsiError::UnsupportedCertificate { what: "probe" }.ending(at)
+                        }
+                        C::FittedCertificate {
+                            ending: FittedEnding::Defect,
+                            ..
+                        } => defect(),
+                        _ => geom_brep::SsiError::FootPointInconclusive {
+                            t: 0.5,
+                            last_distance: 1e-7,
+                        }
+                        .ending(at),
+                    },
+                    // A limb this door decides, by its check; any other as
+                    // the SSI door ends it.
+                    K::FittedLimb => match &e {
+                        C::FittedLimb {
+                            limb: geom_brep::SsiLimb::HullSupChart,
+                            margin,
+                        } => check(
+                            PcurveCheck::Envelope,
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
+                        C::FittedLimb {
+                            limb: geom_brep::SsiLimb::HullValueChart,
+                            margin,
+                        } => check(
+                            PcurveCheck::MapResidual,
+                            RefusedArm::SignCertain(Some(*margin)),
+                        ),
+                        C::FittedLimb { limb, margin } => geom_brep::SsiError::CertificateLimb {
+                            limb: *limb,
+                            margin: *margin,
+                        }
+                        .ending(at),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    K::FittedEscalated => match &e {
+                        C::FittedEscalated { decision, cause } => decision.ending(cause, at),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // A lever on the input, by identity.
+                    K::FittedLaneUnsupported => geom_brep::pcurve_cache::fitted_door_recourse(at),
+                    K::FittedGradeAtClosedFormDoor => {
+                        geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE.to_owned()
+                    }
+                    K::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
+                    K::PlaceholderChart => geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned(),
+                    K::Band => match &e {
+                        C::Band(
+                            geom_core::BandError::InvalidValue { .. }
+                            | geom_core::BandError::Empty { .. },
+                        ) => BAND_TOLERANCE_RECOURSE.to_owned(),
+                        C::Band(band) => band.recourse().to_owned(),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    // A check's refused arm, by its routing.
+                    K::Escalated => match &e {
+                        C::Escalated {
+                            check: c, cause, ..
+                        } => check(*c, RefusedArm::Undecided(cause)),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    K::ResidualExceeded => match &e {
+                        C::ResidualExceeded { check: c, .. } => check(*c, definite),
+                        _ => unreachable!("the kind is the arm"),
+                    },
+                    K::IntervalNotForward => check(PcurveCheck::ParamSpan, definite),
+                    K::AzimuthPeriodExceeded => check(PcurveCheck::AzimuthPeriod, definite),
+                    K::PlacementTurnsExceeded => check(PcurveCheck::ChartWinding, definite),
+                    K::TubePeriodExceeded => check(PcurveCheck::TubePeriod, definite),
+                };
+                let ending = e.ending(at);
+                let text = finding.render(at);
+                if test_utils::refusal::recourse_markers(&text) != 1 + usize::from(pose) {
+                    wrong.push(format!(
+                        "{e:?} at {at:?} states other than one recourse: {text}"
+                    ));
+                }
+                if ending != want {
+                    wrong.push(format!(
+                        "{e:?} at {at:?} ends outside its decision: {ending}, not {want}"
+                    ));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 }

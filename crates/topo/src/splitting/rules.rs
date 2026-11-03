@@ -135,7 +135,7 @@
 //!   instead returns the true volumes with the hole's wall touching the
 //!   cut face's interior along the contact, with no edge for it, and
 //!   tier 3 passes that
-//!   (`work/cleave/tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line.md`).
+//!   (`tier-3-passes-a-curved-wall-touching-a-plane-face-interior-along-a-line` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)).
 //! - A convex wall whose material, read at first order, lies across
 //!   from its `S`-ON-`S` neighbours disagrees with them (they are curves
 //!   on the same wall) and refuses as a sliver
