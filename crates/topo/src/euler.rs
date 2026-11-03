@@ -246,7 +246,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::recourse::{ReadAt, Reading};
+use geom_brep::recourse::ReadAt;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
 use crate::policy_lane::{KernelSite, Origin};

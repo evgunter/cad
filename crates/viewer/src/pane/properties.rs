@@ -1272,7 +1272,7 @@ impl ViewerBehavior<'_> {
         let button = match refused {
             None => button.on_hover_text(PROBE_HOVER),
             // The refusal renders itself; nothing here composes words.
-            Some(refusal) => button.on_disabled_hover_text(crate::shown(refusal)),
+            Some(refusal) => button.on_disabled_hover_text(crate::shown(&refusal)),
         };
         if button.clicked() {
             self.ops.push(SessionOp::ProbeBounds {

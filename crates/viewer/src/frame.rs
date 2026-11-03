@@ -2273,7 +2273,7 @@ pub fn tool_status(before: Option<ToolKind>, now: Option<ToolKind>) -> StatusUpd
 /// tool_news(&ToolKind::Mate.refuses(&"no landed evaluation to derive frames from"));
 /// ```
 pub fn tool_news(refusal: &PanelRefusal) -> Message {
-    Message::new(Subject::Document, crate::shown(refusal), Retold::Again)
+    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
 /// **What the chrome badges about the at-rest check**, and `None`

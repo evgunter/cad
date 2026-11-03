@@ -845,7 +845,7 @@ impl ViewerBehavior<'_> {
                 let said = match verdict {
                     BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
                     BundleVerdict::Faults(fault) => Err(fault.to_string()),
-                    BundleVerdict::Refused(refusal) => Err(crate::shown(refusal)),
+                    BundleVerdict::Refused(refusal) => Err(crate::shown(&refusal)),
                     BundleVerdict::Unsolved => {
                         Err("what the placement reads does not evaluate".to_owned())
                     }

@@ -1885,7 +1885,7 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
     let button = ui.add_enabled(refusal.is_none(), egui::Button::new(affordance.label));
     match (refusal, affordance.hover) {
         (Some(refusal), _) => button
-            .on_disabled_hover_text(crate::shown(refusal))
+            .on_disabled_hover_text(crate::shown(&refusal))
             .clicked(),
         (None, Some(text)) => button.on_hover_text(text).clicked(),
         (None, None) => button.clicked(),

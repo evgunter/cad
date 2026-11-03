@@ -409,7 +409,7 @@ impl DriveError {
             Self::Startup(error) => write!(
                 f,
                 "the app could not start: {}",
-                pncad::geom_brep::recourse::read_at(error, at)
+                pncad::geom_brep::recourse::read_at(error.as_ref(), at)
             ),
             Self::NotOnScreen {
                 text,
