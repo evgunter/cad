@@ -329,6 +329,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "carrier_on_surface_1",
             "carrier_on_surface_2",
             "dihedral_arm",
+            "dihedral_sign",
             "dihedral_wedge",
             "enters_material",
             "enters_material_arm",

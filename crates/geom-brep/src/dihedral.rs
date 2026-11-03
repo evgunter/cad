@@ -386,7 +386,7 @@ fn read_dihedral<T: Decide>(
     let arm = folded_lever_arm(s1, s2, p, reach);
     let (class, margin) = wedge_of(g1, g2, arm, band)?;
     let reading = Reading {
-        normals: [g1.normalize(), g2.normalize()],
+        gradients: [g1, g2],
         arm,
     };
     let dihedral = match class {
@@ -396,18 +396,19 @@ fn read_dihedral<T: Decide>(
     Ok((dihedral, margin))
 }
 
-/// What a decided dihedral read at its point: each face's unit normal as
-/// its carrier states it (no sense folded in), in the order the faces
-/// were given, and the folded lever arm its class was metered over.
+/// What a decided dihedral read at its point: each face's implicit
+/// gradient as its carrier states it (no sense folded in, not
+/// normalized), in the order the faces were given, and the folded lever
+/// arm its class was metered over.
 #[derive(Clone, Copy, Debug)]
 struct Reading<T: Real> {
-    normals: [geom_core::Vec3<T>; 2],
+    gradients: [geom_core::Vec3<T>; 2],
     arm: geom_core::Lever<T>,
 }
 
 /// **A decided dihedral**, as its class's token: what
-/// [`classify_dihedral`] returns. Each token carries the two faces' unit
-/// normals and the folded arm the class was read over, and answers only
+/// [`classify_dihedral`] returns. Each token carries the two faces' implicit
+/// gradients and the folded arm the class was read over, and answers only
 /// the question its class poses: a corner its sign, a tangency its
 /// material pairing.
 #[derive(Clone, Copy, Debug)]
@@ -562,12 +563,13 @@ impl<T: Decide> Tangency<T> {
 }
 
 impl<T: Real> Reading<T> {
-    /// The two normals turned outward by their faces' sense bits.
+    /// The two unit normals turned outward by their faces' sense bits,
+    /// as [`implicit_outward_normal`] reads each.
     fn outward(&self, [plus, minus]: [bool; 2]) -> [geom_core::Vec3<T>; 2] {
-        let [a, b] = self.normals;
+        let [a, b] = self.gradients;
         [
-            OutwardNormal::from_chart(a, plus).vec(),
-            OutwardNormal::from_chart(b, minus).vec(),
+            OutwardNormal::from_chart(a.normalize(), plus).vec(),
+            OutwardNormal::from_chart(b.normalize(), minus).vec(),
         ]
     }
 }
