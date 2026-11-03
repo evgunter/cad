@@ -9081,14 +9081,15 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, a spline on any analytic chart), and otherwise
+/// circle on a sphere, a line on a cylinder, a spline on any analytic
+/// chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. A circle on a cone, torus or cylinder, a line and an
-/// ellipse have no general lane yet (units E2 and E4, `work/pcert/plan.md`).
-/// Where the projected lane is taken, a circle's lane choice or a
-/// spline's only image, the lane's own capability gap also ends "not yet":
+/// was definite. A circle on a cone, torus or cylinder, a line on a cone
+/// and an ellipse have no general lane yet (unit E4, `work/pcert/plan.md`).
+/// Where the projected lane is taken, a circle's or a line's lane choice
+/// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
 /// reading is in band, and [`PcurveCertifyError::NoGeneralLane`]
 /// ([`LaneGap::Pose`]) where its partition finds no sector

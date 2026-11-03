@@ -1,13 +1,15 @@
 //! **The projected image** ([`Pcurve::Projected`], C4): on an analytic
 //! chart, the image of a carrier with no closed-form image (a spline
 //! carrier; a circle on a sphere that is neither a parallel nor a
-//! meridian) is the chart's own inverse applied to the carrier,
-//! `P(t) = ψ(C(t))`. It is exact, not a fit.
+//! meridian; a line on a cylinder not shown a ruling) is the chart's own
+//! inverse applied to the carrier, `P(t) = ψ(C(t))`. It is exact, not a
+//! fit.
 //!
 //! # What the row stores
 //!
 //! The carrier written in the chart's frame (`FramedCarrier`: its
-//! control net, or a circle's centre and two radius vectors), the
+//! control net, a circle's centre and two radius vectors, or a line's
+//! point and direction), the
 //! chart's own scalars the inverse reads, a partition of the parameter
 //! into pieces that each stay in one `atan2` sector (a per-piece branch
 //! centre `θ_k = m_k·π/2`, a whole number of quarter turns, and on a
@@ -67,7 +69,8 @@
 //! distance from the chart's, both fidelity. **Incidence** is the
 //! carrier's distance from the chart: the chart's implicit form `f`
 //! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
-//! for a net, `sphere_circle::off_sphere_sup` for a circle), converted to
+//! for a net, `sphere_circle::off_sphere_sup` for a circle,
+//! [`line_off_cylinder_sup`] for a line over the edge's interval), converted to
 //! metres per part of the twin net's knot spans, each cut into
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
@@ -111,7 +114,8 @@
 //! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
-//! (its Bézier controls rotated by `−θ_k`, or a circle's harmonic box)
+//! (its Bézier controls rotated by `−θ_k`, or a circle's or a line's
+//! harmonic box)
 //! lies in the open half-plane `x′ > 0`, and on a torus the same for
 //! `(ρ − R, z)` rotated by `−φ_k`; consecutive branch centres are at most
 //! a quarter turn apart, so the image is one continuous branch. The
@@ -127,9 +131,9 @@
 //! halvings), so a whole turn certifies and a sweep past one refuses.
 //!
 //! A net's hull terms are certification arithmetic (C9), so they run
-//! through the fitted door ([`crate::FittedLane`]); a circle's are
-//! closed forms of its coefficients and certify at every `Decide`
-//! scalar.
+//! through the fitted door ([`crate::FittedLane`]); a circle's and a
+//! line's are closed forms of their coefficients and certify at every
+//! `Decide` scalar.
 
 use std::sync::Arc;
 
@@ -572,7 +576,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// Piece `k`'s chart-frame box, its end pieces stretched to `t0`
-    /// and `t1` (a circle's), so the box covers what `[t0, t1]` reads of
+    /// and `t1` (a circle's or a line's), so the box covers what `[t0, t1]` reads of
     /// the piece.
     pub(crate) fn frame_box(&self, k: usize, t0: T, t1: T) -> FrameBox<T> {
         let knots = self.breaks.knots();
@@ -591,8 +595,8 @@ impl<T: SpanLocate> ProjectedImage<T> {
     }
 
     /// The chart-frame box of `[s0, s1]`, a sub-interval of piece `k`
-    /// on the piece parameter, read on that piece's branch. A circle's
-    /// sub-interval at the partition's first or last break is stretched
+    /// on the piece parameter, read on that piece's branch. A circle's or
+    /// a line's sub-interval at the partition's first or last break is stretched
     /// to `t0` or `t1`, as [`Self::frame_box`] stretches an end piece.
     fn frame_box_on(&self, k: usize, part: ParamRange, t0: T, t1: T) -> FrameBox<T> {
         let (s0, s1) = (part.start(), part.end());
@@ -1228,7 +1232,7 @@ pub(crate) fn project<T: Decide>(
         v_sign: T::one(),
     };
     // The top-level pieces: a net's knot spans (a piece's hull is one
-    // span's Bézier restriction), a circle's one interval.
+    // span's Bézier restriction), a circle's or a line's one interval.
     let tops: Vec<f64> = match &image.carrier {
         FramedCarrier::Net(net) => net
             .knots_f64_interim()
