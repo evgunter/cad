@@ -1193,6 +1193,7 @@ dependencies = [
 name = "geom-brep"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom",
  "geom-core",
  "num-bigint",

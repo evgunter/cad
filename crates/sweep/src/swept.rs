@@ -891,14 +891,12 @@ pub(crate) fn cap_plane<T: Decide>(
     // the two planes meet at an angle of order ε/w and the cosine is
     // ±1 to that order. Under the precondition above an escalation
     // here is a kernel defect.
-    let mut half_perimeter = T::zero();
-    for (i, &p) in ordered.iter().enumerate() {
-        half_perimeter = half_perimeter + (ordered[(i + 1) % ordered.len()] - p).norm();
-    }
-    half_perimeter = half_perimeter * T::from_f64(0.5);
     let agrees = decide(
         "cap_plane_orientation",
-        Margin::levered(normal.dot(expected_outward), half_perimeter),
+        Margin::levered(
+            normal.dot(expected_outward),
+            geom_brep::polygon_half_perimeter(&ordered),
+        ),
         band,
     )
     .map_err(CapPlaneError::Orientation)?;
@@ -1988,7 +1986,8 @@ pub(crate) mod must_carry_fixtures {
         line: &Curve3<f64>,
         extent: f64,
     ) -> MustCarryEscalation {
-        match must_carry_over_edge(s1, s2, line, 0.0, extent, extent, band()) {
+        let reach = geom_core::test_support::fixture_lever(extent);
+        match must_carry_over_edge(s1, s2, line, 0.0, extent, reach, band()) {
             MustCarryVerdict::InBand(escalation) => escalation,
             other => panic!("the fixture must read in band, not {other:?}"),
         }

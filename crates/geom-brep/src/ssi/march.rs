@@ -1041,10 +1041,13 @@ pub(crate) fn decide_transversality<const N: usize>(
 ) -> Result<(), SsiError> {
     let (n1, n2) = sys.normals(x);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-    let (arm, reach) = super::point_arm(sys.max_curvature(x), extent);
+    // Unsourced lever: `SsiDomain::extent`, a feature extent the caller names as a plain number, not read from geometry.
+    let (lever, reach) =
+        super::point_arm(sys.max_curvature(x), geom_core::Lever::unsourced(extent));
+    let arm = lever.length();
     decide_positive("ssi_transversality_arm", Margin::of(arm), band)
         .map_err(|cause| TraceDecision::TransversalityArm.escalated(cause))?;
-    let transversality = Margin::levered(sin_theta, arm);
+    let transversality = Margin::levered(sin_theta, lever);
     // Zero is the sliver band: a tangential (or in-band tangential)
     // contact along the candidate locus, C7's regime. `sin θ · arm` is a
     // magnitude, so a definite negative cannot arise.
@@ -1358,7 +1361,13 @@ where
                     let t0 = seed_tangent.unwrap_or(d1);
                     let cos_phi = dot(&d1, &t0).clamp(-1.0, 1.0);
                     let arc = arc_length(sys, &states);
-                    match decide("ssi_closure_tangent", Margin::levered(cos_phi, arc), band) {
+                    // Unsourced lever: the marched polyline's length, a measure of the march's
+                    // own output rather than a reach of consumed geometry from a pivot.
+                    match decide(
+                        "ssi_closure_tangent",
+                        Margin::levered(cos_phi, geom_core::Lever::unsourced(arc)),
+                        band,
+                    ) {
                         Ok(Sign::Positive) => {
                             // Close exactly onto the seed. If the last
                             // marched state is already essentially the

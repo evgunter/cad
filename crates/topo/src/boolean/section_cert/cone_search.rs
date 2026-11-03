@@ -236,10 +236,7 @@ fn across(v: Vec3<f64>, a: Vec3<f64>) -> Vec3<f64> {
 
 /// The reach every search pose is classified with.
 fn reach_of(k: &Frame) -> Reach<f64> {
-    Reach {
-        centre: k.apex,
-        radius: 5.0 * k.scale,
-    }
+    geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(k.apex, 5.0 * k.scale))
 }
 
 /// What the arm promises of the traced count.
@@ -290,7 +287,7 @@ fn plane_pose(rng: &mut Rng, k: &Frame) -> Option<Pose> {
         };
         3.0 * nearest(true).max(nearest(false))
     };
-    let lever = (p0 - k.apex).dot(n).abs() + 2.0 * reach_of(k).radius;
+    let lever = (p0 - k.apex).dot(n).abs() + 2.0 * reach_of(k).ball().radius();
     let margin = (n.dot(k.a).abs() - s) * lever;
     // Near the parabola the section runs far past any trace window; the
     // check below the trace's resolution reads no window.
@@ -448,7 +445,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let sec = classify(
         &cone,
         &pose.partner,
-        reach,
+        &reach,
         None,
         Some(geom_brep::SsiLane::marched()),
         b,
@@ -456,7 +453,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let back = classify(
         &pose.partner,
         &cone,
-        reach,
+        &reach,
         None,
         Some(geom_brep::SsiLane::marched()),
         b,
@@ -623,7 +620,7 @@ fn the_cone_arms_agree_with_the_traced_section() {
             match classify(
                 &k.surface(),
                 &pose.partner,
-                reach_of(&k),
+                &reach_of(&k),
                 None,
                 Some(geom_brep::SsiLane::marched()),
                 band(),
@@ -705,14 +702,11 @@ fn near_axis_balls_agree_with_the_closed_form() {
             u_ref: b1,
         };
         let what = format!("L {scale}, e/L {frac}, α {alpha}, ρ {rho}, want {want:?}");
-        let reach = Reach {
-            centre: apex,
-            radius: 5.0 * scale,
-        };
+        let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::of_sphere(apex, 5.0 * scale));
         match classify(
             &cone,
             &ball,
-            reach,
+            &reach,
             None,
             Some(geom_brep::SsiLane::marched()),
             b,
