@@ -127,7 +127,7 @@ pub(super) struct Cover<T: geom_core::Real> {
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Depth<T: geom_core::Real> {
     /// The distance from the line through `origin` along `axis`.
-    Axis { origin: Point3<T>, axis: Vec3<T> },
+    Axis(geom::Line<T>),
     /// The distance from `center`.
     Center { center: Point3<T> },
     /// The distance from the circle about `center`, of radius `major`,
@@ -206,15 +206,18 @@ pub(super) fn carrier_depth<T: Decide>(
             axis,
             radius,
         } => Some(Proposed {
-            depth: Depth::Axis {
+            depth: Depth::Axis(geom::Line {
                 origin,
-                axis: axis.get(),
-            },
+                dir: axis.get(),
+            }),
             level: Some((key, radius.abs())),
             source: Source::Carrier,
         }),
         FaceBoxRule::ConeSlab { apex, axis, .. } => Some(Proposed {
-            depth: Depth::Axis { origin: apex, axis },
+            depth: Depth::Axis(geom::Line {
+                origin: apex,
+                dir: axis,
+            }),
             level: None,
             source: Source::Carrier,
         }),
@@ -281,10 +284,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                             unreachable!("a circle or an ellipse reads as a conic")
                         };
                         depths.push(Proposed {
-                            depth: Depth::Axis {
-                                origin: conic.frame().origin,
-                                axis: conic.frame().axis,
-                            },
+                            depth: Depth::Axis(conic.frame().axis_line()),
                             level: None,
                             source: Source::Arc(
                                 end(edge.he_plus, "he_plus"),
@@ -426,7 +426,7 @@ pub(super) fn sup_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
         }
     };
     let circle = match depth {
-        Depth::Axis { origin, axis } => swing(ring, origin, axis).rho.1,
+        Depth::Axis(geom::Line { origin, dir: axis }) => swing(ring, origin, axis).rho.1,
         // `|w + R·e|² = w_n² + |w_⊥ + R·e|² ≤ w_n² + (|w_⊥| + R)²`, `w`
         // from the centre to `c`, split along `n`.
         Depth::Center { center } => {
@@ -455,7 +455,7 @@ pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
         Piece::Segment(p, q) => return nearest_offset(depth, p, q).map(|o| o.norm()),
     };
     let circle = match depth {
-        Depth::Axis { origin, axis } => swing(&ring, origin, axis).rho.0,
+        Depth::Axis(geom::Line { origin, dir: axis }) => swing(&ring, origin, axis).rho.0,
         // `|w + R·e|² ≥ w_n² + (|w_⊥| − R)²`.
         Depth::Center { center } => {
             let (perp, along) = split(ring.center - center, ring.normal);
@@ -481,7 +481,7 @@ pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
 /// core depth.
 fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
     let (u, w) = match depth {
-        Depth::Axis { origin, axis } => {
+        Depth::Axis(geom::Line { origin, dir: axis }) => {
             let a = axis / axis.norm();
             (split(p - origin, a).0, split(q - p, a).0)
         }
@@ -501,7 +501,7 @@ fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Opt
 /// The exact depth of the point `x`.
 pub(super) fn exact<T: Decide>(depth: Depth<T>, x: Point3<T>) -> T {
     match depth {
-        Depth::Axis { origin, axis } => split(x - origin, axis).0.norm(),
+        Depth::Axis(line) => line.offset(x).norm(),
         Depth::Center { center } => (x - center).norm(),
         Depth::Core {
             center,
@@ -534,14 +534,11 @@ pub(super) fn least<T: Decide>(bounds: impl Iterator<Item = Option<T>>) -> Optio
 /// or the centre's foot on it. `None` for a core depth.
 fn least_point<T: Decide>(depth: Depth<T>, (o, n): (Point3<T>, Vec3<T>)) -> Option<Point3<T>> {
     match depth {
-        Depth::Axis { origin, axis } => {
+        Depth::Axis(geom::Line { origin, dir: axis }) => {
             let s = (o - origin).dot(n) / axis.dot(n);
             Some(origin + axis * s)
         }
-        Depth::Center { center } => {
-            let n = n / n.norm();
-            Some(center - n * (center - o).dot(n))
-        }
+        Depth::Center { center } => Some(geom::Line { origin: o, dir: n }.square_foot(center)),
         Depth::Core { .. } => None,
     }
 }
@@ -722,7 +719,7 @@ pub(super) fn across<T: Decide>(
         read.depths
             .iter()
             .filter_map(|proposed| match (proposed.depth, proposed.source) {
-                (Depth::Axis { axis, .. }, Source::Arc(p, q)) => {
+                (Depth::Axis(geom::Line { dir: axis, .. }), Source::Arc(p, q)) => {
                     unit((axis / axis.norm()).cross(q - p))
                 }
                 _ => None,
@@ -730,11 +727,14 @@ pub(super) fn across<T: Decide>(
     });
     let off = |x: Point3<T>, origin: Point3<T>, axis: Vec3<T>| unit(split(x - origin, axis).0);
     let between = match (ra.carrier(), rb.carrier()) {
-        (Some(Depth::Axis { origin: o, axis: a }), Some(Depth::Axis { origin: p, axis: b })) => {
+        (
+            Some(Depth::Axis(geom::Line { origin: o, dir: a })),
+            Some(Depth::Axis(geom::Line { origin: p, dir: b })),
+        ) => {
             vec![off(p, o, a), off(o, p, b)]
         }
-        (Some(Depth::Axis { origin, axis }), Some(Depth::Center { center }))
-        | (Some(Depth::Center { center }), Some(Depth::Axis { origin, axis })) => {
+        (Some(Depth::Axis(geom::Line { origin, dir: axis })), Some(Depth::Center { center }))
+        | (Some(Depth::Center { center }), Some(Depth::Axis(geom::Line { origin, dir: axis }))) => {
             vec![off(center, origin, axis)]
         }
         (Some(Depth::Center { center: c }), Some(Depth::Center { center: d })) => {
@@ -774,10 +774,10 @@ mod tests {
     }
 
     fn z_axis() -> Depth<f64> {
-        Depth::Axis {
+        Depth::Axis(geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 2.0),
-        }
+            dir: v(0.0, 0.0, 2.0),
+        })
     }
 
     /// **The clear is a strict gap past the pad, and nothing less.** A
@@ -1047,7 +1047,7 @@ mod tests {
 
     fn arc(c: Point3<f64>, n: Vec3<f64>, from: Point3<f64>, to: Point3<f64>) -> Proposed<f64> {
         Proposed {
-            depth: Depth::Axis { origin: c, axis: n },
+            depth: Depth::Axis(geom::Line { origin: c, dir: n }),
             level: None,
             source: Source::Arc(from, to),
         }
@@ -1120,7 +1120,7 @@ mod tests {
             dirs(&ball(p(1.0, 2.0, 3.0)), &ball(p(1.0, 2.0, 3.0))).is_empty(),
             "coincident centres propose nothing"
         );
-        let wall = |o, a| read_of(vec![carrier(Depth::Axis { origin: o, axis: a })]);
+        let wall = |o, a| read_of(vec![carrier(Depth::Axis(geom::Line { origin: o, dir: a }))]);
         let y = v(0.0, 1.0, 0.0);
         let parallel = dirs(&wall(p(0.0, 0.0, 0.0), y), &wall(p(1.0, 0.7, 1.0), y * 2.0));
         assert_eq!(parallel.len(), 2, "two offsets");

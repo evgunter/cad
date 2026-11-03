@@ -88,11 +88,11 @@ impl<T: Real> Frame<T> {
         self.origin + self.u_ref * x + self.v_ref() * y + self.axis * h
     }
 
-    /// **`p`'s foot on the frame's plane**: `p − axis·h`, `h` its
-    /// [`Self::height`].
+    /// **`p`'s foot on the frame's plane**, the plane through `origin`
+    /// square to `axis` ([`Line::square_foot`] on [`Self::axis_line`]).
     #[must_use]
     pub fn foot(&self, p: Point3<T>) -> Point3<T> {
-        p - self.axis * self.height(p)
+        self.axis_line().square_foot(p)
     }
 
     /// The line through `origin` along `axis`.

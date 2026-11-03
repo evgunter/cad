@@ -542,6 +542,14 @@ impl<T: Real> Line<T> {
         let w = p - self.origin;
         w - self.dir * (w.dot(self.dir) / self.dir.dot(self.dir))
     }
+
+    /// **`p`'s foot on the plane through `origin` square to the line**:
+    /// `p − dir·((p − origin)·dir / (dir·dir))`, the line read as that
+    /// plane's normal.
+    #[must_use]
+    pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
+        p - self.dir * ((p - self.origin).dot(self.dir) / self.dir.dot(self.dir))
+    }
 }
 
 impl<T: Real> Curve3<T> {
