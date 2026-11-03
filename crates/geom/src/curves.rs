@@ -676,6 +676,37 @@ impl<T: Real> Curve3<T> {
         }
     }
 
+    /// **The carrier read as a circle**: its own [`Circle`] (the sibling of
+    /// [`Self::as_line`]), `None` for
+    /// every other kind.
+    #[must_use]
+    pub fn as_circle(&self) -> Option<&Circle<T>> {
+        match self {
+            Self::Circle(c) => Some(c),
+            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
+        }
+    }
+
+    /// **The carrier's placement**: a conic's own [`Frame`], and a
+    /// spiric's torus's (centre, axis and seam). `None` for a line and a
+    /// spline.
+    #[must_use]
+    pub fn frame(&self) -> Option<Frame<T>> {
+        match *self {
+            Self::Circle(c) => Some(c.frame),
+            Self::Ellipse(e) => Some(e.frame),
+            Self::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius: _,
+                minor_radius: _,
+                offset: _,
+            } => Some(Frame::new(center, axis, u_ref)),
+            Self::Line(_) | Self::Nurbs(_) => None,
+        }
+    }
+
     /// Whether the carrier bends: it does not read as a line
     /// ([`Self::as_line`]). A curved span's chord midpoint is off it, and
     /// its chord is not its extent.
@@ -1591,6 +1622,24 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    #[test]
+    fn a_lines_offset_and_square_foot_read_a_non_unit_dir() {
+        let l = Line {
+            origin: Point3::new(1.0, 2.0, 3.0),
+            dir: Vec3::new(0.0, 0.0, 4.0),
+        };
+        let p = Point3::new(4.0, 6.0, 11.0);
+        let xyz = |v: Vec3<f64>| (v.x, v.y, v.z);
+        let pt = |q: Point3<f64>| (q.x, q.y, q.z);
+        assert_eq!(xyz(l.offset(p)), (3.0, 4.0, 0.0), "the offset");
+        assert_eq!(pt(l.square_foot(p)), (4.0, 6.0, 3.0), "the square foot");
+        assert_eq!(
+            pt(l.foot(p) + l.offset(p)),
+            pt(p),
+            "foot plus offset is the point"
+        );
+    }
 
     /// **A line's foot is square to it, whatever `dir`'s length**: the
     /// way from the foot to the point is perpendicular to `dir`. A

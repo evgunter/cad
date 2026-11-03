@@ -2695,8 +2695,9 @@ impl<T: Bounds> ArcReads<T> for geom::Circle<T> {
             (self.point_at(tb) - c).norm(),
         );
         let (o, radius) = (self.frame.origin, self.radius);
-        let h = self.frame.height(c);
-        let plane = self.frame.axis_line().offset(c);
+        let axis = self.frame.axis_line();
+        let h = (axis.foot(c) - o).norm();
+        let plane = axis.offset(c);
         let rho = plane.norm();
         let whole_near = (h.powi(2) + (rho - radius).powi(2)).sqrt();
         let whole_far = (h.powi(2) + (rho + radius).powi(2)).sqrt();

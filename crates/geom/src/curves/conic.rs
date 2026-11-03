@@ -627,37 +627,6 @@ impl<T: Real> Curve3<T> {
             Self::Line(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
         }
     }
-
-    /// **The carrier read as a circle**: its own [`Circle`] (the sibling of
-    /// [`Self::as_line`]), `None` for
-    /// every other kind.
-    #[must_use]
-    pub fn as_circle(&self) -> Option<&Circle<T>> {
-        match self {
-            Self::Circle(c) => Some(c),
-            Self::Line(_) | Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
-        }
-    }
-
-    /// **The carrier's placement**: a conic's own [`Frame`], and a
-    /// spiric's torus's (centre, axis and seam). `None` for a line and a
-    /// spline.
-    #[must_use]
-    pub fn frame(&self) -> Option<Frame<T>> {
-        match *self {
-            Self::Circle(c) => Some(c.frame),
-            Self::Ellipse(e) => Some(e.frame),
-            Self::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius: _,
-                minor_radius: _,
-                offset: _,
-            } => Some(Frame::new(center, axis, u_ref)),
-            Self::Line(_) | Self::Nurbs(_) => None,
-        }
-    }
 }
 
 #[cfg(test)]

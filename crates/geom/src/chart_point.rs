@@ -129,6 +129,9 @@ impl<T: Real> ChartInverse<T> {
     ///
     /// [`NoClosedInverse`] for a spline net or a fitted stand-in.
     pub fn of(surface: &Surface<T>) -> Result<Self, NoClosedInverse> {
+        let frame = surface.frame().ok_or(NoClosedInverse {
+            kind: surface.kind(),
+        })?;
         let arm = match *surface {
             Surface::Plane { .. } => ChartArm::Plane,
             Surface::Cylinder { radius, .. } => ChartArm::Cylinder { radius },
@@ -142,15 +145,8 @@ impl<T: Real> ChartInverse<T> {
                 major: major_radius,
                 minor: minor_radius,
             },
-            Surface::Nurbs(_) | Surface::Approx(_) => {
-                return Err(NoClosedInverse {
-                    kind: surface.kind(),
-                });
-            }
+            Surface::Nurbs(_) | Surface::Approx(_) => unreachable!("a net has no frame"),
         };
-        let frame = surface.frame().ok_or(NoClosedInverse {
-            kind: surface.kind(),
-        })?;
         Ok(Self { frame, arm })
     }
 

@@ -521,7 +521,7 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
         Isometry::Proper(motion) => f.moved(motion),
         Isometry::Improper(map) => geom::Frame::new(
             map.transform_point(f.origin),
-            -map_vec(map, f.axis),
+            hand.axial(map, f.axis),
             map_vec(map, f.u_ref),
         ),
     };

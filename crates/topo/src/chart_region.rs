@@ -1621,10 +1621,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     trims actually are, through A's own chart map. Face A's term
     //     is its identity transfer (its minted images against its own
     //     world points); face B's carries the full affine transfer.
-    let phi_a = |q: &Point2<T>| -> geom_core::Point3<T> {
-        let (s, cu) = q.x.sin_cos();
-        a.origin + (a.u_ref * cu + w_a * s) * a_radius + a.axis * q.y
-    };
+    let phi_a = |q: &Point2<T>| -> geom_core::Point3<T> { surface_a.eval(q.x, q.y) };
     let mut residual = T::zero();
     for (body, face, uv) in [(body_a, face_a, &uv_a), (body_b, face_b, &uv_b)] {
         residual = residual.max(transfer_residual(body, face, uv, &phi_a)?);

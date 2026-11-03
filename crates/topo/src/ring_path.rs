@@ -537,9 +537,7 @@ impl<T: Real> CircleArc<T> {
 
     /// The unit direction of travel at `t`.
     fn tangent(&self, t: T) -> Vec3<T> {
-        let (s, c) = t.sin_cos();
-        let f = &self.circle.frame;
-        f.v_ref() * c - f.u_ref * s
+        self.circle.derivative_at(t) / self.circle.radius
     }
 
     /// The parameter of `p` (a point of the circle) on the branch of the
@@ -762,10 +760,7 @@ impl<T: Real> LoopArc<T> {
                 span,
                 own: None,
             })),
-            geom::Curve3::Line(geom::Line { origin, dir }) => Some(Self::Line {
-                line: geom::Line { origin, dir },
-                span,
-            }),
+            geom::Curve3::Line(line) => Some(Self::Line { line, span }),
             geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => None,
         }
     }

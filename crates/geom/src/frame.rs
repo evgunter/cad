@@ -5,9 +5,9 @@
 //! `axis` and `u_ref` are unit and orthogonal by convention, unchecked
 //! here and certified at rest. What each one means on a carrier (a
 //! conic's plane normal and seam, a surface's axis of revolution) is
-//! that kind's own docs'. Every reading of a placement alone is a method
-//! here, and a reader holding a `Frame` asks it rather than taking it
-//! apart.
+//! that kind's own docs'. The readings of a placement alone below are
+//! its one home: a reader holding a `Frame` asks it for them rather than
+//! spelling them again from the fields.
 //!
 //! A [`RigidMotion`] is a different fact about the same shape of data:
 //! a motion is proven rigid where it is minted, a frame is stated data

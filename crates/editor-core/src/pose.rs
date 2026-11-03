@@ -202,11 +202,7 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
 pub fn pose_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
     Some(match pose {
         PoseValue::Plane { normal, offset } => (p - Point3::origin()).dot(normal.get()) - *offset,
-        PoseValue::Axis(line) => {
-            let d = line.dir.get();
-            let v = p - line.foot;
-            (v - d * v.dot(d)).norm()
-        }
+        PoseValue::Axis(line) => line.line().offset(p).norm(),
         PoseValue::Point { position } => (p - *position).norm(),
         PoseValue::Frame(f) => (p - f.origin()).dot(f.w().get()),
         PoseValue::Direction { .. } => return None,
