@@ -38,3 +38,10 @@ rule out first.
 2026-11-01 (SPLICE, PR 6171's CI at 1e-12): another instance. `CAD_FUZZ_SEED=0x6a2d823d74e75b46
 CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-12`: span 8 at 0.75, residual 1.0122415369981837e-8 over its
 bound 1.0122415334767205e-8. It reproduces on `origin/main` a81699db.
+
+**Still red (2026-11-03)**: hosted CI `test (kernel)` at eps 1e-12 on PR 6454
+(`onecopy/ladder-climb`, which does not touch `ssi/`) failed with
+`CAD_FUZZ_SEED=0xca64507d38d555ef CAD_FUZZ_EFFORT=1`: span 6 at `0.666…`
+(a cut point again), residual `9.269270029140466e-9` over its bound
+`9.269270008214833e-9`, a spindle torus (minor radius `0.00127` over major
+`0.00098`). It reproduces locally with main's `geom-brep` sources.
