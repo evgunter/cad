@@ -1849,11 +1849,13 @@ fn plane_roots<T: Decide>(
         Sign::Zero => return Ok(None),
         Sign::Positive => {}
     }
+    // Each root's direction is the phase direction `(ca, cb)` turned by
+    // `±offset`, read once within half a turn of the span's middle.
     let middle = geom::mid_param(p.span.0, p.span.1);
-    let phase = geom::Azimuth::of(cb, ca).near(middle);
     let offset = (-d / (p.radius * rho)).max(-T::one()).min(T::one()).acos();
-    let turn = geom_core::period::Period::new(T::tau());
-    let [r0, r1] = [phase + offset, phase - offset].map(|t| turn.near(t, middle));
+    let (s, c) = offset.sin_cos();
+    let root = |s: T| geom::Azimuth::of(cb * c + ca * s, ca * c - cb * s).near(middle);
+    let [r0, r1] = [root(s), root(T::zero() - s)];
     // On the arrival arc, the root nearer the end is the arrival; the
     // other is read. The pick is a raw comparison and needs no decision.
     // The arrival lies on the plane up to rounding δ, and a root

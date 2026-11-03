@@ -1,43 +1,60 @@
-# Production `.atan2(` calls outside geom::azimuth, by file and class
-# (scripts/gates/atan2-sites.sh; its header defines the classes). A
-# ratchet: a row may only be lowered or deleted. A file with sites of
-# two classes has a row per class.
-# path	count	class
-crates/editor-core/src/eval/measure.rs	1	turn
-crates/editor-core/src/eval/mod.rs	4	user
-crates/editor-core/src/expr.rs	1	user
-crates/editor-core/src/mate/value.rs	4	user
-crates/geom/src/surfaces.rs	1	chart
-crates/geom-brep/src/intersect.rs	1	harmonic
-crates/geom-brep/src/pair_section/torus_arms.rs	1	chart
-crates/geom-brep/src/pcurve_cache.rs	4	chart
-crates/geom-brep/src/pcurve_cache/projected.rs	10	chart
-crates/geom-brep/src/props/closure.rs	1	turn
-crates/geom-brep/src/props/curved.rs	8	turn
-crates/geom-brep/src/props/curved.rs	2	chart
-crates/geom-brep/src/props/curved.rs	2	harmonic-cut
-crates/mesh/src/trimmed.rs	1	harmonic
-crates/profile/src/lift.rs	1	user
-crates/profile/src/path.rs	1	user
-crates/profile/src/path/arc_fillet.rs	1	user
-crates/profile/src/sugar.rs	3	user
-crates/step-import/src/normalize/singularity.rs	1	harmonic
-crates/sweep/src/blend/reach.rs	1	turn
-crates/sweep/src/blend/surgery.rs	1	turn
-crates/topo/src/boolean/boxes.rs	3	chart
-crates/topo/src/boolean/circle_roots.rs	2	harmonic-cut
-crates/topo/src/boolean/conic_quadric/mod.rs	1	harmonic
-crates/topo/src/boolean/fate.rs	1	turn
-crates/topo/src/boolean/ops.rs	1	turn
-crates/topo/src/boolean/region.rs	1	turn
-crates/topo/src/boolean/rim_wedge.rs	3	awaits-6443
-crates/topo/src/boolean/solid_contain.rs	3	turn
-crates/topo/src/chart_region.rs	1	turn
-crates/topo/src/injective.rs	1	chart
-crates/topo/src/offset_axial.rs	1	harmonic
-crates/topo/src/offset_axial.rs	3	turn
-crates/topo/src/ring_path.rs	2	turn
-crates/topo/src/sector_face.rs	1	turn
-crates/topo/src/shell.rs	2	turn
-crates/topo/src/shell.rs	1	harmonic
-crates/topo/src/splitting/classify.rs	2	harmonic-cut
+# Production `.atan2(` calls outside geom::azimuth, by file, function and
+# class (scripts/gates/atan2-sites.sh; its header defines the classes and
+# says what raising a row means). One row per (file, function).
+# path	function	count	class
+crates/editor-core/src/eval/measure.rs	angle	1	turn
+crates/editor-core/src/eval/mod.rs	solve_atan2	4	user
+crates/editor-core/src/expr.rs	eval_inner	1	user
+crates/editor-core/src/mate/value.rs	chain_turns	4	user
+crates/geom/src/surfaces.rs	sheet_apex	1	upper-half
+crates/geom-brep/src/intersect.rs	azimuth	1	harmonic
+crates/geom-brep/src/pair_section/torus_arms.rs	across_strip	1	chart
+crates/geom-brep/src/pcurve_cache.rs	focal_section_azimuth	1	chart
+crates/geom-brep/src/pcurve_cache.rs	eval	1	chart
+crates/geom-brep/src/pcurve_cache.rs	chart_box	2	chart
+crates/geom-brep/src/pcurve_cache/projected.rs	raw	1	chart
+crates/geom-brep/src/pcurve_cache/projected.rs	branch_azimuth	1	chart
+crates/geom-brep/src/pcurve_cache/projected.rs	atan2_range	4	chart
+crates/geom-brep/src/pcurve_cache/projected.rs	window	4	chart
+crates/geom-brep/src/props/closure.rs	new	1	turn
+crates/geom-brep/src/props/curved.rs	cylinder_windings	1	turn
+crates/geom-brep/src/props/curved.rs	turn_about	1	turn
+crates/geom-brep/src/props/curved.rs	solid_angle	2	chart
+crates/geom-brep/src/props/curved.rs	triangle_solid_angle	1	turn
+crates/geom-brep/src/props/curved.rs	sphere_loop	1	turn
+crates/geom-brep/src/props/curved.rs	pole_turning	2	turn
+crates/geom-brep/src/props/curved.rs	torus_angle	2	harmonic-cut
+crates/geom-brep/src/props/curved.rs	torus_chart_loop	2	turn
+crates/mesh/src/trimmed.rs	harmonic_range	1	harmonic
+crates/profile/src/lift.rs	carrier_form	1	user
+crates/profile/src/path.rs	chord_director	1	user
+crates/profile/src/path/arc_fillet.rs	about	1	user
+crates/profile/src/sugar.rs	at_corner	2	user
+crates/profile/src/sugar.rs	setback	1	user
+crates/step-import/src/normalize/singularity.rs	crossings	1	harmonic
+crates/sweep/src/blend/reach.rs	sheet_clip	1	turn
+crates/sweep/src/blend/surgery.rs	attach_contact	1	turn
+crates/topo/src/boolean/boxes.rs	sphere_window	1	chart
+crates/topo/src/boolean/boxes.rs	torus_rect_extent	2	chart
+crates/topo/src/boolean/circle_roots.rs	first_harmonic_root_directions	2	harmonic-cut
+crates/topo/src/boolean/conic_quadric/mod.rs	through_the_apex	1	harmonic
+crates/topo/src/boolean/fate.rs	tip_wraps	1	turn
+crates/topo/src/boolean/ops.rs	apply_cut_ins	1	turn
+crates/topo/src/boolean/region.rs	between	1	turn
+crates/topo/src/boolean/rim_wedge.rs	locus_param	1	awaits-6443
+crates/topo/src/boolean/rim_wedge.rs	crossings	2	awaits-6443
+crates/topo/src/boolean/solid_contain.rs	loop_turn	1	turn
+crates/topo/src/boolean/solid_contain.rs	arc_turn	2	turn
+crates/topo/src/chart_region.rs	cylinder_pair_overlap	1	turn
+crates/topo/src/injective.rs	on	1	chart
+crates/topo/src/offset_axial.rs	solve_corner	1	harmonic
+crates/topo/src/offset_axial.rs	param_on	1	turn
+crates/topo/src/offset_axial.rs	reauthor	1	turn
+crates/topo/src/offset_axial.rs	azimuth_turn	1	turn
+crates/topo/src/ring_path.rs	paths	1	turn
+crates/topo/src/ring_path.rs	parallel	1	turn
+crates/topo/src/sector_face.rs	azimuth_from	1	turn
+crates/topo/src/shell.rs	winds_once	1	turn
+crates/topo/src/shell.rs	chart_read	1	turn
+crates/topo/src/shell.rs	cut_counting	1	harmonic
+crates/topo/src/splitting/classify.rs	conic_plane_candidates	2	harmonic-cut

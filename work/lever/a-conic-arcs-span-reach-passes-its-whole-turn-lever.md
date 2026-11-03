@@ -48,3 +48,13 @@ Two readings are open:
 The first measurement is `got − lever` at this seed.
 
 Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+**A second seed** (ONECOPY `onecopy/angle-reads`, 2026-11-03), found by a
+local full geom-brep run and reproducible with `CAD_FUZZ_SEED=0xd54786f7cb0d235c
+CAD_FUZZ_EFFORT=1` (`--features test-support`): a thin ellipse
+(`semi_u` 0.0014142132088478148, `semi_v` 1.0; centre the origin, axis
+`(-0.5572965940438884, 0.28438696616547604, 0.7800926609975752)`,
+`u_ref` `(0.6166163900257462, -0.48744344408386014, 0.6182096055313937)`)
+over `[6.778616771278262, 18.0108665539107]`, from the origin, fails the
+same third assertion. Neither side of the comparison reads anything that
+branch changed.

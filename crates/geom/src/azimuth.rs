@@ -193,6 +193,16 @@ impl<T: Real> Azimuth<T> {
         Self { y, x }
     }
 
+    /// **A point's direction in a torus's tube section**: the point at
+    /// `height` along the axis and `rho` from it, about the tube's centre
+    /// circle of `major_radius`, `(height, ρ − R)` in the meridian
+    /// half-plane. Its angle is the point's minor angle. The one spelling
+    /// of the section, for a spiric carrier, a torus or spindle chart and
+    /// a placed tube channel alike.
+    pub fn tube(height: T, rho: T, major_radius: T) -> Self {
+        Self::of(height, rho - major_radius)
+    }
+
     /// The direction's length: the radius its angle is read at.
     pub fn length(self) -> T {
         (self.x.powi(2) + self.y.powi(2)).sqrt()

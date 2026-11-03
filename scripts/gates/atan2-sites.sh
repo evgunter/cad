@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # atan2-sites.sh — every `.atan2(` in production code outside the angle
-# home has a row in a site table, with its class, and the table may only
-# shrink. ONE home; ci.yml's `lint` job runs every gate in this directory.
+# home has a row in a site table, keyed by its function, with its class.
+# A row is meant only to be lowered; that is held in review (below).
+# ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE RULE (`work/onecopy/an-angle-read-clear-of-its-cut-is-spelled-five-ways-and-angle-of-by-hand.md`,
 # "Decided"). An angle read off the geometry has its doors in `geom`:
@@ -11,9 +12,9 @@
 # on a carrier), and a held angle renamed by whole turns goes through
 # `geom_core::period::Period::near`. This gate is a backstop for those
 # doors, not the canonical reading: a new `.atan2(` call anywhere else
-# raises its file above its row and fails, and a call that went away
-# lowers it and fails until the row is lowered, so the slack cannot let
-# one back in unseen.
+# raises its function above its row and fails, and a call that went
+# away lowers it and fails until the row is lowered, so the slack cannot
+# let one back in unseen.
 #
 # EXEMPT, not in the table: the angle home `crates/geom/src/azimuth.rs`,
 # and the scalar implementations of `Real::atan2`
@@ -31,10 +32,29 @@
 #                 work/onecopy/harmonic-phases-pick-their-cut-side-by-hand.md)
 #   chart         a chart's own closed form (a latitude, a projected
 #                 chart, a pcurve's closed form, a torus window's bound)
+#   upper-half    a read whose `y` is never negative (a square root, an
+#                 absolute value), so it lies clear of `atan2`'s cut and
+#                 asks no decision, as `geom::separation` does; at `Real`
+#                 there is no door to ask (`geom::surfaces::sheet_apex`)
 #   user          an angle the user states or reads (the expression
 #                 language's atan2, a mate's angles, a measure, a sketch)
 #   awaits-6443   `topo::boolean::rim_wedge`, rewritten by ONEDOOR's
 #                 PR 6443 (stage 3 of the placement decision)
+#
+# THE KEY is (file, enclosing function, class): a row per function, so a
+# site that moves between functions, or a function whose class changes,
+# changes a line. WHAT THIS GATE DOES NOT ENFORCE, stated as
+# `engine-leaves.counts` states its own: a raised count, a new row, or a
+# swap within one function of a site of one class for one of another
+# (an in-frame read for a turn) passes; the table's diff is read in
+# review, and that is where it is held.
+#
+# ITS SECOND BLIND SPOT is the in-frame read spelled through the door's
+# own constructor: `geom::Azimuth::of(w.dot(v_ref), w.dot(u_ref))` by
+# hand is the read this gate exists to send to `Conic::azimuth` /
+# `Curve3::azimuth` (and `Frame::azimuth`, filed), and no `.atan2(`
+# shows it. The sites are listed in
+# `work/onecopy/frame-azimuth-waits-on-the-frame-module.md`.
 #
 # WHAT IS READ: `.atan2(` (whitespace allowed before the paren) in every
 # `crates/*/src/**/*.rs`, comments and literals out, `#[cfg(test)]`
@@ -67,7 +87,7 @@ EXEMPT = {
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/sym.rs",
 }
-CLASSES = {"turn", "harmonic", "harmonic-cut", "chart", "user", "awaits-6443"}
+CLASSES = {"turn", "harmonic", "harmonic-cut", "chart", "upper-half", "user", "awaits-6443"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")
 
 
@@ -151,13 +171,17 @@ for path, text in code.items():
         test_only.add(os.path.join(base, m.group(1) + ".rs"))
         test_only.add(os.path.join(base, m.group(1), "mod.rs"))
 
+FN = re.compile(r"\bfn\s+(\w+)")
 counts = {}
 for path in files:
     if path in EXEMPT or path in test_only or TEST_NAME.search(os.path.basename(path)):
         continue
-    n = len(CALL.findall(without_test_mods(code[path])))
-    if n:
-        counts[path] = n
+    text = without_test_mods(code[path])
+    for m in CALL.finditer(text):
+        # The site's function: the last `fn` declared before it.
+        fns = list(FN.finditer(text, 0, m.start()))
+        key = (path, fns[-1].group(1) if fns else "-")
+        counts[key] = counts.get(key, 0) + 1
 
 table, bad = {}, []
 with open(table_path, encoding="utf-8") as fh:
@@ -166,24 +190,26 @@ with open(table_path, encoding="utf-8") as fh:
         if not line:
             continue
         fields = line.split()
-        if len(fields) != 3 or not fields[1].isdigit():
-            bad.append(f"{table_path}:{number}: a row is `path count class`")
+        if len(fields) != 4 or not fields[2].isdigit():
+            bad.append(f"{table_path}:{number}: a row is `path function count class`")
             continue
-        path, n, cls = fields
+        path, fn, n, cls = fields
         if cls == "in-frame":
             bad.append(f"{table_path}:{number}: {path}: an in-frame angle is Conic::azimuth's, Curve3::azimuth's or geom::Azimuth's to read, never a table row")
         elif cls not in CLASSES:
             bad.append(f"{table_path}:{number}: {path}: `{cls}` is not a class (the header lists them)")
-        table[path] = table.get(path, 0) + int(n)
+        if (path, fn) in table:
+            bad.append(f"{table_path}:{number}: {path} {fn}: one row per (file, function)")
+        table[(path, fn)] = int(n)
 
 for b in bad:
     print("BAD " + b)
-for path in sorted(set(counts) | set(table)):
-    now, was = counts.get(path, 0), table.get(path, 0)
+for key in sorted(set(counts) | set(table)):
+    now, was = counts.get(key, 0), table.get(key, 0)
     if now > was:
-        print(f"ROSE {path}: {was} -> {now}")
+        print(f"ROSE {key[0]} {key[1]}: {was} -> {now}")
     elif now < was:
-        print(f"FELL {path}: {was} -> {now}")
+        print(f"FELL {key[0]} {key[1]}: {was} -> {now}")
 print(f"TOTAL {sum(counts.values())}")
 PY
   ); then
@@ -197,7 +223,7 @@ PY
   fi
   if grep -q '^ROSE ' <<<"$report"; then
     grep '^ROSE ' <<<"$report"
-    gate_error "a production .atan2( call arrived outside geom::azimuth — read the angle through its door (Conic::azimuth / Curve3::azimuth / geom::Azimuth::near or ::principal_in, geom::separation, Period::near for a held angle), not a new table row: the table may only shrink"
+    gate_error "a production .atan2( call arrived outside geom::azimuth — read the angle through its door (Conic::azimuth / Curve3::azimuth / geom::Azimuth::near or ::principal_in, geom::separation, Period::near for a held angle), not a new table row: a row is meant only to be lowered"
     exit 1
   fi
   if grep -q '^FELL ' <<<"$report"; then
@@ -211,7 +237,7 @@ PY
 gate_plant_clean() {
   gate_plant_clean_sources "$1"
   mkdir -p "$1/scripts/gates"
-  printf '# path count class\n' > "$1/$TABLE"
+  printf '# path function count class\n' > "$1/$TABLE"
 }
 
 plant_new_site() {
@@ -219,16 +245,16 @@ plant_new_site() {
 }
 
 plant_fell() {
-  printf 'crates/clean/src/lib.rs 1 turn\n' >> "$1/$TABLE"
+  printf 'crates/clean/src/lib.rs angle 1 turn\n' >> "$1/$TABLE"
 }
 
 plant_in_frame_row() {
-  printf 'crates/clean/src/lib.rs 1 in-frame\n' >> "$1/$TABLE"
+  printf 'crates/clean/src/lib.rs angle 1 in-frame\n' >> "$1/$TABLE"
   plant_new_site "$1"
 }
 
 plant_at_table() {
-  printf 'crates/clean/src/lib.rs 1 turn\n' >> "$1/$TABLE"
+  printf 'crates/clean/src/lib.rs angle 1 turn\n' >> "$1/$TABLE"
   plant_new_site "$1"
 }
 
@@ -242,14 +268,22 @@ plant_not_sites() {
   printf 'fn f(y: f64) -> f64 { y.atan2(1.0) }\n' > "$1/crates/geom/src/azimuth.rs"
 }
 
+# The row's site moved to another function: the same file's count, a
+# different key.
+plant_moved_function() {
+  printf 'crates/clean/src/lib.rs angle 1 turn\n' >> "$1/$TABLE"
+  printf 'pub fn other(y: f64, x: f64) -> f64 { y.atan2(x) }\n' >> "$1/crates/clean/src/lib.rs"
+}
+
 gate_selftest() {
   gate_selftest_clean
   gate_selftest_case "arrived outside geom::azimuth" plant_new_site
   gate_selftest_case "went away" plant_fell
   gate_selftest_case "in-frame angle" plant_in_frame_row
+  gate_selftest_case "arrived outside geom::azimuth" plant_moved_function
   gate_selftest_passes "a site at its row" plant_at_table
   gate_selftest_passes "a comment, a string, a test module, a rows file and the home" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a site at its row, and calls in comments, strings, test modules, rows files and the home; fires on a new site, an unrecorded fall and an in-frame row\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a site at its row, and calls in comments, strings, test modules, rows files and the home; fires on a new site, an unrecorded fall, an in-frame row and a site moved to another function\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

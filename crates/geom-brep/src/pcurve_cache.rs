@@ -10418,7 +10418,7 @@ fn derive_class<T: Decide>(
                     // window like the azimuth (a parallel holds it).
                     let v0 = place.phase(
                         Along::Tube,
-                        Azimuth::of(w.dot(axis), rho - major_radius),
+                        Azimuth::tube(w.dot(axis), rho, major_radius),
                         |_| T::zero(),
                         band,
                     )?;

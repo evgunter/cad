@@ -373,9 +373,12 @@ pub(crate) fn overused_identified_edge_in(
     uses.iter().find(|&(_, &n)| n > 2).map(|(&e, &n)| (e, n))
 }
 
-/// [`Period::near`] with half-period tie resolution toward `anchor`
-/// (module docs: the wire-band pole junction, meridians exactly π
-/// apart).
+/// `raw` moved by whole turns near `prev`, where within a quarter turn
+/// of a whole number of turns from it; otherwise (`raw` about half a turn
+/// from `prev`) the copy of the two either side nearer `anchor` (module
+/// docs: the wire-band pole junction, meridians exactly π apart). A
+/// two-reference rule [`Period::near`] does not state, so it is not that
+/// door (`work/onecopy/held-angle-renames-the-angle-reads-sweep-left.md`).
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     let k = (prev - raw) / TAU;
     if (k - k.round()).abs() < 0.25 {

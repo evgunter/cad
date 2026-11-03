@@ -179,12 +179,11 @@ fn clears(x: Interval) -> bool {
 }
 
 impl Channel {
-    /// The plane coordinates of `p` about the channel's centre.
-    fn coords(self, p: Point3<f64>) -> (f64, f64) {
+    fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
         match self {
             Self::Axis { origin, e1, e2 } => {
                 let w = p - origin;
-                (w.dot(e1), w.dot(e2))
+                geom::Azimuth::of(w.dot(e2), w.dot(e1))
             }
             Self::Core {
                 center,
@@ -193,14 +192,9 @@ impl Channel {
             } => {
                 let w = p - center;
                 let (_, rho) = super::square_part(w, axis);
-                (rho - big_r, w.dot(axis))
+                geom::Azimuth::tube(w.dot(axis), rho, big_r)
             }
         }
-    }
-
-    fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
-        let (x, y) = self.coords(p);
-        geom::Azimuth::of(y, x)
     }
 
     /// Whether the box `b` clears the centre in the channel's plane.

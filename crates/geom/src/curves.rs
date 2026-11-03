@@ -821,7 +821,7 @@ fn tube_section<T: Decide>(
     p: Point3<T>,
 ) -> Azimuth<T> {
     let (h, rho) = on_carrier::height_and_radius(p - center, axis);
-    Azimuth::of(h, rho - major_radius)
+    Azimuth::tube(h, rho, major_radius)
 }
 
 impl<T: Decide> Curve3<T> {

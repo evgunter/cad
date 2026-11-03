@@ -786,6 +786,37 @@ BOUNDS_ALLOWLIST=(
   # beside `Bounds`. No bracket read is added: the brackets read are
   # `past_misses`' as before, and the decided rename picks between
   # names of one angle.
+  # Those four doors left `geom-core/tests/bounds_census.rs`' roster of
+  # sole-`Bounds` doors when they gained `Decide`; their DL5(b)
+  # dispositions move here, unchanged:
+  # - `impl CircleFrame`: an arc's closed-form extremes (`distance`,
+  #   `along`). `misses` reads the stored window's and the angle's
+  #   brackets, asking `geom::periodic_window_may_hold`, to SELECT, per
+  #   extreme, between the arc's two ends and the whole circle's value;
+  #   the result is a margin `ring_clearance` decides, and the branch is
+  #   the value channel's (a dual's bracket is its value's). The branch
+  #   is locally constant off the switch, and AT the switch the two
+  #   candidates agree in value and first-order tangent (the end is the
+  #   point realising the whole circle's extreme, where that extreme is
+  #   stationary), so no seed's tangent depends on the branch. An
+  #   uncertain bracket takes the whole circle's value, a sound bound
+  #   wherever the truth lies. The on-axis `lo() <= 0` guards select the
+  #   whole-circle pair, which bounds the arc's wherever `c` is and
+  #   equals the ends' pair where a point scalar takes it.
+  # - `piece_along`, `piece_distance`: an edge's extent along a
+  #   direction, and its near and far distance from a point, over its own
+  #   window. A segment reads no bracket (its clamped foot is `max`/`min`
+  #   arithmetic); a circle's reads are `CircleFrame`'s, whose
+  #   disposition these inherit.
+  # - `strip_reading`: a support ring's three-way reading against a
+  #   plane–plane band's strip, as `CapSliver::read_cycle` reads an
+  #   end-face cycle: `piece_along`'s extents and the witnesses'
+  #   projections are read through `sure` to SELECT inside, crossing or
+  #   neither. An inside ring joins the request's verdict, whose faces
+  #   the reach must still read inside; a decided ring the screen stands
+  #   down on is left to the ring pass, which meters it whole; any
+  #   reading not certain is neither, metered as before. It inherits
+  #   `ring_clearance`'s DL5(b) disposition and the reach's.
   'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
@@ -817,7 +848,18 @@ BOUNDS_ALLOWLIST=(
   # 7 -> 9: `CapSliver`'s impl block and `apart` reach
   # `CircleFrame::past` through `piece_along`, so they name `Decide`
   # beside `Bounds` for the same decided rename (surgery.rs' 18 -> 22);
-  # they read no bracket of their own.
+  # they read no bracket of their own. Their dispositions, moved here
+  # from `bounds_census`' sole-`Bounds` roster when they gained `Decide`:
+  # - `impl CapSliver`: the end-face sliver meter `clearance` reads no
+  #   bracket itself (its reads are `CircleFrame::misses`' and the
+  #   on-axis guards', through `piece_distance` and `piece_along`), and
+  #   its result is the margin `ring_clearance` decides, so it inherits
+  #   that door's DL5(b) disposition and no other.
+  # - `apart`: a lower bound on two end-plane pieces' distance, for the
+  #   sliver's inside reading; it reads no bracket itself (its reads are
+  #   `piece_distance`'s and `piece_along`'s), and its result is one term
+  #   of `CapSliver::inside_point` or `ring_inside`, which only `sure`
+  #   decides, so it inherits that door's disposition and no other.
   'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +

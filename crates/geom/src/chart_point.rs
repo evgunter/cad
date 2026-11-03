@@ -276,7 +276,7 @@ impl<T: Decide> ChartInverse<T> {
                 off("chart_point_on_axis", rho),
             ),
             ChartArm::Torus { major, .. } => {
-                let tube = Azimuth::of(h, rho - major);
+                let tube = Azimuth::tube(h, rho, major);
                 (
                     Azimuth::of(y, x).principal(band),
                     tube.principal(band),
@@ -288,7 +288,7 @@ impl<T: Decide> ChartInverse<T> {
             // latitude's window, which holds it whole only for `v* < π − 1`:
             // a wider apple's far side reads a turn off (filed).
             ChartArm::Spindle { major, .. } => {
-                let tube = Azimuth::of(h, rho - major);
+                let tube = Azimuth::tube(h, rho, major);
                 (
                     Azimuth::of(y, x).principal(band),
                     tube.principal_in(Window::Latitude, band),

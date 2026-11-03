@@ -44,10 +44,6 @@ use sweep::{Revolution, revolve};
 use topo::Body;
 use topo::chart::Chart;
 
-fn unwrap_near(raw: f64, prev: f64) -> f64 {
-    Period::new(core::f64::consts::TAU).near(raw, prev)
-}
-
 /// The unit's minor radius; `R/r` and `δ/r` are the sweep's axes.
 const MINOR: f64 = 1.0;
 
@@ -96,12 +92,12 @@ fn triangle_uv(chart: &Chart, tri: [Point3<f64>; 3]) -> [[f64; 2]; 3] {
     [
         raw[0],
         [
-            unwrap_near(raw[1][0], raw[0][0]),
-            unwrap_near(raw[1][1], raw[0][1]),
+            Period::new(core::f64::consts::TAU).near(raw[1][0], raw[0][0]),
+            Period::new(core::f64::consts::TAU).near(raw[1][1], raw[0][1]),
         ],
         [
-            unwrap_near(raw[2][0], raw[0][0]),
-            unwrap_near(raw[2][1], raw[0][1]),
+            Period::new(core::f64::consts::TAU).near(raw[2][0], raw[0][0]),
+            Period::new(core::f64::consts::TAU).near(raw[2][1], raw[0][1]),
         ],
     ]
 }
