@@ -47,6 +47,9 @@ fn quick_two_sum(a: f64, b: f64) -> Dd {
     }
 }
 
+// The oracle spells its double-double steps as calls, so a row reads
+// each rounding it takes in order.
+#[allow(clippy::should_implement_trait)]
 impl Dd {
     const ZERO: Self = Self { hi: 0.0, lo: 0.0 };
 
