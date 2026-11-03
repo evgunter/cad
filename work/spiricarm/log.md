@@ -31,3 +31,14 @@
     - `export/a-spindle-sheet-exports-as-degenerate-toroidal-surface`;
     - `spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut`.
   - **Dual review dispatched**, a concurrent pair (letter H) on the frozen head `dd0018c0ee`, lanes `spiricarm-rev6473-r1` and `-r2`, with identical briefs and nine claims to falsify.
+- 2026-11-03 — **PR 6473 dual delivered.** Both reviewers returned APPROVE-WITH-FIXES on `dd0018c0ee`.
+  - **Bilateral MAJOR:** tier 3's check 6 fills `flattened` only for sphere and cone faces, so `SheetApexReached` is dead code. A claimed guard is not wired.
+  - **Bilateral MINORs:** `pcurves.rs`'s `has_singular_points` leaves the sheet out, and every apple fixture sits inside the wide-apple gap.
+  - **Unilateral, R2:** a horn a hair past r gives NaN apexes (v* is spelled three ways with no home); check 6's `Err` branch exempts an undecided apex.
+  - **Unilateral, R1:** `tessellate::lane_of`'s refusal text, and the `minor_radius` doc.
+  - **Neither review could execute.** The box's disk filled under five lanes' targets, and both reviewers deleted their own targets and wrote their probes unrun. Both therefore ran under the same constraint: not a relaxation by rule 4, but a truncation by rule 6(e). The row records the pair as excluded from the tally.
+  - **Reclaimed:** the decide's and both reviewers' clones and the decide's target, about 8 GB, leaving 15 GB free.
+  - **Fix pass:** the union, sent to the implementer (resumed for its context and its warm target).
+  - **Class (logged at adjudication):** a census of kind tests keyed on the variant being extended (`Torus`) is blind to the family the new kind joins (`Sphere | Cone`, "has a singular set"). Both reviewers found its misses by sweeping the family instead. A future kind's census sweeps every family it joins.
+  - **Class:** an error variant whose only test is a `Display` sample can be dead code with every test green. Each new finding variant needs an executing row.
+  - **Friction:** five lanes' targets (3.5 to 9.4 GB each) filled the disk within two hours. Dispatch briefs should name a target budget, and review targets are reclaimed the moment a report lands.
