@@ -3702,6 +3702,7 @@ name = "step-export"
 version = "0.0.0"
 dependencies = [
  "geom",
+ "geom-brep",
  "geom-core",
  "profile",
  "proptest",

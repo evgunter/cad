@@ -443,8 +443,22 @@ pub enum StepImportError {
     },
 }
 
-impl fmt::Display for StepImportError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl StepImportError {
+    /// **This refusal as the import door reports it**: each nested
+    /// refusal ended at the import door, by the file's declared
+    /// coincidence distance its variant carries. Its `Display` is the
+    /// payload alone.
+    #[must_use]
+    pub fn render(&self) -> String {
+        fmt::from_fn(|f| self.write(f, true)).to_string()
+    }
+
+    /// The text, its nested refusals ended at the import door where
+    /// `ended`, and their payloads alone otherwise (the `Display`).
+    #[allow(clippy::too_many_lines)] // one sentence per arm
+    fn write(&self, f: &mut fmt::Formatter<'_>, ended: bool) -> fmt::Result {
+        use geom_brep::recourse::{ReadAt, Reading, read_at};
+        let door = |file: &geom_core::FileCoincidence| ended.then_some(ReadAt::File(*file));
         match self {
             Self::Syntax { line, expected } => {
                 write!(f, "step import: line {line}: expected {expected}")
@@ -502,7 +516,7 @@ impl fmt::Display for StepImportError {
             Self::Assembly { id, source, file } => write!(
                 f,
                 "step import: assembling entity #{id}: {}",
-                source.render(*file)
+                read_at(source, door(file))
             ),
             Self::Adoption { id, attempts, file } => {
                 write!(
@@ -519,7 +533,7 @@ impl fmt::Display for StepImportError {
                         f,
                         "{}: {}",
                         attempt.candidate,
-                        attempt.refusal.render(*file)
+                        read_at(&attempt.refusal, door(file))
                     )?;
                 }
                 Ok(())
@@ -558,7 +572,7 @@ impl fmt::Display for StepImportError {
             Self::Pcurves { source, file } => write!(
                 f,
                 "step import: pcurve re-mint on the adopted body: {}",
-                source.render(*file)
+                read_at(source, door(file))
             ),
             Self::C0KnotUnsplit { face, knot, what } => write!(
                 f,
@@ -575,7 +589,12 @@ impl fmt::Display for StepImportError {
                 // `errors` sees); the Display prose says what the
                 // check means and carries the margins the measured
                 // checks report.
-                let verdicts: Vec<String> = errors.iter().map(|e| format!("{e:?} — {e}")).collect();
+                // The at-rest gate's findings, ended there.
+                let at_rest = ended.then_some(ReadAt::Run(Reading::AtRest));
+                let verdicts: Vec<String> = errors
+                    .iter()
+                    .map(|e| format!("{e:?} — {}", read_at(e, at_rest)))
+                    .collect();
                 let subject = match solid {
                     Some(id) => format!("solid #{id}, asked about on its own,"),
                     None => "the assembled body".to_owned(),
@@ -599,7 +618,7 @@ impl fmt::Display for StepImportError {
             } => write!(
                 f,
                 "step import: joining the edges of the solid at #{solid}: {}",
-                refusal.render(*file)
+                read_at(refusal, door(file))
             ),
             Self::SingularityUndecided {
                 id,
@@ -608,29 +627,30 @@ impl fmt::Display for StepImportError {
                 file,
             } => {
                 let arm = RefusedArm::Undecided(cause);
-                let ending = match band {
-                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, *file),
-                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, *file),
-                };
+                let ending = door(file).map(|at| match band {
+                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, at),
+                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, at),
+                });
                 write!(
                     f,
                     "step import: face #{id}: {}",
-                    cause.undecided(SINGULARITY_SUBJECT, ending)
+                    geom_brep::recourse::undecided_at(cause, SINGULARITY_SUBJECT, ending)
                 )
             }
             Self::SingularitySideUndecided { id, side, file } => {
                 use geom_brep::chart_singularity::{SideUnread, Undecided};
-                let ending = Undecided::Side(*side).recourse(*file);
+                let ending = door(file).map(|at| Undecided::Side(*side).recourse(at));
                 match side {
                     SideUnread::Banded(cause) => write!(
                         f,
                         "step import: face #{id}: {}",
-                        cause.undecided(SINGULARITY_SIDE_SUBJECT, ending)
+                        geom_brep::recourse::undecided_at(cause, SINGULARITY_SIDE_SUBJECT, ending)
                     ),
                     SideUnread::Straddle => write!(
                         f,
                         "step import: face #{id}: {SINGULARITY_SIDE_SUBJECT} cannot be read: \
-                         the reading lies within its own error bound. {ending}"
+                         the reading lies within its own error bound{}",
+                        ending.map(|e| format!(". {e}")).unwrap_or_default()
                     ),
                 }
             }
@@ -647,15 +667,23 @@ impl fmt::Display for StepImportError {
                 f,
                 "step import: the assembly placement stated at #{transform} refused \
                  at the kernel’s transform door: {}",
-                source.render(*file)
+                read_at(source, door(file))
             ),
             Self::Instance { solid, source } => write!(
                 f,
                 "step import: an assembly instance of the solid at #{solid} refused \
                  to graft into the result body at the kernel’s disjoint-graft door: \
-                 {source}"
+                 {}",
+                // The graft's own reading, at a build.
+                read_at(source.as_ref(), ended.then_some(ReadAt::Run(Reading::Build)))
             ),
         }
+    }
+}
+
+impl fmt::Display for StepImportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.write(f, false)
     }
 }
 

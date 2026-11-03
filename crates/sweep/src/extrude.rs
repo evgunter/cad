@@ -94,7 +94,6 @@
 //! per segment, bottom before top. Two calls with identical inputs
 //! replay byte-identically.
 
-use core::fmt;
 use topo::construction::Construct;
 
 use geom::Curve3;
@@ -502,8 +501,12 @@ pub enum ExtrudeError {
     Pcurve(topo::PcurveMintError),
 }
 
-impl fmt::Display for ExtrudeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ExtrudeError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
@@ -593,12 +596,17 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
-            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
-            Self::Pcurve(source) => write!(f, "{source}"),
+            Self::Op { source } => {
+                write!(f, "an Euler operation refused: {}", geom_brep::recourse::read_at(source, at))
+            }
+            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
 
+geom_brep::ended_by_write!(ExtrudeError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for ExtrudeError {}
 
 impl From<EulerOpError> for ExtrudeError {
