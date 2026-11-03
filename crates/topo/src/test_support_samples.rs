@@ -2213,6 +2213,23 @@ mod tests {
                     ));
                 }
             }
+            // The payload states what was refused; its recourse is the
+            // ending. A pose the general lane does not cover names its
+            // lever beside "not yet", and a band or a chart row carries the
+            // nested refusal's own text (`BandError`, `SplineError`).
+            let payload = e.to_string();
+            if payload.contains("Recourse")
+                && !matches!(
+                    e,
+                    C::NoGeneralLane {
+                        gap: geom_brep::LaneGap::Pose { .. },
+                        ..
+                    } | C::Band(_)
+                        | C::ChartRow { .. }
+                )
+            {
+                wrong.push(format!("{e:?}: the payload spells a recourse: {payload}"));
+            }
             for at in [Reading::Build, Reading::AtRest] {
                 let ending = e.ending(at);
                 let defect = ending == defect_ending(at);

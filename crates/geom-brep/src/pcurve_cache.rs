@@ -2333,19 +2333,17 @@ impl PcurveCertifyError {
             Self::PlacementTurnsExceeded => write!(
                 f,
                 "pcurve certification: the edge's parameter span sits more than 2³¹ turns \
-                 from its chart's window, and its image names no copy the kernel stores — \
-                 restate the carrier's parameter near zero"
+                 from its chart's window, and its image names no copy the kernel stores"
             ),
             Self::AzimuthPeriodExceeded => write!(
                 f,
                 "pcurve certification: the pcurve winds more than one full period around \
-                 the chart — split the edge first (the winding gate, chart side)"
+                 the chart (the winding gate, chart side)"
             ),
             Self::TubePeriodExceeded => write!(
                 f,
                 "pcurve certification: the projected image's tube angle sweeps more than \
-                 one full period of the torus — split the edge first (the winding gate, tube \
-                 side)"
+                 one full period of the torus (the winding gate, tube side)"
             ),
             Self::ResidualExceeded { check, sample } => {
                 let claim = if check.bounds_a_miss() {
