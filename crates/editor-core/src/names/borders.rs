@@ -44,9 +44,9 @@
 //!
 //! One record serves the pair boolean, which records one step, and the
 //! union, which records each fold step and asks after the finished body
-//! ([`Obstacles::split`]). Both readings are one rule
-//! ([`Obstacles::walls`]), and both refuse a piece or copy, among
-//! several, that meets no divider.
+//! ([`Obstacles::held_walls`]). Both readings are one rule
+//! ([`Obstacles::walls`]); a corner's copy, among several, that meets no
+//! divider refuses, and a face's piece that meets none has no walls.
 //!
 //! Each discard is keyed by the member faces whose area the region it
 //! lost held, as the boolean's holdings read it (`topo::Holdings::lost`),
@@ -433,45 +433,23 @@ impl<K: Ord + Clone> Obstacles<K> {
         );
     }
 
-    /// The rule on a face: `pieces`, the faces of `body` that one face
-    /// `parent` is held as, grouped by the divider walls each borders
-    /// ([`Obstacles::walls`]), each wall named by `wall`. Several pieces under one set are N2's
-    /// tie. The sets come out sorted, in `W`'s order.
-    ///
-    /// `merged` are the parent's other faces, the ones the pair boolean
-    /// names apart from `pieces`: for an operand face, the merges that
-    /// list it (named `Merged`, N3); for a merged parent, its operand
-    /// faces' unmerged pieces and the merges that list them beside other
-    /// faces. They hold part of the parent's region, so an obstacle they
-    /// border counts toward dividing it, and they are neither grouped
-    /// nor checked. Every face of a union's parent is a piece, and it passes
-    /// none.
-    ///
-    /// What only a face has is `merged`: a corner's copies are all
-    /// grouped. Refuses as [`Obstacles::walls`] does, the face's merged
-    /// faces counted among its several.
-    pub(crate) fn split<T: geom_core::Real, W: Ord + Clone>(
+    /// **The rule on held faces**: each of `holders`, the faces of
+    /// `body` that hold area of the member faces `held`, with its divider
+    /// walls ([`Obstacles::walls`]), each wall named by `wall`. A holder
+    /// that meets no divider has none: it meets the others along edges
+    /// inside the held region, not across region it lost.
+    pub(crate) fn held_walls<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
-        parent: &BTreeSet<K>,
-        pieces: &[FaceKey],
-        merged: &[FaceKey],
+        held: &BTreeSet<K>,
+        holders: &[FaceKey],
         wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
-    ) -> Result<BTreeMap<Vec<W>, Vec<FaceKey>>, NamingError> {
-        let boundaries = pieces
+    ) -> Result<Vec<BTreeSet<W>>, NamingError> {
+        let boundaries = holders
             .iter()
-            .chain(merged)
             .map(|&f| face_half_edges(body, f))
             .collect::<Vec<_>>();
-        let walls = self.walls(
-            body,
-            parent,
-            &boundaries,
-            pieces.len(),
-            "a piece of a face held as several borders no recorded discard between them",
-            wall,
-        )?;
-        Ok(group(walls, pieces))
+        self.walls(body, held, &boundaries, holders.len(), None, wall)
     }
 
     /// The rule at a corner: `copies`, the vertices of `body` that one
@@ -533,7 +511,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             parent,
             &boundaries,
             copies.len(),
-            "a copy of a corner held as several meets no recorded discard between them",
+            Some("a copy of a corner held as several meets no recorded discard between them"),
             wall,
         )?;
         Ok(group(walls, copies))
@@ -574,18 +552,18 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// divider walls, the faces across its half-edges along which it
     /// meets an obstacle of `parent` that two or more boundaries meet.
     ///
-    /// Refuses with `refusal` when, of two or more boundaries, a counted
-    /// one meets no divider: the parent is connected, so what lies
-    /// between the things it is held as is discarded region, and one
-    /// that borders none of it is a region the kernel discarded without
-    /// recording it.
+    /// With a `refusal`, refuses with it when, of two or more
+    /// boundaries, a counted one meets no divider: the parent is
+    /// connected, so what lies between the things it is held as is
+    /// discarded region, and one that borders none of it is a region the
+    /// kernel discarded without recording it.
     fn walls<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
         parent: &BTreeSet<K>,
         boundaries: &[Vec<topo::HalfEdgeKey>],
         counted: usize,
-        refusal: &'static str,
+        refusal: Option<&'static str>,
         mut wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
     ) -> Result<Vec<BTreeSet<W>>, NamingError> {
         let mine: BTreeSet<usize> = parent
@@ -681,7 +659,10 @@ impl<K: Ord + Clone> Obstacles<K> {
                 walls[p].insert(wall(across)?);
             }
         }
-        if boundaries.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
+        if let Some(refusal) = refusal
+            && boundaries.len() >= 2
+            && walls.iter().any(BTreeSet::is_empty)
+        {
             return Err(bug(refusal));
         }
         Ok(walls)

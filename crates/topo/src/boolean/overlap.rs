@@ -403,7 +403,9 @@ fn half_plane<T: Decide>(
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let reach = |ta: T, tb: T| match carrier {
-        geom::Curve3::Line(_) => LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p)),
+        geom::Curve3::Line(_) => {
+            LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
+        }
         _ => geom_brep::edge_reach_bounds(carrier, ta, tb, p),
     };
     let (ahead, behind) = if forward { (t1, t0) } else { (t0, t1) };

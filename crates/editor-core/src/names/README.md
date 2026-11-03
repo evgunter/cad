@@ -466,7 +466,7 @@ lies on, read off the finished body and the members' own bodies
   chosen over another's, so the name is the same whichever member was
   authored first, and two members with identical tables (a body and its
   exact copy) are told apart by their reads. An edge lies within a member edge when it lies within that
-  edge along its carrier and both of its faces descend from that member edge's
+  edge along its carrier and both of its faces hold that member edge's
   two faces. An edge one of whose member faces was glued away, another
   member's face lying over it, does not: it is the seam of the faces it
   separates, as a subtract's pocket rim is, and it vanishes when the junction

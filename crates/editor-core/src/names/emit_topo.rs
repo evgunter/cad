@@ -2030,10 +2030,18 @@ pub(super) struct HeldFace<K> {
 ///
 /// A face is its base name, unless another face also holds area of a
 /// member face it holds: then it takes one `Fragment(Borders)` over its
-/// divider walls, read per such member face over that face's own lost
-/// region ([`Obstacles::split`], the walls along which its holders meet
-/// one obstacle of it) and joined. A wall is cited by the base name of
-/// the face across it. Faces one name does not tell apart are the tie.
+/// divider walls. The walls are read over the member faces the finished
+/// faces join (two are joined where one face holds both, and so on
+/// through every face holding either): their lost region's obstacles
+/// that border two or more of the faces holding them divide
+/// ([`Obstacles::held_walls`]), and a face's walls are the faces across
+/// its own edges along which it meets one. A wall is cited by the base
+/// name of the face across it. A holder that meets no divider takes no
+/// wall: it meets the others along edges inside the held region, so
+/// its base differs from theirs. Faces one name does not tell apart are
+/// the tie, save that two such faces where one met no divider refuse:
+/// the member face they share is connected, so what lies between them
+/// is region it lost, which the kernel did not record.
 pub(super) fn name_held_faces<T: geom_core::Real, K: Ord + Clone>(
     t: &mut NameTable,
     tie: &mut TieRows,
@@ -2041,11 +2049,31 @@ pub(super) fn name_held_faces<T: geom_core::Real, K: Ord + Clone>(
     faces: &BTreeMap<FaceKey, HeldFace<K>>,
     obstacles: &Obstacles<K>,
 ) -> Result<(), NamingError> {
-    let mut holders: BTreeMap<&K, Vec<FaceKey>> = BTreeMap::new();
+    // Member face → its place, and each place's holders.
+    let mut place: BTreeMap<&K, usize> = BTreeMap::new();
+    let mut holders: Vec<Vec<FaceKey>> = Vec::new();
+    let mut join = super::least_root::LeastRoot::new();
     for (&f, held) in faces {
+        let mut first = None;
         for m in &held.holds {
-            holders.entry(m).or_default().push(f);
+            let i = *place.entry(m).or_insert_with(|| {
+                holders.push(Vec::new());
+                holders.len() - 1
+            });
+            holders[i].push(f);
+            join.insert(i);
+            if let Some(j) = first {
+                join.join(i, j);
+            }
+            first.get_or_insert(i);
         }
+    }
+    // The joined member faces, by root, and the faces holding them.
+    let mut joined: BTreeMap<usize, (BTreeSet<K>, BTreeSet<FaceKey>)> = BTreeMap::new();
+    for (&m, &i) in &place {
+        let slot = joined.entry(join.root(i)).or_default();
+        slot.0.insert(m.clone());
+        slot.1.extend(holders[i].iter().copied());
     }
     let wall = |g: FaceKey| -> Result<StableName, NamingError> {
         Ok(faces
@@ -2059,14 +2087,27 @@ pub(super) fn name_held_faces<T: geom_core::Real, K: Ord + Clone>(
             .base
             .clone())
     };
+    // A face holding area of a member face another face holds too.
+    let shared = |f: FaceKey| faces[&f].holds.iter().any(|m| holders[place[m]].len() >= 2);
     let mut walls: BTreeMap<FaceKey, BTreeSet<StableName>> = BTreeMap::new();
-    for (&m, pieces) in &holders {
-        if pieces.len() < 2 {
+    let mut undivided: BTreeSet<FaceKey> = BTreeSet::new();
+    for (held, pieces) in joined.values() {
+        if !pieces.iter().any(|&f| shared(f)) {
             continue;
         }
-        for (ws, fs) in obstacles.split(body, &BTreeSet::from([m.clone()]), pieces, &[], &wall)? {
-            for f in fs {
-                walls.entry(f).or_default().extend(ws.iter().cloned());
+        let pieces: Vec<FaceKey> = pieces.iter().copied().collect();
+        for (ws, f) in obstacles
+            .held_walls(body, held, &pieces, &wall)?
+            .into_iter()
+            .zip(pieces)
+        {
+            if !shared(f) {
+                continue;
+            }
+            if ws.is_empty() {
+                undivided.insert(f);
+            } else {
+                walls.insert(f, ws);
             }
         }
     }
@@ -2087,6 +2128,15 @@ pub(super) fn name_held_faces<T: geom_core::Real, K: Ord + Clone>(
         slot.1.push(ent(0, EntityKey::Face(f)));
     }
     for (name, (from_tie, ents)) in named {
+        if ents.len() >= 2
+            && ents
+                .iter()
+                .any(|e| matches!(e.key, EntityKey::Face(f) if undivided.contains(&f)))
+        {
+            return Err(NamingError::Emission {
+                what: "a piece of a face held as several borders no recorded discard between them",
+            });
+        }
         mint_candidates(t, tie, from_tie, name, ents)?;
     }
     Ok(())
@@ -5814,12 +5864,12 @@ mod tests {
         );
     }
 
-    /// **A face a merge absorbed that the body still holds refuses.**
-    /// The merge holds part of the parent, so its live face is a piece
-    /// of a face held as several, and it borders no recorded discard:
-    /// `Obstacles::split` refuses rather than mint `Borders([])`.
+    /// **Two faces holding one face, with no recorded discard between
+    /// them, refuse.** The face they hold is connected, so what lies
+    /// between them is region it lost, which no discard records:
+    /// `name_held_faces` refuses rather than mint `Borders([])` or a tie.
     #[test]
-    fn an_absorbed_face_still_live_beside_its_merge_refuses() {
+    fn two_faces_holding_one_face_with_no_discard_between_them_refuse() {
         let built = unit_cube();
         let ext_node = RecipeNodeId::new(0, 1);
         let a_table = name_extrude(
@@ -5843,9 +5893,20 @@ mod tests {
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,
-            merge_groups: vec![(built.top, vec![lateral])],
             ..topo::BooleanNaming::default()
         };
+        let holdings = topo::Holdings::fixture(
+            built
+                .body
+                .faces()
+                .map(|(f, _)| {
+                    let held = if f == built.top { lateral } else { f };
+                    (f, topo::Held::Faces(BTreeSet::from([(0, held)])))
+                })
+                .collect(),
+            Vec::new(),
+            Vec::new(),
+        );
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
@@ -5864,12 +5925,12 @@ mod tests {
             topo::BooleanOp::Union,
             &built.body,
             &naming,
-            &stated_holdings(&naming, &built.body),
+            &holdings,
             &a,
             &b,
             Tol::witness(),
         )
-        .expect_err("a live absorbed face beside its merge must refuse");
+        .expect_err("two faces holding one face with nothing between them must refuse");
         assert!(
             matches!(
                 err,

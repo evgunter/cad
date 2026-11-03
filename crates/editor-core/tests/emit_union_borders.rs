@@ -2152,17 +2152,18 @@ fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle() {
         ],
         vec![
             (
+                "m1:y=1.20",
+                vec![w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"])],
+            ),
+            (
                 "m1:y=1.20+m2:y=1.20",
-                vec![
-                    w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"]),
-                    w(&["plate:z=1.00", "s:x=0.80"]),
-                ],
+                vec![w(&["plate:z=1.00", "s:x=0.80"])],
             ),
             (
                 "plate:z=1.00",
                 vec![
+                    w(&["m1:y=1.20", "s:x=0.60"]),
                     w(&["m1:y=1.20+m2:y=1.20", "m2:x=2.00", "s:x=0.80"]),
-                    w(&["m1:y=1.20+m2:y=1.20", "s:x=0.60"]),
                 ],
             ),
         ],
@@ -2243,10 +2244,8 @@ fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
             ),
         ],
         vec![
-            (
-                "m1:z=0.50+m2:z=0.50",
-                vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])],
-            ),
+            ("m1:z=0.50+m2:z=0.50", vec![w(&["plate:y=2.00"])]),
+            ("m2:z=0.50", vec![w(&["plate:y=0.00"])]),
             (
                 "m2:z=1.50",
                 vec![w(&["m1:x=1.50"]), w(&["m1:y=1.20+m2:y=1.20"])],
@@ -2546,11 +2545,6 @@ fn splits_by_order(
         .collect()
 }
 
-/// The refusal of a union whose member orders decide differently
-/// (`work/borders/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`).
-const NO_DISCARD_BETWEEN: &str =
-    "a piece of a face held as several borders no recorded discard between them";
-
 /// **A corner touching the far half of a joined seam is not cited.**
 /// `m` covers the stepped plate's pocket extension, so its wall at
 /// `y = 1` merges with the riser, and the lower top's edge there is
@@ -2558,8 +2552,9 @@ const NO_DISCARD_BETWEEN: &str =
 /// `t` crosses it and the lower top, so the two are one divider. A
 /// diamond's corner rests on the riser's half, at `(1.6, 1, 1)`, and
 /// it meets no lost region of the top, so it is an obstacle on the
-/// right piece alone and is never cited. Every order that publishes
-/// gives one table; the rest refuse.
+/// right piece alone and is never cited. West of `t` the top meets
+/// `m`'s wall where it is not merged with the riser, so that piece
+/// cites `m`'s wall alone. Every order publishes one table.
 #[test]
 fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
     let (doc, ids, labels) = stepped_plate_and(
@@ -2578,17 +2573,11 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
         ],
     );
     let top = vec![
-        w(&["plate:y=1.00+m:y=1.00", "t:x=0.40"]),
+        w(&["m:y=1.00", "t:x=0.40"]),
         w(&["plate:y=1.00+m:y=1.00", "t:x=0.60"]),
     ];
     let mut published: Vec<(Vec<usize>, Splits)> = Vec::new();
     for (order, got) in splits_by_order(&doc, &ids, &labels) {
-        // Orders that fold the plate before `m` or `t` refuse.
-        let at = |i| order.iter().position(|&o| o == i);
-        if at(0) < at(1).max(at(2)) {
-            assert_eq!(got, Err(NO_DISCARD_BETWEEN), "{order:?}: refuses");
-            continue;
-        }
         let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
         assert_eq!(
             got.get("plate:z=1.00"),
@@ -2600,11 +2589,7 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
         }
         published.push((order, got));
     }
-    assert_eq!(
-        published.len(),
-        8,
-        "the orders that fold the plate after `m` and `t` publish"
-    );
+    assert_eq!(published.len(), 24, "every order publishes");
 }
 
 /// **A divider beside a joined seam does not reach across it.** The
@@ -2613,7 +2598,8 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
 /// with `t` at `x` in `[1.5, 1.7]`: `t`'s discard lies on the riser's
 /// side of the join and meets neither `m`'s discard on the lower top
 /// nor the region `m`'s wall lost inside the plate, so only `t`
-/// divides the lower top and the merged wall.
+/// divides the lower top and the riser. West of `t` the riser holds
+/// `m`'s wall too, east of it the plate's alone.
 ///
 /// Orders (plate, m, t) and (m, plate, t) link `t`'s discard to `m`'s
 /// through its chain along the joined edge and cite the merged wall
@@ -2630,7 +2616,8 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
     );
     let apart = || vec![w(&["t:x=1.50"]), w(&["t:x=1.70"])];
     let right: Splits = [
-        ("plate:y=1.00+m:y=1.00", apart()),
+        ("plate:y=1.00", vec![w(&["t:x=1.70"])]),
+        ("plate:y=1.00+m:y=1.00", vec![w(&["t:x=1.50"])]),
         ("plate:z=1.00", apart()),
         ("plate:z=2.00", apart()),
         ("t:z=0.50", vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])]),
@@ -2645,8 +2632,8 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
             assert_eq!(
                 got.get("plate:z=1.00"),
                 Some(&vec![
+                    w(&["plate:y=1.00", "t:x=1.70"]),
                     w(&["plate:y=1.00+m:y=1.00", "t:x=1.50"]),
-                    w(&["plate:y=1.00+m:y=1.00", "t:x=1.70"]),
                 ]),
                 "{order:?}: the lower top, over-linked"
             );
@@ -2663,13 +2650,13 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
 /// `(0.75, 1, 1)`, on the half of the joined edge `m`'s discard borders:
 /// the right piece cites the diamond's walls.
 ///
-/// Where the plate folds after `m` and `t` and before the diamond, the
-/// join is made before the diamond's step and nothing in the record
-/// says which half of the joined edge its corner lies on, so the corner
-/// meets no discard and the right piece does not cite it
+/// Where the diamond folds after the plate and `m`, the join is made
+/// before the diamond's step and nothing in the record says which half
+/// of the joined edge its corner lies on, so the corner meets no
+/// discard and the right piece does not cite it
 /// (`work/borders/borders-records-a-join-twice-and-reads-lineage-three-ways.md`).
-/// Those orders are held apart here; the orders that fold the plate
-/// before `m` or `t` refuse.
+/// Those orders are held apart here. The left piece meets `m`'s wall
+/// where it is not merged with the riser, and cites it alone.
 #[test]
 fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
     let (doc, ids, labels) = stepped_plate_and(
@@ -2687,7 +2674,7 @@ fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
             ),
         ],
     );
-    let left = w(&["plate:y=1.00+m:y=1.00", "t:x=0.20"]);
+    let left = w(&["m:y=1.00", "t:x=0.20"]);
     let right = w(&[
         "dia:slant",
         "dia:slant",
@@ -2696,16 +2683,11 @@ fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
         "plate:y=1.00+m:y=1.00",
         "t:x=0.40",
     ]);
-    let under_linked = [vec![1, 2, 0, 3], vec![2, 1, 0, 3]];
     let mut published = 0;
     for (order, got) in splits_by_order(&doc, &ids, &labels) {
         let at = |i| order.iter().position(|&o| o == i);
-        if at(0) < at(1).max(at(2)) {
-            assert_eq!(got, Err(NO_DISCARD_BETWEEN), "{order:?}: refuses");
-            continue;
-        }
         let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
-        let top = if under_linked.contains(&order) {
+        let top = if at(3) > at(0).max(at(1)) {
             vec![left.clone(), w(&["plate:y=1.00+m:y=1.00", "t:x=0.40"])]
         } else {
             vec![right.clone(), left.clone()]
@@ -2717,8 +2699,5 @@ fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
         );
         published += 1;
     }
-    assert_eq!(
-        published, 8,
-        "the orders that fold the plate after `m` and `t` publish"
-    );
+    assert_eq!(published, 24, "every order publishes");
 }
