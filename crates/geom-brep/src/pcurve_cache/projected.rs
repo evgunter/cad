@@ -1,7 +1,8 @@
 //! **The projected image** ([`Pcurve::Projected`], C4): on an analytic
 //! chart, the image of a carrier with no closed-form image (a spline
-//! carrier; a circle on a sphere that is neither a parallel nor a
-//! meridian; a line on a cylinder not shown a ruling) is the chart's own
+//! carrier; a circle on a sphere, cylinder, cone or torus not shown one
+//! of the chart's own circles; a line on a cylinder not shown a ruling)
+//! is the chart's own
 //! inverse applied to the carrier, `P(t) = ψ(C(t))`. It is exact, not a
 //! fit.
 //!
@@ -69,7 +70,8 @@
 //! distance from the chart's, both fidelity. **Incidence** is the
 //! carrier's distance from the chart: the chart's implicit form `f`
 //! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
-//! for a net, `sphere_circle::off_sphere_sup` for a circle,
+//! for a net, `sphere_circle::off_sphere_sup` for a circle on a sphere
+//! and `circle_chart::form_sup` on the other charts,
 //! [`line_off_cylinder_sup`] for a line over the edge's interval), converted to
 //! metres per part of the twin net's knot spans, each cut into
 //! `INCIDENCE_CUTS` parts in the composite's own ring

@@ -845,7 +845,8 @@ pub(crate) fn seam_intersection<T: AtRestPolicy>(
 /// The chart image of a carrier on an ANALYTIC chart, on the chart's
 /// principal branch: the closed form ([`chart_pcurve_over`]) wherever
 /// one exists, and the projected image for a carrier with none (a spline
-/// carrier, a sphere's general circle), partitioned over the edge's own
+/// carrier, a circle or a cylinder's line no class images), partitioned
+/// over the edge's own
 /// interval.
 ///
 /// # Errors
@@ -6913,12 +6914,13 @@ mod odd_cone_circle {
     /// axis at its rim's height and radius, tilted off the rim's plane
     /// through the band and past it, on a grid of quarter decades about
     /// ε: untilted it is the rim and mints; tilted inside the band it
-    /// still reads as the rim; where the class reading is in band it is
-    /// none of the cone's circles and refuses as that reading's
-    /// escalation; past the band it is off the chart. Every refusal is a
-    /// check-8 finding: the one excuse ([`not_owed`]) is a scalar with no
-    /// fitted door, and `f64` holds one. The grid must reach the class
-    /// refusal, or the row has not read the arm it is about.
+    /// still reads as the rim; where the class reading is in band, or
+    /// definite while the incidence read does not show it off, it is
+    /// none of the cone's circles and takes the general lane, its
+    /// projected image; past the band it is off the chart. Every refusal
+    /// is a check-8 finding: the one excuse ([`not_owed`]) is a scalar
+    /// with no fitted door, and `f64` holds one. The grid must reach the
+    /// general lane, or the row has not read the arm it is about.
     #[test]
     fn an_odd_cone_circle_mints_or_is_a_finding_never_excused() {
         let tol = Tol::witness();
@@ -6934,7 +6936,7 @@ mod odd_cone_circle {
         let tilts = core::iter::once(0.0)
             .chain((-12..=16).map(|k| tol.eps() * 10f64.powf(f64::from(k) / 4.0)))
             .chain([0.3]);
-        let mut class_refused = 0;
+        let mut general = 0;
         for tilt in tilts {
             let circle = Curve3::circle(
                 Point3::new(0.0, 0.0, h),
@@ -6943,31 +6945,36 @@ mod odd_cone_circle {
                 Vec3::new(1.0, 0.0, 0.0),
             );
             match analytic_derive(&circle, 0.0, tau, &cone, band, HalfEdgeKey::default()) {
-                Ok(_) => assert!(
-                    tilt < 0.3,
-                    "tilt {tilt:e}: a circle well off the rim minted"
-                ),
+                Ok(image) => {
+                    assert!(
+                        tilt < 0.3,
+                        "tilt {tilt:e}: a circle well off the rim minted"
+                    );
+                    if matches!(image, geom_brep::Pcurve::Projected(_)) {
+                        general += 1;
+                    }
+                }
                 Err(e) => {
                     assert!(tilt > 0.0, "tilt {tilt:e}: the rim itself refused: {e:?}");
                     assert!(!not_owed::<f64>(&e), "tilt {tilt:e}: excused: {e:?}");
-                    if let PcurveMintError::Certify {
-                        error:
-                            PcurveCertifyError::Escalated {
-                                check: PcurveCheck::ChartClass,
+                    assert!(
+                        !matches!(
+                            e,
+                            PcurveMintError::Certify {
+                                error: PcurveCertifyError::Escalated {
+                                    check: PcurveCheck::ChartClass,
+                                    ..
+                                } | PcurveCertifyError::NoGeneralLane { .. },
                                 ..
-                            },
-                        ..
-                    } = e
-                    {
-                        class_refused += 1;
-                    }
+                            }
+                        ),
+                        "tilt {tilt:e}: a class reading ends as the general lane, not as a refusal: \
+                         {e:?}"
+                    );
                 }
             }
         }
-        assert!(
-            class_refused > 0,
-            "no tilt reached the class reading's in-band refusal"
-        );
+        assert!(general > 0, "no tilt reached the general lane");
     }
 }
 

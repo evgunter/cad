@@ -17,8 +17,8 @@
 //!   (`CarrierOffChart`);
 //! - a circle ⊥ the axis through the tube's crest, centred off the
 //!   axis, which the incidence test reads on the torus while it is no
-//!   circle of it: its general lane on a torus is not written yet, so it
-//!   refuses lever-only "not yet" (`NoGeneralLane`, D3);
+//!   circle of it: it takes the general lane (D3), its projected image,
+//!   and the face mints clean;
 //! - a straight line, which no torus holds (`CarrierOffChart`).
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
@@ -173,13 +173,13 @@ fn verdicts(
     (findings, mint, body)
 }
 
-/// **Each strut alone is refused by its own class**, at whichever
-/// corner it stands: the oblique circle and the line are off the torus,
-/// and the crest circle, on it but none of its circles, has no general
-/// lane yet. Tier 3 names the strut and the mint
-/// refuses with it; none is excused.
+/// **Each strut alone is read by its own class**, at whichever corner
+/// it stands: the oblique circle and the line are off the torus, so tier
+/// 3 names the strut and the mint refuses with it, none excused; the
+/// crest circle, on it but none of its circles, takes the general lane:
+/// tier 3 reads the face clean and the mint stores its projected row.
 #[test]
-fn each_strut_alone_is_refused_by_its_own_class() {
+fn each_strut_alone_is_read_by_its_own_class() {
     for i in 0..2 {
         let (f, m, _) = verdicts(Some(i), None);
         assert!(
@@ -206,25 +206,16 @@ fn each_strut_alone_is_refused_by_its_own_class() {
         .expect("the wall has a corner on the tube's crest");
     let p = start_point(&body, crest);
     arc_strut(&mut body, crest, crest_circle_through(p), 0.2);
-    let unwritten = |e: &PcurveMintError| {
-        matches!(
-            e,
-            PcurveMintError::Certify {
-                error: PcurveCertifyError::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Unwritten,
-                    ..
-                },
-                ..
-            }
-        )
-    };
     let f = validate_pcurves(&body, band());
-    assert!(
-        matches!(f.as_slice(), [e] if unwritten(e)),
-        "crest circle: {f:?}"
-    );
+    assert!(f.is_empty(), "crest circle: {f:?}");
     let m = topo::mint_pcurves_of(&mut body, &[wall], tol());
-    assert!(matches!(&m, Err(e) if unwritten(e)), "crest circle: {m:?}");
+    assert!(m.is_ok(), "crest circle: {m:?}");
+    assert!(
+        body.half_edges().any(|(he, _)| body
+            .pcurve(he)
+            .is_some_and(|row| matches!(row.pcurve(), Pcurve::Projected(_)))),
+        "crest circle: the strut's row is its projected image"
+    );
 }
 
 /// **A stale wide row is refused, complete or half-minted.** On a
@@ -322,11 +313,14 @@ fn certificate_refused(e: &PcurveMintError) -> bool {
 }
 
 /// **A covered strut whose refusal the band cannot decide is named** —
-/// a parallel tilted off the torus's axis. Tilted 2ε, it refuses in its
-/// derivation (`ChartWinding`); tilted ε, its image derives and only
-/// its certificate refuses (`Envelope`). Tier 3 names it, the mint
-/// refuses with it, and the reversed body reads the same, at either
-/// corner.
+/// a parallel tilted off the torus's axis. At the corner on the tube's
+/// crest, tilted 2ε its incidence read lands in band (`ChartIncidence`),
+/// and tilted ε its closed-form image derives and only its certificate
+/// refuses (`Envelope`). Tier 3 names it, the mint refuses with it, and
+/// the reversed body reads the same. At the other corner, where the
+/// tilt moves the circle along the tube, it stays on the torus while its
+/// class reading lands in band: it takes the general lane, tier 3 reads
+/// it clean and the mint stores its projected row.
 #[test]
 fn a_tilted_parallel_strut_refuses_its_certificate() {
     let (f, _, _) = verdicts(None, None);
@@ -339,12 +333,25 @@ fn a_tilted_parallel_strut_refuses_its_certificate() {
         let p = start_point(&body, cycle[c]);
         arc_strut(&mut body, cycle[c], tilted_parallel_through(p, tilt), 0.2);
         let f = validate_pcurves(&body, band());
+        let mut minted = body.clone();
+        let m = topo::mint_pcurves_of(&mut minted, &[wall], tol());
+        if c == 0 {
+            assert!(
+                f.is_empty() && m.is_ok(),
+                "parallel tilted {tilt} at {c}: the general lane mints clean: {f:?} / {m:?}"
+            );
+            assert!(
+                minted.half_edges().any(|(he, _)| minted
+                    .pcurve(he)
+                    .is_some_and(|row| matches!(row.pcurve(), Pcurve::Projected(_)))),
+                "parallel tilted {tilt} at {c}: the strut's row is its projected image"
+            );
+            continue;
+        }
         assert!(
             matches!(f.as_slice(), [e] if certificate_refused(e)),
             "parallel tilted {tilt} at {c}: tier 3 names the certificate: {f:?}"
         );
-        let mut minted = body.clone();
-        let m = topo::mint_pcurves_of(&mut minted, &[wall], tol());
         assert!(
             matches!(&m, Err(e) if certificate_refused(e)),
             "parallel tilted {tilt} at {c}: the mint refuses with it: {m:?}"

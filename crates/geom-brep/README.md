@@ -678,7 +678,9 @@ whatever the carrier's kind: a spline carrier enters the composite as
 its own net, a line as its degree-1 net, and a circle, ellipse or
 spiric as a per-span enclosure in certification arithmetic (C9).
 On an analytic chart, a carrier with no closed-form image (a spline
-carrier, a sphere's general circle) stores the *projected image*, the
+carrier; a circle on a sphere, cylinder, cone or torus, or a line on a
+cylinder, that the chart's class readings do not show one of its own)
+stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
 carrier's net in the chart frame, plus a partition of the span into
 pieces that each stay in one `atan2` sector. On the plane it is the

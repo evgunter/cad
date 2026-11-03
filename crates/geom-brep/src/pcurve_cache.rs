@@ -66,7 +66,8 @@
 //!   `envelope_lemma_fuzz`, and not at a certifying scalar (`Interval`,
 //!   `Sym<Interval>`), over a box or at a point alike.
 //! - **On an analytic chart, a carrier with no closed-form image** (a
-//!   spline carrier, a sphere's general circle) stores its projected
+//!   spline carrier, a circle or a cylinder's line no class images)
+//!   stores its projected
 //!   image, the chart's own inverse applied to the carrier, and its
 //!   envelope is again the whole certified statement
 //!   ([`EnvelopeStatement::MapResidualProjected`], [`projected`]'s
@@ -9081,13 +9082,13 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
-/// circle on a sphere, a line on a cylinder, a spline on any analytic
-/// chart), and otherwise
+/// circle on a sphere, cylinder, cone or torus, a line on a cylinder, a
+/// spline on any analytic chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
 /// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
-/// was definite. A circle on a cone, torus or cylinder, a line on a cone
-/// and an ellipse have no general lane yet (unit E4, `work/pcert/plan.md`).
+/// was definite. A line on a cone and an ellipse have no general lane
+/// yet (`work/pcert/`).
 /// Where the projected lane is taken, a circle's or a line's lane choice
 /// or a spline's only image, the lane's own capability gap also ends "not yet":
 /// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
@@ -9103,9 +9104,9 @@ pub fn chart_pcurve<T: Decide>(
 }
 
 /// [`chart_pcurve`] for an edge over `[t0, t1]`: the same image for
-/// every class but a sphere's general circle, whose projected image is
-/// partitioned over the edge's own interval rather than one turn from
-/// `0`. The door a caller holding the edge's interval takes (the mint,
+/// every class but a circle's or a line's projected image, which is
+/// partitioned over the edge's own interval rather than over the
+/// carrier's own. The door a caller holding the edge's interval takes (the mint,
 /// the site mint).
 ///
 /// # Errors
@@ -10515,7 +10516,7 @@ fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
 }
 
 /// [`derive_class`] for a caller that wants a closed-form image or a
-/// refusal: the sphere's general circle has none.
+/// refusal: a circle or line no class images has none.
 fn derive_harmonic<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
