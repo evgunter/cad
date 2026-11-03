@@ -4903,14 +4903,14 @@ impl<T: Decide> ArcPiece<T> {
 }
 
 impl<T: Decide> MovedWall<T> {
-    /// The intervals of `L = line` (its `dir` unit, in this face's plane)
-    /// the face covers, as `(lo, hi)` in `s` (module docs of
-    /// [`moved_walls_cross`] for the reading): the union of the two
-    /// readings that count a point on `L` with one side and with the
+    /// The intervals of the line `L` (its `dir` unit, in this face's
+    /// plane) the face covers, as `(lo, hi)` in `L`'s parameter (module
+    /// docs of [`moved_walls_cross`] for the reading): the union of the
+    /// two readings that count a point on `L` with one side and with the
     /// other. Each reading holds the boundary stretches on `L` of a face
     /// lying on the other side, so the union holds them whichever side
-    /// the face lies on, and swapping the pair (which turns `d`, and so
-    /// both sides, around) reads the same.
+    /// the face lies on, and swapping the pair (which turns `L.dir`, and
+    /// so both sides, around) reads the same.
     fn cut(&self, line: geom::Line<T>, band: Band) -> Result<Vec<(T, T)>, Indeterminate> {
         let mut out = self.cut_counting(line, band, true)?;
         out.extend(self.cut_counting(line, band, false)?);
@@ -4930,7 +4930,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let (p0, m) = (line.origin, self.normal.cross(line.dir));
+        let m = self.normal.cross(line.dir);
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -4942,7 +4942,11 @@ impl<T: Decide> MovedWall<T> {
             if let Some(&(_, s)) = sides.iter().find(|(w, _)| Some(*w) == v) {
                 return Ok(s);
             }
-            let read = decide("shell_moved_wall_side", Margin::of((p - p0).dot(m)), band);
+            let read = decide(
+                "shell_moved_wall_side",
+                Margin::of((p - line.origin).dot(m)),
+                band,
+            );
             let Some(v) = v else {
                 return Ok(read.map_or(zero_up, up));
             };
@@ -4970,7 +4974,7 @@ impl<T: Decide> MovedWall<T> {
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
                 let (a, b) = (ru * u.dot(m), rv * v.dot(m));
-                let sc = (center - p0).dot(m);
+                let sc = (center - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
@@ -4994,7 +4998,7 @@ impl<T: Decide> MovedWall<T> {
                         let p = at(split);
                         let s = up(decide(
                             "shell_moved_wall_side",
-                            Margin::of((p - p0).dot(m)),
+                            Margin::of((p - line.origin).dot(m)),
                             band,
                         )?);
                         ends.push((split, s));
@@ -5055,7 +5059,7 @@ impl<T: Decide> MovedWall<T> {
                         out.push((along - half, along + half));
                     }
                     if side_of(a)? != side_of(b)? {
-                        let (sp, sq) = ((a.1 - p0).dot(m), (b.1 - p0).dot(m));
+                        let (sp, sq) = ((a.1 - line.origin).dot(m), (b.1 - line.origin).dot(m));
                         let x = a.1 + (b.1 - a.1) * (sp / (sp - sq));
                         crossings.push(line.param(x));
                     }
@@ -5064,7 +5068,7 @@ impl<T: Decide> MovedWall<T> {
             }
             let (p, q) = (edge.start.1, edge.end.1);
             if side_of(key(edge.start))? != side_of(key(edge.end))? {
-                let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
+                let (sp, sq) = ((p - line.origin).dot(m), (q - line.origin).dot(m));
                 let x = p + (q - p) * (sp / (sp - sq));
                 crossings.push(line.param(x));
             }

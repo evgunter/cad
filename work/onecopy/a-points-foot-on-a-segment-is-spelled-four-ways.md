@@ -19,6 +19,8 @@ A point's foot on a segment is the line's parameter held to `[0, 1]` (or to `[0,
 - `crates/topo/src/link.rs` `lowest_on`'s ray arm: `apex + u·max(u·(q − apex), 0)`, a ray's foot (held at one end only).
 - `crates/topo/src/census.rs` `distance`, its edge arm: `(u − p0)·dir` held to `[0, len]` on a line edge's segment (`EdgeGeo`).
 
+`boolean/reduce.rs` `line_cone_roots` holds its apex's parameter (`Line::param`, since PR 6475) to the edge's span with `max`/`min`, the same reading over a parameter span.
+
 Two more reads of a segment's parameter beside them: `census.rs` `ee_bound_backed` (`(q − p0)·dir` on an `EdgeGeo`, read against its `[0, len]`), and `validate.rs`'s projection onto `(b − a).normalize()` near its segment checks.
 
 Test-only spellings beside them, which may stay as independent oracles: `ring_path.rs` `segment_arc_distance` (`#[cfg(test)]`).

@@ -7131,13 +7131,12 @@ fn given_verdicts<T: Decide>(
             GlueClass::Tangent => {
                 let kinds = (kind(a, fa), kind(b, fb));
                 let given = given.ok_or(invariant("a given pair carries no decision"))?;
-                if let Some(line) = given.line {
-                    let (origin, dir) = line;
-                    let (_, overlap) =
-                        witness_span(a, fa, b, fb, &geom::Line { origin, dir }, band, pad)?;
+                if let Some((origin, dir)) = given.line {
+                    let line = geom::Line { origin, dir };
+                    let (_, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
                     if locus_through_both_faces(
                         [(a, fa, Operand::A, kinds.0), (b, fb, Operand::B, kinds.1)],
-                        &geom::Curve3::Line(geom::Line { origin, dir }),
+                        &geom::Curve3::Line(line),
                         overlap,
                         DeclarationRead::Spent(GlueClass::Tangent),
                         band,
@@ -7151,7 +7150,7 @@ fn given_verdicts<T: Decide>(
                         verified
                             .coincidences
                             .push(tangent_row(fa, fb, given.margin));
-                        verified.lines.insert((fa, fb), line);
+                        verified.lines.insert((fa, fb), (origin, dir));
                     }
                 }
                 verified.tangent.insert(
@@ -7368,10 +7367,10 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let (span, overlap) =
-                witness_span(a, fa, b, fb, &geom::Line { origin, dir }, band, pad)?;
+            let line = geom::Line { origin, dir };
+            let (span, overlap) = witness_span(a, fa, b, fb, &line, band, pad)?;
             Ok(Ok(TangentLine {
-                carrier: geom::Curve3::Line(geom::Line { origin, dir }),
+                carrier: geom::Curve3::Line(line),
                 span,
                 overlap,
                 gap,

@@ -2420,8 +2420,10 @@ fn chord_spec<T: Decide>(
             };
             let p1 = vertex_point(body, u1);
             let p2 = vertex_point(body, u2);
-            let len = ruling.dir.norm();
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
+            // The ruling's speed: it meters a parameter span in metres
+            // and makes the plane's `u_ref` unit.
+            let len = ruling.dir.norm();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
