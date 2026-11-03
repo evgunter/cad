@@ -1132,7 +1132,7 @@ fn at_degrees(degrees: f64, len: f64) -> Vec3<f64> {
 /// A corner between chords `own` and `next` about `z`, read as the
 /// vertex neighbourhood walk reads it.
 fn corner(own: Vec3<f64>, next: Vec3<f64>, full_circle: bool) -> Result<(), BooleanError> {
-    use crate::sector_shape::{SectorFault, sector_shape};
+    use geom_brep::sector_shape::{SectorFault, sector_shape};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     sector_shape(own, next, n, full_circle, band())
         .map(|_| ())

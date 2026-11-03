@@ -85,10 +85,10 @@ use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
 use crate::sector_shape::{
-    ApexShape, CornerBounds, CornerShape, SectorFault, SectorShape, SlitTips, TurnOrder,
-    apex_corner_shape, corner_shape,
+    ApexShape, CornerBounds, CornerShape, SlitTips, TurnOrder, apex_corner_shape, corner_shape,
 };
 use crate::validate::decide;
+use geom_brep::sector_shape::{SectorFault, SectorShape};
 
 impl SectorFaceError {
     /// The split's refusal of `vertex`, whose sector the walk could not
@@ -339,7 +339,7 @@ pub(crate) fn wide_entries<T: Decide>(
         .map(|d: Vec3<T>| {
             let side = match decide(
                 "split_bisector_side",
-                Margin::levered(d.dot(normal), crate::boolean::sectors::metering_arm(arm)),
+                Margin::levered(d.dot(normal), geom_brep::sector_shape::metering_arm(arm)),
                 band,
             )
             .map_err(sliver)?

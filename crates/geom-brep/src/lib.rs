@@ -98,6 +98,7 @@ pub mod props;
 pub mod quartic;
 pub mod recourse;
 pub mod roots;
+pub mod sector_shape;
 pub(crate) mod shape_operator;
 mod sphere_circle;
 pub mod ssi;

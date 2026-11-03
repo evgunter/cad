@@ -68,7 +68,7 @@ crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
 crate-visible              20  boolean/section_table.rs
-crate-visible              13  boolean/sectors.rs
+crate-visible              12  boolean/sectors.rs
 crate-visible              22  boolean/separating.rs
 crate-visible              53  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
@@ -144,7 +144,7 @@ names-boolean              32  review_d18.rs
 names-boolean               1  ring_path.rs
 names-boolean               1  ring_path/cone_islands.rs
 names-boolean               1  ring_path/graze_rows.rs
-names-boolean               6  sector_shape.rs
+names-boolean               2  sector_shape.rs
 names-boolean              13  separation.rs
 names-boolean               2  seqgen.rs
 names-boolean              46  shell.rs
@@ -198,9 +198,8 @@ refused-binding             6  validate.rs
 splitting-names-boolean    12  splitting/classify.rs
 splitting-names-boolean    16  splitting/containment.rs
 splitting-names-boolean    51  splitting/finish.rs
-splitting-names-boolean     5  splitting/insert.rs
 splitting-names-boolean     3  splitting/mod.rs
-splitting-names-boolean     4  splitting/neighborhood.rs
+splitting-names-boolean     3  splitting/neighborhood.rs
 splitting-names-boolean     2  splitting/rules.rs
 splitting-names-boolean     2  splitting/section.rs
 splitting-names-boolean     2  splitting/section_loops.rs

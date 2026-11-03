@@ -480,16 +480,6 @@ pub(crate) fn decide_positive<T: Decide>(
     geom_core::k_stats::decide_positive(name, margin, band)
 }
 
-/// [`decide`] gated on a definitely negative margin
-/// ([`geom_core::k_stats::decide_negative`]).
-pub(crate) fn decide_negative<T: Decide>(
-    name: &'static str,
-    margin: Margin<T>,
-    band: Band,
-) -> Result<(), Indeterminate> {
-    geom_core::k_stats::decide_negative(name, margin, band)
-}
-
 /// **Whether a reading's own rounding leaves an in-band reading the
 /// input's**: the rounding, `K` times over, decided Zero under `name`, so
 /// it lies within the `ε/K` share of the band that K's noise headroom

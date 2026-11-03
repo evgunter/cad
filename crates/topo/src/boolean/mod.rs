@@ -261,7 +261,7 @@ pub use voids::{
 /// bound).
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
-    if let Some(words) = crate::sector_shape::rung_words(predicate) {
+    if let Some(words) = geom_brep::sector_shape::rung_words(predicate) {
         return Some(words);
     }
     if let Some(reading) = refusal_routes::PARALLELISMS

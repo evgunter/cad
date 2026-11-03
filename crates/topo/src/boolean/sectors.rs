@@ -90,10 +90,10 @@ use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
 
 use crate::sector_shape::{
-    ApexShape, CornerShape, FullTurn, SectorFault, SectorShape, SlitTips, TurnOrder,
-    apex_corner_shape, corner_shape,
+    ApexShape, CornerShape, FullTurn, SlitTips, TurnOrder, apex_corner_shape, corner_shape,
 };
 use crate::validate::decide;
+use geom_brep::sector_shape::{SectorFault, SectorShape, metering_arm};
 
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
@@ -593,16 +593,6 @@ fn extreme_directions<T: Decide>(
                 .to_vec())
         }
     }
-}
-
-/// **A corner's metering arm** ([`crate::sector_shape`]'s, the shorter of
-/// its bounds' departure vectors' norms) as the lever its sectors read at.
-pub(crate) fn metering_arm<T: geom_core::Real>(arm: T) -> Lever<T> {
-    // Unsourced lever: the norm of a departure vector, a curved bound's
-    // read back from its extent times a unit tangent (or a line's chord),
-    // which differs from that extent by rounding: the edges' `Lever::min`
-    // would round differently.
-    Lever::unsourced(arm)
 }
 
 /// **A departure vector's norm as a lever**: the one bound's arm

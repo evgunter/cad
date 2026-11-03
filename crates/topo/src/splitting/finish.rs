@@ -2030,7 +2030,8 @@ fn whole_body_side<T: Decide>(
             }
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
-            let offset = crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
+            let offset =
+                geom_brep::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
             match crate::validate::decide("split_edge_side", geom_core::Margin::of(offset), band) {
                 Ok(geom_core::Sign::Positive) => side = Some(PlaneSide::Above),
                 Ok(geom_core::Sign::Negative) => side = Some(PlaneSide::Below),

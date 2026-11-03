@@ -776,7 +776,7 @@ fn vertex_face_side<T: Decide>(
         let q = x.resolve_vertex_point(far, crate::live::Proven);
         let decided = geom_core::k_stats::decide_reported(
             "bool_vertex_face_side",
-            Margin::of(crate::sector_shape::plane_offset(
+            Margin::of(geom_brep::sector_shape::plane_offset(
                 plane.origin,
                 plane.normal,
                 q,
@@ -791,7 +791,7 @@ fn vertex_face_side<T: Decide>(
         })
     };
     let offset = Offset {
-        value: crate::sector_shape::plane_offset_rounded(origin, normal, at),
+        value: geom_brep::sector_shape::plane_offset_rounded(origin, normal, at),
         normal,
     };
     crate::vertex_section::decide_vertex_on_plane(

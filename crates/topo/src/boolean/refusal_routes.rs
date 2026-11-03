@@ -47,9 +47,9 @@ use crate::contact::GlueClass;
 pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
-pub use crate::sector_shape::SectorRung;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::curve_face::plane_crossing::CrossingDecision;
+pub use geom_brep::sector_shape::SectorRung;
 pub use geom_brep::{SectionRadius, TorusConvention};
 
 /// Which fact contradicted a glued pair's class: the carrier ladder
@@ -1776,9 +1776,9 @@ pub(in crate::boolean) mod tests {
     use crate::boolean::{BooleanError, Operand};
     use crate::entity::{EdgeKey, VertexKey};
     use crate::euler::EulerOpError;
-    use crate::sector_shape::SectorRungKind;
     use crate::splitting::SplitReduceError;
     use geom_brep::recourse::Classified;
+    use geom_brep::sector_shape::SectorRungKind;
     use geom_core::{
         Band, KERNEL_DEFECT_ENDING, MarginDiag, Point3, Tol, UNREADABLE_MARGIN_NOTE, Vec3,
     };

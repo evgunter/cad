@@ -3432,7 +3432,7 @@ impl<T: Decide> EdgeMeets<T> {
             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
                 face: faces[0],
             }))?;
-        let gap = crate::sector_shape::point_segment_distance(q, far, at);
+        let gap = geom_brep::sector_shape::point_segment_distance(q, far, at);
         // The distance is a short chain (differences, a projection, a
         // norm), each rounding under half an ulp of the lengths it is
         // read from: the kernel's one charge for such a chain.
@@ -3762,7 +3762,7 @@ pub(crate) fn edge_clearance<T: Decide>(
         .and_then(|ed| body.get_curve_geom(ed.curve))
         .and_then(crate::null::CurveGeom::certified)?;
     match *curve.carrier() {
-        geom::Curve3::Line(_) => Some(crate::sector_shape::point_segment_distance(
+        geom::Curve3::Line(_) => Some(geom_brep::sector_shape::point_segment_distance(
             at(e.ends[0])?,
             at(e.ends[1])?,
             m,

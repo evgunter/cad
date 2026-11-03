@@ -149,7 +149,7 @@ fn reach_clears<T: Decide>(
     // The frame turns about the world origin, so a reach's first
     // coordinate is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
-    let origin = crate::sector_shape::plane_offset(
+    let origin = geom_brep::sector_shape::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
@@ -203,7 +203,8 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let offset = crate::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
+        let offset =
+            geom_brep::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
         let decided = crate::validate::decide_reported(
             "split_vertex_side",
             geom_core::Margin::of(offset.value),

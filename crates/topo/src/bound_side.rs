@@ -173,7 +173,7 @@ impl<T: Decide> BoundSupport<T> {
     /// conic's bend is [`Tie::descend`]'s.
     pub(crate) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
-            Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
+            Self::Chord { base, far } => geom_brep::sector_shape::plane_offset(base, n, far),
             Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector { arm: l, .. } => {
                 rise(dir, n, l)
             }
@@ -687,7 +687,7 @@ fn first_order<T: Decide>(
 /// direction times a lever that is not the bound's own length.
 /// - [`BoundSupport::Chord`] (a line edge): its far vertex's signed distance
 ///   from the plane through the base vertex, in metres
-///   ([`crate::sector_shape::plane_offset`]). The edge is its chord, so
+///   ([`geom_brep::sector_shape::plane_offset`]). The edge is its chord, so
 ///   every point of it lies between the base's distance (`≈ 0`, the
 ///   vertex is On) and the far vertex's: a Zero puts the whole edge
 ///   within the band of the plane.
