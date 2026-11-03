@@ -248,6 +248,7 @@ pub(crate) mod star;
 pub(crate) mod strut;
 pub mod surface_boundary;
 pub mod surgery;
+pub(crate) mod sweep_trace;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
 // must be compiled wherever any of their three consumers is — the
@@ -1272,8 +1273,6 @@ pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
-#[doc(hidden)]
-pub use boolean::MemberLineage;
 pub use boolean::{
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
@@ -1290,14 +1289,13 @@ pub use boolean::{
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung, PointInSolidError,
     ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
     Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
-    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace,
-    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap,
-    point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus, subtract,
-    tangent_pair_relation, union,
+    SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
+    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1318,7 +1316,7 @@ pub use chord_join::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, census_cell_solid,
     census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
     census_uncleared_solids, line_segments_meet, line_segments_overlap, record_at_rest,
 };
@@ -1334,6 +1332,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
 pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

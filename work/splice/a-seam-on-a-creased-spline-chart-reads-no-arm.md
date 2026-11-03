@@ -1,11 +1,12 @@
 ---
 id: a-seam-on-a-creased-spline-chart-reads-no-arm
 kind: issue
-title: "A seam on an integral spline chart with a C0 crease anywhere reads no arm: the patch bound refuses the whole integral chart, where a rational one is read up to its crease"
-status: open
+title: A seam on an integral spline chart with a C0 crease anywhere reads no arm: the patch bound refuses the whole integral chart, where a rational one is read up to its crease
+status: parked
 opened: 2026-10-27
 priority: P3
 cost: M
+blocked_on: [the-crease-arms-retire-once-no-carrier-carries-a-c0-knot]
 ---
 
 
@@ -42,3 +43,7 @@ cannot today): split the net at its creases into C¹ pieces and read each.
 Moved from SPLICE to SPLICESEAM on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
 
 Moved from SPLICESEAM to SPLICE on 2026-11-02, by `git mv`, when SPLICESEAM merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Parked on the crease arms' retirement (SPLICE, 2026-11-03)
+
+`tesssize/the-crease-arms-retire-once-no-carrier-carries-a-c0-knot` names this row as one that becomes unreachable under DESIGN [topology] (Ev, `[ev]` PR 5913: every carrier C¹ strictly inside its cell; no reader carries a crease arm), and closes it. Parked on it rather than built, as `a-creased-spline-gets-no-second-order-clearing` was.

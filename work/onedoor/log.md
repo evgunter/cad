@@ -59,4 +59,8 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
     - **(b) Merging two types without merging their writers moves an invariant from a type into a convention.** The census writes the trace through `note()` (examined and accepted together); the boolean pushes the fields at about ten sites. The fix pass puts the writer on the type.
   - **D95 re-read.** The reviewer reads "six structurally identical siblings" as the six provenance silent skips beside the solid-provenance row-4 read, not the minted-key lookups. That fits the row better. The fix pass disposes of both, and the provenance row the lane filed closes in the same PR.
   - **`fresh` retires.** It duplicates `live::proven`; one door per premise. `live::proven` and `Link::answer` get the `#[track_caller]` closure fix.
+- 2026-11-03 — **PR [#6433](https://github.com/evgunter/cad/pull/6433) closes `D95`, `the-shell-of-a-face-…` and `sweep-trace-has-two-spellings`.** Review tier: single style review, APPROVE-WITH-FIXES, with every finding taken except S10. The fix pass is the PR's head; CI is green at `4f99dda`.
+  - The lane filed `graft-source-provenance-reads-discard-a-missing-record`, which closes in the same PR as D95's re-read.
+  - The geom-brep remap doors gain total forms, on SELECT ground. The note is on SELECT's log.
+  - The same `remapped(.., |k| Some(..)) else` shape in `replace_face.rs` is SHELL's, and is noted there.
   - (ONEDOOR orchestrator)
