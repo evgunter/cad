@@ -109,3 +109,17 @@ New FRAME orchestrator (session 01VyvYnHBqVczdN3EQWpQqKf); status `active`. INTE
 - **P0 `a-widened-derived-placement-normalises-a-straddling-newell-sum`.** E's re-measure says the plain tier no longer refuses on the HEIGHT document. But `m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin` is still `#[ignore]`d, now with a different reason (the plain lane's attachment gate). Before anything is specified, a lane re-measures on main: the height and stacked documents, both tiers, and the acceptance row. It reports whether this row's newell clause-1 margin is still reached anywhere, and whether the row should close, be re-scoped onto what refuses now, or be fixed. It implements nothing until it has reported. Review tier: set once the lane's answer says whether there is code to review.
 - **P1 `path-start-frame-is-the-only-frame-from-a-tangent-and-is-named-for-the-start` + `two-doors-answer-an-axis-off-a-tangent-with-no-rule-for-which`.** One question, so they get one designer pair (two designers drawn; record on `analysis/design-fork/frame-tangent-doors`). It moves since filing: D10 `[placement.frame]` confines `orthonormal_basis`, and CARVE's `sweep::sweep_places` now answers interior stations. If the pair converges and no ratified text moves, the orchestrator decides; otherwise an `[ev]` PR.
 - 2026-11-03 — Banded the three unbanded rows. `a-frame-turned-by-a-radian-angle-is-spelled-as-its-columns` is P4 M: it re-spells fixture and demo callers, and each site judges whether it wants the decided door. `exact-axis-and-reference-frames-still-decide` is P4 M with `design`: a fixture-spelling call before about 50 sites move. `turns-has-two-answers-to-an-integer-past-the-mantissa` is P3 M with `design`: two rules in one file for an integer past the mantissa. It is latent and nothing builds on it, so it is not P1's "entrenches".
+
+## 2026-11-03 — the tangent doors: designers converged; unit dispatched
+
+The pair converged after one reconciliation round on `a-frame-across-a-direction-is-a-written-frame-turned-onto-it`. Draw and labels: `analysis/design-fork/frame-tangent-doors`. First reports:
+- A wanted to keep a (point, direction) door, `point_along`, rolled by the least turn, and called least turn versus ladder Ev's preference.
+- B retired the door for `RigidMotion::turned_onto` on a written frame, and called it the orchestrator's.
+
+In round 1, A conceded both points: `point_along` is `axes_xy(p).turned_onto(d)` and has no recourse at its pole, and Ev already accepted the horizontal-path consequence on PR 6298. B accepted façade-level sugar and A's finding below.
+
+Decided here, not an `[ev]` fork: no ratified text moves, and the ladder was never ratified. So this is not a DESIGN-FORK-LOG row (rule 1). Review tier for the unit is single FULL, reason in the item.
+
+Filed:
+- `msolve/the-least-turn-has-two-arithmetics-and-the-chart-decides-its-pole-a-third-way` (P1 M);
+- a seam note on DOCTAIL's log (the bottom-cap pole versus its face frame's spin-only slot).
