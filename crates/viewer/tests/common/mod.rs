@@ -532,6 +532,82 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, size).1
 }
 
+/// **The plane a split row cuts `body` along**: the plane `by` metres
+/// up `axis` from the start cap of the extrude `body` is built from,
+/// which is the plane square to `axis` at `by` in that extrude's
+/// coordinates. A plane read as a caller writes one
+/// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
+/// the body along its normal ([`plane_inside`]).
+///
+/// # Panics
+///
+/// Unless `axis` is `z`, the one an extrude's start cap is square to.
+pub fn cut_across(
+    session: &DocSession,
+    body: impl Into<pncad::document::Operand>,
+    axis: pncad::document::TargetAxis,
+    by: f64,
+) -> viewer::session::SplitPlane {
+    use pncad::document::{Node, Operand};
+    assert_eq!(
+        axis,
+        pncad::document::TargetAxis::Z,
+        "an extrude's start cap is square to its z"
+    );
+    let mut on = body.into();
+    let doc = session.committed_doc();
+    // The extrude the body's start cap was made by: the body's own, or
+    // the one a copy or a union's first member reads. A union's cap is
+    // read on its first member, in the union's space, where a merge
+    // with another member's cap cannot rename it.
+    let mut node = match &on {
+        Operand::Node(node) | Operand::Output { node, .. } => *node,
+        other => panic!("{other:?} names a node"),
+    };
+    loop {
+        let next = match doc.node(node) {
+            Some(Node::Place { source, .. }) => source.read,
+            Some(Node::Union {
+                members: pncad::document::Bodies::Spelled(members),
+            }) => {
+                on = Operand::Var(members[0].read);
+                members[0].read
+            }
+            _ => break,
+        };
+        let Some(read) = doc.operation_of(next) else {
+            break;
+        };
+        node = read;
+    }
+    let cap = Operand::select(
+        on,
+        vec![pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node,
+            path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::Start)],
+        }],
+    );
+    plane_inside(cap, by)
+}
+
+/// **The plane `depth` metres inside the plane face `face`**, facing
+/// into the body: the face's plane turned over, so its normal points
+/// inward and a split's `above` side is the body's, then slid along it.
+pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::SplitPlane {
+    use pncad::document::Operand;
+    use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+    let plane = Operand::Pose(Box::new(PoseDef::Plane { face }));
+    let inward = Operand::Pose(Box::new(PoseDef::Flip {
+        pose: RoleRead::plain(plane),
+    }));
+    viewer::session::SplitPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(inward.clone()),
+        along: RoleRead::through(inward, PoseRole::Normal),
+        by: len(depth),
+    }))))
+}
+
 /// **One node's row out of a tree render.**
 ///
 /// Panics rather than answering `None`: every id these rows pass is

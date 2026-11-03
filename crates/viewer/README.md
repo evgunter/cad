@@ -725,8 +725,8 @@ the thing these walks exist to keep readable); `scratch`, `body`,
 `gesture` and `resolver` are their presence, rendered as the elisions
 `Some(<Doc>)`, `Some(<Body>)`, `Some(<Gesture>)` and
 `Some(<DirResolver>)`; `index` is the generation it describes
-inside one, `Some(<PickIndex for Generation(4)>)`; and `stage` and
-`seeded` are the key and the generation they are for. Summarising is what
+inside one, `Some(<PickIndex for Generation(4)>)`; and `seeded` is
+the generation it is for. Summarising is what
 a `#[derive(Debug)]` cannot do at all, which is the reason these are
 written out rather than derived; the recipe and result DAGs are what
 makes that reason bite.
@@ -743,12 +743,12 @@ answered at the field, which is the only place a two-valued marker
 could not have said it. **The sweep behind that list**, and it is a
 reading of four `fmt` bodies rather than a grep: in each of the four
 walks — `Derived`, `LandedRun` and `DocSession` in `session`,
-`PickCache` in `pickcache` — read every `.field(…)` call, **30 of
+`PickCache` in `pickcache` — read every `.field(…)` call, **29 of
 them**, and take the ones whose value argument is not the destructured
-binding itself. **Eleven calls, nine fields**: `checks` and `index`
+binding itself. **Ten calls, eight fields**: `checks` and `index`
 each spend two arms, and the absent arm renders `None`, which is the
 whole field. `viewer`'s `tests/debug_dumps.rs` holds seven of them to
-their spellings — all but `stage` and `seeded` — and is the
+their spellings — all but `seeded` — and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
 field to the rule is not a check: the destructuring makes the compiler
 send whoever adds a field to the walk, the rule is stated here and in
@@ -2086,8 +2086,8 @@ is its preview.
 
 ### The seated tools whose values have a home
 
-Four seated tools hold no value field; what they used to type is a row
-of the node they insert.
+Six seated tools hold no value field; what they used to type is a row
+of the node they insert, or a pick.
 
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,
@@ -2114,8 +2114,35 @@ of the node they insert.
   (`index_count_ui`), drawn on the index variable's own row and on the
   rows of every node that reads the index (`props::indices_read`),
   such as a pattern's placement. A number, a drag or a formula writes
-  the count through `props::index_count_edit`. The pattern form's own
-  count field stays.
+  the count through `props::index_count_edit`.
+- **Split.** The form asks for the target and the plane it is cut
+  along (`combine::SplitTool`), and the button is withheld, naming the
+  missing pick, until both are held. The plane is a face pick, read as
+  its plane on the body it was picked on (`matetool::plane_of`), as the
+  mirror reads its own; the first face pick seats the target too, a
+  later one re-picks the plane, and a tree pick re-picks the target. A
+  `Plane` variable, or a `Frame` read through its `xy`, is picked as the
+  plane by selecting its row. `SessionOp::AddSplit` takes the plane as
+  `SplitPlane`: that face, or a plane read written whole. The insert
+  selects the split. Nothing is staged before it: the split's own
+  evaluation, read on its tree row, says whether a side is empty.
+  After the insert the plane is the split's `OperandSlot::Tool`, which
+  only the operand slot door (`DocEdit::SetParam` with a read)
+  re-points; no row of the viewer writes it.
+- **Pattern.** The form asks for the body, the rule (linear or
+  circular) and the output (instances or fused). The insert writes the
+  defaults the code owns (`combine::PATTERN_COUNT` and the rest beside
+  it): `4` copies; a row along the target's `x` (`combine::ROW_ALONG`)
+  spaced by the duplicate's clearing step
+  (`DocSession::clearing_step`, `combine::duplicate_step`), so the
+  copies clear the body; a ring about the target's `z`
+  (`combine::RING_ABOUT`) stepped a quarter turn (`combine::RING_STEP`).
+  The count is the index's count row. The spacing and the step are the
+  placement editor's slide and spin value rows on the pattern's
+  placement, each a number or a formula reading the index by its name,
+  `k`, `k1`, … (`combine::fresh_index`): a formula's text names a
+  variable by its name, so an index with no name could not be written
+  into a row.
 
 ### One open tool, not one optional value per tool
 

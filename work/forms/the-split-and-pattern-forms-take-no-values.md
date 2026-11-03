@@ -2,8 +2,9 @@
 id: the-split-and-pattern-forms-take-no-values
 kind: issue
 title: The split and pattern create forms still hold value fields: a split takes a typed point and normal, a pattern its direction, spacing, axis and step
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-03
 priority: P1
 cost: M
 parent: creating-a-thing-and-editing-it-are-two-implementations
@@ -21,3 +22,33 @@ The last value fields in the seated create forms (`crates/viewer/src/pane/create
   - If the placement editor cannot yet edit a value the form used to take, that is a finding to report, not a reason to keep the field.
 - `the-pattern-gesture-names-its-index` rides with this: the index is anonymous until a person names it (VR2).
 (FORMS orchestrator)
+
+## Closed
+
+2026-11-03, on `forms/split-pattern`. Neither form holds a value field;
+`crates/viewer/README.md`, "The seated tools whose values have a home",
+says what each now asks and writes.
+
+- **Split.** The form holds a target and a plane
+  (`combine::SplitTool`): a face pick read as its plane, as the mirror
+  reads its own, or a `Plane`/`Frame` variable selected on its row
+  (`Selection::Variable` names one today). The button is withheld,
+  naming the missing pick, until both are held. `SessionOp::AddSplit`
+  takes a `SplitPlane`. The point and normal drafts, `read_off`,
+  `frame_off`, `nominals`, the staged plane preview and everything only
+  they used (`splitplane`, `SessionOp::Stage` and the staged seam, the
+  `GestureFrameFault` arms for typed numbers, `tree::split_reading`)
+  are gone. The insert selects the split. Re-picking the plane after
+  insert reaches the kernel's operand slot door, but no viewer row
+  does: `no-viewer-row-re-points-a-live-nodes-read`.
+- **Pattern.** The count, direction, spacing, axis and step fields are
+  gone, and the edge or face direction pick with them. The insert
+  writes `combine::PATTERN_COUNT` (4) copies, a row along the target's
+  `x` spaced by the duplicate's clearing step, or a ring about its `z`
+  stepped a quarter turn. The count edits on the count row and the
+  spacing and step on the placement editor's value rows, each as a
+  formula over a variable (`app.rs`, `seated_homed`).
+- **The index keeps its name.** An anonymous index cannot be written
+  into a value row's text, which would leave the spacing and step
+  uneditable: `an-anonymous-index-cannot-be-written-into-a-value-row`.
+

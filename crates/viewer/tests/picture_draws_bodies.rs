@@ -468,12 +468,12 @@ fn a_split_half_read_alone_leaves_the_other_half_drawn() {
     let tol = Tol::witness();
     let (doc, body) = extrude(&Doc::empty_derived("picture-split", tol), 0.0, tol);
     let mut session = landed(doc, tol);
+    let plane = common::cut_across(&session, body, pncad::document::TargetAxis::Z, DEPTH / 2.0);
     let split = common::session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body.into(),
-            origin: common::len3([0.0, 0.0, DEPTH / 2.0]),
-            normal: common::scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     let (doc, _) = common::placed_read(

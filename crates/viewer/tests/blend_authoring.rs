@@ -26,7 +26,7 @@
 use crate::common;
 use viewer::session::BooleanSpec;
 
-use common::{len, len3, plate_index, scl3, session_insert};
+use common::{len, plate_index, session_insert};
 use pncad::document::{
     Dimension, Doc, Formula, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram,
     RecipeNodeId, Said, SlotId, Speaker,
@@ -931,12 +931,12 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
+    let plane = common::cut_across(&session, target, pncad::document::TargetAxis::Z, SIDE / 2.0);
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: target.into(),
-            origin: len3([0.0, 0.0, SIDE / 2.0]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
     );
     // Each half placed by its port: the split took the unplaced box

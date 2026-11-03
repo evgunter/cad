@@ -2,12 +2,11 @@
 id: creating-a-thing-and-editing-it-are-two-implementations
 kind: issue
 title: viewer: every node kind with a create form and an edit panel has two implementations; create should commit and hand off to the edit panel
-status: parked
+status: open
 opened: 2026-11-01
 priority: P1
 cost: H
 refs: [the-profile-create-form-is-a-second-profile-editor, the-extrude-and-revolve-forms-take-no-variables, a-variable-is-edited-in-a-separate-widget-not-on-its-own-row]
-blocked_on: [the-split-and-pattern-forms-take-no-values]
 ---
 Reported by Ev (chat, 2026-11-01): "if there are any other things that
 have separate creating and editing widgets, those should also be

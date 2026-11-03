@@ -108,9 +108,6 @@ pub(crate) struct CameraFrame<'a> {
     pub(crate) previews: &'a Previews,
     /// What the doors' fused fillet steps construct.
     pub(crate) constructions: &'a Constructions,
-    /// The open split tool's plane under the copy it was picked
-    /// through, if any ([`crate::splitplane::push_split_plane`]).
-    pub(crate) split_plane: Option<&'a crate::splitplane::PlanePreview>,
     /// Whether a fit is owed this frame.
     pub(crate) fit: bool,
     /// The bindings the events fold through.
@@ -151,7 +148,6 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
         profiles,
         previews,
         constructions,
-        split_plane,
         fit,
         input: map,
         viewport,
@@ -175,9 +171,6 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
     let view = view_of(&events.camera, viewport).ok();
     let mut steps = marks::LegLane::default();
     push_previews_marks(&mut steps, previews, view);
-    if let Some(plane) = split_plane {
-        crate::splitplane::push_split_plane(&mut steps, plane);
-    }
     // Outside the fit, for the step marks' reason and one of its own:
     // a carrier is a whole circle, and one large enough to fillet
     // against would frame everything else as a speck.
@@ -576,13 +569,17 @@ mod composed {
             };
         };
         // One tool is open at a time, so the placement editor's active
-        // row's two held faces, the mirror tool's plane and the
-        // clearance tool's face seats share these two slots.
+        // row's two held faces, the mirror's or the split's plane and
+        // the clearance tool's face seats share these two slots.
         // The mate tool's edge and vertex picks are drawn as geometry.
         let mate = tools.mate().map(crate::matetool::MateTool::active_picks);
-        let [a, b] = match (mate, tools.mirror(), tools.clearance()) {
+        let plane = tools
+            .mirror()
+            .and_then(crate::combine::MirrorTool::plane)
+            .or_else(|| tools.split().and_then(crate::combine::SplitTool::face));
+        let [a, b] = match (mate, plane, tools.clearance()) {
             (Some(picks), _, _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
-            (None, Some(tool), _) => [tool.plane(), None],
+            (None, Some(plane), _) => [Some(plane), None],
             (None, None, Some(tool)) => [tool.face(0), tool.face(1)],
             (None, None, None) => [None, None],
         };
@@ -1095,14 +1092,12 @@ impl ViewerBehavior<'_> {
         // fit is taken here and nowhere else: this is the only place
         // with a real aspect to fit against.
         let profiles = self.committed_lane();
-        let split_plane = self.split_plane_preview();
         let framed = frame_camera(CameraFrame {
             camera: self.camera,
             scene: self.scene.positions(),
             profiles,
             previews: self.profile_previews,
             constructions: self.profile_constructions,
-            split_plane: split_plane.as_ref(),
             fit: std::mem::take(self.pending_fit),
             input: &self.input,
             viewport,
@@ -1411,27 +1406,6 @@ impl ViewerBehavior<'_> {
             );
         }
         profiles
-    }
-
-    /// **The open split tool's plane** ([`crate::splitplane::preview`]),
-    /// drawn under the copy its target was picked through, from the
-    /// landed evaluation and the panel's fields as they stand. `None`
-    /// with no split tool open, no target held, a target picked in the
-    /// tree or through a copy the picture does not draw, or a normal
-    /// with no direction: the panel says which
-    /// ([`crate::pane::create`]'s split panel).
-    pub(crate) fn split_plane_preview(&self) -> Option<crate::splitplane::PlanePreview> {
-        let tool = self.tools.split()?;
-        crate::splitplane::drawn(
-            &crate::splitplane::Drawing {
-                seats: tool.seats(),
-                landed: self.session.landed_pair()?,
-                display: &self.session.display_view(),
-                index: self.index?,
-            },
-            self.drafts.split_origin,
-            self.drafts.split_normal,
-        )
     }
 }
 
@@ -3094,7 +3068,6 @@ mod tests {
             profiles: marks::LegLane::default(),
             previews: &previews,
             constructions: &super::Constructions::default(),
-            split_plane: None,
             fit: true,
             input: &map,
             viewport,
@@ -3518,8 +3491,7 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 constructions,
-                split_plane: None,
-                fit: false,
+                    fit: false,
                 input: &map,
                 viewport: ViewportSize {
                     width_px: 800.0,
@@ -3569,8 +3541,7 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 constructions,
-                split_plane: None,
-                fit: true,
+                    fit: true,
                 input: &map,
                 viewport: ViewportSize {
                     width_px: 800.0,

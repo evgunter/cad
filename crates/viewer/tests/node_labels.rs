@@ -413,7 +413,7 @@ fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
 /// sampled here is red.
 #[test]
 fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
-    use common::{ang, asm, len, len3, scl3};
+    use common::{ang, asm, len};
     use viewer::session::{FaceSelection, PartSelectSpec, PatternRuleSpec};
 
     let tol = Tol::witness();
@@ -478,12 +478,12 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "overlap",
     );
+    let plane = common::cut_across(&session, block, pncad::document::TargetAxis::Z, 0.01);
     run(
         &mut session,
         SessionOp::AddSplit {
             target: block.into(),
-            origin: len3([0.0, 0.0, 0.01]),
-            normal: scl3([0.0, 0.0, 1.0]),
+            plane,
         },
         "halves",
     );
