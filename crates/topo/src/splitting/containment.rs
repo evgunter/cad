@@ -132,7 +132,7 @@
 //! whole band ([`geom_core::k_stats::straddle`]).
 
 use geom::Conic;
-use geom::cover::{Cover, ParamWindow, Site};
+use geom::cover::{Cover, Site};
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
@@ -1388,28 +1388,27 @@ fn cycle_steps<T: Decide>(
     steps
 }
 
-/// The cover of a step's edge on its carrier over its span
-/// ([`geom::Curve3::cover_over`]), which with the loop's vertices holds
-/// the edge: `None` for null scaffolding, a zero-length chord its vertex
-/// holds.
+/// The cover of a step's edge (`boolean::boxes::edge_cover`): `None`
+/// for null scaffolding, a zero-length chord its vertex holds.
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] for a carrier with no cover (a
-/// spline with no control points, or data that is not finite).
+/// [`PointInLoopError::CorruptLoop`] for an edge with no cover: a
+/// carrier whose own reading refuses (a spline net carrying poison, data
+/// or a computed point that is not finite), or an end vertex that is not
+/// a finite point.
 fn step_cover<T: Decide>(
+    body: &Body<T>,
     r#loop: LoopKey,
     step: &LoopStep<'_, T>,
 ) -> Result<Option<Cover<T>>, PointInLoopError> {
-    let Some(curve) = step.curve else {
-        return Ok(None);
-    };
-    let (t0, t1) = curve.params();
-    curve
-        .carrier()
-        .cover_over(ParamWindow::new(t0, t1))
-        .map(Some)
-        .map_err(|_| PointInLoopError::CorruptLoop { r#loop })
+    match crate::boolean::boxes::edge_cover(body, step.edge) {
+        Ok(cover) => Ok(Some(cover)),
+        Err(crate::boolean::EdgeUncovered::Scaffold) => Ok(None),
+        Err(crate::boolean::EdgeUncovered::Carrier(_) | crate::boolean::EdgeUncovered::Ends) => {
+            Err(PointInLoopError::CorruptLoop { r#loop })
+        }
+    }
 }
 
 /// The loop's vertices and its edges on their carriers, a conic's span
@@ -1439,7 +1438,7 @@ pub(crate) fn carrier_loop<T: Decide>(
     for step in &steps {
         verts.push(step.point);
         keys.push(step.edge);
-        covers.extend(step_cover(r#loop, step)?);
+        covers.extend(step_cover(body, r#loop, step)?);
         let Some(curve) = step.curve else {
             edges.push(LoopEdge::Chord);
             continue;
@@ -1559,7 +1558,10 @@ pub(crate) fn arc_distance_floor<T: Decide>(
             }
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            let cover = carrier.cover_over(ParamWindow::new(t0, t1)).ok()?;
+            // The carrier's half of an edge's cover: the callers read
+            // carrier spans, some with no edge record behind them, and
+            // read their ends as vertices of their own.
+            let cover = crate::boolean::boxes::arc_cover(carrier, (t0, t1)).ok()?;
             ArcFloor::Ball {
                 ball: cover.distance_range(&Site::Point(q)).0,
                 pieces: ArcPieces {
@@ -1652,7 +1654,9 @@ impl<T: Decide> ArcPieces<'_, T> {
 /// # Errors
 ///
 /// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// spline edge with no control points, or a poisoned extent.
+/// edge with no cover (a spline net carrying poison, data or a computed
+/// point that is not finite, an end vertex that is not a finite point), or a
+/// poisoned extent.
 pub(crate) fn loop_extent_from<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1680,7 +1684,7 @@ pub(crate) fn loop_hull<T: Decide>(
     let steps = cycle_steps(body, first);
     let mut covers = Vec::new();
     for step in &steps {
-        covers.extend(step_cover(r#loop, step)?);
+        covers.extend(step_cover(body, r#loop, step)?);
     }
     Ok((steps.iter().map(|s| s.point).collect(), covers))
 }
@@ -3256,6 +3260,7 @@ mod spline_cap_rows {
 #[allow(clippy::panic)]
 mod arc_ball_rows {
     use super::*;
+    use geom::cover::ParamWindow;
 
     /// **A short arc at the end of a long ellipse's major axis has a ball
     /// of its own size.** A seam split `10⁻⁷` off a unit wall's tangent

@@ -950,52 +950,61 @@ pub fn spiric_f_range<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 }
 
 /// `(ρ_min² − offset², ρ_max² − offset²)` at `ρ = R ∓ r`: the two
-/// radicands whose roots bound a spiric's `f` over a period. Each is
-/// posed as the product `(ρ − |d|)·(ρ + |d|)`, never as a difference of
-/// squares, and `ρ` is carried as the unevaluated sum `s + e` of its
-/// rounded value and that rounding's error (Knuth's two-sum). Near the
-/// fold `ρ_min` is close to `|d|`: the squares would cancel and their
-/// rounding at the scale `ρ² + d²` swamp the radicand, and `fl(R − r)`
-/// alone would leave its own rounding in the factor that vanishes. With
-/// the sum, `s − |d|` is exact there (Sterbenz) and `e` restores what
-/// `s` rounded away, so the factor keeps its digits.
+/// radicands whose roots bound a spiric's `f` over a period
+/// ([`spiric_radicand`] at `b = ∓r`).
 fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
-    let d = offset.abs();
-    let at = |b: T| {
-        let s = major + b;
-        let bb = s - major;
-        let e = (major - (s - bb)) + (b - bb);
-        ((s - d) + e) * (s + d)
-    };
-    (at(T::zero() - minor), at(minor))
+    (
+        spiric_radicand(major, T::zero() - minor, offset),
+        spiric_radicand(major, minor, offset),
+    )
 }
 
-/// **The spiric's period rectangle as a cover**, the construction
-/// `Curve3::cover_over`'s spiric arm meets with its tube: the convex
-/// hull of the four corners `c + n·d + m·f ± a·r` at the two ends of
-/// `f`'s range ([`spiric_f_range`]), `n = u_ref`, `m = axis × u_ref`,
-/// `a = axis`. `f` ranges between those ends over a period and the
-/// `sin v` channel over its whole range, so the oval lies in it. `None`
-/// where a corner is not a finite number (off-regime data roots at
-/// poison).
+/// `ρ² − offset²` at `ρ = R + b`, posed as the product
+/// `(ρ − |d|)·(ρ + |d|)`, never as a difference of squares, with `ρ`
+/// carried as the unevaluated sum `s + e` of its rounded value and that
+/// rounding's error (Knuth's two-sum). Near the fold `ρ` is close to
+/// `|d|`: the squares would cancel and their rounding at the scale
+/// `ρ² + d²` swamp the radicand, and `fl(R + b)` alone would leave its
+/// own rounding in the factor that vanishes. With the sum, `s − |d|` is
+/// exact there (Sterbenz) and `e` restores what `s` rounded away, so the
+/// factor keeps its digits.
+fn spiric_radicand<T: Real>(major: T, b: T, offset: T) -> T {
+    let d = offset.abs();
+    let s = major + b;
+    let bb = s - major;
+    let e = (major - (s - bb)) + (b - bb);
+    ((s - d) + e) * (s + d)
+}
+
+/// **The spiric's rectangle over `window` as a cover**, the construction
+/// `Curve3::cover_over`'s spiric arm meets with its tube. The point at
+/// `v` is `c + n·d + m·f + a·(r·sin v)`, `n = u_ref`,
+/// `m = axis × u_ref`, `a = axis`, with `f = √(ρ² − d²)` monotone in
+/// `ρ = R + r·cos v`. So over the window `f` lies between its values at
+/// the ends of `cos v`'s range there, and `sin v` in its own range
+/// ([`ArcWindow::extent`](boxes::ArcWindow::extent), each a harmonic of
+/// `v`), and the arc lies in the convex hull of the four corners. Over a
+/// whole period the ranges are `[−1, 1]` and the rectangle is the
+/// period's, `f` between [`spiric_f_range`]'s ends. `None` where a
+/// corner is not a finite number (off-regime data roots at poison).
 pub(crate) fn spiric_rectangle<T: Real>(
     center: Point3<T>,
     axis: Vec3<T>,
     u_ref: Vec3<T>,
     (major, minor): (T, T),
     offset: T,
+    window: crate::cover::ParamWindow<T>,
 ) -> Option<crate::cover::Cover<T>> {
-    let (f_lo, f_hi) = spiric_f_range(major, minor, offset);
+    let arc = boxes::ArcWindow::new(window.lo, window.hi);
+    let (cos_lo, cos_hi) = arc.extent(T::zero(), T::one(), T::zero());
+    let (sin_lo, sin_hi) = arc.extent(T::zero(), T::zero(), T::one());
+    let f = |c: T| spiric_radicand(major, minor * c, offset).sqrt();
     let m = axis.cross(u_ref);
     let base = center + u_ref * offset;
-    // The corners come in `±tip` pairs, so `r`'s sign names the same set.
-    let tip = axis * minor;
-    let corners = vec![
-        base + m * f_lo + tip,
-        base + m * f_lo - tip,
-        base + m * f_hi + tip,
-        base + m * f_hi - tip,
-    ];
+    let corners = [f(cos_lo), f(cos_hi)]
+        .into_iter()
+        .flat_map(|f| [sin_lo, sin_hi].map(|s| base + m * f + axis * (minor * s)))
+        .collect();
     crate::cover::Cover::net(corners)
 }
 

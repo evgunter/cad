@@ -888,13 +888,22 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             crate::live::Proven,
         );
         // The ball about the edge's start that holds all of it: out to
-        // its cover's farthest distance from there. An edge with no cover
-        // (a spline whose net carries poison) levers at poison, which the
-        // ladder escalates.
-        let arm = super::boxes::edge_cover_linked(body, edge_key, edge).map_or_else(
-            |_| (T::zero() - T::one()).sqrt(),
-            |c| c.distance_range(&geom::cover::Site::Point(at)).1,
-        );
+        // its cover's farthest distance from there.
+        let arm = match super::boxes::edge_cover_linked(body, edge_key, edge) {
+            Ok(cover) => cover.distance_range(&geom::cover::Site::Point(at)).1,
+            Err(super::EdgeUncovered::Scaffold) => unreachable!(
+                "{operand:?}'s edge {edge_key:?}, read out of its arena, has no certified \
+                 carrier: the operand gate refuses a null edge as scaffolding"
+            ),
+            // A carrier whose own reading refuses (a spline net carrying
+            // poison, a datum or a computed point that is not a finite
+            // number), or an end vertex that is not a finite point: the
+            // edge bounds no region, and levers at poison, which the
+            // ladder escalates as its orientation rung's refusal.
+            Err(super::EdgeUncovered::Carrier(_) | super::EdgeUncovered::Ends) => {
+                (T::zero() - T::one()).sqrt()
+            }
+        };
         let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::new(at, arm));
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
@@ -7805,7 +7814,7 @@ mod operand_gate_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod neighbour_extent_rows {
     use super::gate_maximal_faces;
-    use crate::boolean::{BooleanError, Operand};
+    use crate::boolean::{BooleanDecision, BooleanError, Operand, PlaneRung};
     use crate::entity::{EntityId, GeomRef};
     use crate::test_support_fixtures::{plant_disc_face, plant_ring_face, prism_z};
     use geom_core::{Band, Point3, Tol};
@@ -7885,6 +7894,83 @@ mod neighbour_extent_rows {
             ),
             "the one plane is decided at the carriers' reach: {err:?}"
         );
+    }
+
+    /// **A short open edge whose carrier is as short leaves the
+    /// orientation undecided** (no over-acceptance): the shrunk triangle
+    /// of [`a_shrunk_edge_is_levered_at_its_carriers_span`], each side
+    /// then certified anew on the segment between its drawn-in corners,
+    /// under a band fine at the side's own length, and planted. Every
+    /// edge's cover now reaches only its chord `s`, inside the run's
+    /// ambiguity band, so the orientation rung cannot read the one plane
+    /// the faces share, and the gate escalates rather than grant.
+    #[test]
+    fn a_short_open_edge_on_a_short_carrier_leaves_the_orientation_undecided() {
+        let tol = Tol::witness();
+        let (mut body, top, at) = top();
+        let unit = [
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(2.0, 1.0, 1.0),
+            Point3::new(1.5, 2.0, 1.0),
+        ];
+        let ring = plant_ring_face(&mut body, at, &unit, tol);
+        let host = body.get_face(top).expect("the top").clone();
+        let plane = body.get_surface(host.surface).expect("its plane").clone();
+        body.set_face_surface_unvouched_for_tests(
+            ring.membrane.face,
+            crate::euler::FaceSurface::New {
+                surface: plane,
+                sense: host.sense,
+            },
+        )
+        .expect("the triangle takes a key of its own");
+        let s = (band().zero() + band().escalate()) / 2.0;
+        let outer = body.faces[ring.membrane.face].outer;
+        let crate::LoopBoundary::Cycle { first } = body.loops[outer].boundary else {
+            panic!("the triangle's loop is a cycle");
+        };
+        let small = [(0.0, 0.0), (s, 0.0), (s / 2.0, s)];
+        let cycle = body.loop_cycle(first).expect("the triangle's loop walks");
+        for &he in &cycle {
+            let key = body.vertices[body.half_edges[he].start].point;
+            let i = unit
+                .iter()
+                .position(|&c| (c - body.points[key]).norm() == 0.0)
+                .expect("a corner of the unit triangle");
+            body.points[key] = Point3::new(1.0 + small[i].0, 1.0 + small[i].1, 1.0);
+        }
+        let fine = Band::new(1e-6 * s, 1e-5 * s).expect("a band fine at the side's length");
+        for &he in &cycle {
+            let edge = body.half_edges[he].edge;
+            let e = body.edges[edge].clone();
+            let point = |h| body.points[body.vertices[body.half_edges[h].start].point];
+            let (p0, p1) = (point(e.he_plus), point(e.he_minus));
+            let side = geom_brep::EdgeCurve::certify(
+                geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                p0,
+                p1,
+                |_| None,
+                s,
+                fine,
+                geom_brep::NurbsLane::certified(),
+            )
+            .expect("the drawn-in side certifies at its own length");
+            assert!(
+                (side.params().1 - side.params().0 - p0.distance(p1)).abs() <= 1e-12 * s,
+                "the side's carrier spans its chord"
+            );
+            *body.curves.get_mut(e.curve).expect("the side's curve") =
+                crate::null::CurveGeom::Certified(side);
+        }
+        let err = gate_maximal_faces(&body, Operand::A, band())
+            .expect_err("a short edge decides nothing");
+        let BooleanError::Escalated {
+            decision: BooleanDecision::Neighbours(PlaneRung::Orientation),
+            ..
+        } = err
+        else {
+            panic!("the orientation rung is undecided: {err:?}");
+        };
     }
 
     /// **A curve lookup that fails is a kernel bug, never read as a

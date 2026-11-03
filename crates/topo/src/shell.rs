@@ -4454,10 +4454,7 @@ fn footprint<T: Decide>(
             EntityId::HalfEdge(he),
             "edge",
         );
-        // Null scaffolding is a zero-length chord its vertex holds.
-        if let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() {
-            points.extend(carrier_box(curve.carrier(), curve.params(), frame));
-        }
+        points.extend(edge_box_in(body, h.edge, edge, frame));
     }
     let poison = points
         .iter()
@@ -4475,27 +4472,38 @@ fn footprint<T: Decide>(
     )
 }
 
-/// The `(u, v)` box of `frame` holding `carrier`'s arc over `params`:
-/// its cover's box in the frame's rows ([`geom::Curve3::cover_over`]),
-/// about the frame's origin. Both corners are poison where the carrier
-/// has no cover, so the footprint is too.
-fn carrier_box<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
+/// The `(u, v)` box of `frame` holding `edge`: its cover's box in the
+/// frame's rows (`boolean::boxes::edge_cover_linked`), about the frame's
+/// origin. Nothing for null scaffolding, a zero-length chord its vertex
+/// holds. Both corners are poison, and so the footprint, where the edge
+/// has no cover: its spline net carries poison, a datum or a computed
+/// point of its carrier is not finite, or an end vertex is not a finite
+/// point. A certified spline's net has a point by construction, which
+/// the cover asserts.
+fn edge_box_in<T: Decide>(
+    body: &Body<T>,
+    key: crate::entity::EdgeKey,
+    edge: &crate::entity::Edge,
     frame: &InPlane<T>,
-) -> [(T, T); 2] {
-    match carrier.cover_over(geom::cover::ParamWindow::new(t0, t1)) {
-        Ok(cover) => {
-            let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
-            let o = frame.origin - geom_core::Point3::origin();
-            let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
-            [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
-        }
-        Err(_) => {
+) -> Vec<(T, T)> {
+    use crate::boolean::EdgeUncovered;
+    match crate::boolean::boxes::edge_cover_linked(body, key, edge) {
+        Ok(cover) => cover_box_in(&cover, frame).to_vec(),
+        Err(EdgeUncovered::Scaffold) => Vec::new(),
+        Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
             let poison = (T::zero() - T::one()).sqrt();
-            [(poison, poison); 2]
+            vec![(poison, poison); 2]
         }
     }
+}
+
+/// The `(u, v)` box of `frame` holding `cover`: its box in the frame's
+/// rows, about the frame's origin.
+fn cover_box_in<T: Decide>(cover: &geom::cover::Cover<T>, frame: &InPlane<T>) -> [(T, T); 2] {
+    let (lo, hi) = cover.box_in(&geom::cover::Frame::Rows([frame.u, frame.v, frame.n]));
+    let o = frame.origin - geom_core::Point3::origin();
+    let (ou, ov) = (o.dot(frame.u), o.dot(frame.v));
+    [(lo.x - ou, lo.y - ov), (hi.x - ou, hi.y - ov)]
 }
 
 /// Do the two footprints overlap when both are projected into `a`'s
@@ -5095,14 +5103,13 @@ fn moved_walls<T: Decide>(
                 );
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
                 let certified = cavity.edge_curve_linked(h.edge, edge).certified();
-                // The edge's arc on its carrier: the vertices are the
-                // wall's own points below.
-                let cover = certified.map(|curve| {
-                    let (t0, t1) = curve.params();
-                    curve
-                        .carrier()
-                        .cover_over(geom::cover::ParamWindow::new(t0, t1))
-                });
+                // The edge's cover (`boolean::boxes::edge_cover_linked`):
+                // `None` for null scaffolding, a chord the wall's own
+                // vertices below hold.
+                let cover = match crate::boolean::boxes::edge_cover_linked(cavity, h.edge, edge) {
+                    Err(crate::boolean::EdgeUncovered::Scaffold) => None,
+                    other => Some(other),
+                };
                 let curve = match certified {
                     None => EdgeArc::Line,
                     Some(curve) => {
@@ -5163,8 +5170,11 @@ fn moved_walls<T: Decide>(
                     }
                 };
                 if let Some(cover) = &cover {
-                    // A carrier with no cover poisons the wall's box, which
-                    // then overlaps every other wall.
+                    // An edge with no cover (its spline net carries poison,
+                    // a datum or a computed point of its carrier is not
+                    // finite, or an end vertex is not a finite point)
+                    // poisons the wall's box, which then overlaps every
+                    // other wall.
                     let (lo, hi) = cover.as_ref().map_or_else(
                         |_| {
                             let poison = (T::zero() - T::one()).sqrt();

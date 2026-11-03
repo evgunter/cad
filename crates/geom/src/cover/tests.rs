@@ -508,8 +508,9 @@ fn a_bracketed_tube_encloses_every_torus_it_admits() {
 }
 
 /// **A curve's cover over a span holds the curve there**: lines, circle
-/// and ellipse arcs in either orientation and past a turn, spirics, and
-/// a rational spline.
+/// and ellipse arcs in either orientation and past a turn, spiric arcs
+/// over the same windows, and a rational spline whole and over a
+/// sub-window across a knot, in either orientation.
 #[test]
 fn a_curves_cover_over_a_span_holds_it() {
     let mut rng = fuzz::start("cover::a_curves_cover_over_a_span_holds_it");
@@ -578,7 +579,13 @@ fn a_curves_cover_over_a_span_holds_it() {
         let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
         let offset = (big - small) * rng.range(0.05, 0.95) * side;
         let spiric = Curve3::spiric(center, axis, u_ref, big, small, offset, band()).unwrap();
-        run("spiric", spiric, dense(0.0, TAU, 240).collect());
+        // The spiric's rectangle over the window turns at the crests of
+        // `cos v` and `sin v` in it.
+        let turns = [crests(1.0, 0.0), crests(0.0, 1.0)]
+            .iter()
+            .flat_map(|c| in_window(c, t0, t1))
+            .collect();
+        run("spiric", spiric, turns);
         let control: Vec<Point3<f64>> = (0..6)
             .map(|_| center + (point(&mut rng, scale) - Point3::origin()))
             .collect();
@@ -594,6 +601,19 @@ fn a_curves_cover_over_a_span_holds_it() {
                 .cover_over(ParamWindow::new(iv(0.0), iv(3.0)))
                 .unwrap(),
             samples: curve_samples(&spline, dense(0.0, 3.0, 120)),
+            dirs: dirs.clone(),
+            sites: sites.clone(),
+        });
+        // Over a sub-window the pieces' nets hold it there, across a knot.
+        let (a, b) = (rng.range(0.2, 1.4), rng.range(1.6, 2.8));
+        check(&Case {
+            name: format!("spline over [{a}, {b}] #{case}"),
+            at_f64: spline.cover_over(ParamWindow::new(b, a)).unwrap(),
+            at_iv: spline
+                .map_scalar(iv)
+                .cover_over(ParamWindow::new(iv(b), iv(a)))
+                .unwrap(),
+            samples: curve_samples(&spline, dense(a, b, 120)),
             dirs: dirs.clone(),
             sites: sites.clone(),
         });
@@ -1388,8 +1408,12 @@ fn the_nearest_distance_just_off_the_surface_is_the_offset() {
 /// read from a point on it: the farthest is the chord to the far end.
 /// The squared harmonic form reads it as the root of `|w|² + …` with
 /// `|w|² ≈ 1e6`, whose rounding (about `1e-10`) is a relative `1e-4` of
-/// the chord's square, and goes red here; each distance form holds it to
-/// a few ulps of the arc's own size. The interval lane encloses it.
+/// the chord's square, and goes red here. Each distance form differences
+/// points placed about `2e3` from the origin, so its error is a few ulps
+/// of that placement, not of the arc: about `1e-12` m, a relative `1e-9`
+/// of the millimetre chord, and a relative error that grows as the arc
+/// shrinks against its placement (a `1.6e-9` rad arc placed `13` out
+/// reads to `3e-8`). The interval lane encloses it.
 #[test]
 fn the_farthest_distance_from_a_point_by_a_short_arc_is_the_chord() {
     let (x, z) = (Vec3::unit_x(), Vec3::unit_z());
@@ -1454,6 +1478,49 @@ fn a_closed_arcs_range_at_interval_is_decided() {
                     && want <= got.hi()
                     && got.hi() - got.lo() <= 1e-12,
                 "t0 = {t0}: the {what} {got:?} against {want}"
+            );
+        }
+    }
+}
+
+/// **A circle arc on a tilted frame reads its range at `Interval`.** A
+/// circle's two semi-axes are one radius, so the deviation of its arc
+/// from its mean circle is zero in the reals, and an enclosure of it
+/// straddles zero where the radius enters as an enclosure with width
+/// and the frame is off the world's axes (`axis × u_ref` rounds). The Gram bound under the root reads each
+/// side's length as a squared norm, which an enclosure keeps at or above
+/// zero; read as a self-dot product, the enclosure of a near-zero
+/// vector reaches below zero, the root is a domain violation (decorated
+/// below `Def`), and the deciding lanes refuse the range.
+#[test]
+fn a_tilted_circle_arcs_range_at_interval_is_decided() {
+    let axis = Vec3::new(1.0, 2.0, 3.0).normalize();
+    let u_ref = Vec3::new(3.0, 0.0, -1.0).normalize();
+    let c = Point3::new(0.3, -1.2, 2.5);
+    let circle = Curve3::Circle(crate::Circle::new(crate::Frame::new(c, axis, u_ref), 0.7));
+    // The radius as an enclosure a few ulps wide, as a computed datum
+    // enters: the two semi-axes are that one enclosure, so their
+    // difference straddles zero.
+    let radius = Interval::from_bounds(0.7, 0.7 * (1.0 + 8.0 * f64::EPSILON));
+    let wide = Curve3::Circle(crate::Circle::new(
+        crate::Frame::new(ipt(c), ivec(axis), ivec(u_ref)),
+        radius,
+    ));
+    let q = Point3::new(4.0, 1.0, -2.0);
+    for (t0, t1) in [(0.2, 1.9), (-1.0, 4.0), (0.5, 0.5 + TAU)] {
+        let cover = wide.cover_over(ParamWindow::new(iv(t0), iv(t1))).unwrap();
+        let (near, far) = cover.distance_range(&Site::Point(ipt(q)));
+        for (what, got) in [("nearest", near), ("farthest", far)] {
+            assert!(
+                got.is_certified(),
+                "[{t0}, {t1}]: the {what} distance {got:?} is not certified"
+            );
+        }
+        for p in curve_samples(&circle, dense(t0, t1, 400)) {
+            let d = (p - ipt(q)).norm();
+            assert!(
+                near.lo() <= d.hi() && d.lo() <= far.hi(),
+                "[{t0}, {t1}]: the arc's point at {d:?} from q leaves [{near:?}, {far:?}]"
             );
         }
     }

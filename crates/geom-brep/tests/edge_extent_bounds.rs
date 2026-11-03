@@ -250,17 +250,17 @@ fn rows() -> Vec<Row> {
             1.1,
         ),
         row("spiric, closed", &spiric, (0.0, TAU), 1.05, 1.15),
-        row("spiric, an arc", &spiric, (0.7, 2.9), 1.05, 1.15),
+        row("spiric, an arc", &spiric, (0.7, 2.9), 1.05, 1.01),
         row("steep spline, whole", &steep, (0.0, 1.0), 1.15, 1.15),
         row(
             "steep spline, a sub-window",
             &steep,
             (0.05, 0.25),
             1.8,
-            1.45,
+            1.01,
         ),
         row("wave spline, whole", &wave, (0.0, 1.0), 1.05, 1.05),
-        row("wave spline, a sub-window", &wave, (0.45, 0.6), 1.3, 1.2),
+        row("wave spline, a sub-window", &wave, (0.45, 0.6), 1.3, 1.01),
         row("closed spline", &closed, (0.0, 1.0), 1.3, 1.2),
         off(
             row(
@@ -296,7 +296,11 @@ fn rows() -> Vec<Row> {
 }
 
 /// **Every kind's bounds bracket its diameter and its reach, within the
-/// kind's stated tightness.**
+/// kind's stated tightness.** The spiric's and the splines' sub-window
+/// rows hold the reach within 1% of R: the cover reads the window (the
+/// spiric's rectangle over it, the spline's pieces' nets over it), and a
+/// cover that read the whole period or the whole net there passes R by
+/// far more.
 #[test]
 fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
     // Every row is read and every failure reported, so a loosened or
@@ -337,7 +341,7 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         }
         // The reach read from both sides brackets it too: the samples
         // from below, the reach above it.
-        let bounds = edge_reach_bounds(c, t0, t1, start);
+        let bounds = edge_reach_bounds(c, (t0, t1), start, edge_reach_from(c, t0, t1, start));
         check(
             bounds.below() <= (r + slack) * (1.0 + 1e-12) && bounds.above() == reach,
             format!("{w}: the reach's bounds {bounds:?} do not bracket R {r} at the reach {reach}"),
@@ -355,8 +359,12 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
                 row.c_sup * (d + slack)
             ),
         );
+        // At `f64` the reach is the real bound computed as if exact
+        // (`[simple.conditioned]`): where its far point is a window end,
+        // it and R are the same point computed two ways, which meet at
+        // rounding.
         check(
-            reach >= r,
+            reach >= r * (1.0 - 1e-12),
             format!("{w}: the reach {reach} is short of R {r}"),
         );
         check(
@@ -422,7 +430,9 @@ fn a_wild_parameterisation_is_bracketed_and_no_more() {
         let inf = edge_extent_inf(&wild, t0, t1, chord);
         let sup = edge_extent_sup(&wild, t0, t1, chord);
         let reach = edge_reach_from(&wild, t0, t1, start);
-        let LeverBounds::Between { below, above } = edge_reach_bounds(&wild, t0, t1, start) else {
+        let LeverBounds::Between { below, above } =
+            edge_reach_bounds(&wild, (t0, t1), start, reach)
+        else {
             panic!("{window:?}: a spline's reach is known from both sides");
         };
         println!(
@@ -438,8 +448,13 @@ fn a_wild_parameterisation_is_bracketed_and_no_more() {
             "{window:?}: inf {inf} > D {d}"
         );
         assert!(sup >= d, "{window:?}: sup {sup} < D {d}");
+        // At `f64` the reach is the real bound computed as if exact
+        // (`[simple.conditioned]`): the window's restricted net and the
+        // dense samples are the same points computed two ways, so they
+        // meet at rounding at the coordinates' scale (about 6 here), which
+        // on the 6e-11 window is most of the reach's own digits.
         assert!(
-            reach >= r && above == reach,
+            reach >= r - 64.0 * f64::EPSILON * 6.0 && above == reach,
             "{window:?}: reach {reach} < R {r}"
         );
         assert!(

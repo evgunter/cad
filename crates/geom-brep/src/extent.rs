@@ -178,22 +178,19 @@ impl<T: Real> ExtentBall<T> {
 /// **The farthest an arc of `carrier` over `[t0, t1]` stands from
 /// `pivot`**: its cover's far distance ([`Cover::distance_range`]),
 /// poison where the carrier has no cover over the span.
-fn cover_far<T: Real>(carrier: &Curve3<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
+fn cover_far<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
     carrier
         .cover_over(ParamWindow::new(t0, t1))
         .map_or_else(|_| poison(), |c| c.distance_range(&Site::Point(pivot)).1)
 }
 
-/// A span's whole carrier as a cover: a line's span (its whole carrier
-/// is unbounded), and any other carrier's over a whole turn from `t0`,
-/// which a conic reads as its whole ellipse and a spiric's and a
-/// spline's covers read whole whatever the window.
-fn whole_cover<T: Real>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> geom::cover::Covered<T> {
-    let end = match carrier.as_line() {
-        Some(_) => t1,
-        None => t0 + T::tau(),
-    };
-    carrier.cover_over(ParamWindow::new(t0, end))
+/// A span's whole carrier as a cover: the carrier's own whole cover
+/// ([`Curve3::cover`]) where it is bounded, and its cover over the span
+/// where it is not (a line, whose whole carrier is unbounded).
+fn whole_cover<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T)) -> geom::cover::Covered<T> {
+    carrier
+        .cover()
+        .or_else(|_| carrier.cover_over(ParamWindow::new(t0, t1)))
 }
 
 /// The scalar's poison, through the totality policy (`Real::sqrt` of a
@@ -241,14 +238,12 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 /// ([`geom::curves::spiric_rate_bounds`], `ρ ∈ [R − r, R + r]`, the sine
 /// held to 1), a spline's [`geom::NurbsCurve3::speed_upper_bound`].
 ///
-/// Raised by a relative [`SPEED_MARGIN`]: at `f64` these are the
-/// certified expressions in round-to-nearest, which can land a few ulp
-/// under the speed they bound (a spline's coefficient ratios read 2e-9
-/// relative under its sampled speed once). The margin makes the slack
-/// it feeds an upper bound at every scalar; at `Interval` it only widens
-/// a bound already certified.
+/// Each is the closed-form bound in the scalar's own arithmetic
+/// (`[simple.conditioned]`): the real bound computed as if exact at
+/// `f64`, an enclosure of it at `Interval`. Nothing is charged for
+/// rounding.
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
-    let sup = match carrier {
+    match carrier {
         Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
             Some(k) => k.speed_hi(),
@@ -264,14 +259,8 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
             geom::curves::spiric_rate_bounds(r, *offset, (big - r, big + r), T::one()).0
         }
         Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
-    };
-    sup * T::from_f64(1.0 + SPEED_MARGIN)
+    }
 }
-
-/// [`speed_sup`]'s relative margin over its round-to-nearest bound: far
-/// past the few-ulp drift of a carrier's speed expression, and far under
-/// anything the slack's tightness notices.
-const SPEED_MARGIN: f64 = 1e-6;
 
 /// The extent of an edge's own point set bounded from below: no more
 /// than its diameter `D`, the farthest distance between two of its
@@ -435,41 +424,28 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
     }
 }
 
-/// **How far an edge reaches from `pivot`**, bounded from above: the
-/// farthest `|x − pivot|` over the edge's points `x`, never short of it,
-/// at every carrier kind and scalar. The radius of a ball about `pivot`
-/// that must enclose the edge ([`ExtentBall`], the rest locus's), and the
-/// upper reading of a lever known from both sides
-/// ([`edge_reach_bounds`]).
+/// **How far an arc of `carrier` over `[t0, t1]` reaches from
+/// `pivot`**, bounded from above: the farthest `|x − pivot|` over its
+/// points `x`, never short of it, at every carrier kind and scalar. The
+/// radius of a ball about `pivot` that must enclose the arc
+/// ([`ExtentBall`]). Sugar over the carrier's cover for a reader that
+/// has a carrier and a span but no edge yet: topo's rest locus, which
+/// reads an edge being described. A reader of an edge reads its edge's
+/// cover instead (topo's `boolean::boxes::edge_cover`).
 ///
-/// The lesser of two bounds, never below the samples' own reach:
-///
-/// - the far distance of the carrier's cover over `[t0, t1]`
-///   ([`Cover::distance_range`]): exact on a line and a circle arc, past
-///   an ellipse arc by at most a quarter of its span's bulge, and on a
-///   spiric or a spline the whole period's or the whole net's;
-/// - the samples' reach at `t₀ + k·(t₁ − t₀)/16` plus `s·|Δt|/32`, `s`
-///   the carrier's speed bound ([`edge_extent_sup`]'s Lipschitz pairs,
-///   read from `pivot`): the edge's own window, which on a spiric or a
-///   spline is tighter than the cover's where the parameter runs evenly.
-///   Near a spiric's pinch, where the rate bound grows without limit,
-///   and on a spline window with wild weights or clustered knots, it
-///   can pass the reach many times over.
+/// It is the far distance of the carrier's cover over `[t0, t1]`
+/// ([`Cover::distance_range`]): exact on a line and a circle arc, past
+/// an ellipse arc by at most a quarter of its span's bulge, and on a
+/// spiric and a spline the far distance of the window's rectangle and of
+/// the window's pieces' nets, each of which narrows with the window.
+/// Every tightening of the reach is a stage of the cover's arm, so this
+/// reads nothing beside it.
 ///
 /// So it is never by itself the lever of a reading that acts on every
 /// sign: such a reading reads [`edge_reach_bounds`] at both ends.
-/// Comparison-free; poison propagates as in [`edge_extent_sup`], and a
-/// carrier with no cover reads poison.
+/// Comparison-free; a carrier with no cover reads poison.
 pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: Point3<T>) -> T {
-    let sampled = sampled_reach(carrier, (t0, t1), pivot);
-    let slack = speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
-    // Every sample is a point of the edge, so its distance bounds the
-    // reach from below: at an enclosure scalar this lifts the lower end of
-    // a bound whose in-span reading was undecided (a full turn's crest),
-    // which would otherwise reach down to the pivot itself.
     cover_far(carrier, (t0, t1), pivot)
-        .min(sampled + slack)
-        .max(sampled)
 }
 
 /// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
@@ -538,21 +514,22 @@ impl<T> From<T> for LeverBounds<T> {
     }
 }
 
-/// **How far an edge reaches from `pivot`, bounded from both sides**:
-/// the lever of a reading that acts on every sign, read from a point of
-/// the edge (a corner's departure, a tangent at an interior point). On
-/// a line or a circle arc the reach is read exactly
-/// ([`edge_reach_from`]); otherwise it lies between the samples' reach
-/// (each sample a point of the edge) and [`edge_reach_from`], whose
-/// tightness depends on the carrier's parameterisation (its docs), so a
-/// consumer reads at both and acts only on a verdict they share.
+/// **How far an edge reaches from `pivot`, bounded from both sides**,
+/// given `above`, the far distance from `pivot` of the region the edge
+/// occupies, which the caller reads off that region (topo reads its
+/// edge's cover, the carrier's hulled with the edge's ends): the lever
+/// of a reading that acts on every sign, read from a point of the edge
+/// (a corner's departure, a tangent at an interior point). On a line or
+/// a circle arc that far distance is the reach itself; otherwise the
+/// reach lies between the samples' reach (each sample a point of the
+/// edge) and `above`, so a consumer reads at both and acts only on a
+/// verdict they share.
 pub fn edge_reach_bounds<T: SpanLocate>(
     carrier: &Curve3<T>,
-    t0: T,
-    t1: T,
+    (t0, t1): (T, T),
     pivot: Point3<T>,
+    above: T,
 ) -> LeverBounds<T> {
-    let above = edge_reach_from(carrier, t0, t1, pivot);
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) => LeverBounds::Exact(above),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
@@ -614,7 +591,7 @@ pub enum Reach<T: Real> {
     },
 }
 
-impl<T: Real> Reach<T> {
+impl<T: SpanLocate> Reach<T> {
     /// The lever a tilt pinned at `pivot` is metered at. For a reach the
     /// carrier measures ([`Self::Ball`], [`Self::Span`]), an upper bound
     /// on the consumed region's distance from `pivot`; for a length the
@@ -655,7 +632,9 @@ impl<T: Real> Reach<T> {
     /// than round its whole carrier, which on a short arc of a large
     /// conic is the conic's size, not the arc's: exact on a circle arc,
     /// and past an ellipse arc by at most a quarter of its span's bulge.
-    /// Never past [`Self::lever_from`]. The face measures read it
+    /// Never past [`Self::lever_from`] by more than that slack: over a
+    /// turn or more both read the whole conic, from the span's start and
+    /// from the carrier's zero. The face measures read it
     /// (`splitting::rules::face_reach_from` in `topo`); the section arms'
     /// anchors read [`Self::lever_from`].
     #[must_use]
@@ -680,8 +659,9 @@ impl<T: Real> Reach<T> {
     ///   reading `(at − pivot)·dir`.
     /// - [`Self::Span`]: the support of the carrier's cover over
     ///   `[t0, t1]` along `∓dir` ([`Cover::support`]): exact on a segment
-    ///   and a conic arc, the period's on a spiric, the whole net's on a
-    ///   spline. Poison where the carrier has no cover.
+    ///   and a conic arc, the window's rectangle's on a spiric, the
+    ///   window's pieces' nets' on a spline. Poison where the carrier has
+    ///   no cover.
     #[must_use]
     pub fn range_along(&self, pivot: Point3<T>, dir: Vec3<T>) -> (T, T) {
         let at = |p: Point3<T>| (p - pivot).dot(dir);
@@ -1110,8 +1090,11 @@ mod tests {
                             got <= far + slack + ulps,
                             "{label}: {got} passes the sampled {far} by more than {slack}"
                         );
+                        // A span of a turn or more and the whole turn are
+                        // one region, read from different starts: each is
+                        // within its arc reading's slack of the far point.
                         assert!(
-                            got <= reach.lever_from(pivot),
+                            got <= reach.lever_from(pivot) + slack + ulps,
                             "{label}: {got} passes the whole turn"
                         );
                     }

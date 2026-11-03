@@ -1,28 +1,27 @@
-//! Certified-conservative [`Aabb`] constructors for curve carriers
-//! (C10, M5 PR 8): a box is a cache with a **containment contract** —
-//! the carrier's true locus over the stated span lies inside it — and
-//! every computation here errs outward only: by the certified
-//! [`Interval`] arithmetic the conic doors run in, or, for the spiric,
-//! by its scalar's own arithmetic on its cover.
+//! Certified [`Aabb`] constructors for curve carriers (C10, M5 PR 8):
+//! a box is a cache with a **containment contract** — the carrier's
+//! true locus over the stated span lies inside it — and each box is an
+//! enclosure by the [`Interval`] arithmetic the conic doors run in, or,
+//! for the spiric, by its scalar's own arithmetic on its period's cover.
+//! Nothing is charged beyond it (`[simple.conditioned]`).
 //!
-//! **Outward is the only sound direction; it is not a free one.** A
-//! wider box is a weaker answer, not a cheaper one: a consumer that
-//! reads non-overlap as its ANSWER loses that answer to width, and
-//! which consumers read a box that way is not visible from here —
-//! `topo` depends on `geom`, not the reverse. So these docs state the
-//! containment contract and stop. What looseness costs is the reading
-//! door's to state, per door, where the doors are.
+//! **No kernel door reads these boxes now.** An edge's region is its
+//! cover (`crate::cover`, read through `Curve3::cover_over`), and every
+//! box, reach and extent a consumer takes is a method on the cover.
+//! These doors remain as the closed-form references the cover's rows
+//! and the bounds census check against; [`ArcWindow`], the extremum of
+//! a harmonic over a span, is the one body both read.
+//!
+//! **A wider box is a weaker answer, not a cheaper one**: a consumer
+//! that reads non-overlap as its ANSWER loses that answer to width.
 //!
 //! They live HERE, not in the `bvh` crate, so the tree stays below the
-//! geometry crate (the SSI subdivision duty inside them must be able
-//! to consume it — see `bvh`'s crate docs) and each constructor sits
-//! next to the invariant it cites. [`conic_arc_aabb`] is the one door
-//! a consumer boxing an edge of unknown conic kind reads; the two kind
-//! doors under it are its arms. A conic arc's extent along an
-//! ARBITRARY direction is [`conic_arc_extent_along`] (at the carrier's
-//! scalar) and [`conic_arc_extent_along_bracketed`] (certified); the
-//! box doors are the same closed form read along the world axes, so
-//! the extremum has one body ([`ArcWindow`]).
+//! geometry crate and each constructor sits next to the invariant it
+//! cites. A conic arc's extent along an ARBITRARY direction is
+//! [`conic_arc_extent_along`] (at the carrier's scalar) and
+//! [`conic_arc_extent_along_bracketed`] (certified); the box doors are
+//! the same closed form read along the world axes, so the extremum has
+//! one body ([`ArcWindow`]).
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
@@ -302,10 +301,10 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
-/// The box of a SPIRIC arc: the bracketed world box of its cover
-/// ([`Curve3::cover_over`], the tube met with the period's rectangle,
-/// whatever the span), run in `T`'s own arithmetic, so an enclosure at
-/// `Interval` and the real-number box at `f64`
+/// The box of a SPIRIC carrier's whole period: the bracketed world box
+/// of its period's cover (the tube met with the period's rectangle, the
+/// construction [`Curve3::cover`] reads), run in `T`'s own arithmetic,
+/// so an enclosure at `Interval` and the real-number box at `f64`
 /// (`[simple.conditioned]`), and hulled with the endpoints exactly as
 /// [`ellipse_arc_aabb`] is. A C10 superset: the exact per-axis extremes
 /// need a transcendental root and are not owed; a wider box is a weaker
@@ -320,13 +319,31 @@ pub fn spiric_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    let Curve3::Spiric { .. } = carrier else {
+    let Curve3::Spiric {
+        center,
+        axis,
+        u_ref,
+        major_radius,
+        minor_radius,
+        offset,
+    } = *carrier
+    else {
         return None;
     };
-    let window = crate::cover::ParamWindow::new(T::zero(), T::zero());
-    let period = carrier
-        .cover_over(window)
-        .map_or_else(|_| Aabb::poison(), |cover| cover.aabb(0.0));
+    let tube = crate::cover::Cover::tube(center, axis, u_ref, major_radius, minor_radius);
+    let rectangle = crate::curves::spiric_rectangle(
+        center,
+        axis,
+        u_ref,
+        (major_radius, minor_radius),
+        offset,
+        crate::cover::ParamWindow::new(T::zero(), T::tau()),
+    );
+    let period = tube
+        .zip(rectangle)
+        .map_or_else(Aabb::poison, |(tube, rectangle)| {
+            tube.meet(rectangle).aabb(0.0)
+        });
     let ends = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
     Some(ends.hull(&period))
 }
@@ -340,7 +357,7 @@ pub fn spiric_arc_aabb<T: Bounds>(
 /// `Line` or `Nurbs` carrier: those kinds have their own rule (the
 /// chord; the control hull, [`nurbs_curve_aabb`]) and this door refuses
 /// rather than guesses. Everything else — span restriction, outward
-/// rounding (for the spiric, its construction's charge), poison — is
+/// rounding, poison — is
 /// the kind door's contract, verbatim.
 pub fn conic_arc_aabb<T: Bounds>(
     carrier: &Curve3<T>,

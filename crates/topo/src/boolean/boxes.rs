@@ -191,6 +191,7 @@ use bvh::Aabb;
 use geom::Surface;
 use geom::cover::{Cover, ParamWindow};
 use geom::surfaces::nurbs::NurbsSurface;
+use geom_core::spline::SpanLocate;
 use geom_core::{Band, Bounds, Decide, Point3, Real, UnitVec3, Vec3};
 
 use super::BooleanError;
@@ -2030,18 +2031,75 @@ fn boundary_hull<T: Decide + Bounds>(
 /// [`EdgeUncovered`]: null scaffolding, whose chord is not a bound; a
 /// carrier its own reading cannot cover; an end vertex that is not a
 /// finite point.
-pub(crate) fn edge_cover_of<T: Real>(
+pub(crate) fn edge_cover_of<T: SpanLocate>(
     certified: Option<&geom_brep::EdgeCurve<T>>,
-    (a, b): (Point3<T>, Point3<T>),
+    ends: (Point3<T>, Point3<T>),
 ) -> Result<Cover<T>, EdgeUncovered> {
     let curve = certified.ok_or(EdgeUncovered::Scaffold)?;
-    let (t0, t1) = curve.params();
-    let arc = curve
-        .carrier()
-        .cover_over(ParamWindow::new(t0, t1))
-        .map_err(EdgeUncovered::Carrier)?;
+    edge_cover_over(curve.carrier(), curve.params(), ends)
+}
+
+/// **[`edge_cover_of`]'s construction**, from a carrier, its span and
+/// the edge's two ends: the carrier's cover over the span hulled with
+/// the ends. Read alone where there is no certified edge record to read
+/// it from: rows whose near-fold sector `mev`'s witness certification
+/// refuses.
+///
+/// # Errors
+///
+/// As [`edge_cover_of`], save [`EdgeUncovered::Scaffold`].
+pub(crate) fn edge_cover_over<T: SpanLocate>(
+    carrier: &geom::Curve3<T>,
+    span: (T, T),
+    (a, b): (Point3<T>, Point3<T>),
+) -> Result<Cover<T>, EdgeUncovered> {
+    let arc = arc_cover(carrier, span)?;
     let ends = Cover::points(vec![a, b]).ok_or(EdgeUncovered::Ends)?;
     Ok(arc.hull(ends))
+}
+
+/// **The carrier's half of an edge's cover**: its cover over the span
+/// ([`geom::Curve3::cover_over`]), with no ends. The one place topo
+/// reads a carrier over an edge's span; [`edge_cover_over`] hulls it
+/// with the ends. Read alone by a reader that holds a lifted carrier and
+/// span with no edge record behind them (`cell_region`'s boundary arcs,
+/// through `splitting::containment::arc_distance_floor`), which reads
+/// its ends as vertices of its own.
+///
+/// # Errors
+///
+/// [`EdgeUncovered::Carrier`].
+pub(crate) fn arc_cover<T: SpanLocate>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+) -> Result<Cover<T>, EdgeUncovered> {
+    carrier
+        .cover_over(ParamWindow::new(t0, t1))
+        .map_err(EdgeUncovered::Carrier)
+}
+
+/// **How far `edge` reaches from `pivot`, bounded from both sides**
+/// ([`geom_brep::edge_reach_bounds`]), its bound from above the far
+/// distance of the edge's cover ([`edge_cover_linked`]) from `pivot`;
+/// poison where the edge has no cover, which the reading levered at it
+/// escalates. `None` for null scaffolding.
+pub(crate) fn edge_reach_bounds<T: SpanLocate>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    e: &Edge,
+    pivot: Point3<T>,
+) -> Option<geom_brep::LeverBounds<T>> {
+    let curve = body.edge_curve_linked(edge, e).certified()?;
+    let above = edge_cover_linked(body, edge, e).map_or_else(
+        |_| (T::zero() - T::one()).sqrt(),
+        |c| c.distance_range(&geom::cover::Site::Point(pivot)).1,
+    );
+    Some(geom_brep::edge_reach_bounds(
+        curve.carrier(),
+        curve.params(),
+        pivot,
+        above,
+    ))
 }
 
 /// [`edge_cover_of`] for `edge`, its ends read through its half-edges.
@@ -2055,11 +2113,30 @@ pub(crate) fn edge_cover_of<T: Real>(
 /// Where `edge`, which the caller read out of `body`, its curve or a
 /// record on the way to its ends does not resolve (D2 row 4): a torn
 /// curve is not an uncertified one.
-pub(crate) fn edge_cover<T: Real>(
+pub(crate) fn edge_cover<T: SpanLocate>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<Cover<T>, EdgeUncovered> {
     edge_cover_linked(body, edge, proven(&body.edges, edge, EntityId::Edge))
+}
+
+impl<T: SpanLocate> Body<T> {
+    /// **The region `edge` can occupy** (`[one-way.places]`): its
+    /// certified carrier's cover over its span hulled with its two end
+    /// vertices, topo's one reading of an edge ([`edge_cover_of`]), for
+    /// a reader outside topo.
+    ///
+    /// # Errors
+    ///
+    /// [`EdgeUncovered`], as [`edge_cover_of`].
+    ///
+    /// # Panics
+    ///
+    /// Where `edge`, a live edge of `self`, or a record on the way to its
+    /// ends does not resolve (D2 row 4).
+    pub fn edge_cover(&self, edge: EdgeKey) -> Result<Cover<T>, EdgeUncovered> {
+        edge_cover(self, edge)
+    }
 }
 
 /// [`edge_cover`] past its edge's lookup: `e` is `edge`'s record.
@@ -2067,7 +2144,7 @@ pub(crate) fn edge_cover<T: Real>(
 /// # Errors
 ///
 /// As [`edge_cover_of`].
-pub(crate) fn edge_cover_linked<T: Real>(
+pub(crate) fn edge_cover_linked<T: SpanLocate>(
     body: &Body<T>,
     edge: EdgeKey,
     e: &Edge,
@@ -2083,7 +2160,7 @@ pub(crate) fn edge_cover_linked<T: Real>(
 /// own direction on it: a pruning reader takes the box that overlaps
 /// everything, a granting reader refuses.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum EdgeUncovered {
+pub enum EdgeUncovered {
     /// Null scaffolding: nothing is certified about the locus, and the
     /// chord between its ends is not a bound.
     Scaffold,
@@ -5443,11 +5520,61 @@ pub(crate) mod tests {
         spiric_f_dd(big_r, r, d, cos_v).to_f64()
     }
 
+    /// **An edge's cover holds its end vertices where they stand off its
+    /// carrier.** A vertex sits on its edge's carrier only to the edge's
+    /// certification residual, so the edge's region is the carrier's
+    /// cover over its span hulled with its two ends ([`edge_cover_of`]).
+    /// Here the ends of a unit segment and of a quarter circle stand
+    /// `3e-11` off their carriers, across their plane: the box read off
+    /// the edge's cover holds both, where the carrier's cover alone
+    /// ([`arc_cover`]) holds neither.
+    #[test]
+    fn an_edges_cover_holds_its_vertices_off_its_carrier() {
+        let off = 3e-11;
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let at = Point3::new(1.0, 2.0, 3.0);
+        let line = Curve3::Line(geom::Line {
+            origin: at,
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        });
+        let circle = Curve3::circle(at, n, 2.0, Vec3::new(1.0, 0.0, 0.0));
+        for (what, carrier, span) in [
+            ("the segment", line, (0.0, 1.0)),
+            (
+                "the quarter circle",
+                circle,
+                (0.0, core::f64::consts::FRAC_PI_2),
+            ),
+        ] {
+            let ends = (
+                carrier.eval(span.0) + n * off,
+                carrier.eval(span.1) - n * off,
+            );
+            let inside = |b: &Aabb, p: Point3<f64>| {
+                (b.min_x..=b.max_x).contains(&p.x)
+                    && (b.min_y..=b.max_y).contains(&p.y)
+                    && (b.min_z..=b.max_z).contains(&p.z)
+            };
+            let edge = edge_cover_over(&carrier, span, ends).unwrap().aabb(0.0);
+            let bare = arc_cover(&carrier, span).unwrap().aabb(0.0);
+            for p in [ends.0, ends.1] {
+                assert!(
+                    inside(&edge, p),
+                    "{what}: the edge's box {edge:?} misses its end {p:?}"
+                );
+                assert!(
+                    !inside(&bare, p),
+                    "{what}: the carrier's box holds {p:?} already"
+                );
+            }
+        }
+    }
+
     /// **The spiric arm of `edge_box`, and the census's reach twin,
     /// contain the arc** — the two readers of a spiric edge's cover,
-    /// each executed on the hand-built sector. The whole-period box
-    /// is asserted over the whole period, which is what the door claims,
-    /// with no slack on either: each sample is the elbow's point
+    /// each executed on the hand-built sector over its window
+    /// `[0.4, 2.9]`, which is what the cover claims, with no slack on
+    /// either: each sample is the elbow's point
     /// `(d, f(v), r·sin v)` with `f` from [`spiric_f_reference`], not
     /// `Curve3::eval`, whose rounding of the radicand is the box's own.
     #[test]
@@ -5456,8 +5583,9 @@ pub(crate) mod tests {
         let (big_r, r, d) = (1.2, 0.225, 0.05);
         let b = edge_box(&body, edge, 0.0);
         let (lo, hi) = crate::census::face_reach(&body, face, witness_band()).unwrap();
+        let (t0, t1) = (0.4, 2.9);
         for i in 0..=20_000 {
-            let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
+            let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
             let (sin, cos) = t.sin_cos();
             let p = Point3::new(d, spiric_f_reference(big_r, r, d, cos), r * sin);
             assert!(
@@ -5479,20 +5607,6 @@ pub(crate) mod tests {
                 "the spiric point at v = {t} ({p:?}) left the face reach {lo:?}..{hi:?}"
             );
         }
-    }
-
-    /// A spiric edge's cover as [`edge_cover_of`] builds it, past the
-    /// body: near the fold a hand-built sector fails `mev`'s witness
-    /// certification, so the near-fold rows enter the construction here.
-    fn spiric_edge_cover<T: Real>(
-        carrier: &Curve3<T>,
-        (t0, t1): (T, T),
-        ends: (Point3<T>, Point3<T>),
-    ) -> Cover<T> {
-        carrier
-            .cover_over(ParamWindow::new(t0, t1))
-            .unwrap()
-            .hull(Cover::points(vec![ends.0, ends.1]).unwrap())
     }
 
     /// The admitted spirics the near-fold rows box: the elbow, the
@@ -5548,9 +5662,12 @@ pub(crate) mod tests {
     /// `geom::curves::boxes::spiric_arc_aabb` are each held, with no pad,
     /// to the exact box of [`admitted_spirics`] (`f` from
     /// [`spiric_f_reference`]) within a few ulps either way
-    /// (`[simple.conditioned]`: the `f64` box is the real-number box). A
-    /// root of the inner radicand spelled as a difference of squares, or
-    /// of `fl(R − r) − |d|`, misses `f_min` near the fold by far more.
+    /// (`[simple.conditioned]`: the `f64` box is the real-number box): the
+    /// two cover lanes to the edge's window's box, a window holding the
+    /// fold's `v = π` and the far side's `v = 0`, and `geom`'s door, which boxes the whole period, to the
+    /// period's. A root of the inner radicand spelled as a difference of
+    /// squares, or of `fl(R − r) − |d|`, misses `f_min` near the fold by
+    /// far more.
     #[test]
     fn the_spiric_box_is_its_exact_extremes_near_the_fold() {
         let band = witness_band();
@@ -5575,9 +5692,9 @@ pub(crate) mod tests {
                 band,
             )
             .unwrap();
-            let (t0, t1) = (2.0, 4.2);
+            let (t0, t1) = (-0.3, 3.3);
             let ends = (carrier.eval(t0), carrier.eval(t1));
-            let cover = spiric_edge_cover(&carrier, (t0, t1), ends);
+            let cover = edge_cover_over(&carrier, (t0, t1), ends).unwrap();
             let bracketed = cover.aabb(0.0);
             let (lo, hi) = cover.box_in(&geom::cover::Frame::World);
             let census = Aabb {
@@ -5590,15 +5707,18 @@ pub(crate) mod tests {
             };
             let door = geom::curves::boxes::spiric_arc_aabb(&carrier, ends.0, ends.1).unwrap();
 
-            let (f_min, f_max) = (
-                spiric_f_reference(big_r, r, d, -1.0),
-                spiric_f_reference(big_r, r, d, 1.0),
-            );
-            let exact = [d, f_min, -r, d, f_max, r];
-            for (lane, b) in [
-                ("the box lane", bracketed),
-                ("the census lane", census),
-                ("geom's door", door),
+            // The window `[−0.3, 3.3]` holds `v = 0`, `π/2` and `π`, so
+            // `f` turns at its crests inside it, not at an end, whose point
+            // `Curve3::eval` reads with its own rounding of the radicand:
+            // `cos v` runs over `[−1, 1]` and `sin v` from `sin(−0.3)` to
+            // 1. Over the period, `[−1, 1]` each.
+            let f = |cos: f64| spiric_f_reference(big_r, r, d, cos);
+            let window = [d, f(-1.0), r * t0.sin(), d, f(1.0), r];
+            let period = [d, f(-1.0), -r, d, f(1.0), r];
+            for (lane, b, exact) in [
+                ("the box lane", bracketed, window),
+                ("the census lane", census, window),
+                ("geom's door", door, period),
             ] {
                 let got = [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z];
                 for k in 0..6 {
@@ -5630,7 +5750,8 @@ pub(crate) mod tests {
     /// coordinate is held, with no pad, to the arc's own support along
     /// that row: the point `c + (d, f(v), r·sin v)` (axis `ẑ`, cut along
     /// `x̂`) dotted with the row in double-double over a dense run of `v`
-    /// and the period's four extremal angles, `f` from [`spiric_f_dd`].
+    /// across the edge's window and the one extremal angle in it
+    /// (`v = π`), `f` from [`spiric_f_dd`].
     /// The `Interval` box contains each; the `f64` box falls short of
     /// none by more than a few ulps of the row's scale
     /// (`[simple.conditioned]`). A construction fed the world centre
@@ -5671,8 +5792,9 @@ pub(crate) mod tests {
                     boxed += 1;
                     let (t0, t1) = (2.0, 4.2);
                     let ends = (carrier.eval(t0), carrier.eval(t1));
-                    let (lo, hi) =
-                        spiric_edge_cover(&carrier, (t0, t1), ends).box_in(&cover_frame(&frame));
+                    let (lo, hi) = edge_cover_over(&carrier, (t0, t1), ends)
+                        .unwrap()
+                        .box_in(&cover_frame(&frame));
                     let at_f64 = Aabb {
                         min_x: lo.x,
                         min_y: lo.y,
@@ -5683,7 +5805,8 @@ pub(crate) mod tests {
                     };
                     let icarrier = carrier.map_scalar(iv);
                     let (lo, hi) =
-                        spiric_edge_cover(&icarrier, (iv(t0), iv(t1)), (ivp(ends.0), ivp(ends.1)))
+                        edge_cover_over(&icarrier, (iv(t0), iv(t1)), (ivp(ends.0), ivp(ends.1)))
+                            .unwrap()
                             .box_in(&cover_frame(&iframe));
                     let at_interval = Aabb {
                         min_x: lo.x.lo(),
@@ -5696,13 +5819,13 @@ pub(crate) mod tests {
                     let scale = (c - Point3::origin()).norm() + big_r + r;
                     let ulps = 16.0 * f64::EPSILON * scale;
                     let n = 4096;
-                    let angles = (0..n)
+                    let angles = (0..=n)
                         .map(|k| {
                             let (sin, cos) =
-                                (f64::from(k) * core::f64::consts::TAU / f64::from(n)).sin_cos();
+                                (t0 + (t1 - t0) * f64::from(k) / f64::from(n)).sin_cos();
                             (cos, sin)
                         })
-                        .chain([(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]);
+                        .chain([(-1.0, 0.0)]);
                     for (cos, sin) in angles {
                         let f = spiric_f_dd(big_r, r, d, cos);
                         let p = [
@@ -5750,13 +5873,16 @@ pub(crate) mod tests {
     /// radicand that vanishes at the fold. Spelled as a difference of
     /// squares, its rounding at `ρ²` scale reaches `f_min` amplified by
     /// `ρ²·u / (2·f_min)`, far more than any pad; posed as the product
-    /// `(ρ − |d|)·(ρ + |d|)` with `ρ` carried exactly, it keeps its
+    /// `(ρ − |d|)·(ρ + |d|)` with `ρ` carried as the unevaluated two-sum
+    /// of `R − r` (so `s − |d|` is exact by Sterbenz), it keeps its
     /// digits. On a spiric the deciding door admits (`ρ_min − |d|` is
     /// 1.05·`escalate` at the default ε, far above it at 1e-12; every
     /// coordinate inside the session box), the arc's inner-equator point
     /// `center + u_ref·d + m·f_min` (`v = π`, inside the run) lies inside
-    /// `edge_box(…, sweep_pad)`, and `geom`'s unpadded door reaches it to
-    /// a few ulps.
+    /// the box of the edge's cover padded by the sweep pad
+    /// ([`edge_cover_over`], the construction [`edge_box`] reads: a
+    /// near-fold sector does not certify), and `geom`'s unpadded door,
+    /// which boxes the whole period, reaches it to a few ulps.
     ///
     /// The reference `f_min` is [`spiric_f_reference`]'s.
     #[test]
@@ -5796,7 +5922,9 @@ pub(crate) mod tests {
         };
         let (t0, t1) = (2.0, 4.2);
         let ends = (carrier.eval(t0), carrier.eval(t1));
-        let boxed = spiric_edge_cover(&carrier, (t0, t1), ends).aabb(pad());
+        let boxed = edge_cover_over(&carrier, (t0, t1), ends)
+            .unwrap()
+            .aabb(pad());
 
         let f_min = spiric_f_reference(big_r, r, d, -1.0);
 
@@ -6247,7 +6375,7 @@ pub(crate) mod tests {
     /// **The spiric edge's reach turns with the frame**: read in frames
     /// aimed off every world axis, the first coordinate of
     /// `census::edge_reach_in` holds `n·p` for a dense sample of the
-    /// spiric — the arm the split gate reads a spiric edge through. A
+    /// spiric edge over its span — the arm the split gate reads a spiric edge through. A
     /// world-frame row cannot see a component left unrotated here.
     #[test]
     fn the_spiric_edge_reach_holds_the_curve_in_an_aimed_frame() {
@@ -6265,8 +6393,9 @@ pub(crate) mod tests {
         ] {
             let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
             let (lo, hi) = crate::census::edge_reach_in(&body, edge, &BoxFrame::aimed(n)).unwrap();
+            let (t0, t1) = curve.params();
             for i in 0..=20_000 {
-                let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
+                let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
                 let p = curve.carrier().eval(t);
                 let along = n.get().dot(Vec3::new(p.x, p.y, p.z));
                 assert!(

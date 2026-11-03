@@ -1,4 +1,5 @@
-//! The counterexample search behind [`super::super::carrier_box`]: arcs
+//! The counterexample search behind [`super::super::cover_box_in`] of an
+//! edge's cover (`boolean::boxes::edge_cover_over`): arcs
 //! of every curved carrier kind nobody chose, in frames nobody chose,
 //! sampled densely against the box the clearance gate folds for them.
 
@@ -9,7 +10,7 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-use super::super::{InPlane, carrier_box};
+use super::super::{InPlane, cover_box_in};
 use geom_core::{Point3, Vec3};
 use std::sync::Arc;
 use test_utils::fuzz::Rng;
@@ -145,7 +146,9 @@ fn every_arc_lies_in_its_footprint_box() {
             v: n.cross(u),
             n,
         };
-        let [(ulo, vlo), (uhi, vhi)] = carrier_box(&curve, (t0, t1), &frame);
+        let ends = (curve.eval(t0), curve.eval(t1));
+        let cover = crate::boolean::boxes::edge_cover_over(&curve, (t0, t1), ends).unwrap();
+        let [(ulo, vlo), (uhi, vhi)] = cover_box_in(&cover, &frame);
         for k in 0..=400 {
             let p = frame.point(curve.eval(t0 + (t1 - t0) * k as f64 / 400.0));
             let scale = 1e-9 * (1.0 + p.x.abs().max(p.y.abs()));

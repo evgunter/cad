@@ -1742,6 +1742,67 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     }
 }
 
+impl<T: SpanLocate> NurbsCurve3<T> {
+    /// **The curve's pieces over the parameter range between `a` and
+    /// `b`** (either order), as control nets: for each knot span the
+    /// range meets, the dehomogenized Bernstein net of the piece over
+    /// the meet, coefficient `k` the piece's blossom at
+    /// `(a′^{p−k}, b′^k)`, `a′` and `b′` the range's ends met with the
+    /// span's own knots. With positive weights each piece lies in its
+    /// net's hull, and the nets narrow with the range.
+    ///
+    /// The blossom is de Boor's recurrence with one argument per level,
+    /// in the scalar's own arithmetic: at `f64` the real nets computed as
+    /// if exact, at `Interval` an enclosure of them. Every ratio is of a
+    /// meet end against knots whose span holds it, so it lies in `[0, 1]`
+    /// in the reals, and each denominator spans the piece's own nonempty
+    /// span.
+    ///
+    /// `None` for an end the knots cannot locate (poison).
+    pub fn restricted_nets(&self, a: T, b: T) -> Option<Vec<Vec<Point3<T>>>> {
+        let (lo, hi) = (a.min(b), a.max(b));
+        let (first, _) = self.knots.locate(lo)?;
+        let (_, last) = self.knots.locate(hi)?;
+        let p = self.knots.degree();
+        let weights = self.weights.values();
+        let mut nets = Vec::new();
+        for index in first.span().index()..=last.span().index() {
+            let Some(span) = self.knots.span(index) else {
+                continue;
+            };
+            let u = span.values();
+            let base = span.span().first_control();
+            let (a, b) = (lo.max(u[index]), hi.min(u[index + 1]));
+            let homogeneous = |i: usize| {
+                let (w, c) = (weights[base + i], self.control[base + i]);
+                [c.x * w, c.y * w, c.z * w, w]
+            };
+            let blossom = |args: &[T]| {
+                let mut d: Vec<[T; 4]> = (0..=p).map(homogeneous).collect();
+                for (r, &t) in (1..=p).zip(args) {
+                    for j in (r..=p).rev() {
+                        let i = base + j;
+                        let alpha = (t - u[i]) / (u[i + p + 1 - r] - u[i]);
+                        let keep = T::one() - alpha;
+                        d[j] = [0, 1, 2, 3].map(|c| d[j - 1][c] * keep + d[j][c] * alpha);
+                    }
+                }
+                let [x, y, z, w] = d[p];
+                Point3::new(x / w, y / w, z / w)
+            };
+            nets.push(
+                (0..=p)
+                    .map(|k| {
+                        let args: Vec<T> = (0..p).map(|r| if r < p - k { a } else { b }).collect();
+                        blossom(&args)
+                    })
+                    .collect(),
+            );
+        }
+        (!nets.is_empty()).then_some(nets)
+    }
+}
+
 impl NurbsCurve3<Interval> {
     /// **The same edge, remembering what it restricts**: each range's
     /// [`Self::span_enclosure`] and [`Self::span_deriv`] is computed on

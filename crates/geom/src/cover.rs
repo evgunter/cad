@@ -33,6 +33,7 @@ use crate::curves::boxes::ArcWindow;
 use crate::{CurveKind, Line, SurfaceKind};
 
 mod readings;
+pub use readings::SPLINE_PIECES;
 #[cfg(test)]
 mod tests;
 
@@ -128,7 +129,7 @@ pub enum Unknown {
     /// whole.
     Unbounded,
     /// The control net bounds no region: a point of it carries poison in
-    /// some channel, or it has no point.
+    /// some channel.
     PoisonedNet,
     /// A datum of the carrier, or a window end, is not a finite number,
     /// so the region it names is not bounded.

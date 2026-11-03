@@ -371,7 +371,8 @@ fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
 /// is decided against `radius`, read on the edge's own carrier
 /// ([`crate::splitting::containment::arc_distance_floor`]: a segment, a
 /// conic's own arc, any other carrier's ball and then its arc's
-/// pieces). A spline with no control points is not clear.
+/// pieces). A carrier with no cover over its span (a spline net carrying
+/// poison) is not clear.
 ///
 /// # Errors
 ///

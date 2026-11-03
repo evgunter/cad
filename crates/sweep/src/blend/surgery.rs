@@ -3475,7 +3475,7 @@ fn not_a_support(edge: EdgeKey) -> BlendError {
 /// whole period's, a NURBS curve's its control hull's. Every range here
 /// is a BOUND, not the piece's own. `None` for a carrier or an end with
 /// no cover.
-fn boxed_reach<T: Real>(
+fn boxed_reach<T: geom_core::spline::SpanLocate>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
     (end0, end1): (Point3<T>, Point3<T>),
@@ -6053,10 +6053,10 @@ mod tests {
     }
 
     /// **A boxed reach is a function of the data it reads**: the piece's
-    /// cover is read at the carrier's own scalar, so at `Sym` a reach
-    /// about a parameterized centre re-values, where it re-values at all,
-    /// to the `f64` reach about the moved centre, never to the reach
-    /// about the old centre.
+    /// cover is read at the carrier's own scalar, so at `Sym` each of a
+    /// reach's four bounds about a parameterized centre re-values, and to
+    /// the `f64` bound about the moved centre, never to the bound about
+    /// the old centre.
     #[test]
     fn a_boxed_reach_revalues_with_its_centre() {
         use std::sync::Arc;
@@ -6112,14 +6112,13 @@ mod tests {
         };
         let (moved, stayed) = (reach(-3.0 + 0.125), reach(-3.0));
         for k in 0..4 {
-            if let Some(v) = revalued[k] {
-                assert!(
-                    (v - moved[k]).abs() <= 1e-12 && (v - stayed[k]).abs() > 1e-6,
-                    "bound {k} re-values to {v}, not the moved centre's {} (the old {})",
-                    moved[k],
-                    stayed[k]
-                );
-            }
+            let v = revalued[k].unwrap_or_else(|| panic!("bound {k} does not re-value"));
+            assert!(
+                (v - moved[k]).abs() <= 1e-12 && (v - stayed[k]).abs() > 1e-6,
+                "bound {k} re-values to {v}, not the moved centre's {} (the old {})",
+                moved[k],
+                stayed[k]
+            );
         }
     }
 

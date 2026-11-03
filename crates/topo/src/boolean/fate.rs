@@ -430,8 +430,8 @@ enum Place {
 struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// The unit direction: the edge's tangent, or its secant.
     dir: Vec3<T>,
-    /// How far the edge reaches from the vertex
-    /// ([`geom_brep::edge_reach_bounds`]): a corner's reading acts on
+    /// How far the edge reaches from the vertex, its edge cover's far
+    /// distance from above (`boxes::edge_reach_bounds`): a corner's reading acts on
     /// every sign, so its lever is the region's own measure from where
     /// it is read, and where that is known only from both sides (a curve
     /// other than a line or circle, whose bound from above can pass it
@@ -490,10 +490,9 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
     let chord = (end - base).norm();
-    let (t0, t1) = curve.params();
     let reach = match curve.carrier() {
         geom::Curve3::Line(_) => LeverBounds::Exact(chord),
-        carrier => geom_brep::edge_reach_bounds(carrier, t0, t1, base),
+        _ => super::boxes::edge_reach_bounds(body, h.edge, edge, base)?,
     };
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
@@ -2247,7 +2246,15 @@ mod corner_bounds_rows {
             .unwrap(),
         ));
         let (t0, t1) = (0.2, 0.2001);
-        let arm = geom_brep::edge_reach_bounds(&wild, t0, t1, wild.eval(t0));
+        // A bound from above that passes the reach many times over: the
+        // whole carrier's net, which a reader with no window would read.
+        let start = wild.eval(t0);
+        let loose = wild
+            .cover()
+            .unwrap()
+            .distance_range(&geom::cover::Site::Point(start))
+            .1;
+        let arm = geom_brep::edge_reach_bounds(&wild, (t0, t1), start, loose);
         let LeverBounds::Between { below, above } = arm else {
             panic!("a spline's reach is known from both sides, got {arm:?}");
         };
@@ -2451,9 +2458,10 @@ mod spline_departure_rows {
             "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
         );
         // The arc's farthest point from its start is its end, 2 off: the
-        // samples read it from below (the end is one), and the reach from
-        // above passes it by its samples' Lipschitz slack, short of the
-        // control net's reach √5.
+        // samples read it from below (the end is one), and the edge's
+        // cover from above, its pieces' nets over quarters of the span,
+        // within a few percent of it and short of the control net's reach
+        // √5.
         let geom_brep::LeverBounds::Between { below, above } = len else {
             panic!("a spline's reach is known from both sides, got {len:?}");
         };

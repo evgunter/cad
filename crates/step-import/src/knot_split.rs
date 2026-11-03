@@ -617,12 +617,8 @@ fn clear_of(
         if ends.is_some_and(|ends| on_the_line(spec, ends, bent, eps_in)) {
             return true;
         }
-        let lifted_edge = match spec.carrier {
-            Curve3::Nurbs(ref c) => Some(c.map_scalar(|x| Interval::from_bounds(x, x))),
-            _ => None,
-        };
         let carrier = spec.carrier.map_scalar(|x| Interval::from_bounds(x, x));
-        let piece = |a: f64, b: f64| piece_box(&carrier, lifted_edge.as_ref(), a, b);
+        let piece = |a: f64, b: f64| piece_box(&carrier, a, b);
         parts(
             &piece,
             &near,
@@ -744,32 +740,19 @@ fn parts(
 
 /// An enclosure of `carrier` (its data as intervals) over `[a, b]`: the
 /// bracketed box of its cover over the span ([`Curve3::cover_over`]),
-/// met, for a spline, with its restricted control hull over the piece
-/// (`lifted`'s [`NurbsCurve3::span_enclosure`]), which narrows as the
-/// piece halves where the cover's whole net does not. `None` for a
-/// carrier with no cover, or a box the door poisons. Read here rather
-/// than through `topo`'s edge cover, which reads a body's certified
-/// edge curve: there is no body yet.
-fn piece_box(
-    carrier: &Curve3<Interval>,
-    lifted: Option<&NurbsCurve3<Interval>>,
-    a: f64,
-    b: f64,
-) -> Option<[Interval; 3]> {
+/// which for a spline is its pieces' nets over the span and narrows as
+/// the piece halves. `None` for a carrier with no cover, or a box the
+/// door poisons. Read here rather than through `topo`'s edge cover,
+/// which reads a body's certified edge curve: there is no body yet.
+fn piece_box(carrier: &Curve3<Interval>, a: f64, b: f64) -> Option<[Interval; 3]> {
     let window =
         geom::cover::ParamWindow::new(Interval::from_bounds(a, a), Interval::from_bounds(b, b));
     let bx = carrier.cover_over(window).ok()?.aabb(0.0);
-    let mut out = [
+    let out = [
         (bx.min_x, bx.max_x),
         (bx.min_y, bx.max_y),
         (bx.min_z, bx.max_z),
     ];
-    if let Some(net) = lifted {
-        let p = net.span_enclosure(a, b)?;
-        for (o, q) in out.iter_mut().zip([p.x, p.y, p.z]) {
-            *o = (o.0.max(q.lo()), o.1.min(q.hi()));
-        }
-    }
     out.iter()
         .all(|&(lo, hi)| lo <= hi)
         .then(|| out.map(|(lo, hi)| Interval::from_bounds(lo, hi)))
