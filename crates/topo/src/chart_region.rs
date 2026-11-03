@@ -381,8 +381,12 @@ pub(crate) const EDGE_SCALE_RECOURSE: &str =
 /// What [`ChartRegionError::Escalated`] leaves undecided.
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
 
-impl core::fmt::Display for ChartRegionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl ChartRegionError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::ChartDivergence { detail } => write!(
                 f,
@@ -407,20 +411,23 @@ impl core::fmt::Display for ChartRegionError {
                  is the named exclusion and has neither, so it waits on the curved \
                  region lane"
             ),
-            // The at-rest ending holds at every door: a read in band ends
-            // in its lever at each, and a definite miss names the kernel or
-            // the file it was read from, either of which is the culprit
-            // wherever this is reported.
-            Self::TrimOffFace { read, .. } => write!(
-                f,
-                "chart-region: an edge of a plane face {}. {}",
-                if read.is_definite() {
-                    "does not lie on the face's plane"
-                } else {
-                    "is not shown on the face's plane"
-                },
-                read.ending(geom_brep::recourse::Reading::AtRest)
-            ),
+            // The read is the payload; the region query's caller ends it
+            // at its own door (`IncidenceRead::ending`).
+            Self::TrimOffFace { read, .. } => {
+                write!(
+                    f,
+                    "chart-region: an edge of a plane face {}",
+                    if read.is_definite() {
+                        "does not lie on the face's plane"
+                    } else {
+                        "is not shown on the face's plane"
+                    }
+                )?;
+                match at {
+                    Some(at) => write!(f, ". {}", read.ending(at)),
+                    None => Ok(()),
+                }
+            }
             Self::MissingCache { half_edge } => write!(
                 f,
                 "chart-region: half-edge {half_edge:?} has no stored pcurve cache on \
@@ -481,9 +488,11 @@ impl core::fmt::Display for ChartRegionError {
             Self::Escalated(diag) if diag.margin.is_invalid() => write!(
                 f,
                 "chart-region: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     OVERLAP_SUBJECT,
-                    geom_brep::recourse::defect_ending(geom_brep::recourse::Reading::Build),
+                    geom_brep::recourse::at_build(at)
+                        .map(|at| geom_brep::recourse::defect_ending(at).to_owned()),
                 )
             ),
             Self::Escalated(diag) => write!(
@@ -523,6 +532,9 @@ impl core::fmt::Display for ChartRegionError {
     }
 }
 
+geom_brep::ended_by_write!(ChartRegionError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for ChartRegionError {}
 
 /// **The chart-region door, as a value** — what lets a `Decide`-generic

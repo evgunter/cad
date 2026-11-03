@@ -4366,9 +4366,17 @@ impl ValidationError {
     }
 }
 
-impl fmt::Display for ValidationError {
+impl ValidationError {
+    /// The finding's sentence, its ending read at `at` where it is
+    /// `Some`; `None` writes the payload alone, its `Display`.
     #[allow(clippy::too_many_lines)] // one sentence per arm
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn write(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> fmt::Result {
+        use geom_brep::recourse::{read_at, undecided_at};
+        let ended = |ending: Option<String>| ending.map(|e| format!(". {e}")).unwrap_or_default();
         match self {
             Self::Band { error } => write!(
                 f,
@@ -4407,9 +4415,9 @@ impl fmt::Display for ValidationError {
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
-                "{}. {}",
+                "{}{}",
                 geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
-                RING_TORUS.recourse(verdict.arm(), Reading::AtRest)
+                ended(at.map(|at| RING_TORUS.recourse(verdict.arm(), at)))
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
                 f,
@@ -4417,9 +4425,9 @@ impl fmt::Display for ValidationError {
                     geom_core::undecided!(
                         "whether a torus face's tube radius is smaller than its ring radius"
                     ),
-                    ". {}"
+                    "{}"
                 ),
-                RING_TORUS.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                ended(at.map(|at| RING_TORUS.recourse(RefusedArm::Undecided(cause), at)))
             ),
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
                 f,
@@ -4540,18 +4548,23 @@ impl fmt::Display for ValidationError {
             Self::JoinUndecidedAtRest { undecided } => match undecided.diag() {
                 Some(diag) => write!(
                     f,
-                    "{} is undecided ({}). {}",
+                    "{} is undecided ({}){}",
                     crate::boolean::JOIN_SUBJECT,
                     diag.payload(),
-                    diag.ending_noted(
+                    ended(at.map(|at| diag.ending_noted(
                         crate::boolean::JOIN_LEVER,
-                        geom_brep::recourse::unreadable_margin_note(Reading::AtRest)
-                    )
+                        geom_brep::recourse::unreadable_margin_note(at)
+                    )))
                 ),
+                // An image's refusal the join read at rest ends as the
+                // join's did at a build.
                 None => write!(
                     f,
                     "{}",
-                    crate::boolean::JoinRefusal::Undecided(undecided.clone())
+                    read_at(
+                        &crate::boolean::JoinRefusal::Undecided(undecided.clone()),
+                        geom_brep::recourse::at_build(at)
+                    )
                 ),
             },
             Self::TangentNotIntrinsic { .. } => write!(
@@ -4561,9 +4574,9 @@ impl fmt::Display for ValidationError {
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
-                "an edge is not {}. {}",
+                "an edge is not {}{}",
                 geom_brep::DIHEDRAL_ARM_CLAUSE,
-                geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), Reading::AtRest)
+                ended(at.map(|at| geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), at)))
             ),
             Self::LaminaWedge { .. } => write!(
                 f,
@@ -4621,22 +4634,26 @@ impl fmt::Display for ValidationError {
             Self::WrapTipUndecided { cause, .. } => write!(
                 f,
                 "{}",
-                cause.undecided(
+                undecided_at(
+                    cause,
                     "whether the tip of an edge a face walks out and back lies on that face's \
                      pole or apex",
-                    geom_brep::chart_singularity::WRAP_TIP
-                        .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                    at.map(|at| {
+                        geom_brep::chart_singularity::WRAP_TIP
+                            .recourse(RefusedArm::Undecided(cause), at)
+                    })
                 )
             ),
             Self::ChartSingularityUndecided { point, reading, .. } => {
                 use geom_brep::chart_singularity::{SideUnread, Undecided};
                 let what = singularity_noun(*point);
-                let ending = reading.recourse(Reading::AtRest);
+                let ending = at.map(|at| reading.recourse(at));
                 match reading {
                     Undecided::Boundary(cause) => write!(
                         f,
                         "{}",
-                        cause.undecided(
+                        undecided_at(
+                            cause,
                             format_args!(
                                 "whether {what} lies at a corner of a face on that surface or \
                                  on its boundary"
@@ -4647,7 +4664,8 @@ impl fmt::Display for ValidationError {
                     Undecided::Side(SideUnread::Banded(cause)) => write!(
                         f,
                         "{}",
-                        cause.undecided(
+                        undecided_at(
+                            cause,
                             format_args!(
                                 "which side of a face's boundary on that surface {what} lies on"
                             ),
@@ -4657,7 +4675,8 @@ impl fmt::Display for ValidationError {
                     Undecided::Side(SideUnread::Straddle) => write!(
                         f,
                         "which side of a face's boundary on that surface {what} lies on cannot \
-                         be read: the reading lies within its own error bound. {ending}"
+                         be read: the reading lies within its own error bound{}",
+                        ended(ending)
                     ),
                 }
             }
@@ -4810,18 +4829,20 @@ impl fmt::Display for ValidationError {
                     "a shell's role in its solid cannot be read, so the solid's shells cannot \
                      be wound: ",
                 )?;
-                match error.recourse(Reading::AtRest) {
-                    Some(recourse) => write!(f, "{}. {recourse}", error.payload()),
-                    None => write!(f, "{error}"),
+                match at.map(|at| error.recourse(at)) {
+                    Some(Some(recourse)) => write!(f, "{}. {recourse}", error.payload()),
+                    Some(None) => write!(f, "{error}"),
+                    None => write!(f, "{}", error.payload()),
                 }
             }
             Self::OrientationUndecided { reading, .. } => match reading {
                 OrientationUnread::Pair(pair) => write!(
                     f,
-                    "which side of a solid's faces its material lies on cannot be read: {}. {}",
+                    "which side of a solid's faces its material lies on cannot be read: {}{}",
                     crate::side_reader::PairPayload(pair),
-                    crate::props::AIMED_PAIR
-                        .recourse(RefusedArm::Undecided(&pair.gap), Reading::AtRest)
+                    ended(at.map(|at| {
+                        crate::props::AIMED_PAIR.recourse(RefusedArm::Undecided(&pair.gap), at)
+                    }))
                 ),
                 OrientationUnread::Volume {
                     margin,
@@ -4850,7 +4871,8 @@ impl fmt::Display for ValidationError {
                 }
                 OrientationUnread::Ray(source) => write!(
                     f,
-                    "which side of a solid's faces its material lies on cannot be read: {source}"
+                    "which side of a solid's faces its material lies on cannot be read: {}",
+                    read_at(source, at)
                 ),
             },
             // The position alone: a witness may carry detail after " — "
@@ -5178,6 +5200,9 @@ impl fmt::Display for ValidationError {
     }
 }
 
+geom_brep::ended_by_write!(ValidationError);
+
+#[cfg(not(e1e_probe))]
 impl std::error::Error for ValidationError {}
 
 /// How a ring meets its face's outer loop
