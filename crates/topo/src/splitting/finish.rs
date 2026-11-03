@@ -92,8 +92,9 @@ use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::boolean::{CarryRefusal, Cell};
 use crate::chord_join::SplitJoinError;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
+use crate::live::{BoundaryMember, linked, proven};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -641,8 +642,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
         return Err(SplitFinishError::Corrupt);
     }
     let skipped_faces = merged.skipped.iter().flat_map(|s| s.faces.iter().copied());
-    let boundary =
-        crate::boolean::boundary_edges(body, skipped_faces).ok_or(SplitFinishError::Corrupt)?;
+    let boundary = crate::boolean::boundary_edges(body, skipped_faces);
     if !boundary.is_empty() {
         let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
         crate::boolean::describe_edges(
@@ -1385,8 +1385,8 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             Rechart::new(plane_for(other_side), section.face, outer_sense),
         ];
         let stranded = body.stranded_by(&charts)?;
-        let mut restated = section_plane_restatements(&body, promoted.face, &stranded)?;
-        restated.extend(section_plane_restatements(&body, section.face, &stranded)?);
+        let mut restated = section_plane_restatements(&body, promoted.face, &stranded);
+        restated.extend(section_plane_restatements(&body, section.face, &stranded));
         rechart_section(&mut body, charts, &restated, tol)?;
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
@@ -1610,7 +1610,7 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
         .surface;
     let charts = vec![Rechart::shared(chart, face, false)];
     let stranded = body.stranded_by(&charts)?;
-    let restated = section_plane_restatements(body, face, &stranded)?;
+    let restated = section_plane_restatements(body, face, &stranded);
     rechart_section(body, charts, &restated, tol)?;
     body.kfmrh(parent, face)?;
     Ok(())
@@ -1725,30 +1725,31 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
 /// that image as the chart the face moves onto, or, where the edge's
 /// other face keeps the chart, as that chart itself
 /// ([`Body::rechart_restating`], which restates the carrier and
-/// interval). A declared authority travels verbatim.
+/// interval). A declared authority travels verbatim. `face` is a face
+/// the split made, so a stale one panics ([`proven`]), as a miss on the
+/// walk of its loops does ([`Body::face_boundary_by_loop`]).
 pub(crate) fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     stranded: &[EdgeKey],
-) -> Result<Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)>, SplitFinishError> {
-    let corrupt = || SplitFinishError::Corrupt;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+) -> Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> {
+    let face_data = proven(&body.faces, face, EntityId::Face);
     let chart = face_data.surface;
-    let loops: Vec<_> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect();
     let mut out: Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> = Vec::new();
-    for lk in loops {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+    for (_, members, _) in body.face_boundary_by_loop(face, face_data) {
+        for member in members {
+            let BoundaryMember::Edge {
+                ek: edge,
+                edge: edge_data,
+                ..
+            } = member
+            else {
+                continue;
+            };
             if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
-            let edge_data = body.get_edge(edge).ok_or_else(corrupt)?;
-            let geom = body.get_curve_geom(edge_data.curve).ok_or_else(corrupt)?;
+            let geom = body.edge_curve_linked(edge, edge_data);
             let Some(curve) = geom.certified() else {
                 continue;
             };
@@ -1769,7 +1770,7 @@ pub(crate) fn section_plane_restatements<T: Decide>(
             out.push((edge, description));
         }
     }
-    Ok(out)
+    out
 }
 
 /// D6 (M3 PR 6a): describes every boundary edge of one just-promoted
@@ -1809,179 +1810,160 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// the writes to the edges before it. Its curve is a link
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
 /// goes only once orphaned, [`Body::remove_curve_if_orphaned`]): a torn
-/// one panics, and is not an edge with no description.
+/// one panics, and is not an edge with no description. `face` is the
+/// face the split promoted and every hop of its walk is a link, so its
+/// edges are read once, before the writes, which describe edges and move
+/// none ([`Body::proven_face_edges`]).
 pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
-    let corrupt = || SplitFinishError::Corrupt;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
-    let s_self = face_data.surface;
-    let loops: Vec<_> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect();
-    for lk in loops {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
-            continue;
+    let s_self = proven(&body.faces, face, EntityId::Face).surface;
+    for face_edge in body.proven_face_edges(face) {
+        let (he, edge, mate) = (face_edge.half, face_edge.edge, face_edge.mate);
+        let other_face = face_edge.across;
+        let edge_data = proven(&body.edges, edge, EntityId::Edge).clone();
+        let [start, end] = if edge_data.he_plus == he {
+            face_edge.ends
+        } else {
+            [face_edge.ends[1], face_edge.ends[0]]
         };
-        let hes = body.loop_cycle(first).ok_or_else(corrupt)?;
-        for he in hes {
-            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            let edge_data = body.get_edge(edge).cloned().ok_or_else(corrupt)?;
-            let mate = if edge_data.he_plus == he {
-                edge_data.he_minus
-            } else {
-                edge_data.he_plus
-            };
-            let other_face = body.face_of_half_edge(mate).ok_or_else(corrupt)?;
-            let s_other = body.get_face(other_face).ok_or_else(corrupt)?.surface;
-            let start = body
-                .get_half_edge(edge_data.he_plus)
-                .ok_or_else(corrupt)?
-                .start;
-            let end = body.half_edge_end(edge_data.he_plus).ok_or_else(corrupt)?;
-            let p0 = *body
-                .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
-                .ok_or_else(corrupt)?;
-            let p1 = *body
-                .get_point(body.get_vertex(end).ok_or_else(corrupt)?.point)
-                .ok_or_else(corrupt)?;
-            let (Some(surf_self), Some(surf_other)) =
-                (body.get_surface(s_self), body.get_surface(s_other))
-            else {
-                return Err(corrupt());
-            };
-            let existing = body
-                .edge_curve_linked(edge, &edge_data)
-                .certified()
-                .cloned();
-            let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
-            let (carrier, interval) = draft.span();
-            let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
-            let witness = draft.witness;
-            match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
-                Ok(geom_brep::Dihedral::Corner(_)) => {
-                    let carrier = draft.span().0.kind();
-                    let drafted = crate::pcurves::seam_intersection(
-                        body,
-                        draft,
-                        [(he, s_self, surf_self), (mate, s_other, surf_other)],
-                        band,
-                    );
-                    body.describe_intersection(
-                        crate::policy_lane::KernelSite::SectionIntersection,
+        let s_other = proven(&body.faces, other_face, EntityId::Face).surface;
+        let p0 = body.resolve_vertex_point(start, crate::live::Proven);
+        let p1 = body.resolve_vertex_point(end, crate::live::Proven);
+        let (surf_self, surf_other) = (
+            body.proven_face_surface(face),
+            body.proven_face_surface(other_face),
+        );
+        let existing = body
+            .edge_curve_linked(edge, &edge_data)
+            .certified()
+            .cloned();
+        let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
+        let (carrier, interval) = draft.span();
+        let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
+        let witness = draft.witness;
+        match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
+            Ok(geom_brep::Dihedral::Corner(_)) => {
+                let carrier = draft.span().0.kind();
+                let drafted = crate::pcurves::seam_intersection(
+                    body,
+                    draft,
+                    [(he, s_self, surf_self), (mate, s_other, surf_other)],
+                    band,
+                );
+                body.describe_intersection(
+                    crate::policy_lane::KernelSite::SectionIntersection,
+                    edge,
+                    drafted,
+                    tol,
+                )
+                .map_err(|e| of_attachment(edge, carrier, e))?;
+            }
+            // A curved wall smooth against the section plane is
+            // either a π seam or a wedge end, and only the material
+            // pairing tells them apart — tier 3's own reading
+            // (D1). The wedge end is a knife edge no input
+            // declared: this op's refusal.
+            Ok(geom_brep::Dihedral::Tangent(tangency)) => {
+                if !matches!(surf_other, Surface::Plane { .. }) {
+                    let sense_of = |f| proven(&body.faces, f, EntityId::Face).sense;
+                    let pairing = tangency
+                        .pairing([sense_of(face), sense_of(other_face)], band)
+                        .map_err(|e| SplitFinishError::DescribeSideEscalated {
+                            edge,
+                            diag: e.diag(),
+                        })?;
+                    if pairing == geom_brep::MaterialPairing::Opposed {
+                        return Err(SplitFinishError::KnifeEdge(KnifeEdge {
+                            wall: other_face,
+                            at: KnifeEdgeSite::Edge(edge),
+                        }));
+                    }
+                }
+                // Carrier and interval travel verbatim (restated,
+                // never rebuilt), as does a conventional image's
+                // declared authority (an intrinsic locus is derived).
+                let curve = existing.as_ref().unwrap_or_else(|| {
+                    unreachable!(
+                        "{edge:?} read smooth at its witness has a certified carrier: \
+                             null scaffolding has coincident ends, so its poisoned \
+                             chord fails the dihedral's arm gate before this arm"
+                    )
+                });
+                let spec = curve.restated_spec();
+                // What the join stores is the must-carry rule's
+                // over the edge, and each refusal is this op's own.
+                let demanded = geom_brep::must_carry_description(
+                    geom_brep::SmoothJoin {
+                        surfaces: [(s_self, surf_self), (s_other, surf_other)],
+                        carrier: &spec.carrier,
+                        interval: (spec.param_start, spec.param_end),
+                        reach,
+                        witness,
+                    },
+                    band,
+                    |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
+                    |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
+                    |mixed| SplitFinishError::SmoothJoinRefuted { edge, mixed },
+                )?;
+                // A description of the demanded kind that names
+                // the edge's current faces stays verbatim (a stated
+                // image travels exactly); anything else — a
+                // citation whose partner this split reassigned to
+                // the other product, a scaffold, or the other kind
+                // — is restated.
+                let pair = geom_brep::SurfacePair::new(s_self, s_other);
+                let rest = crate::rest_locus(
+                    body,
+                    [(s_self, Some(face)), (s_other, Some(other_face))],
+                    &spec.carrier,
+                    (spec.param_start, spec.param_end),
+                    band,
+                );
+                let intrinsic = matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
+                let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
+                    // A wrap edge's two halves bound one face (D1);
+                    // this edge bounds two, so a wrap flag on it is
+                    // restated.
+                    geom_brep::EdgeDescription::Chart(ref ch) if ch.wrap => false,
+                    // A conventional form is coherent only where it
+                    // rests where the one home says it rests.
+                    geom_brep::EdgeDescription::Chart(ref ch) => {
+                        !intrinsic && rest == geom_brep::RestLocus::Chart(ch.surface)
+                    }
+                    geom_brep::EdgeDescription::OnPair { pair: p } => {
+                        !intrinsic && rest == geom_brep::RestLocus::Pair(p)
+                    }
+                    geom_brep::EdgeDescription::TangentIntersection { pair: p, .. } => {
+                        intrinsic && p == pair
+                    }
+                    geom_brep::EdgeDescription::Intersection { .. }
+                    | geom_brep::EdgeDescription::Scaffold(_) => false,
+                });
+                if !coherent {
+                    // Every section-boundary edge lies on the
+                    // section to within the BAND: on a near-flush
+                    // operand it is metered like any description
+                    // (D4 ¶3).
+                    let description = demanded.restated(curve, rest);
+                    let carrier = spec.carrier.kind();
+                    body.restate_edge(
+                        crate::policy_lane::KernelSite::SectionSmooth,
                         edge,
-                        drafted,
+                        description,
                         tol,
                     )
                     .map_err(|e| of_attachment(edge, carrier, e))?;
                 }
-                // A curved wall smooth against the section plane is
-                // either a π seam or a wedge end, and only the material
-                // pairing tells them apart — tier 3's own reading
-                // (D1). The wedge end is a knife edge no input
-                // declared: this op's refusal.
-                Ok(geom_brep::Dihedral::Tangent(tangency)) => {
-                    if !matches!(surf_other, Surface::Plane { .. }) {
-                        let sense_of = |f| body.get_face(f).map(|d| d.sense).ok_or_else(corrupt);
-                        let pairing = tangency
-                            .pairing([sense_of(face)?, sense_of(other_face)?], band)
-                            .map_err(|e| SplitFinishError::DescribeSideEscalated {
-                                edge,
-                                diag: e.diag(),
-                            })?;
-                        if pairing == geom_brep::MaterialPairing::Opposed {
-                            return Err(SplitFinishError::KnifeEdge(KnifeEdge {
-                                wall: other_face,
-                                at: KnifeEdgeSite::Edge(edge),
-                            }));
-                        }
-                    }
-                    // Carrier and interval travel verbatim (restated,
-                    // never rebuilt), as does a conventional image's
-                    // declared authority (an intrinsic locus is derived).
-                    let curve = existing.as_ref().unwrap_or_else(|| {
-                        unreachable!(
-                            "{edge:?} read smooth at its witness has a certified carrier: \
-                             null scaffolding has coincident ends, so its poisoned \
-                             chord fails the dihedral's arm gate before this arm"
-                        )
-                    });
-                    let spec = curve.restated_spec();
-                    // What the join stores is the must-carry rule's
-                    // over the edge, and each refusal is this op's own.
-                    let demanded = geom_brep::must_carry_description(
-                        geom_brep::SmoothJoin {
-                            surfaces: [(s_self, surf_self), (s_other, surf_other)],
-                            carrier: &spec.carrier,
-                            interval: (spec.param_start, spec.param_end),
-                            reach,
-                            witness,
-                        },
-                        band,
-                        |_, diag| SplitFinishError::DescribeEscalated { edge, diag },
-                        |_, diag| SplitFinishError::DescribeBendEscalated { edge, diag },
-                        |mixed| SplitFinishError::SmoothJoinRefuted { edge, mixed },
-                    )?;
-                    // A description of the demanded kind that names
-                    // the edge's current faces stays verbatim (a stated
-                    // image travels exactly); anything else — a
-                    // citation whose partner this split reassigned to
-                    // the other product, a scaffold, or the other kind
-                    // — is restated.
-                    let pair = geom_brep::SurfacePair::new(s_self, s_other);
-                    let rest = crate::rest_locus(
-                        body,
-                        [(s_self, Some(face)), (s_other, Some(other_face))],
-                        &spec.carrier,
-                        (spec.param_start, spec.param_end),
-                        band,
-                    );
-                    let intrinsic =
-                        matches!(demanded, geom_brep::MustCarryDescription::Intrinsic(_));
-                    let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
-                        // A wrap edge's two halves bound one face (D1);
-                        // this edge bounds two, so a wrap flag on it is
-                        // restated.
-                        geom_brep::EdgeDescription::Chart(ref ch) if ch.wrap => false,
-                        // A conventional form is coherent only where it
-                        // rests where the one home says it rests.
-                        geom_brep::EdgeDescription::Chart(ref ch) => {
-                            !intrinsic && rest == geom_brep::RestLocus::Chart(ch.surface)
-                        }
-                        geom_brep::EdgeDescription::OnPair { pair: p } => {
-                            !intrinsic && rest == geom_brep::RestLocus::Pair(p)
-                        }
-                        geom_brep::EdgeDescription::TangentIntersection { pair: p, .. } => {
-                            intrinsic && p == pair
-                        }
-                        geom_brep::EdgeDescription::Intersection { .. }
-                        | geom_brep::EdgeDescription::Scaffold(_) => false,
-                    });
-                    if !coherent {
-                        // Every section-boundary edge lies on the
-                        // section to within the BAND: on a near-flush
-                        // operand it is metered like any description
-                        // (D4 ¶3).
-                        let description = demanded.restated(curve, rest);
-                        let carrier = spec.carrier.kind();
-                        body.restate_edge(
-                            crate::policy_lane::KernelSite::SectionSmooth,
-                            edge,
-                            description,
-                            tol,
-                        )
-                        .map_err(|e| of_attachment(edge, carrier, e))?;
-                    }
-                }
-                Err(escalation) => {
-                    return Err(SplitFinishError::DescribeEscalated {
-                        edge,
-                        diag: escalation.diag(),
-                    });
-                }
+            }
+            Err(escalation) => {
+                return Err(SplitFinishError::DescribeEscalated {
+                    edge,
+                    diag: escalation.diag(),
+                });
             }
         }
     }
@@ -2154,20 +2136,19 @@ fn classify_shell<T: Decide>(
     // No section face: an uncut component — classify by its first
     // off-plane vertex (deterministic face-list/cycle order walk).
     for &face in &shell_data.faces {
-        let face_data = body.get_face(face).ok_or(SplitFinishError::Corrupt)?;
-        for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let loop_data = body.get_loop(l).ok_or(SplitFinishError::Corrupt)?;
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
+        let face_data = linked(
+            &body.faces,
+            face,
+            EntityId::Face,
+            EntityId::Shell(shell),
+            "faces",
+        );
+        for member in body.face_boundary_linked(face, face_data) {
+            let BoundaryMember::Edge { half, .. } = member else {
                 continue;
             };
-            for he in body.loop_cycle(first).ok_or(SplitFinishError::Corrupt)? {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or(SplitFinishError::Corrupt)?
-                    .start;
-                if let Some(&s @ (PlaneSide::Above | PlaneSide::Below)) = sides.get(v) {
-                    return Ok((s, has_real_face));
-                }
+            if let Some(&s @ (PlaneSide::Above | PlaneSide::Below)) = sides.get(half.start) {
+                return Ok((s, has_real_face));
             }
         }
     }
@@ -2207,24 +2188,18 @@ pub(crate) fn carve<T: Decide>(
         let shell_data = body.get_shell(shell).ok_or_else(corrupt)?;
         for &face in &shell_data.faces {
             faces.push(face);
-            let face_data = body.get_face(face).ok_or_else(corrupt)?;
-            for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+            let holder = EntityId::Shell(shell);
+            let face_data = linked(&body.faces, face, EntityId::Face, holder, "faces");
+            for (l, members, _) in body.face_boundary_by_loop(face, face_data) {
                 loops.push(l);
-                match body.get_loop(l).ok_or_else(corrupt)?.boundary {
-                    LoopBoundary::Empty { vertex } => {
-                        vertices.insert(vertex, ());
-                    }
-                    LoopBoundary::Cycle { first } => {
-                        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                            hes.push(he);
-                            let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-                            vertices.insert(he_data.start, ());
-                            // Each edge is claimed by its he_plus only
-                            // (one removal per edge).
-                            let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-                            if edge.he_plus == he {
-                                edges.push(he_data.edge);
-                            }
+                for member in members {
+                    vertices.insert(member.vertex(), ());
+                    if let BoundaryMember::Edge { he, ek, edge, .. } = member {
+                        hes.push(he);
+                        // Each edge is claimed by its he_plus only (one
+                        // removal per edge).
+                        if edge.he_plus == he {
+                            edges.push(ek);
                         }
                     }
                 }

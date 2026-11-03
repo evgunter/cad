@@ -100,7 +100,7 @@ struct Loop<T: geom_core::Real> {
 /// `face`'s loops; `None` where one is a lone vertex, which bounds no
 /// edge to read.
 fn loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Loop<T>>> {
-    crate::pcurves::face_loop_walks(body, face)
+    body.proven_face_cycles(face)
         .into_iter()
         .map(|(_, cycle)| {
             let &first = cycle.first()?;

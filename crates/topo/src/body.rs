@@ -129,6 +129,29 @@ pub(crate) const CYCLES_ARE_CLAIMANTS: &str =
     "on a tier-1-valid body a loop's next cycle is the half-edges that claim it";
 
 impl Walk {
+    /// [`Walk::closed`] for a claimed loop walk ([`Body::loop_walk_of`]):
+    /// its panic names `r#loop` too, the loop the walk left, and the
+    /// premise the walk's claims break.
+    #[track_caller]
+    pub(crate) fn closed_in(self, r#loop: LoopKey, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
+        match self {
+            Self::Closed(members) => members,
+            Self::Broken { at } => unreachable!(
+                "the loop walk from {first:?} breaks at {at:?}, leaving loop {loop:?}: its \
+                 step from there does not resolve or leaves the loop, and {WALKS_CLOSE}, and \
+                 {CYCLES_ARE_CLAIMANTS}; {}",
+                crate::live::OPERATORS_KEEP_LINKS,
+                loop = r#loop
+            ),
+            Self::Overrun => unreachable!(
+                "the loop walk from {first:?} does not close within the half-edge arena's \
+                 length, in loop {loop:?}, and {WALKS_CLOSE}; {}",
+                crate::live::OPERATORS_KEEP_LINKS,
+                loop = r#loop
+            ),
+        }
+    }
+
     /// The members of a walk a tier-1-valid body closes: the `what` walk
     /// from `first`, which every public door keeps closing (each `next`
     /// and mate resolves, an orbit stays at its vertex, and a cycle is no
@@ -1206,14 +1229,20 @@ impl<T: Real> Body<T> {
         he: HalfEdgeKey,
         r#loop: LoopKey,
     ) -> Option<Vec<HalfEdgeKey>> {
-        let walk = self.bounded_walk(he, |body, member| {
-            let next = body.half_edges.get(member)?.next;
-            body.claims(next, r#loop).then_some(next)
-        });
-        match walk {
+        match self.loop_walk_of(he, r#loop) {
             Walk::Closed(members) => Some(members),
             Walk::Broken { .. } | Walk::Overrun => None,
         }
+    }
+
+    /// [`Body::loop_cycle_of`]'s walk with the three-way outcome
+    /// ([`Walk`]): `Broken` at the member whose `next` does not resolve
+    /// or does not claim `r#loop`.
+    pub(crate) fn loop_walk_of(&self, he: HalfEdgeKey, r#loop: LoopKey) -> Walk {
+        self.bounded_walk(he, |body, member| {
+            let next = body.half_edges.get(member)?.next;
+            body.claims(next, r#loop).then_some(next)
+        })
     }
 
     /// **A loop's half-edges in cycle order, by the loop's key**:
@@ -1373,7 +1402,7 @@ impl<T: Real> Body<T> {
             "face",
         );
         assert!(
-            data.outer == parent || data.rings.contains(&parent),
+            data.holds_loop(parent),
             "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
              body a loop's face lists it"
         );
