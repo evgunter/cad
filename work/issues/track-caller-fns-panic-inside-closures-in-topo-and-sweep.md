@@ -97,3 +97,5 @@ crates/topo/src/shell.rs 4777 moved_walls proven(
 crates/topo/src/shell.rs 4778 moved_walls linked_vertex_point(
 crates/topo/src/shell.rs 4887 moved_walls unreachable!
 ```
+
+- 2026-11-03 (`onedoor/one-spelling-trio`): the two `crates/topo/src/boolean/combine.rs` hits (`image`, `fresh`) are fixed on that branch — both now panic through a `let … else` in the fn body, so their `#[track_caller]` reports the caller's line. The other hits are untouched.

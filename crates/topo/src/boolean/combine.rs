@@ -64,7 +64,6 @@ use crate::entity::{
     VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::NAMES_ONLY_LIVE;
 use crate::null::CurveGeom;
 use geom_core::{Point3, Tol};
 
@@ -145,18 +144,23 @@ fn image<K: Key, I: core::fmt::Display>(
     holder: impl core::fmt::Display,
     field: &str,
 ) -> K {
-    map.get(key)
-        .copied()
-        .unwrap_or_else(|| crate::live::dangling_link(holder, field, id(key)))
+    let Some(&image) = map.get(key) else {
+        crate::live::dangling_link(holder, field, id(key))
+    };
+    image
 }
 
-/// `key`'s record in the destination arena it was minted into by this
-/// transplant.
+/// `key`'s record in the destination arena this transplant minted it
+/// into: the one lookup of a minted key (D2 row 4).
 #[track_caller]
 fn fresh<K: Key, V>(arena: &mut SlotMap<K, V>, key: K) -> &mut V {
-    arena.get_mut(key).unwrap_or_else(|| {
-        unreachable!("graft: {key:?}, minted into the destination by this call, does not resolve")
-    })
+    let Some(record) = arena.get_mut(key) else {
+        unreachable!(
+            "graft: {key:?} does not resolve in the destination arena, yet this call minted \
+             it there and a graft removes no record it mints (kernel bug)"
+        )
+    };
+    record
 }
 
 /// One graft's record forwarding, every key kind a payload carries.
@@ -748,7 +752,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
         // it in the source — its own back-pointer, so a multi-solid
         // source keeps every shell with its solid.
         let holder = EntityId::Shell(sk);
-        let owner = src.shells[sk].solid;
+        let owner = crate::live::proven(&src.shells, sk, EntityId::Shell).solid;
         let target = image(&solid_map, owner, EntityId::Solid, holder, "solid");
         let s = fresh(&mut dst.shells, dk);
         for f in &mut s.faces {
@@ -761,12 +765,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // fully-finished grafts carry none). ----
     for (k, pair) in src.null_faces.iter() {
         let holder = EntityId::Face(k);
-        let dk = faces.get(k).copied().unwrap_or_else(|| {
-            unreachable!(
-                "graft source: a null-face record names {holder}, which does not resolve: a \
-                 null-face record is removed with its face, and {NAMES_ONLY_LIVE}"
-            )
-        });
+        let dk = image(&faces, k, EntityId::Face, "a null-face record", "face");
         let ml = |l: LoopKey, field| image(&loops, l, EntityId::Loop, holder, field);
         let mapped = match *pair {
             crate::null::NullFacePair::Split {
@@ -825,22 +824,18 @@ fn graft_solids_impl<T: geom_core::Decide>(
         };
         let Bridge::Recertify { tol, door } = bridge else {
             // Handles only, certificate verbatim (see `Bridge`).
-            let remapped = curve
-                .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "graft source: {}'s description names a surface the source does not \
-                         hold: {NAMES_ONLY_LIVE}",
-                        GeomRef::Curve(k)
-                    )
-                });
-            let Some(slot) = dst.curves.get_mut(dk) else {
-                unreachable!(
-                    "graft (handle remap): `dk` was minted into `dst.curves` by this \
-                     call's curve pass"
-                )
+            let Some(remapped) = curve.with_remapped_surfaces(|sk| {
+                Some(image(
+                    &surfaces,
+                    sk,
+                    GeomRef::Surface,
+                    GeomRef::Curve(k),
+                    "description",
+                ))
+            }) else {
+                unreachable!("graft (handle remap): an infallible map answers every key")
             };
-            *slot = CurveGeom::Certified(remapped);
+            *fresh(&mut dst.curves, dk) = CurveGeom::Certified(remapped);
             continue;
         };
         let description = match *curve.description() {
@@ -900,12 +895,19 @@ fn graft_solids_impl<T: geom_core::Decide>(
                     GeomRef::Curve(k)
                 )
             });
-        let dst_edge_key = edges[src_edge_key];
-        let e = &dst.edges[dst_edge_key];
-        let he_plus = &dst.half_edges[e.he_plus];
-        let start_v = he_plus.start;
-        let end_v = dst.half_edges[he_plus.next].start;
-        let point = |v: VertexKey| dst.points[dst.vertices[v].point];
+        let dst_edge_key = image(
+            &edges,
+            src_edge_key,
+            EntityId::Edge,
+            GeomRef::Curve(k),
+            "owning edge",
+        );
+        let he_plus = fresh(&mut dst.edges, dst_edge_key).he_plus;
+        let he_plus = fresh(&mut dst.half_edges, he_plus);
+        let (start_v, next) = (he_plus.start, he_plus.next);
+        let end_v = fresh(&mut dst.half_edges, next).start;
+        let mut point = |v: VertexKey| *fresh(&mut dst.points, fresh(&mut dst.vertices, v).point);
+        let (start, end) = (point(start_v), point(end_v));
         let spec = geom_brep::EdgeCurveSpec {
             description,
             carrier: curve.carrier().clone(),
@@ -922,26 +924,21 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.params(),
         );
         let surfaces = |sk| dst.surfaces.get(sk).cloned();
-        let recert = door(spec, point(start_v), point(end_v), &surfaces, reach, band)
-            .map_err(BooleanError::GraftRecertify)?;
-        let Some(slot) = dst.curves.get_mut(dk) else {
-            unreachable!(
-                "graft (recertify): `dk` was minted into `dst.curves` by this call's \
-                 curve pass"
-            )
-        };
-        *slot = CurveGeom::Certified(recert);
+        let recert =
+            door(spec, start, end, &surfaces, reach, band).map_err(BooleanError::GraftRecertify)?;
+        *fresh(&mut dst.curves, dk) = CurveGeom::Certified(recert);
     }
 
     // ---- Attach the shells to the destination solids (source order,
     // per solid and within each solid). ----
     for &(src_solid, dst_solid) in &pairs {
         let holder = EntityId::Solid(src_solid);
-        let shell_list: Vec<ShellKey> = src.solids[src_solid]
-            .shells
-            .iter()
-            .map(|&s| image(&shells, s, EntityId::Shell, holder, "shells"))
-            .collect();
+        let shell_list: Vec<ShellKey> =
+            crate::live::proven(&src.solids, src_solid, EntityId::Solid)
+                .shells
+                .iter()
+                .map(|&s| image(&shells, s, EntityId::Shell, holder, "shells"))
+                .collect();
         let Some(solid) = dst.get_solid_mut(dst_solid) else {
             unreachable!(
                 "graft: destination solid {dst_solid:?} was checked live in, or minted into, \
