@@ -438,13 +438,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     match *surface {
         geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, normal))),
         geom::Surface::Cylinder { origin, axis, .. } => {
-            clear(Margin::norm3(
-                geom::Line {
-                    origin: origin,
-                    dir: axis,
-                }
-                .offset(p),
-            ))?;
+            clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { center, .. } => clear(Margin::norm3(p - center))?,
         geom::Surface::Cone { apex, axis, .. } => {
