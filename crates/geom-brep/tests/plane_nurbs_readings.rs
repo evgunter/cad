@@ -249,3 +249,41 @@ fn the_plane_reads_the_section_its_lane_read() {
         assert_eq!(&got, want, "{what} at ε {:e}", b.zero());
     }
 }
+
+/// **The plane's doors read a plane only.** `plane_nurbs_ssi` and
+/// `trace_plane_nurbs_uncertified` delegate to the one 1×2 handle, which
+/// reads a cylinder too. Handed an upright cylinder through the
+/// certifiable wall, a partner `ImplicitSection` would trace, each door
+/// still refuses with `SsiError::WrongLane` naming the plane.
+#[test]
+fn the_plane_doors_refuse_a_curved_partner() {
+    let wall = wall_from_cols(CERTIFIABLE);
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.5, 0.2, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 0.2,
+        u_ref: Vec3::unit_x(),
+    };
+    let traced = ImplicitSection::of(&cylinder, &wall, wall_domain(), band());
+    assert!(
+        traced.is_ok(),
+        "the handle reads the cylinder: {:?}",
+        traced.err()
+    );
+    let named = |e: &SsiError| matches!(e, SsiError::WrongLane { expected } if expected.contains("a plane and"));
+    let got = geom_brep::ssi::plane_nurbs_ssi(&cylinder, &wall, wall_domain(), band());
+    assert!(got.as_ref().is_err_and(named), "plane_nurbs_ssi: {got:?}");
+    let got = geom_brep::ssi::trace_plane_nurbs_uncertified(
+        &cylinder,
+        &wall,
+        (0.5, 0.5),
+        wall_domain(),
+        eps(),
+        band(),
+    );
+    assert!(
+        got.as_ref().is_err_and(named),
+        "trace_plane_nurbs_uncertified: {:?}",
+        got.err()
+    );
+}
