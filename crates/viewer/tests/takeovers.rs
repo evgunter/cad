@@ -158,7 +158,12 @@ fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, Se
 fn split_at_half_height(session: &DocSession, block: RecipeNodeId) -> SessionOp {
     SessionOp::AddSplit {
         target: block.into(),
-        plane: common::cut_across(session, block, pncad::document::TargetAxis::Z, BLOCK[2] / 2.0),
+        plane: common::cut_across(
+            session,
+            block,
+            pncad::document::TargetAxis::Z,
+            BLOCK[2] / 2.0,
+        ),
     }
 }
 

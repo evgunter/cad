@@ -170,11 +170,9 @@ impl ToolKind {
             Self::Blend => PickKinds::EdgesOnly,
             // Their seats read bodies, picked through a face or an
             // edge; none reads a profile, so none is offered one.
-            Self::Boolean
-            | Self::Transform
-            | Self::Pattern
-            | Self::Part
-            | Self::Duplicate => PickKinds::FacesAndEdges,
+            Self::Boolean | Self::Transform | Self::Pattern | Self::Part | Self::Duplicate => {
+                PickKinds::FacesAndEdges
+            }
         }
     }
 

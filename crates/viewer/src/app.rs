@@ -12169,7 +12169,10 @@ mod properties_pane_tests {
             };
             driven.click(&commit);
             driven.settle();
-            assert!(splits(&driven).is_empty(), "a withheld click inserts nothing");
+            assert!(
+                splits(&driven).is_empty(),
+                "a withheld click inserts nothing"
+            );
 
             let cap = crate::session::FaceSelection {
                 name: pncad::prelude::StableName {
@@ -12214,6 +12217,9 @@ mod properties_pane_tests {
                 .expect("the plate is measured");
             driven.click(&ToolKind::Pattern.commit());
             driven.settle();
+            // Folded again, so the Properties pane has the room.
+            driven.click(crate::pane::create::COMBINE_BODIES);
+            driven.settle();
             (painted, clears)
         }
 
@@ -12238,6 +12244,20 @@ mod properties_pane_tests {
                 .op();
             driven.app.perform_batch(vec![op]);
             driven.settle();
+        }
+
+        /// The pattern's index and its row: the placement that is a
+        /// pattern (`pncad::pattern::recognise`), not the copy of the
+        /// body that reads its family.
+        fn pattern_row(driven: &Driven) -> (VarId, RecipeNodeId) {
+            let (index, _) = pattern(driven);
+            let doc = driven.app.session.committed_doc();
+            let row = *doc
+                .ids()
+                .iter()
+                .find(|&&id| pncad::pattern::recognise(doc, id).is_some())
+                .expect("the pattern's placement");
+            (index, row)
         }
 
         /// What the pattern `row` is, read back (`pncad::pattern::recognise`).
@@ -12277,7 +12297,7 @@ mod properties_pane_tests {
                     "the form paints no {field} field: {painted:?}"
                 );
             }
-            let (index, row) = pattern(&driven);
+            let (index, row) = pattern_row(&driven);
             let count = |driven: &Driven| {
                 crate::props::index_count_row(driven.app.session.committed_doc(), index)
                     .expect("an index")
@@ -12357,7 +12377,7 @@ mod properties_pane_tests {
             let mut driven = Driven::with(Vec::new());
             driven.settle();
             pattern_inserted(&mut driven, crate::forms::PatternLayoutChoice::Circular);
-            let (index, row) = pattern(&driven);
+            let (index, row) = pattern_row(&driven);
             let Recognised::Circular { step, .. } = recognised(&driven, row) else {
                 panic!("a ring")
             };

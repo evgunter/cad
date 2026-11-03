@@ -954,8 +954,7 @@ const _: fn() = || {
 
 #[cfg(not(target_family = "wasm"))]
 pub use threaded::{
-    SpawnError, ThreadCertifier, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver,
-    Worker,
+    SpawnError, ThreadCertifier, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, Worker,
 };
 
 /// The native seam: one worker thread, a request channel, a result

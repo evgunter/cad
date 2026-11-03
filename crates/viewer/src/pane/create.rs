@@ -1319,24 +1319,24 @@ impl ViewerBehavior<'_> {
             }
         });
         let session = self.session;
-        self.tool_commit_row(ui, ToolKind::Pattern, None, |drafts, notation| {
-            match drafts.pattern_kind {
-                PatternLayoutChoice::Linear => {
-                    let spacing = session.clearing_step(&tool.read()?)?;
-                    Ok(tool.linear_op(
-                        drafts.pattern_output,
-                        crate::combine::PATTERN_COUNT,
-                        crate::session::PatternDirection::Axis(crate::combine::ROW_ALONG),
-                        notation.length_literal(spacing)?,
-                    )?)
-                }
-                PatternLayoutChoice::Circular => Ok(tool.circular_op(
+        self.tool_commit_row(ui, ToolKind::Pattern, None, |drafts, notation| match drafts
+            .pattern_kind
+        {
+            PatternLayoutChoice::Linear => {
+                let spacing = session.clearing_step(&tool.read()?)?;
+                Ok(tool.linear_op(
                     drafts.pattern_output,
                     crate::combine::PATTERN_COUNT,
-                    crate::session::PatternDirection::Axis(crate::combine::RING_ABOUT),
-                    notation.angle_literal(crate::combine::RING_STEP)?,
-                )?),
+                    crate::session::PatternDirection::Axis(crate::combine::ROW_ALONG),
+                    notation.length_literal(spacing)?,
+                )?)
             }
+            PatternLayoutChoice::Circular => Ok(tool.circular_op(
+                drafts.pattern_output,
+                crate::combine::PATTERN_COUNT,
+                crate::session::PatternDirection::Axis(crate::combine::RING_ABOUT),
+                notation.angle_literal(crate::combine::RING_STEP)?,
+            )?),
         });
     }
 

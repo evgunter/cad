@@ -3491,7 +3491,7 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 constructions,
-                    fit: false,
+                fit: false,
                 input: &map,
                 viewport: ViewportSize {
                     width_px: 800.0,
@@ -3541,7 +3541,7 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 constructions,
-                    fit: true,
+                fit: true,
                 input: &map,
                 viewport: ViewportSize {
                     width_px: 800.0,

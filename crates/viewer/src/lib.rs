@@ -153,9 +153,7 @@ pub use display::{
     free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{
-    SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker,
-};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};

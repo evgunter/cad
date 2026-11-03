@@ -2535,7 +2535,12 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::SplitTarget => SessionOp::AddSplit {
                 target: filled(Seat::SplitTarget).into(),
-                plane: common::cut_across(&session, filled(Seat::SplitTarget), pncad::document::TargetAxis::Z, 0.005),
+                plane: common::cut_across(
+                    &session,
+                    filled(Seat::SplitTarget),
+                    pncad::document::TargetAxis::Z,
+                    0.005,
+                ),
             },
             Seat::PartInstance => SessionOp::AddPart {
                 of: filled(Seat::PartInstance),
@@ -4598,4 +4603,3 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
 }
-
