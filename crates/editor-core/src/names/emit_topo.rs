@@ -21,8 +21,8 @@ use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, ON_MEMBER_EDGE, band};
 use super::emit::{
     CrossingSensesShape, DisagreeShape, Incidence, JoinShape, NamingError, Rim, RimShare,
-    SeamSidesShape, SeamVertexShape, WayShape, edge_ends, ent, face_half_edges, name1, rim_between,
-    rims_between, vertex_point,
+    SeamSidesShape, SeamVertexShape, WayShape, edge_ends, ent, face_half_edges, name1, read_held,
+    rim_between, rims_between, vertex_point,
 };
 use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
@@ -1770,11 +1770,13 @@ pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
 }
 
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
+#[allow(clippy::too_many_arguments)] // the pair emitter's signature (`PairEmitter`)
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
     op: topo::BooleanOp,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
+    holdings: &topo::Holdings,
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
     tol: Tol,
@@ -1813,199 +1815,82 @@ pub(crate) fn name_boolean<T: Decide>(
         upstream_name(op.table, op.node, ent(0, EntityKey::Face(f)))
     };
 
-    // ---- Faces: merges first (N3), then descent groups. ----
+    // ---- Faces: each named for exactly the operand faces whose area it
+    // holds (N2, N3), read off the kernel's holdings. ----
     let mut tie = TieRows::default();
-    let mut handled: BTreeSet<FaceKey> = BTreeSet::new();
-    // Kept face → constituent descents: which operands a merged face
-    // holds faces of, and the faces a chord between two merged faces
-    // may lie along a rim of.
-    let mut merged_descents: BTreeMap<FaceKey, Vec<OpSide<FaceKey>>> = BTreeMap::new();
-    // Operand face → the merged faces it survives in: those faces
-    // descend from it too, so they are members of its group
-    // (`names::groups`).
-    let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
-    // Merged face → its parent's name, the one a `Borders` wall and a
-    // seam cite (N3), and whether it descends from a tie.
-    let mut merged_names: BTreeMap<FaceKey, (NameRef, bool)> = BTreeMap::new();
-    // The merged parents in the order the merges first list them, each
-    // keyed by the operand faces its merges list: a parent is a set of
-    // entities, never a name, so tied parents spelled alike stay apart.
-    let mut merged_parents: Vec<MergedParent> = Vec::new();
-    let mut parent_at: BTreeMap<BTreeSet<OpSide<FaceKey>>, usize> = BTreeMap::new();
-    for (kept, absorbed) in &naming.merge_groups {
-        if body.get_face(*kept).is_none() {
-            unreachable!(
-                "the face {kept:?} a boolean's merge kept is not live in its result: the merge is \
-                 the output stage's last face operation, and `BooleanNaming::merge_groups` lists \
-                 each group by the face that holds it"
-            );
-        }
-        let mut constituents = Vec::new();
-        let mut descents = Vec::new();
-        // A merged name descends from a tie iff ANY constituent does.
-        let mut from_tie = false;
-        for &c in core::iter::once(kept).chain(absorbed) {
-            let d = descend_face(c)?;
-            descents.push(d);
-            let up = operand_face_name(d)?;
-            from_tie |= up.tied;
-            // The constituent set is FLAT (N3), decided here: an
-            // operand face that is a merged face, read through its
-            // descent wrappers, contributes its constituents
-            // (re-wrapped by that chain, then by this side) and never
-            // its `Merged` name.
-            match merged::constituents_through_wrappers(&up.name) {
-                Some(cs) => {
-                    constituents.extend(cs.into_iter().map(|inner| {
-                        name1(EntityKind::Face, node, d.wrap(a, b, NameRef::new(inner)))
-                    }))
-                }
-                None => constituents.push(name1(EntityKind::Face, node, d.wrap(a, b, up.name))),
-            }
-        }
-        // The kernel's guarantee that the set is flat, held here for
-        // both emitters: a constituent that is itself a merged face
-        // (through any wrapping) is a name this loop cannot have
-        // built from a flat operand, so it panics rather than being
-        // published. `emit_union`'s `collapse` holds the same rule at
-        // the union's own door, with its own ending.
-        if let Some(nested) = constituents
-            .iter()
-            .find(|c| merged::constituents_through_wrappers(c).is_some())
-        {
-            unreachable!(
-                "{NESTED_MERGED} ({nested:?}, in the merge kept as {kept:?}): an operand table \
-                 holds merged names flat, as every emitter mints them, and this loop read each \
-                 constituent's set through its wrappers"
-            );
-        }
-        let parents: BTreeSet<OpSide<FaceKey>> = descents.iter().copied().collect();
-        merged_descents.insert(*kept, descents);
-        for &d in &parents {
-            merged_into.entry(d).or_default().push(*kept);
-        }
-        let merged = canonical::form(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
-        merged_names.insert(*kept, (NameRef::new(merged.clone()), from_tie));
-        // Two merges that list the same operand faces hold one parent
-        // between them (N2: a parent is a set of entities), so the
-        // faces it is held as are named together below.
-        let at = *parent_at.entry(parents.clone()).or_insert_with(|| {
-            merged_parents.push(MergedParent {
-                name: merged,
-                faces: Vec::new(),
-                parents,
-                from_tie: false,
-            });
-            merged_parents.len() - 1
-        });
-        let held = &mut merged_parents[at];
-        held.faces.push(*kept);
-        held.from_tie |= from_tie;
-        handled.insert(*kept);
-    }
-    let mut groups: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
+    let side = |(place, f): topo::MemberFace| match place {
+        0 => OpSide::A(f),
+        _ => OpSide::B(f),
+    };
+    // Finished face → its base name, whether an operand ties it, and
+    // the operand faces it holds. A face holding several is `Merged`:
+    // its base is the name a `Borders` wall and a seam cite (N3), and
+    // its operand faces are those a chord beside it may lie along a rim
+    // of.
+    let mut held_faces: BTreeMap<FaceKey, HeldFace<OpSide<FaceKey>>> = BTreeMap::new();
+    // Operand face → every finished face holding its area.
+    let mut held_by_face: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
     for (f, _) in body.faces() {
-        if !handled.contains(&f) {
-            groups.entry(descend_face(f)?).or_default().push(f);
+        let holds: BTreeSet<OpSide<FaceKey>> = match read_held(holdings.of(f), Some(f))? {
+            Some(fs) if !fs.is_empty() => fs.iter().map(|&m| side(m)).collect(),
+            held => unreachable!(
+                "finished face {f:?} has holdings {held:?}: the pair door reads every face of \
+                 its result as holding at least the operand face it is a piece of \
+                 (`topo::Holdings::of_records`)"
+            ),
+        };
+        for &d in &holds {
+            held_by_face.entry(d).or_default().push(f);
         }
-    }
-    // A parent that survives only inside merged faces still has a
-    // group: those faces.
-    for d in merged_into.keys() {
-        groups.entry(*d).or_default();
+        let mut cited = Vec::new();
+        let mut tied = false;
+        for &d in &holds {
+            let up = operand_face_name(d)?;
+            tied |= up.tied;
+            cited.push(name1(EntityKind::Face, node, d.wrap(a, b, up.name)));
+        }
+        let base = held_base(node, cited);
+        held_faces.insert(f, HeldFace { base, tied, holds });
     }
     let mut obstacles = Obstacles::new();
-    obstacles.record(naming, body, |operand, f| {
-        Ok(BTreeSet::from([match operand {
-            topo::Operand::A => OpSide::A(a_rows.root(f)),
-            topo::Operand::B => OpSide::B(b_rows.root(f)),
-        }]))
+    obstacles.record(naming, body, |row| {
+        let Some(fs) = read_held(holdings.lost(row), None)? else {
+            unreachable!(
+                "discard row {row} has no holdings: the pair door reads one for every row of its \
+                 naming's discards (`topo::Holdings::of_records`)"
+            )
+        };
+        Ok(fs.iter().map(|&m| side(m)).collect())
     })?;
-    // A wall is cited by its parent as this boolean's table names it
-    // (N3), as a seam side is: a merged face's `Merged` name, or the
-    // `From` the operand face it descends from came in through.
-    let wall = |g: FaceKey| -> Result<StableName, NamingError> {
-        if let Some((n, _)) = merged_names.get(&g) {
-            return Ok((**n).clone());
-        }
-        let d = descend_face(g)?;
-        let up = operand_face_name(d)?;
-        Ok(name1(EntityKind::Face, node, d.wrap(a, b, up.name)))
-    };
-    // Every face that holds part of operand face `d`: its unmerged
-    // pieces, then the merged faces that list it.
-    let held_by = |d: &OpSide<FaceKey>| -> Vec<FaceKey> {
-        groups
-            .get(d)
-            .into_iter()
-            .chain(merged_into.get(d))
-            .flatten()
-            .copied()
-            .collect()
-    };
-    for held in merged_parents {
-        let name = held.name;
-        rec.record(
-            &name,
-            held.faces
-                .iter()
-                .map(|&f| ent(0, EntityKey::Face(f)))
-                .collect(),
-            Parent::Elsewhere,
-        );
-        if let [one] = held.faces[..] {
-            put(
-                &mut t,
-                &mut tie,
-                held.from_tie,
-                name,
-                ent(0, EntityKey::Face(one)),
-            )?;
-            continue;
-        }
-        let others: Vec<FaceKey> = held
-            .parents
-            .iter()
-            .flat_map(&held_by)
-            .filter(|f| !held.faces.contains(f))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        name_parent_faces(
-            &mut t,
-            &mut tie,
-            held.from_tie,
-            name,
-            &held.faces,
-            &others,
-            (&obstacles, body, &held.parents),
-            &wall,
-        )?;
-    }
-    for (d, members) in &groups {
+    // A wall is cited by the base name of the face across it, as a seam
+    // side is (N3).
+    let wall = |g: FaceKey| -> Result<StableName, NamingError> { Ok(held_faces[&g].base.clone()) };
+    let held_by =
+        |d: &OpSide<FaceKey>| -> Vec<FaceKey> { held_by_face.get(d).cloned().unwrap_or_default() };
+    // The groups the diagnosis ladder counts: an operand face's group is
+    // every face holding its area; a face holding several is its base's.
+    for (d, faces) in &held_by_face {
         let root_name = operand_face_name(*d)?;
-        let from_tie = root_name.tied;
-        let base = name1(EntityKind::Face, node, d.wrap(a, b, root_name.name));
-        let in_merged = merged_into.get(d).map_or(&[][..], Vec::as_slice);
         rec.record(
-            &base,
-            held_by(d)
-                .into_iter()
-                .map(|f| ent(0, EntityKey::Face(f)))
-                .collect(),
+            &name1(EntityKind::Face, node, d.wrap(a, b, root_name.name)),
+            faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
             d.map(EntityKey::Face).parent(),
         );
-        name_parent_faces(
-            &mut t,
-            &mut tie,
-            from_tie,
-            base,
-            members,
-            in_merged,
-            (&obstacles, body, &BTreeSet::from([*d])),
-            &wall,
-        )?;
     }
+    let mut by_merged: BTreeMap<&StableName, Vec<FaceKey>> = BTreeMap::new();
+    for (&f, held) in &held_faces {
+        if held.holds.len() >= 2 {
+            by_merged.entry(&held.base).or_default().push(f);
+        }
+    }
+    for (name, faces) in by_merged {
+        rec.record(
+            name,
+            faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
+            Parent::Elsewhere,
+        );
+    }
+    name_held_faces(&mut t, &mut tie, body, &held_faces, &obstacles)?;
     tie.flush(&mut t)?;
     // An operand corner the result holds as several vertices: each
     // copy's divider walls (N2), read through the faces' obstacles. The
@@ -2042,8 +1927,7 @@ pub(crate) fn name_boolean<T: Decide>(
         &inc,
         &descend_face,
         &operand_face_name,
-        &merged_descents,
-        &merged_names,
+        &held_faces,
         bnd,
     )?;
     name_boolean_vertices(
@@ -2082,52 +1966,168 @@ pub(crate) fn name_boolean<T: Decide>(
     Ok(Emitted::new(t, rec))
 }
 
-/// A merged parent in a pair boolean: its `Merged` name, the faces it
-/// is held as, the operand faces its merges list, and whether any of
-/// those is tied.
-struct MergedParent {
-    name: StableName,
-    faces: Vec<FaceKey>,
-    parents: BTreeSet<OpSide<FaceKey>>,
-    from_tie: bool,
+/// One finished face as the per-face rule reads it (N2): its base
+/// name, the one member face it holds or `Merged` of all of them, flat;
+/// whether a member ties that name; and the member faces it holds.
+pub(super) struct HeldFace<K> {
+    pub(super) base: StableName,
+    pub(super) tied: bool,
+    pub(super) holds: BTreeSet<K>,
 }
 
-/// Names the faces one parent is held as (N2/N3): a lone face whose
-/// parent no merge shares is the parent, `base`; otherwise each of
-/// `pieces` is `base` + `Fragment(Borders)` over the divider walls
-/// [`Obstacles::split`] finds, reading `merged` as the parent's other
-/// faces — ones that hold part of its region but are named apart from
-/// `pieces`, such as a merge that lists it beside other faces, or an
-/// operand face's unmerged piece beside a merged parent's faces — and
-/// the pieces one set does not tell apart are the tie. With any
-/// `merged` the bare `base` does not name the whole parent, so no
-/// piece takes it. The pair boolean and
-/// the union's end pass both name their parents here.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
+/// **The base name of a face holding the member faces `cited`**, each
+/// as this boolean cites it (its read's wrapper round the member's own
+/// name; N2, N3): one is that name, several `Merged` of them all, flat
+/// and in name order. A cited name that is itself a merged face,
+/// through its wrappers, stands for its constituents, each re-wrapped
+/// by that chain. The pair boolean and the union both name a held face
+/// here.
+pub(super) fn held_base(node: RecipeNodeId, cited: Vec<StableName>) -> StableName {
+    let [one] = &cited[..] else {
+        let constituents: Vec<StableName> = cited
+            .into_iter()
+            .flat_map(|n| merged::constituents_through_wrappers(&n).unwrap_or_else(|| vec![n]))
+            .collect();
+        // A member table holds merged names flat, as every emitter mints
+        // them, so a constituent read through its wrappers is no merge.
+        if let Some(nested) = constituents
+            .iter()
+            .find(|c| merged::constituents_through_wrappers(c).is_some())
+        {
+            unreachable!(
+                "{NESTED_MERGED} ({nested:?}): a member table holds merged names flat, as every \
+                 emitter mints them, and each constituent's set was read through its wrappers"
+            );
+        }
+        return canonical::form(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
+    };
+    one.clone()
+}
+
+/// **A boolean's faces, each named for exactly the member faces whose
+/// area it holds** (N2, N3), the one rule of the pair boolean and the
+/// union's end pass.
+///
+/// A face is its base name, unless another face also holds area of a
+/// member face it holds: then it takes one `Fragment(Borders)` over its
+/// divider walls. The walls are read over the member faces the finished
+/// faces join (two are joined where one face holds both, and so on
+/// through every face holding either): their lost region's obstacles
+/// that border two or more of the faces holding them divide
+/// ([`Obstacles::held_walls`]), and a face's walls are the faces across
+/// its own edges along which it meets one. A wall is cited by the base
+/// name of the face across it. A holder that meets no divider takes no
+/// wall: it meets the others along edges inside the held region, where
+/// what they hold differs and its base tells it apart. One that meets
+/// no divider beside a holder of exactly what it holds refuses: the
+/// member faces they share are connected, so what lies between them is
+/// region they lost, which the kernel did not record. So do two faces
+/// one name does not tell apart where one met no divider; otherwise
+/// such faces are the tie.
+pub(super) fn name_held_faces<T: geom_core::Real, K: Ord + Clone>(
     t: &mut NameTable,
     tie: &mut TieRows,
-    from_tie: bool,
-    base: StableName,
-    pieces: &[FaceKey],
-    merged: &[FaceKey],
-    split: (&Obstacles<K>, &Body<T>, &BTreeSet<K>),
-    wall: impl FnMut(FaceKey) -> Result<StableName, NamingError>,
+    body: &Body<T>,
+    faces: &BTreeMap<FaceKey, HeldFace<K>>,
+    obstacles: &Obstacles<K>,
 ) -> Result<(), NamingError> {
-    match (pieces, merged) {
-        ([], _) => Ok(()),
-        ([one], []) => Ok(put(t, tie, from_tie, base, ent(0, EntityKey::Face(*one)))?),
-        _ => {
-            let (obstacles, body, parent) = split;
-            for (walls, faces) in obstacles.split(body, parent, pieces, merged, wall)? {
-                let mut name = base.clone();
-                name.path.push(RoleSeg::Fragment(Qualifier::Borders(walls)));
-                let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
-                mint_candidates(t, tie, from_tie, canonical::form(name), ents)?;
+    // Member face → its place, and each place's holders.
+    let mut place: BTreeMap<&K, usize> = BTreeMap::new();
+    let mut holders: Vec<Vec<FaceKey>> = Vec::new();
+    let mut join = super::least_root::LeastRoot::new();
+    for (&f, held) in faces {
+        let mut first = None;
+        for m in &held.holds {
+            let i = *place.entry(m).or_insert_with(|| {
+                holders.push(Vec::new());
+                holders.len() - 1
+            });
+            holders[i].push(f);
+            join.insert(i);
+            if let Some(j) = first {
+                join.join(i, j);
             }
-            Ok(())
+            first.get_or_insert(i);
         }
     }
+    // The joined member faces, by root, and the faces holding them.
+    let mut joined: BTreeMap<usize, (BTreeSet<K>, BTreeSet<FaceKey>)> = BTreeMap::new();
+    for (&m, &i) in &place {
+        let slot = joined.entry(join.root(i)).or_default();
+        slot.0.insert(m.clone());
+        slot.1.extend(holders[i].iter().copied());
+    }
+    let wall = |g: FaceKey| -> Result<StableName, NamingError> {
+        Ok(faces
+            .get(&g)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "wall {g:?} is no face of the boolean's body: a wall is a face across a \
+                     piece's boundary edge"
+                )
+            })
+            .base
+            .clone())
+    };
+    // A face shares a member face with another exactly where its joined
+    // member faces have two or more holders.
+    let mut walls: BTreeMap<FaceKey, BTreeSet<StableName>> = BTreeMap::new();
+    let mut undivided: BTreeSet<FaceKey> = BTreeSet::new();
+    for (held, pieces) in joined.values() {
+        if pieces.len() < 2 {
+            continue;
+        }
+        let pieces: Vec<FaceKey> = pieces.iter().copied().collect();
+        let read = obstacles.held_walls(body, held, &pieces, &wall)?;
+        for (ws, &f) in read.into_iter().zip(&pieces) {
+            if !ws.is_empty() {
+                walls.insert(f, ws);
+                continue;
+            }
+            // A holder meeting no divider is told apart by its base, so
+            // another holding exactly what it holds leaves region between
+            // them the kernel lost without recording it.
+            if pieces
+                .iter()
+                .any(|&g| g != f && faces[&g].holds == faces[&f].holds)
+            {
+                return Err(NamingError::Emission {
+                    what: "a piece of a face held as several borders no recorded discard \
+                           between them",
+                });
+            }
+            undivided.insert(f);
+        }
+    }
+    let mut named: BTreeMap<StableName, (bool, Vec<EntityRef>)> = BTreeMap::new();
+    for (&f, held) in faces {
+        let name = match walls.remove(&f) {
+            None => held.base.clone(),
+            Some(ws) => {
+                let mut name = held.base.clone();
+                name.path.push(RoleSeg::Fragment(Qualifier::Borders(
+                    ws.into_iter().collect(),
+                )));
+                canonical::form(name)
+            }
+        };
+        let slot = named.entry(name).or_insert((false, Vec::new()));
+        slot.0 |= held.tied;
+        slot.1.push(ent(0, EntityKey::Face(f)));
+    }
+    for (name, (from_tie, ents)) in named {
+        if ents.len() >= 2
+            && ents
+                .iter()
+                .any(|e| matches!(e.key, EntityKey::Face(f) if undivided.contains(&f)))
+        {
+            return Err(NamingError::Emission {
+                what: "a piece of a face held as several borders no recorded discard between them",
+            });
+        }
+        mint_candidates(t, tie, from_tie, name, ents)?;
+    }
+    Ok(())
 }
 
 /// The vertices one operand corner is held as: its name, whether that
@@ -2210,8 +2210,7 @@ fn name_boolean_edges<T: Decide>(
     inc: &Incidence,
     descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
     operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
-    merged_descents: &BTreeMap<FaceKey, Vec<OpSide<FaceKey>>>,
-    merged_names: &BTreeMap<FaceKey, (NameRef, bool)>,
+    held_faces: &BTreeMap<FaceKey, HeldFace<OpSide<FaceKey>>>,
     bnd: geom_core::Band,
 ) -> Result<(Vec<EdgeGroup>, SideHolds), NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -2261,32 +2260,28 @@ fn name_boolean_edges<T: Decide>(
             holds: vec![d],
         })
     };
+    // A face holding several operand faces.
+    let merged = |f: FaceKey| held_faces.get(&f).filter(|h| h.holds.len() >= 2);
     // A merged face's seam side is its parent, the `Merged` set, never a
-    // constituent (N3).
-    // Called only for a face `merged_descents` holds, and the merge loop
-    // inserts its name and its descents (the kept face's among them, so
-    // never none) together.
+    // constituent (N3). Called only for a face `merged` reads.
     let merged_side = |f: FaceKey| -> SeamSide {
-        let (Some((name, tied)), Some(holds)) = (merged_names.get(&f), merged_descents.get(&f))
-        else {
+        let Some(h) = merged(f) else {
             unreachable!(
-                "merged face {f:?} lacks its parent name or its descents: a chord's face is read \
-                 as merged only where `merged_descents` holds it, and the merge loop records both \
-                 for every kept face, its own descent among them"
+                "face {f:?} holds one operand face: a chord's face is read as merged only where \
+                 it holds several"
             )
         };
         SeamSide {
-            name: name.clone(),
-            tied: *tied,
-            holds: holds.clone(),
+            name: NameRef::new(h.base.clone()),
+            tied: h.tied,
+            holds: h.holds.iter().copied().collect(),
         }
     };
     // The faces of operand `side` a merged face holds, in key order.
     let constituents_on = |f: FaceKey, side: topo::Operand| -> Vec<FaceKey> {
-        let mut on: Vec<FaceKey> = merged_descents
-            .get(&f)
+        let mut on: Vec<FaceKey> = merged(f)
             .into_iter()
-            .flatten()
+            .flat_map(|h| &h.holds)
             .filter(|d| d.operand() == side)
             .map(|d| d.of_operand().1)
             .collect();
@@ -2296,10 +2291,9 @@ fn name_boolean_edges<T: Decide>(
     };
     // The one operand every face a merged face holds is of, if one is.
     let only_operand = |f: FaceKey| -> Option<topo::Operand> {
-        let mut ops = merged_descents
-            .get(&f)
+        let mut ops = merged(f)
             .into_iter()
-            .flatten()
+            .flat_map(|h| &h.holds)
             .map(|d| d.operand());
         let first = ops.next()?;
         ops.all(|o| o == first).then_some(first)
@@ -2391,8 +2385,8 @@ fn name_boolean_edges<T: Decide>(
                 None => seam(merged_side(m0), merged_side(m1), None),
             })
         };
-        let merged0 = merged_descents.contains_key(&faces[0]);
-        let merged1 = merged_descents.contains_key(&faces[1]);
+        let merged0 = merged(faces[0]).is_some();
+        let merged1 = merged(faces[1]).is_some();
         let (d0, d1) = match (merged0, merged1) {
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => return beside(faces[0], faces[1]),
@@ -2467,7 +2461,7 @@ fn name_boolean_edges<T: Decide>(
         .filter(|&e| body.get_edge(e).is_some())
         .collect();
     for &e in &joined {
-        match joined_cover(e, body, a, b, inc, descend_face, merged_descents, bnd)? {
+        match joined_cover(e, body, a, b, inc, descend_face, held_faces, bnd)? {
             JoinedCover::Faces => {
                 joined_faces.insert(e);
             }
@@ -2492,7 +2486,7 @@ fn name_boolean_edges<T: Decide>(
         let both_merged = inc
             .edge_faces
             .get(&e)
-            .is_some_and(|fs| fs.iter().all(|f| merged_descents.contains_key(f)));
+            .is_some_and(|fs| fs.iter().all(|&f| merged(f).is_some()));
         match chord_kind(e)? {
             ChordKind::Cross(fa, fb, one) => add_seam(fa, fb, one, e)?,
             ChordKind::SameA(k) if both_merged => zip_rims.push((OpSide::A(k), e)),
@@ -2703,7 +2697,7 @@ fn joined_cover<T: Decide>(
     b: &OperandCtx<'_, T>,
     inc: &Incidence,
     descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
-    merged_descents: &BTreeMap<FaceKey, Vec<OpSide<FaceKey>>>,
+    held_faces: &BTreeMap<FaceKey, HeldFace<OpSide<FaceKey>>>,
     bnd: geom_core::Band,
 ) -> Result<JoinedCover, NamingError> {
     let Some(faces) = inc.edge_faces.get(&e) else {
@@ -2719,8 +2713,8 @@ fn joined_cover<T: Decide>(
         });
     };
     let descents = |f: FaceKey| -> Result<Vec<OpSide<FaceKey>>, NamingError> {
-        Ok(match merged_descents.get(&f) {
-            Some(ds) => ds.clone(),
+        Ok(match held_faces.get(&f).filter(|h| h.holds.len() >= 2) {
+            Some(h) => h.holds.iter().copied().collect(),
             None => vec![descend_face(f)?],
         })
     };
@@ -5650,6 +5644,23 @@ mod tests {
         out
     }
 
+    /// The pair door's holdings of a hand-built union record over
+    /// `body`, its operands `a`'s and `b`'s bodies.
+    fn records(
+        naming: &topo::BooleanNaming,
+        body: &Body<f64>,
+        a: &OperandCtx<'_, f64>,
+        b: &OperandCtx<'_, f64>,
+    ) -> topo::Holdings {
+        topo::Holdings::read_records(
+            topo::BooleanOp::Union,
+            naming,
+            body,
+            [a.body, b.body],
+            band(Tol::witness()).unwrap(),
+        )
+    }
+
     #[test]
     fn merged_lane_names_kept_face_with_sorted_deduped_constituents() {
         // A unit-cube extrusion: the "result body" stand-in.
@@ -5703,6 +5714,7 @@ mod tests {
             topo::BooleanOp::Union,
             &result,
             &naming,
+            &records(&naming, &result, &a, &b),
             &a,
             &b,
             Tol::witness(),
@@ -5791,12 +5803,12 @@ mod tests {
         );
     }
 
-    /// **A face a merge absorbed that the body still holds refuses.**
-    /// The merge holds part of the parent, so its live face is a piece
-    /// of a face held as several, and it borders no recorded discard:
-    /// `Obstacles::split` refuses rather than mint `Borders([])`.
+    /// **Two faces holding one face, with no recorded discard between
+    /// them, refuse.** The face they hold is connected, so what lies
+    /// between them is region it lost, which no discard records:
+    /// `name_held_faces` refuses rather than mint `Borders([])` or a tie.
     #[test]
-    fn an_absorbed_face_still_live_beside_its_merge_refuses() {
+    fn two_faces_holding_one_face_with_no_discard_between_them_refuse() {
         let built = unit_cube();
         let ext_node = RecipeNodeId::new(0, 1);
         let a_table = name_extrude(
@@ -5820,9 +5832,20 @@ mod tests {
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,
-            merge_groups: vec![(built.top, vec![lateral])],
             ..topo::BooleanNaming::default()
         };
+        let holdings = topo::Holdings::fixture(
+            built
+                .body
+                .faces()
+                .map(|(f, _)| {
+                    let held = if f == built.top { lateral } else { f };
+                    (f, topo::Held::Faces(BTreeSet::from([(0, held)])))
+                })
+                .collect(),
+            Vec::new(),
+            Vec::new(),
+        );
         let empty = NameTable::new();
         let a = OperandCtx {
             node: ext_node,
@@ -5841,11 +5864,12 @@ mod tests {
             topo::BooleanOp::Union,
             &built.body,
             &naming,
+            &holdings,
             &a,
             &b,
             Tol::witness(),
         )
-        .expect_err("a live absorbed face beside its merge must refuse");
+        .expect_err("two faces holding one face with nothing between them must refuse");
         assert!(
             matches!(
                 err,
@@ -5999,6 +6023,7 @@ mod tests {
             topo::BooleanOp::Union,
             &body,
             &naming,
+            &records(&naming, &body, &a, &b),
             &a,
             &b,
             Tol::witness(),
@@ -6079,6 +6104,7 @@ mod tests {
             topo::BooleanOp::Union,
             &built.body,
             &naming,
+            &records(&naming, &built.body, &a, &b),
             &a,
             &b,
             Tol::witness(),
@@ -6156,6 +6182,7 @@ mod tests {
             topo::BooleanOp::Union,
             &built.body,
             &naming,
+            &records(&naming, &built.body, &a, &b),
             &a,
             &b,
             Tol::witness(),
@@ -6260,6 +6287,7 @@ mod tests {
             topo::BooleanOp::Union,
             &result,
             &naming,
+            &records(&naming, &result, &a, &b),
             &a,
             &b,
             Tol::witness(),
@@ -6383,6 +6411,7 @@ mod tests {
             topo::BooleanOp::Union,
             &built.body,
             &naming,
+            &records(&naming, &built.body, &a, &b),
             &a,
             &b,
             Tol::witness(),
@@ -7644,11 +7673,19 @@ mod touch_reread_rows {
                 table: bt,
                 body: b,
             };
-            let table =
-                match name_boolean(RecipeNodeId::new(0, 9), op, &r.body, &r.naming, &a, &b, t()) {
-                    Ok(e) => e.table,
-                    Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
-                };
+            let table = match name_boolean(
+                RecipeNodeId::new(0, 9),
+                op,
+                &r.body,
+                &r.naming,
+                &r.holdings,
+                &a,
+                &b,
+                t(),
+            ) {
+                Ok(e) => e.table,
+                Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
+            };
             named.built += 1;
             let mut fragmented = BTreeSet::new();
             for (n, e) in table.iter().filter(|(n, _)| n.kind == EntityKind::Vertex) {
@@ -7710,6 +7747,7 @@ mod touch_reread_rows {
             topo::BooleanOp::Subtract,
             &r.body,
             &r.naming,
+            &r.holdings,
             &a,
             &b,
             t(),
@@ -7815,7 +7853,17 @@ mod touch_reread_rows {
             body: y,
         };
         let op = topo::BooleanOp::Subtract;
-        Ok(name_boolean(RecipeNodeId::new(0, 9), op, &r.body, &r.naming, &a, &b, t())?.table)
+        Ok(name_boolean(
+            RecipeNodeId::new(0, 9),
+            op,
+            &r.body,
+            &r.naming,
+            &r.holdings,
+            &a,
+            &b,
+            t(),
+        )?
+        .table)
     }
 
     /// **Each candidate of a tied corner is a corner of its own** (N4,
@@ -8792,6 +8840,7 @@ mod a_pairs_flush_line {
                 topo::BooleanOp::Union,
                 &r.body,
                 &r.naming,
+                &r.holdings,
                 &a,
                 &b,
                 t(),

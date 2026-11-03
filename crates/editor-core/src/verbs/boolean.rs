@@ -42,13 +42,14 @@ use crate::names::{self, NamingError};
 use crate::node::RecipeNodeId;
 
 /// A two-operand verb's naming emitter: this node's id, the op, the
-/// result body, the birth record, and the two operands' naming
-/// contexts, in.
+/// result body, the birth record, the operand faces each face holds,
+/// and the two operands' naming contexts, in.
 pub(crate) type PairEmitter<T> = fn(
     RecipeNodeId,
     BooleanOp,
     &Body<T>,
     &BooleanNaming,
+    &topo::Holdings,
     &names::OperandCtx<'_, T>,
     &names::OperandCtx<'_, T>,
     Tol,
@@ -79,9 +80,9 @@ pub(crate) struct PairVerb<T: Decide> {
     pub(crate) foreign_record: &'static str,
 }
 
-/// The boolean's record, out of its channel arm: its kind, contacts
-/// and naming, each the kernel's own type (the pair verb reads no
-/// other field of `BooleanBody`).
+/// The boolean's record, out of its channel arm: its kind, contacts,
+/// naming and holdings, each the kernel's own type (the pair verb reads
+/// no other field of `BooleanBody`).
 pub(crate) struct BooleanRecord {
     /// How the result body came to be.
     pub(crate) kind: BooleanResultKind,
@@ -90,6 +91,9 @@ pub(crate) struct BooleanRecord {
     pub(crate) contacts: ContactRecords,
     /// Mint-time naming facts the naming layer consumes.
     pub(crate) naming: BooleanNaming,
+    /// The operand faces each face of the result, and each region it
+    /// discarded, holds area of.
+    pub(crate) holdings: topo::Holdings,
 }
 
 /// The boolean's kernel payload. A named function rather than a
@@ -120,11 +124,12 @@ fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRe
             contacts,
             naming,
             verdicts: _,
-            holdings: _,
+            holdings,
         } => Some(BooleanRecord {
             kind,
             contacts,
             naming,
+            holdings: *holdings,
         }),
         VerbRecord::Blend(_)
         | VerbRecord::Extrude(_)
