@@ -63,7 +63,7 @@
 //! records is [`proven`] ([`Body::proven_face_surface`],
 //! [`Body::proven_face_edges`]); one a caller passed reads
 //! [`Body::face_surface`] and answers its miss as the caller's own.
-use crate::body::Body;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, VertexKey,
@@ -353,8 +353,8 @@ fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entity::Claim {
 
 /// **An edge of a face's loops** ([`Body::proven_face_edges`]), as one of its
 /// half-edges walks it: the half-edge, the edge, its two ends in the
-/// half-edge's direction, and the face across it (the face itself across
-/// a seam inside it).
+/// half-edge's direction, the half-edge's mate, and the face across it
+/// (the face itself across a seam inside it).
 #[derive(Clone, Copy)]
 pub(crate) struct FaceEdge {
     // Read by the probes' frames, which orient the edge by it.
@@ -362,6 +362,7 @@ pub(crate) struct FaceEdge {
     pub(crate) half: HalfEdgeKey,
     pub(crate) edge: EdgeKey,
     pub(crate) ends: [VertexKey; 2],
+    pub(crate) mate: HalfEdgeKey,
     pub(crate) across: FaceKey,
 }
 
@@ -377,6 +378,25 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
         ek: EdgeKey,
         edge: &'a Edge,
     },
+}
+
+impl<T: Real> BoundaryMember<'_, T> {
+    /// The member's half-edge; none for a lone vertex.
+    pub(crate) fn half_edge(&self) -> Option<HalfEdgeKey> {
+        match *self {
+            Self::Isolated { .. } => None,
+            Self::Edge { he, .. } => Some(he),
+        }
+    }
+
+    /// The member's vertex: the lone vertex, or where the half-edge
+    /// starts.
+    pub(crate) fn vertex(&self) -> VertexKey {
+        match *self {
+            Self::Isolated { vertex, .. } => vertex,
+            Self::Edge { half, .. } => half.start,
+        }
+    }
 }
 
 impl<T: Real> Body<T> {
@@ -420,16 +440,16 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// `face`'s loops, each a link its record holds: the outer loop, then
-    /// its rings. The one order every walk of a face's boundary takes,
-    /// and the one spelling of the fields a miss names.
+    /// `face`'s loops, each a link its record holds, in
+    /// [`Face::loop_keys`]' order: the outer loop, then its rings. The
+    /// one spelling of the fields a miss names.
     pub(crate) fn face_loops_linked<'a>(
         &'a self,
         face: FaceKey,
         data: &'a Face,
     ) -> impl Iterator<Item = (LoopKey, &'a Loop)> + 'a {
-        core::iter::once((data.outer, "outer"))
-            .chain(data.rings.iter().map(|&ring| (ring, "rings")))
+        data.loop_keys()
+            .zip(core::iter::once("outer").chain(core::iter::repeat("rings")))
             .map(move |(lk, field)| {
                 let l = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(face), field);
                 (lk, l)
@@ -439,7 +459,8 @@ impl<T: Real> Body<T> {
     /// `face`'s boundary, member by member, in [`Body::face_loops_linked`]'s
     /// order: each isolated-vertex loop's vertex and point, and each
     /// closed loop cycle member with its edge. Every hop is a link, and a
-    /// loop walk that does not close panics ([`crate::body::Walk::closed`]).
+    /// loop walk that does not close on the half-edges claiming the loop
+    /// panics ([`Body::site_cycle_from`]).
     pub(crate) fn face_boundary_linked<'a>(
         &'a self,
         face: FaceKey,
@@ -447,6 +468,50 @@ impl<T: Real> Body<T> {
     ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
         self.face_boundary_by_loop(face, data)
             .flat_map(|(_, members)| members)
+    }
+
+    /// [`Body::face_boundary_linked`] for a face key the kernel enumerated
+    /// or read out of its own records ([`proven`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`].
+    #[track_caller]
+    pub(crate) fn proven_face_boundary(
+        &self,
+        face: FaceKey,
+    ) -> impl Iterator<Item = BoundaryMember<'_, T>> + '_ {
+        self.face_boundary_linked(face, proven(&self.faces, face, EntityId::Face))
+    }
+
+    /// **Each loop of `face` with its cycle**, in
+    /// [`Body::face_loops_linked`]'s order (no half-edge for a lone-vertex
+    /// loop): [`Body::face_boundary_by_loop`]'s walk, read for its
+    /// half-edges.
+    pub(crate) fn face_cycles_by_loop<'a>(
+        &'a self,
+        face: FaceKey,
+        data: &'a Face,
+    ) -> impl Iterator<Item = (LoopKey, Vec<HalfEdgeKey>)> + 'a {
+        self.face_boundary_by_loop(face, data).map(|(lk, members)| {
+            let cycle = members
+                .iter()
+                .filter_map(BoundaryMember::half_edge)
+                .collect();
+            (lk, cycle)
+        })
+    }
+
+    /// [`Body::face_cycles_by_loop`] for a face key the kernel enumerated
+    /// or read out of its own records ([`proven`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::proven_face_edges`].
+    #[track_caller]
+    pub(crate) fn proven_face_cycles(&self, face: FaceKey) -> Vec<(LoopKey, Vec<HalfEdgeKey>)> {
+        self.face_cycles_by_loop(face, proven(&self.faces, face, EntityId::Face))
+            .collect()
     }
 
     /// **The surface `face` is a region of**, for a face key the kernel
@@ -467,19 +532,23 @@ impl<T: Real> Body<T> {
     /// # Panics
     ///
     /// Where `face`, or a record on the walk from it, does not resolve, a
-    /// loop walk does not close, or an edge does not claim a half-edge
-    /// that names it (D2 row 4).
+    /// loop walk does not close on the half-edges that claim the loop, or
+    /// an edge does not claim a half-edge that names it (D2 row 4).
     pub(crate) fn proven_face_edges(&self, face: FaceKey) -> Vec<FaceEdge> {
         let data = proven(&self.faces, face, EntityId::Face);
         self.face_boundary_linked(face, data)
             .filter_map(|member| match member {
                 BoundaryMember::Isolated { .. } => None,
-                BoundaryMember::Edge { he, half, ek, edge } => Some(FaceEdge {
-                    half: he,
-                    edge: ek,
-                    ends: [half.start, self.proven_half_edge_end(he)],
-                    across: self.face_across_linked(he, ek, edge),
-                }),
+                BoundaryMember::Edge { he, half, ek, edge } => {
+                    let (mate, across) = self.face_across_linked(he, ek, edge);
+                    Some(FaceEdge {
+                        half: he,
+                        edge: ek,
+                        ends: [half.start, self.proven_half_edge_end(he)],
+                        mate,
+                        across,
+                    })
+                }
             })
             .collect()
     }
@@ -496,10 +565,15 @@ impl<T: Real> Body<T> {
             .collect()
     }
 
-    /// The face across `he`, a half of edge `ek` (its record `data`):
-    /// the face of its mate's loop, every hop a link.
+    /// The mate of `he`, a half of edge `ek` (its record `data`), and the
+    /// face across it, the face of the mate's loop: every hop a link.
     #[track_caller]
-    fn face_across_linked(&self, he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> FaceKey {
+    fn face_across_linked(
+        &self,
+        he: HalfEdgeKey,
+        ek: EdgeKey,
+        data: &Edge,
+    ) -> (HalfEdgeKey, FaceKey) {
         let claim = claimed(he, ek, data);
         let mate = linked(
             &self.half_edges,
@@ -508,14 +582,15 @@ impl<T: Real> Body<T> {
             EntityId::Edge(ek),
             claim.mate_field(),
         );
-        linked(
+        let across = linked(
             &self.loops,
             mate.parent_loop,
             EntityId::Loop,
             EntityId::HalfEdge(claim.mate),
             "parent_loop",
         )
-        .face
+        .face;
+        (claim.mate, across)
     }
 
     /// [`Body::face_boundary_linked`] a loop at a time: each loop's key
@@ -538,8 +613,7 @@ impl<T: Real> Body<T> {
                 vec![BoundaryMember::Isolated { vertex, point }]
             }
             LoopBoundary::Cycle { first } => self
-                .loop_walk(first)
-                .closed("loop", first)
+                .site_cycle_from(first, lk)
                 .into_iter()
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
@@ -554,6 +628,38 @@ impl<T: Real> Body<T> {
                     BoundaryMember::Edge { he, half, ek, edge }
                 })
                 .collect(),
+        }
+    }
+
+    /// The half-edges of `r#loop` in `next` order from its member `he`,
+    /// every one claiming the loop ([`Body::loop_cycle_of`]).
+    ///
+    /// # Panics
+    ///
+    /// Where the walk does not close or strays out of the loop: on a
+    /// tier-1-valid body a loop's `next` cycle is the half-edges that
+    /// claim it.
+    #[track_caller]
+    pub(crate) fn site_cycle_from(&self, he: HalfEdgeKey, r#loop: LoopKey) -> Vec<HalfEdgeKey> {
+        self.loop_cycle_of(he, r#loop).unwrap_or_else(|| {
+            unreachable!(
+                "the cycle walk of loop {loop:?} from {he:?} does not close on the half-edges \
+                 that claim it: {CYCLES_ARE_CLAIMANTS}",
+                loop = r#loop
+            )
+        })
+    }
+
+    /// The point of `member`'s vertex ([`BoundaryMember::vertex`]): the
+    /// lone vertex's, or the point of the vertex its half-edge starts at,
+    /// a link.
+    #[track_caller]
+    pub(crate) fn member_point(&self, member: &BoundaryMember<'_, T>) -> Point3<T> {
+        match *member {
+            BoundaryMember::Isolated { point, .. } => point,
+            BoundaryMember::Edge { he, half, .. } => {
+                self.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
+            }
         }
     }
 

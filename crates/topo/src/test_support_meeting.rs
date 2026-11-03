@@ -571,8 +571,7 @@ fn corner_sweep(
 
 /// The half-edge cycles of a face's loops, outer first.
 pub fn cycles_of(body: &Body<f64>, f: &Face) -> Vec<Vec<HalfEdgeKey>> {
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    f.loop_keys()
         .filter_map(|l| match body.get_loop(l)?.boundary {
             LoopBoundary::Cycle { first } => body.loop_cycle(first),
             LoopBoundary::Empty { .. } => None,

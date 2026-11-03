@@ -2893,7 +2893,7 @@ pub(super) fn describe_minted_edges<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let worklist = describe_worklist(body, seam_edges, merged)?;
+    let worklist = describe_worklist(body, seam_edges, merged);
     describe_edges(body, worklist, &merged.skipped, band, tol).map_err(of_describe)
 }
 
@@ -2903,7 +2903,7 @@ fn describe_worklist<T: Real>(
     body: &Body<T>,
     seam_edges: &[crate::entity::EdgeKey],
     merged: &crate::merge_faces::MergeCoplanarOutcome,
-) -> Result<Vec<crate::entity::EdgeKey>, BooleanError> {
+) -> Vec<crate::entity::EdgeKey> {
     let mut worklist: Vec<crate::entity::EdgeKey> = Vec::new();
     for &e in seam_edges {
         if body.get_edge(e).is_some() {
@@ -2921,41 +2921,34 @@ fn describe_worklist<T: Real>(
     let skipped = boundary_edges(
         body,
         merged.skipped.iter().flat_map(|s| s.faces.iter().copied()),
-    )
-    .ok_or(BooleanError::JoinDesync {
-        what: "description worklist edge not walkable",
-    })?;
+    );
     worklist.extend(skipped.into_iter().map(|(_, edge)| edge));
-    Ok(worklist)
+    worklist
 }
 
 /// Every boundary edge of each live face in `faces`, once, with the
 /// first listed face that holds it: outer loop then rings, each in
-/// cycle order. A face that no longer resolves contributes nothing;
-/// `None` when a loop of a live face does not walk.
+/// cycle order ([`Body::face_boundary_linked`]). A face that no longer
+/// resolves contributes nothing.
 pub(crate) fn boundary_edges<T: Real>(
     body: &Body<T>,
     faces: impl IntoIterator<Item = FaceKey>,
-) -> Option<Vec<(FaceKey, crate::entity::EdgeKey)>> {
+) -> Vec<(FaceKey, crate::entity::EdgeKey)> {
     let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
     let mut edges = Vec::new();
     for f in faces {
         let Some(face) = body.get_face(f) else {
             continue;
         };
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
-                continue;
-            };
-            for he in body.loop_cycle(first)? {
-                let edge = body.get_half_edge(he)?.edge;
-                if seen.insert(edge) {
-                    edges.push((f, edge));
-                }
+        for member in body.face_boundary_linked(f, face) {
+            if let BoundaryMember::Edge { ek, .. } = member
+                && seen.insert(ek)
+            {
+                edges.push((f, ek));
             }
         }
     }
-    Some(edges)
+    edges
 }
 
 /// The boolean's refusal for an edge its describer could not describe.
@@ -7208,21 +7201,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let l = linked(
-                &body.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loop",
-            );
-            let LoopBoundary::Cycle { first } = l.boundary else {
-                return Err(refuse("the sphere face carries a lone-vertex loop"));
-            };
-            for he in body.loop_walk(first).closed("loop", first) {
-                let hd = proven(&body.half_edges, he, EntityId::HalfEdge);
-                let edge = hd.edge;
-                let ed = proven(&body.edges, edge, EntityId::Edge);
+        for (_, members) in body.face_boundary_by_loop(face, fd) {
+            for member in members {
+                let BoundaryMember::Edge {
+                    half: hd,
+                    ek: edge,
+                    edge: ed,
+                    ..
+                } = member
+                else {
+                    return Err(refuse("the sphere face carries a lone-vertex loop"));
+                };
                 let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
@@ -7390,19 +7379,12 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The two ends' half-edges in the face's one loop.
         let fd = proven(&body.faces, face, EntityId::Face);
         let mut ends = [None, None];
-        for lk in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let l = linked(
-                &body.loops,
-                lk,
-                EntityId::Loop,
-                EntityId::Face(face),
-                "loop",
-            );
-            let LoopBoundary::Cycle { first } = l.boundary else {
-                continue;
-            };
-            for he in body.loop_walk(first).closed("loop", first) {
-                let start = proven(&body.half_edges, he, EntityId::HalfEdge).start;
+        for (lk, members) in body.face_boundary_by_loop(face, fd) {
+            for member in members {
+                let BoundaryMember::Edge { he, half, .. } = member else {
+                    continue;
+                };
+                let start = half.start;
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
                     if start == v {
                         if slot.is_some() {
@@ -10207,12 +10189,12 @@ mod tests {
             killed_vertices: Vec::new(),
         });
         assert_eq!(
-            super::boundary_edges(&prism.body, [kept]).map(|edges| edges.len()),
-            Some(4),
+            super::boundary_edges(&prism.body, [kept]).len(),
+            4,
             "the kept wall has four boundary edges for the worklist to leave out"
         );
         assert!(
-            matches!(super::describe_worklist(&prism.body, &[], &merged), Ok(w) if w.is_empty()),
+            super::describe_worklist(&prism.body, &[], &merged).is_empty(),
             "the boolean's worklist holds none of the kept face's boundary"
         );
     }
@@ -10228,7 +10210,7 @@ mod tests {
             Tol::witness(),
         );
         let faces = [prism.side_faces[0], prism.side_faces[1]];
-        let edges = super::boundary_edges(&prism.body, faces).expect("the walls' loops walk");
+        let edges = super::boundary_edges(&prism.body, faces);
         assert_eq!(
             edges.len(),
             7,

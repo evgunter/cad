@@ -246,7 +246,7 @@ fn shell_darts(body: &Body<f64>, shell: ShellKey) -> Vec<HalfEdgeKey> {
     let mut darts = Vec::new();
     for &face in &shell_data.faces {
         let face_data = body.get_face(face).expect("face resolves");
-        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        for loop_key in face_data.loop_keys() {
             let loop_data = body.get_loop(loop_key).expect("loop resolves");
             if let LoopBoundary::Cycle { first } = loop_data.boundary {
                 darts.extend(body.loop_cycle(first).expect("cycle closes"));

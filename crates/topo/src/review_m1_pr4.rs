@@ -481,9 +481,7 @@ fn some_single_op_reaches(
     }
     // mekr: all four site shapes over all loop pairs of each face.
     for (_, face) in body.faces() {
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .collect();
+        let loops: Vec<LoopKey> = face.loop_keys().collect();
         for &target_l in &loops {
             for &ring in &face.rings {
                 if target_l == ring {
@@ -706,7 +704,7 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
     for &face in &faces {
         let face_data = body.get_face(face).unwrap();
         let mut vs = Vec::new();
-        for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        for l in face_data.loop_keys() {
             match body.get_loop(l).unwrap().boundary {
                 LoopBoundary::Empty { vertex } => vs.push(vertex),
                 LoopBoundary::Cycle { first } => {
@@ -756,7 +754,7 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
         for &face in &comp_faces {
             let face_data = body.get_face(face).unwrap();
             rings += face_data.rings.len();
-            for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+            for l in face_data.loop_keys() {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     for he in body.loop_cycle(first).unwrap() {
                         comp_edges.insert(body.get_half_edge(he).unwrap().edge, ());

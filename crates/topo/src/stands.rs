@@ -62,7 +62,7 @@ use crate::body::Body;
 use crate::boolean::PointInSolidError;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::props::{QuadLane, ShellRole};
 use geom_brep::ladder::Ranked;
 
@@ -441,31 +441,22 @@ fn line_meetings<T: Decide>(
 }
 
 /// Each walkable loop of `face` — its outer loop, then every ring — as
-/// its half-edge cycle. A loop with no cycle (a lone vertex) has no
-/// edge and bounds no area, so it is left out.
+/// its half-edge cycle ([`Body::face_cycles_by_loop`], every hop past
+/// the face a link). A loop with no cycle (a lone vertex) has no edge
+/// and bounds no area, so it is left out.
 fn face_loops<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, LadderRefusal> {
-    let desync = |what| LadderRefusal::Desync { face, what };
-    let f = body
-        .get_face(face)
-        .ok_or(desync("face no longer resolves"))?;
-    let mut out = Vec::new();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(l)
-            .ok_or(desync("face loop no longer resolves"))?
-            .boundary
-        else {
-            continue;
-        };
-        out.push(
-            body.loop_cycle(first)
-                .ok_or(desync("face loop not walkable"))?,
-        );
-    }
-    Ok(out)
+    let f = body.get_face(face).ok_or(LadderRefusal::Desync {
+        face,
+        what: "face no longer resolves",
+    })?;
+    Ok(body
+        .face_cycles_by_loop(face, f)
+        .map(|(_, cycle)| cycle)
+        .filter(|cycle| !cycle.is_empty())
+        .collect())
 }
 
 /// [`face_loops`] as each half-edge's start point.
@@ -630,7 +621,8 @@ mod rung_three_rows {
         let prism = prism_z::<f64>(&square, 0.0, 1.0, tol);
         let mut body = prism.body;
         let outer = body.get_face(prism.top_face).unwrap().outer;
-        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
             panic!("the top face's outer loop is a cycle");
         };
         let center = Point3::new(1.0, 1.0, 1.0);

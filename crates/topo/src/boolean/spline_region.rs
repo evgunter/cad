@@ -794,7 +794,7 @@ impl Trim {
             v: (v0.value_channel(), v1.value_channel()),
         };
         let mut chains = Vec::new();
-        for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        for (lk, _) in body.face_loops_linked(face, face_data) {
             let lift = body.loop_lift(lk).ok()?;
             if lift.is_empty() {
                 return None;

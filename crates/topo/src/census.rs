@@ -2204,11 +2204,6 @@ pub(crate) fn edge_is_line<T: Real>(body: &Body<T>, ek: crate::entity::EdgeKey) 
         .is_some_and(|c| !c.is_curved())
 }
 
-/// Every loop of `face` — the outer, then the rings.
-fn face_loops(face: &Face) -> impl Iterator<Item = LoopKey> + '_ {
-    core::iter::once(face.outer).chain(face.rings.iter().copied())
-}
-
 /// Every loop of `face` with its walk: `Ok(cycle)` for a cycle loop
 /// `body` can walk, `Err(loop)` for one it cannot — a lost loop, an
 /// empty (lone-vertex) loop, an unwalkable cycle. What an unwalkable
@@ -2220,7 +2215,7 @@ pub(crate) fn face_cycles<'a, T: Real>(
     body: &'a Body<T>,
     face: &'a Face,
 ) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
-    face_loops(face).map(move |lk| {
+    face.loop_keys().map(move |lk| {
         let Some(loop_) = body.loops.get(lk) else {
             return Err(lk);
         };
@@ -4609,7 +4604,7 @@ fn boundary_crossings<T: Decide>(
         return None;
     };
     let mut cuts = Vec::new();
-    for lk in face_loops(face) {
+    for lk in face.loop_keys() {
         let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {

@@ -4168,7 +4168,7 @@ fn flat_loops<T: Decide>(
     face: &crate::entity::Face,
 ) -> Result<Vec<FlatLoop<T>>, MassPropsError> {
     let mut loops = Vec::new();
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+    for lk in face.loop_keys() {
         let image = chart_image_edges(body, lk)?;
         if geom_brep::chart_image::bounds_area(&image.0) {
             loops.push(image);
@@ -4984,7 +4984,7 @@ pub(crate) fn seam_region<T: Decide>(
     while let Some(&f) = members.get(i) {
         let rec = face(f)?;
         let first = loops.len();
-        for lk in core::iter::once(rec.outer).chain(rec.rings.iter().copied()) {
+        for (lk, _) in body.face_loops_linked(f, rec) {
             let Ok((edges, hes)) = loop_edges(body, lk) else {
                 return Ok(None);
             };
@@ -5484,7 +5484,7 @@ pub(crate) fn face_tips<T: Decide>(
     face: &crate::entity::Face,
 ) -> Result<Vec<Point3<T>>, LoopEdgesError> {
     let mut held = Vec::new();
-    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+    for lk in face.loop_keys() {
         let (_, cycle) = loop_edges(body, lk)?;
         let tips = crate::surface_boundary::tips(body, &cycle).ok_or(LoopEdgesError::Corrupt {
             what: "half-edge mate does not resolve",

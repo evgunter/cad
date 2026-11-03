@@ -152,6 +152,7 @@ use geom_core::{
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::validate::decide;
@@ -1174,28 +1175,20 @@ fn plane_frame<T: Decide>(
 }
 
 /// Every boundary vertex of a face, outer loop then rings, cycle order
-/// (fixed schedule, D9).
+/// (fixed schedule, D9): [`Body::face_boundary_linked`], every hop past
+/// the face a link. A lone-vertex loop is refused, as a face that does
+/// not resolve is.
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<geom_core::Point3<T>>, ChartRegionError> {
     let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
-    let mut out = Vec::new();
-    for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let loop_data = body.get_loop(lk).ok_or(ChartRegionError::Corrupt)?;
-        let LoopBoundary::Cycle { first } = loop_data.boundary else {
-            return Err(ChartRegionError::Corrupt);
-        };
-        for he in body.loop_cycle(first).ok_or(ChartRegionError::Corrupt)? {
-            let v = body
-                .get_half_edge(he)
-                .ok_or(ChartRegionError::Corrupt)?
-                .start;
-            let pk = body.get_vertex(v).ok_or(ChartRegionError::Corrupt)?.point;
-            out.push(*body.get_point(pk).ok_or(ChartRegionError::Corrupt)?);
-        }
-    }
-    Ok(out)
+    body.face_boundary_linked(face, face_data)
+        .map(|member| match member {
+            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
+            BoundaryMember::Edge { .. } => Ok(body.member_point(&member)),
+        })
+        .collect()
 }
 
 /// **`chart_region_carrier_tilt`** — the metered gate that turns

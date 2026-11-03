@@ -11,7 +11,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, FaceKey, LoopKey};
+use crate::live::BoundaryMember;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::{PointInLoopError, Uncrossable};
@@ -298,16 +299,18 @@ pub(crate) fn boundary<T: Decide>(
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
     let mut null = Vec::new();
-    for (i, &lk) in core::iter::once(&f.outer).chain(&f.rings).enumerate() {
-        let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
-            LoopBoundary::Cycle { first } => first,
-            // A lone ring vertex bounds no area; an outer loop must.
-            LoopBoundary::Empty { .. } if i > 0 => continue,
-            LoopBoundary::Empty { .. } => return Err(corrupt()),
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
+    for (i, (_, members)) in body.face_boundary_by_loop(face, f).enumerate() {
+        for member in members {
+            let BoundaryMember::Edge {
+                ek: edge_key, edge, ..
+            } = member
+            else {
+                // A lone ring vertex bounds no area; an outer loop must.
+                if i == 0 {
+                    return Err(corrupt());
+                }
+                continue;
+            };
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
                 if let Scaffolding::Skipped = scaffolding {
                     let point = |h| {
@@ -867,7 +870,8 @@ pub(crate) fn parallel<T: Decide>(
 #[allow(clippy::unwrap_used)]
 pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
     let outer = body.get_face(face).unwrap().outer;
-    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+    let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+    else {
         unreachable!("the fixture's outer loop is a cycle")
     };
     body.mev_null(

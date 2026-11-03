@@ -1162,7 +1162,7 @@ fn partial_reach<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let mut reach = geom_brep::ExtentBall::point(anchor).lever();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    for (lk, _) in body.face_loops_linked(face, f) {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
     Ok(reach)
@@ -1771,13 +1771,6 @@ pub(crate) fn point_in_face<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    // An empty outer loop bounds no region (mid-op scaffolding never
-    // reaches this query; treat as no-hit).
-    let boundary =
-        |lk, field| linked(&body.loops, lk, EntityId::Loop, EntityId::Face(face), field).boundary;
-    if matches!(boundary(f.outer, "outer"), LoopBoundary::Empty { .. }) {
-        return Ok(Some(false));
-    }
     let region = |lk| -> Result<LoopContainment, PointInSolidError> {
         point_in_loop_projected(body, lk, normal, p, band).map_err(|e| match e {
             PointInLoopError::Uncrossable(cause) => {
@@ -1786,19 +1779,23 @@ pub(crate) fn point_in_face<T: Decide>(
             e => PointInSolidError::Loop(e),
         })
     };
-    match region(f.outer)? {
-        LoopContainment::Out => return Ok(Some(false)),
-        LoopContainment::OnBoundary => return Ok(None),
-        LoopContainment::In => {}
-    }
-    for &ring in &f.rings {
-        if matches!(boundary(ring, "rings"), LoopBoundary::Empty { .. }) {
-            continue; // a lone ring vertex excludes no area
+    for (i, (lk, l)) in body.face_loops_linked(face, f).enumerate() {
+        let outer = i == 0;
+        if let LoopBoundary::Empty { .. } = l.boundary {
+            // An empty outer loop bounds no region (mid-op scaffolding
+            // never reaches this query; treat as no-hit); a lone ring
+            // vertex excludes no area.
+            if outer {
+                return Ok(Some(false));
+            }
+            continue;
         }
-        match region(ring)? {
-            LoopContainment::In => return Ok(Some(false)),
-            LoopContainment::OnBoundary => return Ok(None),
-            LoopContainment::Out => {}
+        match (region(lk)?, outer) {
+            (LoopContainment::OnBoundary, _) => return Ok(None),
+            (LoopContainment::Out, true) | (LoopContainment::In, false) => {
+                return Ok(Some(false));
+            }
+            (LoopContainment::In, true) | (LoopContainment::Out, false) => {}
         }
     }
     Ok(Some(true))
@@ -2369,7 +2366,7 @@ pub(crate) fn selection_reach<T: Decide>(
         let f = body
             .get_face(face)
             .ok_or(PointInSolidError::CorruptFace { face })?;
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        for (l, _) in body.face_loops_linked(face, f) {
             reach = reach.max(loop_extent_from(body, l, q)?);
         }
     }

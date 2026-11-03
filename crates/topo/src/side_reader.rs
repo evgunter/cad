@@ -24,7 +24,8 @@ use crate::boolean::solid_contain::{
     FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, face_plane, ray_crossings,
     selection_reach, side_before, uncrossable,
 };
-use crate::entity::{EntityId, FaceKey, LoopBoundary};
+use crate::entity::{EntityId, FaceKey};
+use crate::live::proven;
 use crate::ray_walk::RayFault;
 
 /// An aimed ray's rows ([`side_at_infinity`]).
@@ -367,9 +368,9 @@ fn aim_at<T: Decide>(
 /// outer loop has none.
 fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option<Point3<T>> {
     let edges = body.proven_face_edges(face);
-    let outer = body.get_face(face)?.outer;
+    let outer = proven(&body.faces, face, EntityId::Face).outer;
     let first = *edges.first()?;
-    if body.get_half_edge(first.half)?.parent_loop != outer {
+    if proven(&body.half_edges, first.half, EntityId::HalfEdge).parent_loop != outer {
         return None;
     }
     let curve = |e: crate::entity::EdgeKey| {
@@ -449,7 +450,9 @@ fn beyond<T: Decide>(
 ///   pyramid's opposite flanks at its apex): some half-edge of one starts
 ///   where a half-edge of the other does.
 ///
-/// Both faces' loops are walked in place; nothing is collected.
+/// Both faces' loops are walked in place, a loop at a time; `a` and `b`
+/// are faces a ray crossed, so a stale one panics
+/// ([`Body::proven_face_boundary`]).
 pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
     if a == b {
         return true;
@@ -457,15 +460,8 @@ pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -
     // Not `Body::proven_face_edges`, which collects and resolves every mate: this reads
     // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
-        body.get_face(face)
-            .into_iter()
-            .flat_map(|f| core::iter::once(f.outer).chain(f.rings.iter().copied()))
-            .filter_map(|l| match body.get_loop(l)?.boundary {
-                LoopBoundary::Cycle { first } => Some(body.loop_walk(first).closed("loop", first)),
-                LoopBoundary::Empty { .. } => None,
-            })
-            .flatten()
-            .filter_map(|h| body.get_half_edge(h).map(|he| he.start))
+        body.proven_face_boundary(face)
+            .filter_map(|member| member.half_edge().map(|_| member.vertex()))
     };
     starts(a).any(|v| starts(b).any(|w| w == v))
 }

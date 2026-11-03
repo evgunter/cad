@@ -2181,14 +2181,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // (`work/shell/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`).
         if !outcome.groups.is_empty() {
             let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
-            let Some(boundary) =
-                crate::boolean::boundary_edges(&work, outcome.groups.iter().map(|g| g.kept))
-            else {
-                unreachable!(
-                    "merge_coplanar_faces: a kept face's loop does not walk, on a result that \
-                     passed tier 1 and tier 2 a statement ago"
-                )
-            };
+            let boundary =
+                crate::boolean::boundary_edges(&work, outcome.groups.iter().map(|g| g.kept));
             // The describer reads the records for the scaffold a
             // recorded skip leaves between its faces.
             let records: Vec<SkippedMerge> = outcome.skipped.clone();
@@ -3162,13 +3156,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let mut positive: Vec<(Option<usize>, LoopKey)> = Vec::new();
         let mut zero = None;
         let mut unsupported = None;
-        let slots = core::iter::once((None, survivor.outer)).chain(
-            survivor
-                .rings
-                .iter()
-                .enumerate()
-                .map(|(i, &r)| (Some(i), r)),
-        );
+        let slots = self
+            .face_loops_linked(face, survivor)
+            .enumerate()
+            .map(|(i, (lk, _))| (i.checked_sub(1), lk));
         for (slot, l) in slots {
             match self.loop_winding(l, normal, band)? {
                 LoopWinding::Wound(Decided {

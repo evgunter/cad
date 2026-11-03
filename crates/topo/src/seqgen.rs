@@ -769,9 +769,7 @@ fn kemr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 fn mekr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (_, face) in body.faces() {
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .collect();
+        let loops: Vec<LoopKey> = face.loop_keys().collect();
         for &target in &loops {
             for &ring in &face.rings {
                 if target == ring {
@@ -942,7 +940,7 @@ fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>>
         let mut pending = vec![seed];
         while let Some(face_key) = pending.pop() {
             let face = body.get_face(face_key).expect("face resolves");
-            for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for loop_key in face.loop_keys() {
                 let LoopBoundary::Cycle { first } =
                     body.get_loop(loop_key).expect("loop resolves").boundary
                 else {
@@ -1863,7 +1861,7 @@ fn first_empty_ring_site(body: &Body<f64>) -> Option<MekrSite> {
                 continue;
             };
             // Prefer a cycle target (outer first, then other rings).
-            for target in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for target in face.loop_keys() {
                 if target == ring {
                     continue;
                 }

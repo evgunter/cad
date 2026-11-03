@@ -1373,7 +1373,7 @@ impl<T: Real> Body<T> {
             "face",
         );
         assert!(
-            data.outer == parent || data.rings.contains(&parent),
+            data.holds_loop(parent),
             "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
              body a loop's face lists it"
         );

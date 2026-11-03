@@ -92,8 +92,9 @@ use crate::attach::{Named, Rechart};
 use crate::body::Body;
 use crate::boolean::{CarryRefusal, Cell};
 use crate::chord_join::SplitJoinError;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
+use crate::live::{BoundaryMember, linked, proven};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -641,8 +642,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
         return Err(SplitFinishError::Corrupt);
     }
     let skipped_faces = merged.skipped.iter().flat_map(|s| s.faces.iter().copied());
-    let boundary =
-        crate::boolean::boundary_edges(body, skipped_faces).ok_or(SplitFinishError::Corrupt)?;
+    let boundary = crate::boolean::boundary_edges(body, skipped_faces);
     if !boundary.is_empty() {
         let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
         crate::boolean::describe_edges(
@@ -1370,8 +1370,8 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             Rechart::new(plane_for(other_side), section.face, outer_sense),
         ];
         let stranded = body.stranded_by(&charts)?;
-        let mut restated = section_plane_restatements(&body, promoted.face, &stranded)?;
-        restated.extend(section_plane_restatements(&body, section.face, &stranded)?);
+        let mut restated = section_plane_restatements(&body, promoted.face, &stranded);
+        restated.extend(section_plane_restatements(&body, section.face, &stranded));
         rechart_section(&mut body, charts, &restated, tol)?;
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
@@ -1595,7 +1595,7 @@ fn ring_into<T: Decide + crate::props::AtRestPolicy>(
         .surface;
     let charts = vec![Rechart::shared(chart, face, false)];
     let stranded = body.stranded_by(&charts)?;
-    let restated = section_plane_restatements(body, face, &stranded)?;
+    let restated = section_plane_restatements(body, face, &stranded);
     rechart_section(body, charts, &restated, tol)?;
     body.kfmrh(parent, face)?;
     Ok(())
@@ -1710,30 +1710,31 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
 /// that image as the chart the face moves onto, or, where the edge's
 /// other face keeps the chart, as that chart itself
 /// ([`Body::rechart_restating`], which restates the carrier and
-/// interval). A declared authority travels verbatim.
+/// interval). A declared authority travels verbatim. `face` is a face
+/// the split made, so a stale one panics ([`proven`]), as a miss on the
+/// walk of its loops does ([`Body::face_boundary_by_loop`]).
 pub(crate) fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     stranded: &[EdgeKey],
-) -> Result<Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)>, SplitFinishError> {
-    let corrupt = || SplitFinishError::Corrupt;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+) -> Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> {
+    let face_data = proven(&body.faces, face, EntityId::Face);
     let chart = face_data.surface;
-    let loops: Vec<_> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect();
     let mut out: Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> = Vec::new();
-    for lk in loops {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+    for (_, members) in body.face_boundary_by_loop(face, face_data) {
+        for member in members {
+            let BoundaryMember::Edge {
+                ek: edge,
+                edge: edge_data,
+                ..
+            } = member
+            else {
+                continue;
+            };
             if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
-            let edge_data = body.get_edge(edge).ok_or_else(corrupt)?;
-            let geom = body.get_curve_geom(edge_data.curve).ok_or_else(corrupt)?;
+            let geom = body.edge_curve_linked(edge, edge_data);
             let Some(curve) = geom.certified() else {
                 continue;
             };
@@ -1754,7 +1755,7 @@ pub(crate) fn section_plane_restatements<T: Decide>(
             out.push((edge, description));
         }
     }
-    Ok(out)
+    out
 }
 
 /// D6 (M3 PR 6a): describes every boundary edge of one just-promoted
@@ -1794,7 +1795,10 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// the writes to the edges before it. Its curve is a link
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]; a rewritten edge's old curve
 /// goes only once orphaned, [`Body::remove_curve_if_orphaned`]): a torn
-/// one panics, and is not an edge with no description.
+/// one panics, and is not an edge with no description. `face` is the
+/// face the split promoted and its loops are links, so their walk is
+/// read once, before the writes, which describe edges and move none
+/// ([`Body::proven_face_cycles`]).
 pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -1802,16 +1806,8 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
-    let face_data = body.get_face(face).ok_or_else(corrupt)?;
-    let s_self = face_data.surface;
-    let loops: Vec<_> = core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
-        .collect();
-    for lk in loops {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
-            continue;
-        };
-        let hes = body.loop_cycle(first).ok_or_else(corrupt)?;
+    let s_self = proven(&body.faces, face, EntityId::Face).surface;
+    for (_, hes) in body.proven_face_cycles(face) {
         for he in hes {
             let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
             let edge_data = body.get_edge(edge).cloned().ok_or_else(corrupt)?;
@@ -2129,20 +2125,12 @@ fn classify_shell<T: Decide>(
     // No section face: an uncut component — classify by its first
     // off-plane vertex (deterministic face-list/cycle order walk).
     for &face in &shell_data.faces {
-        let face_data = body.get_face(face).ok_or(SplitFinishError::Corrupt)?;
-        for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let loop_data = body.get_loop(l).ok_or(SplitFinishError::Corrupt)?;
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
+        for member in body.proven_face_boundary(face) {
+            let BoundaryMember::Edge { half, .. } = member else {
                 continue;
             };
-            for he in body.loop_cycle(first).ok_or(SplitFinishError::Corrupt)? {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or(SplitFinishError::Corrupt)?
-                    .start;
-                if let Some(&s @ (PlaneSide::Above | PlaneSide::Below)) = sides.get(v) {
-                    return Ok((s, has_real_face));
-                }
+            if let Some(&s @ (PlaneSide::Above | PlaneSide::Below)) = sides.get(half.start) {
+                return Ok((s, has_real_face));
             }
         }
     }
@@ -2182,24 +2170,18 @@ pub(crate) fn carve<T: Decide>(
         let shell_data = body.get_shell(shell).ok_or_else(corrupt)?;
         for &face in &shell_data.faces {
             faces.push(face);
-            let face_data = body.get_face(face).ok_or_else(corrupt)?;
-            for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+            let holder = EntityId::Shell(shell);
+            let face_data = linked(&body.faces, face, EntityId::Face, holder, "faces");
+            for (l, members) in body.face_boundary_by_loop(face, face_data) {
                 loops.push(l);
-                match body.get_loop(l).ok_or_else(corrupt)?.boundary {
-                    LoopBoundary::Empty { vertex } => {
-                        vertices.insert(vertex, ());
-                    }
-                    LoopBoundary::Cycle { first } => {
-                        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                            hes.push(he);
-                            let he_data = body.get_half_edge(he).ok_or_else(corrupt)?;
-                            vertices.insert(he_data.start, ());
-                            // Each edge is claimed by its he_plus only
-                            // (one removal per edge).
-                            let edge = body.get_edge(he_data.edge).ok_or_else(corrupt)?;
-                            if edge.he_plus == he {
-                                edges.push(he_data.edge);
-                            }
+                for member in members {
+                    vertices.insert(member.vertex(), ());
+                    if let BoundaryMember::Edge { he, ek, edge, .. } = member {
+                        hes.push(he);
+                        // Each edge is claimed by its he_plus only (one
+                        // removal per edge).
+                        if edge.he_plus == he {
+                            edges.push(ek);
                         }
                     }
                 }

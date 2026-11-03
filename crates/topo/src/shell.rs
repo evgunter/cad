@@ -2734,13 +2734,8 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     let interior = interior_edges(body, faces);
     let mut boundary: Vec<HeKey> = faces
         .iter()
-        .flat_map(|&f| {
-            let data = proven(&body.faces, f, EntityId::Face);
-            core::iter::once(data.outer)
-                .chain(data.rings.iter().copied())
-                .flat_map(|lk| cycle_of(body, lk))
-                .collect::<Vec<_>>()
-        })
+        .flat_map(|&f| body.proven_face_cycles(f))
+        .flat_map(|(_, cycle)| cycle)
         .filter(|&he| !interior.contains(&proven(&body.half_edges, he, EntityId::HalfEdge).edge))
         .collect();
     while let Some(start) = boundary.pop() {
@@ -5118,7 +5113,7 @@ fn moved_walls<T: Decide>(
         let mut edges = Vec::new();
         let mut vertices = Vec::new();
         let mut points = Vec::new();
-        for (_, cycle) in crate::pcurves::face_loop_walks(cavity, face) {
+        for (_, cycle) in cavity.proven_face_cycles(face) {
             let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
                 .iter()
                 .map(|&he| {

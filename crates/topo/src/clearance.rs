@@ -122,10 +122,11 @@ use crate::FaceContainment;
 use crate::cell_region::{
     Ball, BoundaryStop, CellRegion, cell_region_lifted, centre, lift_boundary, station_region,
 };
-use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::injective::{
     self, Axis, Boundary, Iso, Local, Near, Outcome, Piece, Rim, Shared, Use, full_turn,
 };
+use crate::live::BoundaryMember;
 use lift::{Lift, certified_lift};
 
 /// The funnel site name of the clearance comparison — the separation
@@ -3436,7 +3437,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             // which would wind once. So a boundary winding nowhere
             // leaves the apex off the face, or `0` inside `slant`.
             let slant = (extent - *apex).dot(*axis) / half_angle.cos();
-            let v = if winds_nowhere(body, f) {
+            let v = if winds_nowhere(body, face, f) {
                 (slant.lo(), slant.hi())
             } else {
                 (slant.lo().min(0.0), slant.hi().max(0.0))
@@ -3473,33 +3474,28 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
 
 /// **Whether a face's boundary winds nowhere**: the elements of all its
 /// joints, over every loop together, compose to the identity with no
-/// reset. A missing joint, a loop that does not close, or an outer loop
-/// with no edges reads as winding.
+/// reset. A missing joint, or an outer loop with no edges, reads as
+/// winding; every hop of the walk is a link
+/// ([`Body::face_boundary_by_loop`]).
 ///
 /// On a cone a reset is written at a joint on the apex
 /// ([`crate::joint`]); absent one, the composed `u` of the whole
 /// boundary is its winding about the axis. What a total of zero tells
 /// [`window_of`] is argued there.
-fn winds_nowhere<T: Decide>(body: &Body<T>, f: &Face) -> bool {
+fn winds_nowhere<T: Decide>(body: &Body<T>, face: FaceKey, f: &Face) -> bool {
     let mut elements = Vec::new();
-    for (i, lk) in core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
-        .enumerate()
-    {
-        match body.get_loop(lk).map(|l| l.boundary) {
-            Some(LoopBoundary::Cycle { first }) => {
-                let Some(cycle) = body.loop_cycle(first) else {
+    for (i, (_, members)) in body.face_boundary_by_loop(face, f).enumerate() {
+        for member in members {
+            let Some(he) = member.half_edge() else {
+                if i == 0 {
                     return false;
-                };
-                for he in cycle {
-                    let Some(e) = body.joint(he) else {
-                        return false;
-                    };
-                    elements.push(e);
                 }
-            }
-            Some(LoopBoundary::Empty { .. }) if i > 0 => {}
-            _ => return false,
+                continue;
+            };
+            let Some(e) = body.joint(he) else {
+                return false;
+            };
+            elements.push(e);
         }
     }
     crate::joint::Winding::of(elements).is_zero()
@@ -3726,10 +3722,11 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// over its OWN parameter interval — interval arithmetic does the
 /// bounding, so a circular edge's bulge is enclosed rather than chorded
 /// away — together with the boundary's vertex points, each lifted
-/// through [`Interval::from_certified`]. `None` for a face whose
-/// boundary this cannot walk, one of whose edges carries no certified
-/// curve, or one any of whose lifted values does not certify: an
-/// unclaimable extent, never a silently smaller one.
+/// through [`Interval::from_certified`]. `None` for a face that does not
+/// resolve, one of whose edges carries no certified curve, or one any of
+/// whose lifted values does not certify: an unclaimable extent, never a
+/// silently smaller one. The walk past the face is
+/// [`Body::face_boundary_by_loop`]'s, every hop a link.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
@@ -3752,60 +3749,55 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         };
         let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
         let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
-        for &lk in core::iter::once(&f.outer).chain(&f.rings) {
-            let l = body.get_loop(lk)?;
-            match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    let p = point(body.get_point(body.get_vertex(vertex)?.point)?);
-                    out.vertices.insert(vertex, p);
-                    pts.push(p);
+        for (lk, members) in body.face_boundary_by_loop(face, f) {
+            let mut cycle = false;
+            for member in &members {
+                let p = point(&body.member_point(member));
+                out.vertices.insert(member.vertex(), p);
+                pts.push(p);
+                if let BoundaryMember::Edge { he, ek, .. } = *member {
+                    halves.entry(ek).or_default().push(he);
+                    cycle = true;
                 }
-                LoopBoundary::Cycle { first } => {
-                    for he in body.loop_cycle(first)? {
-                        let h = body.get_half_edge(he)?;
-                        let p = point(body.get_point(body.get_vertex(h.start)?.point)?);
-                        out.vertices.insert(h.start, p);
-                        pts.push(p);
-                        halves.entry(h.edge).or_default().push(he);
-                    }
-                    if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
-                        if lk == f.outer {
-                            let surface = body.face_surface_linked(face, f);
-                            let periodic =
-                                [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
-                            out.extent = extent_of(
-                                periodic,
-                                rows.iter().map(|row| {
-                                    let (t0, t1) = row.row.params();
-                                    let end = |t: T| {
-                                        let q = row.pcurve.eval(t);
-                                        [lift.of(q.x), lift.of(q.y)]
-                                    };
-                                    row_of(
-                                        &row.pcurve,
-                                        (lift.of(t0), lift.of(t1)),
-                                        [end(t0), end(t1)],
-                                        lift,
-                                    )
-                                }),
-                            );
-                        }
-                        for row in rows {
-                            let (t0, t1) = row.row.params();
-                            let end = |t: T| {
-                                let q = row.pcurve.eval(t);
-                                Point2::new(lift.of(q.x), lift.of(q.y))
-                            };
-                            images.insert(
-                                row.half_edge,
-                                (
+            }
+            if cycle {
+                if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+                    if lk == f.outer {
+                        let surface = body.face_surface_linked(face, f);
+                        let periodic =
+                            [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
+                        out.extent = extent_of(
+                            periodic,
+                            rows.iter().map(|row| {
+                                let (t0, t1) = row.row.params();
+                                let end = |t: T| {
+                                    let q = row.pcurve.eval(t);
+                                    [lift.of(q.x), lift.of(q.y)]
+                                };
+                                row_of(
+                                    &row.pcurve,
+                                    (lift.of(t0), lift.of(t1)),
                                     [end(t0), end(t1)],
-                                    iso_of(&row.pcurve, lift),
-                                    harmonic_of(&row.pcurve, lift),
-                                    wall_of(&row.pcurve, lift),
-                                ),
-                            );
-                        }
+                                    lift,
+                                )
+                            }),
+                        );
+                    }
+                    for row in rows {
+                        let (t0, t1) = row.row.params();
+                        let end = |t: T| {
+                            let q = row.pcurve.eval(t);
+                            Point2::new(lift.of(q.x), lift.of(q.y))
+                        };
+                        images.insert(
+                            row.half_edge,
+                            (
+                                [end(t0), end(t1)],
+                                iso_of(&row.pcurve, lift),
+                                harmonic_of(&row.pcurve, lift),
+                                wall_of(&row.pcurve, lift),
+                            ),
+                        );
                     }
                 }
             }

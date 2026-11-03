@@ -1632,7 +1632,7 @@ fn a_section_rechart_of_an_arc_past_a_turn_is_a_kernel_bug() {
     let charts = vec![crate::attach::Rechart::shared(onto, split.face, true)];
     let stranded = body.stranded_by(&charts).unwrap();
     let restated =
-        crate::splitting::finish::section_plane_restatements(&body, split.face, &stranded).unwrap();
+        crate::splitting::finish::section_plane_restatements(&body, split.face, &stranded);
     assert!(
         restated.iter().any(|(e, _)| *e == split.edge),
         "the re-chart strands the planted arc: {restated:?}"
@@ -2970,7 +2970,7 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
     let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     for &face in &body.get_shell(shell).expect("a live shell").faces {
         let f = body.get_face(face).expect("a live face");
-        for &lp in core::iter::once(&f.outer).chain(f.rings.iter()) {
+        for lp in f.loop_keys() {
             let crate::entity::LoopBoundary::Cycle { first } =
                 body.get_loop(lp).expect("a live loop").boundary
             else {

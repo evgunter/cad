@@ -304,6 +304,25 @@ pub struct Face {
     pub shell: ShellKey,
 }
 
+impl Face {
+    /// **The face's loops, in the one order every walk of its boundary
+    /// takes**: the outer loop, then the rings in order.
+    ///
+    /// The keys as the record holds them, unresolved. A walk of a body
+    /// in this crate resolves them through `Body::face_loops_linked`,
+    /// whose every hop is a link that panics on a miss; this is the
+    /// reader for a walk that reports a miss itself (the validators), or
+    /// that hands each loop to a door that resolves it.
+    pub fn loop_keys(&self) -> impl Iterator<Item = LoopKey> + '_ {
+        core::iter::once(self.outer).chain(self.rings.iter().copied())
+    }
+
+    /// Whether `r#loop` is one of the face's loops ([`Face::loop_keys`]).
+    pub fn holds_loop(&self, r#loop: LoopKey) -> bool {
+        self.loop_keys().any(|lk| lk == r#loop)
+    }
+}
+
 /// The boundary state of a loop: a genuine cycle of half-edges, or the
 /// *empty loop* degenerate state — a lone vertex, no edges at all.
 ///
