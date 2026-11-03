@@ -3500,7 +3500,7 @@ mod rim_seam_rows {
     /// maps to rather than a body that reaches it.
     #[test]
     fn a_mixed_rim_seam_refuses_naming_its_stations() {
-        let stations = geom_brep::MixedStations {
+        let stations = geom_brep::MixedStations::Class {
             transverse: 3,
             smooth: 4,
         };

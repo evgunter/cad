@@ -170,7 +170,7 @@ impl<T: Real> Placing<T> {
 /// There is a **third path**, and the grep does not see it: a
 /// `geom-brep` predicate this crate calls records under its own name,
 /// from its own crate. `geom_brep::classify_dihedral`,
-/// `classify_material_pairing` and — since FILLET-H6 hoisted the
+/// `geom_brep::Tangency::pairing` and — since FILLET-H6 hoisted the
 /// must-carry rule out of two hand-rolled spellings here —
 /// `geom_brep::tangent_second_order` each reach the recorder that way,
 /// so `dihedral_arm`, `dihedral_wedge`, `material_wedge_side` and

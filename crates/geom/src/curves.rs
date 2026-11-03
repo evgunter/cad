@@ -69,7 +69,8 @@ use crate::azimuth;
 use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
-    CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep, ellipse_level_clearance,
+    CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
+    PieceWalkRefusal, ellipse_level_clearance,
 };
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
@@ -207,6 +208,94 @@ pub enum CurveKind {
     Spiric,
     /// A [`Curve3::Nurbs`], described or the placeholder.
     Nurbs,
+}
+
+impl<T: SpanLocate> Curve3<T> {
+    /// **Whether `other` is this carrier by content**: one kind, and
+    /// every value that states it one plain constant
+    /// ([`SpanLocate::plain_constant`]) equal to its counterpart. Exact,
+    /// not margined: it answers whether two carriers are one stated
+    /// value, as a restatement verbatim makes them (a split's two
+    /// children), never whether two statements describe one locus. A
+    /// value carrying anything beyond its constant (an interval wider
+    /// than a point, a derivative, a symbol) answers no.
+    #[must_use]
+    pub fn same_content(&self, other: &Self) -> bool {
+        let same = |a: T, b: T| matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y);
+        let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
+        let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
+        let frame = |f: &Frame<T>, g: &Frame<T>| {
+            let Frame {
+                origin: center,
+                axis,
+                u_ref,
+            } = *f;
+            let Frame {
+                origin: c,
+                axis: a,
+                u_ref: u,
+            } = *g;
+            point(center, c) && vec(axis, a) && vec(u_ref, u)
+        };
+        match (self, other) {
+            (Self::Line(Line { origin, dir }), Self::Line(Line { origin: o, dir: d })) => {
+                point(*origin, *o) && vec(*dir, *d)
+            }
+            (
+                Self::Circle(Circle { frame: f, radius }),
+                Self::Circle(Circle {
+                    frame: g,
+                    radius: r,
+                }),
+            ) => frame(f, g) && same(*radius, *r),
+            (
+                Self::Ellipse(Ellipse {
+                    frame: f,
+                    semi_u,
+                    semi_v,
+                }),
+                Self::Ellipse(Ellipse {
+                    frame: g,
+                    semi_u: su,
+                    semi_v: sv,
+                }),
+            ) => frame(f, g) && same(*semi_u, *su) && same(*semi_v, *sv),
+            (
+                Self::Spiric {
+                    center,
+                    axis,
+                    u_ref,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                },
+                Self::Spiric {
+                    center: c,
+                    axis: a,
+                    u_ref: u,
+                    major_radius: big,
+                    minor_radius: small,
+                    offset: off,
+                },
+            ) => {
+                point(*center, *c)
+                    && vec(*axis, *a)
+                    && vec(*u_ref, *u)
+                    && same(*major_radius, *big)
+                    && same(*minor_radius, *small)
+                    && same(*offset, *off)
+            }
+            (Self::Nurbs(n), Self::Nurbs(m)) => n.same_content(m, same),
+            (
+                Self::Line(_)
+                | Self::Circle(_)
+                | Self::Ellipse(_)
+                | Self::Spiric { .. }
+                | Self::Nurbs(_),
+                _,
+            ) => false,
+        }
+    }
 }
 
 impl<T: Real> Curve3<T> {
@@ -571,6 +660,19 @@ impl<T: Real> Curve3<T> {
             Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
                 None
             }
+        }
+    }
+
+    /// **Whether the carrier's parameter is an angle**: a circle, an
+    /// ellipse and a spiric oval repeat every turn, so a parameter names
+    /// its point modulo `τ`; a line and a spline do not. The one reading
+    /// of a carrier's period, matched exhaustively so a new kind decides
+    /// here.
+    #[must_use]
+    pub fn is_periodic(&self) -> bool {
+        match self {
+            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
+            Curve3::Line(_) | Curve3::Nurbs(_) => false,
         }
     }
 
@@ -1457,7 +1559,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// flip, and decided by two unrelated last bits.
     pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
         match self {
-            Curve3::Line(Line { origin, dir }) => Some((p - *origin).dot(*dir)),
+            Curve3::Line(line) => Some(line.param(p)),
             Curve3::Circle(c) => Some(c.param_near(p, near)),
             Curve3::Ellipse(e) => Some(e.param_near(p, near)),
             Curve3::Spiric {
@@ -1507,6 +1609,26 @@ mod tests {
             assert!(
                 (p - foot).dot(line.dir).abs() < 1e-12,
                 "|dir| = {scale}: the way to the foot is square to the line"
+            );
+        }
+    }
+
+    /// **A line's `param_near` is its foot's parameter at any `dir`
+    /// length**: the parameter whose point is the foot, so a reading that
+    /// took `dir` as unit, `t·|dir|²`, fails at every length but one.
+    #[test]
+    fn a_lines_param_near_is_its_foots_at_any_dir_length() {
+        let origin = Point3::new(0.5, -1.0, 2.0);
+        let p = Point3::new(3.0, 1.0, -0.5);
+        for scale in [0.25, 3.0] {
+            let line = Line {
+                origin,
+                dir: Vec3::new(1.0, -2.0, 2.0) / 3.0 * scale,
+            };
+            let t = Curve3::Line(line).param_near(p, 0.0).unwrap();
+            assert!(
+                (line.origin + line.dir * t - line.foot(p)).norm() < 1e-12,
+                "|dir| = {scale}: param_near's point is the foot"
             );
         }
     }

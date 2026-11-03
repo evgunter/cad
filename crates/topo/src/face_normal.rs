@@ -63,18 +63,7 @@
 //! negates a value under the bit by hand, the sanctioned scalar
 //! negations named).
 //!
-//! The door sits at the crate root because its consumers are in two
-//! lanes: the boolean's planar consumers reach it through
-//! `boolean::reduce::face_plane` and the pierce lane directly, while the shared [`crate::sector_face`] walk serves
-//! the splitting lane too — a module under `boolean/` could not be the
-//! one door for both without a wrong-way edge.
-//!
-//! **A better home exists and is not reachable from this lane.**
-//! The function is a `Body` query, exactly like `Body::mate` or
-//! `Body::loop_cycle`, and belongs as an inherent method on
-//! [`Body`]. That is `body.rs`, outside the scope
-//! this module was created under; it is recorded on issue #695 with
-//! the rest of the placement questions.
+//! Its home follows `[topo.homes]` (`crates/topo/README.md`).
 
 use geom_brep::recourse::Refused;
 use geom_brep::{OutwardNormal, TorusConvention};

@@ -3396,7 +3396,8 @@ fn co_requested_trim<T: Decide>(
         .find(|l| l.edge == edge)
     {
         let (origin, dir) = open_trimline(l, face)?;
-        let at = |p: Point3<T>| (p - origin).dot(dir) / dir.dot(dir);
+        let line = geom::Line { origin, dir };
+        let at = |p: Point3<T>| line.param(p);
         let window = (at(stored.eval(ta)), at(stored.eval(tb)));
         return Ok(Some((Curve3::Line(geom::Line { origin, dir }), window)));
     }

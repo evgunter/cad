@@ -154,6 +154,8 @@ mod curves_review_m5_pr3_attack;
 mod curves_review_m5_pr3_attack_interval;
 #[path = "curves/review_m5_pr4_adversarial.rs"]
 mod curves_review_m5_pr4_adversarial;
+#[path = "curves/same_content.rs"]
+mod curves_same_content;
 #[path = "curves/second_derivative.rs"]
 mod curves_second_derivative;
 #[path = "curves/span_window_pairing.rs"]

@@ -116,13 +116,23 @@ fn the_closed_form_door_refuses_a_general_image() {
     assert!(
         matches!(
             got,
-            Err(PcurveCertifyError::ImageMismatch {
+            Err(PcurveCertifyError::FittedGradeAtClosedFormDoor {
                 image: geom_brep::PcurveKind::General,
-                ..
             })
         ),
         "the closed-form door has no general arm: {got:?}"
     );
+    // A call at the wrong door, not the kernel's defect: its lever is the
+    // door the image certifies at, at every reading.
+    let got = got.unwrap_err();
+    for at in [Reading::Build, Reading::AtRest] {
+        let text = got.render(at);
+        assert!(
+            text.ends_with(geom_brep::pcurve_cache::FITTED_GRADE_DOOR_RECOURSE)
+                && !text.contains("defect"),
+            "{at:?}: {text}"
+        );
+    }
 }
 
 /// **An analytic chart holds no fitted-grade image.** Its image of a
@@ -553,8 +563,8 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
             "{name}: check 4's hull reads the bend at its break"
         );
         assert_eq!(
-            refusal.ending(Reading::AtRest).as_deref(),
-            Some(geom_brep::recourse::defect_ending(Reading::AtRest)),
+            refusal.ending(Reading::AtRest),
+            geom_brep::recourse::defect_ending(Reading::AtRest),
             "{name}: a stored image a millimetre off is a stored contradiction: {refusal_at}",
             refusal_at = refusal.render(geom_brep::recourse::Reading::Build)
         );

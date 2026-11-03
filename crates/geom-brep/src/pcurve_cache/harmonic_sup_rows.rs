@@ -841,7 +841,7 @@ fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet() {
                 lane_gaps += 1;
             }
             for reading in [Reading::Build, Reading::AtRest] {
-                let ending = e.ending(reading).unwrap_or_default();
+                let ending = e.ending(reading);
                 let not_yet = ending.starts_with(geom_core::NOT_YET_ENDING)
                     && !ending.contains("defect")
                     && !ending.contains("tolerance");
