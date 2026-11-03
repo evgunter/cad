@@ -148,7 +148,6 @@ fn assert_placed(
     truth: &[f64],
     eps: f64,
 ) {
-    let (apex, _, _) = parts(s);
     let mut got = roots.to_vec();
     got.sort_by(f64::total_cmp);
     assert_eq!(
@@ -157,21 +156,75 @@ fn assert_placed(
         "{label}: {got:?} certified, the quadric form changes sign at {truth:?}"
     );
     for (g, t) in got.iter().zip(truth) {
-        let step = 1e-7;
-        let (before, after) = (e.eval(t - step), e.eval(t + step));
-        let speed = (after - before).norm() / (2.0 * step);
-        let slope = (form(s, after) - form(s, before)) / (2.0 * step);
-        let p = e.eval(*t);
-        let q = (p - apex).norm();
-        let rounding = 8.0 * f64::EPSILON * q * (q + (p - Point3::origin()).norm());
-        let resolved = speed * rounding / slope.abs();
-        let along = (e.eval(*g) - p).norm();
+        let resolved = resolution(e, s, *t);
+        let along = (e.eval(*g) - e.eval(*t)).norm();
         assert!(
             along <= eps + resolved,
             "{label}: the root {g} lies {along:e} along the arc from the oracle's {t} \
              ({resolved:e} unresolved)"
         );
     }
+}
+
+/// The oracle's own resolution at its crossing `t`, along the arc: the
+/// quadric form's rounding there over its slope along the carrier.
+fn resolution(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t: f64) -> f64 {
+    let (apex, _, _) = parts(s);
+    let step = 1e-7;
+    let (before, after) = (e.eval(t - step), e.eval(t + step));
+    let speed = (after - before).norm() / (2.0 * step);
+    let slope = (form(s, after) - form(s, before)) / (2.0 * step);
+    let p = e.eval(t);
+    let q = (p - apex).norm();
+    let rounding = 8.0 * f64::EPSILON * q * (q + (p - Point3::origin()).norm());
+    speed * rounding / slope.abs()
+}
+
+/// **A certified answer holds against the oracle round the turn about
+/// `mid`, the apex's double root included.** Every root lies on the
+/// double cone, within `eps` of it. A root within `eps` of the apex is
+/// the carrier through it (`through_the_apex`): there are none or two,
+/// and they stand only for the oracle's crossings within `eps` of them
+/// along the arc (at most two; a carrier through the apex alone has
+/// none). Every other crossing of the oracle is one of the door's other
+/// roots, one for one and in its place ([`assert_placed`]): a genuine
+/// crossing beside the apex that the double root swallowed is counted
+/// missing.
+fn assert_holds(
+    label: &str,
+    e: &geom::Curve3<f64>,
+    s: &geom::Surface<f64>,
+    roots: &[f64],
+    mid: f64,
+    eps: f64,
+) {
+    let (tip, _, _) = parts(s);
+    for &t in roots {
+        let off = distance(s, e.eval(t));
+        assert!(off <= eps, "{label}: root {t} lies {off} off the cone");
+    }
+    let truth = crossings(|t| form(s, e.eval(t)), mid - PI, mid + PI);
+    let (at_apex, off_apex): (Vec<f64>, Vec<f64>) = roots
+        .iter()
+        .partition(|&&t| (e.eval(t) - tip).norm() <= eps);
+    if at_apex.is_empty() {
+        assert_placed(label, e, s, &off_apex, &truth, eps);
+        return;
+    }
+    assert_eq!(
+        at_apex.len(),
+        2,
+        "{label}: the apex's double root, got {roots:?}"
+    );
+    let apex_root = e.eval(at_apex[0]);
+    let (beside, others): (Vec<f64>, Vec<f64>) = truth
+        .iter()
+        .partition(|&&t| (e.eval(t) - apex_root).norm() <= eps + resolution(e, s, t));
+    assert!(
+        beside.len() <= 2,
+        "{label}: the apex's double root stands for {beside:?}"
+    );
+    assert_placed(label, e, s, &off_apex, &others, eps);
 }
 
 /// **Crossings of a cone**, two and four per turn, at several arcs: a
@@ -280,7 +333,8 @@ fn a_narrow_cones_near_coaxial_circle_is_not_on_it() {
 /// **Through the apex the door reads the carrier whole; beside it, it
 /// refuses.** A circle through the apex in a meridian plane, at each of
 /// the three ε rows, certifies the apex's double root and the circle's
-/// other crossings (`through_the_apex`). A circle crossing a nappe a few
+/// other two crossings, each the oracle's in its place
+/// (`through_the_apex`, [`assert_holds`]). A circle crossing a nappe a few
 /// zero bands from the apex answers neither a root nor a miss: the
 /// subdivision cannot read a definite side beside the apex, or the slack
 /// meter refuses the root it isolates there, before the apex rung reads
@@ -296,12 +350,14 @@ fn a_root_at_the_apex_is_the_carrier_through_it_and_beside_it_refuses() {
         let Ok(Ok(CircleRoots::Certified(found))) = &got else {
             panic!("ε {eps}, through the apex: got {got:?}");
         };
-        let at_apex = |t: f64| {
-            let p = through.eval(t);
-            (p.x.powi(2) + p.y.powi(2) + p.z.powi(2)).sqrt() <= eps
-        };
+        let label = format!("ε {eps}, through the apex");
+        let at_apex = |t: f64| (through.eval(t) - Point3::origin()).norm() <= eps;
         let apex_roots = found.roots().iter().filter(|&&t| at_apex(t)).count();
-        assert_eq!(apex_roots, 2, "ε {eps}, through the apex: {found:?}");
+        assert_eq!(apex_roots, 2, "{label}: {found:?}");
+        // The other two are the circle's crossings of the generators
+        // through the apex's meridian, each the oracle's, in its place.
+        assert_eq!(found.count(), 4, "{label}: {found:?}");
+        assert_holds(&label, &through, &s, found.roots(), PI, eps);
         // Its centre moved out along `x`, so the circle passes `3ε` from
         // the apex (along the axis it would pass `9ε²` from it: through).
         let near = circle([0.5 + 3.0 * eps, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5);
@@ -517,27 +573,7 @@ fn certified_answers_hold_against_the_quadric_form() {
                 Ok(CircleRoots::Certified(found)) => {
                     let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
-                    // A root at the apex is the carrier through it, read
-                    // whole (`through_the_apex`): within the band of the
-                    // apex, its double root standing for the crossings
-                    // beside it. Every other root is the oracle's.
-                    let mut off_apex = Vec::new();
-                    for &t in &thetas[..count] {
-                        let p = e.eval(t);
-                        let off = distance(&s, p);
-                        assert!(off <= eps, "{label}: root {t} lies {off} off the cone");
-                        if (p - tip).norm() > eps {
-                            off_apex.push(t);
-                        }
-                    }
-                    let truth: Vec<f64> = truth
-                        .iter()
-                        .copied()
-                        .filter(|&t| {
-                            off_apex.len() == count || (e.eval(t) - tip).norm() > 10.0 * eps
-                        })
-                        .collect();
-                    assert_placed(&label, &e, &s, &off_apex, &truth, eps);
+                    assert_holds(&label, &e, &s, &thetas[..count], mid, eps);
                 }
                 Ok(CircleRoots::Miss) => {
                     misses += 1;
@@ -630,27 +666,7 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 Ok(CircleRoots::Certified(found)) => {
                     let (count, thetas) = (found.count(), found.roots());
                     certified += 1;
-                    // A root at the apex is the carrier through it, read
-                    // whole (`through_the_apex`): within the band of the
-                    // apex, its double root standing for the crossings
-                    // beside it. Every other root is the oracle's.
-                    let mut off_apex = Vec::new();
-                    for &t in &thetas[..count] {
-                        let p = e.eval(t);
-                        let off = distance(&s, p);
-                        assert!(off <= eps, "{label}: root {t} lies {off} off the cone");
-                        if (p - tip).norm() > eps {
-                            off_apex.push(t);
-                        }
-                    }
-                    let truth: Vec<f64> = truth
-                        .iter()
-                        .copied()
-                        .filter(|&t| {
-                            off_apex.len() == count || (e.eval(t) - tip).norm() > 10.0 * eps
-                        })
-                        .collect();
-                    assert_placed(&label, &e, &s, &off_apex, &truth, eps);
+                    assert_holds(&label, &e, &s, &thetas[..count], mid, eps);
                 }
                 Ok(CircleRoots::Miss) => {
                     misses += 1;
@@ -664,5 +680,178 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
             }
         }
         println!("ε {eps}: {certified} certified, {misses} misses, {refused} refused");
+    }
+}
+
+/// **A crossing beside the apex is never read as the apex's double
+/// root** (the spread rung, `bool_conic_cone_apex_spread`). Three
+/// carriers a few zero bands from a cone's apex, found by a reviewer's
+/// counterexample search (PR 6424), at the ε each was found at: each
+/// genuinely crosses the cone within some tens of zero bands of the
+/// apex. Their apex is within the band of the carrier, so the carrier is
+/// read whole; its spread is past the band, and the door refuses
+/// [`Unsettled::AtApex`] rather than let the double root stand for the
+/// crossing. Read with the spread forced into the band, the first
+/// certifies the double root at `3.842013` against the oracle's crossing
+/// at `3.842026`, which [`assert_holds`] counts missing.
+#[test]
+fn a_crossing_beside_the_apex_is_never_the_apex_double_root() {
+    let frame = |c: [f64; 3], n: [f64; 3], u: [f64; 3]| {
+        geom::Frame::new(
+            Point3::from_array(c),
+            Vec3::from_array(n),
+            Vec3::from_array(u),
+        )
+    };
+    let cone_at =
+        |apex: [f64; 3], axis: [f64; 3], half_angle: f64, u_ref: [f64; 3]| geom::Surface::Cone {
+            apex: Point3::from_array(apex),
+            axis: Vec3::from_array(axis),
+            half_angle,
+            u_ref: Vec3::from_array(u_ref),
+        };
+    let cases = [
+        (
+            1e-6,
+            geom::Curve3::Circle(geom::Circle {
+                frame: frame(
+                    [0.38180397980370573, 0.9260832315064935, 2.5664775268927267],
+                    [
+                        0.9482094717695619,
+                        0.18958701473660672,
+                        -0.25486380969009714,
+                    ],
+                    [-0.19606156387255988, 0.9805915883648227, 0.0],
+                ),
+                radius: 1.6277963338351105,
+            }),
+            cone_at(
+                [0.3636073164749831, -0.3467551218854421, 1.5519461902326226],
+                [
+                    -0.8399785874790753,
+                    -0.34446130208127795,
+                    0.4192640980875038,
+                ],
+                1.2949231107682244,
+                [0.37941936482656813, -0.9252248081383267, 0.0],
+            ),
+            (0.4146872962400363, 6.697872603419622),
+        ),
+        (
+            1e-9,
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                frame(
+                    [
+                        -0.07865939183576044,
+                        0.8711875840729832,
+                        -1.7567297099952395,
+                    ],
+                    [-0.9386889114025205, 0.12566415864540245, 0.3210477329648881],
+                    [-0.204223320486114, 0.5475812165719661, -0.8114478705543514],
+                ),
+                1.1507354785010555,
+                0.7460761506568013,
+            )),
+            cone_at(
+                [
+                    0.11458741229190483,
+                    0.13902426180565675,
+                    -0.9051263741318243,
+                ],
+                [
+                    -0.10100755757632167,
+                    -0.6357891417669068,
+                    -0.7652252220907033,
+                ],
+                0.21836420913669308,
+                [-0.9914005851862641, 0.0, 0.13086206361024905],
+            ),
+            (-1.5209842899012085, 4.762201017278378),
+        ),
+        (
+            1e-9,
+            geom::Curve3::Circle(geom::Circle {
+                frame: frame(
+                    [-2.4691715662523097, 1.3671848009225616, -1.6066775348685667],
+                    [
+                        -0.026199321635919894,
+                        -0.5277911491498032,
+                        0.8489700221002788,
+                    ],
+                    [0.9995241661618604, 0.0, 0.030845441453121267],
+                ),
+                radius: 1.8490826456950697,
+            }),
+            cone_at(
+                [-0.7237669286148725, 1.8600212669128329, -1.2464255426747348],
+                [
+                    -0.20719898913991616,
+                    0.9781735347238777,
+                    -0.01565614464648785,
+                ],
+                0.5264346410179193,
+                [-0.9782934392041549, -0.2072243875853094, 0.0],
+            ),
+            (2.212092624691656, 8.495277931871243),
+        ),
+    ];
+    for (k, (eps, e, s, (t0, t1))) in cases.into_iter().enumerate() {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        let label = format!("case {k}, ε {eps}");
+        let got = conic_quadric_roots(&e, t0, t1, &s, band);
+        if let Ok(Ok(CircleRoots::Certified(found))) = &got {
+            assert_holds(
+                &label,
+                &e,
+                &s,
+                &found.roots()[..found.count()],
+                (t0 + t1) / 2.0,
+                eps,
+            );
+        }
+        assert!(
+            matches!(got, Ok(Err(Unsettled::AtApex))),
+            "{label}: refused at the apex, got {got:?}"
+        );
+    }
+}
+
+/// **A small carrier through the apex refuses at the rung that cannot
+/// read it** (`through_the_apex`'s three last rungs, each red without
+/// it). Circles through a cone's apex in a meridian plane, a millimetre
+/// or less across, at ε 1e-6: their other crossings lie within a few
+/// hundred zero bands of the apex, where the brackets (sixty-four
+/// escalation bands of arc each side) cannot all be read.
+///
+/// - **Clear of the apex** (`bool_conic_cone_deflated_clear`): on a
+///   needle (half-angle 0.2), a 1 mm circle's bracket reaches the apex's
+///   spread, and refuses [`Unsettled::AtApex`].
+/// - **A definite side change** (`bool_conic_cone_deflated_side`): on a
+///   wide cone (1.2), a 0.3 mm circle's bracket ends read no definite
+///   side, and refuse [`Unsettled::Tangency`].
+/// - **The slack meter** (`bool_conic_cone_root_slack`): on a 0.6 cone, a
+///   1 mm circle's bracket holds the sign change, but the slope bound
+///   over it cannot place the root to the band: [`Unsettled::Meter`].
+#[test]
+fn a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it() {
+    let band = Band::new(1e-6, 1e-5).unwrap();
+    for (label, half, rad, want) in [
+        ("clear of the apex", 0.2, 1e-3, Unsettled::AtApex),
+        ("a definite side change", 1.2, 3e-4, Unsettled::Tangency),
+        ("the slack meter", 0.6, 1e-3, Unsettled::Meter),
+    ] {
+        let s = cone([1.0, -0.7, 0.3], [0.0, 0.0, 1.0], half);
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        let e = geom::Curve3::circle(
+            Point3::new(1.0, -0.7, 0.3) + u * rad,
+            Vec3::new(0.0, 1.0, 0.0),
+            rad,
+            u * -1.0,
+        );
+        let got = conic_quadric_roots(&e, -PI, PI, &s, band);
+        assert!(
+            matches!(&got, Ok(Err(u)) if *u == want),
+            "{label}: {want:?}, got {got:?}"
+        );
     }
 }

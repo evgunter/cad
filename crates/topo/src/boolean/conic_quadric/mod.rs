@@ -1,8 +1,10 @@
 //! **The conic × quadric root door**: the certified crossings of a
 //! CIRCLE or ELLIPSE carrier with a sphere, a cylinder wall or a cone. It
-//! owns no root machinery: it reads the residual's harmonics from their
-//! one home and hands them to one of the shared root cores
-//! ([`super::circle_roots`]), whose answer it gives.
+//! reads the residual's harmonics from their one home and hands them to
+//! one of the shared root cores ([`super::circle_roots`]), whose answer
+//! it gives. Its one root reading of its own is a cone's carrier through
+//! the apex ("Through the apex" below), which the cores cannot certify
+//! and which it reads in closed form before them.
 //!
 //! # The residual is a degree-2 trigonometric polynomial
 //!
@@ -107,18 +109,21 @@
 //!   in the band; it stands once its whole reach read through the floor
 //!   is too (`bool_conic_cone_on_surface`), and refuses `Unsettled::Meter`
 //!   otherwise.
-//! - **Every certified root's distance from the apex** is decided
-//!   (`bool_conic_cone_apex`): not definitely positive, and the door
-//!   refuses [`Unsettled::AtApex`] — no material side and no slope can
-//!   be read at a point where the cone has no tangent plane.
+//! - **Every root the arms certify, its distance from the apex** is
+//!   decided (`bool_conic_cone_apex`): not definitely positive, and the
+//!   door refuses [`Unsettled::AtApex`] — the arms read no slope at a
+//!   point where the cone has no tangent plane. A carrier through the
+//!   apex never reaches them: it is read whole first ("Through the apex"
+//!   below), so this rung refuses only a carrier the apex is decided OFF
+//!   whose arms still isolate a root beside it.
 //!
 //! The roots are the double cone's. Which of them a cone FACE holds — the
 //! nappe it lies on, then its trim — is the caller's question.
 //!
 //! # Through the apex
 //!
-//! The rung above refuses a root at the apex. A carrier THROUGH the apex
-//! is read before the door's arms, whole (`through_the_apex`). The apex
+//! A carrier THROUGH the apex is read before the door's arms, whole
+//! (`through_the_apex`), and its apex root is answered, not refused. The apex
 //! is always a double root of `F`, because the cone's gradient vanishes
 //! there. That is why the arms cannot certify it. About it, `φ = θ − θ_a`,
 //! the form is exactly `F = −2 sin²(φ/2)·G(φ) + ε₀ + ε₁ sin φ`, with
@@ -129,19 +134,31 @@
 //!   anomaly of the apex's own in-plane coordinates. Not decided on it:
 //!   the arms read the carrier, and their apex rung refuses what lies
 //!   near it;
-//! - **the apex's spread** (`bool_conic_cone_apex_spread`). Near the
-//!   apex the form is `ε₀ + ε₁φ − G(0)φ²/2`, so the roots there lie within
-//!   `(|ε₁| + √(ε₁² + 2|G(0)||ε₀|))/|G(0)|` of `θ_a`. The `ε`s are bounded
-//!   by the geometry, `δ²/R` and `2δ·speed/R` at the carrier's distance
-//!   `δ` from the apex, not by the rounded coefficients, whose noise the
-//!   root would amplify. Past the band: [`Unsettled::AtApex`];
+//! - **the apex's spread** (`bool_conic_cone_apex_spread`), a bound:
+//!   on a window `|φ| ≤ Φ` about the apex, `|G| ≥ |G(0)| − RΦ` and
+//!   `2 sin²(φ/2) ≥ (1 − Φ²/12)φ²/2`, so with `λ` their product the roots
+//!   there lie within `(|ε₁| + √(ε₁² + 2λ|ε₀|))/λ` of `θ_a`. `Φ` is twice
+//!   what `G(0)` alone gives, and a bound past it, or a `λ` not positive,
+//!   refuses. The `ε`s are bounded by the geometry, `δ²/R` and
+//!   `2δ·speed/R` at the carrier's distance `δ` from the apex, not by the
+//!   rounded coefficients, whose noise the root would amplify. Past the
+//!   band: [`Unsettled::AtApex`];
 //! - **`G`'s roots** (`bool_conic_cone_deflated_depth`, `|k| − R`):
 //!   definitely positive, none, so the apex's double root is the
 //!   carrier's only one. In the band, a tangency. Negative: two, in
 //!   closed form, each clear of the apex's spread and of each other
 //!   (`bool_conic_cone_deflated_clear`), bracketed by a definite change
 //!   of the cone's residual (`bool_conic_cone_deflated_side`), and metered
-//!   as the arms' roots are (`bool_conic_cone_root_slack`).
+//!   (`bool_conic_cone_root_slack`): `|F|` at the root over a lower bound
+//!   on `|F′|` across the whole bracket, `|F′(θ)| − w(ρ₁ + 4ρ₂)` with
+//!   `ρₖ` the harmonics' amplitudes, at the carrier's top speed. The
+//!   arms' meter (geom_brep's `RootSlack`) decides the same arc under the
+//!   same row, its slope read on a window about the root inside the
+//!   subdivision; this one reads it on its own bracket, which needs no
+//!   subdivision.
+//!
+//! Outside the spread's window `F`'s roots are `G`'s: `F` has at most four
+//! per turn, two of them the apex's.
 //!
 //! The apex's double root is answered with the others. The crossing
 //! layer places it on the face's apex vertex, the carrier's incidence
@@ -445,7 +462,7 @@ fn cone_roots<T: Decide>(
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
     let noise = rounding_charge(h.terms) / h.per;
-    if let Some(found) =
+    if let ThroughTheApex::Read(found) =
         through_the_apex(conic, (apex, axis, half_angle), &h, noise, (t0, t1), band)
     {
         return Ok(found);
@@ -499,10 +516,20 @@ const CONE_DEFLATED_DEPTH: &str = "bool_conic_cone_deflated_depth";
 const CONE_DEFLATED_SIDE: &str = "bool_conic_cone_deflated_side";
 const CONE_DEFLATED_CLEAR: &str = "bool_conic_cone_deflated_clear";
 
+/// What [`through_the_apex`] reads of a conic against the cone.
+enum ThroughTheApex<T: geom_core::Real> {
+    /// The apex is definitely off the carrier: the door's two arms read
+    /// it.
+    Clear,
+    /// The carrier passes through the apex, read whole: the apex's
+    /// double root and the deflated form's roots, each certified, or a
+    /// refusal.
+    Read(Result<CircleRoots<T>, Unsettled>),
+}
+
 /// **A conic through the cone's apex** (module docs, "Through the
-/// apex"): `None` where the apex is not decided on the carrier, which
-/// leaves the door's two arms to read it; otherwise the apex's double
-/// root and the deflated form's roots, each certified, or a refusal.
+/// apex"): [`ThroughTheApex::Clear`] where the apex is definitely off
+/// the carrier; otherwise the carrier read whole.
 fn through_the_apex<T: Decide>(
     conic: &dyn geom::Conic<T>,
     (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
@@ -510,19 +537,21 @@ fn through_the_apex<T: Decide>(
     noise: T,
     (t0, t1): (T, T),
     band: Band,
-) -> Option<Result<CircleRoots<T>, Unsettled>> {
+) -> ThroughTheApex<T> {
+    use ThroughTheApex::{Clear, Read};
     let two = T::from_f64(2.0);
     let mid = (t0 + t1) / two;
-    // A parameter within `π` of the arc's midpoint, as the door answers.
     let wrap = |x: T| x.sin().atan2(x.cos());
-    let near_mid = |theta: T| mid + wrap(theta - mid);
+    let near_mid = |theta: T| geom_brep::half_angle::near_midpoint(mid, theta);
+    // Past every bound: a reading no bound holds refuses.
+    let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.
     let theta_a = near_mid(conic.angle_of(apex));
     let off_apex = conic.point_at(theta_a) - apex;
     match decide(CONE_APEX, Margin::norm3(off_apex), band) {
-        Ok(Sign::Positive) => return None,
+        Ok(Sign::Positive) => return Clear,
         Ok(Sign::Zero | Sign::Negative) => {}
-        Err(_) => return Some(Err(Unsettled::AtApex)),
+        Err(_) => return Read(Err(Unsettled::AtApex)),
     }
     let (sa, ca) = theta_a.sin_cos();
     let (s2a, c2a) = (two * theta_a).sin_cos();
@@ -532,50 +561,76 @@ fn through_the_apex<T: Decide>(
     let (rc, rs) = (two * c2, two * s2);
     let r = (rc.powi(2) + rs.powi(2)).sqrt();
     let g0 = k + rc;
-    // The apex's double root splits within `|φ| ≤ (|ε₁| + √(ε₁² +
-    // 2|G(0)||ε₀|))/|G(0)|`, its form there `ε₀ + ε₁φ − G(0)φ²/2`. The
-    // exact `ε₀ = Q(q)/per` and `ε₁ = ∇Q(q)·C′/per` at `q = C(θ_a) −
-    // apex`, `δ = |q|`, are read off the geometry, not off the rounded
-    // coefficients (whose noise a square root would amplify past any
-    // band): `|Q| ≤ |q|²` and `|∇Q| ≤ 2|q|`, the form's weights at most
-    // one, so `|ε₀| ≤ δ²/per` and `|ε₁| ≤ 2δ·speed/per`. `δ` carries the
-    // point's own rounding.
+    // The apex's spread (module docs). About the apex
+    // `F = −2 sin²(φ/2)·G(φ) + ε₀ + ε₁ sin φ`; the exact `ε₀ = Q(q)/per`
+    // and `ε₁ = ∇Q(q)·C′/per` at `q = C(θ_a) − apex`, `δ = |q|`, are read
+    // off the geometry, not off the rounded coefficients (whose noise a
+    // square root would amplify past any band): `|Q| ≤ |q|²` and
+    // `|∇Q| ≤ 2|q|`, the form's weights at most one, so `|ε₀| ≤ δ²/per`
+    // and `|ε₁| ≤ 2δ·speed/per`. `δ` carries the point's own rounding.
     let delta = off_apex.norm()
-        + T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF)
-            * ((conic.frame().center - apex).norm() + conic.speed_hi());
+        + geom_core::running::direction_rounding(
+            (conic.frame().center - apex).norm() + conic.speed_hi(),
+        );
     let (e0, e1) = (
         delta.powi(2) / h.per,
         two * delta * conic.speed_hi() / h.per,
     );
-    let spread_phi = (e1 + (e1.powi(2) + two * g0.abs() * e0).sqrt()) / g0.abs();
+    // A bound, not a model: on the window `|φ| ≤ Φ`, `|G| ≥ |G(0)| − RΦ`
+    // (`|G′| ≤ R`) and `2 sin²(φ/2) ≥ (1 − Φ²/12)·φ²/2`, so a root of `F`
+    // there has `λφ²/2 ≤ ε₀ + ε₁|φ|`, `λ` their product, and lies within
+    // `(ε₁ + √(ε₁² + 2λε₀))/λ` of the apex. The window is twice what
+    // `G(0)` alone gives; a bound past it, or a `λ` not positive, holds
+    // nothing and refuses. Outside the window `F`'s roots are `G`'s,
+    // bracketed below: `F` has at most four per turn, two of them the
+    // apex's.
+    let at_zero = (e1 + (e1.powi(2) + two * g0.abs() * e0).sqrt()) / g0.abs();
+    let window = two * at_zero;
+    let lambda = (g0.abs() - r * window) * (T::one() - window.powi(2) / T::from_f64(12.0));
+    let bound = (e1 + (e1.powi(2) + two * lambda.max(T::zero()) * e0).sqrt()) / lambda;
+    let spread_phi =
+        lambda.select_le_zero(unbounded, (bound - window).select_le_zero(bound, unbounded));
     let spread = spread_phi * conic.speed_hi();
     match decide(CONE_APEX_SPREAD, Margin::of(spread), band) {
         Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) | Err(_) => return Some(Err(Unsettled::AtApex)),
+        Ok(Sign::Positive | Sign::Negative) | Err(_) => return Read(Err(Unsettled::AtApex)),
     }
     // `G`'s own roots: none where `|k| − R` is definite, two where it is
     // definitely negative, a tangency between.
     let depth = k.abs() - r;
     match decide(CONE_DEFLATED_DEPTH, Margin::of(depth - noise), band) {
         Ok(Sign::Positive) => {
-            return Some(Ok(Roots::<T, 2>::all([theta_a, theta_a]).widen()));
+            return Read(Ok(Roots::<T, 2>::all([theta_a, theta_a]).widen()));
         }
         Ok(Sign::Negative) => {}
-        Ok(Sign::Zero) | Err(_) => return Some(Err(Unsettled::Tangency)),
+        Ok(Sign::Zero) | Err(_) => return Read(Err(Unsettled::Tangency)),
     }
     let beta = rs.atan2(rc);
     let spin = (T::zero() - k / r).max(-T::one()).min(T::one()).acos();
     // Each root is bracketed by a definite change of the cone's residual
     // over `±w` about it (`w` sixty-four escalation bands of arc), the one
-    // root of `F` there by the deflation's count, and metered as the
-    // door's roots are: the residual's magnitude and rounding there over
-    // its least slope across the bracket, read as its secant less the
-    // ends' rounding (first order, as the running bound is), at the
-    // carrier's top speed, must be definitely in the band
-    // (`bool_conic_cone_root_slack`). A shallow crossing reads neither,
-    // and refuses as the tangency it is near.
+    // root of `F` there by the deflation's count, and metered: the true
+    // root lies in the bracket, where `|F′|` is at least its value at the
+    // root less `w` times `F″`'s bound (`|F″| ≤ ρ₁ + 4ρ₂`, the harmonics'
+    // amplitudes), so it lies within `(|F| + noise)/that` of the root,
+    // at the carrier's top speed an arc that must be definitely in the
+    // band (`bool_conic_cone_root_slack`, the arms' quantity with a
+    // whole-bracket slope bound in place of their window's). A shallow
+    // crossing reads neither, and refuses as the tangency it is near.
     let width = T::from_f64(64.0) * T::from_f64(band.escalate()) / conic.speed_lo();
     let residual = |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+    let f = |theta: T| {
+        let (s, c) = theta.sin_cos();
+        let (s2, c2) = (two * theta).sin_cos();
+        h.c0 + h.c1 * c + h.s1 * s + h.c2 * c2 + h.s2 * s2
+    };
+    let slope = |theta: T| {
+        let (s, c) = theta.sin_cos();
+        let (s2, c2) = (two * theta).sin_cos();
+        h.s1 * c - h.c1 * s + two * (h.s2 * c2 - h.c2 * s2)
+    };
+    let bend = (h.c1.powi(2) + h.s1.powi(2)).sqrt()
+        + T::from_f64(4.0) * (h.c2.powi(2) + h.s2.powi(2)).sqrt();
     let side = |res: geom_core::Rounded<T>| {
         let clear = decide(
             CONE_DEFLATED_SIDE,
@@ -600,22 +655,20 @@ fn through_the_apex<T: Decide>(
             band,
         ) {
             Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) | Err(_) => return Some(Err(Unsettled::AtApex)),
+            Ok(Sign::Zero | Sign::Negative) | Err(_) => return Read(Err(Unsettled::AtApex)),
         }
-        let (lo, hi, at) = (
-            residual(theta - width),
-            residual(theta + width),
-            residual(theta),
-        );
-        match (side(lo), side(hi)) {
+        match (side(residual(theta - width)), side(residual(theta + width))) {
             (Some(a), Some(b)) if a != b => {}
-            _ => return Some(Err(Unsettled::Tangency)),
+            _ => return Read(Err(Unsettled::Tangency)),
         }
-        let slope = (lo.value.abs() + hi.value.abs() - lo.error - hi.error) / (two * width);
-        let slack = conic.speed_hi() * (at.value.abs() + at.error) / slope;
+        let least = slope(theta).abs() - two * noise - width * bend;
+        let slack = least.select_le_zero(
+            unbounded,
+            conic.speed_hi() * (f(theta).abs() + noise) / least,
+        );
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
             Ok(Sign::Zero) => found[2 + slot] = theta,
-            Ok(Sign::Positive | Sign::Negative) | Err(_) => return Some(Err(Unsettled::Meter)),
+            Ok(Sign::Positive | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Meter)),
         }
     }
     let apart = wrap(found[2] - found[3]).abs() - two * width;
@@ -625,9 +678,9 @@ fn through_the_apex<T: Decide>(
         band,
     ) {
         Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => return Some(Err(Unsettled::Tangency)),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Tangency)),
     }
-    Some(Ok(Roots::<T, 4>::all(found).widen()))
+    Read(Ok(Roots::<T, 4>::all(found).widen()))
 }
 
 /// The apex rung (module docs, "Against a cone"): `roots` stand only if

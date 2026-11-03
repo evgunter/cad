@@ -8359,7 +8359,9 @@ mod line_cone_rows {
     /// The apex rung reads the edge's segment, not its line: a segment
     /// ending half a metre short of the apex is not read there (its line's
     /// quadratic has its double root at the apex, which the depth rung
-    /// reads as a tangency).
+    /// reads as a tangency). A line through the band of the apex whose
+    /// roots spread past the band along it, or into the band's gap,
+    /// refuses [`Unsettled::AtApex`] at the foot (the spread rung).
     #[test]
     fn an_edge_through_the_apex_has_its_double_root_there() {
         let b = band();
@@ -8383,6 +8385,30 @@ mod line_cone_rows {
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
         );
+        // The foot's spread rung refuses, as the end's does: a line beside
+        // a generator passing in band of the apex has its roots spread
+        // far along it (its spread past the band), and one whose spread
+        // lies in the band's gap (about `2.3e-9` at the witness band) is
+        // the apex's, refused typed, never escalated. Neither is placed
+        // at the foot.
+        for (label, origin, dir) in [
+            (
+                "beside a generator",
+                [-1.0, 0.5 * b.zero(), -1.001],
+                [1.0, 0.0, 1.001],
+            ),
+            (
+                "its spread in the gap",
+                [-1.0, 0.5 * b.zero(), -1.05],
+                [1.0, 0.0, 1.05],
+            ),
+        ] {
+            let got = roots(origin, dir, (0.0, 2.0));
+            assert!(
+                matches!(got, Err(Unsettled::AtApex)),
+                "through the apex, {label}: got {got:?}"
+            );
+        }
     }
 
     /// **An edge ending at the apex meets it at that end alone**: its one

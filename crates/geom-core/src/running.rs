@@ -32,6 +32,22 @@ pub const UNIT_ROUNDOFF: f64 = f64::EPSILON * 0.5;
 /// enclosure: the `Interval` lane carries its own.
 pub const SHORT_CHAIN_ULPS: f64 = 16.0;
 
+/// How many units of roundoff each component of a computed unit
+/// direction, or of a point placed at a scale, carries
+/// ([`direction_rounding`]): its evaluation and normalization, a few
+/// correctly rounded operations each. A ROUNDING estimate, as
+/// [`SHORT_CHAIN_ULPS`] is.
+pub const DIRECTION_UNITS: f64 = 4.0;
+
+/// **The rounding a computed direction or point carries at `scale`**:
+/// [`DIRECTION_UNITS`] units of roundoff of it. A unit direction's
+/// component is charged it at `scale = 1`; a point placed at a reach is
+/// charged it at that reach. The one home of the charge.
+#[must_use]
+pub fn direction_rounding<T: Real>(scale: T) -> T {
+    T::from_f64(DIRECTION_UNITS * UNIT_ROUNDOFF) * scale
+}
+
 /// The rounding charged against a term bound `terms`:
 /// [`SHORT_CHAIN_ULPS`] half-ulps of it.
 #[must_use]
