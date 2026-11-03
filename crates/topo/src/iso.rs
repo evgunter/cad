@@ -246,8 +246,7 @@ fn shell_darts(body: &Body<f64>, shell: ShellKey) -> Vec<HalfEdgeKey> {
     let mut darts = Vec::new();
     for &face in &shell_data.faces {
         let face_data = body.get_face(face).expect("face resolves");
-        for loop_key in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let loop_data = body.get_loop(loop_key).expect("loop resolves");
+        for (_, loop_data, _) in body.face_loops_linked(face, face_data) {
             if let LoopBoundary::Cycle { first } = loop_data.boundary {
                 darts.extend(body.loop_cycle(first).expect("cycle closes"));
             }
@@ -411,7 +410,10 @@ fn dart_attachment(
 ) -> String {
     let face = body.get_loop(parent).expect("loop resolves").face;
     let face_data = body.get_face(face).expect("face resolves");
-    let role = if face_data.outer == parent { 'o' } else { 'r' };
+    let outer = body
+        .face_loops_linked(face, face_data)
+        .any(|(lk, _, role)| lk == parent && role.is_outer());
+    let role = if outer { 'o' } else { 'r' };
     let reference = |loop_key: LoopKey| {
         committed_loop_min
             .get(loop_key)

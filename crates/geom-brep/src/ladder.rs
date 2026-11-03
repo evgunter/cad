@@ -28,7 +28,10 @@
 //! answer, it stays live, since a kept rung ahead may truly have answered
 //! first. Every run is spliced in rung order.
 
-use geom_core::k_stats::{Detached, decide_reported, detached, splice, splice_superseded};
+use geom_core::k_stats::{
+    Detached, Magnitude, decide_magnitude_reported, decide_reported, detached, splice,
+    splice_superseded,
+};
 use geom_core::predicate::{Decided, Indeterminate};
 use geom_core::{Band, Decide, Margin, MarginDiag, Sign};
 
@@ -37,6 +40,13 @@ use geom_core::{Band, Decide, Margin, MarginDiag, Sign};
 pub enum Rung<A, E> {
     /// The reading answers the question: the ladder stops here.
     Answers(A),
+    /// The reading refuses the whole question (a corrupt input, a
+    /// reading of the question rather than of this rung): the ladder
+    /// stops here with `A`, and the refusal rests on every reading kept
+    /// ahead of it whatever the caller declared ([`Answering`]): a kept
+    /// rung a tighter tolerance decides may have answered before this one
+    /// was read.
+    Aborts(A),
     /// The reading decided, and its decision leaves the question to the
     /// later rungs.
     Passes,
@@ -48,38 +58,132 @@ pub enum Rung<A, E> {
     Blocked(E),
 }
 
+/// A reading a band did not decide, as what it is ([`Rung::InBand`],
+/// [`Rung::Blocked`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Kept<E> {
+    /// A margin a tighter tolerance would decide.
+    InBand(E),
+    /// A limit no tolerance moves.
+    Blocked(E),
+}
+
+impl Kept<Indeterminate> {
+    /// `cause` kept as what it is: a limit where its margin cannot be
+    /// read (poisoned), in band otherwise.
+    #[must_use]
+    pub fn of(cause: Indeterminate) -> Self {
+        if cause.margin.is_invalid() {
+            Self::Blocked(cause)
+        } else {
+            Self::InBand(cause)
+        }
+    }
+}
+
+impl<A, E> From<Kept<E>> for Rung<A, E> {
+    fn from(kept: Kept<E>) -> Self {
+        match kept {
+            Kept::InBand(e) => Self::InBand(e),
+            Kept::Blocked(e) => Self::Blocked(e),
+        }
+    }
+}
+
+/// **One banded reading**, the one place a ladder's margin is read:
+/// `margin` decided on `band` under `name`, or what the band left it
+/// ([`Kept::of`]). A margin that is not finite reads no sign: it is
+/// decided as its residual `x − x`, which is poison, so ±∞ is kept as a
+/// limit rather than read as a maximally definite answer.
+///
+/// # Errors
+///
+/// The reading, kept.
+pub fn decided<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Decided, Kept<Indeterminate>> {
+    banded(margin, |m| decide_reported(name, m, band))
+}
+
+/// `margin` read by `read`, the non-finite rule ([`decided`]) applied
+/// first: `margin` where it is finite, else its residual; and what the
+/// band left it, kept ([`Kept::of`]).
+fn banded<T: Decide, R>(
+    margin: Margin<T>,
+    read: impl FnOnce(Margin<T>) -> Result<R, Indeterminate>,
+) -> Result<R, Kept<Indeterminate>> {
+    let margin = if geom_core::is_finite_length(margin.value()) {
+        margin
+    } else {
+        Margin::of(margin.value() - margin.value())
+    };
+    read(margin).map_err(Kept::of)
+}
+
 impl<A> Rung<A, Indeterminate> {
-    /// **One banded reading as a rung**: `margin` decided on `band` under
-    /// `name`, answering where `answer` returns one and passing where it
-    /// returns `None`; kept ([`Self::kept`]) where the band decides
-    /// nothing. A margin that is not finite reads no sign: it is decided
-    /// as its residual `x − x`, which is poison, so ±∞ is kept as a limit
-    /// rather than read as a maximally definite answer.
+    /// **One banded reading as a rung** ([`decided`]): answering where
+    /// `answer` returns one and passing where it returns `None`; kept
+    /// where the band decides nothing.
     pub fn decide<T: Decide>(
         name: &'static str,
         margin: Margin<T>,
         band: Band,
         answer: impl FnOnce(Decided) -> Option<A>,
     ) -> Self {
-        let read_on = if geom_core::is_finite_length(margin.value()) {
-            margin
-        } else {
-            Margin::of(margin.value() - margin.value())
-        };
-        match decide_reported(name, read_on, band) {
+        match decided(name, margin, band) {
             Ok(decided) => answer(decided).map_or(Self::Passes, Self::Answers),
+            Err(kept) => kept.into(),
+        }
+    }
+
+    /// [`Self::decide`] for a quantity nonnegative by construction (a
+    /// norm, a fraction of one): its reading is a [`Magnitude`], and a
+    /// definite `Negative` panics in the one place
+    /// ([`decide_magnitude_reported`]) that states the precondition.
+    pub fn decide_magnitude<T: Decide>(
+        name: &'static str,
+        margin: Margin<T>,
+        band: Band,
+        answer: impl FnOnce(Magnitude, MarginDiag) -> Option<A>,
+    ) -> Self {
+        match banded(margin, |m| decide_magnitude_reported(name, m, band)) {
+            Ok((magnitude, at)) => answer(magnitude, at).map_or(Self::Passes, Self::Answers),
+            Err(kept) => kept.into(),
+        }
+    }
+
+    /// A reading that answers `Some`, says nothing (`None`: the zero
+    /// band, passed to the later rungs), or did not decide (kept).
+    #[must_use]
+    pub fn of_reading(reading: Result<Option<A>, Indeterminate>) -> Self {
+        match reading {
+            Ok(Some(a)) => Self::Answers(a),
+            Ok(None) => Self::Passes,
             Err(cause) => Self::kept(cause),
         }
     }
 
-    /// A reading the band did not decide, kept as what it is: a limit
-    /// where its margin cannot be read (poisoned), in band otherwise.
+    /// A reading the band did not decide, kept as what it is
+    /// ([`Kept::of`]).
     #[must_use]
     pub fn kept(cause: Indeterminate) -> Self {
-        if cause.margin.is_invalid() {
-            Self::Blocked(cause)
-        } else {
-            Self::InBand(cause)
+        Kept::of(cause).into()
+    }
+}
+
+impl<A, E> Rung<A, E> {
+    /// The rung with its kept reading mapped by `f`, for a reader whose
+    /// refusal carries more than the reading's own cause (the entity it
+    /// was read at). An answer and a pass are unchanged.
+    pub fn map_kept<F>(self, f: impl FnOnce(E) -> F) -> Rung<A, F> {
+        match self {
+            Self::Answers(a) => Rung::Answers(a),
+            Self::Aborts(a) => Rung::Aborts(a),
+            Self::Passes => Rung::Passes,
+            Self::InBand(e) => Rung::InBand(f(e)),
+            Self::Blocked(e) => Rung::Blocked(f(e)),
         }
     }
 }
@@ -117,6 +221,23 @@ pub enum Climb<A, E> {
     Undecided(E),
 }
 
+impl<A, E> Climb<A, E> {
+    /// The ladder's outcome as one reading ([`Rung::of_reading`]'s
+    /// inverse): the answer, `None` where every rung passed, and the
+    /// ranked kept reading where none answered.
+    ///
+    /// # Errors
+    ///
+    /// That kept reading.
+    pub fn into_reading(self) -> Result<Option<A>, E> {
+        match self {
+            Self::Answered { answer, .. } => Ok(Some(answer)),
+            Self::Passed => Ok(None),
+            Self::Undecided(e) => Err(e),
+        }
+    }
+}
+
 /// Reads `rungs` in order through `read` under the ladder's rule (module
 /// docs), recording as a serial read of the same rungs would, in rung
 /// order.
@@ -124,47 +245,74 @@ pub enum Climb<A, E> {
 /// Each kept reading's run is held until the ladder's outcome is known:
 /// spliced whole where no later rung answers (the escalation is what the
 /// outcome rests on); where one does, spliced superseded under
-/// [`Answering::Any`] and whole under [`Answering::First`].
+/// [`Answering::Any`] and whole under [`Answering::First`], or after a
+/// [`Rung::Aborts`].
 pub fn climb<I, A, E>(
     answering: Answering,
     rungs: impl IntoIterator<Item = I>,
-    mut read: impl FnMut(I) -> Rung<A, E>,
+    read: impl FnMut(I) -> Rung<A, E>,
 ) -> Climb<A, E> {
+    match climb_evidence(answering, rungs, read) {
+        Ok((at, answer)) => Climb::Answered { at, answer },
+        Err(kept) => match kept.ranked() {
+            Ranked::Blocked(e) | Ranked::InBand(e) => Climb::Undecided(e),
+            Ranked::Neither => Climb::Passed,
+        },
+    }
+}
+
+/// [`climb`], keeping everything the rungs kept where none answered: the
+/// [`Evidence`] whole, for a caller that ranks two ladders' evidence
+/// together ([`Evidence::then`]). Empty evidence is every rung passed.
+///
+/// # Errors
+///
+/// That evidence, where no rung answered or aborted.
+pub fn climb_evidence<I, A, E>(
+    answering: Answering,
+    rungs: impl IntoIterator<Item = I>,
+    mut read: impl FnMut(I) -> Rung<A, E>,
+) -> Result<(usize, A), Evidence<E>> {
     let mut kept = Evidence::default();
     // The runs read since the first kept one, in rung order, each with
     // whether it was kept: held so the order survives the splice.
     let mut held: Vec<(Detached, bool)> = Vec::new();
     for (at, rung) in rungs.into_iter().enumerate() {
         let (got, log) = detached(|| read(rung));
-        match got {
-            Rung::Answers(answer) => {
-                for (run, was_kept) in held {
-                    if was_kept && answering == Answering::Any {
-                        splice_superseded(run);
-                    } else {
-                        splice(run);
-                    }
+        let (answer, supersede) = match got {
+            Rung::Answers(answer) => (answer, answering == Answering::Any),
+            Rung::Aborts(answer) => (answer, false),
+            Rung::Passes => {
+                if held.is_empty() {
+                    splice(log);
+                } else {
+                    held.push((log, false));
                 }
-                splice(log);
-                return Climb::Answered { at, answer };
+                continue;
             }
-            Rung::Passes if held.is_empty() => splice(log),
-            Rung::Passes => held.push((log, false)),
             Rung::InBand(e) => {
                 kept.in_band(e);
                 held.push((log, true));
+                continue;
             }
             Rung::Blocked(e) => {
                 kept.blocked(e);
                 held.push((log, true));
+                continue;
+            }
+        };
+        for (run, was_kept) in held {
+            if was_kept && supersede {
+                splice_superseded(run);
+            } else {
+                splice(run);
             }
         }
+        splice(log);
+        return Ok((at, answer));
     }
     held.into_iter().for_each(|(run, _)| splice(run));
-    match kept.ranked() {
-        Ranked::Blocked(e) | Ranked::InBand(e) => Climb::Undecided(e),
-        Ranked::Neither => Climb::Passed,
-    }
+    Err(kept)
 }
 
 /// What an identity ladder's data answer ([`read_identity`]): a
@@ -442,6 +590,39 @@ mod tests {
         assert!(cause.margin.is_invalid(), "the unreadable one: {cause:?}");
         assert_eq!(escalations.len(), 2, "both kept runs recorded");
         assert_eq!(search(Answering::First, &[1.0, -1.0]).0, Climb::Passed);
+    }
+
+    /// **An abort keeps every kept reading ahead of it live, under either
+    /// declaration**, and returns its own answer: the refusal rests on
+    /// the kept rungs, any of which a tighter tolerance may decide first.
+    #[test]
+    fn an_abort_keeps_the_readings_ahead_of_it_live() {
+        for answering in [Answering::Any, Answering::First] {
+            let (got, verdicts, escalations) = recorded(|| {
+                climb(answering, [5e-9, 1.0, f64::NAN], |m| {
+                    if m.is_nan() {
+                        return Rung::Aborts(Err("corrupt"));
+                    }
+                    Rung::decide("within", Margin::of(m), band(), |d| {
+                        (d.sign == Sign::Zero).then_some(Ok(m))
+                    })
+                })
+            });
+            assert_eq!(
+                got,
+                Climb::Answered {
+                    at: 2,
+                    answer: Err("corrupt")
+                },
+                "{answering:?}: the abort's error"
+            );
+            assert_eq!(verdicts, ["within"], "{answering:?}: the decided rung");
+            assert_eq!(
+                escalations,
+                ["within"],
+                "{answering:?}: the kept rung ahead stays live"
+            );
+        }
     }
 
     /// **A non-finite margin is a limit at every rung, never an answer**:
