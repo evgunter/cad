@@ -2990,13 +2990,17 @@ mod tests {
             he,
             start,
             end,
-            start_reach: crate::boolean::sectors::Reach::Extent(1.0),
-            end_reach: crate::boolean::sectors::Reach::Extent(1.0),
+            start_reach: crate::boolean::sectors::BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            ),
+            end_reach: crate::boolean::sectors::BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            ),
             face: body.face_of_half_edge(he).unwrap(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(normal, true),
             ),
-            arm: 1.0,
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         // A: the orbit's three sectors, the last bisected into a twin.
@@ -3009,7 +3013,9 @@ mod tests {
             .collect();
         let last = a_secs[2].clone();
         a_secs.push(BoolSector {
-            end_reach: crate::boolean::sectors::Reach::straight_bisector(1.0),
+            end_reach: crate::boolean::sectors::BoundSupport::straight_bisector(
+                geom_core::test_support::fixture_lever(1.0),
+            ),
             ..last
         });
         // B: one entry per germ, its normal putting the germ at `phi` in
