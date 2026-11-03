@@ -25,6 +25,9 @@
 //! the turn's: the wrap-tipped cone has one face, the revolved cone two,
 //! parted at its seam. The ops that keep the box's part, `∩` and
 //! `box ∖ cone`, build at every pose.
+//! The poses that pinch are named (turned 2: the tipped cone across the
+//! apex, both forms along the axis), so a pose that starts or stops
+//! pinching turns its row red.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::membership::{self, Region};
@@ -97,6 +100,9 @@ type Operand<'a> = (&'a AtRestBody<f64>, &'a dyn Fn() -> Region, f64);
 /// Holds the four ops of `a` and `b` to the volumes `share` (their
 /// intersection's) sets, and to their regions at the `7³` lattice over
 /// `lattice`, with tiers 3 and 3′ over the contacts each result records.
+/// Where `pinch`, `a ∪ b` and `a ∖ b` must refuse
+/// `ResultPinchedAtConeApex` by name instead, and every other op builds;
+/// elsewhere every op builds.
 fn four_ops(
     what: &str,
     pinch: bool,
@@ -128,6 +134,19 @@ fn four_ops(
         ("b ∖ a", subtract(b, a, tol()), vb - share, b_less),
     ] {
         let what = format!("{what}, {op}");
+        if pinch && matches!(op, "a ∪ b" | "a ∖ b") {
+            // The cone's face cut along two rulings through its apex is
+            // left pinched there, which props cannot yet measure
+            // (`a_cone_apex_on_a_plane_through_it`): typed, by name.
+            assert!(
+                matches!(
+                    result,
+                    Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
+                ),
+                "{what}: expected to pinch at the apex, got {result:?}"
+            );
+            continue;
+        }
         match result {
             Ok(BooleanResult::Body(body)) => {
                 membership::holds_short_of_tier_3_prime(
@@ -155,11 +174,6 @@ fn four_ops(
                 }
             }
             Ok(BooleanResult::Empty) => assert!(want.abs() < 1e-12, "{what}: empty, not {want}"),
-            // The wrap-tipped face cut along two rulings through its
-            // apex is left pinched there, which props cannot yet measure
-            // (`a_cone_apex_on_a_plane_through_it`): typed, by name.
-            Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
-                if pinch && matches!(op, "a ∪ b" | "a ∖ b") => {}
             Err(e) => panic!("{what}: {e:?}"),
         }
     }
@@ -177,7 +191,14 @@ fn turned_box(
 
 /// Holds every op of each cone form against the box `bx` (volume `vb`)
 /// turned about the axis by each turn, to `share(V)` of the cone `V`.
-fn against_a_box(what: &str, bx: ((f64, f64), (f64, f64), (f64, f64)), share: fn(f64) -> f64) {
+/// `pinches(turn, form)` names the poses whose `a ∪ b` and `a ∖ b`
+/// refuse pinched at the apex ([`four_ops`]).
+fn against_a_box(
+    what: &str,
+    bx: ((f64, f64), (f64, f64), (f64, f64)),
+    share: fn(f64) -> f64,
+    pinches: fn(f64, &str) -> bool,
+) {
     let ((x0, x1), (y0, y1), (z0, z1)) = bx;
     let vb = (x1 - x0) * (y1 - y0) * (z1 - z0);
     for alpha in [30.0f64, 45.0, 60.0] {
@@ -192,7 +213,7 @@ fn against_a_box(what: &str, bx: ((f64, f64), (f64, f64), (f64, f64)), share: fn
                 );
                 four_ops(
                     &format!("{what}, {alpha}°, turned {turn}, {form}"),
-                    true,
+                    pinches(turn, form),
                     (&c, &ra, volume(alpha)),
                     (&b, &rb, vb),
                     share(volume(alpha)),
@@ -213,6 +234,10 @@ fn an_edge_across_the_apex_holds_half_the_cones_top() {
         "an edge across the apex",
         ((0.0, 2.0), (0.55, 1.0), (-2.0, 2.3)),
         |v| v * 0.45f64.powi(3) / 2.0,
+        // Turned 2, the tipped cone's wrap seam falls inside the box's
+        // quadrant: the kept face is cut along two rulings on both
+        // sides of it, every aperture.
+        |turn, form| turn == 2.0 && form == "tipped",
     );
 }
 
@@ -226,5 +251,8 @@ fn an_edge_along_the_axis_holds_a_quarter_of_the_cones_top() {
         "an edge along the axis",
         ((0.0, 2.0), (0.55, 1.6), (0.0, 2.1)),
         |v| v * 0.45f64.powi(3) / 4.0,
+        // Turned 2, both forms' seams fall inside the box's quadrant,
+        // every aperture.
+        |turn, _| turn == 2.0,
     );
 }
