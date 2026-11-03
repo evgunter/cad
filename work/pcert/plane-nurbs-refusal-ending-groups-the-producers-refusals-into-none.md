@@ -2,10 +2,12 @@
 id: plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none
 kind: issue
 title: PlaneNurbsRefusal::ending ends the image producer's refusals in a grouped None
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+closed: 2026-11-03
+pr: 6474
 ---
 
 
