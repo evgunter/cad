@@ -174,7 +174,7 @@ use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::live::{BoundaryMember, Proven};
 use crate::merge_faces::MergeCoplanarError;
@@ -8175,11 +8175,6 @@ fn boundary_cuts<T: Decide>(
             Err(_) => None,
         }
     };
-    let point = |v| {
-        body.get_vertex(v)
-            .and_then(|v| body.get_point(v.point))
-            .copied()
-    };
     let f = body.get_face(face)?;
     let mut vertices = Vec::new();
     let mut meetings = Vec::new();
@@ -8191,11 +8186,10 @@ fn boundary_cuts<T: Decide>(
             };
             match *body.edge_curve_linked(ek, edge).certified()?.carrier() {
                 geom::Curve3::Line(_) => {
-                    let ends = [edge.he_plus, edge.he_minus]
-                        .map(|h| body.get_half_edge(h).and_then(|h| point(h.start)));
-                    let [Some(a), Some(b)] = ends else {
-                        return None;
-                    };
+                    let [a, b] = [edge.he_plus, edge.he_minus].map(|h| {
+                        let start = crate::live::proven(&body.half_edges, h, EntityId::HalfEdge);
+                        body.resolve_vertex_point(start.start, Proven)
+                    });
                     let (oa, ob) = (across(a), across(b));
                     let swing = ob - oa;
                     match sign("bool_tangent_line_cut_swing", swing.norm()) {
