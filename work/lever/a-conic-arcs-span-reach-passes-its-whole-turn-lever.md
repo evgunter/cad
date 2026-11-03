@@ -48,3 +48,5 @@ Two readings are open:
 The first measurement is `got − lever` at this seed.
 
 Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+**A second witness, a circle (2026-11-03, `onedoor/crossing-doors`'s full `geom-brep` run, a branch that does not touch `extent.rs`):** a circle of radius 0.001 about the origin, axis `(0.95227, 0.30514, −0.00800)`, over the reversed span `[−1.99326, −1.99974]`, read from its centre: `span_reach_from` gives `0.0010000000000000002`, past the whole-turn lever. Reproduce with `CAD_FUZZ_SEED=0x2f5a851b03a20299 CAD_FUZZ_EFFORT=1`. So the shape is not an ellipse's alone: a span shorter than a hundredth of a turn passes it by one ulp.

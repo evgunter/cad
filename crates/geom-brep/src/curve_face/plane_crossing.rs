@@ -5,7 +5,7 @@
 //! span; a spiric or a spline has no closed form here.
 
 use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 
@@ -108,11 +108,7 @@ impl CrossingDecision {
 
     /// The one ending `diag`'s escalation carries, read at `at`.
     #[must_use]
-    pub fn ending_of(
-        self,
-        diag: &geom_core::Indeterminate,
-        at: impl Into<crate::recourse::ReadAt>,
-    ) -> String {
+    pub fn ending_of(self, diag: &Indeterminate, at: impl Into<crate::recourse::ReadAt>) -> String {
         self.sized().recourse(RefusedArm::Undecided(diag), at)
     }
 }
@@ -123,19 +119,19 @@ impl CrossingDecision {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConicRootFault {
     /// Whether the conic's plane is parallel to the query plane.
-    PlaneParallel(geom_core::Indeterminate),
+    PlaneParallel(Indeterminate),
     /// Whether the conic reaches the plane, grazes it, or misses it.
-    BellyGraze(geom_core::Indeterminate),
+    BellyGraze(Indeterminate),
     /// Whether a root lands inside the span, at an end, or outside it.
-    CrossingInterior(geom_core::Indeterminate),
+    CrossingInterior(Indeterminate),
     /// Which of two interior roots comes first.
-    RootOrder(geom_core::Indeterminate),
+    RootOrder(Indeterminate),
 }
 
 impl ConicRootFault {
     /// The escalation's diagnostics, whichever rung raised it.
     #[must_use]
-    pub fn diag(self) -> geom_core::Indeterminate {
+    pub fn diag(self) -> Indeterminate {
         match self {
             Self::PlaneParallel(diag)
             | Self::BellyGraze(diag)
@@ -388,7 +384,7 @@ fn span_roots<T: Decide>(
     // indeterminate verdict under one anchor retries the other — the
     // SAME margin in a non-degenerate representation, never a second
     // tolerance — and only a double failure escalates (F6).
-    let verdict_at = |t: T| -> Result<(bool, T), geom_core::Indeterminate> {
+    let verdict_at = |t: T| -> Result<(bool, T), Indeterminate> {
         for margin in [
             Margin::metered(t - t0, meter),
             Margin::metered(t1 - t, meter),
