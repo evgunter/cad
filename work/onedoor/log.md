@@ -15,3 +15,8 @@ H (design). Nothing dispatched. (BOXES orchestrator)
   - The geom-brep remap doors gain total forms, on SELECT ground. The note is on SELECT's log.
   - The same `remapped(.., |k| Some(..)) else` shape in `replace_face.rs` is SHELL's, and is noted there.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6440](https://github.com/evgunter/cad/pull/6440) closes `stored-description-adjacent-is-the-gates-reading-not-tier-3s`.**
+  - Review tier: single style review, APPROVE-WITH-FIXES; the fix pass took everything but `edge_join`'s locus rule.
+  - CI gate green at `71646a4`.
+  - The lane's local slow-set run went red on `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`. It is inherited: red on main's nightly 81 at all three eps rows with the same lists, and filed by BOXES (`main-red-the-box-door-inventory-misses-three-edge-cover-readers`). Main's nightly has failed three nights running; the hand-written-impl census reds are CENSUS's (`work/census/`). None of it is this PR's, and none of it is ONEDOOR ground.
+  - (ONEDOOR orchestrator)
