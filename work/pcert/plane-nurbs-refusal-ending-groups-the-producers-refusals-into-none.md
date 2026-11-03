@@ -2,10 +2,12 @@
 id: plane-nurbs-refusal-ending-groups-the-producers-refusals-into-none
 kind: issue
 title: PlaneNurbsRefusal::ending ends the image producer's refusals in a grouped None
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+closed: 2026-11-03
+pr: 6474
 ---
 
 
@@ -47,3 +49,7 @@ Name each arm's decision in an exhaustive match, ending by the pcurve
 door's table where the refusal is the same producer's. For the pose gap,
 decide whether the decided pose ends in its lever (`LeverOnly`) rather
 than `GeneralLane`'s "not yet", at both doors, and state one recourse.
+
+## The pose gap
+
+Moved to `the-pose-gap-cannot-tell-through-the-singular-set-from-beside-it` when PR 6474 closed this row.
