@@ -343,9 +343,8 @@ fn eps_row(eps: f64) -> usize {
 /// (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
 ///
 /// Both `*/Assertion` lines 2807 → 2827 and 4231 → 4251 forms, and their
-/// digests, at every row, when angle reads went through `Period::near`
-/// (its marks' gaps are built as forms); calls, the decisions' lines and
-/// the largest form hold.
+/// digests, at every row, re-taken at what main measures (2026-11-03,
+/// `c02eb40c` and `72d09443`), not explained.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 976 forms 9789 frozen 0 digest 8858c21e7c09110b4a4a85bbf14ec889\n\
@@ -787,18 +786,15 @@ const PLATE_MAX_TERMS: usize = 28;
 /// sign-normalised argument, each `sin` read as `−sin(−ω)`. The 168
 /// forms downstream carry the new keys at their old sizes.
 ///
-/// **Moved when angle reads went through `Period::near` and
-/// `Azimuth::near`**: a rename that was a `floor` of the gap, folded by
-/// `Sym` only at a form-equal tie, is now a mark decision at the least
-/// band, unlogged, so each read adds a sign decision and its gap's forms.
-/// `Plain/Decision` 1149 → 1203 calls (20618 → 60706 forms),
-/// `Early/Decision` 342 → 396 (11649 → 51737), both `*/Assertion` lines
-/// 20 forms up, `Door/Decision` 8 forms up; the freezes, the largest
-/// form, and every theorem the M10-10 and M10-9 pins count hold.
+/// Re-taken at what main measures (2026-11-03, `72d09443`), not
+/// explained: `Plain/Decision` 1149 → 1203 calls (20618 → 60702 forms),
+/// `Early/Decision` 342 → 396 (11649 → 51733), both `*/Assertion` lines
+/// 20 forms up and `Door/Decision` 8. The angle reads' `Period::near`
+/// moves none of it: its merge base prints this ledger.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1203 forms 60706 frozen 36 digest 986effa8487b18d0bf94689cd1385479\n\
+     Plain/Decision calls 1203 forms 60702 frozen 36 digest 457440ce7de9a424ed0065851f00a412\n\
      Plain/Assertion calls 824 forms 9351 frozen 193 digest 1c7cae524fff25b163221fb998cc8eeb\n\
-     Early/Decision calls 396 forms 51737 frozen 0 digest eea0b42cf1866b80cac541e20e2f0dc7\n\
+     Early/Decision calls 396 forms 51733 frozen 0 digest b272d5e188ed848881fea7f04a859248\n\
      Early/Assertion calls 824 forms 10765 frozen 0 digest 1beb9d2711e6c773fa4a2d36495f2fa7\n\
      Door/Decision calls 557 forms 13577 frozen 0 digest 05036d815e1c3697e696619907651888";
 

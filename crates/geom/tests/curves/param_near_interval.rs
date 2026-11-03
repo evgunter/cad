@@ -245,3 +245,36 @@ fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
         }
     }
 }
+
+/// **A box reaching the centre decides no angle.** On a circle of radius
+/// `1e-3`, a box about the point at angle `0.3` that reaches the centre
+/// holds directions of every angle; the read must enclose the true angle
+/// (here the whole window about the anchor) or refuse, never answer the
+/// anchor narrow as if it were decided.
+#[test]
+fn a_box_reaching_the_centre_encloses_the_angle_or_refuses() {
+    use geom_core::spline::SpanLocate;
+    let ex = Interval::from_f64;
+    let center = Point3::new(1.0, 2.0, 3.0);
+    let r = 1e-3;
+    let carrier = Curve3::circle(
+        center.map(ex),
+        Vec3::unit_z().map(ex),
+        ex(r),
+        Vec3::unit_x().map(ex),
+    );
+    let on = Point3::new(
+        center.x + r * 0.3_f64.cos(),
+        center.y + r * 0.3_f64.sin(),
+        center.z,
+    );
+    let hull = |a: f64, b: f64| ex(a).enclosure_hull(ex(b));
+    let p = Point3::new(hull(center.x, on.x), hull(center.y, on.y), ex(center.z));
+    let got = carrier.param_near(p, ex(2.0)).unwrap();
+    assert!(
+        got.lo().is_nan() || (got.lo() <= 0.3 && 0.3 <= got.hi()),
+        "the read [{}, {}] neither encloses 0.3 nor refuses",
+        got.lo(),
+        got.hi()
+    );
+}

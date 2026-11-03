@@ -252,17 +252,26 @@ impl<T: Decide> Azimuth<T> {
     /// one angle, so both are taken at [`Band::least`] outside the log
     /// (`docs/predicate-dimension-audit.md` row F31).
     ///
-    /// A direction of no length (or, at `Interval`, one whose enclosure
-    /// reaches zero length) names every angle alike, and reads
-    /// `reference` itself: the angle the caller asked about. A direction
-    /// with a component that is not finite names none, and reads NaN.
+    /// A direction whose length is not definitely positive decides no
+    /// angle. A point direction of exactly no length names every angle
+    /// alike, and reads `reference` itself, the angle the caller asked
+    /// about. An enclosure that only reaches zero length may hold a
+    /// direction of any angle, so it reads the whole window about
+    /// `reference`, `[reference − π, reference + π]`, never a narrow
+    /// answer. A direction with a component that is not finite names
+    /// none, and reads NaN.
     pub fn near(self, reference: T) -> T {
         if !(geom_core::real::is_finite_length(self.y) && geom_core::real::is_finite_length(self.x))
         {
             return T::from_f64(f64::NAN);
         }
         if !(T::one() / self.length()).is_bounded() {
-            return reference;
+            let point = self.y.point_value().is_some() && self.x.point_value().is_some();
+            return if point {
+                reference
+            } else {
+                (reference - T::pi()).enclosure_hull(reference + T::pi())
+            };
         }
         let read = unlogged("F31", || {
             self.read_in(Window::Angle, "azimuth_near_cut_side", Band::least())
