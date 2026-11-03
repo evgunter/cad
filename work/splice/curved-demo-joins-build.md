@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-03
 priority: P0
 cost: C
-blocked_on: [the-skin-cuts-an-arc-wall-at-each-sub-arc-joint, a-spline-face-has-no-subtract-or-intersect-lane, a-projected-boundary-on-an-analytic-chart-has-no-volume-lane, a-spline-wall-cannot-say-whether-it-holds-a-pierce-point, teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall, c5-plane-torus-cone-cylinder-arms, cone-torus-rung-three-arm-waits-on-the-cone]
+blocked_on: [the-skin-cuts-an-arc-wall-at-each-sub-arc-joint, a-spline-face-has-no-subtract-or-intersect-lane, a-projected-boundary-on-an-analytic-chart-has-no-volume-lane, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall, c5-plane-torus-cone-cylinder-arms, cone-torus-rung-three-arm-waits-on-the-cone]
 ---
 
 

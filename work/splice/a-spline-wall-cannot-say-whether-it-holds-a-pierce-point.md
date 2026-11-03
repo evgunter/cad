@@ -2,12 +2,14 @@
 id: a-spline-wall-cannot-say-whether-it-holds-a-pierce-point
 kind: issue
 title: A union across a spline edge refuses HeldPierceUnbuilt: faces_holding_pierce asks a spline wall whether it holds a pierce point, and its trim cannot say
-status: dispatched
+status: closed
 opened: 2026-10-26
 priority: P0
 cost: M
 refs: [a-point-has-no-place-in-a-nurbs-faces-trim, the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex]
 branch: splice/held-pierce
+closed: 2026-11-03
+pr: 6435
 ---
 
 Filed by `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`'s
@@ -160,3 +162,9 @@ the default and 1e-12 rows. It now stops in the join at SECTARMS'
 `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`
 (`GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }`), which is
 re-pinned in `teapot::wall3_pinned`.
+
+## Closed (SPLICE, PR 6435, 2026-11-03)
+
+The rowless half-edges were the sweep's zero-length `MevNull` placeholders, not split pieces (`Body::split_edge` already restricts a split piece's row). The spline trim now lifts its loops past a placeholder as the analytic reader does: one predicate, `topo::null::is_placeholder` (null scaffolding whose ends are one point), read by both, through a crate-private `pcurves::loop_lift_past_placeholders`. The public `Body::loop_lift` stays strict, since a finished body holds no null edges. The skip is exact because the mint gives the joints into a placeholder's halves `JointElement::IDENTITY`. Rows cover a parted null edge and a rowless closed non-null edge (both gap), and a placeholder at every joint across a closed chart's seam.
+
+Past the site, the wavy loft ∪ box and the saddle cut by its tangent plane read their pierce points `OffCarrier` (correct) and stop at `GermFrameUnsupported { Nurbs, Plane }` (`sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame`, which now carries the end-to-end row this item owed). Teapot wall 3 stops at `GermFrameUnsupported { Sphere, Nurbs }` (`sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`) at the default ε and 1e-12. The `placed: true` half is unreached by any operand: `a-spline-wall-holding-a-pierce-point-has-no-operand-that-reaches-it` (P2).
