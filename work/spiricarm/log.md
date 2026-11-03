@@ -51,3 +51,11 @@
   - The cylinder × sphere and donut rows are re-pinned to their next stop. The P1 cost row is rewritten as a pure cost row.
   - **Dual review dispatched as two cloud sessions** (concurrent pair, letter H, frozen head `e12e3c8d00`). The briefs are identical, pushed at `spiricarm/review-6478-brief` (sha256 `615b46c9…`). Cloud sessions were used because this box's disk (9.5 GB free) cannot hold two more review targets beside piece 2's lane, and the protocol says to reduce simultaneous duals rather than narrow a method.
   - A container restart stopped piece 2's lane. Its clone survived with its commits pushed, and it was resumed with the post-restart cautions.
+- 2026-11-03 — **Spindle piece 2 is up as PR 6486** (head `49d88cc0f1`, CI green). The football with conical ends now revolves.
+  - **It stayed one PR**, not 2a and 2b. Tier 3's volume needs props, props opens the mesh's shape door, and half of it would not leave main sound.
+  - **The revolve reads the arc**: `ArcInterior`, then `ArcReach` picks the kind. A new `RevolveError::SheetApex` covers stage 2's case.
+  - **Edge certification:** a sheet distance (`Meters::Spindle`), plus six sign fixes for formulas that assumed R > 0.
+  - **Tier 3** reads a sheet face's side with a walk of its loops.
+  - **The oracle** has four bands, each checked against exact `∮πρ²dz` and `∮2πρ ds` with a wrong-sheet row; the lemon also passes admesh.
+  - **Residue:** the tour stop was withdrawn and filed (`the-conical-ended-football-has-no-tour-stop`, P3). The lane closed LATHE's `revolve-axis-clearance-is-the-torus-convention-under-another-name` as retired by the change (the reviewers are asked to check that closure). The wide apple now builds and measures, but its tessellation refuses (evidence added to its row).
+  - **Dual dispatched** as two cloud sessions on `49d88cc0f1`, with identical briefs (`spiricarm/review-6486-brief`, sha256 `d69e6f32…`).
