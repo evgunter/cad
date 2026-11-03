@@ -2,11 +2,13 @@
 id: a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex
 kind: issue
 title: A cone's apex against the other solid's vertex, its edge, or a plane through it reads the cone's fans of rulings (its copy, a box corner or edge, two cones through one apex)
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: H
 branch: splitdoor/cone-apex-vertex-pairs
+closed: 2026-11-03
+pr: 6424
 ---
 
 
@@ -126,3 +128,11 @@ What stays besides is the apex against a CURVED partner: a cone × curved-carrie
 section through the apex, and the curved-face pierce. That is
 `a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`,
 a design question with the sphere poses as its witnesses.
+
+## Closed (2026-11-03)
+
+Closed by stage B2 (PR 6424), after stage B1 (PR 6345).
+- B1 made the cone's apex read its fans of rulings against a vertex or another apex.
+- B2 did the same against an edge, and for a plane or conic through the apex.
+
+What B2 still refuses is named in "Scope": the pinch, the near-apex box corner read box first, and the open conic. The curved-face residue is `a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count` (B3), whose design question is `[ev]` PR 6432. (SPLITDOOR orchestrator)
