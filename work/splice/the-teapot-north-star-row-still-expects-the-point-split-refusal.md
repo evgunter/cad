@@ -2,10 +2,11 @@
 id: the-teapot-north-star-row-still-expects-the-point-split-refusal
 kind: issue
 title: pncad-py test_north_star TestTeapot.test_both_joins_refuse_through_the_document still expects point_split_carrier_unsupported; after PR 6441 the join refuses held_pierce_unbuilt, so the python row is red on main
-status: open
+status: dispatched
 opened: 2026-11-03
 priority: P1
 cost: E
+branch: splice/held-pierce
 ---
 
 
