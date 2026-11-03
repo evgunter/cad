@@ -93,3 +93,22 @@
   - **Residue row:** rewritten and banded.
   - **Outcome diff:** no move at three ε.
   - **Re-review:** the targeted re-review dispatched locally was lost to a container restart and was re-dispatched as a cloud session. (TANGRIM orchestrator)
+- 2026-11-03 — PR 6385 targeted re-review of the fix pass (bbf9224730), run by a cloud reviewer. **No MAJOR.**
+  - **All six claims hold, each run:**
+    - The MAJOR is fixed: in a 21,600-pose sweep against main, the only moves are the intended contradiction rung.
+    - The witness is on the edge and honest: of 12k independent checks, 0 read the wrong side.
+    - Rounding: 323k verdicts were swept up to 1e4 m with zero moves.
+    - Every mutant is red.
+    - The suite shows no built→refused move.
+    - The rows say what is true.
+  - **Adjudicated as one last small fix pass, then merge:**
+    - a stale row sentence (the witness offset is now `Round`'s);
+    - `Tie::descend`'s doc and its `# Errors`;
+    - the unused `dir` argument;
+    - the witness point is read through `Round::offset` and no longer through a zero-length segment;
+    - the honesty check and the 1e4 m translation pin are promoted to tests.
+  - **Filed as rows, not blocking:**
+    - (P2) The contradiction rung refuses 1,004 of ~12k near-tangent circle poses where main's local side was right. The remedy is a shorter arm, not a refusal. It refuses rather than giving a wrong side, so it does not block.
+    - (P3) A fourth `ConicArc` spelling.
+    - (P3) `FaceBend::Implicit` holds the face and sense twice, and 16 test sites use hand-stated jets.
+    - (P3) `Gap` and `ReadFault::Witness` each carry two meanings. (TANGRIM orchestrator)
