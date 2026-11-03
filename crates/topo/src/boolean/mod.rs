@@ -8166,10 +8166,9 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 ///
 /// # Errors
 ///
-/// [`FaceUnread::Boundary`] where the pass refuses, a fault included;
-/// [`FaceUnread::Uncertified`] where a boundary edge holds no certified
-/// curve; a stale face as the placement's
-/// [`contain::ContainError::StaleFace`].
+/// [`FaceUnread::Boundary`] where the pass refuses, a fault included, and
+/// as a fault where `face` does not resolve; [`FaceUnread::Uncertified`]
+/// where a boundary edge holds no certified curve.
 ///
 /// # Panics
 ///
@@ -8183,10 +8182,14 @@ fn boundary_cuts<T: Decide>(
     band: Band,
 ) -> Result<Vec<T>, FaceUnread> {
     let boundary = carrier_cross::face_boundary(body, face)
-        .map_err(|_| {
-            FaceUnread::Placement(contain::PlacementError::Door(
-                contain::ContainError::StaleFace(face),
-            ))
+        .map_err(|e| {
+            // A face the caller read its placement on that the walk
+            // cannot resolve: a kernel fault, as the walk names it.
+            let what = match e {
+                BooleanError::ClassificationInvariant { what } => what,
+                _ => "boundary pass: face lost",
+            };
+            FaceUnread::Boundary(geom_brep::curve_face::BoundaryRefusal::Fault { what })
         })?
         .ok_or(FaceUnread::Uncertified)?;
     let swept = geom_brep::curve_pair::Span::new(locus, span);

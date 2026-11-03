@@ -393,7 +393,20 @@ mod straddle_rows {
             ),
             "an arc through the vertex"
         );
-        let past = EdgeSpan::of(ellipse, (1.0, 2.0));
+        // An arc from just past the vertex: its middle's foot of the
+        // closest approach is the vertex, read a straddle, so the span's
+        // `Past` is what clears it.
+        let (t0, t1) = (0.01, 0.5);
+        assert!(
+            matches!(
+                ellipse.on_carrier(at, geom::mid_param(t0, t1), band),
+                Err(geom::CarrierRefusal::Escalated(
+                    geom::CarrierEscalation::Straddle(_)
+                ))
+            ),
+            "the closest approach straddles from the arc's middle"
+        );
+        let past = EdgeSpan::of(ellipse, (t0, t1));
         assert!(
             matches!(passes(&past, q, d, at, band), Passes::Clear),
             "an arc past the closest approach"
