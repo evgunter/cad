@@ -26,7 +26,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
-use crate::common::differential::{VOLUME_CLAIM, judged_within};
+use crate::common::differential::{VOLUME_CLAIM, judged_within, resolution_pad};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
@@ -252,10 +252,10 @@ fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
 /// (`work/inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face.md`),
 /// and its volume is held to the oracle all the same.
 ///
-/// The enclosure is read against [`PAD_BUDGET`]: each chorded wall's rule
-/// accepts its first round inside the pinned resolution (`1024·ε` of mean
-/// boundary displacement), so the body's half-width is of the
-/// resolution's order (`1.9e-7` at ε `1e-9`), past the shared budget.
+/// The enclosure is read against [`resolution_pad`] over the operands'
+/// area: each chorded wall's rule accepts its first round inside the
+/// pinned resolution, so the body's half-width (`1.9e-7` at ε `1e-9`)
+/// is past the shared budget.
 #[test]
 fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
     let tol = Tol::witness();
@@ -293,7 +293,9 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
         finished("operand A", a, tol),
         finished("operand B", rod, tol),
     );
-    let budget = PAD_BUDGET * tol.eps();
+    // The operands' area together: the drum's `6π`, the rod's
+    // `2π·0.3·3 + 2π·0.09`.
+    let budget = resolution_pad(tol, 6.0 * PI + 2.0 * PI * (0.9 + 0.09));
     for (label, op, r) in [
         ("∖", Op::Subtract, topo::subtract(&a, &rod, tol)),
         ("∩", Op::Intersect, topo::intersect(&a, &rod, tol)),
@@ -329,10 +331,6 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
         read.line
     );
 }
-
-/// The enclosure half-width a chorded body of [`a_tilted_rod_through_a_rim_builds_at_its_sliced_volume`]
-/// may carry, as a multiple of ε: the pinned resolution's own `1024`.
-const PAD_BUDGET: f64 = 1024.0;
 
 /// **A rim circle on a parallel wall tangent to its own, or crossing or
 /// clearing it by less than the zero band, is a tangency.**

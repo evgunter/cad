@@ -34,7 +34,7 @@ refused at the volume lane:
 | `sweep::verbs_germarms2::a_rod_through_a_drum_wall_builds_at_its_sliced_volume` (four ops) | 187 s | under a second |
 | `verbs_germarms2::the_fenced_poses_keep_their_own_outcomes` | 264 s | |
 | `tang_circle_cylinder::a_tilted_rod_through_a_rim_builds_at_its_sliced_volume` | 35 s | |
-| `verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_answers_correctly` | 216 s | |
+| `verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly` | 216 s | |
 
 The rows are in the slow set. With the lane, the tilted rod's ∪ alone
 took 17 s in debug, of which the measurement is 3.6 s (its chords hold

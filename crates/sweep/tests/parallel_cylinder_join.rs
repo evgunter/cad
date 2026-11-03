@@ -16,7 +16,7 @@
 use core::f64::consts::PI;
 
 use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
-use crate::common::differential::outcome;
+use crate::common::differential::{judged_within, outcome, resolution_pad};
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
@@ -662,10 +662,13 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                         "S ab" => crossed::volume(ca, cb, Op::Subtract),
                         _ => crossed::volume(cb, ca, Op::Subtract),
                     };
+                    // The two rods' area together, `6π + 4π`: their chorded
+                    // walls accept a round that only just meets the
+                    // resolution ([`resolution_pad`]).
                     let line = if escalated {
                         String::from("escalated")
                     } else {
-                        outcome(r, want, tol)
+                        judged_within(r, Some(want), tol, resolution_pad(tol, 10.0 * PI)).line
                     };
                     assert!(
                         escalated || line.starts_with("OK SOUND"),

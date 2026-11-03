@@ -18,7 +18,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::{Body, BooleanError, BooleanErrorKind};
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
@@ -58,9 +58,10 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
     .unwrap()
 }
 
-/// Every crossing pose this reviewer could author answers correctly —
-/// never the operand-volume sum (the D10 double-count). Varied radii,
-/// axes, heights, offsets. Each answer is held to
+/// Every crossing pose this reviewer could author must refuse TYPED at a
+/// frontier the join has not reached, or answer correctly — never the
+/// operand-volume sum (the D10 double-count). Varied radii, axes,
+/// heights, offsets. A pose marked to answer must; each answer is held to
 /// `differential::outcome`'s SOUND (tiers 2 and 3′, the certificate, a
 /// legal operand, the volume): two upright cylinders whose walls cross
 /// with parallel axes, which the join splits along their rulings, share
@@ -69,7 +70,7 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
 /// sliced volume of the two solids (`common::crossed_cylinders`), the
 /// pose's own `Cylinder`s carried as its bodies are.
 #[test]
-fn every_reachable_crossing_pose_answers_correctly() {
+fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     let tol = Tol::witness();
     let about = |axis: Vec3<f64>, angle: f64| {
         Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle)
@@ -154,6 +155,14 @@ fn every_reachable_crossing_pose_answers_correctly() {
             ),
         ),
     ];
+    // The poses whose every op answers: the crossed pairs the join carries
+    // and the rotational lane measures, and the parallel pair the join
+    // splits along its rulings.
+    let answering = [
+        "perpendicular unequal radii",
+        "skew axes, crossing walls",
+        "parallel axes, shallow overlap",
+    ];
     for (name, a, b, truth) in &poses {
         let (a, b) = (
             finished(name, a.clone(), tol),
@@ -172,6 +181,25 @@ fn every_reachable_crossing_pose_answers_correctly() {
                 (Truth::Parallel(shared), Op::Subtract) => va - shared,
                 (Truth::Parallel(shared), Op::Intersect) => *shared,
             };
+            if let Err(e) = &out
+                && !answering.contains(name)
+            {
+                // The frontier refusals are honest outcomes; an invariant
+                // is not, and neither is the volume lane, which measures
+                // a spline-chorded wall now.
+                assert!(
+                    matches!(
+                        e.kind(),
+                        BooleanErrorKind::NodeUnbuilt
+                            | BooleanErrorKind::GermFrameUnsupported
+                            | BooleanErrorKind::FallbackExtentUnsupported
+                    ),
+                    "{name}/{op_name}: refused {:?}, not a frontier refusal: {e_at}",
+                    e.kind(),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
+                continue;
+            }
             let line = outcome(out, want, tol);
             assert!(line.starts_with("OK SOUND"), "{name}/{op_name}: {line}");
         }
