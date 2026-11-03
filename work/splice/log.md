@@ -1208,3 +1208,11 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - The 1e-12 row went from 159 s to 29 s.
   - Filed: `tint/volume-rows-hold-a-midpoint-within-a-band-plus-an-unbounded-pad` (11 sites), plus evidence on `issues/a-tilted-plane-cut-through-a-tube-measures-1e-7-off-the-closed-form`.
   - Main reds the lane met, all already filed: BOXES' inventory, FLUSH's needle cavity, and SPLITDOOR's `the-cone-fuzz-draws-a-cone-bounding-no-one-material-at-a-seed`.
+- 2026-11-03 — **PR 6441 merges** (`split-parameter`), closing `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`. The orchestrator read the fix pass; there was no re-review.
+  - A held parameter is now a `carrier_cross::Held` minted only by the boundary read, answering only for its own edge; a mismatch at the split refuses `ClassificationInvariant`.
+  - The kernel row tells the line's parameter from the arc's.
+  - The PR body states the analytic 1-ulp movement.
+  - `sheets_part`'s held arm is reached 63 times on analytic rims, and a spline row for it is filed (P3).
+  - `teapot::wall3_pinned` derives its corners from the authored stations.
+  - No frame moves.
+  - Teapot wall 3 passes the split. The `held-pierce` lane re-pins it on its next stop (6441 landed first).
