@@ -2,11 +2,12 @@
 id: the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door
 kind: issue
 title: The sweep's curved arm still refuses a spline face before reading a side; the dihedral side door is not yet its spline arm
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
-refs: [a-span-is-read-against-a-faces-boundary-edges-first, the-side-of-a-spline-face-is-read-by-no-dihedral]
+refs: [a-span-is-read-against-a-faces-boundary-edges-first, the-side-of-a-spline-face-is-read-by-no-dihedral, the-shared-rim-routing-exempts-a-spline-face-by-kind, lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band]
+closed: 2026-11-03
 ---
 
 
@@ -78,3 +79,27 @@ edge's lifted image: the edge's pieces, read by the same metered gap.
 Moved from SPLICE to SPLICESEAM on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
 
 Moved from SPLICESEAM to SPLICE on 2026-11-02, by `git mv`, when SPLICESEAM merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Closed (2026-11-03): overtaken
+
+Measured on main at `d1ac6881` (SPLICE `splice/kind-reads`). The door
+this row wires is gone. `reduce::curved_face_arm` no longer refuses a
+spline face before reading a side: it routes the pair through
+`geom_brep::curve_face::route` and, at `Door::SplineFace`, hands it to
+`reduce::spline_face`, the boundary pass. An edge `Along` a boundary
+edge records its ends there and the join glues the two edges; a `Clear`
+edge goes to `spline_interior`'s chart meetings. Nothing on that path
+asks a parent face's side of the spline face, so `dihedral_side` has no
+consumer here. The witness no longer reaches this door: the sheath
+(`crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`) stops, in both
+operand orders, at the rim's certificate,
+`EdgeUndescribed { Intersection, Certification { NotTransverse {
+NOT_A_SAMPLE, lever: None, Refused::Zero } } }`, the walls' two-point
+tangency on the rim that `lily-wall-8-at-1e-6-reads-the-rims-crossing-angle-in-band`
+found and the sweep row pins by identity.
+
+`geom_brep::dihedral_side` still has no caller outside geom-brep. Its
+likely consumer is the shared-rim routing's spline arm
+(`the-shared-rim-routing-exempts-a-spline-face-by-kind`), which carries
+the evidence note.
+
