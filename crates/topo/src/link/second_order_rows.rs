@@ -673,3 +673,127 @@ fn what_one_order_down_leaves_unread_stays_unread_f64() {
 fn what_one_order_down_leaves_unread_stays_unread_interval() {
     what_one_order_down_leaves_unread_stays_unread::<Interval>();
 }
+
+// ---- R1 review probes (review/6422-r1-probe) ----
+
+/// A ring of horns along `+x` through the cut points `pts` (in `(y, z)`),
+/// each side's face of outward normal the left normal of its directed
+/// side, built through `corner` so each must read as a horn.
+fn r1_ring<T: Decide>(p: Point3<T>, pts: &[[f64; 2]]) -> Option<Vec<TangentPiece<T>>> {
+    let k = edges(pts.len());
+    let d = v::<T>(2.0, 0.0, 0.0);
+    let b = |i: usize| bound::<T>(k[i], [0.0, pts[i][0], pts[i][1]]);
+    let mut out = Vec::new();
+    for i in 0..pts.len() {
+        let j = (i + 1) % pts.len();
+        let (dy, dz) = (pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]);
+        let len = (dy * dy + dz * dz).sqrt();
+        let m = v::<T>(0.0, -dz / len, dy / len);
+        let piece = corner(p, m, (d, d), [b(i), b(j)]);
+        if !is_horn(&piece) {
+            return None;
+        }
+        out.push(piece);
+    }
+    Some(out)
+}
+
+fn r1_verdicts<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    for p in apexes::<T>() {
+        // Clockwise in (y, z): left normals point out, a thorn of material.
+        let cw = |pts: &[[f64; 2]]| pts.iter().rev().copied().collect::<Vec<_>>();
+        let convex = cw(&[[0.0, 0.0], [4.0, 0.0], [4.0, 3.0], [0.0, 4.0]]);
+        let got = read(p, r1_ring(p, &convex).expect("horns"));
+        assert!(matches!(got, TouchVerdict::Rest(_)), "convex quad {got:?} at {p:?}");
+        let pent: Vec<[f64; 2]> = (0..5)
+            .map(|i| {
+                let a = -(i as f64) * core::f64::consts::TAU / 5.0;
+                [2.0 + a.cos(), 2.0 + a.sin()]
+            })
+            .collect();
+        let got = read(p, r1_ring(p, &pent).expect("horns"));
+        assert!(matches!(got, TouchVerdict::Rest(_)), "convex pentagon {got:?} at {p:?}");
+        // The same pentagon counterclockwise: a needle of void alone.
+        let ccw: Vec<[f64; 2]> = pent.iter().rev().copied().collect();
+        assert_eq!(read(p, r1_ring(p, &ccw).expect("horns")), unread, "needle at {p:?}");
+        // Non-convex (a dart), both senses.
+        let dart = cw(&[[0.0, 0.0], [4.0, 0.0], [1.0, 1.0], [0.0, 4.0]]);
+        assert_eq!(read(p, r1_ring(p, &dart).expect("horns")), unread, "dart at {p:?}");
+        let dart = cw(&dart);
+        assert_eq!(read(p, r1_ring(p, &dart).expect("horns")), unread, "dart ccw at {p:?}");
+        // Self-intersecting: a bowtie, both senses.
+        let bow = [[0.0, 0.0], [2.0, 2.0], [2.0, 0.0], [0.0, 2.0]];
+        assert_eq!(read(p, r1_ring(p, &bow).expect("horns")), unread, "bowtie at {p:?}");
+        assert_eq!(read(p, r1_ring(p, &cw(&bow)).expect("horns")), unread, "bowtie r at {p:?}");
+        // A pentagram: the pentagon visited two steps at a time.
+        let star: Vec<[f64; 2]> = (0..5).map(|i| pent[(2 * i) % 5]).collect();
+        assert_eq!(read(p, r1_ring(p, &star).expect("horns")), unread, "star at {p:?}");
+        assert_eq!(read(p, r1_ring(p, &cw(&star)).expect("horns")), unread, "star r at {p:?}");
+        // Mixed normals: the fixture thorn with one face's normal turned
+        // round, its ends kept (a Horn held as built).
+        let k = edges(3);
+        let d = v::<T>(2.0, 0.0, 0.0);
+        let (l, a, b) = (
+            bound(k[0], [0.0; 3]),
+            bound(k[1], [0.0, 1.0, 0.0]),
+            bound(k[2], [0.0, 0.0, 1.0]),
+        );
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        for flip in 0..3 {
+            let ms = [v::<T>(0.0, 0.0, -1.0), v(0.0, -1.0, 0.0), v(0.0, s, s)];
+            let ends = [[a, l], [l, b], [b, a]];
+            let pieces = (0..3)
+                .map(|i| {
+                    let m = if i == flip { -ms[i] } else { ms[i] };
+                    horn(p, m, [(d, ends[i][0]), (d, ends[i][1])])
+                })
+                .collect();
+            assert_eq!(read(p, pieces), unread, "mixed normals, face {flip} at {p:?}");
+        }
+    }
+}
+
+#[test]
+fn r1_verdicts_f64() {
+    r1_verdicts::<f64>();
+}
+
+#[test]
+fn r1_verdicts_interval() {
+    r1_verdicts::<Interval>();
+}
+
+/// The cusp just inside the escalation, and just past it, a kilometre off,
+/// and the face turned over (normal and loop reversed).
+fn r1_cusp_band<T: Decide>() {
+    let m = v::<T>(0.0, 0.0, 1.0);
+    let d = v::<T>(2.0, 0.0, 0.0);
+    let (zero, escalate) = (band().zero(), band().escalate());
+    for p in apexes::<T>() {
+        for (k1, want) in [
+            ((escalate - 0.5 * zero) / 2.0, None),
+            ((escalate + 0.5 * zero) / 2.0, Some(true)),
+            (-(escalate + 0.5 * zero) / 2.0, Some(false)),
+            (-(escalate - 0.5 * zero) / 2.0, None),
+            (0.4 * zero, None),
+        ] {
+            let got = second_order::cusp(p, m, (d, d), [v(0.0, 0.0, 0.0), v(0.0, k1, 0.0)], band())
+                .map(|c| matches!(c, second_order::Cusp::Horn));
+            assert_eq!(got, want, "k1 {k1} at {p:?}");
+            let got = second_order::cusp(p, -m, (d, d), [v(0.0, k1, 0.0), v(0.0, 0.0, 0.0)], band())
+                .map(|c| matches!(c, second_order::Cusp::Horn));
+            assert_eq!(got, want, "turned over, k1 {k1} at {p:?}");
+        }
+    }
+}
+
+#[test]
+fn r1_cusp_band_f64() {
+    r1_cusp_band::<f64>();
+}
+
+#[test]
+fn r1_cusp_band_interval() {
+    r1_cusp_band::<Interval>();
+}
