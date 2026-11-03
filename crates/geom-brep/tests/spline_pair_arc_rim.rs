@@ -502,3 +502,106 @@ fn a_rim_ending_on_both_charts_sides_refuses_by_them() {
         "each end lies on a u side of both charts: {got:?}"
     );
 }
+
+/// The unit circle about `z` at height `z`, `t` its angle from `x̂`: on
+/// the cylinder's wall wherever `0 ≤ z ≤ 1`.
+fn rim_at(z: f64) -> Curve3<f64> {
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
+}
+
+/// The plane lane at `T` against the cylinder: the plane `z = h`, every
+/// fixture lifted.
+fn plane_lane_at<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    h: f64,
+) -> Result<geom_brep::PlaneNurbsIncidence<T>, PlaneNurbsRefusal> {
+    let plane = geom::Surface::Plane {
+        origin: Point3::new(0.0, 0.0, h),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    geom_brep::plane_nurbs_incidence(
+        &carrier.map_scalar(T::from_f64),
+        (T::from_f64(t0), T::from_f64(t1)),
+        &plane.map_scalar(T::from_f64),
+        &geom::Surface::Nurbs(cylinder(1, TURN).map_scalar(T::from_f64).into()),
+        None,
+        band(),
+    )
+}
+
+/// **A fitted refusal after an in-band exact image stands as itself.**
+/// The circle on the cylinder's wall `in_band()` above its `v = 0` row,
+/// cut by the plane at that height: the pick reads every row in band,
+/// so the wall reads its fitted image, which holds the circle (limb 1)
+/// and misses its arc between feet past the band (limb 2). That limb's
+/// refusal is the wall's whole answer: no exact image refused, so none
+/// is named.
+fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself<
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+>() {
+    let carrier = rim_at(in_band());
+    assert!(
+        pick_at::<T>(&carrier, (0.0, TURN), &cylinder(1, TURN)).is_err(),
+        "the pick reads the row in band, at {}",
+        T::NAME
+    );
+    let got = plane_lane_at::<T>(&carrier, (0.0, TURN), in_band());
+    assert!(
+        matches!(got, Err(PlaneNurbsRefusal::Limb { .. })),
+        "the fitted limb's refusal stands as itself, at {}: {:?}",
+        T::NAME,
+        got.as_ref().map(|_| ())
+    );
+}
+
+#[test]
+fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself_at_f64() {
+    a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself::<f64>();
+}
+
+#[test]
+fn a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself_at_interval() {
+    a_fitted_refusal_after_an_in_band_exact_image_stands_as_itself::<geom_core::Interval>();
+}
+
+/// **An in-band exact image gives way to a fitted image that
+/// certifies.** The same circle over an arc short enough that the
+/// fitted image's chords stay within ε (its 32 segments each bow by
+/// `R·(span/32)²/8`): the pick reads the row in band, and the wall's
+/// fitted image certifies the arc.
+fn an_in_band_exact_image_gives_way_to_a_certified_fitted_image<
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+>() {
+    let carrier = rim_at(in_band());
+    let span = 16.0 * band().zero().sqrt();
+    let params = (0.25, 0.25 + span);
+    assert!(
+        pick_at::<T>(&carrier, (params.0, span), &cylinder(1, TURN)).is_err(),
+        "the pick reads the row in band, at {}",
+        T::NAME
+    );
+    let got = plane_lane_at::<T>(&carrier, params, in_band());
+    assert!(
+        got.is_ok(),
+        "the fitted image certifies the arc, at {}: {:?}",
+        T::NAME,
+        got.as_ref().map(|_| ())
+    );
+}
+
+#[test]
+fn an_in_band_exact_image_gives_way_to_a_certified_fitted_image_at_f64() {
+    an_in_band_exact_image_gives_way_to_a_certified_fitted_image::<f64>();
+}
+
+#[test]
+fn an_in_band_exact_image_gives_way_to_a_certified_fitted_image_at_interval() {
+    an_in_band_exact_image_gives_way_to_a_certified_fitted_image::<geom_core::Interval>();
+}
