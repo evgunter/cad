@@ -366,3 +366,11 @@ and bodies unchanged. No orchestrator yet.
     - a crease march escalates;
     - 7 s cell-budget refusals.
 - 2026-11-03 — (SPLICE orchestrator) **`a-nurbs-wall-against-a-plane-has-no-germ-frame` now has an everyday witness.** The wavy loft united with a box across its corners (editor-core `wavy_loft`) passes its held-pierce site on `splice/held-pierce` and stops at `GermFrameUnsupported { a_face: 4v1, a_kind: Nurbs, b_face: 6v1, b_kind: Plane }`, from `join::pair_section_frame_at`'s `NoArm` fallback. That is a normal verb on normal geometry, so the row may merit P0 by the band definitions; the band is yours to set. The lane adds the reproducer to the row, with SPLICE's owed end-to-end row (the union builds, its corner crossings named and tied), which now waits on it.
+
+- 2026-11-03 10:25 — **PR 6405 merged.** Cylinder 3b-i is done: dual review, tally 1, row PR-6405.md. The old cylinder lane's target is freed.
+  - **Cylinder 3b-ii dispatched to a fresh implementer,** plan first (H, dual review). Its brief is `~/.local/share/cad-work/sectarms-orch/cyl-3b-ii-handoff.md`, which carries:
+    - F1's ratified C5 text and the agreed final state;
+    - the code facts;
+    - the designer-found defects: nodes listed when their arcs are dropped, and the 3b row's "branch names the arc" line;
+    - the scope boundary with NURBS 3b.
+  - **Blind coding for PR 6412 done:** tally 0 (byte 221, A = R2). The row is drafted and goes in after the fix pass.
