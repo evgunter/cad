@@ -138,6 +138,7 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
+pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
 pub mod coherence;
@@ -1274,7 +1275,13 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+            let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+            return Err(crate::PointInSolidError::KindUnsupported {
+                face,
+                kind: body.face_surface_linked(face, f).kind(),
+            });
+        };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
@@ -1330,7 +1337,7 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chord_join::face_azimuth_window_traces;
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{

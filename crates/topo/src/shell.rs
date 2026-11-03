@@ -2903,7 +2903,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             "a seam of the designated chart has no corner of the cavity counterpart to end on",
         ));
     };
-    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
     let (p_pole, p_ga, p_gb) = (point(body, pole), point(body, ga), point(body, gb));
     // Each corner the seams will end on lies on its seam strictly
     // between the boundary and the pole: the band between the boundary
@@ -3082,7 +3082,7 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         ));
     };
     let at = |body: &Body<T>, he: HeKey| proven(&body.half_edges, he, EntityId::HalfEdge).start;
-    let point = |body: &Body<T>, v: VertexKey| crate::chord_join::vertex_point(body, v);
+    let point = |body: &Body<T>, v: VertexKey| body.resolve_vertex_point(v, crate::live::Proven);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     // The seam runs forward on its carrier from one boundary to the other.
     let seam_plus = proven(&body.edges, seam, EntityId::Edge).he_plus;

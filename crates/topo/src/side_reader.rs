@@ -21,7 +21,7 @@ use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 use crate::body::Body;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{
-    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, face_plane, ray_crossings,
+    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
     selection_reach, side_before, uncrossable,
 };
 use crate::entity::{EntityId, FaceKey};
@@ -284,25 +284,19 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 ///
 /// # Errors
 ///
-/// A planar face that does not walk, or whose plane or in-face walk
-/// refuses other than in band; a face that does not resolve.
+/// A planar face that does not walk, or whose in-face walk refuses
+/// other than in band; a face that does not resolve.
 fn aim_at<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     geo: &FaceGeo<T>,
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
-    match face_plane(body, face) {
-        Ok((_, normal)) => {
-            if let Some(aim) = loop_aim(body, face, normal) {
-                return Ok(Some((aim, normal)));
-            }
-            return Ok(
-                crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal))
-            );
+    if let Some((_, normal)) = crate::face_normal::face_plane(body, face) {
+        if let Some(aim) = loop_aim(body, face, normal) {
+            return Ok(Some((aim, normal)));
         }
-        Err(PointInSolidError::KindUnsupported { .. }) => {}
-        Err(e) => return Err(e),
+        return Ok(crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal)));
     }
     let f = body
         .get_face(face)

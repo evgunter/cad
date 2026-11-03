@@ -2,11 +2,13 @@
 id: main-red-certified-endpoint-census-drifted-in-geom-brep-after-6171
 kind: issue
 title: main red (slow set): geom-core's certified_endpoint_census drifted in four geom-brep files after PR 6171 (spline_face, krawczyk, pair_section, ssi/enclose)
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: E
 branch: splice/kind-reads
+closed: 2026-11-03
+pr: 6437
 ---
 
 
@@ -34,3 +36,7 @@ The drift arrived after SPLICE's PR 6171. The earlier census row,
 
 The same as the closed row: re-run the census on main, attribute each
 moved count to its PR, disposition the new reads, and re-pin.
+
+## Closed (SPLICE, PR 6437, 2026-11-03)
+
+The census is re-pinned after main's moves: 16 files at the first pass, and `ssi/enclose.rs` plus `pair_section/spline_implicit.rs` (re-added to `HOLDERS`) after #6412. Each moved count is attributed to its PR and each new read is dispositioned in the PR body.
