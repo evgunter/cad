@@ -2562,8 +2562,8 @@ impl<T: Decide> FaceSector<T> {
         let half = lever / (rho * T::from_f64(2.0));
         let bend = centre - p;
         let q = p
-            + bend * (half * half * T::from_f64(2.0))
-            + around * (lever * (T::one() - half * half).sqrt());
+            + bend * (half.powi(2) * T::from_f64(2.0))
+            + around * (lever * (T::one() - half.powi(2)).sqrt());
         let side = |x: Point3<T>| metric::sign(LINK_PLANE, Distance::of(x, p, plane), band);
         match (side(p + h * lever), side(q)) {
             (Some(a @ (Positive | Negative)), Some(b)) if a == b => {}
