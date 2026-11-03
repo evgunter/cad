@@ -760,3 +760,89 @@ fn a_meetings_chart_point_is_placed_on_its_own_sheet() {
         "the lower-half meeting under it is in: {lower:?}"
     );
 }
+
+/// **A spline face's trim reads past a placeholder**: the sheet with a
+/// null edge fanned into its outer loop (`region::with_null_edge`, the
+/// sweep's crossing-vertex scaffolding) places every point as the sheet
+/// without it does. Its lift skips the null edge's halves under
+/// `Scaffolding::Skipped` and lifts the rest exactly as the plain
+/// sheet's; under `Scaffolding::Refused` it gaps at a null half. A
+/// half that is rowless but no placeholder gaps under either policy.
+#[test]
+fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
+    use crate::null::Scaffolding;
+    use crate::pcurves::LiftGap;
+    let c = 0.6;
+    let chart = twisted(c);
+    let uv = rect((0.25, 0.75), (0.25, 0.75));
+    let (plain, plain_face) = sheet(&chart, &uv);
+    let (mut nulled, face) = sheet(&chart, &uv);
+    super::super::region::with_null_edge(&mut nulled, face);
+    let outer = |body: &Body<f64>, face: FaceKey| body.get_face(face).unwrap().outer;
+    let null_halves: Vec<_> = nulled
+        .half_edges()
+        .filter(|(_, h)| crate::null::is_placeholder(&nulled, h.edge))
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(null_halves.len(), 2, "one placeholder, two halves");
+
+    let lifted = |body: &Body<f64>, face| -> Vec<_> {
+        body.loop_lift(outer(body, face), Scaffolding::Skipped)
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+            .collect()
+    };
+    let (skipped, bare) = (lifted(&nulled, face), lifted(&plain, plain_face));
+    assert_eq!(skipped.len(), bare.len(), "the null halves are left out");
+    for ((_, lift, start), (_, bare_lift, bare_start)) in skipped.iter().zip(&bare) {
+        assert_eq!(lift, bare_lift, "each row lifts as on the bare sheet");
+        assert_eq!(
+            (start.x, start.y),
+            (bare_start.x, bare_start.y),
+            "each row starts as on the bare sheet"
+        );
+    }
+    let Err(LiftGap { half_edge }) = nulled.loop_lift(outer(&nulled, face), Scaffolding::Refused)
+    else {
+        panic!("the strict lift refuses the null edge");
+    };
+    assert!(
+        null_halves.contains(&half_edge),
+        "it gaps at a null half: {half_edge:?}"
+    );
+
+    for q in [
+        chart.eval(0.5, 0.5),
+        chart.eval(0.9, 0.4),
+        chart.eval(0.3, 0.6),
+    ] {
+        let got = place(&nulled, face, q);
+        assert!(
+            matches!(got, CurvedPlacement::Trim(Some(_))),
+            "the nulled sheet places {q:?}: {got:?}"
+        );
+        assert_eq!(
+            got,
+            place(&plain, plain_face, q),
+            "as the bare sheet at {q:?}"
+        );
+    }
+
+    // A rowless half of a certified edge is no placeholder.
+    let (dropped, _, _) = skipped[1];
+    let mut torn = nulled.clone();
+    torn.detach_pcurve(dropped).unwrap();
+    for policy in [Scaffolding::Skipped, Scaffolding::Refused] {
+        assert_eq!(
+            torn.loop_lift(outer(&torn, face), policy).map(|_| ()),
+            Err(LiftGap { half_edge: dropped }),
+            "a rowless certified half gaps under {policy:?}"
+        );
+    }
+    assert_eq!(
+        place(&torn, face, chart.eval(0.5, 0.5)),
+        CurvedPlacement::Trim(None),
+        "its trim does not read"
+    );
+}

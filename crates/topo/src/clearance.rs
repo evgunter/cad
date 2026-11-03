@@ -3608,7 +3608,7 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
     ) else {
         return Err("a free-form face whose knot domain is not exact structure");
     };
-    let rows = crate::pcurves::loop_lift(body, f.outer)
+    let rows = crate::pcurves::loop_lift(body, f.outer, crate::null::Scaffolding::Refused)
         .map_err(|_| "a free-form face whose boundary stores no chart image to lift")?;
     let on_side = |(x, y): (Interval, Interval)| {
         let (x, y) = (exact(x), exact(y));
@@ -3768,7 +3768,9 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                         pts.push(p);
                         halves.entry(h.edge).or_default().push(he);
                     }
-                    if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+                    if let Ok(rows) =
+                        crate::pcurves::loop_lift(body, lk, crate::null::Scaffolding::Refused)
+                    {
                         if lk == f.outer {
                             let surface = body.face_surface_linked(face, f);
                             let periodic =
@@ -5110,7 +5112,7 @@ mod cone_window {
         let (body, face) = cone_cap(1.0);
         let lp = body.get_face(face).unwrap().outer;
         let joints: Option<Vec<_>> = body
-            .loop_lift(lp)
+            .loop_lift(lp, crate::null::Scaffolding::Refused)
             .unwrap()
             .iter()
             .map(|row| body.joint(row.half_edge))
@@ -5127,7 +5129,7 @@ mod cone_window {
             w.v
         );
         let cycle = body
-            .loop_lift(lp)
+            .loop_lift(lp, crate::null::Scaffolding::Refused)
             .unwrap()
             .iter()
             .map(|row| row.half_edge)

@@ -755,7 +755,7 @@ impl FaceInputs {
             // the trimmed lane walks (`topo::Body::loop_lift`); none for
             // a loop with no lift.
             let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
-                .loop_lift(lk)
+                .loop_lift(lk, topo::null::Scaffolding::Refused)
                 .map(|rows| {
                     rows.into_iter()
                         .map(|row| (row.half_edge, row.pcurve))

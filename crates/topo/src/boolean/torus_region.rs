@@ -142,12 +142,13 @@ use super::circle_roots::{
     first_harmonic_roots_in_band,
 };
 use super::region::{
-    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
+    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round,
     circle_edge_hit, found, in_band, span,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};

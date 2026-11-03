@@ -391,6 +391,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdge, HalfEdgeKey, LoopKey};
 use crate::joint::{Deck, JointElement, Winding};
 use crate::live::{linked, proven};
+use crate::null::Scaffolding;
 use crate::props::AtRestPolicy;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
@@ -2268,11 +2269,20 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
 /// same chain moved by one deck transformation, and every reader reads
 /// the chain, not its offset.
 ///
+/// **A placeholder on the loop** ([`crate::null::is_placeholder`]) is
+/// as `scaffolding` says. [`Scaffolding::Skipped`] leaves its rowless
+/// halves out of the chain, as the analytic region reader leaves the
+/// edge out of its boundary: it is one point, so the halves either
+/// side of it meet there, and the element of the joint into it is
+/// still summed along the loop, so every other member's lift is the
+/// one it would have with the placeholder gone. [`Scaffolding::Refused`]
+/// reads its half as any rowless half.
+///
 /// # Errors
 ///
 /// [`LiftGap`] naming the first half-edge, in cycle order, that stores
-/// no image or no element on the joint into it, or whose image its
-/// lift does not apply to.
+/// no element on the joint into it, no image (but for a placeholder
+/// skipped), or an image its lift does not apply to.
 ///
 /// # Panics
 ///
@@ -2282,6 +2292,7 @@ pub(crate) fn lift_decks(elements: &[JointElement]) -> Vec<Deck> {
 pub fn loop_lift<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
+    scaffolding: Scaffolding,
 ) -> Result<Vec<LiftedRow<'_, T>>, LiftGap> {
     let cycle = loop_rows(body, r#loop);
     let face = proven(&body.loops, r#loop, EntityId::Loop).face;
@@ -2293,9 +2304,16 @@ pub fn loop_lift<T: Decide>(
     let mut rows = Vec::with_capacity(cycle.len());
     let mut elements = Vec::with_capacity(cycle.len());
     for &half_edge in &cycle {
-        let (Some(row), Some(element)) = (body.pcurve(half_edge), body.joint(half_edge)) else {
+        let Some(element) = body.joint(half_edge) else {
             return Err(LiftGap { half_edge });
         };
+        let row = body.pcurve(half_edge);
+        if row.is_none()
+            && !(scaffolding == Scaffolding::Skipped
+                && crate::null::is_placeholder(body, edge_record(body, half_edge).0))
+        {
+            return Err(LiftGap { half_edge });
+        }
         rows.push(row);
         elements.push(element);
     }
@@ -2303,7 +2321,8 @@ pub fn loop_lift<T: Decide>(
         .into_iter()
         .zip(rows)
         .zip(lift_decks(&elements))
-        .map(|((half_edge, row), lift)| {
+        .filter_map(|((half_edge, row), lift)| Some((half_edge, row?, lift)))
+        .map(|(half_edge, row, lift)| {
             let pcurve = lift
                 .apply(row.pcurve(), surface, periods)
                 .ok_or(LiftGap { half_edge })?;
@@ -2334,7 +2353,7 @@ pub(crate) fn lifted_images<T: Decide>(
         return Vec::new();
     };
     let r#loop = proven(&body.half_edges, first, EntityId::HalfEdge).parent_loop;
-    let Ok(lift) = loop_lift(body, r#loop) else {
+    let Ok(lift) = loop_lift(body, r#loop, Scaffolding::Refused) else {
         return vec![None; halves.len()];
     };
     let mut by_half: slotmap::SecondaryMap<HalfEdgeKey, Pcurve<T>> = slotmap::SecondaryMap::new();
@@ -8466,7 +8485,8 @@ pub(crate) mod pole_slit_tests {
                 "anchored at {anchor:?}"
             );
             assert!(
-                body.loop_lift(cap_loop).is_ok(),
+                body.loop_lift(cap_loop, crate::null::Scaffolding::Refused)
+                    .is_ok(),
                 "anchored at {anchor:?}, the loop lifts"
             );
         }

@@ -1655,12 +1655,12 @@ impl<T: Real> Body<T> {
     /// **A loop's lift** ([`crate::pcurves::loop_lift`]): each half-edge
     /// of `r#loop` in cycle order from its `first`, with its image moved
     /// by the elements summed along the loop — the chain of chart curves
-    /// the loop's readers draw.
+    /// the loop's readers draw, a placeholder on it as `scaffolding`
+    /// says.
     ///
     /// # Errors
     ///
-    /// [`crate::pcurves::LiftGap`] naming the first half-edge whose
-    /// image or joint element is missing.
+    /// [`crate::pcurves::LiftGap`]: [`crate::pcurves::loop_lift`]'s.
     ///
     /// # Panics
     ///
@@ -1669,11 +1669,12 @@ impl<T: Real> Body<T> {
     pub fn loop_lift(
         &self,
         r#loop: crate::entity::LoopKey,
+        scaffolding: crate::null::Scaffolding,
     ) -> Result<Vec<crate::pcurves::LiftedRow<'_, T>>, crate::pcurves::LiftGap>
     where
         T: geom_core::Decide,
     {
-        crate::pcurves::loop_lift(self, r#loop)
+        crate::pcurves::loop_lift(self, r#loop, scaffolding)
     }
 
     /// Writes one row — `half_edge`'s image and the element of the joint

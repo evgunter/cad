@@ -191,6 +191,43 @@ impl<T: Real> CurveGeom<T> {
     }
 }
 
+/// **What a reader of a face's boundary makes of a placeholder**
+/// ([`is_placeholder`]): a null edge whose two ends are one point, a
+/// zero-length copy of a vertex, which has no carrier and so stores no
+/// chart row while it stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scaffolding {
+    /// Left out: it bounds nothing, and the half-edges either side of
+    /// it meet at its one point.
+    Skipped,
+    /// Read as any edge with no carrier: the reading refuses.
+    Refused,
+}
+
+/// **Whether `edge` is a placeholder**: null scaffolding
+/// ([`CurveGeom::NullScaffold`]) whose two ends sit on one point. The
+/// one predicate every boundary reader that skips one reads
+/// ([`Scaffolding::Skipped`]); a null edge whose ends have parted is
+/// a gap in the boundary, not a placeholder.
+///
+/// # Panics
+///
+/// Where `edge`, its curve, either half or either half's start vertex
+/// does not resolve: each is a link of the record before it
+/// ([`crate::live::OPERATORS_KEEP_LINKS`]).
+#[track_caller]
+pub(crate) fn is_placeholder<T: Real>(body: &Body<T>, edge: crate::entity::EdgeKey) -> bool {
+    let data = crate::live::proven(&body.edges, edge, EntityId::Edge);
+    if body.edge_curve_linked(edge, data).null_scaffold().is_none() {
+        return false;
+    }
+    let point = |he| {
+        let start = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge).start;
+        crate::live::proven(&body.vertices, start, EntityId::Vertex).point
+    };
+    point(data.he_plus) == point(data.he_minus)
+}
+
 impl<T: geom_core::Decide> Body<T> {
     /// The door [`Construct::mev_null`](crate::construction::Construct::mev_null) forwards to;
     /// documented there.
