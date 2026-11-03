@@ -406,9 +406,10 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// PCERT E1c (PR 5889), whose mints read incidence before they store:
 /// their decisions hold, and `frozen` rose (at 1e-9, 4 -> 462 and
 /// 60 -> 348). Those are the forms of the read's sampled distances,
-/// which the plain walks freeze. Built with the plane's foot in place of
-/// its slide, the same rows freeze 398 and 1104, so the count is the
-/// read's own forms rather than how its anchor is written. The cost is
+/// which the plain walks freeze, and the count follows how the read's
+/// arithmetic is spelled: before main's merge the same reads froze 4 and
+/// 60, the merge's port with its divisor decision 406 and 1112, and the
+/// plane's foot in place of its slide 398 and 1104. The cost is
 /// `work/pcert/the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads.md`.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {

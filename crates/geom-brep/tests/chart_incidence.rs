@@ -1405,6 +1405,92 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     }
 }
 
+/// **The certification reads a carrier as its mint read it** (N2): a
+/// stored row's check 4 re-derives the image on the chart's
+/// orthonormalised twin, and takes the stored chart's incidence read
+/// there rather than reading the carrier again on the twin. Read on the
+/// twin, an `Interval` chart reads wider than the stored one, so a row
+/// its mint imaged on the face would be read in band at its own
+/// certification.
+///
+/// The family is the far-anchor row's above: a rim `2ᵏ` m up a cylinder
+/// on a tilted axis, and a circle `2ᵏ` m along a tilted plane, `k` to
+/// 30, at `f64` and `Interval`. Wherever the mint images the carrier,
+/// `PcurveCache::certify` of that image over the full turn reads no
+/// incidence refusal. With check 4's twin re-reading the carrier
+/// instead, the `Interval` rim escalates `ChartIncidence` in `certify` at
+/// `2¹⁸` and `2¹⁹` at ε 1e-9, where the mint images it (measured).
+#[test]
+fn a_stored_row_is_read_at_its_certification_as_its_mint_read_it() {
+    use geom_brep::PcurveCache;
+    let tilted = Vec3::new(0.0, 0.6, 0.8);
+    let tau = core::f64::consts::TAU;
+    let lift = <Interval as Real>::from_f64;
+    let mut certified = [0usize; 2];
+    for k in 0..=30 {
+        let h = 2f64.powi(k);
+        let in_plane = Vec3::unit_x() * h + tilted.cross(Vec3::unit_x()) * h;
+        let shapes = [
+            (
+                format!("a rim 2^{k} m up a tilted axis"),
+                Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: tilted,
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                Curve3::circle(Point3::origin() + tilted * h, tilted, 1.0, Vec3::unit_x()),
+            ),
+            (
+                format!("a circle 2^{k} m along a tilted plane"),
+                Surface::Plane {
+                    origin: Point3::origin(),
+                    normal: tilted,
+                    u_ref: Vec3::unit_x(),
+                },
+                Curve3::circle(Point3::origin() + in_plane, tilted, 1.0, Vec3::unit_x()),
+            ),
+        ];
+        for (shape, (what, surface, carrier)) in shapes.into_iter().enumerate() {
+            if let Ok(image) = chart_pcurve(&carrier, &surface, band()) {
+                let got = PcurveCache::certify(image, 0.0, tau, &carrier, &surface, band());
+                assert!(
+                    got.as_ref()
+                        .err()
+                        .and_then(geom_brep::IncidenceRead::of)
+                        .is_none(),
+                    "{what} (f64): imaged by the mint, read on at its certification: {:?}",
+                    got.err()
+                );
+            }
+            let (carrier, surface) = (carrier.map_scalar(lift), surface.map_scalar(lift));
+            if let Ok(image) = chart_pcurve(&carrier, &surface, band()) {
+                let got =
+                    PcurveCache::certify(image, lift(0.0), lift(tau), &carrier, &surface, band());
+                assert!(
+                    got.as_ref()
+                        .err()
+                        .and_then(geom_brep::IncidenceRead::of)
+                        .is_none(),
+                    "{what} (Interval): imaged by the mint, read on at its certification: {:?}",
+                    got.err()
+                );
+                certified[shape] += 1;
+            }
+        }
+    }
+    // The mint images the rim below `2²⁰` and the plane's circle below
+    // `2²⁴` at ε 1e-9 (the far-anchor row's pins), so the `k` the twin's
+    // re-read refused are certified here.
+    if eps() == 1e-9 {
+        assert_eq!(
+            certified,
+            [20, 24],
+            "the Interval images certified per shape"
+        );
+    }
+}
+
 /// **A stored chart edge re-certified on its chart moved ends as its
 /// incidence read** (D3): the image the edge stores is metered against
 /// the chart only after the carrier's incidence on it is read, as the
@@ -1698,4 +1784,68 @@ fn an_arc_on_its_face_is_read_on_it_by_the_edges_own_read() {
             "the mint's read of the arc ({lane}) is its whole turn's, the definite miss: {got:?}"
         );
     }
+}
+
+/// **`topo::chart_region`'s plane path reads an arc over its whole turn,
+/// where the planar tier reads its span**: pinned as it stands, so the
+/// fix of `work/pcert/a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span.md`
+/// has to flip it.
+///
+/// `chart_region`'s plane path (`loop_uv_polygon`) images a flat face's
+/// trim edge on demand by [`geom_brep::chart_pcurve_over`] over the
+/// edge's span. That is the mint's imaging, which reads a conic over its
+/// whole turn. On the arc of [`an_arc_on_its_face_is_read_on_it_by_the_edges_own_read`]
+/// (the unit circle tilted `1e3·ε` about `x`, edged over
+/// `t ∈ [−1e-4, 1e-4]`, on `z = 0`) it refuses `CarrierOffChart`, the
+/// full turn's farthest point (`Past(1.0e-6)` at ε 1e-9). `chart_region`
+/// ends that as `TrimOffFace`, the stored culprit at rest, while the planar
+/// tier's [`geom_brep::read_edge_incidence`] reads the same arc on its
+/// face. Both lanes.
+#[test]
+fn chart_regions_plane_path_reads_an_arc_over_its_whole_turn_where_the_planar_tier_reads_its_span()
+{
+    let tilt = 1e3 * eps();
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+        1.0,
+        Vec3::unit_x(),
+    );
+    let (t0, t1) = (-1e-4, 1e-4);
+    let lift = Interval::from_f64;
+    let (ci, pi) = (circle.map_scalar(lift), plane.map_scalar(lift));
+    let imaged = [
+        (
+            "f64",
+            geom_brep::chart_pcurve_over(&circle, t0, t1, &plane, band()).map(|_| ()),
+        ),
+        (
+            "Interval",
+            geom_brep::chart_pcurve_over(&ci, lift(t0), lift(t1), &pi, band()).map(|_| ()),
+        ),
+    ];
+    for (lane, got) in imaged {
+        assert!(
+            got.as_ref()
+                .err()
+                .and_then(geom_brep::IncidenceRead::of)
+                .is_some_and(geom_brep::IncidenceRead::is_definite),
+            "chart_region's plane path ({lane}): the whole turn's definite miss: {got:?}"
+        );
+    }
+    assert_eq!(
+        geom_brep::read_edge_incidence(&circle, t0, t1, &plane, band()),
+        Ok(()),
+        "the planar tier (f64): on its face"
+    );
+    assert_eq!(
+        geom_brep::read_edge_incidence(&ci, lift(t0), lift(t1), &pi, band()),
+        Ok(()),
+        "the planar tier (Interval): on its face"
+    );
 }

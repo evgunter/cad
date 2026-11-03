@@ -85,3 +85,25 @@ soundness and coverage trade, not a cost fix, so they were not taken.
 **Open for the mint and certify**, on every chart: an arc on its face
 whose circle leaves the face past its ends is still read off at a build
 and in a stored row's certification.
+
+## 2026-11-03: `topo::chart_region`'s plane path disagrees with the planar tier
+
+E1c's round-N verification found a third reader of a flat face's arc.
+`topo::chart_region`'s plane path (`loop_uv_polygon`,
+`crates/topo/src/chart_region.rs`) images a flat face's trim edge on
+demand by `geom_brep::chart_pcurve_over` over the edge's span. That is
+the mint's imaging, so it reads a conic over its whole turn.
+
+On this item's arc (the unit circle tilted `1e3·ε`, edged over
+`[−1e-4, 1e-4]`, on `z = 0`) it refuses `CarrierOffChart` at the full
+turn's farthest point, `Past(1.0e-6)` at ε 1e-9, at both lanes and every
+ε the row runs.
+`chart_region` ends that as `TrimOffFace`: the stored culprit at rest.
+The planar tier's `read_edge_incidence` reads the same arc on its face.
+So on a flat face the two at-rest readers disagree.
+
+Under the orchestrator's ruling (a) this is the mint's imaging, which
+keeps the whole turn, so `chart_region` was not changed in E1c; the fix
+rides this item. The disagreement is pinned by
+`chart_incidence::chart_regions_plane_path_reads_an_arc_over_its_whole_turn_where_the_planar_tier_reads_its_span`,
+which this item's fix has to flip.

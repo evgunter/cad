@@ -105,9 +105,11 @@ through the symbolic tier.
 The sweep digest's two `Sym` `validate_geometric` rows
 (`crates/sweep/tests/thread-count-digest/`) are the same forms. Their
 decisions hold, and the nodes their plain walks freeze rise: at 1e-9,
-`sym_arc_loft` 4 → 462 and `sym_thin_strip` 60 → 348. The same rows
-built with the plane's foot in place of its slide freeze 398 and 1104,
-so the count follows the read's forms, not how the anchor is written.
+`sym_arc_loft` 4 → 462 and `sym_thin_strip` 60 → 348. The count
+follows how the read's arithmetic is spelled. Before main's merge the
+same reads froze 4 and 60; the merge's port with its divisor decision
+froze 406 and 1112; the plane's foot in place of its slide freezes 398
+and 1104.
 
 Levers:
 - **(i) Fewer samples.** Ruled out by the orchestrator.
