@@ -5,7 +5,8 @@ title: Surface::Torus represents only ring tori (R > r > 0); horn and spindle to
 status: open
 opened: 2026-10-14
 priority: P0
-design: true
+cost: X
+points: 20
 branch: spiricarm/torus-axis-ev
 pr: 6464
 ---
@@ -48,3 +49,13 @@ Moved from `work/issues/` to `work/spiricarm/` on 2026-11-03, when the `work/iss
 ## Weighed (2026-11-03)
 
 Two designers weighed it (fork `a-torus-reaches-its-axis`, `docs/DESIGN-FORK-LOG.md` row 252) and agreed after four rounds: a separate analytic kind for one sheet of a spindle or horn torus, with a signed major radius, sharing a revolved-circle core with `Surface::Torus`, which stays the ring. The `[ev]` PR on `spiricarm/torus-axis-ev` carries the question; the row is priced once Ev rules.
+
+## Ruled (Ev, PR 6464, 2026-11-03)
+
+Ev approved the agreed recommendation: a new analytic kind `Surface::Spindle`, one sheet of a spindle or horn torus with a signed major radius, sharing a revolved-circle core with `Surface::Torus`, which stays the ring. The horn is H1 (the sheet's closed end, `v* = π`, one cusp). [surfaces] gains the locus sentence. The revolve reads the arc's interior, and the signed centre distance picks the kind (`crates/topo/README.md`'s structural conventions).
+
+**Priced X, 20 points.** It is a new `Surface` variant: every exhaustive match gets a `Spindle` arm, and an audit covers every non-exhaustive kind test (`matches!`, `if let Surface::Torus`). It has two stages, either of which may be cut into several units:
+1. The sheet away from its apexes: datums, the shared core, the revolve's arc classification, the readers' window forms, typed "no lane yet" refusals for the ring-only closed forms. This lands the football with conical ends.
+2. The apex as a pole (`Singularity`, `Chart::poles`, mesh's pole fans, the pole form, tier 3's apex check). This lands the football.
+
+The consumers (offset's `TorusRing`, blend's `SpineIrregular`, STEP's `DEGENERATE_TOROIDAL_SURFACE`) are rows of their own once stage 1 lands.
