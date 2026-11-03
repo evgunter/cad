@@ -858,7 +858,8 @@ fn ambiguous_outerness_refuses_typed() {
     assert!(
         format!("{err_at}", err_at = err.render()).contains("outer")
             || format!("{err_at}", err_at = err.render()).contains("bound"),
-        "the refusal must say what it could not decide: {err_at}"
+        "the refusal must say what it could not decide: {}",
+        err.render()
     );
 }
 

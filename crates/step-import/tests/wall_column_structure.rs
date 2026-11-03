@@ -211,7 +211,7 @@ fn the_refusal_names_which_invariant_the_wall_broke() {
         let inner = format!("{source}");
         let rendered = format!(
             "{}",
-            StepImportError.render()::WallColumnStructure { id: 4271, source }
+            StepImportError::WallColumnStructure { id: 4271, source }.render()
         );
         assert!(
             rendered.contains("#4271"),

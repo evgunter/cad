@@ -142,7 +142,7 @@ fn c3a_rotated_circle_axis_refuses_adoption() {
             assert!(!attempts.is_empty(), "attempts carried as data");
             println!(
                 "c3a refusals: {}",
-                StepImportError.render()::Adoption { id, attempts, file }
+                StepImportError::Adoption { id, attempts, file }.render()
             );
         }
         other => panic!(
@@ -165,7 +165,7 @@ fn c3b_cylinder_radius_mismatch_refuses_adoption() {
         StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3b refusals: {}",
-                StepImportError.render()::Adoption { id, attempts, file }
+                StepImportError::Adoption { id, attempts, file }.render()
             );
         }
         other => panic!(
@@ -188,7 +188,7 @@ fn c3c_wrong_surface_pair_refuses_adoption() {
         StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3c refusals: {}",
-                StepImportError.render()::Adoption { id, attempts, file }
+                StepImportError::Adoption { id, attempts, file }.render()
             );
         }
         other => panic!(
@@ -211,7 +211,7 @@ fn c3d_curve_off_intersection_refuses_adoption() {
         StepImportError::Adoption { id, attempts, file } => {
             println!(
                 "c3d refusals: {}",
-                StepImportError.render()::Adoption { id, attempts, file }
+                StepImportError::Adoption { id, attempts, file }.render()
             );
         }
         other => panic!(
