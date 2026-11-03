@@ -179,6 +179,19 @@ impl From<RootRefusal> for MeetFault {
     }
 }
 
+impl From<geom::Unwalked> for MeetFault {
+    /// A spline's walk past its budget as unsettled, and a spline with no
+    /// speed bound as a pose the reader does not serve.
+    fn from(why: geom::Unwalked) -> Self {
+        match why {
+            geom::Unwalked::Exhausted => Self::Unsettled(Unsettled::Exhausted),
+            geom::Unwalked::Unbounded => Self::Unsupported {
+                pose: "a spline whose speed bound is zero or poison",
+            },
+        }
+    }
+}
+
 impl From<Indeterminate> for MeetFault {
     fn from(diag: Indeterminate) -> Self {
         Self::Escalated(diag)
@@ -506,18 +519,11 @@ pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_c
 }
 
 /// A point-on-span refusal as the meeting's: an escalation as itself, a
-/// spline's walk past its budget as unsettled, and a spline with no
-/// speed bound as a pose the reader does not serve.
+/// walk that could not run as its [`From`].
 pub(crate) fn carrier_fault(refusal: geom::CarrierRefusal) -> MeetFault {
-    match refusal {
-        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
-            MeetFault::Escalated(diag)
-        }
-        geom::CarrierRefusal::Exhausted => MeetFault::Unsettled(Unsettled::Exhausted),
-        geom::CarrierRefusal::Unbounded => MeetFault::Unsupported {
-            pose: "a spline whose speed bound is zero or poison",
-        },
-    }
+    refusal
+        .escalation()
+        .map_or_else(MeetFault::from, MeetFault::Escalated)
 }
 
 #[cfg(test)]

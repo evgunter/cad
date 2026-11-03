@@ -3,7 +3,7 @@
 
 use geom_core::{Band, Point3, Vec3};
 
-use super::{CarrierRefusal, OnCarrier};
+use super::{CarrierRefusal, OnCarrier, Unwalked};
 use crate::Curve3;
 
 const ZERO: f64 = 1e-9;
@@ -73,8 +73,8 @@ fn name(r: Result<OnCarrier, CarrierRefusal>) -> &'static str {
         Ok(OnCarrier::On { .. }) => "on",
         Ok(OnCarrier::Off) => "off",
         Err(CarrierRefusal::Escalated(_) | CarrierRefusal::Straddle(_)) => "escalated",
-        Err(CarrierRefusal::Exhausted) => "exhausted",
-        Err(CarrierRefusal::Unbounded) => "unbounded",
+        Err(CarrierRefusal::Unwalked(Unwalked::Exhausted)) => "exhausted",
+        Err(CarrierRefusal::Unwalked(Unwalked::Unbounded)) => "unbounded",
     }
 }
 

@@ -44,12 +44,12 @@
 //! face's boundary pre-pass, which names that entity; a crossing the
 //! pre-pass puts off every boundary entity is two readings that
 //! disagree, and answers [`BoundaryCrossing::Unread`]. So does every
-//! refusal the pass types past the band's own escalation, and a face
-//! holding a lone vertex (a pierce ring), which has no boundary pre-pass:
-//! the caller keeps its frontier door.
+//! refusal the pass types past the band's own escalation, and a crossing
+//! on a face holding a lone vertex (a pierce ring), which has no boundary
+//! pre-pass: the caller keeps its frontier door.
 
 use geom_brep::curve_face::{self, Boundary, BoundaryRefusal};
-use geom_brep::curve_pair::{MeetFault, Span};
+use geom_brep::curve_pair::Span;
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -139,11 +139,12 @@ pub(super) fn boundary_crossing<T: Decide>(
 }
 
 /// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
-/// read against `swept`: its answer or refusal, or `None` where the
-/// boundary holds a lone vertex (a pierce ring), which the pre-pass that
-/// places a crossing cannot read, or an edge with no certified curve,
-/// which the pass cannot. Such a face answers `None` before any decision
-/// of the pass is made, so it never escalates.
+/// read against `swept`: its answer or refusal, or `None` where it is a
+/// meeting on a face holding a lone vertex (a pierce ring), which the
+/// pre-pass that places a meeting cannot read
+/// ([`super::contain::curved_boundary_containment`]), or where an edge
+/// has no certified curve, which the pass cannot; that face answers
+/// `None` before any decision of the pass is made, so it never escalates.
 ///
 /// # Errors
 ///
@@ -159,9 +160,10 @@ pub(super) fn read_boundary<T: Decide>(
     swept: &Span<'_, T>,
     band: Band,
 ) -> Result<Option<Result<Boundary<T>, BoundaryRefusal>>, BooleanError> {
-    Ok(face_boundary(y, face)?
-        .filter(|b| b.lone.is_empty())
-        .map(|b| curve_face::boundary(swept, &b.spans(), band)))
+    Ok(face_boundary(y, face)?.and_then(|b| {
+        let answer = curve_face::boundary(swept, &b.spans(), &b.lone_points(), band);
+        (b.lone.is_empty() || !matches!(answer, Ok(Boundary::Meets { .. }))).then_some(answer)
+    }))
 }
 
 /// A boundary edge as the pass reads it.
@@ -190,14 +192,18 @@ impl<T: Decide> FaceBoundary<'_, T> {
             .collect()
     }
 
+    /// The lone vertices' points, as the pass takes them.
+    fn lone_points(&self) -> Vec<Point3<T>> {
+        self.lone.iter().map(|&(_, p)| p).collect()
+    }
+
     /// **Every meeting of `swept` with the boundary** ([`curve_face::read`]).
     pub(super) fn read(
         &self,
         swept: &Span<'_, T>,
         band: Band,
     ) -> Result<curve_face::BoundaryReading<T>, BoundaryRefusal> {
-        let lone: Vec<_> = self.lone.iter().map(|&(_, p)| p).collect();
-        curve_face::read(swept, &self.spans(), &lone, band)
+        curve_face::read(swept, &self.spans(), &self.lone_points(), band)
     }
 }
 
@@ -233,21 +239,12 @@ pub(super) fn face_boundary<T: Decide>(
                 let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
                     return Ok(None);
                 };
-                let end = |h, field| {
-                    crate::live::linked(
-                        &y.half_edges,
-                        h,
-                        EntityId::HalfEdge,
-                        EntityId::Edge(ek),
-                        field,
-                    )
-                    .start
-                };
+                // A span runs forward from its `he_plus`'s start.
+                let (from, to) = crate::query::edge_ends(y, ek);
                 boundary.edges.push(BoundaryEdge {
                     start: (half.start, start),
                     curve,
-                    // A span runs forward from its `he_plus`'s start.
-                    ends: [end(edge.he_plus, "he_plus"), end(edge.he_minus, "he_minus")],
+                    ends: [from, to],
                 });
             }
         }
@@ -278,20 +275,7 @@ pub(super) fn boundary_refusal(
             })
         }
         BoundaryRefusal::Unread(_) => Ok(()),
-        BoundaryRefusal::Fault(fault) => Err(boundary_fault(fault)),
-    }
-}
-
-/// A boundary pass's [`BoundaryRefusal::Fault`]: a kernel fault, the
-/// readings that contradict named.
-pub(super) fn boundary_fault(fault: MeetFault) -> BooleanError {
-    match fault {
-        MeetFault::Contradiction { readings } => {
-            BooleanError::ClassificationInvariant { what: readings }
-        }
-        _ => BooleanError::ClassificationInvariant {
-            what: "boundary pass: a carrier the meeting table misread",
-        },
+        BoundaryRefusal::Fault { what } => Err(BooleanError::ClassificationInvariant { what }),
     }
 }
 

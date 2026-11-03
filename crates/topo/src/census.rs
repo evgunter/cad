@@ -3115,13 +3115,13 @@ fn on_edge_interior_reading<T: Decide>(
     match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
-        Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
-        }
-        Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-            unreachable!("a line's carrier reading walks no pieces")
-        }
+        Err(refusal) => match refusal.escalation() {
+            Ok(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                None
+            }
+            Err(_) => unreachable!("a line's carrier reading walks no pieces"),
+        },
     }
 }
 
@@ -11299,6 +11299,15 @@ enum InteriorsUnread {
     Unbuilt,
 }
 
+/// A point-on-span refusal as [`InteriorsUnread`]: an escalation
+/// undecided, a spline's walk that could not run unbuilt, as a meeting's
+/// unsettled walk is.
+fn contact_unread(refusal: geom::CarrierRefusal) -> InteriorsUnread {
+    refusal
+        .escalation()
+        .map_or(InteriorsUnread::Unbuilt, |_| InteriorsUnread::Undecided)
+}
+
 /// **Whether two planar faces on one plane, facing the same way, share
 /// interior**: some vertex of one lies strictly inside the other, two of
 /// their edges cross properly (two half-planes whose lines cross share a
@@ -11571,7 +11580,7 @@ fn arc_interiors_meet<T: Decide>(
                                 match on.contact(end, near, band) {
                                     Ok(Some(hit)) => cuts.push(on.at(hit)),
                                     Ok(None) => {}
-                                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                                    Err(refusal) => note(contact_unread(refusal), &mut unread),
                                 }
                             }
                         }
@@ -11603,7 +11612,7 @@ fn arc_interiors_meet<T: Decide>(
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
-                    Err(_) => note(InteriorsUnread::Undecided, &mut unread),
+                    Err(refusal) => note(contact_unread(refusal), &mut unread),
                 }
             }
         }

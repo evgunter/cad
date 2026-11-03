@@ -315,8 +315,10 @@ fn passes<T: Decide>(
     let gap = match carrier.foot(r, near).on_carrier(band) {
         Ok(geom::OnCarrier::Off) => return Passes::Clear,
         Ok(geom::OnCarrier::On { .. }) => Gap::Zero,
-        Err(geom::CarrierRefusal::Escalated(diag)) => Gap::InBand(diag),
-        Err(_) => return Passes::Undecided,
+        Err(refusal) => match refusal.escalation() {
+            Ok(diag) => Gap::InBand(diag),
+            Err(_) => return Passes::Undecided,
+        },
     };
     match span.span().place(r, near, band) {
         Ok(geom_brep::curve_pair::Place::Inside { .. }) => Passes::Met(s, gap),

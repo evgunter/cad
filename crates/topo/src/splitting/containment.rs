@@ -1053,9 +1053,7 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => {
-                ConicHit::Unsettled
-            }
+            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
         })
     }
 
