@@ -18,3 +18,7 @@ Found by `cover-edge-doors` (its sweep). The edge doors that bound a region now 
 These are the levers' and the gate's question (`cover-levers`, `cover-kind-match-gate`). Either the cover gains a method (a diameter, an exactness flag) or each one is exempted with a reason. Until then, the kind-match gate will flag every site above.
 
 **Also left by the unit, with no production reader:** `geom::curves::boxes`'s arc boxes, `circle_arc_aabb`, `ellipse_arc_aabb`, `spiric_arc_aabb`, `conic_arc_aabb` and `nurbs_curve_aabb`, and `conic_arc_extent_along` with its `_bracketed` twin. Since this unit, only tests and probes call them (`crates/geom/tests/`, `crates/sweep/tests/spiric_rim.rs`, and `topo`'s spiric box rows). They are a second reading of an arc's region beside `Curve3::cover_over`, and each one dispatches on kind. Retire them, or keep them as test oracles.
+
+## Evidence: an exactness invariant held by the caller (PR 6399's delta review, 2026-11-03)
+
+`geom_brep::edge_reach_bounds` now takes its bound from above from the caller, but still returns `Exact(above)` for a line or circle by carrier kind alone. That `above` is the reach (and not merely a bound on it) is an invariant only the caller holds. Topo's caller hulls the vertices into it, so `above` can pass the arc's reach by a vertex's residual. Exactness wants a cover method, as this row says, not a kind check at the door. (BOXES orchestrator)
