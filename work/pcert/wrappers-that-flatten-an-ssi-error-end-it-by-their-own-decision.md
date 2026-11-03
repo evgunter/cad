@@ -2,8 +2,10 @@
 id: wrappers-that-flatten-an-ssi-error-end-it-by-their-own-decision
 kind: issue
 title: Two lane wrappers flatten an SsiError into Unsupported and end it 'not yet', losing the SSI arm's decision
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-03
+pr: 6474
 priority: P3
 cost: E
 ---
@@ -49,3 +51,16 @@ door should end by. Where it is, carry the refusal (or its
 `SsiError::ending`) rather than its `what` string; where the lane's own
 decision is the right one, say so at the arm and make the match
 exhaustive by variant.
+
+## Resolved (PR 6474)
+
+Both wrappers now carry what reaches them. The SSI refusals the lane's
+producers return are named arms ending by `SsiError::ending`: the
+tube's structural refusals as `Tube(TubeRefusal)` on both lane
+refusals, a wrong-lane call as `PlaneNurbsRefusal::WrongLane`. What is
+left in the `_` of `edge_nurbs::refusal` and `of_tube` is the SSI arms
+no producer of these lanes returns (`SsiOperand::nurbs`,
+`certify_branch` and `incidence_limbs` reach none of them); they end as
+`OutsideVocabulary`, the door's defect, rather than a false "not yet".
+A silent tube that built no chain now ends as the kernel's defect, as
+the SSI door ends it; one with an enclosure refused stays "not yet".
