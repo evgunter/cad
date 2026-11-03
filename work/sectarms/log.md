@@ -334,3 +334,9 @@ and bodies unchanged. No orchestrator yet.
     - Preferred fix: the seam germ rides the carried lane on the value's ruling.
   - **R1: the torus gate's premise doesn't reproduce.** Lifting it, every op builds sound except ∩, which refuses typed. So: re-measure, and remove the gate if honest.
   - **Also in the pass:** a volume assertion on the shaft row, stale docs, an inconsistent fixture, one home for the two carried-lane gates (an allowlist by pair), and the radial copy.
+
+- 2026-11-03 05:50 — **Ev asked two questions on `[ev]` PR 6398.** Q1: "made from the arcs" vs "looked up". Q2: is the two-line case enough, and what about a third shape? Answered on the PR from a designer's code-checked draft:
+  - Q1: an arc end names its node by construction, so arc end → node has one answer, while a point → arc lookup has four.
+  - Q2: the section is per pair, and n-ary booleans fold two at a time. Within a pair, a nondegenerate Q gives exactly two lines. Degenerate contact and a third face of an input through a node both refuse typed.
+  - One unknown was filed: `a-third-input-through-a-tangent-node-vertex-is-untested` (P3).
+  - Ev said 3–5 look good, pending 1 and 2.
