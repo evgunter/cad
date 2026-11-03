@@ -318,3 +318,119 @@ Each later unit is parked on its predecessors. Re-parked onto them:
 - `box-door-census-misses-a-point-free-read` → `cover-kind-match-gate`.
 
 `sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log` banded P3/E. The track is `active` again, at 8/30.
+
+## 2026-11-02 — `cover-geom-readings` (PR 6383): the dual review, and an `[ev]` question
+
+(BOXES orchestrator) The tier is DUAL with letter H, so the arm is CONCURRENT under protocol `1b9ac429b1`. Two Opus reviewers were dispatched together at 2026-11-02T16:19Z on frozen head `82640b3a1e`, with one brief and private lanes. R1 disclosed one glimpse, the *name* of R2's target directory seen in an `ls`, with no contents; that is not a findings glimpse. Both returned APPROVE-WITH-FIXES.
+
+Correspondence pre-note (the blinded coding at merge confirms it):
+
+- **Bilateral:**
+  - the segment charge at the wrong scale (MAJOR/MAJOR, both executed: up to 1.2e-10 at origin ~1e6);
+  - the tube's `ball`/`point_range` reading the frame as unit (MINOR/NOTE);
+  - "signs once" false (patch has no abs, tube abs twice; R2 executed a negative-minor-radius patch under-claim);
+  - mutants surviving or killed only probabilistically (hull ball branch, abs, segment slack);
+  - non-finite data giving a whole-space value (NOTE/NOTE);
+  - `Frame` beside `BoxFrame`, unscheduled;
+  - `plane_misses` C5 (R1 (b), R2 (c));
+  - the 16ε charge vocabulary in several places.
+- **Unilateral R1:** `beyond` skipping a `PoisonedNet` `Err` (MINOR, read); `world_box` clone cost.
+- **Unilateral R2:**
+  - the spiric rectangle as a second spelling of `spiric_period_box` (Q1);
+  - `spiric_period_box` still `pub` against the item;
+  - `ParamWindow`'s doc;
+  - the frustum's dead kink;
+  - two PR-body inaccuracies.
+- **Tally candidates:** none. The one MAJOR is bilateral.
+
+Adjudication:
+
+- **C5:** R2's reading holds, checked against `editor-core` `trace.rs` `traced`. `Ok(true)` (misses) is `NoTrace`; `Ok(false)` hands off to the exact crossing computation. So "not shown to miss" grants nothing, the ratified text stands, and only `plane_misses`'s doc over-claims. The implementer's proposed DESIGN revision is withdrawn.
+- **Fix pass:** everything else, except as below.
+- **Scheduled here rather than fixed:**
+  - `BoxFrame`'s retirement → `cover-topo-faces`;
+  - `spiric_period_box` going internal → `cover-edge-doors`;
+  - `carrier_extent`'s leftover kind match → `cover-app-readers`.
+
+**A conflict between two texts ratified today.** `[simple.conditioned]` (PR 6329, merged 14:54Z) says *"at `f64` … nothing charges, pads or estimates float rounding"*. The cover paragraph (PR 6334, written 07:16Z before it existed, merged 15:11Z) says each bound "encloses at every scalar", which the unit read as per-piece f64 charges. The reviewers' MAJOR is such a charge at the wrong scale.
+
+- Per `docs/prompts/designer.md` §2, when two instructions conflict, the redesign wins. I judged this to have one plainly right answer: the cover follows `[simple.conditioned]` (real numbers at f64, an enclosure at Interval). So I did not dispatch designers, and the PR says so.
+- The re-wording is on PR 6383's branch, and the PR title carries `[ev]` with the question at the top of its body.
+- The fix pass's charge items (the segment scale, the spiric charge) are on hold until Ev answers.
+- Consequence for the row-to-be: the MAJOR's fix may be the deletion of the charges, not a re-scaled charge.
+- 2026-11-02 — Ev on PR 6383: *"good catch, i missed 'encloses at every scalar' when i approved that"*. The cover follows `[simple.conditioned]`; the re-wording on PR 6383's branch stands; the fix pass deletes the per-piece f64 charges rather than re-scaling them. `[ev]` is off the title. (BOXES orchestrator)
+- 2026-11-02 — PR 6383's first fix pass (head `61c9c16f`) took every item, and the f64 charges were deleted per Ev. A FULL delta review of `82640b3a..61c9c16f` is recorded on the dual row as a post-pair confirmation. It returned APPROVE-WITH-FIXES:
+  - D1 (Gram bounds at Interval, 300 skewed cases) and D2 (signs) confirmed;
+  - M1: deleting the charges exposed the tube's squared-distance near as ill-posed at f64 (1.051e-6 for a true 1e-6). That is the "re-posed as a distance" shape the geom-core README names;
+  - M2: four non-finite screens and the spiric abs unguarded;
+  - D6: two sphere spellings.
+  
+  A second fix pass has been dispatched. The unit file's stale charge and sign text is corrected here. (BOXES orchestrator)
+- 2026-11-02 — `cover-geom-readings` merged (PR 6383, `06c73b5d`) under the inherited-red rule: the python suite's `slot_admits` census red came from PR 6390, is annotated on 6383, and is filed on FORMS. **Dispatched `cover-edge-doors`.** Review tier: single FULL. The type decision was made and dual-reviewed in 6383; this unit repoints doors across crates and moves verdicts, so the review carries the soundness claims. Not dual, because it fixes no new type others build on. `cover-topo-faces` waits for it, since both rework `boxes.rs`'s `Span` and edge box rule. (BOXES orchestrator)
+
+## 2026-11-02 — `cover-geom-readings` lands (PR 6383)
+
+(BOXES orchestrator) The second fix pass (`55d664af95`, with main merged as `bbca6476`, gate green) passed my read:
+- `Arc::point_near` bounds the arc as a circle of radius ρ in an orthonormalized frame plus a Gram-bounded deviation; off-crest monotonicity takes the nearer end, so `|w − circle| − dev` is a sound lower bound in a well-conditioned distance form;
+- the tube near reads through the spine circle;
+- `Ring::ball`'s `unreachable!` is backed by `Ring::of`'s new finite screen.
+
+Declined with reason: `beyond` carrying the `Uncovered` reason (a new `PointInSolidError` variant is not cheap); the refusal is pinned as `CorruptFace`.
+
+The dual row is `docs/dual-review-log/rows/PR-6383.md` (tally 0: the one MAJOR was bilateral).
+
+**Class finding, logged.** Deleting the f64 charges per `[simple.conditioned]` exposed a formula the charge had been hiding (a squared residual near zero). Under that rule, a charge removed is a conditioning question asked: every later cover unit that deletes a charge re-poses what it covered rather than dropping it.
+
+Unparked: `cover-edge-doors`, `cover-topo-faces`. `torus-extent-overreaches-…` re-parked on `cover-topo-faces`, which deletes `torus_extent`. Filed `a-covers-nearest-distance-from-a-line-is-a-squared-residual` (P3, M).
+
+## 2026-11-02 — `cover-edge-doors` (PR 6399) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Single FULL review of `eb133f2e`: APPROVE-WITH-FIXES, no MAJOR.
+
+**Confirmed:**
+- edge-cover soundness on 80 real edges;
+- the radicand re-posing (proof plus 400 near-fold cases);
+- `point_far`;
+- `crest_outside` (200k windows);
+- the maximal-faces verdict move, which is right for that body.
+
+**Adjudicated into the fix pass:**
+- **Reader-side tightening** (`edge_reach_from`'s Lipschitz `min`, step-import's restricted hull) moves into `cover_over`'s spline and spiric arms, which honor the window. Two edge-reach spellings and several topo doors calling `cover_over` directly are pointed at the one topo edge reading.
+- **`SPEED_MARGIN`:** decided under `[simple.conditioned]`, either a rounding charge (deleted) or a sampling bound (named and derived).
+- **Restored panics** where `gate_operand`'s precondition makes a null carrier a kernel bug.
+- **Red rows** for the vertex hull (M6), the Gram fix (M4b), the window (M9) and the gate's old intent.
+- **`Curve3::cover()`** for the whole carrier, replacing `whole_cover`'s kind dispatch.
+- **Stale docs.**
+
+**Scheduled on `cover-levers`:** the `lever_from` narrowing, and `certify_plane`, which the sweep missed.
+
+**Class finding, logged.** The ratified "tighter construction is written into the arm, never at a reader" is exactly the rule a door-repointing unit breaks. Repointing a door that had its own tightening tends to keep that tightening at the reader, `min`'d with the cover. Every later cover unit's brief names this.
+- 2026-11-03 — **Coupling with ONEHOME** (PR 6391, `onehome/one-extent`): it re-minted the retired `of_torus` and added five more per-kind `ExtentBall` constructors. They are folded onto `cover-levers`, with a seam note on ONEHOME's log. Class instance: a door retired in one program is re-minted by a parallel program that never saw the retirement. The `cover-kind-match-gate` unit is what stops that structurally; until it lands, seam notes are the only defence. (BOXES orchestrator)
+
+## 2026-11-03 — `cover-edge-doors` lands (PR 6399)
+
+(BOXES orchestrator) The tier was single FULL review plus two delta reviews of the fix passes; the second fix pass added new enclosure constructions, the blossom restriction and the spiric window rectangle. Three fix passes in all:
+1. Tightening moved into the arms. The readers read the cover alone. One topo edge reading. Fail-loud restored. `SPEED_MARGIN` deleted as a rounding charge.
+2. The pass that ran over the container restart; its lane was resumed, not restarted, and its pushed work was intact.
+3. The fix's own copies retired: one restriction routine (`restrict_window`), `edge_reach_from` deleted, one end reading, one `geom_core::poison()`, and `spiric_arc_aabb` as an independent reference.
+
+Moved, disclosed:
+- spline reaches tighten sharply (a wild window 17.8·R → 1.0·R);
+- a closed spiric loosens 1.8%, filed as `a-closed-spirics-cover-is-the-period-rectangle-with-no-tighter-stage`;
+- the maximal-faces gate now refuses a reshaped fixture correctly, and the gate's old intent is pinned on a short-carrier row.
+
+Closed: `cover-edge-doors` and `an-edges-extent-has-four-dispatchers`.
+
+Filed:
+- the bound creep (`cover-readings-bound-creep-into-conic-only-readers`, P4);
+- evidence on `an-edges-diameter-and-exactness-have-no-cover-method`;
+- earlier, `a-spline-window-restriction-has-four-spellings` on NURBS.
+
+`cover-levers` is now parked on `cover-topo-faces` alone.
+
+**Class finding.** Every fix pass on this build has minted a copy of something it closed:
+- 6383: a second torus support and `Frame`;
+- 6399 pass 1: reader-side tightening;
+- 6399 pass 2: a second restriction routine and a copied arm.
+
+The style lane's Q1 caught each one. The pattern is now in the briefs, and the `cover-kind-match-gate` unit is the structural answer.

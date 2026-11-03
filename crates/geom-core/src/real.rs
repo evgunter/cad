@@ -948,6 +948,16 @@ pub const fn pow2(e: i32) -> f64 {
 /// that is checked is `docs/K-REPORT.md`'s, and it is about decided
 /// names rather than about this question.
 ///
+/// **The scalar's poison**, built through the totality policy rather
+/// than spelled per type: [`Real::sqrt`] of a negative is poison on
+/// every implementor (NaN at `f64`, the empty enclosure at `Interval`,
+/// a poisoned value channel at a wrapper). The one spelling a generic
+/// reader answers "no value" with.
+#[must_use]
+pub fn poison<T: Real>() -> T {
+    (T::zero() - T::one()).sqrt()
+}
+
 /// **The declined half of the family: normalize-without-deciding.**
 /// A site that normalizes a vector whose length it never decides at
 /// all is a different shape — there is no sign question in front of

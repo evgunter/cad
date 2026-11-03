@@ -2360,7 +2360,8 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// [`ProfileProgram::check`]'s; [`ProgramRefusal::Unminted`] for a
-    /// program no document minted step ids for; and
+    /// program whose steps carry no ids
+    /// ([`ProfileProgram::carries_step_ids`]); and
     /// [`ProgramRefusal::StepIds`] for ids not shaped one list per
     /// loop and one id per authored step.
     pub fn pieces(
@@ -2379,15 +2380,22 @@ impl ProfileProgram {
         ))
     }
 
-    /// **Whether this program carries step ids at all.** A program no
-    /// door has minted ids for carries NO lists: the one spelling of
-    /// "unminted" is an empty [`ProfileProgram::ids`]. Any list at all
-    /// — even an empty one, or a malformed set — is ids someone
-    /// supplied, which the insert door refuses
-    /// ([`StepIdFault::Preminted`]) and every other reader checks for
-    /// shape.
+    /// **Whether this program's steps carry ids.** A program of loops
+    /// no door has minted ids for carries NO lists: an empty
+    /// [`ProfileProgram::ids`] over loops is the one spelling of
+    /// "unminted". A program of no loops has no step to carry one, so
+    /// minted or not it carries every id it has. Any list at all — even
+    /// an empty one, or a malformed set — is ids someone supplied
+    /// ([`ProfileProgram::holds_id_lists`]), which every reader checks
+    /// for shape.
     #[must_use]
     pub fn carries_step_ids(&self) -> bool {
+        self.holds_id_lists() || self.loops.is_empty()
+    }
+
+    /// **Whether this program holds any id list**: what the insert door
+    /// refuses as ids the caller supplied ([`StepIdFault::Preminted`]).
+    fn holds_id_lists(&self) -> bool {
         !self.ids.is_empty()
     }
 
@@ -2819,7 +2827,7 @@ impl ProfilePayload for ProfileProgram {
         })
     }
     fn mint_step_ids(&mut self, mint: &mut crate::Mint) -> Result<(), StepIdFault> {
-        if self.carries_step_ids() {
+        if self.holds_id_lists() {
             return Err(StepIdFault::Preminted);
         }
         let every_new: Vec<Vec<Option<StepId>>> = self

@@ -121,7 +121,7 @@ fn span_meter_sample(
         start,
         end,
         |k| arena.get(k).cloned(),
-        Probe(1.0),
+        geom_core::test_support::fixture_lever(Probe(1.0)),
         band(),
         NurbsLane::certified(),
     );

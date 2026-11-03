@@ -62,6 +62,17 @@ const SETTLE: u32 = 48;
 /// turning point on a cut is held by both its cells.
 const TURN_HAIR: f64 = 1e-12;
 
+/// **The cuts tried near `at` in a cell of `width`**, in order: `at`, then
+/// an eighth and a quarter of the width either side. A cut whose reading
+/// stands within the band of a zero holds the cells it ends undecided at
+/// any width; one of these stands off it wherever the zero is simple.
+/// The one ladder every cut the sweep places takes.
+fn off_a_zero(at: f64, width: f64) -> impl Iterator<Item = f64> {
+    [0.0, 0.125, -0.125, 0.25, -0.25]
+        .into_iter()
+        .map(move |f| at + f * width)
+}
+
 /// **The rows the sweep decides on.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Row {
@@ -292,8 +303,11 @@ impl<T: Real> V3<T> {
     }
 }
 
-/// **A cell of the ruling angle**, `[lo, hi]` radians within `[0, 2π]`,
-/// with enclosures of its cosine and sine.
+/// **A cell of the ruling angle**, `[lo, hi]` radians, with enclosures
+/// of its cosine and sine. The sweep's turn starts at a first cut a
+/// quarter of a first cell or less off zero ([`off_a_zero`]), so its
+/// cells lie within `[−π/64, 2π + π/64]`, each turning point of the
+/// cosine and sine in it one of `0, π/2, π, 3π/2, 2π`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Cell<T> {
     pub(crate) lo: f64,
@@ -336,11 +350,6 @@ impl<T: Real> Cell<T> {
         0.5 * (self.lo + self.hi)
     }
 
-    fn halves(&self) -> (Self, Self) {
-        let m = self.mid();
-        (Self::new(self.lo, m), Self::new(m, self.hi))
-    }
-
     fn width(&self) -> f64 {
         self.hi - self.lo
     }
@@ -367,9 +376,9 @@ impl Sheet {
 /// angle: the shape every ruled pair (a cylinder or a cone against a
 /// plane, a cylinder, a cone or a sphere) hands the sweep.
 pub(crate) trait Ruled<T: Real> {
-    /// How far a ruling moves per radian of its angle: the lever a turn
-    /// of the angle is read at.
-    fn lever(&self) -> T;
+    /// The ruled wall's radius of curvature: the lever a cosine read
+    /// against the ruling's turn is metered at.
+    fn lever(&self) -> geom_core::Lever<T>;
     /// `Δ` over the cell as a margin in metres, of `Δ`'s sign.
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T>;
     /// `Δ′` over the cell, of its sign, in metres per radian.
@@ -441,8 +450,8 @@ impl<T: Real> RuledCylinders<T> {
 }
 
 impl<T: Real> Ruled<T> for RuledCylinders<T> {
-    fn lever(&self) -> T {
-        self.rho
+    fn lever(&self) -> geom_core::Lever<T> {
+        geom_core::Lever::curvature_radius(self.rho)
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
@@ -604,9 +613,23 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     fn run(&mut self) -> Result<Sweep<T>, SweepRefusal> {
         let mut cells = Vec::new();
         #[allow(clippy::cast_precision_loss)]
-        let cut = |k: usize| core::f64::consts::TAU * k as f64 / START as f64;
+        let width = core::f64::consts::TAU / START as f64;
+        // Each first cut where `Δ`'s side decides ([`Self::decided_at`]),
+        // the last the first's turn on, so the cells tile the turn.
+        let cuts: Vec<f64> = (0..START)
+            .map(|k| {
+                #[allow(clippy::cast_precision_loss)]
+                let base = width * k as f64;
+                self.decided_at(base, width, |phi| self.discriminant_reads(phi))
+            })
+            .collect();
         for k in 0..START {
-            self.discriminant_cell(Cell::new(cut(k), cut(k + 1)), &mut cells)?;
+            let hi = if k + 1 == START {
+                cuts[0] + core::f64::consts::TAU
+            } else {
+                cuts[k + 1]
+            };
+            self.discriminant_cell(Cell::new(cuts[k], hi), &mut cells)?;
         }
         if cells.iter().all(|(_, d)| *d == Disc::Positive) {
             let turn: Vec<Cell<T>> = cells.into_iter().map(|(c, _)| c).collect();
@@ -694,6 +717,30 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         })
     }
 
+    /// Whether `Δ`'s side decides at the single angle `phi`.
+    fn discriminant_reads(&self, phi: f64) -> bool {
+        self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(phi)))
+            .is_some()
+    }
+
+    /// **A cut near `at`, within a cell of `width`, where `decides`**: the
+    /// first of [`off_a_zero`]'s where the reading decides, else `at`. A cell's end is a
+    /// reading every test of the cell shares, so an end within the band
+    /// of a zero would hold the cell undecided to the floor at any
+    /// width; off the zero, it decides.
+    fn decided_at(&self, at: f64, width: f64, decides: impl Fn(f64) -> bool) -> f64 {
+        off_a_zero(at, width)
+            .find(|&phi| decides(phi))
+            .unwrap_or(at)
+    }
+
+    /// **`cell` cut in two** near its middle, where the reading `decides`
+    /// ([`Self::decided_at`]).
+    fn split(&self, cell: &Cell<T>, decides: impl Fn(f64) -> bool) -> (Cell<T>, Cell<T>) {
+        let at = self.decided_at(cell.mid(), cell.width(), decides);
+        (Cell::new(cell.lo, at), Cell::new(at, cell.hi))
+    }
+
     /// The signed distance of the meetings `x` past the ball's boundary.
     fn past(&self, x: V3<T>) -> Iv<T> {
         x.less(self.ball.center())
@@ -724,7 +771,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         if self.spent_on(&cell) {
             return Err(self.escalate(Row::Discriminant, m));
         }
-        let (l, r) = cell.halves();
+        let (l, r) = self.split(&cell, |phi| self.discriminant_reads(phi));
         self.discriminant_cell(l, out)?;
         self.discriminant_cell(r, out)
     }
@@ -806,8 +853,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             }
             // Cut where `Δ`'s side decides, off the middle where the zero
             // stands within the band of it.
-            let cut = [0.5, 0.375, 0.625].into_iter().find_map(|f| {
-                let at = cell.lo + f * cell.width();
+            let cut = off_a_zero(cell.mid(), cell.width()).find_map(|at| {
                 self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(at)))
                     .map(|reads| (at, reads == Reads::Above))
             });
@@ -873,7 +919,13 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         if self.spent_on(&cell) {
             return Err(self.escalate(Row::Cut, h));
         }
-        let (l, r) = cell.halves();
+        let (l, r) = self.split(&cell, |phi| {
+            self.reads(
+                Row::Cut,
+                self.past(self.ruled.meeting(&Cell::at(phi), sheet)),
+            )
+            .is_some()
+        });
         self.leaf(l, sheet, out)?;
         self.leaf(r, sheet, out)
     }
@@ -1293,7 +1345,7 @@ mod tests {
     }
 
     fn ruled(a: &Surface<f64>, b: &Surface<f64>) -> (RuledCylinders<f64>, f64) {
-        let region = ExtentBall::new(Point3::origin(), 3.0);
+        let region = ExtentBall::of_sphere(Point3::origin(), 3.0);
         let pose = CylinderCylinderPose::decide(a, b, &Reach::Ball(region), band())
             .expect("two cylinders")
             .expect("a decided pose");

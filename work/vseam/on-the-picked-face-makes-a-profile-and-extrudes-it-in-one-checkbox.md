@@ -83,3 +83,9 @@ units on those owners before dispatch. Re-priced D → H.
   and the final deletion of the fused act), blocked on both.
 
 This row closes with the last.
+
+2026-11-02 (FORMS extrude/revolve lane, PR 6401): the Extrude form this row
+refers to is gone. The extrude button beside a selected profile inserts
+at a default depth and selects the extrude; the depth is now the
+extrude's own `Distance` slot row, which takes a number or a
+formula.

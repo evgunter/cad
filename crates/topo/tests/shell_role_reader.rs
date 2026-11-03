@@ -700,7 +700,7 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 ///
 /// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
 /// reduction's sector question (`bool_sector_coplanar`)
-/// (`work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
+/// (`work/germ/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 #[test]
 fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     let tol = Tol::witness();

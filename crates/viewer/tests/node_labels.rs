@@ -296,8 +296,8 @@ fn labelled_as_one_undo(
 
 /// **A refused creation applies no label**, whether the door refuses
 /// before its run (an extrude of a node that is no profile) or the run
-/// refuses inside it (a profile of no loops, which the edit door
-/// refuses): nothing is committed, the label included, no history state
+/// refuses inside it (a profile of a zero-radius circle, which the edit
+/// door refuses): nothing is committed, the label included, no history state
 /// is recorded and no evaluation is requested.
 #[test]
 fn a_refused_creation_applies_no_label() {
@@ -311,7 +311,9 @@ fn a_refused_creation_applies_no_label() {
             profile: extrude,
             distance: common::len(0.01),
         },
-        SessionOp::AddProfile { loops: Vec::new() },
+        SessionOp::AddProfile {
+            loops: vec![common::circle_at([0.0, 0.0], 0.0)],
+        },
     ];
     for op in refused {
         let what = format!("{op:?}");

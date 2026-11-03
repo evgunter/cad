@@ -42,7 +42,7 @@ its limit.
 What lands on top of those nights:
 
 - PR 6011's torus germ rows at 1e-12 (opt-level 2, measured by its dual
-  review: `work/sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`):
+  review: `work/sect/torus-germ-rows-march-for-an-hour-at-a-fine-band.md`):
   the tilted-rod spins row 1 015–1 770 s, the drum × donut row 400–700 s,
   the two donuts 520–900 s. That is 32–56 test-minutes, 8–14 minutes of
   the row on the runner's four test threads, and up to 30 minutes if the
@@ -101,7 +101,7 @@ is the sum of every result line.
 - **Debug assertions are not the cost**: side-by-side runs at opt-level
   2 with assertions and overflow checks on and off agree within 2 % on
   seven runs of six of the slowest tests; the numbers are on
-  `work/sectrung/a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build.md`.
+  `work/sect/a-ball-and-cylinder-boolean-costs-seconds-per-op-in-an-optimized-build.md`.
 
 Under the split below, the 1e-12 leg is that row alone: about 40
 minutes on an 11-01 runner and about 70 on a 10-31 one, inside its

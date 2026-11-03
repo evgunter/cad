@@ -654,7 +654,7 @@ fn sound(
 /// the vertex with the piece above round (phase π/2, tilt 0.4) refuses
 /// `Join(SingleSiteSectionLoop { count: 1 })`, where `split` builds the
 /// same pose
-/// (`work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
+/// (`work/sect/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
 #[test]
 fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() {
     let band = 4.0 * tol().eps();
@@ -840,7 +840,7 @@ fn tangent_boolean(build: Build, sweep: f64, t: f64, held: bool, what: &str) -> 
 /// the rim at the wrap edge's vertex alone), the one-segment form
 /// refuses `JoinDesync` at the join's ring role order
 /// ([`RING_ROLE_DESYNC`];
-/// `work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
+/// `work/sect/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
 #[test]
 fn a_boolean_tangent_to_a_holes_rim_at_a_vertex_builds_sound() {
     let builds: [(Build, &str); 2] = [

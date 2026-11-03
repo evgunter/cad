@@ -151,3 +151,30 @@ provisional `Counted`/`Marched` split by the pair's ball is gone.
 Stage 3 (the join) is next. Its seams are unchanged: `join_reads`, and
 the frame lane's reading at `frame_lever`.
 
+
+## Note (ONEHOME, 2026-11-02)
+
+`section_cert::Reach` no longer exists: the section certificate reads a
+`geom_brep::Reach::Ball` over the face boxes' overlap
+(`ExtentBall::of_overlap`, PR on `onehome/one-extent`).
+
+## 2026-11-02: stage 3, the join reads the value (branch `sectarms/cylinder-join-reads-value`)
+
+The join, the node pass and the factored crossing read two cylinders
+only on the section table's value (`join::cylinder_read`):
+- **parallel pose**: its rulings plane;
+- **bisector pose**: its bisector planes, and its nodes from
+  `PairSection::nodes`;
+- **every other pose**: the carried components.
+
+Retired:
+- the `join_reads` gate;
+- `cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`,
+  `crossing_germs_have_their_reading`, `parallel_radical_plane`;
+- the frame dispatch's cylinder arm.
+
+The bisector arcs' winding moved to `PairSection::node_sets`.
+
+The parallel and bisector lanes stay as plane lanes, because the carried
+lane chords only spline components. That extension is stage 3b:
+`the-carried-lane-chords-only-spline-components`.

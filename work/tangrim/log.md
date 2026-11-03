@@ -112,3 +112,4 @@
     - (P3) A fourth `ConicArc` spelling.
     - (P3) `FaceBend::Implicit` holds the face and sense twice, and 16 test sites use hand-stated jets.
     - (P3) `Gap` and `ReadFault::Witness` each carry two meanings. (TANGRIM orchestrator)
+- 2026-11-02 — PR 6375 merged: a union across a tangent crescent builds (closes `a-union-across-a-tangent-crescent-refuses-unbuilt`). Fix pass: one home, `sector_overlap` reading one order down inside `pair_search` (the post-pass and its side channel deleted); one rule for an uncertified bend (`bound_bend` → None, as `runs_into`); the `along && coplanar` gate kept, reached 0 times over 7.5k rows; the ellipse-inside, shared-arc and crescent-bodies families pinned; rows for the unread crescent cases. (TANGRIM orchestrator)

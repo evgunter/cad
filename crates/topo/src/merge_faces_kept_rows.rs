@@ -225,9 +225,13 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
             body.get_surface(s1).unwrap().clone(),
             body.get_surface(s2).unwrap().clone(),
         );
-        if let Ok(geom_brep::DihedralClass::Transverse) =
-            geom_brep::classify_dihedral(&surfaces.0, &surfaces.1, witness, p0.distance(p1), band)
-        {
+        if let Ok(geom_brep::DihedralClass::Transverse) = geom_brep::classify_dihedral(
+            &surfaces.0,
+            &surfaces.1,
+            witness,
+            geom_brep::ExtentBall::point(p0).lever_from(p1),
+            band,
+        ) {
             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
             spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
                 pair: geom_brep::SurfacePair::new(s1, s2),

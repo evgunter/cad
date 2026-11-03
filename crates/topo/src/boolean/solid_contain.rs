@@ -205,7 +205,7 @@
 //!   faces' anchor to `q`, before it is read as one of those directions.
 
 use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
@@ -866,7 +866,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         half_angle: T,
         /// A radius about the apex the face lies within, which is also
         /// the lever of the ray margins.
-        reach: T,
+        reach: Lever<T>,
     },
     /// A cylinder wall face whose region this door cannot read, as
     /// [`FaceGeo::PartialCone`] is on a cone: a query refuses
@@ -967,7 +967,7 @@ fn face_geo_arms<T: Decide>(
                     axis,
                     radius,
                     anchor,
-                    reach: partial_reach(body, face, anchor)?,
+                    reach: partial_reach(body, face, anchor)?.length(),
                 })
             }
         },
@@ -1147,11 +1147,11 @@ fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
-) -> Result<T, PointInSolidError> {
+) -> Result<Lever<T>, PointInSolidError> {
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let mut reach = T::zero();
+    let mut reach = geom_brep::ExtentBall::point(anchor).lever();
     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
@@ -1412,7 +1412,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         // metres.
         if zero(
             "bool_sphere_iso_meridian",
-            Margin::levered(n_c.dot(axis), r_c),
+            Margin::levered(
+                n_c.dot(axis),
+                geom_brep::ExtentBall::of_circle(c_c, r_c).lever(),
+            ),
         )? {
             // A meridian GREAT circle: centred at the sphere centre,
             // at the sphere's own radius.
@@ -1442,7 +1445,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             for pole in [axis, axis * (T::zero() - T::one())] {
                 match decide(
                     "bool_sphere_trim_pole_interior",
-                    Margin::levered(pole.dot(m_hat) - c_h, radius),
+                    Margin::levered(
+                        pole.dot(m_hat) - c_h,
+                        geom_brep::ExtentBall::of_sphere(center, radius).lever(),
+                    ),
                     band,
                 )
                 .map_err(escalate)?
@@ -1629,7 +1635,7 @@ fn latitude_after<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match decide(
         "bool_sphere_trim_latitude",
-        Margin::levered(latitude_sine(a, b, radius), radius),
+        Margin::levered(latitude_sine(a, b, radius), Lever::curvature_radius(radius)),
         band,
     )? {
         Sign::Positive => Ok(true),
@@ -1701,7 +1707,10 @@ fn latitude_extremes<T: Decide>(
     if matches!(
         decide(
             "bool_sphere_trim_latitude",
-            Margin::levered(latitude_sine(lo, hi, radius), radius),
+            Margin::levered(
+                latitude_sine(lo, hi, radius),
+                Lever::curvature_radius(radius)
+            ),
             band,
         )?,
         Sign::Zero
@@ -2132,7 +2141,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                     == Sign::Zero
                     && decide(
                         "bool_cone_partial_reach",
-                        Margin::of((q - apex).norm() - reach),
+                        Margin::of((q - apex).norm() - reach.length()),
                         band,
                     )
                     .map_err(escalate)?
@@ -2344,8 +2353,8 @@ pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
-) -> Result<T, PointInSolidError> {
-    let mut reach = T::zero();
+) -> Result<Lever<T>, PointInSolidError> {
+    let mut reach = geom_brep::ExtentBall::point(q).lever();
     for &face in faces {
         let f = body
             .get_face(face)
@@ -2467,7 +2476,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     let two_r = T::from_f64(2.0) * radius;
     match decide(
         "bool_point_in_solid_denom",
-        Margin::levered(dp.norm(), span),
+        Margin::metered(span, geom_core::InfSpeed::new(dp.norm())),
         band,
     )
     .map_err(|diag| WallRootFault {
@@ -2886,7 +2895,7 @@ fn clear_of_carrier<T: Decide>(
 /// carrier (normal `normal`) within the band, pass definitely beside the
 /// face? The ray lies in the plane through `q` spanned by `d` and
 /// `normal`, whose normal is `m = normal × d`; the face lies in the hull
-/// of its outer loop's vertices and its curved edges' balls
+/// of its outer loop's vertices and its edges' covers
 /// ([`loop_hull`](crate::splitting::containment::loop_hull)), so when
 /// every one of them is definitely on one side of that plane, no point
 /// of the face is on the ray. `bool_point_in_solid_beside` decides the
@@ -2904,19 +2913,20 @@ fn ray_passes_beside<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-    let (verts, balls) = crate::splitting::containment::loop_hull(body, f.outer)
+    let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
     let m = m / m.norm();
+    let base = (q - Point3::origin()).dot(m);
     let (mut above, mut below) = (None::<T>, None::<T>);
-    // An edge lies in each of its balls, so on a side of the plane where
-    // either ball does: its clearance is the clearer ball's.
-    for pair in verts.into_iter().map(|v| [(v, T::zero()); 2]).chain(balls) {
-        let [(a, b), (a2, b2)] = pair.map(|(c, r)| {
-            let h = (c - q).dot(m);
-            (h - r, T::zero() - h - r)
-        });
-        let (a, b) = (a.max(a2), b.max(b2));
+    // Each part's least height above the plane, and least depth below it:
+    // a vertex's own, an edge's cover's support either way.
+    let vertex = |v: Point3<T>| {
+        let h = (v - q).dot(m);
+        (h, T::zero() - h)
+    };
+    let edge = |c: &geom::cover::Cover<T>| (T::zero() - c.support(-m) - base, base - c.support(m));
+    for (a, b) in verts.into_iter().map(vertex).chain(covers.iter().map(edge)) {
         above = Some(above.map_or(a, |x| x.min(a)));
         below = Some(below.map_or(b, |x| x.min(b)));
     }
@@ -2970,7 +2980,7 @@ fn cast_ray<T: Decide>(
     geos: &[(FaceKey, FaceGeo<T>)],
     q: Point3<T>,
     d: Vec3<T>,
-    reach: T,
+    reach: Lever<T>,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
     let side = ray_crossings(body, geos, q, d, reach, band, SCHEDULE_ROWS)?.first_count(
@@ -3915,8 +3925,15 @@ fn carrier_roots<T: Decide>(
                     // A bound on the face's reach from its apex, never under
                     // it — the lever both margins below are metered by.
                     let v_ext = region.reach();
-                    if decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
-                        .map_err(escalate)?
+                    if decide(
+                        "bool_ray_cone_lead",
+                        // Unsourced lever: the cone face's reach from its
+                        // apex (`RuledFaceRegion::reach`), a boundary read
+                        // the extent home does not make.
+                        Margin::levered(a2, Lever::unsourced(v_ext)),
+                        band,
+                    )
+                    .map_err(escalate)?
                         == Sign::Zero
                     {
                         return Err(RayFault::Graze); // generator-parallel
@@ -4066,7 +4083,10 @@ fn root_outward<T: Decide>(
             Ok(oriented(
                 decide(
                     "bool_ray_cone_incidence",
-                    Margin::levered(d.dot(chart_normal(body, face, p)?), rho),
+                    Margin::levered(
+                        d.dot(chart_normal(body, face, p)?),
+                        Lever::curvature_radius(rho),
+                    ),
                     band,
                 )
                 .map_err(escalate)?,
@@ -4088,7 +4108,10 @@ fn root_outward<T: Decide>(
         ) => Ok(oriented(
             decide(
                 "bool_ray_torus_incidence",
-                Margin::levered(d.dot(chart_normal(body, face, p)?), minor_radius),
+                Margin::levered(
+                    d.dot(chart_normal(body, face, p)?),
+                    Lever::curvature_radius(minor_radius),
+                ),
                 band,
             )
             .map_err(escalate)?,
@@ -4143,14 +4166,14 @@ fn reach_margin<T: Decide>(
     let tilt = geom_brep::implicit_residual(surface, at).abs()
         / geom_brep::min_radius_of_curvature(surface, at);
     let incidence = d.dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
-    let rise = Margin::levered(incidence, off).value();
+    let rise = Margin::metered_sup(off, geom_core::SupSpeed::new(incidence)).value();
     let clearance = geom_brep::implicit_residual(surface, passage).abs();
     let origin = Point3::origin();
     let terms = m.at.abs()
         + off
         + (passage - origin).norm()
         + (at - origin).norm()
-        + geom_brep::curvature_lever_arm(surface, passage);
+        + geom_brep::curvature_lever_arm(surface, passage).length();
     // Lengths all.
     Ok(rise - clearance + geom_core::rounding_charge(terms))
 }
@@ -4272,10 +4295,11 @@ pub(crate) fn ray_crossings<T: Decide>(
     geos: &[(FaceKey, FaceGeo<T>)],
     q: Point3<T>,
     d: Vec3<T>,
-    reach: T,
+    arm: Lever<T>,
     band: Band,
     rows: RayRows,
 ) -> Result<RayCrossings<T>, RayFault<PointInSolidError>> {
+    let reach = arm.length();
     let mut crossings = Crossings::new();
     let turn_ray = TurnRay { band, rows };
     // A crossing at advance `t`, somewhere in `span`; behind `q` it is
@@ -4313,7 +4337,7 @@ pub(crate) fn ray_crossings<T: Decide>(
         // The cosine levered by the selection's reach: how far the ray
         // rises off the plane over every length at which it could meet
         // the face ([`selection_reach`]).
-        let outward = decide(rows.denom, Margin::levered(denom, reach), band).map_err(escalate)?;
+        let outward = decide(rows.denom, Margin::levered(denom, arm), band).map_err(escalate)?;
         if outward == Sign::Zero {
             // A ray parallel to the plane within the band rises off it
             // by at most the band's zero over the reach. The pre-pass
@@ -4635,7 +4659,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 let disc = centred.disc();
                 match decide(
                     "bool_ray_cone_disc",
-                    Margin::over_lever(centred.charged(disc, About::Nearest), reach),
+                    Margin::over_lever(centred.charged(disc, About::Nearest), reach.length()),
                     band,
                 )
                 .map_err(escalate)?
@@ -4653,7 +4677,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     let p = q + d * t;
                     match decide(
                         "bool_cone_partial_reach",
-                        Margin::of((p - apex).norm() - reach),
+                        Margin::of((p - apex).norm() - reach.length()),
                         band,
                     )
                     .map_err(escalate)?

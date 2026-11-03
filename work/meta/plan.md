@@ -29,9 +29,10 @@ budget points against 30:
   reference or a surface across the whole tree (citations, tracker
   paths in crates, ledger recovery commands, the public-method census,
   merge-commit content), and folded into **UNREAD** the same day
-  (`docs/doc-ledger/unseen-leaves-the-tracker.md`). Where such a
-  checker is built as an arm of `scripts/work.py lint`, the code lands
-  here by announced seam and the row stays on UNREAD.
+  (`docs/doc-ledger/unseen-leaves-the-tracker.md`), which merged into
+  **CIW** on 2026-11-02 (`docs/doc-ledger/unread-merges-into-ciw.md`).
+  Where such a checker is built as an arm of `scripts/work.py lint`, the
+  code lands here by announced seam and the row stays on CIW.
 
 ## The fence
 
