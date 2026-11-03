@@ -115,3 +115,16 @@ uniqueness on the wall is
 `the-spline-placement-read-certifies-no-second-in-trim-foot`.
 
 Moved from SPLICEFACE to SPLICE on 2026-11-02, by `git mv`, when SPLICEFACE merged back into SPLICE: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so the four tracks of SPLICE's 2026-10-28 split came in under one budget.
+
+## Teapot wall 3 reaches this site (2026-11-03)
+
+Measured by the split-parameter lane (`splice/split-parameter`). With
+a boundary meeting's parameter carried to the seam split
+(`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`), teapot
+wall 3 (`demos/tour/src/teapot.rs`, `wall_probes`) stops here at all
+three ε rows: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
+pierced_kind: Sphere, placed: false }`. The face is the spout's NURBS
+wall whose chart runs from `(−1/32, 3/64, 3/128)` to the symmetry plane
+`z = 0`, and the pierced face is the belly's sphere (centre
+`(0, 1/16, 0)`, radius `5/64`). `teapot::wall3_pinned` pins both by
+geometry.
