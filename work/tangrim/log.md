@@ -114,3 +114,16 @@
     - (P3) `Gap` and `ReadFault::Witness` each carry two meanings. (TANGRIM orchestrator)
 - 2026-11-02 — PR 6375 merged: a union across a tangent crescent builds (closes `a-union-across-a-tangent-crescent-refuses-unbuilt`). Fix pass: one home, `sector_overlap` reading one order down inside `pair_search` (the post-pass and its side channel deleted); one rule for an uncertified bend (`bound_bend` → None, as `runs_into`); the `along && coplanar` gate kept, reached 0 times over 7.5k rows; the ellipse-inside, shared-arc and crescent-bodies families pinned; rows for the unread crescent cases. (TANGRIM orchestrator)
 - 2026-11-03 — PR 6385 merge-ready at code head `cb84c7cb` (this state sync on top): a tied edge's `Leaves` against a sphere or a cylinder stands on its own point at the arm (`Tie::witnessed`, `link::Round` through `metric::Distance::at`, on the tie's `Reading`); bisectors, cones and tori keep their parting's verdict. Closes `a-leaves-verdict-carries-no-witness-point`. Outcome diff (main `00d142b4`, three ε): no move. Filed: the bisector/cone/torus witness, the parting sites and the contradiction rung (P2); the residue, the fourth arc spelling, the face held twice, and Gap/Witness each meaning two things (P3). Main is red, independently of this PR, on `topo boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`: PR 6399's `edge_cover` calls in `ruled_region.rs`, `shell.rs` and `splitting/containment.rs` are missing from its `PINNED` list. (TANGRIM witness lane)
+- 2026-11-03 — PR 6385 (the Leaves witness) merged as ef453d6eb6, on green CI at d7a4d411.
+  - The last fix pass was checked by the orchestrator's read:
+    - `Distance::at` → `Round::offset`;
+    - `witness` takes no direction;
+    - `descend`'s doc and its `# Errors`;
+    - the 1e4 m translation pin and the honesty pin;
+    - four rows filed.
+  - The lane's state sync closed `a-leaves-verdict-carries-no-witness-point`.
+  - Main was merged into the branch after the state sync, adapting only tests for ONEREAD's cone sites. (TANGRIM orchestrator)
+- 2026-11-03 — **Handed back `ready`.** Every P0/P1 row is closed, and 14 P2 and 6 P3 rows are open and dispatchable.
+  - `plan.md` gives the posture: weigh the reading rows together before dispatch, because five fix PRs this sitting minted a second home. The witness-contradiction row goes with the bisector-witness row. The body rows are independent.
+  - The load is 36/30, so a successor may split the track.
+  - Lanes and review sessions are archived. (TANGRIM orchestrator)
