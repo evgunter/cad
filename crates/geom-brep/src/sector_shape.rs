@@ -943,7 +943,10 @@ mod tests {
         let mut from_own = turn.quarters(TurnOrder::FromOwn);
         from_own.reverse();
         assert!(
-            from_own.iter().zip(&from_next).all(|(&a, &b)| bits_eq(a, b)),
+            from_own
+                .iter()
+                .zip(&from_next)
+                .all(|(&a, &b)| bits_eq(a, b)),
             "the orbit order lists the same quarters reversed"
         );
         let mut fractions = TurnOrder::FromOwn.quarter_fractions();
@@ -1000,7 +1003,10 @@ mod tests {
         }
         let here = std::fs::read_to_string(&home).expect("the home module is readable");
         for name in &pooled {
-            assert!(here.contains(name.as_str()), "{name} is spelled in the home");
+            assert!(
+                here.contains(name.as_str()),
+                "{name} is spelled in the home"
+            );
         }
     }
 

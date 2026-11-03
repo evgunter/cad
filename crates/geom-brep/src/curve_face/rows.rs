@@ -412,3 +412,78 @@ fn a_joint_between_two_runs_meets_the_span() {
         other => panic!("two runs and their joint: {other:?}"),
     }
 }
+
+/// **Every K name decided under `curve_face/` carries a door's listed
+/// prefix, and every listed prefix is decided under it**
+/// ([`super::DOOR_K_PREFIXES`]). A door renamed, or a name added under a
+/// prefix the list does not hold, reds the first half; a prefix whose
+/// door moved away or was renamed reds the second. The census reader is
+/// `test_utils::source::predicate_census`; a name the doors hand in from
+/// a caller (`circle_roots`' rows) is an indirect site, listed here so a
+/// new one reds.
+#[test]
+fn every_door_name_carries_a_listed_prefix() {
+    use test_utils::source::{NameCarrier, predicate_census};
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/curve_face");
+    let census = predicate_census(
+        &src,
+        &[
+            NameCarrier::Call("HalfAngleRows"),
+            NameCarrier::Call("QuarticRows"),
+            NameCarrier::Call("SubdivisionRows"),
+            NameCarrier::Const("ROOT_SLACK"),
+            NameCarrier::Const("TORUS_ROOT_SLACK"),
+            NameCarrier::Const("PAST_THE_BAND"),
+            NameCarrier::Const("AT_THE_END"),
+            NameCarrier::Call("spread_signs"),
+            NameCarrier::Call("constant_residual_roots"),
+            NameCarrier::Call("gap"),
+            NameCarrier::Call("apart"),
+        ],
+    );
+    assert!(
+        census.unreadable.is_empty() && census.unwalked.is_empty(),
+        "sites the census could not read: {:?} {:?}",
+        census.unreadable,
+        census.unwalked
+    );
+    // The sites whose name is not a literal there: `circle_roots`' rows,
+    // which its callers name; the carriers' own bodies (`row`, a
+    // declared const read as such); and `gap(…)` calls that are not the
+    // spline door's gap reading. A new one is a name this row cannot
+    // see, so it reds until it is read or listed.
+    let indirect: Vec<&str> = census.indirect.iter().map(String::as_str).collect();
+    assert_eq!(
+        indirect,
+        [
+            "circle_roots.rs: (c0, a1 + noise, rows.extreme, band)",
+            "circle_roots.rs: (row, value, spread, band)",
+            "circle_roots.rs: rows.coaxial",
+            "circle_roots.rs: rows.noise",
+            "circle_roots.rs: rows.root_slack",
+            "composite.rs: PAST_THE_BAND",
+            "composite.rs: row",
+            "spline_face.rs: (exact(m[0]), w)",
+            "spline_face.rs: (x.interval(0), w)",
+            "spline_face.rs: AT_THE_END",
+            "spline_face.rs: PAST_THE_BAND",
+            "spline_face.rs: row",
+        ],
+        "the census's indirect sites"
+    );
+    let outside: Vec<&String> = census
+        .names
+        .iter()
+        .filter(|n| !super::decided_by_a_door(n))
+        .collect();
+    assert!(
+        outside.is_empty(),
+        "names decided under curve_face/ outside every listed door prefix: {outside:?}"
+    );
+    for (door, prefix) in super::DOOR_K_PREFIXES {
+        assert!(
+            census.names.iter().any(|n| n.starts_with(prefix)),
+            "{door:?}'s prefix {prefix} is decided nowhere under curve_face/"
+        );
+    }
+}

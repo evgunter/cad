@@ -126,6 +126,31 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
     }
 }
 
+/// **The K-name prefix of every door this crate decides in**, by door:
+/// a K name's prefix is the module that decides its margin
+/// (`[topo.homes]`), and every name decided under `curve_face/` starts
+/// with one of these (its row `every_door_name_carries_a_listed_prefix`
+/// reads this module's sources for it). A door built elsewhere decides
+/// under its own module's prefix there, and has no row here until it
+/// moves beside [`route`]. A reader that asks whether a recorded name
+/// is curve × face machinery reads this list, not a copy of it.
+pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
+    (Door::PlaneCrossing, "plane_crossing_"),
+    (Door::ConicTorus, "circle_torus_"),
+    (Door::ConicTorus, "ellipse_torus_"),
+    (Door::SplineComposite, "spline_composite_"),
+    (Door::SplineFace, "spline_face_"),
+];
+
+/// Whether `predicate` is decided by one of this crate's curve × face
+/// doors ([`DOOR_K_PREFIXES`]).
+#[must_use]
+pub fn decided_by_a_door(predicate: &str) -> bool {
+    DOOR_K_PREFIXES
+        .iter()
+        .any(|(_, prefix)| predicate.starts_with(prefix))
+}
+
 /// What the boundary pass makes of a span ([`boundary`]).
 #[derive(Clone, Copy, Debug)]
 pub enum Boundary<T: geom_core::Real> {
