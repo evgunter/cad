@@ -2064,8 +2064,11 @@ fn edge_covers<T: Decide>(
 /// pierces; everything else — a tangency, a line parallel to a cone's
 /// generator, an undeclared on-carrier edge, a trim with no verdict —
 /// refuses typed at the named frontier door
-/// ([`BooleanError::CurvedPierceUnsupported`]), and a root at a cone's
-/// apex at its own ([`BooleanError::CrossingAtConeApex`]). An in-band
+/// ([`BooleanError::CurvedPierceUnsupported`]), and a root within the band
+/// of a cone's apex that the root doors cannot place there (its spread
+/// along the carrier past the band) at its own
+/// ([`BooleanError::CrossingAtConeApex`]); a carrier through the apex
+/// has its double root there, placed on the face's apex vertex. An in-band
 /// clearance escalates (F6, the same margin's other half) — except an
 /// uncovered conic's against one of those four kinds, where the
 /// certified roots decide what the enclosures could not. Spiric and
@@ -2176,7 +2179,9 @@ fn edge_covers<T: Decide>(
 /// wherever its second harmonic is in the zero band (a circle against a
 /// sphere, a circle square to a wall's axis), a quartic in the tangent
 /// half-angle otherwise. Against a cone the same door reads the cone's
-/// quadric form, of degree two along a conic, and refuses at the apex.
+/// quadric form, of degree two along a conic: a carrier through the apex
+/// whole, its apex root answered as the double root there, and a root
+/// beside the apex the band cannot place refused.
 /// Against a torus a circle's residual is of
 /// degree two ([`super::circle_torus`]) and an ellipse's of degree four
 /// ([`super::ellipse_torus`]). Every such door's
@@ -4568,8 +4573,10 @@ fn place_crossing<T: Decide>(
             Ok(Sign::Negative) => return Ok(Placed::Unplaced),
             // No row reaches this: a crossing whose nappe the band cannot
             // tell lies within a few gaps of the apex, where the root doors
-            // refuse at the apex first and the composite cannot read past
-            // the band between it and the other sheet
+            // answer only the apex's own double root (the carrier through
+            // the apex, placed on its vertex) and refuse a root beside it
+            // (`Unsettled::AtApex`), and the composite cannot read past the
+            // band between it and the other sheet
             // (`work/splice/the-cone-nappe-gap-arm-has-no-reaching-row`).
             Err(diag) => return Ok(Placed::NappeGap(diag)),
         }
@@ -5035,14 +5042,17 @@ fn apex_root_spread<T: Decide>(
 ///   the cone's gradient vanishes. An edge that ends there (an end's
 ///   distance Zero) and is no ruling meets the cone at that end alone,
 ///   its residual `A·(t − t_end)²`: one double root at the end, which
-///   the caller reads as the end's incidence. Otherwise the lane refuses
-///   [`Unsettled::AtApex`] rather than read a root there.
+///   the caller reads as the end's incidence. An edge through the apex
+///   inside the span is the same double root at its foot there, which
+///   the caller places on the face's apex vertex: the edge's incidence
+///   with it, the vertex pair's to read (`boolean::fan`).
 /// - **`bool_line_cone_apex_spread`** — within the band of the apex is
-///   not at it: how far along the edge the line's roots lie from the end
-///   ([`apex_root_spread`], read about the end, so exact to rounding).
-///   Not definitely in the band (a needle cone and a line near its
-///   axis), or in the band's gap: the lane refuses [`Unsettled::AtApex`]
-///   rather than place the root at the end.
+///   not at it: how far along the edge the line's roots lie from the
+///   point the double root is placed at, the end or the foot
+///   ([`apex_root_spread`], read about that point, so exact to
+///   rounding). Not definitely in the band (a needle cone and a line
+///   near its axis), or in the band's gap: the lane refuses
+///   [`Unsettled::AtApex`] rather than place the roots there.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
@@ -5092,41 +5102,44 @@ fn line_cone_roots<T: Decide>(
     match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            // An edge that ENDS at the apex: the cone's form is
+            // An edge that reaches the apex: the cone's form is
             // homogeneous about its apex, so along a line through it the
-            // residual is `A·(t − t_end)²`, zero at that end alone unless
-            // the line is a ruling (`A` zero, the lead rung's). Its one
-            // root is the end's, a double one there: the end's incidence
-            // is the apex vertex, read as a vertex's (`NoInterior`), never
-            // a crossing. An edge through the apex inside the span is not
-            // read here.
+            // residual is `A·(t − t_apex)²`, zero there alone unless the
+            // line is a ruling (`A` zero, the lead rung's). Its one root
+            // is the apex's, a double one: at an end, the end's incidence
+            // with the apex vertex (`NoInterior`); inside the span, a
+            // crossing the caller places on the face's apex vertex, the
+            // edge's incidence with it, which the vertex pair reads. The
+            // root is the end the apex is decided at, else the foot.
+            let mut at_apex = foot;
             for end in [t0, t1] {
                 if decide("bool_line_cone_apex", Margin::norm3(at(end)), band).map_err(escalate)?
-                    != Sign::Zero
-                {
-                    continue;
-                }
-                let lead = a2 / dd;
-                if decide("bool_line_cone_lead", Margin::levered(lead, length), band)
-                    .map_err(escalate)?
                     == Sign::Zero
                 {
-                    return Ok(Err(Unsettled::Degenerate));
+                    at_apex = end;
+                    break;
                 }
-                // In the band, not AT the apex: the end's meeting with the
-                // apex only where the line's roots lie within the band of
-                // the end along the edge ([`apex_root_spread`]). An in-band
-                // spread is the apex's, refused typed, never escalated.
-                return match decide(
-                    "bool_line_cone_apex_spread",
-                    Margin::of(apex_root_spread(at(end), dir, (axis, half_angle))),
-                    band,
-                ) {
-                    Ok(Sign::Zero) => Ok(Ok(Roots::<T, 2>::all([end, end]).widen())),
-                    Ok(Sign::Positive | Sign::Negative) | Err(_) => Ok(Err(Unsettled::AtApex)),
-                };
             }
-            return Ok(Err(Unsettled::AtApex));
+            let lead = a2 / dd;
+            if decide("bool_line_cone_lead", Margin::levered(lead, length), band)
+                .map_err(escalate)?
+                == Sign::Zero
+            {
+                return Ok(Err(Unsettled::Degenerate));
+            }
+            // In the band, not AT the apex: the double root at `at_apex`
+            // is the edge's meeting with the apex only where the line's
+            // roots lie within the band of it along the edge
+            // ([`apex_root_spread`]). An in-band spread is the apex's,
+            // refused typed, never escalated.
+            return match decide(
+                "bool_line_cone_apex_spread",
+                Margin::of(apex_root_spread(at(at_apex), dir, (axis, half_angle))),
+                band,
+            ) {
+                Ok(Sign::Zero) => Ok(Ok(Roots::<T, 2>::all([at_apex, at_apex]).widen())),
+                Ok(Sign::Positive | Sign::Negative) | Err(_) => Ok(Err(Unsettled::AtApex)),
+            };
         }
     }
     match decide(
@@ -8343,22 +8356,31 @@ mod line_cone_rows {
         );
     }
 
-    /// **An edge reaching the apex refuses**, as one passing within the
-    /// band of it. The apex rung reads the edge's segment, not its line:
-    /// a segment ending half a metre short of the apex is not refused
-    /// there (its line's quadratic has its double root at the apex, which
-    /// the depth rung reads as a tangency).
+    /// **An edge through the apex has its one double root there**, as one
+    /// passing within the band of it: the cone's form is homogeneous about
+    /// the apex, so the caller places the root on the face's apex vertex.
+    /// The apex rung reads the edge's segment, not its line: a segment
+    /// ending half a metre short of the apex is not read there (its line's
+    /// quadratic has its double root at the apex, which the depth rung
+    /// reads as a tangency). A line through the band of the apex whose
+    /// roots spread past the band along it, or into the band's gap,
+    /// refuses [`Unsettled::AtApex`] at the foot (the spread rung).
     #[test]
-    fn an_edge_at_the_apex_refuses() {
+    fn an_edge_through_the_apex_has_its_double_root_there() {
         let b = band();
         for (label, origin) in [
             ("through the apex", [-1.0, 0.0, 0.3]),
-            ("in band of the apex", [-1.0, 0.3 * b.zero(), 0.3]),
+            // Its roots' spread about the foot ([`apex_root_spread`])
+            // is a small multiple of `δ`: in the band.
+            ("in band of the apex", [-1.0, 0.05 * b.zero(), 0.3]),
         ] {
             let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
+            let Ok(CircleRoots::Certified(found)) = got else {
+                panic!("{label}: got {got:?}");
+            };
             assert!(
-                matches!(got, Err(Unsettled::AtApex)),
-                "{label}: got {got:?}"
+                found.roots().len() == 2 && found.roots().iter().all(|t| (t - 1.0).abs() < 1e-6),
+                "{label}: a double root at the apex, got {found:?}"
             );
         }
         let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
@@ -8366,6 +8388,30 @@ mod line_cone_rows {
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
         );
+        // The foot's spread rung refuses, as the end's does: a line beside
+        // a generator passing in band of the apex has its roots spread
+        // far along it (its spread past the band), and one whose spread
+        // lies in the band's gap (about `2.3e-9` at the witness band) is
+        // the apex's, refused typed, never escalated. Neither is placed
+        // at the foot.
+        for (label, origin, dir) in [
+            (
+                "beside a generator",
+                [-1.0, 0.5 * b.zero(), -1.001],
+                [1.0, 0.0, 1.001],
+            ),
+            (
+                "its spread in the gap",
+                [-1.0, 0.5 * b.zero(), -1.05],
+                [1.0, 0.0, 1.05],
+            ),
+        ] {
+            let got = roots(origin, dir, (0.0, 2.0));
+            assert!(
+                matches!(got, Err(Unsettled::AtApex)),
+                "through the apex, {label}: got {got:?}"
+            );
+        }
     }
 
     /// **An edge ending at the apex meets it at that end alone**: its one
