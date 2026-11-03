@@ -2,12 +2,13 @@
 id: a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count
 kind: unit
 title: A cone × curved-carrier section through the apex has no germ frame or certified count
-status: open
+status: parked
 opened: 2026-11-02
 priority: P1
 cost: H
 design: true
 parent: a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex
+blocked_on: [6432]
 ---
 
 

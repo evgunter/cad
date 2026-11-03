@@ -181,3 +181,12 @@
   - **R1's 0.3ε edge-end asymmetry** is folded into `a-box-corner-just-off-a-cone-apex-refuses-box-first-edge-undescribed`. (SPLITDOOR orchestrator)
 - 2026-11-03 — **B3 sent to a designer pair, which agreed; `[ev]` PR 6432 opened.** The cone × curved section through the apex is a node of the section value: one rule, germs minted from arc ends. That widens C5's node sentence, so it waits on Ev. Both designers re-homed the build to SECTARMS's cone arms (fork 224's frontier), leaving SPLITDOOR a follow-on: the pierce germ, and retiring the gate. The B3 row stays open, P1, its design question on 6432. (SPLITDOOR orchestrator)
 - 2026-11-03 — **Friction:** main's velocity cost B1 (PR 6345) three re-merges in about 6 hours. Each one conflicted in code main's other programs had just reworked: the typed levers, `pair_search`, `cone_classes`. The full local gate outran main each time. Mitigation from the third re-merge on: merge, run the fast checks only, push, and let CI be the full gate, merging the moment `gate ok` is green. (SPLITDOOR orchestrator)
+- 2026-11-03 — **The sitting ends; the track is handed back `ready`** (sitting rule: no P0 or P1 row remains dispatchable).
+  - Since resuming on 2026-11-01, this sitting merged:
+    - the P0 keel (6061) and its follow-ups;
+    - cone-apex units A (6266), B1 (6345) and B2 (6424);
+    - the section-line components (6310);
+    - the wrap-tip, prism-tilt, face-line lean and rims rows.
+  - **B3** (`a-cone-by-curved-carrier-section-through-the-apex-has-no-germ-frame-or-certified-count`, P1) is `parked` on `[ev]` PR 6432, where its design question waits on Ev. If Ev approves, the build re-homes to SECTARMS's cone arms, and this row narrows to SPLITDOOR's follow-on: the pierce mints its apex germ from the node, and `vtxfac`'s curved-apex gate retires.
+    - **Owed when Ev answers:** fill in fork row 249's second half and its mapping (on `analysis/design-fork/a-curved-section-through-a-cone-apex`), and leave a seam note on SECTARMS's log.
+  - What remains is the P2 tail; its place on the board is its urgency. (SPLITDOOR orchestrator)
