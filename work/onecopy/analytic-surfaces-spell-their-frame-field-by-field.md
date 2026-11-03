@@ -51,3 +51,11 @@ Stages 1 and 2 are `the-frame-carries-every-placement-reading`.
 
 **Holders the original row missed, all in scope of stages 2–3:** `Curve3::Spiric`, `ring_path::LoopArc::Crest.core`, step-import's `type Frame`, `mesh::planar::ChartFrame`, `topo::readback::Pose`, `separating::Circle`, `cover::{Arc, Tube}` storing `v_ref`, `gap.rs`'s loose-argument door, step-export's `axis2_placement`, and revolve's `wall_surface`.
 
+**Sites that rebuild a carrier's frame from its fields and wait for the kind structs** (found by PR 6463's review, which repointed the readers outside `geom` at `Surface::frame()`/`Curve3::frame()`):
+- `geom::Surface::eval` and `jet`, whose azimuth arms build `Frame::new(origin, axis, u_ref)`;
+- `geom::cover::readings`' sphere, torus and spiric arms;
+- `Curve3`'s spiric evaluator arms (`azimuth::basis(&Frame::new(..))`);
+- step-export's writer arms (`axis2_placement(&Frame::new(..))`);
+- `topo::boolean::section_cert::Cone::new` (a loose-argument door);
+- geom-brep `pair_section/torus.rs` `Ring` (`Frame::new(self.center, self.axis, self.u_ref)` three times);
+- `pair_section.rs` `CylinderSpherePose`.
