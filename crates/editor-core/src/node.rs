@@ -524,6 +524,10 @@ pub enum SlotId {
         /// Which constraint of the placement: the value.
         constraint: ConstraintId,
     },
+    /// One end of a clearance assertion's band (Length): `≥ c` and
+    /// `= c` hold the low end, `≤ c` the high end, a band both
+    /// ([`crate::measure::ClearanceBounds`]).
+    ClearanceBound(crate::measure::BoundEnd),
     /// A loft's / sweep's v-direction interpolation degree (Book
     /// §10.3) — STRUCTURAL: changing it changes the produced
     /// surface's knot vector, so it is Count-typed like every other
@@ -671,7 +675,7 @@ impl SlotId {
             Self::VDegree | Self::Stations | Self::Index { .. } => Dimension::Count,
             Self::StationSlide { .. } => Dimension::Length,
             Self::StationSpin { .. } => Dimension::Angle,
-            Self::ValueSlide { .. } => Dimension::Length,
+            Self::ValueSlide { .. } | Self::ClearanceBound(_) => Dimension::Length,
             Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
@@ -773,6 +777,7 @@ impl SlotId {
             }
             Self::ValueSlide { .. } => String::from("slide value"),
             Self::ValueSpin { .. } => String::from("spin value"),
+            Self::ClearanceBound(end) => format!("{} bound", end.label()),
             // Every component variant answered above.
             Self::Origin(_) => self.component().map_or_else(
                 || String::from("component"),
@@ -809,7 +814,8 @@ impl SlotId {
             | Self::StationSlide { .. }
             | Self::StationSpin { .. }
             | Self::ValueSlide { .. }
-            | Self::ValueSpin { .. } => None,
+            | Self::ValueSpin { .. }
+            | Self::ClearanceBound(_) => None,
         }
     }
 
@@ -1169,12 +1175,14 @@ pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> 
 
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
-/// but [`Node::Assertion`].
+/// but a value [`Node::Assertion`].
 ///
 /// The slot vocabulary is the ordinary home for a node's expressions,
 /// and it stays so: this is the escape hatch for the two expressions
 /// whose dimension a slot ADDRESS cannot fix — an assertion's value
-/// and its bound, whose dimension is whatever the value's is.
+/// and its bound, whose dimension is whatever the value's is. A
+/// clearance's bounds are lengths, so they are slots
+/// ([`SlotId::ClearanceBound`]).
 ///
 /// One order, three consumers: the evaluator resolves these once, the
 /// content key hashes the resolved values, and the op reads the same
@@ -1196,7 +1204,7 @@ pub fn payload_exprs<P, S: Slot>(node: &Node<P, S>) -> Option<Vec<&S>> {
 macro_rules! expr_table {
     ($node:expr, $exprs:ident, $wrap:expr, $rest:ident => $other:expr) => {{
         match $node {
-            Node::Assertion(claim) => $wrap(claim.$exprs()),
+            Node::Assertion(claim @ crate::measure::Claim::Value { .. }) => $wrap(claim.$exprs()),
             $rest @ (Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
@@ -1217,7 +1225,8 @@ macro_rules! expr_table {
             | Node::World
             | Node::Space
             | Node::InstantiatePart { .. }
-            | Node::Measure { .. }) => $other,
+            | Node::Measure { .. }
+            | Node::Assertion(crate::measure::Claim::Clearance { .. })) => $other,
         }
     }};
 }
@@ -2199,13 +2208,18 @@ macro_rules! node_rows {
                     index_rows!(seat, member, $rows, $out);
                 }
             }
+            // A clearance's bounds are lengths, one slot per end of its
+            // band.
+            Node::Assertion(crate::measure::Claim::Clearance { a: _, b: _, bounds }) => {
+                $out.extend(bounds.$rows())
+            }
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]); a measure reads names,
             // and an assertion's value and bound take their dimension
             // from the variable the value reads, which no slot address
-            // can state. Both are payload instead
-            // ([`payload_exprs`]), and so are a clearance's bounds.
-            Node::Measure { primitive: _ } | Node::Assertion(_) => {}
+            // can state. Both are payload instead ([`payload_exprs`]).
+            Node::Measure { primitive: _ }
+            | Node::Assertion(crate::measure::Claim::Value { .. }) => {}
         }
     }};
 }
@@ -2500,11 +2514,6 @@ impl<P> Node<P> {
             Node::Assertion(crate::measure::Claim::Value { value, bound, .. }) => {
                 AssertionBoundFault::against(dim(value)?, dim(bound)?)
             }
-            // A clearance is a length, so each bound is one.
-            Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => bounds
-                .exprs()
-                .into_iter()
-                .find_map(|b| AssertionBoundFault::against(Dimension::Length, dim(b)?)),
             _ => None,
         }
     }
@@ -3181,17 +3190,20 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// **The variables the expressions no slot addresses read**, each
     /// with the dimension it is read at ([`payload_exprs`]'s order): an
     /// assertion's value and bound at their variables' kinds — or,
-    /// where `doc` no longer holds one, at the other's — and a
-    /// clearance's bounds as lengths. `None` for a slot-only node.
+    /// where `doc` no longer holds one, at the other's. `None` for a
+    /// slot-only node.
     pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
-        let Node::Assertion(claim) = self else {
+        let Node::Assertion(claim @ crate::measure::Claim::Value { .. }) = self else {
             return None;
         };
         Some(claim_reads(doc, claim))
     }
 }
 
-/// [`Node::payload_reads`] of an assertion's claim.
+/// **The variables an assertion's claim evaluates**, each with the
+/// dimension it is read at: [`Node::payload_reads`] of a value claim,
+/// and a clearance's bound slots as lengths. The evaluator reads each
+/// with the measured values bound, since only an assertion may read one.
 pub(crate) fn claim_reads<P>(
     doc: &crate::Doc<P>,
     claim: &crate::measure::Claim,

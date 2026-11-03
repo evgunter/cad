@@ -530,9 +530,9 @@ fn the_witness_is_offered_only_for_the_shown_documents_run() {
 
 /// **The create door writes each shape of bound**, through the
 /// document's own insert door: `≥`, `≤`, `=` and the band, each the
-/// clearance tool's choice over the form's two lengths.
+/// clearance tool's choice, every end at the one length it is given.
 ///
-/// Red if a choice writes another shape, or the band's ends swap.
+/// Red if a choice writes another shape.
 #[test]
 fn the_clearance_tool_writes_each_shape_of_bound() {
     use viewer::combine::{ClearanceBoundChoice, ClearanceTool};
@@ -542,12 +542,10 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
     let mut tool = ClearanceTool::new();
     tool.seat_face(session.committed_doc(), wall.clone());
     assert!(tool.seat_body(session.committed_doc(), right).is_none());
-    let (lo, hi) = (len(0.005), len(0.02));
     for (choice, _) in ClearanceBoundChoice::ALL {
-        let bounds = choice
-            .bounds(lo.clone(), || Ok::<_, ()>(hi.clone()))
-            .expect("the band's upper end is a length");
-        let op = tool.op(bounds).expect("both seats are held");
+        let op = tool
+            .op(choice.bounds(len(0.005)))
+            .expect("both seats are held");
         let id = add(&mut session, op);
         let doc = session.committed_doc();
         let Some(Node::Assertion(pncad::document::Claim::Clearance { a, b, bounds })) =
@@ -568,7 +566,7 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
             ClearanceBoundChoice::Equal => ClearanceBounds::Equal(0.005),
             ClearanceBoundChoice::Between => ClearanceBounds::Within {
                 lo: 0.005,
-                hi: 0.02,
+                hi: 0.005,
             },
         };
         assert_eq!(written, want, "{choice:?}");
@@ -580,24 +578,6 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
         assert!(
             doc.selection(*b).is_none(),
             "{choice:?}: the second seat is the body"
-        );
-    }
-}
-
-/// **A one-sided bound never reads the band's upper end**: the form
-/// hides it, so a value there that could not be written must not refuse
-/// a requirement that does not have one.
-///
-/// Red if `bounds` asks for `hi` on any choice but the band.
-#[test]
-fn a_one_sided_bound_never_reads_the_hidden_upper_end() {
-    use viewer::combine::ClearanceBoundChoice;
-    for (choice, _) in ClearanceBoundChoice::ALL {
-        let got = choice.bounds(1.0, || Err("the hidden field"));
-        assert_eq!(
-            got.is_err(),
-            choice == ClearanceBoundChoice::Between,
-            "{choice:?}: {got:?}"
         );
     }
 }

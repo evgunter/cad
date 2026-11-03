@@ -4643,8 +4643,9 @@ where
                 frame: drawn.map(|d| d.frame),
             }
         }
-        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound, and
-        // a clearance's bounds, are not slots. They are evaluated exactly once here, under the
+        // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and
+        // bound, which are payload, and a clearance's bound slots, which
+        // `slots::eval_slots` leaves to this arm. They are evaluated exactly once here, under the
         // discipline `slots` states and for the same reason: these
         // values feed BOTH the content key and the op, so a parameter
         // edit under a bound moves the key rather than serving a stale
@@ -5096,7 +5097,10 @@ mod tag {
         ///   this same environment, so the nominal is already in its
         ///   key.
         /// * The measurement vocabulary's PAYLOAD expressions
-        ///   (`Measure`, `Assertion`) write no nominal word. They are
+        ///   (`Measure`, `Assertion`), and a clearance's bound slots,
+        ///   which the assertion's arm evaluates beside them
+        ///   ([`super::slots::eval_slots`] exempts the node), write no
+        ///   nominal word. They are
         ///   read only by their own node's op at the evaluation
         ///   scalar, so no f64-pinned reader has an input for the key
         ///   to owe. The day a pre-pass reads a measured bound at

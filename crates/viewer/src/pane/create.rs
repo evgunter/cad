@@ -76,40 +76,15 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
-/// **The clearance form's bound rows**: which side it bounds, then its
-/// one length — or a band's two, low then high — in the working
-/// notation. A free function over the `Ui`, so a headless row can drive
-/// it.
-pub(crate) fn clearance_bound_rows(
-    ui: &mut egui::Ui,
-    drafts: &mut Drafts,
-    notation: &mut Notation,
-) {
+/// **The clearance form's shape row**: which side the requirement
+/// bounds. Its bounds are inserted at contact and edited on the
+/// requirement's own rows.
+pub(crate) fn clearance_shape_row(ui: &mut egui::Ui, drafts: &mut Drafts) {
     ui.horizontal(|ui| {
         ui.label("clearance");
         for (choice, label) in ClearanceBoundChoice::ALL {
             ui.radio_value(&mut drafts.clearance_bound, choice, label);
         }
-    });
-    ui.horizontal(|ui| {
-        let band = drafts.clearance_bound == ClearanceBoundChoice::Between;
-        ui.label(if band { "from" } else { "bound" });
-        unit_field(
-            ui,
-            notation.length.def(),
-            FIELD_DRAG_SPEED,
-            &mut drafts.clearance_lo,
-        );
-        if band {
-            ui.label("to");
-            unit_field(
-                ui,
-                notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut drafts.clearance_hi,
-            );
-        }
-        length_picker(ui, "clearance_bound", &mut notation.length);
     });
 }
 
@@ -693,13 +668,10 @@ impl ViewerBehavior<'_> {
             &self.theme,
             Tone::Advisory,
         );
-        clearance_bound_rows(ui, self.drafts, self.notation);
+        clearance_shape_row(ui, self.drafts);
         self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
-            let lo = notation.length_literal(drafts.clearance_lo)?;
-            let bounds = drafts
-                .clearance_bound
-                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
-            Ok(tool.op(bounds)?)
+            let contact = notation.length_literal(0.0)?;
+            Ok(tool.op(drafts.clearance_bound.bounds(contact))?)
         });
     }
 
@@ -1419,7 +1391,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Mirror.says(
-                &"pick a face: its body mirrors across it — pick another face to mirror across that one; a drawn body becomes its symmetric part, the body and its image fused",
+                &"pick a face: its body mirrors across it — pick another face to mirror across that one; the body becomes its symmetric part, the body and its image fused",
             ),
         );
         crate::widgets::message_toned(
@@ -1636,7 +1608,9 @@ impl ViewerBehavior<'_> {
 
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
-    /// choice with its one Length field, and the one committed edit.
+    /// choice, and the one committed edit. The blend is inserted at
+    /// [`crate::blend::default_size`], and its size is then its
+    /// Properties slot row.
     ///
     /// **The freeze sentence is not decoration.** #217 makes the
     /// selection a commitment — a later edit that adds an edge does
@@ -1669,16 +1643,6 @@ impl ViewerBehavior<'_> {
             for (kind, label) in BlendKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.blend_kind, kind, label);
             }
-        });
-        ui.horizontal(|ui| {
-            ui.label(self.drafts.blend_kind.size_label());
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.blend_size,
-            );
-            length_picker(ui, "blend_size", &mut self.notation.length);
         });
         self.blend_commit_row(ui, count);
     }
@@ -1768,7 +1732,7 @@ impl ViewerBehavior<'_> {
             tool.clear();
         }
         if closing.commit {
-            match self.notation.length_literal(self.drafts.blend_size) {
+            match crate::blend::default_size(self.notation.length) {
                 Ok(size) => {
                     let op: Option<SessionOp> =
                         self.tools
@@ -1814,8 +1778,9 @@ impl ViewerBehavior<'_> {
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
-    /// projection, and the mirror tool's, for a drawn body, the union
-    /// of its symmetric part; the label lands there.
+    /// projection, where the label lands. The mirror tool's noun is
+    /// the mirror, which its insert labels and selects, not the union
+    /// of the symmetric part it reads into.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
             ToolKind::Mate | ToolKind::Transform => return None,
@@ -1825,17 +1790,7 @@ impl ViewerBehavior<'_> {
                 Some(BooleanOp::Subtract) => "Subtract",
             },
             ToolKind::Split => "Split",
-            // A drawn body becomes its symmetric part, whose last node
-            // is the union; an unplaced body's image stands alone.
-            ToolKind::Mirror => match self.tools.mirror().and_then(|tool| tool.seats().read(0)) {
-                Some(body)
-                    if !crate::world::placements_of_read(self.session.committed_doc(), &body)
-                        .is_empty() =>
-                {
-                    "Union"
-                }
-                _ => "Mirror",
-            },
+            ToolKind::Mirror => "Mirror",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -1938,7 +1893,7 @@ impl ViewerBehavior<'_> {
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let noun = self.tool_noun(kind);
-        if let Some(noun) = noun {
+        if let Some(noun) = noun.filter(|_| kind.offers_label()) {
             self.creation_label_row(ui, noun);
         }
         let closing = commit_row(ui, kind.commit(), None, |_| {});

@@ -196,7 +196,14 @@ impl GestureTarget {
     ) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot, unit } => props::slot_edit(doc, *node, *slot, value, *unit),
-            Self::Variable { var, .. } => Ok(props::variable_edit(*var, value)),
+            // A count dragged on an index is its count, as typed text is.
+            Self::Variable { var, .. } => Ok(match value {
+                SlotValue::Count(count) => {
+                    props::index_count_edit(doc, *var, Formula::count(count))
+                }
+                SlotValue::Continuous(_) => None,
+            }
+            .unwrap_or_else(|| props::variable_edit(*var, value))),
         }
     }
 }
@@ -3781,7 +3788,9 @@ impl DocSession {
     /// **Mirror a body across the plane of a picked face**
     /// ([`SessionOp::AddMirror`]): the image, and the symmetric part,
     /// the body and its image unioned, taking over what reads the body
-    /// along a seen path ([`Takeover`]).
+    /// along a seen path ([`Takeover`]). The made node is the mirror,
+    /// which the gesture's noun names: its label and the selection land
+    /// there, and its rows hold what the gesture read.
     fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
@@ -3797,7 +3806,12 @@ impl DocSession {
             // stays where it stood
             // (`takeovers::the_mirrors_merged_top_keeps_the_old_tops_frame`).
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
-            Ok(Wrote::one(part))
+            Ok(Wrote {
+                made: image,
+                replacement: part,
+                whole: None,
+                intact: Vec::new(),
+            })
         }))
     }
 

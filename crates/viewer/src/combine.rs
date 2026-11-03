@@ -592,28 +592,20 @@ vocabulary! {
 }
 
 impl ClearanceBoundChoice {
-    /// **The bounds this choice writes**, from the form's two lengths:
-    /// `lo` is the one bound of a one-sided or exact requirement, and a
-    /// band's lower end; `hi` is a band's upper end, asked for by a band
-    /// alone. A reversed band and a negative bound are written as typed:
-    /// the evaluation refuses them (`EmptyBand`, `NotADistance`), on
-    /// the requirement's own row.
-    ///
-    /// # Errors
-    ///
-    /// `hi`'s, for a band.
-    pub fn bounds<S, E>(
-        self,
-        lo: S,
-        hi: impl FnOnce() -> Result<S, E>,
-    ) -> Result<pncad::document::ClearanceBounds<S>, E> {
+    /// **The bounds this choice writes**: its shape, with every end at
+    /// `at`. The insert writes contact (`0`); each end is then a slot
+    /// row of the requirement (`SlotId::ClearanceBound`).
+    pub fn bounds<S: Clone>(self, at: S) -> pncad::document::ClearanceBounds<S> {
         use pncad::document::ClearanceBounds as B;
-        Ok(match self {
-            Self::AtLeast => B::AtLeast(lo),
-            Self::AtMost => B::AtMost(lo),
-            Self::Equal => B::Equal(lo),
-            Self::Between => B::Within { lo, hi: hi()? },
-        })
+        match self {
+            Self::AtLeast => B::AtLeast(at),
+            Self::AtMost => B::AtMost(at),
+            Self::Equal => B::Equal(at),
+            Self::Between => B::Within {
+                lo: at.clone(),
+                hi: at,
+            },
+        }
     }
 }
 

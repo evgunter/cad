@@ -829,16 +829,15 @@ fn only_the_open_blend_tool_accumulates_edges() {
     assert_eq!(blend(&tools).count(), 0, "a re-opened tool starts over");
 }
 
-/// The two kinds' labels and their one Length field's meaning — the
-/// chrome's radio row read as a value, so the sentence a user sees is
-/// checked without a window.
+/// The two kinds' labels — the chrome's radio row read as a value, so
+/// the words a user sees are checked without a window.
 #[test]
-fn the_kind_choice_names_what_the_one_field_means() {
+fn the_kind_choice_names_each_kind() {
     assert_eq!(
-        BlendKindChoice::ALL.map(|(kind, label)| (kind, label, kind.size_label())),
+        BlendKindChoice::ALL,
         [
-            (BlendKindChoice::Fillet, "fillet", "radius"),
-            (BlendKindChoice::Chamfer, "chamfer", "setback"),
+            (BlendKindChoice::Fillet, "fillet"),
+            (BlendKindChoice::Chamfer, "chamfer"),
         ]
     );
     assert_eq!(BlendKindChoice::default(), BlendKindChoice::Fillet);

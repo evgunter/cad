@@ -126,7 +126,7 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AtRestEvidence, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, DimensionError,
+    AtRestEvidence, AttrKind, Axis3, BoundEnd, CheckEvidence, ChecksError, Coord, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
@@ -518,6 +518,8 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::ValueSpin { .. } => "value_spin",
         SlotId::StationSlide { .. } => "station_slide",
         SlotId::StationSpin { .. } => "station_spin",
+        SlotId::ClearanceBound(BoundEnd::Low) => "clearance_low",
+        SlotId::ClearanceBound(BoundEnd::High) => "clearance_high",
     }
 }
 
