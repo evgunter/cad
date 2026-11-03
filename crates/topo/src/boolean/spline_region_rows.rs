@@ -846,3 +846,82 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
         "its trim does not read"
     );
 }
+
+/// **Reviewer row (PR 6435, claim 2): a placeholder at every joint of a
+/// face across a closed chart's seam, outer loop and hole alike, is
+/// read past.** Each half of each loop in turn gets a null strut fanned
+/// at its start (the seam-crossing joints among them); the trim lifts
+/// every other half as the bare face does and places each probe point
+/// as the bare face does.
+#[test]
+fn review_6435_a_placeholder_at_each_joint_across_a_seam_reads_as_the_bare_face() {
+    use crate::null::Scaffolding;
+    let chart = square_tube();
+    let outer = [
+        (0.9, 0.2),
+        (1.0, 0.2),
+        (1.1, 0.2),
+        (1.1, 0.8),
+        (1.0, 0.8),
+        (0.9, 0.8),
+    ];
+    let hole = [(1.02, 0.4), (1.06, 0.4), (1.06, 0.6), (1.02, 0.6)];
+    let probes = [
+        (0.95, 0.5),
+        (0.05, 0.5),
+        (0.5, 0.5),
+        (0.2, 0.5),
+        (0.04, 0.5),
+        (0.95, 0.3),
+        (0.05, 0.3),
+        (0.99, 0.21),
+        (0.01, 0.79),
+    ];
+    for ring in [None, Some(&hole[..])] {
+        let (bare, face) = holed_sheet(&chart, &outer, ring);
+        let loops: Vec<_> = {
+            let f = bare.get_face(face).unwrap();
+            core::iter::once(f.outer)
+                .chain(f.rings.iter().copied())
+                .collect()
+        };
+        let want: Vec<_> = probes
+            .iter()
+            .map(|&(u, v)| place(&bare, face, chart.eval(u, v)))
+            .collect();
+        let rows = |b: &Body<f64>, lk| -> Vec<_> {
+            b.loop_lift(lk, Scaffolding::Skipped)
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.row.params().0)))
+                .collect()
+        };
+        for &lk in &loops {
+            for he in crate::pcurves::loop_rows(&bare, lk) {
+                let mut nulled = bare.clone();
+                nulled
+                    .mev_null(
+                        crate::construction::MevSite::Fan { he1: he, he2: he },
+                        crate::construction::NewVertexSide::Above,
+                    )
+                    .unwrap();
+                for &l in &loops {
+                    let (got, base) = (rows(&nulled, l), rows(&bare, l));
+                    assert_eq!(got.len(), base.len(), "ring {ring:?} at {he:?}");
+                    for (g, b) in got.iter().zip(&base) {
+                        assert_eq!(g.0, b.0, "same halves, same order at {he:?}");
+                        assert_eq!(g.1, b.1, "same deck at {he:?}");
+                        assert_eq!((g.2.x, g.2.y), (b.2.x, b.2.y), "same start at {he:?}");
+                    }
+                }
+                for (&(u, v), w) in probes.iter().zip(&want) {
+                    assert_eq!(
+                        place(&nulled, face, chart.eval(u, v)),
+                        *w,
+                        "ring {ring:?}, placeholder at {he:?}: ({u}, {v})"
+                    );
+                }
+            }
+        }
+    }
+}
