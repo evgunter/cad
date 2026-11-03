@@ -974,6 +974,105 @@ mod tests {
         }
     }
 
+    /// **The 1×2 system's jets are `f∘S`'s, against every curved form.**
+    /// On a rational bicubic wall, uneven in its weights, so its third
+    /// derivatives and mixed terms are live, against the unit sphere, a
+    /// tilted cylinder and a tilted ring torus: the Jacobian, `rhs2` and
+    /// `rhs3` agree with differences of the residual along the chart path
+    /// the approximant describes (a straight line for the first two, the
+    /// quadratic for `rhs3`). Red against `rhs3` without the wall's chain
+    /// term `∇f·S‴`, and against `rhs2` read along the chart's tangent
+    /// alone.
+    #[test]
+    fn r2_taylor_rhs_reproduces_the_composite_derivatives() {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let mut control = Vec::with_capacity(16);
+        let mut weights = Vec::with_capacity(16);
+        for i in 0..4 {
+            for j in 0..4 {
+                let (u, v) = (f64::from(i) / 3.0, f64::from(j) / 3.0);
+                let bump = if (i, j) == (1, 2) { 0.35 } else { 0.0 };
+                control.push(Point3::new(
+                    0.2 + 0.7 * v + 0.1 * u * u,
+                    0.15 + 0.6 * u - 0.2 * v * v,
+                    0.55 + 0.25 * u * v - bump,
+                ));
+                weights.push(1.0 + 0.3 * f64::from((i * 3 + j * 5) % 4));
+            }
+        }
+        let wall = NurbsSurface::new(k.clone(), k, control, weights).unwrap();
+        let tilt = Vec3::new(0.2, -0.3, 1.0);
+        let tilt = tilt / tilt.norm();
+        let partners = [
+            sphere(),
+            Surface::Cylinder {
+                origin: Point3::new(0.1, -0.2, 0.0),
+                axis: tilt,
+                u_ref: tilt.cross(Vec3::new(1.0, 0.0, 0.0)).normalize(),
+                radius: 0.7,
+            },
+            Surface::Torus {
+                center: Point3::new(0.0, 0.1, 0.3),
+                axis: tilt,
+                u_ref: tilt.cross(Vec3::new(1.0, 0.0, 0.0)).normalize(),
+                major_radius: 0.8,
+                minor_radius: 0.3,
+            },
+        ];
+        let x = [0.41, 0.57];
+        let d1 = [0.3, -0.45];
+        let d2 = [0.12, 0.2];
+        let h = 1.0e-3;
+        for partner in &partners {
+            let sys = ImplicitChartR2 {
+                partner,
+                wall: &wall,
+            };
+            let f_at = |t: f64, d2: [f64; 2]| {
+                let q = [
+                    x[0] + t * d1[0] + 0.5 * t * t * d2[0],
+                    x[1] + t * d1[1] + 0.5 * t * t * d2[1],
+                ];
+                sys.residual(&q)[0]
+            };
+            let line = |t| f_at(t, [0.0, 0.0]);
+            let curve = |t| f_at(t, d2);
+            let j = sys.jacobian(&x)[0];
+            let d_one = (line(h) - line(-h)) / (2.0 * h);
+            let along = j[0] * d1[0] + j[1] * d1[1];
+            assert!(
+                (along - d_one).abs() < 1e-5,
+                "{partner:?}: J·d₁ = {along} vs h′ = {d_one}"
+            );
+            let d_two = (line(h) - 2.0 * line(0.0) + line(-h)) / (h * h);
+            let b2 = sys.rhs2(&x, &d1)[0];
+            assert!(
+                (b2 + d_two).abs() < 1e-4,
+                "{partner:?}: b2 = {b2} vs −h″ = {}",
+                -d_two
+            );
+            let d3a = (curve(2.0 * h) - 2.0 * curve(h) + 2.0 * curve(-h) - curve(-2.0 * h))
+                / (2.0 * h * h * h);
+            let d3b = (curve(4.0 * h) - 2.0 * curve(2.0 * h) + 2.0 * curve(-2.0 * h)
+                - curve(-4.0 * h))
+                / (16.0 * h * h * h);
+            let d3 = (4.0 * d3a - d3b) / 3.0;
+            let b3 = sys.rhs3(&x, &d1, &d2)[0];
+            assert!(
+                (b3 + d3).abs() < 1e-3,
+                "{partner:?}: b3 = {b3} vs −h‴ = {}",
+                -d3
+            );
+            let j3 = wall.ders3(x[0], x[1]);
+            let chain = crate::implicit::implicit_gradient(partner, j3.jet.point)
+                .dot(chart_d3(&j3, d1[0], d1[1], d2[0], d2[1]));
+            assert!(
+                chain.abs() > 1e-2,
+                "FIXTURE: the wall's chain term is live: {chain:e}"
+            );
+        }
+    }
+
     #[test]
     fn a_non_plane_surface_has_no_plane_chart() {
         assert!(Chart::plane_of(&sphere(), (0.0, 1.0), (0.0, 1.0)).is_none());

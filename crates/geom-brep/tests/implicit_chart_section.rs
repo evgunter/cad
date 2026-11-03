@@ -13,7 +13,9 @@
 
 use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::ssi::BranchEnd;
-use geom_brep::{ChartAxis, ImplicitSection, SectionReading, SsiDomain, SsiError, SsiOutcome};
+use geom_brep::{
+    ChartAxis, ImplicitSection, ReachBound, SectionReading, SsiDomain, SsiError, SsiOutcome,
+};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -287,28 +289,38 @@ fn a_large_sphere_cuts_the_strip_in_two_arcs() {
 ///
 /// Where `f64` at the sphere's own reach cannot settle a state well
 /// inside ε (at ε = 1e-12, the spacing of floats near 10⁴ is 1.8e-12),
-/// the section refuses at its door, the binding reach the partner's:
-/// the march's tolerance reads the wall written about the sphere's
-/// centre, not the wall alone. Red against the tolerance read on the
-/// wall's coordinates alone (the march then refuses mid-trace, unable to
-/// settle a step).
+/// the reading refuses when it first marches, naming the partner's
+/// reach: the wall's points stand 10⁴ m from the sphere's centre
+/// wherever the scene is placed, so moving it is no recourse. It
+/// certifies wherever ε is at least 1e-9. Red against the tolerance read
+/// on the wall's coordinates alone (the march then refuses mid-trace,
+/// unable to settle a step), and against the partner's reach reported as
+/// the domain's.
 #[test]
 fn a_very_large_sphere_cuts_the_strip_in_two_arcs() {
     let r = 1.0e4;
     let (s, w) = (sphere(Point3::new(0.0, 0.0, 0.45 - r), r), strip());
-    match ImplicitSection::of(&s, &w, domain(), band()) {
-        Ok(section) => {
-            let out = section.all().expect("every branch");
+    let section = ImplicitSection::of(&s, &w, domain(), band()).expect("the section");
+    match section.all() {
+        Ok(out) => {
             assert_eq!(out.branches.len(), 2, "two arcs");
             on_both(&s, &w, &out, "very large sphere × strip");
         }
-        Err(SsiError::SettlingUnresolvable(why)) => {
-            assert!(why.reach >= r, "the partner's reach binds: {why:?}");
+        Err(SsiError::SettlingUnresolvable(why)) if eps() < 1e-9 => {
+            assert_eq!(
+                why.bound,
+                ReachBound::Partner,
+                "the partner's reach binds: {why:?}"
+            );
+            assert!(
+                why.reach >= r,
+                "the wall's distance from the centre: {why:?}"
+            );
             assert!(
                 why.settle > 0.5 * why.tolerance,
                 "refused only where it cannot settle inside ε: {why:?}"
             );
         }
-        Err(e) => panic!("the section: {e:?}"),
+        Err(e) => panic!("the section at ε {:e}: {e:?}", eps()),
     }
 }

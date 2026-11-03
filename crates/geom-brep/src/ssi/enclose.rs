@@ -637,6 +637,20 @@ impl ChartPhi<'_> {
         }
     }
 
+    /// An upper bound on `‖∇f‖` over the window `w` of the wall, which a
+    /// slope of `φ` is divided by to read as a sine; `None` on a plane,
+    /// whose normal is a unit, and `NaN` where it does not certify.
+    pub(crate) fn gradient_sup<T: CertifiedBounds>(
+        self,
+        boxes: &NurbsBoxes<'_, T>,
+        w: UvWindow,
+    ) -> Option<f64> {
+        match self {
+            Self::Plane(..) => None,
+            Self::Curved(c) => Some(c.gradient_sup(c.framed(boxes.rect_box(w)))),
+        }
+    }
+
     /// `φ`'s partial along `u` (`along_u`) or `v` over the window `w`:
     /// `∇f·S_d`, on the wall's derivative box there.
     pub(crate) fn partial<T: CertifiedBounds>(
@@ -688,14 +702,10 @@ pub(super) fn chart_transverse_margin<T: CertifiedBounds>(
     // units and leaves the dimensionless sine-like quantity the ℝ³
     // lane's `(∇f₁×∇f₂)·e` already is. UPPER bounds on both are used,
     // which can only shrink the margin: the safe direction.
-    let (n, gradient) = match phi {
-        ChartPhi::Plane(n, _) => (n, None),
-        ChartPhi::Curved(c) => {
-            let q = c.framed(boxes.rect_box(rect));
-            let g = c.gradient(q);
-            ([g.x, g.y, g.z], Some(c.gradient_sup(q)))
-        }
-    };
+    let (n, gradient) = (
+        phi.gradient(boxes, Some(rect)),
+        phi.gradient_sup(boxes, rect),
+    );
     if gradient.is_some_and(|g| !(g.is_finite() && g > 0.0)) {
         return Ok(None);
     }
@@ -2810,11 +2820,61 @@ pub(super) mod tests {
         };
         let (unit, large) = (margin(1.0), margin(100.0));
         for (r, m) in [(1.0, unit), (100.0, large)] {
-            assert!(m > 0.0 && m <= 1.0, "R = {r}: the margin {m} is no sine");
+            assert!(
+                (0.45..=0.5 + 1e-3).contains(&m),
+                "R = {r}: the margin {m} is no lower bound near cos 60° = ½"
+            );
         }
         assert!(
             (unit / large - 1.0).abs() < 0.05,
             "the margin moved with the form's scale: {unit} at R = 1, {large} at R = 100"
+        );
+    }
+
+    /// **A curved partner's chart margin bounds the sine from below over
+    /// a window where `‖∇f‖` varies.** The flat unit square in `z = 0`,
+    /// read across `u` over the whole square, against a sphere centred at
+    /// `(−1, ½, 0)`: `∇f ∝ (x + 1, y − ½, 0)`, so the sine of the angle
+    /// between the partner and the square's `u` direction is
+    /// `(x + 1)/√((x + 1)² + (y − ½)²)`, least (`2/√5 ≈ 0.894`) at the
+    /// square's `x = 0` corners, while `‖∇f‖` doubles across the square.
+    /// The margin lies below every sampled sine. Red against the margin
+    /// divided by a lower bound on `‖∇f‖` (it reads 1), and against it
+    /// divided by half the upper bound (0.97).
+    #[test]
+    fn a_curved_partners_chart_margin_is_below_every_sine_in_its_window() {
+        let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("clamped linear");
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+        ];
+        let square = NurbsSurface::new(k.clone(), k, control, vec![1.0; 4]).expect("square");
+        let boxes = NurbsBoxes::new(&square);
+        let sphere = Surface::Sphere {
+            center: Point3::new(-1.0, 0.5, 0.0),
+            radius: 1.2,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let curved = super::super::residual::Curved::of(&sphere).expect("a sphere");
+        let m = chart_transverse_margin(
+            &boxes,
+            ChartPhi::Curved(&curved),
+            win((0.0, 1.0, 0.0, 1.0)),
+            (0.0, 1.0, 1.0),
+        )
+        .expect("the window is not degenerate")
+        .expect("the stretch is finite");
+        let least = (0..=20)
+            .flat_map(|i| (0..=20).map(move |j| (f64::from(i) / 20.0, f64::from(j) / 20.0)))
+            .map(|(x, y)| (x + 1.0) / (x + 1.0).hypot(y - 0.5))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            m > 0.0 && m <= least,
+            "the margin {m} against the least sampled sine {least}"
         );
     }
 

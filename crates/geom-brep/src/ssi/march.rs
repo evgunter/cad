@@ -208,6 +208,10 @@ pub enum ReachBound {
     Geometry,
     /// The caller's domain: no operand box bounds the states nearer.
     Domain,
+    /// A curved partner's frame: its residual is read at the wall's
+    /// points written about the partner's centre or axis, and they stand
+    /// this far from it, whatever the domain.
+    Partner,
 }
 
 impl Readout {
@@ -227,6 +231,20 @@ impl Readout {
             reach,
             gap,
             bound,
+            noise: ulps * gap,
+        }
+    }
+
+    /// The residual read at coordinates written about a curved partner's
+    /// centre or axis, `framed` the wall's box in that frame, with `ulps`
+    /// of their spacing as noise.
+    pub(crate) fn about_partner(framed: Box3, ulps: f64) -> Self {
+        let (reach, gap) = exhaust::coordinate_gap(framed);
+        Self {
+            lane: ExhaustLane::R3,
+            reach,
+            gap,
+            bound: ReachBound::Partner,
             noise: ulps * gap,
         }
     }

@@ -55,14 +55,26 @@ struct Lane<'a> {
     wall: ImplicitWall<'a>,
     wall_op: SsiOperand<'a, f64>,
     sys: ImplicitChartR2<'a>,
-    ctx: MarchContext<2>,
+    /// The march's context, or the refusal of its tolerance, which only
+    /// a reading that marches meets.
+    ctx: Result<MarchContext<2>, SsiError>,
     seed_floor: SweepFloor<UvRect>,
 }
 
 impl Lane<'_> {
     /// The ends' reader over this lane.
-    fn ends(&self) -> Ends<'_, ImplicitChartR2<'_>, 1, 2> {
-        Ends::implicit(&self.sys, self.ctx, &self.wall_op, self.wall.band())
+    ///
+    /// # Errors
+    ///
+    /// The march tolerance's refusal.
+    fn ends(&self) -> Result<Ends<'_, ImplicitChartR2<'_>, 1, 2>, SsiError> {
+        let ctx = self.ctx.clone()?;
+        Ok(Ends::implicit(
+            &self.sys,
+            ctx,
+            &self.wall_op,
+            self.wall.band(),
+        ))
     }
 
     /// Whether the partner's form over the cell's box is clear of zero,
@@ -144,18 +156,18 @@ impl<'a> ImplicitSection<'a> {
                        chart",
         })?;
         finite_operand("curved partner", partner)?;
-        let read = ImplicitWall::of(wall, &curved, domain, band)?;
+        let read = ImplicitWall::of(wall, domain, band)?;
         let (ud, vd) = (wall.knot_values_u().domain(), wall.knot_values_v().domain());
         let root = UvRect { u: ud, v: vd };
         let speed = read.charted().speeds().max();
         let seed_floor = SweepFloor::chart(root, domain.seed_floor(), speed, FloorKind::Seeding)?;
-        let ctx = MarchContext::<2> {
+        let ctx = read.march_tol(&curved).map(|tol| MarchContext::<2> {
             domain: [[ud.0, ud.1], [vd.0, vd.1]],
             extent: domain.extent,
-            tol: read.tol(),
+            tol,
             max_steps,
             spent: Default::default(),
-        };
+        });
         let wall_op = SsiOperand::Nurbs(read.charted().clone());
         Ok(Self {
             lane: Lane {
@@ -213,7 +225,7 @@ impl<'a> ImplicitSection<'a> {
     /// tube does not hold the settled state.
     pub fn branch_at(&mut self, seed: Point3<f64>) -> Result<SectionReading<'_>, SsiError> {
         let (u, v) = foot(self.lane.wall.charted().surface(), seed)?;
-        let x = self.lane.ends().settle([u, v])?;
+        let x = self.lane.ends()?.settle([u, v])?;
         if let Some(i) = self.banked.holding(&x) {
             return Ok(SectionReading::Branch(&self.banked.branches[i]));
         }
@@ -221,7 +233,9 @@ impl<'a> ImplicitSection<'a> {
         if let Some(i) = pass.regions.iter().position(|r| r.holds_state(&x)) {
             return Ok(SectionReading::Region(&pass.contacts[i]));
         }
-        let i = self.banked.through(&self.lane.ends(), x, &pass.crossings)?;
+        let i = self
+            .banked
+            .through(&self.lane.ends()?, x, &pass.crossings)?;
         Ok(SectionReading::Branch(&self.banked.branches[i]))
     }
 
@@ -243,7 +257,7 @@ impl<'a> ImplicitSection<'a> {
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
 
-        let ends = lane.ends();
+        let ends = lane.ends()?;
         for branch in ends.branches(&self.banked.open(&pass.crossings))? {
             self.banked.bank(branch);
         }

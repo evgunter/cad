@@ -355,11 +355,10 @@ impl<'a> ImplicitWall<'a> {
     /// [`super::SsiError::OperandNotFinite`] for a wall that is not
     /// finite, [`super::SsiError::DomainUnusable`],
     /// [`super::SsiError::ChartSpeed`], the floor's refusal
-    /// ([`super::SsiError::FloorUnresolvable`]) and the march
-    /// tolerance's.
+    /// ([`super::SsiError::FloorUnresolvable`]) and the boundary pass's
+    /// settling tolerance's.
     pub(crate) fn of(
         wall: &'a geom::NurbsSurface<f64>,
-        curved: &Curved,
         domain: super::SsiDomain,
         band: geom_core::Band,
     ) -> Result<Self, super::SsiError> {
@@ -375,28 +374,7 @@ impl<'a> ImplicitWall<'a> {
             speed,
             super::exhaust::FloorKind::Accounting,
         )?;
-        let hull = wall
-            .control()
-            .iter()
-            .map(|&p| Box3::between(p, p))
-            .reduce(Box3::hull)
-            .ok_or(super::SsiError::UnsupportedCertificate {
-                what: "a NURBS wall with no control point",
-            })?;
-        let framed = curved.framed(hull);
-        let about = super::march::Readout::spatial(
-            Box3 {
-                x: framed.x,
-                y: framed.y,
-                z: framed.z,
-            },
-            None,
-            super::SSI_QUADRIC_NOISE_ULPS,
-        );
-        let tol = super::march::MarchTol::from_band(
-            band,
-            super::spline_readout(hull, wall, root, speed).louder(about),
-        )?;
+        let tol = super::march::MarchTol::from_band(band, Self::readout(wall, root, speed)?)?;
         Ok(Self {
             charted,
             floor,
@@ -404,6 +382,55 @@ impl<'a> ImplicitWall<'a> {
             domain,
             band,
         })
+    }
+
+    /// The wall's control hull, which holds every point of it.
+    fn hull(wall: &geom::NurbsSurface<f64>) -> Result<Box3, super::SsiError> {
+        wall.control()
+            .iter()
+            .map(|&p| Box3::between(p, p))
+            .reduce(Box3::hull)
+            .ok_or(super::SsiError::UnsupportedCertificate {
+                what: "a NURBS wall with no control point",
+            })
+    }
+
+    /// The wall's own readout: its coordinates and its chart's.
+    fn readout(
+        wall: &geom::NurbsSurface<f64>,
+        root: super::exhaust::UvRect,
+        speed: geom_core::SupSpeed<f64>,
+    ) -> Result<super::march::Readout, super::SsiError> {
+        Ok(super::spline_readout(Self::hull(wall)?, wall, root, speed))
+    }
+
+    /// **The tolerance a march against `curved` settles to**: the louder
+    /// of the wall's own readout and the wall written about the partner's
+    /// centre or axis, where the residual a state settles to is read.
+    /// Minted only where a march runs, so a pose the classification
+    /// decides without one never meets it.
+    ///
+    /// # Errors
+    ///
+    /// The tolerance's refusal ([`super::SsiError::SettlingUnresolvable`],
+    /// naming the partner's reach where that binds).
+    pub(crate) fn march_tol(
+        &self,
+        curved: &Curved,
+    ) -> Result<super::march::MarchTol, super::SsiError> {
+        let wall = self.charted.surface();
+        let root = self.floor.root();
+        let framed = curved.framed(Self::hull(wall)?);
+        let about = super::march::Readout::about_partner(
+            Box3 {
+                x: framed.x,
+                y: framed.y,
+                z: framed.z,
+            },
+            super::SSI_QUADRIC_NOISE_ULPS,
+        );
+        let readout = Self::readout(wall, root, self.charted.speeds().max())?.louder(about);
+        super::march::MarchTol::from_band(self.band, readout)
     }
 
     /// The wall's chart enclosures over its own cells.
@@ -419,11 +446,6 @@ impl<'a> ImplicitWall<'a> {
     /// The wall's chart, its speeds minted.
     pub(crate) fn charted(&self) -> &super::ChartedNurbs<'a, f64> {
         &self.charted
-    }
-
-    /// The march's tolerance, the boundary pass's settling tolerance.
-    pub(crate) fn tol(&self) -> super::march::MarchTol {
-        self.tol
     }
 
     /// The domain the wall is read over.

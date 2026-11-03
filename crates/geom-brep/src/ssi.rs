@@ -938,6 +938,9 @@ impl core::fmt::Display for SsiError {
                 let what = match bound {
                     ReachBound::Geometry => "geometry",
                     ReachBound::Domain => "domain",
+                    ReachBound::Partner => {
+                        "spline face, written about the curved partner's centre or axis,"
+                    }
                 };
                 write!(
                     f,
@@ -1518,6 +1521,7 @@ impl SsiError {
                 let scale = match (r.lane, r.bound) {
                     (ExhaustLane::R3, ReachBound::Geometry) => exhaust::R3_SCALE,
                     (ExhaustLane::R3, ReachBound::Domain) => DOMAIN_SCALE,
+                    (ExhaustLane::R3, ReachBound::Partner) => PARTNER_SCALE,
                     (ExhaustLane::Chart { .. }, _) => exhaust::CHART_SCALE,
                 };
                 scale.recourse(RefusedArm::SignCertain(None), reading)
@@ -2617,6 +2621,19 @@ impl core::fmt::Display for SsiDecision {
 const DOMAIN_SCALE: SizedDecision = SizedDecision {
     lever: "name a domain around the feature traced, nearer the origin, or move the geometry \
             nearer the origin, where its coordinates resolve the tolerance",
+    size: "scale",
+    passes: SizedPass::Positive,
+    side: RefusedSide::Lever,
+    no_size: None,
+};
+
+/// The march's settling against a curved partner whose own frame reaches
+/// further than its coordinates resolve: the wall's points stand that
+/// far from the partner's centre or axis wherever the scene is placed
+/// ([`ReachBound::Partner`]).
+const PARTNER_SCALE: SizedDecision = SizedDecision {
+    lever: "use a curved partner whose radius is nearer the spline face's own size, or a coarser \
+            tolerance; moving the scene does not move the partner's frame",
     size: "scale",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -4817,6 +4834,17 @@ mod ending_tests {
                     bound: ReachBound::Domain,
                     settle: 3e-8,
                     tolerance: 1e-9,
+                }),
+            ),
+            (
+                "settling, partner",
+                SsiError::SettlingUnresolvable(SettlingRefusal {
+                    lane: ExhaustLane::R3,
+                    reach: 1.0e4,
+                    gap: 1.8e-12,
+                    bound: ReachBound::Partner,
+                    settle: 3.6e-12,
+                    tolerance: 1e-12,
                 }),
             ),
             (

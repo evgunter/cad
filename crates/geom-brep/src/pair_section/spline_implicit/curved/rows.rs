@@ -808,6 +808,34 @@ fn a_loop_round_a_ridges_top_declines() {
     );
 }
 
+/// **A pose the sweep decides needs no march tolerance.** The flat unit
+/// plate against the sphere of radius 10⁶ centred at `(0.3 − 10⁶, ½, 0)`:
+/// the sphere's equator crosses the plate as a near-straight arc from
+/// its `v = 0` side to its `v = 1` side, and the sweep reads it
+/// loop-free, so the section is `Reaching` those two sides, with no
+/// march. The march's tolerance, read about the sphere's centre a
+/// million metres off, settles no finer than `2·10⁻¹⁰` m, too coarse for
+/// ε = 1e-12, and is minted only where a march runs. Red against the
+/// tolerance minted with the section, before the classification's pass
+/// (it refuses `SettlingUnresolvable` at ε = 1e-12, unaccounted).
+#[test]
+fn a_pose_the_sweep_decides_needs_no_march_tolerance() {
+    let r = 1.0e6;
+    let plate = flat([
+        [pt(0.0, 0.0, 0.0), pt(0.0, 1.0, 0.0)],
+        [pt(1.0, 0.0, 0.0), pt(1.0, 1.0, 0.0)],
+    ]);
+    let got = read(&plate, &sphere(pt(0.3 - r, 0.5, 0.0), r));
+    let Ok(Components::Reaching(reached)) = &got else {
+        panic!("a plate the sphere's equator crosses reads {got:?}");
+    };
+    assert_eq!(
+        reached.rims()[0],
+        side(ChartAxis::V, ChartEnd::Low).or(side(ChartAxis::V, ChartEnd::High)),
+        "the arc's ends, on the plate (the first operand)"
+    );
+}
+
 /// The saddle `z = (x − ½)² − (y − ½)²` over the unit square.
 fn saddle() -> Surface<f64> {
     let g = [0.25, -0.25, 0.25];
