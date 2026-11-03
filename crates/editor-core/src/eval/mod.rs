@@ -1981,12 +1981,13 @@ pub enum NodeErrorKind {
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
-    /// A node's PAYLOAD expression failed to evaluate — an assertion's
-    /// value or its bound.
+    /// A node's PAYLOAD expression failed to evaluate — a value
+    /// claim's value or its bound. A clearance's bound is a slot, and
+    /// fails as [`Self::Expr`] at it.
     ///
     /// The address is the expression's position in `payload_exprs`
-    /// order, because an assertion has no slot vocabulary to name. The
-    /// rendering says WHICH one it is.
+    /// order, because a value claim's two expressions have no slot
+    /// address. The rendering says WHICH one it is.
     PayloadExpr {
         /// Which node kind's payload this is, for the message.
         what: &'static str,
@@ -4643,8 +4644,9 @@ where
                 frame: drawn.map(|d| d.frame),
             }
         }
-        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound, and
-        // a clearance's bounds, are not slots. They are evaluated exactly once here, under the
+        // AN ASSERTION'S EXPRESSIONS (E10): a value claim's value and
+        // bound, which are payload, and a clearance's bound slots, which
+        // `slots::eval_slots` leaves to this arm. They are evaluated exactly once here, under the
         // discipline `slots` states and for the same reason: these
         // values feed BOTH the content key and the op, so a parameter
         // edit under a bound moves the key rather than serving a stale
@@ -4658,20 +4660,23 @@ where
             for (index, &(var, dim)) in reads.iter().enumerate() {
                 let read = measure::observe(doc, env, results, var, dim).map_err(|refusal| {
                     match refusal {
-                        measure::ObservedRefusal::Expr(source) => NodeErrorKind::PayloadExpr {
-                            what: match (claim, index) {
-                                (crate::measure::Claim::Value { .. }, 0) => {
+                        // A clearance's bound is a slot, and is named so.
+                        measure::ObservedRefusal::Expr(source) => match claim {
+                            crate::measure::Claim::Clearance { bounds, .. } => {
+                                let Some(&(slot, _)) = bounds.rows().get(index) else {
+                                    unreachable!("one read per bound row, in row order")
+                                };
+                                NodeErrorKind::Expr { slot, source }
+                            }
+                            crate::measure::Claim::Value { .. } => NodeErrorKind::PayloadExpr {
+                                what: if index == 0 {
                                     "the assertion's value,"
-                                }
-                                (crate::measure::Claim::Value { .. }, _) => {
+                                } else {
                                     "the assertion's bound,"
-                                }
-                                (crate::measure::Claim::Clearance { .. }, _) => {
-                                    "the clearance's bound,"
-                                }
+                                },
+                                index,
+                                source,
                             },
-                            index,
-                            source,
                         },
                         // Every measure under the value is upstream of
                         // this node, and a failed one poisoned it above.
@@ -4900,7 +4905,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v22: a mate writes its orientation, by where the copy's
+            /// v23: a slide beside a mate whose direction is oblique in
+            /// the source's own coordinates runs along its carried axis's
+            /// part in what the mate leaves, and a value may slide along
+            /// the mated direction or a read direction, or spin about a
+            /// read axis (`value_coord`'s `SLIDE`, `SLIDE_ALONG` and
+            /// `SPIN_ABOUT`). v22: a mate writes its orientation, by where the copy's
             /// `x` and `z` lie, and a spin beside a mate fixing a
             /// direction is its own word (`value_coord::SPIN`), the turn
             /// about the target's own direction. v21: a placement copies
@@ -4937,7 +4947,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 22,
+            VERSION = 23,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5042,6 +5052,9 @@ mod tag {
             SPIN_Y = 6,
             SPIN_Z = 7,
             SPIN = 8,
+            SLIDE = 9,
+            SLIDE_ALONG = 10,
+            SPIN_ABOUT = 11,
         }
         /// Where an orientation puts one of the copy's axes
         /// ([`crate::mate::SignedAxis`]), written for its `x` and its
@@ -5096,7 +5109,10 @@ mod tag {
         ///   this same environment, so the nominal is already in its
         ///   key.
         /// * The measurement vocabulary's PAYLOAD expressions
-        ///   (`Measure`, `Assertion`) write no nominal word. They are
+        ///   (`Measure`, `Assertion`), and a clearance's bound slots,
+        ///   which the assertion's arm evaluates beside them
+        ///   ([`super::slots::eval_slots`] exempts the node), write no
+        ///   nominal word. They are
         ///   read only by their own node's op at the evaluation
         ///   scalar, so no f64-pinned reader has an input for the key
         ///   to owe. The day a pre-pass reads a measured bound at
@@ -6440,9 +6456,12 @@ fn feed_bundle(
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
                 h.write_tag(match value.coord {
-                    Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
-                    Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
-                    Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
+                    Coord::Slide(None) => tag::value_coord::SLIDE,
+                    Coord::Slide(Some(TargetAxis::X)) => tag::value_coord::SLIDE_X,
+                    Coord::Slide(Some(TargetAxis::Y)) => tag::value_coord::SLIDE_Y,
+                    Coord::Slide(Some(TargetAxis::Z)) => tag::value_coord::SLIDE_Z,
+                    Coord::SlideAlong(_) => tag::value_coord::SLIDE_ALONG,
+                    Coord::SpinAbout(_) => tag::value_coord::SPIN_ABOUT,
                     Coord::Spin(None) => tag::value_coord::SPIN,
                     Coord::Spin(Some(TargetAxis::X)) => tag::value_coord::SPIN_X,
                     Coord::Spin(Some(TargetAxis::Y)) => tag::value_coord::SPIN_Y,
@@ -7455,8 +7474,8 @@ mod bundle_key {
             key(&[mate(TO)]),
             with(value(Coord::SPIN)),
             with(value(Coord::Spin(Some(TargetAxis::X)))),
-            with(value(Coord::Slide(TargetAxis::X))),
-            with(value(Coord::Slide(TargetAxis::Y))),
+            with(value(Coord::slide(TargetAxis::X))),
+            with(value(Coord::slide(TargetAxis::Y))),
         ];
         for (i, a) in keys.iter().enumerate() {
             for b in &keys[i + 1..] {

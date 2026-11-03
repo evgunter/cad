@@ -758,7 +758,14 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             }
             Self::AddConstraint { .. } | Self::SetConstraints { .. } => true,
             Self::SetParam { slot, .. } => {
-                matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. }))
+                matches!(
+                    slot,
+                    SlotId::Operand(
+                        crate::OperandSlot::Side { .. }
+                            | crate::OperandSlot::Along { .. }
+                            | crate::OperandSlot::About { .. }
+                    )
+                )
             }
             Self::SetExpression { .. } => false,
             // A reshaping rewrites no name and never touches a datum;
@@ -6957,7 +6964,7 @@ impl Recording<'_, crate::ProfileProgram> {
             .axes()
             .map(|axis| {
                 (
-                    crate::Coord::Slide(axis),
+                    crate::Coord::slide(axis),
                     Formula::zero(crate::expr::Dimension::Length),
                 )
             })
@@ -7843,13 +7850,19 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
             Some((id, by)) => (id, Formula::var(by, coord.dimension())),
             None => (next(), Formula::zero(coord.dimension())),
         };
-        whole.push(Constraint::of_value(id, Value { coord, by }));
+        whole.push(Constraint::of_value(
+            id,
+            Value {
+                coord: crate::mate::Coord::authored(coord),
+                by,
+            },
+        ));
     }
     for coord in zeros {
         whole.push(Constraint::of_value(
             next(),
             Value {
-                coord,
+                coord: crate::mate::Coord::authored(coord),
                 by: Formula::zero(coord.dimension()),
             },
         ));
@@ -8272,8 +8285,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     }
                     let record = set_operand(doc, new, reported, *node, *operand, read, tol)?;
                     // A mate's pose re-pointed is a mate written: its
-                    // two kinds must still agree.
-                    if let crate::OperandSlot::Side { constraint, .. } = operand {
+                    // two kinds must still agree. A value's direction
+                    // re-pointed is a value written.
+                    if let crate::OperandSlot::Side { constraint, .. }
+                    | crate::OperandSlot::Along { constraint }
+                    | crate::OperandSlot::About { constraint } = operand
+                    {
                         admit_written_constraint(new, *node, *constraint)?;
                         admit_bundle_make_up(new, *node)?;
                     }

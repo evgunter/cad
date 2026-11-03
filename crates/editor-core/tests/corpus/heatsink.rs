@@ -80,10 +80,10 @@ pub fn document() -> CorpusDoc {
         base,
         vec![
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
             ),
-            (Coord::Slide(TargetAxis::Z), len(FOOT)),
+            (Coord::slide(TargetAxis::Z), len(FOOT)),
         ],
     );
     // Every fin overlaps the base by 1/16, so no union has a
@@ -156,10 +156,10 @@ pub fn placed_fins(fins: i64) -> editor_core::ProfileDoc {
         Vec::new(),
         vec![
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::mul(crate::fixture::scalar_of(k), len(PITCH)).expect("a length"),
             ),
-            (Coord::Slide(TargetAxis::Z), len(FOOT)),
+            (Coord::slide(TargetAxis::Z), len(FOOT)),
         ],
     )
     .values;

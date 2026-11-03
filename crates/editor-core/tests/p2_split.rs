@@ -94,7 +94,7 @@ pub(crate) fn pinned_lifted(
         _ => TargetAxis::Z,
     };
     let mut values = vec![(
-        Coord::Slide(axis),
+        Coord::slide(axis),
         Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
     )];
     if angle != 0.0 {

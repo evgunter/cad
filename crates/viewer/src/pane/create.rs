@@ -76,40 +76,15 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
 }
 
-/// **The clearance form's bound rows**: which side it bounds, then its
-/// one length — or a band's two, low then high — in the working
-/// notation. A free function over the `Ui`, so a headless row can drive
-/// it.
-pub(crate) fn clearance_bound_rows(
-    ui: &mut egui::Ui,
-    drafts: &mut Drafts,
-    notation: &mut Notation,
-) {
+/// **The clearance form's shape row**: which side the requirement
+/// bounds. Its bounds are inserted at contact and edited on the
+/// requirement's own rows.
+pub(crate) fn clearance_shape_row(ui: &mut egui::Ui, drafts: &mut Drafts) {
     ui.horizontal(|ui| {
         ui.label("clearance");
         for (choice, label) in ClearanceBoundChoice::ALL {
             ui.radio_value(&mut drafts.clearance_bound, choice, label);
         }
-    });
-    ui.horizontal(|ui| {
-        let band = drafts.clearance_bound == ClearanceBoundChoice::Between;
-        ui.label(if band { "from" } else { "bound" });
-        unit_field(
-            ui,
-            notation.length.def(),
-            FIELD_DRAG_SPEED,
-            &mut drafts.clearance_lo,
-        );
-        if band {
-            ui.label("to");
-            unit_field(
-                ui,
-                notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut drafts.clearance_hi,
-            );
-        }
-        length_picker(ui, "clearance_bound", &mut notation.length);
     });
 }
 
@@ -693,13 +668,10 @@ impl ViewerBehavior<'_> {
             &self.theme,
             Tone::Advisory,
         );
-        clearance_bound_rows(ui, self.drafts, self.notation);
+        clearance_shape_row(ui, self.drafts);
         self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
-            let lo = notation.length_literal(drafts.clearance_lo)?;
-            let bounds = drafts
-                .clearance_bound
-                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
-            Ok(tool.op(bounds)?)
+            let contact = notation.length_literal(0.0)?;
+            Ok(tool.op(drafts.clearance_bound.bounds(contact))?)
         });
     }
 
@@ -778,7 +750,11 @@ impl ViewerBehavior<'_> {
         });
         let doc = self.session.committed_doc();
         let coords: Vec<_> = match &proposal {
-            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            Some(Ok(proposal)) => proposal
+                .values
+                .iter()
+                .map(|row| row.coord.clone())
+                .collect(),
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
@@ -806,16 +782,17 @@ impl ViewerBehavior<'_> {
                         if field.changed() {
                             match held {
                                 Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
-                                None => {
-                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
-                                }
+                                None => self
+                                    .drafts
+                                    .mate_value_edits
+                                    .push((row.coord.clone(), text.clone())),
                             }
                         }
                         if field.lost_focus()
                             && let Some(at) = held
                         {
                             let (coord, typed) = self.drafts.mate_value_edits.remove(at);
-                            match crate::matetool::typed_value(doc, coord, &typed) {
+                            match crate::matetool::typed_value(doc, coord.clone(), &typed) {
                                 Ok(by) => edited.type_value(coord, by),
                                 Err(error) => self
                                     .notices
@@ -1419,7 +1396,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Mirror.says(
-                &"pick a face: its body mirrors across it — pick another face to mirror across that one; a drawn body becomes its symmetric part, the body and its image fused",
+                &"pick a face: its body mirrors across it — pick another face to mirror across that one; the body becomes its symmetric part, the body and its image fused",
             ),
         );
         crate::widgets::message_toned(
@@ -1483,7 +1460,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Pattern
-                .says(&"pick the body; a circular rule's axis is in its own coordinates"),
+                .says(&"pick the body, then an edge or a face for the direction or the axis"),
         );
         if let Some((seat, half)) = seats_row(
             ui,
@@ -1512,14 +1489,30 @@ impl ViewerBehavior<'_> {
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });
+        let picked = tool.picked().cloned();
+        let picked_said = match &picked {
+            Some(crate::combine::DirectionPick::Edge(_)) => "the picked edge",
+            Some(crate::combine::DirectionPick::Face(_)) => "the picked face",
+            None => "a picked edge or face",
+        };
+        let along_row =
+            |ui: &mut egui::Ui, label: &str, along: &mut Option<pncad::document::TargetAxis>| {
+                ui.horizontal(|ui| {
+                    ui.label(label);
+                    for axis in pncad::document::TargetAxis::ALL {
+                        let word = match axis {
+                            pncad::document::TargetAxis::X => "x",
+                            pncad::document::TargetAxis::Y => "y",
+                            pncad::document::TargetAxis::Z => "z",
+                        };
+                        ui.radio_value(along, Some(axis), word);
+                    }
+                    ui.radio_value(along, None, picked_said);
+                });
+            };
         match self.drafts.pattern_kind {
             PatternLayoutChoice::Linear => {
-                vec3_row(
-                    ui,
-                    "direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_direction,
-                );
+                along_row(ui, "direction", &mut self.drafts.pattern_along);
                 ui.horizontal(|ui| {
                     ui.label("spacing");
                     unit_field(
@@ -1532,22 +1525,7 @@ impl ViewerBehavior<'_> {
                 });
             }
             PatternLayoutChoice::Circular => {
-                ui.horizontal(|ui| {
-                    unit_vec3_row(
-                        ui,
-                        "axis through",
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_through,
-                    );
-                    length_picker(ui, "pattern_through", &mut self.notation.length);
-                });
-                vec3_row(
-                    ui,
-                    "axis direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_axis,
-                );
+                along_row(ui, "axis", &mut self.drafts.pattern_about);
                 ui.horizontal(|ui| {
                     ui.label("step");
                     unit_field(
@@ -1560,19 +1538,25 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
+        let direction = |along: Option<pncad::document::TargetAxis>| match along {
+            Some(axis) => Ok(crate::session::PatternDirection::Axis(axis)),
+            None => picked
+                .as_ref()
+                .map(crate::combine::DirectionPick::direction)
+                .ok_or(CommitFault::NoDirection),
+        };
         self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
             match drafts.pattern_kind {
                 PatternLayoutChoice::Linear => Ok(tool.linear_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
+                    direction(drafts.pattern_along)?,
                     notation.length_literal(drafts.pattern_spacing)?,
                 )?),
                 PatternLayoutChoice::Circular => Ok(tool.circular_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
-                    notation.length_literals(drafts.pattern_through)?,
-                    scalars(drafts.pattern_axis)?,
+                    direction(drafts.pattern_about)?,
                     notation.angle_literal(drafts.pattern_step)?,
                 )?),
             }
@@ -1636,7 +1620,9 @@ impl ViewerBehavior<'_> {
 
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
-    /// choice with its one Length field, and the one committed edit.
+    /// choice, and the one committed edit. The blend is inserted at
+    /// [`crate::blend::default_size`], and its size is then its
+    /// Properties slot row.
     ///
     /// **The freeze sentence is not decoration.** #217 makes the
     /// selection a commitment — a later edit that adds an edge does
@@ -1669,16 +1655,6 @@ impl ViewerBehavior<'_> {
             for (kind, label) in BlendKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.blend_kind, kind, label);
             }
-        });
-        ui.horizontal(|ui| {
-            ui.label(self.drafts.blend_kind.size_label());
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.blend_size,
-            );
-            length_picker(ui, "blend_size", &mut self.notation.length);
         });
         self.blend_commit_row(ui, count);
     }
@@ -1768,7 +1744,7 @@ impl ViewerBehavior<'_> {
             tool.clear();
         }
         if closing.commit {
-            match self.notation.length_literal(self.drafts.blend_size) {
+            match crate::blend::default_size(self.notation.length) {
                 Ok(size) => {
                     let op: Option<SessionOp> =
                         self.tools
@@ -1814,8 +1790,9 @@ impl ViewerBehavior<'_> {
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
-    /// projection, and the mirror tool's, for a drawn body, the union
-    /// of its symmetric part; the label lands there.
+    /// projection, where the label lands. The mirror tool's noun is
+    /// the mirror, which its insert labels and selects, not the union
+    /// of the symmetric part it reads into.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
             ToolKind::Mate | ToolKind::Transform => return None,
@@ -1825,17 +1802,7 @@ impl ViewerBehavior<'_> {
                 Some(BooleanOp::Subtract) => "Subtract",
             },
             ToolKind::Split => "Split",
-            // A drawn body becomes its symmetric part, whose last node
-            // is the union; an unplaced body's image stands alone.
-            ToolKind::Mirror => match self.tools.mirror().and_then(|tool| tool.seats().read(0)) {
-                Some(body)
-                    if !crate::world::placements_of_read(self.session.committed_doc(), &body)
-                        .is_empty() =>
-                {
-                    "Union"
-                }
-                _ => "Mirror",
-            },
+            ToolKind::Mirror => "Mirror",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -1938,7 +1905,7 @@ impl ViewerBehavior<'_> {
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let noun = self.tool_noun(kind);
-        if let Some(noun) = noun {
+        if let Some(noun) = noun.filter(|_| kind.offers_label()) {
             self.creation_label_row(ui, noun);
         }
         let closing = commit_row(ui, kind.commit(), None, |_| {});
@@ -2043,7 +2010,9 @@ mod tests {
                 let mut session = DocSession::inline(doc.clone(), tol);
                 session.pump();
                 let rule = PatternRuleSpec::Linear {
-                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
                     spacing: crate::test_support::len(0.05),
                 };
                 let op = if fused {

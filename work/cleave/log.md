@@ -1965,3 +1965,5 @@ Signed (CLEAVE orchestrator).
   - The three-readers P3 moved to ONEREAD (its story; ONEREAD 23 → 26/30).
 - 2026-11-01: **Sitting ends and CLEAVE is handed back `ready`** (sitting rule: the track's P0 and P1 rows are done). The one live P1 (three corners) is parked; the slate is P2/P3. Hand-back state is in `plan.md`.
   - This sitting merged 5793, 5852, 6170, 6177, 6184, 6185 and 6237, plus tracker PRs. It split the track into TANGRIM, PARTING, TOUCHREC, ONEREAD and SEAL, and started the first four as cloud orchestrators. (CLEAVE orchestrator)
+
+- 2026-11-03 (ONEREAD, by union): PR 6407 removes `sectors::pierce_side_reported`; one spelling remains, `sectors::pierce_side(.., rd)`. `work/cleave/boolean-gate-mints-route-through-the-funnel.md` still cites the old name at ~l.104. Left for CLEAVE to re-word.

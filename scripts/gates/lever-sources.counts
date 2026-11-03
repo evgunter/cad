@@ -3,7 +3,7 @@
 crates/editor-core/src/checks/at_rest.rs 2
 crates/editor-core/src/eval/measure.rs 2
 crates/editor-core/src/mate/coset.rs 1
-crates/editor-core/src/mate/value.rs 2
+crates/editor-core/src/mate/value.rs 4
 crates/editor-core/src/trace.rs 2
 crates/geom-brep/src/curve_pair/pose.rs 3
 crates/geom-brep/src/dihedral.rs 2

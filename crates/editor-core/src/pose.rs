@@ -467,7 +467,7 @@ impl core::fmt::Display for PoseRole {
 /// reads a finer pose at a coarser seat** (D10; VR4). A plain read
 /// carries no role, and is serialized as the bare read; a read through
 /// a role as `{"read": …, "role": …}`.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RoleRead<R> {
     /// The variable read.
     pub read: R,

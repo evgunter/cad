@@ -2,11 +2,12 @@
 id: a-leaves-verdict-carries-no-witness-point
 kind: issue
 title: A bound's Leaves verdict is decided on the leading term of its parting, with no witness point of the bound clearing the band
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
-branch: tangrim/leaves-witness
+closed: 2026-11-03
+pr: 6385
 ---
 
 
@@ -35,7 +36,7 @@ conic against a quadric or torus face, and a bisector against any face
 parting sites (`runs_into`, `crescent`, `corner_holds`, `walls_inside`,
 `tangent_relative_side`, `tied_germ_turn`) are the same.
 
-## The gap fallback this row retires (TANGRIM ruling, 2026-11-01)
+## The gap fallback (TANGRIM ruling, 2026-11-01)
 
 Until the witness lands, a tied bound's parting that falls between the
 zero band and the escalation band at its capped reach reads
@@ -78,6 +79,67 @@ curvature at the vertex (`FaceBend::Implicit::radius`). A cone's bend
 tightens toward its axis within a long reach, which that radius does
 not bound; the witness, read at points of the bound, would.
 
+## Lane finding (2026-11-02, `tangrim/leaves-witness`, after PR 6385's review)
+
+**What is built.** `bound_side::Tie::witnessed` reads a witness for a tied
+**edge** against a **sphere or a cylinder**:
+- the point is the edge's own point at the arm the parting was read at:
+  a line's chord point, or a circle's or ellipse's arc point
+  (`ConicArc`, at an arc no longer than the arm);
+- its offset is that point's signed distance from the face's material
+  (`link::Round`, `metric::Distance::off`), decided on the tie's own
+  `Reading`, band plus slack.
+
+The verdicts:
+
+| parting | witness | verdict |
+|---|---|---|
+| decided | decided, same side | `Leaves` |
+| decided | within the zero band | `Unresolved::Returned` |
+| decided | in the gap | `Unresolved::Gap` |
+| decided | refused by the slack | `Unresolved::Slack` |
+| decided | decided, other side | `ReadFault::Witness`, refused `Coincidence(SectorSide)` |
+| decided | no point | `ReadFault::Unwitnessed`, a `ClassificationInvariant` |
+| in the gap | — | the witness decides alone, on the same ladder |
+
+`conic_bend_side` stays the conic × plane arm.
+
+**What is not built.** Every other tie keeps its parting's own verdict
+(`a-bisectors-tie-is-read-on-its-leading-term-with-no-witness`):
+- **subdivision bisectors.** The witness must be a point of the
+  bisector's normal section. The review showed that a carrier's
+  nearest point is not that point: on a cylinder they part at third
+  order.
+- **edges against a cone or a torus.** No `Round` or `metric` distance
+  reads those carriers.
+
+**The six gap rows stay on the fallback.**
+- **Five are bisectors.** The witness does not read them, so they read
+  `Unresolved::Gap` on their leading term:
+  - `a_band_pose_under_the_tubes_top_reaches_the_donuts_door`
+  - `a_near_square_rod_minus_a_box_builds`
+  - `a_turned_near_square_rod_minus_a_box_builds`
+  - `a_trimmed_face_cut_beside_its_pole_builds`
+  - `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`
+
+  The witness values this finding first quoted for the rods and the
+  torus pose came from that nearest-point foot, and are withdrawn. For
+  the two sphere rows the foot is the great-circle point, so their
+  values stand: the bound sits in the gap at its arm too.
+- **The sixth, the rim-offset row**
+  (`a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders`),
+  no longer reaches the gap on main. Since PR 6253 capped the arm at the
+  cylinder's radius, its parting reads ±2.5e-10 (`Rides`).
+
+So `Unresolved::Gap` stays: for an edge, as the witness's gap; for a
+bisector, as the leading term's.
+
+**`Uncertified` stays.** No certified jet exists for a spline face, a
+spline or spiric edge (`BendBounds::Unbounded`), or a bisector of a
+spline face, so the sheath row keeps its fallback.
+
+**What moves.** Nothing, at three ε (PR 6385's outcome diff).
+
 ## `crescent` now mints topology (2026-11-02, PR 6375)
 
 `sectors.rs` `crescent`'s leading-term verdict no longer only gates a
@@ -100,3 +162,34 @@ bend no reading certifies (a spiric section's) reads no bend
 (`sectors.rs` `bound_bend`), so the pair stays touching there too,
 as `runs_into` already read it. What a witness would add is the
 crescent's extent at a finite reach, which nothing reads today.
+
+## Closed
+
+2026-11-03, PR 6385. Full review (one MAJOR, five MINORs), fix pass,
+then a targeted re-review with no MAJOR, and a last small pass.
+
+A tied line or conic edge against a sphere or a cylinder now stands
+only on its witness (`bound_side::Tie::witnessed`): the edge's own
+point at the parting's arm, its signed distance from the face's
+material (`link::Round::offset`, through `metric::Distance::at`),
+decided on the tie's own `Reading`. Decided on the parting's side →
+`Leaves`; back within the zero band → `Unresolved::Returned`; in the
+gap → `Gap`; against the parting → `ReadFault::Witness`; no point →
+`ReadFault::Unwitnessed`.
+
+Bisectors, edges against cones and tori, and hand-stated jets keep
+their parting's verdict. The six gap rows stay on `Unresolved::Gap`
+(five are bisectors; the rim-offset row reads `Rides`), and the sheath
+stays on `Uncertified`.
+
+Outcome: no move at the default ε, 1e-6 or 1e-12 (`-p sweep -p topo`,
+slow set included).
+
+Residue:
+- `a-bisectors-tie-is-read-on-its-leading-term-with-no-witness` (P2)
+- `the-shipped-parting-sites-decide-on-the-leading-term-with-no-witness` (P2)
+- `a-witness-contradiction-refuses-where-the-local-germ-side-was-right` (P2)
+- `a-tied-bounds-first-order-residue-is-not-read-beside-its-zero-band-parting` (P3)
+- `a-fourth-conic-arc-spelling-beside-three` (P3)
+- `a-face-bend-holds-the-face-and-its-sense-twice-unchecked` (P3)
+- `unresolved-gap-and-read-fault-witness-each-mean-two-things` (P3)
