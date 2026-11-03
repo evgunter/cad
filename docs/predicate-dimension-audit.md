@@ -1565,8 +1565,9 @@ Flagged, NOT fixed here (dispositions):
   and its half-turn twin, two formulas equal modulo a turn. What keeps
   it off the logged doors is that no outcome of it is a reading: where
   `along` is undecided the point lies a quarter turn from the seed,
-  clear of both formulas' cuts (or at the centre, where every angle is
-  a foot), and a foot's parameter is not reduced to any branch
+  clear of both formulas' cuts (or at the centre, where `across` is
+  undecided too and both formulas read an enclosure equally wide), and
+  a foot's parameter is not reduced to any branch
   (`Foot::t`). Logged, an undecided flip at `Interval` would hand the
   driver an escalation no box answers, on every closed-form circle foot
   a quarter turn from its seed.

@@ -534,8 +534,8 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
 /// `near + π`); a reader that needs a branch chooses it. The flip is
 /// decided outside the log (ledger row F31): where `along` is undecided
 /// the point lies a quarter turn from `near`, clear of both formulas'
-/// cuts, or at the centre, where every angle is a foot; no foot rests on
-/// the outcome.
+/// cuts, or at the centre, where `across` is undecided too and both
+/// formulas read an enclosure equally wide; no foot rests on the outcome.
 fn angle_near<T: Decide>(x: T, y: T, near: T) -> T {
     let (sin, cos) = near.sin_cos();
     let (along, across) = (x * cos + y * sin, y * cos - x * sin);

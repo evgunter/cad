@@ -556,6 +556,19 @@ impl<T: Real> Curve3<T> {
         }
     }
 
+    /// **Whether the carrier's parameter is an angle**: a circle, an
+    /// ellipse and a spiric oval repeat every turn, so a parameter names
+    /// its point modulo `τ`; a line and a spline do not. The one reading
+    /// of a carrier's period, matched exhaustively so a new kind decides
+    /// here.
+    #[must_use]
+    pub fn is_periodic(&self) -> bool {
+        match self {
+            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
+            Curve3::Line(_) | Curve3::Nurbs(_) => false,
+        }
+    }
+
     /// Whether the carrier bends: it does not read as a line
     /// ([`Self::as_line`]). A curved span's chord midpoint is off it, and
     /// its chord is not its extent.

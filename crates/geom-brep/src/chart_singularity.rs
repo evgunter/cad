@@ -499,18 +499,18 @@ enum Near<T> {
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
 /// [`Curve3::nearest_foot`] seeded at `from`, `None` where the carrier
-/// has none. A closed carrier's is brought into `[from, from + τ]`, the
-/// turn at or past `from`: the upper end is reached only where the
-/// reduction rounds, a point a hair behind `from` reading `from + τ`. A
+/// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
+/// into `[from, from + τ]`, the turn at or past `from`: the upper end is
+/// reached only where the reduction rounds, a point a hair behind `from`
+/// reading `from + τ`. A
 /// point on a circle's axis, where every point of the circle is nearest,
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     let t = carrier.nearest_foot(x, from)?.t();
-    // A carrier with a nearest foot is a line or a circle: the one that
-    // is not straight is closed.
-    Some(match carrier.as_line() {
-        Some(_) => t,
-        None => from + (t - from).reduce_periodic(T::tau()),
+    Some(if carrier.is_periodic() {
+        from + (t - from).reduce_periodic(T::tau())
+    } else {
+        t
     })
 }
 
