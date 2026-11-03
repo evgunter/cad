@@ -2,13 +2,13 @@
 id: a-seated-tools-values-have-no-home-after-insert
 kind: issue
 title: The values a seated tool sets at create have no faithful home after insert: a split plane and a circular pattern axis are frozen frames, a linear pattern's spacing is minted per axis, a clearance bound is payload
-status: parked
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
-design: true
 parent: creating-a-thing-and-editing-it-are-two-implementations
-blocked_on: [6406]
+closed: 2026-11-03
+pr: 6406
 ---
 
 
@@ -56,3 +56,18 @@ What a split plane or a pattern axis *is* in the document, so that a
 person can edit it after insert, is not settled by the rule. It
 reaches editor-core: pose definitions, VR rules, what a slot can
 hold. Designers weigh it first (`docs/prompts/designer.md`).
+
+## Closed
+
+Decided on `[ev]` PR 6406 (fork row 247, 2026-11-03), and written into `crates/viewer/README.md`, "A create gesture commits the node".
+
+- **Split.** A split reads a target and a plane: any plane the document can already read, such as a planar face or a plane already defined. It has no offset, default construction or new plane form of its own. Ev: "i thought we were just using general planes"; "we should only add this if we need it".
+- **Clearance bound shape.** It is a row: `a-clearance-bound-shape-is-a-row` (P2).
+- **Full-ring form.** Not now.
+- **Pattern defaults.** These are code, not ratified text.
+
+Landed already in #6414: the blend size, the mirror's label, clearance bounds as slots, and the count row.
+
+Cut from what remains:
+- `the-split-and-pattern-forms-take-no-values` (P1). The split's point/normal fields go, and the pattern's direction/spacing/axis/step go.
+- `a-plane-other-than-a-face-cannot-be-authored-in-the-viewer` (P2).

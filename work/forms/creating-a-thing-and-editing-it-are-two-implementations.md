@@ -7,7 +7,7 @@ opened: 2026-11-01
 priority: P1
 cost: H
 refs: [the-profile-create-form-is-a-second-profile-editor, the-extrude-and-revolve-forms-take-no-variables, a-variable-is-edited-in-a-separate-widget-not-on-its-own-row]
-blocked_on: [a-seated-tools-values-have-no-home-after-insert]
+blocked_on: [the-split-and-pattern-forms-take-no-values]
 ---
 Reported by Ev (chat, 2026-11-01): "if there are any other things that
 have separate creating and editing widgets, those should also be
