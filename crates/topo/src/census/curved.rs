@@ -186,8 +186,8 @@ fn on_interior_reading<T: Decide>(
 }
 
 /// **`e`'s tangent where `q` lies on its interior**, along its plus
-/// half and scaled to the edge's reach from `q`
-/// ([`geom_brep::edge_reach_bounds`]): the corner it bounds is read by
+/// half and scaled to the edge's reach from `q`, its edge cover's far
+/// distance from above (`boolean::boxes::edge_reach_bounds`): the corner it bounds is read by
 /// the wedge, which acts on every sign, so its lever is the region's own
 /// measure from where it is read, and where that is known only from both
 /// sides (an ellipse, spiric or spline edge, whose bound from above can
@@ -203,8 +203,8 @@ pub(super) fn tangent_on_interior<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<Departure<T>>> {
     let r = read(body, e, band, errors)?;
-    let (t0, t1) = r.span;
-    let lever = geom_brep::edge_reach_bounds(&r.curve, t0, t1, q);
+    let e = crate::live::proven(&body.edges, r.edge, EntityId::Edge);
+    let lever = crate::boolean::boxes::edge_reach_bounds(body, r.edge, e, q)?;
     Some(
         on_interior_at(body, &r, q, band, errors)?
             .map(|(t, _)| Departure::along(r.curve.deriv(t).normalize(), lever)),
@@ -429,12 +429,12 @@ mod tests {
     /// solid in one arena.
     fn arcs(spans: [(f64, f64); 2]) -> (Body<f64>, [EdgeKey; 2]) {
         let tol = Tol::witness();
-        let c = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let c = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
         let mut body = Body::<f64>::new();
         let edges = spans.map(|(t0, t1)| {
             let (t0, t1) = (t0.to_radians(), t1.to_radians());
@@ -486,22 +486,15 @@ mod tests {
     }
 
     fn ellipse(major: f64, minor: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
-        Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            semi_u: major,
-            semi_v: minor,
-            u_ref,
-        }
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), u_ref),
+            major,
+            minor,
+        ))
     }
 
     fn circle(center: Point3<f64>, radius: f64) -> Curve3<f64> {
-        Curve3::Circle {
-            center,
-            axis: Vec3::unit_z(),
-            radius,
-            u_ref: Vec3::unit_x(),
-        }
+        Curve3::circle(center, Vec3::unit_z(), radius, Vec3::unit_x())
     }
 
     fn line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
@@ -829,12 +822,7 @@ mod tests {
         ] {
             let mut body = Body::<f64>::new();
             let mut arc = |center: Point3<f64>, radius: f64, (t0, t1): (f64, f64)| {
-                let c = geom::Curve3::Circle {
-                    center,
-                    axis: Vec3::unit_z(),
-                    radius,
-                    u_ref: Vec3::unit_x(),
-                };
+                let c = geom::Curve3::circle(center, Vec3::unit_z(), radius, Vec3::unit_x());
                 let (t0, t1) = (t0.to_radians(), t1.to_radians());
                 let born = body.mvfs(c.eval(t0), true).unwrap();
                 body.mev(

@@ -415,8 +415,12 @@ fn filleted(
 
 /// [`filleted`] at `D`, built, an overrun (no common foot).
 fn fillet(body: &Body<f64>, edges: &[EdgeKey], what: &str) -> Blended<f64> {
-    let out = filleted(body, edges, D, what)
-        .unwrap_or_else(|e| panic!("{what}: the overrun builds, got {e}"));
+    let out = filleted(body, edges, D, what).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the overrun builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert!(
         out.coincidences
             .iter()
@@ -516,11 +520,11 @@ fn overrun_arc(source: &Body<f64>, edges: [EdgeKey; 2], out: &Blended<f64>, what
         .carrier()
         .clone();
     match carrier {
-        Curve3::Circle { radius, .. } => assert!(
+        Curve3::Circle(geom::Circle { radius, .. }) => assert!(
             (radius - D).abs() < 1e-15 && (major - minor).abs() < 1e-6 * D,
             "{what}: a circle where the probe reads ({minor}, {major}), radius {radius}"
         ),
-        ref ellipse @ Curve3::Ellipse { .. } => {
+        ref ellipse @ Curve3::Ellipse(..) => {
             let Some(geom::MajorFrame {
                 major: got_major,
                 minor: got_minor,
@@ -590,8 +594,12 @@ fn the_oracle_reads_a_box_corner_by_hand_and_the_mitre_it_built() {
             "r {r}: the oracle {got} against the hand form {want}"
         );
         let what = format!("box corner, r {r}");
-        let out = filleted(&p.body, &p.edges(&TURN), r, &what)
-            .unwrap_or_else(|e| panic!("{what}: the mitre builds, got {e}"));
+        let out = filleted(&p.body, &p.edges(&TURN), r, &what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: the mitre builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_delta(&p.body, &out.body, want, 1e-12, &what);
     }
     // The quadrature against the closed form on each band of a generic
@@ -904,7 +912,10 @@ fn leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales() {
                                 ));
                             }
                         }
-                        Err(e) => failures.push(format!("{what}: refused {e}")),
+                        Err(e) => failures.push(format!(
+                            "{what}: refused {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )),
                     }
                 }
             }
@@ -951,7 +962,8 @@ fn generic_hexahedra_build_and_fill_at_the_oracle() {
                     }
                     Err(e) if runs_in => assert!(
                         foot_inside_a_face(&e),
-                        "{what}: a trimline runs into a face, refusing as at any cut-off, got {e}"
+                        "{what}: a trimline runs into a face, refusing as at any cut-off, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
                     ),
                     other => panic!(
                         "{what}: a trimline runs into another face: {runs_in}, got {:?}",
@@ -975,8 +987,12 @@ fn generic_hexahedra_build_and_fill_at_the_oracle() {
                 edge_near(&void, a, b)
             })
             .collect();
-        let out =
-            filleted(&void, &edges, D, &what).unwrap_or_else(|e| panic!("{what}: fills, got {e}"));
+        let out = filleted(&void, &edges, D, &what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: fills, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             non_trivalent(&out.body),
             0,
@@ -1050,10 +1066,16 @@ fn features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say() {
                 }
             }
             (Ok(_), false) => failures.push(format!("{what}: built where the fillet cuts it")),
-            (Err(e), true) => failures.push(format!("{what}: refused where clear, {e}")),
+            (Err(e), true) => failures.push(format!(
+                "{what}: refused where clear, {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )),
             (Err(e), false) => {
                 if !a_clearance(&e) {
-                    failures.push(format!("{what}: refuses at a clearance meter, got {e}"));
+                    failures.push(format!(
+                        "{what}: refuses at a clearance meter, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    ));
                 }
             }
         }
@@ -1086,7 +1108,8 @@ fn a_void_in_the_overruns_volume_refuses() {
         match filleted(&body, &edges, D, "a void in the overrun") {
             Err(e) => assert!(
                 matches!(e, BlendError::WhollyInside { .. }),
-                "h {h}: refuses as wholly inside, got {e}"
+                "h {h}: refuses as wholly inside, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!("h {h}: a void in the overrun built"),
         }
@@ -1103,8 +1126,12 @@ fn a_void_in_the_overruns_volume_refuses() {
 #[test]
 fn a_fillet_turn_builds_at_the_chamfers_band_and_escalates_in_its_own() {
     let (body, edges) = leaning_turn_in_band(tol());
-    let out = filleted(&body, &edges, D, "the leaning prism in band")
-        .unwrap_or_else(|e| panic!("the leaning prism in band builds its overrun, got {e}"));
+    let out = filleted(&body, &edges, D, "the leaning prism in band").unwrap_or_else(|e| {
+        panic!(
+            "the leaning prism in band builds its overrun, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("the leaning prism in band: tier 3");
     assert!(
         !out.coincidences
@@ -1158,7 +1185,7 @@ fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
                 matches!(&e.error, BlendError::UnsupportedRunOut { detail, .. }
                     if *detail == sweep::blend::battery::END_FACE_CURVED),
                 "{what}: L later refuses at a curved end face, got {}",
-                e.error
+                e.error.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!("{what}: L later must refuse"),
         }
@@ -1195,8 +1222,12 @@ fn a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too() {
     for len in [0.40, 0.30, 0.25, 0.22, 0.20, 0.18, 0.16] {
         let p = short(len);
         let what = format!("the near edge at {len}");
-        let out = filleted(&p.body, &p.edges(&TURN), D, &what)
-            .unwrap_or_else(|e| panic!("{what}: builds, got {e}"));
+        let out = filleted(&p.body, &p.edges(&TURN), D, &what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_delta(&p.body, &out.body, poly_taken(&p, &TURN, D), 1e-11, &what);
     }
     for len in [0.14, 0.12] {
@@ -1209,15 +1240,20 @@ fn a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too() {
         match filleted(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e}"
+                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
                 "{what} built: `an-overruns-sliver-refuses-a-short-near-edge` is fixed, flip this \
                  row to hold the build to the oracle"
             ),
         }
-        filleted(&p.body, &p.edges(&TURN[1..]), D, &what)
-            .unwrap_or_else(|e| panic!("{what}: the near band alone builds, got {e}"));
+        filleted(&p.body, &p.edges(&TURN[1..]), D, &what).unwrap_or_else(|e| {
+            panic!(
+                "{what}: the near band alone builds, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 
@@ -1265,7 +1301,8 @@ fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
             Err(e @ BlendError::UnsupportedRunOut { at, .. }) => {
                 assert!(
                     foot_inside_a_face(&e) && at == topo::EntityId::Vertex(v) && eps < 1.0,
-                    "{what}: refuses at the turn's far foot, got {e}"
+                    "{what}: refuses at the turn's far foot, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
                 );
                 "refuses at the turn"
             }
@@ -1297,11 +1334,16 @@ fn the_needle_builds_then_refuses_at_the_turn_as_it_flattens() {
             }
             // The attachment gate's escalation, at a contact edge.
             Err(e @ BlendError::Op { .. })
-                if band.zero() > 1e-9 && e.to_string().contains("escalated") =>
+                if band.zero() > 1e-9
+                    && e.render(geom_brep::recourse::Reading::Build)
+                        .contains("escalated") =>
             {
                 "escalates elsewhere"
             }
-            Err(e) => panic!("{what}: builds, refuses at its foot, or escalates; got {e}"),
+            Err(e) => panic!(
+                "{what}: builds, refuses at its foot, or escalates; got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         };
         seen.push(line);
     }

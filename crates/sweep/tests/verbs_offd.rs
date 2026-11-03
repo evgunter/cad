@@ -148,7 +148,7 @@ fn circle_radii(body: &Body<f64>) -> Vec<f64> {
                 .and_then(CurveGeom::certified)?
                 .carrier()
             {
-                Curve3::Circle { radius, .. } => Some(*radius),
+                Curve3::Circle(geom::Circle { radius, .. }) => Some(*radius),
                 _ => None,
             }
         })
@@ -170,8 +170,12 @@ fn the_cylinder_wall_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
         let mut body = tube(0.4, 0.8, 0.6);
         let face = cylinder_face(&body, 0.8);
-        topo::replace_face_offset(&mut body, face, d, Tol::witness())
-            .unwrap_or_else(|e| panic!("d = {d}: the outer wall's offset must land: {e}"));
+        topo::replace_face_offset(&mut body, face, d, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the outer wall's offset must land: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
 
         assert!(
             (radius_of(&body, face) - (0.8 + d)).abs() < 1e-15,
@@ -253,8 +257,12 @@ fn a_planar_cap_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
         let mut body = tube(0.4, 0.8, 0.6);
         let face = plane_face(&body, 0.6);
-        topo::replace_face_offset(&mut body, face, d, Tol::witness())
-            .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must land: {e}"));
+        topo::replace_face_offset(&mut body, face, d, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the cap's offset must land: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
 
         let Some(Surface::Plane { origin, .. }) =
             body.get_surface(body.get_face(face).unwrap().surface)
@@ -285,8 +293,12 @@ fn every_face_of_a_tube_offsets_in_turn() {
         // Inward is against the chart normal on a positively-sensed
         // face and with it on a reversed one.
         let d = if sense { -0.02 } else { 0.02 };
-        topo::replace_face_offset(&mut body, face, d, Tol::witness())
-            .unwrap_or_else(|e| panic!("{face:?} at d = {d}: {e}"));
+        topo::replace_face_offset(&mut body, face, d, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "{face:?} at d = {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
@@ -317,7 +329,8 @@ fn the_radius_floor_refuses_typed() {
                 error: geom_brep::OffsetError::RadiusFloor { .. },
             } if f == face
         ),
-        "expected the offset door's radius floor naming {face:?}, got {e}"
+        "expected the offset door's radius floor naming {face:?}, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     assert_eq!(
         circle_radii(&body),
@@ -351,7 +364,8 @@ fn an_undescribable_neighbor_pair_refuses_typed() {
                 ..
             }
         ),
-        "expected the C5 refusal naming (cone, cone), got {e}"
+        "expected the C5 refusal naming (cone, cone), got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -403,7 +417,7 @@ fn the_routed_cone_reaches_past_c5_and_its_rims_stay_on_the_cylinders() {
             .get_curve_geom(body.get_edge(h.edge).expect("a live edge").curve)
             .and_then(topo::CurveGeom::certified)
             .expect("a certified rim");
-        if let geom::Curve3::Circle { radius, .. } = *curve.carrier() {
+        if let geom::Curve3::Circle(geom::Circle { radius, .. }) = *curve.carrier() {
             assert!(
                 cylinders.iter().any(|c| (c - radius).abs() < 1e-12),
                 "a rim of radius {radius} is not on an untouched cylinder {cylinders:?}"
@@ -437,7 +451,8 @@ fn an_apex_window_crossing_refuses_typed() {
         .expect_err("a window shifted across the apex must not be called this face's offset");
     assert!(
         matches!(e, ReplaceFaceError::ApexWindow { face: f, .. } if f == face),
-        "expected the apex-window refusal naming {face:?}, got {e}"
+        "expected the apex-window refusal naming {face:?}, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -480,7 +495,8 @@ fn a_shared_surface_key_refuses_typed() {
         .expect_err("a shared chart is a multi-face operand");
     assert!(
         matches!(e, ReplaceFaceError::SharedSurfaceKey { face: f, .. } if f == wall),
-        "expected the shared-key refusal naming {wall:?}, got {e}"
+        "expected the shared-key refusal naming {wall:?}, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     assert_eq!(
         format!("{body:?}"),

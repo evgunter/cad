@@ -448,7 +448,16 @@ where
                 .iter()
                 .map(|section| section.station.as_slice())
                 .collect();
-            wire_loft(id, &sections, &stations, results, vals, tol)
+            let Some(ids) = node
+                .loft_section_ids()
+                .and_then(|ids| ids.into_iter().collect::<Option<Vec<_>>>())
+            else {
+                unreachable!(
+                    "loft {id} reached evaluation with a section that carries no id: the insert \
+                     door mints one per section and the load door refuses a section without"
+                )
+            };
+            wire_loft(id, &sections, &ids, &stations, results, vals, tol)
                 .and_then(|out| twisted(out, id, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
@@ -743,17 +752,37 @@ where
         let m = match &c.kind {
             crate::mate::ConstraintKind::Mate(m) => m,
             crate::mate::ConstraintKind::Value(v) => {
-                let slot = match v.coord {
-                    crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
-                    crate::mate::Coord::Spin(_) => SlotId::ValueSpin { constraint: c.id },
+                let slot = if v.coord.is_slide() {
+                    SlotId::ValueSlide { constraint: c.id }
+                } else {
+                    SlotId::ValueSpin { constraint: c.id }
                 };
                 let by = crate::expr::eval_var(v.by, v.coord.dimension(), params)
                     .map_err(|source| NodeErrorKind::Expr { slot, source })?;
+                // A direction or an axis a value reads, read in the
+                // target space as a mate's target is.
+                let line = match v.coord.read() {
+                    Some(&read) => {
+                        let seat = v.coord.seat(c.id);
+                        let pose = pose::eval_pose(doc, to_results, seat, read, params, tol)
+                            .map_err(|kind| {
+                                fault(MateFault::ReadUnevaluated {
+                                    value: mate,
+                                    refusal: Box::new(super::NodeRefusal::from(kind)),
+                                })
+                            })?;
+                        Some(crate::mate::value::heading_of(
+                            &crate::mate::solve::tightened(pose),
+                        ))
+                    }
+                    None => None,
+                };
                 values.push(crate::mate::value::ReadValue {
                     value: mate,
                     coord: v.coord,
                     by,
                     turns: params.turns.get(&v.by).copied(),
+                    line,
                 });
                 continue;
             }
@@ -802,14 +831,14 @@ where
     if mates.is_empty() && crate::mate::solve::identity_bundle(doc, constraints) {
         // The identity bundle places by no map, once the rule has
         // admitted it.
-        crate::mate::solve::solve_bundle(id, &equations, &mates, &values, None)?;
+        crate::mate::solve::solve_bundle(id, &equations, &mates, &values, None, None)?;
         return Ok(None);
     }
     // The chart of the one mate fixing a direction, read only where a
     // value is charted on it.
     let mut chart = None;
     if !mates.is_empty() {
-        let reach = reach.map_err(|refusal| {
+        let reach = reach.clone().map_err(|refusal| {
             fault(MateFault::Unleverable {
                 mate: mates[0].mate,
                 refusal: Box::new(refusal),
@@ -825,7 +854,31 @@ where
             }
         }
     }
-    match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, chart)? {
+    // A bundle with no mate reading a direction decides its slides over
+    // the copy's reach and the read lines' distances from the origin.
+    let lever = if mates.is_empty() && values.iter().any(|v| v.line.is_some()) {
+        let first = values.iter().find(|v| v.line.is_some()).map(|v| v.value);
+        let unleverable = |refusal| {
+            fault(MateFault::Unleverable {
+                mate: first.unwrap_or_else(|| unreachable!("a value reads a line")),
+                refusal: Box::new(refusal),
+            })
+        };
+        let datum = values
+            .iter()
+            .filter_map(|v| v.line)
+            .map(|line| {
+                let o = line.foot() - geom_core::linalg::Point3::origin();
+                crate::mate::SolveScalar::upper(o.dot(o).sqrt())
+            })
+            .fold(0.0_f64, f64::max);
+        let arm =
+            crate::mate::coset::Arm::of(reach.map_err(unleverable)?, datum).map_err(unleverable)?;
+        Some((arm, b))
+    } else {
+        None
+    };
+    match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, chart, lever)? {
         crate::mate::solve::Folded::Chained(motion) => Ok(Some(motion)),
         // Every placement but the identity bundle runs its map, at every
         // value and in every lane: a map the solve composed as motions
@@ -1750,7 +1803,11 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
-            NodeErrorKind::Blend { verb, error }
+            NodeErrorKind::Blend {
+                verb,
+                error,
+                edge: None,
+            }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
@@ -1813,7 +1870,23 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
         .run(&body, tol)
-        .map_err(verb_refused)?;
+        .map_err(|refusal| match verb_refused(refusal) {
+            // The kernel names its edge by key; the reader is told its
+            // name in the operand's table.
+            NodeErrorKind::Blend { verb, error, .. } => NodeErrorKind::Blend {
+                edge: error.edge().and_then(|e| {
+                    target_table
+                        .name_of(&names::EntityRef {
+                            body: 0,
+                            key: names::EntityKey::Edge(e),
+                        })
+                        .map(|name| Box::new(name.clone()))
+                }),
+                verb,
+                error,
+            },
+            other => other,
+        })?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
@@ -2540,7 +2613,7 @@ where
             b,
         );
     }
-    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, refused);
+    let verdict = crate::clearance::verdict_of(report.verdict.clone(), param, sides, refused);
     answer(ClearanceReport::of(verdict, &report))
 }
 
@@ -3291,12 +3364,14 @@ fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                holdings,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let emitted = (verb.emitter)(
                 id,
                 BooleanOp::Subtract,
                 &out.body,
                 &naming,
+                &holdings,
                 &names::OperandCtx {
                     node: from.node,
                     read: from.read,
@@ -3524,12 +3599,13 @@ fn in_member_space(
 /// rule), by the kernel: each member pair whose boxes meet runs as its
 /// own two-member union or intersect, its operand A the lesser read
 /// ([`member_ranks`]), so its verdicts and refusals are the same in
-/// every member order, and the face pairs each judgement consumed are
-/// the node's face links (N2, [`names::UnionLinks`]). **One verdict per
-/// carrier pair**: the kernel gives each step the verdicts on the member
-/// it joins, read through the lineage it advances
-/// ([`topo::MemberLineage`], which [`names::UnionFold`] reads), and the
-/// step decides no carrier pair of its own. A refusal only a step raises
+/// every member order, and the edge pieces each judgement classified are
+/// the senses the node's vertices read (N2, [`names::UnionPairSenses`]).
+/// **One verdict per carrier pair**: the kernel gives each step the
+/// verdicts on the member it joins, and the step decides no carrier pair
+/// of its own; the member faces each face holds are the last step's
+/// holdings ([`topo::NaryStep::holdings`], which [`names::UnionFold`]
+/// reads). A refusal only a step raises
 /// names the member that step folds in
 /// ([`NodeErrorKind::UnionFoldStep`]). Two members are one pair: their
 /// one step is the judgement, run and logged once, its refusals the
@@ -3849,9 +3925,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // step folds in.
     // The judgements' rows, whole, each named in its two members' own
     // tables: the node's coincidences are its member pairs' (DM4), each
-    // pair's in the order the kernel judged it. The faces each judgement
-    // consumed are the node's face links (N2, [`names::UnionLinks`]).
-    let mut links = names::UnionLinks::default();
+    // pair's in the order the kernel judged it. The edge pieces each
+    // judgement classified are the node's senses ([`names::UnionPairSenses`]).
+    let mut pair_senses = names::UnionPairSenses::default();
     let mut judged: Vec<Vec<crate::coincide::NamedCoincidence>> =
         Vec::with_capacity(judgements.len());
     for (k, j) in judgements.iter().enumerate() {
@@ -3872,7 +3948,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
             .map_err(NodeErrorKind::Naming)?,
         );
-        links
+        pair_senses
             .judged(
                 j.a,
                 j.b,
@@ -3907,9 +3983,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
-    // What the end pass reads of every step: each face's member faces
-    // and each step's discards.
-    let mut fold = names::UnionFold::new(0, &first.body);
+    // What the end pass reads of every step: each step's discards, and
+    // the member faces each face of the last holds.
+    let mut fold = names::UnionFold::new();
     // The accumulation's own records in the node's terms: each cites a
     // fold row (`fold_rows`) or a member's record, by its place in the
     // member list. Row for row, they are the records the kernel carried
@@ -3932,7 +4008,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         let member =
             names::narrow(joined, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)?;
         if !pairwise {
-            // The pair's rows and links are its one step's, in the two
+            // The pair's rows and senses are its one step's, in the two
             // members' own tables and the order its records cite them,
             // as a pair verb records them.
             coincidences = crate::coincide::name_rows(
@@ -3950,7 +4026,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 ..row
             })
             .collect();
-            links
+            pair_senses
                 .judged(
                     0,
                     1,
@@ -4064,6 +4140,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             op,
             &out.body,
             naming,
+            &out.holdings,
             &names::OperandCtx {
                 node: id,
                 read: names::FOLD_A,
@@ -4079,7 +4156,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             tol,
         )
         .map_err(NodeErrorKind::Naming)?;
-        fold.step(joined, naming, &out.body, &stepped.lineage)
+        fold.step(naming, &out.body, &stepped.holdings)
             .map_err(NodeErrorKind::Naming)?;
         acc_table = emitted.table;
         step_groups.push(emitted.groups);
@@ -4109,9 +4186,16 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             table: &m.table,
         })
         .collect();
-    let (table, published_groups) =
-        names::name_union(id, acc_body, &acc_table, &member_views, &fold, &links, tol)
-            .map_err(NodeErrorKind::Naming)?;
+    let (table, published_groups) = names::name_union(
+        id,
+        acc_body,
+        &acc_table,
+        &member_views,
+        &fold,
+        &pair_senses,
+        tol,
+    )
+    .map_err(NodeErrorKind::Naming)?;
     let body = acc_body.clone().into_body();
     // The LAST step's records are the result's: every earlier step's
     // were carried into the step after it.
@@ -4522,6 +4606,7 @@ fn need_count(
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
+    ids: &[crate::SectionId],
     stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4566,8 +4651,9 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     })?;
     // Eager N4 emission, BEFORE the structural handoff is dropped. The
     // skin pairs canonical segment `k` of every section into wall `k`,
-    // so wall `k` is named by one locator per section.
-    let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
+    // so wall `k` is named by one locator per section it spans, each
+    // with that section's id.
+    let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(values[0].framed(Arc::new(built.body))),
         table,

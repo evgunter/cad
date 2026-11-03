@@ -2,11 +2,12 @@
 id: a-union-across-a-tangent-crescent-refuses-unbuilt
 kind: issue
 title: A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle
-status: parked
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: H
-blocked_on: [the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading]
+closed: 2026-11-02
+pr: 6375
 ---
 
 
@@ -148,3 +149,72 @@ The designers' weighing of step 2 is decided: one bound-side reading for every p
 
 - Step 1 is not a union-of-opposed-planes special case: the crescent is `sector_overlap` read one order down by the same primitive, in every op; `crescent` stops being a refusal detector.
 - Steps 3–4 (two one-site loops at the join, the pinch) were measured with the ties read `On` and `crescent_refusal` bypassed; re-measure them once the reading lands, before designing them. Unmeasured too: whether ∩ and both differences stay `SOUND` once the crescent reads as an overlap in every op.
+
+## Unparked (2026-11-02)
+
+Its blocker, the one bound-side reading, landed (PRs 6217, 6253). Steps 3–4 were measured with ties read `On`; re-measure them first on the new reading: with `crescent_refusal` bypassed, does each crescent bound now read `Leaves` (or `Unresolved`, in which case the witness row stands in front of this one), and what does the join refuse next?
+
+## Lane finding (2026-11-02, `tangrim/tangent-crescent`): re-measured on the one reading
+
+Measured on `acd4cd8e79` (PRs 6217 and 6253 in), the six tangent-inside
+poses of `a_boss_over_a_hole_by_pose`, one segment and two arcs,
+through and pocket, `A ∪ B` and `B ∪ A`, default ε, with
+`crescent_refusal` bypassed:
+
+- **The bounds decide; none reads `Unresolved`.** At the touch, every
+  rim bound against the partner's coplanar plane face (the boss's rim
+  against the plate's top, the hole's rim against the boss's floor)
+  reads `Rides` (492 reads), and every rim bound against the partner's
+  curved wall (the hole's rim against the boss's cylinder, the boss's
+  rim against the hole's) reads `Leaves(Below)`, `In` (192 reads). The
+  `On` the 2026-10-27 plan found left in each crossing record is gone:
+  `sectors::pair_codes` now reads wall × top `sa = (Out, On)`,
+  `sb = (In, Out)` and floor × hole wall `sa = (Out, In)`,
+  `sb = (On, Out)`, the remaining `On` the rim riding the coplanar face.
+- **The crescent pair is still `touching`** (`pair_search`, floor × top
+  on each side of the shared tangent), so no record carries it. The
+  four crossing records survive `recl_sectors` (`intersect: true`) and
+  every one ends `intersect: false` after `recl_edges`. The join then
+  refuses `UnpairedLooseEnds { count: 4 }` (two arcs, and one segment
+  with neither vertex at the touch), `UnpairedLooseEnds { count: 2 }`
+  (one segment, one vertex at the touch), and, one segment with both
+  vertices at the touch, `EdgeInFace { gap: Tangent }` (`slit.rs`).
+- **With step 1 alone the join builds.** Recording each crescent
+  half as a coplanar `(On, On)` record (`sectors::crescent`, the
+  existing parting read, in every op): `recl_sectors` reads the two
+  crescent records `(In, In)` and drops them, the four crossing
+  records survive `recl_edges`, and all 48 union cells build `SOUND`
+  at their closed form, one shell through and two pocketed. Steps 3
+  and 4 (two one-site loops at a site, the pinch) need nothing new:
+  the join already closes them. ∩ is empty and both differences
+  `SOUND` in all 96 of those cells.
+
+## Built (2026-11-02, `tangrim/tangent-crescent`)
+
+Step 1 as measured above: `sectors::sector_overlap` reads each
+crescent half between two opposed plane faces as an overlap one order
+down (`sectors::crescent`, `geom_brep::parting`) where first order
+reads it touching, and `pair_search` records it as a coplanar
+`(On, On)` pair, in every op.
+Steps 3 and 4 needed no change. Step 5: `crescent_refusal` and
+`TangentCrescentUnsupported` are gone; `a_boss_over_a_hole_by_pose`'s
+tangent-inside cells read `Sound(1)` through and `Sound(2)` pocketed at
+the default ε, 1e-6 and 1e-12, and so does the turned row;
+`short_arcs_at_a_crescents_tip`'s "one side" row builds (one shell). The
+aligned crescent stays read as a touch:
+`a-crescent-between-aligned-faces-is-read-as-a-touch`.
+
+**Fix pass (2026-11-02).** A bend no
+reading certifies (a spiric section's) reads no bend in `bound_bend`,
+so `crescent` and `runs_into` both leave the first-order reading
+standing there. New pins: `ellipse_rims_tangent_inside_build_every_op`,
+`a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent` (built
+with tier 3′'s typed `UnrecordedContact { EdgeEdgeOverlap }`, filed on
+the heldrecords row) and
+`a_crescents_bodies_read_right_and_pinch_at_one_vertex_pair`. The
+crescents the plane-only gate leaves unread:
+`a-crescent-on-a-curved-carrier-or-a-spline-bound-is-read-as-a-touch`.
+
+## Closed
+
+2026-11-02, PR 6375. On the one bound-side reading every crescent bound decides (`Rides` on the coplanar face, `Leaves(Below)` against the curved partner wall), so `sectors::sector_overlap` reads a first-order touch one order down (`crescent`, through `geom_brep::parting`) for opposed plane faces and records the crescent as a coplanar overlap (`PairRecord::coincident`); the four crossing records survive and the existing join closes steps 3–4. The unions build in every pose and form at three ε, one shell through and two pocketed, pinched at one vertex–vertex record; ∩ empty and the differences SOUND. `crescent_refusal` and `TangentCrescentUnsupported` are gone. Full review: 144 cells point-in-solid 0 wrong; no built → refused move. Residue: `a-crescent-between-aligned-faces-is-read-as-a-touch`, `a-crescent-on-a-curved-carrier-or-a-spline-bound-is-read-as-a-touch` (both P2); the shared-arc pose's tier-3′ on HELDRECORDS' coincident-rim row; a tilt-0.7 ellipse-inside pad over the ceiling, unpinned.

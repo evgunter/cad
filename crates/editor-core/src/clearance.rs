@@ -18,7 +18,7 @@
 //! [`self_intersection`] asks the strict question. They exist for the
 //! engine's rows and for the strict question; a document question that
 //! reaches for them is asking the wrong door
-//! (`work/cleartail/the-metric-clearance-dials-door-outlives-the-assertion.md`).
+//! (`work/clear/the-metric-clearance-dials-door-outlives-the-assertion.md`).
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness
@@ -115,7 +115,7 @@ use topo::entity::FaceKey;
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts};
-use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
+use crate::eval::{EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, EntityKind, EntityRef, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -266,6 +266,9 @@ pub struct ClearanceQuery<'a> {
     /// The monotonicity seam. [`NoTangents`] forfeits every pruning,
     /// which is the state every verdict is defined against.
     pub oracle: &'a dyn MonotoneOracle,
+    /// What stops the replays the query runs: its caller's token and
+    /// member budget.
+    pub stop: &'a crate::Stop,
     /// The seam a document's instantiated parts resolve through, as
     /// an evaluation over options carrying it would
     /// ([`EvalOptions::resolver`]); `None` for a document that
@@ -280,30 +283,31 @@ pub struct ClearanceQuery<'a> {
     pub symbolic: crate::drive::SymbolicDials,
 }
 
-impl ClearanceQuery<'_> {
-    /// **The engine's question `bound`, at the shipped dials** — the one
-    /// constructor of this door. A document asks a bounded clearance as
-    /// an assertion ([`crate::Claim::Clearance`]); this door is for the
-    /// engine's own rows, which turn the dials an assertion has no
-    /// spelling for ([`ClearanceConfig`], [`MonotoneOracle`]).
-    pub fn at_dials(bound: ClearanceBound, tol: Tol) -> Self {
+impl<'a> ClearanceQuery<'a> {
+    /// **The engine's question `bound`, at the shipped dials**, stopped
+    /// by `stop` — the one constructor of this door. A document asks a
+    /// bounded clearance as an assertion ([`crate::Claim::Clearance`]);
+    /// this door is for the engine's own rows, which turn the dials an
+    /// assertion has no spelling for ([`ClearanceConfig`],
+    /// [`MonotoneOracle`]).
+    pub fn at_dials(bound: ClearanceBound, stop: &'a crate::Stop, tol: Tol) -> Self {
         Self {
             bound,
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            stop,
             resolver: None,
             symbolic: crate::drive::SymbolicDials::default(),
         }
     }
 
-    /// The self-intersection question at the shipped dials.
-    pub fn strictly_positive(tol: Tol) -> Self {
-        Self::at_dials(ClearanceBound::StrictlyPositive, tol)
+    /// The self-intersection question at the shipped dials, stopped by
+    /// `stop`.
+    pub fn strictly_positive(stop: &'a crate::Stop, tol: Tol) -> Self {
+        Self::at_dials(ClearanceBound::StrictlyPositive, stop, tol)
     }
-}
 
-impl<'a> ClearanceQuery<'a> {
     /// The same question over a document whose parts resolve through
     /// `resolver` ([`ClearanceQuery::resolver`]).
     #[must_use]
@@ -423,6 +427,12 @@ pub struct Witness {
     pub param: ParamWitness,
     /// The closest-point pair the `f64` rebuild found.
     pub geometry: GeometryWitness,
+    /// **The body each face of the pair is of**: the node each side was
+    /// read at and which of its output bodies — the first side's, then
+    /// the second's. The member a face seat names on a pattern is the
+    /// body it resolved to, so a reader drawing the pair reads it here
+    /// rather than resolving the seat a second time.
+    pub sides: [(RecipeNodeId, u32); 2],
 }
 
 impl Witness {
@@ -625,6 +635,9 @@ pub enum ClearanceRefusal {
         /// Its second.
         b: topo::Cell,
     },
+    /// The leaf's replay stopped short: the caller canceled, or it ran
+    /// out of its member budget ([`crate::Stop`]).
+    Stopped(crate::Stopped),
 }
 
 impl ClearanceRefusal {
@@ -667,6 +680,7 @@ impl ClearanceRefusal {
             Self::NeedsCertifyingLane { scalar } => (*scalar).to_owned(),
             Self::ToleranceHasNoBand(error) => format!("{error:?}"),
             Self::RecordedContact { a, b } => format!("{a:?}/{b:?}"),
+            Self::Stopped(stopped) => format!("{stopped:?}"),
         }
     }
 
@@ -682,6 +696,7 @@ impl ClearanceRefusal {
             Self::NeedsCertifyingLane { .. } => "needs_certifying_lane",
             Self::ToleranceHasNoBand(_) => "tolerance_has_no_band",
             Self::RecordedContact { .. } => "recorded_contact",
+            Self::Stopped(_) => "stopped",
         }
     }
 }
@@ -736,6 +751,7 @@ impl crate::spoken::Say for ClearanceRefusal {
                 "the body records a contact between {a:?} and {b:?}, so its boundary meets \
                  itself there by declaration and the injectivity question is not asked"
             ),
+            Self::Stopped(stopped) => write!(f, "the leaf's replay stopped: {stopped}"),
         }
     }
 }
@@ -1198,9 +1214,16 @@ pub fn self_intersection(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     of: &Selection,
+    stop: &crate::Stop,
     tol: Tol,
 ) -> ClearanceReport {
-    clearance_at_dials(doc, leaf, of, of, &ClearanceQuery::strictly_positive(tol))
+    clearance_at_dials(
+        doc,
+        leaf,
+        of,
+        of,
+        &ClearanceQuery::strictly_positive(stop, tol),
+    )
 }
 
 /// The full door: the strict question between two selections, both
@@ -1267,7 +1290,7 @@ fn clearance_on(
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
         resolver: query.resolver.cloned(),
-        ..lane_opts()
+        ..lane_opts(query.stop)
     };
     let replayed = Replayed {
         doc,
@@ -1277,7 +1300,8 @@ fn clearance_on(
         query,
         band,
     };
-    crate::eval::read_leaf_with(doc, &opts, lane, query.tol, replayed)
+    crate::eval::read_leaf_with(doc, &opts, lane, &query.stop.cancel, query.tol, replayed)
+        .unwrap_or_else(|stopped| ClearanceReport::refused(ClearanceRefusal::Stopped(stopped)))
 }
 
 /// The clearance question over one leaf's replay, at the replay's
@@ -1393,6 +1417,9 @@ impl crate::eval::AtLeaf for Replayed<'_> {
             band,
             budgets: query.config.budgets,
         };
+        // A witness rebuild the caller's stop stopped is the query's
+        // refusal, not an unverified witness: the first one stops it.
+        let stopped = std::sync::OnceLock::new();
         let report = engine.sweep(&sweep, &windows_a, &windows_b, same_body, |candidate| {
             let faces = candidate.faces();
             let ask = candidate.ask();
@@ -1403,11 +1430,19 @@ impl crate::eval::AtLeaf for Replayed<'_> {
                 (a, b),
                 (faces, || engine.on_face_stations(candidate)),
                 (ask, band, &over),
-                query.resolver,
+                (query.resolver, query.stop, &stopped),
                 query.tol,
             )
         });
-        let verdict = verdict_of(report.verdict, || witness_point(queried), refused);
+        if let Some(&stopped) = stopped.get() {
+            return ClearanceReport::refused(ClearanceRefusal::Stopped(stopped));
+        }
+        let verdict = verdict_of(
+            report.verdict,
+            || witness_point(queried),
+            [(a.at, a.body), (b.at, b.body)],
+            refused,
+        );
         ClearanceReport {
             verdict,
             receipt: report.receipt,
@@ -1440,6 +1475,11 @@ impl crate::eval::AtLeaf for Replayed<'_> {
 /// it certified because the DRIVE certified it; this certificate did
 /// not. [`ClearanceMass`] moves it out, by class, so the sentence a
 /// report writes has an honest denominator.
+///
+/// **A cancel refuses the fold** ([`ClearanceRefusal::Stopped`]): it
+/// stops at the leaf the cancel reached, and its mass columns price
+/// only the leaves before it. A leaf that ran out of its member budget
+/// is that leaf's refusal: each leaf replays as its own run.
 ///
 /// # Errors
 ///
@@ -1474,6 +1514,17 @@ pub fn clearance_over_at_dials(
     for leaf in verdict.certified() {
         let CertifiedLeaf { box_, .. } = leaf;
         let report = clearance_on(doc, box_, a, b, query, lane);
+        // A cancel stops the fold: the leaves after it were never asked,
+        // so no mass column can be written. Running out is the leaf's
+        // own: each leaf is replayed as its own run, under the whole
+        // member budget, so an exhausted leaf is a refused leaf priced
+        // as one, beside the leaves that fit.
+        if let ClearanceVerdict::Refused(ClearanceRefusal::Stopped(crate::Stopped::Canceled)) =
+            report.verdict
+        {
+            fold.verdict = report.verdict;
+            return fold;
+        }
         let mass = box_.mass(analyzed);
         fold.mass.price(&report.verdict, mass);
         fold.receipt = fold.receipt.plus(report.receipt);
@@ -1910,22 +1961,34 @@ pub(crate) fn midpoint_of(leaf: &ParamBox) -> ParamBox {
 ///
 /// # Errors
 ///
-/// The prose of what the rebuild could not confirm.
+/// The prose of what the rebuild could not confirm. A rebuild `stop`
+/// stopped is recorded in `stopped` as well, and the query refuses
+/// [`ClearanceRefusal::Stopped`] rather than read it as unverified.
 fn verify_witness(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     (sel_a, sel_b): (&Selection, &Selection),
     ((face_a, face_b), stations): ((FaceKey, FaceKey), impl FnOnce() -> (Stations, Stations)),
     (ask, band, over): (Ask, Band, &topo::clearance::Enclosure<'_>),
-    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    (resolver, stop, stopped): (
+        Option<&Arc<dyn crate::part::PartResolver>>,
+        &crate::Stop,
+        &std::sync::OnceLock<crate::Stopped>,
+    ),
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(midpoint_of(leaf))),
         resolver: resolver.cloned(),
-        ..lane_opts()
+        ..lane_opts(stop)
     };
-    let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let ev: Evaluation<f64> = evaluate(doc, None, &stop.cancel, &opts, tol);
+    if let Some(stop) = crate::Stopped::of(ev.outcome) {
+        // Recorded for the query to refuse with; the engine's reading of
+        // this `Err` is never reported.
+        let _ = stopped.set(stop);
+        return Err(format!("the f64 rebuild stopped: {stop}"));
+    }
     // The SAME chart the interval pass subdivided in: the stored one.
     // A witness's `(u, v)` are coordinates in that chart, and the `f64`
     // replay of the same node mints the same frame, so reading them
@@ -2080,12 +2143,14 @@ pub(crate) fn closest_pair(
 pub(crate) fn verdict_of(
     verdict: BoundVerdict<GeometryWitness>,
     param: impl Fn() -> ParamWitness,
+    sides: [(RecipeNodeId, u32); 2],
     refused: impl FnOnce(EngineRefusal) -> ClearanceRefusal,
 ) -> ClearanceVerdict {
     let at = |geometry| {
         Box::new(Witness {
             param: param(),
             geometry,
+            sides,
         })
     };
     match verdict {

@@ -128,7 +128,7 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     assert_eq!(edges.len(), 12, "the dimple leaves the twelve box edges");
 
     let err = refusal(&dimpled, &edges, 0.72, "a setback inside the sampled gap");
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     let BlendError::RingClearance { chain, margin, .. } = err else {
         panic!("the exact ring check is what refuses past the screen, got {err:?}")
     };
@@ -197,7 +197,7 @@ fn the_ring_refusal_beside_a_concave_band_says_the_band_buries_the_ring() {
     assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
 
     let err = refusal(&body, &edges, 0.22, "a setback inside the sampled gap");
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     let BlendError::RingClearance { chain, margin, .. } = err else {
         panic!("the exact ring check is what refuses past the screen, got {err:?}")
     };
@@ -306,8 +306,10 @@ fn a_polygonal_ring_is_metered_edge_by_edge_clear_crossed_and_in_band() {
         "the vertex sits 0.30 from the edge and the setback is 0.302: {margin}"
     );
     assert!(
-        err.to_string().contains(FILLET3_RING_RECOURSE),
-        "the caller is handed the ring recourse: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_RING_RECOURSE),
+        "the caller is handed the ring recourse: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
 
     let eps = tol().get().eps;
@@ -371,7 +373,7 @@ fn a_polygonal_ring_beside_a_hole_rim_is_metered_against_its_trim_circle() {
         .filter(|k| {
             let e = body.get_edge(*k).unwrap();
             let g = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
-            matches!(*g.carrier(), geom::Curve3::Circle { center, .. }
+            matches!(*g.carrier(), geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })
                 if (center.z - 1.0).abs() < 1e-9)
         })
         .collect();
@@ -472,7 +474,7 @@ fn the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring() {
             matches!(err, BlendError::UnsupportedGeometry { .. }),
             "r = {r}: the ring's ellipse carriers are what refuse, got {err:?}"
         );
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains("neither a line nor a circle")
                 && shown.contains(FILLET3_GEOMETRY_RECOURSE),
@@ -544,7 +546,7 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
             matches!(err, BlendError::UnsupportedChain { .. }),
             "the chain gate answers before any corner is admitted, got {err:?}"
         );
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains(
                 "an open chain's supports are neither a plane–plane nor a ruled cylinder pair"

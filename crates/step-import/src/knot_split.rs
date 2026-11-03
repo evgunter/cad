@@ -514,7 +514,7 @@ struct Cell {
 /// The premise the inflation rests on, unchecked here: every boundary
 /// edge lies within `ε_in` of the face's chart, as the file states and
 /// tier 3 certifies only at rest
-/// (`work/foreign/import-splits-knot-lines-on-an-unchecked-incidence-premise.md`).
+/// (`work/importgate/import-splits-knot-lines-on-an-unchecked-incidence-premise.md`).
 #[allow(clippy::too_many_arguments)]
 fn clear_of(
     solid: &SolidSpec,
@@ -617,11 +617,8 @@ fn clear_of(
         if ends.is_some_and(|ends| on_the_line(spec, ends, bent, eps_in)) {
             return true;
         }
-        let lifted_edge = match spec.carrier {
-            Curve3::Nurbs(ref c) => Some(c.map_scalar(|x| Interval::from_bounds(x, x))),
-            _ => None,
-        };
-        let piece = |a: f64, b: f64| piece_box(&spec.carrier, lifted_edge.as_ref(), a, b);
+        let carrier = spec.carrier.map_scalar(|x| Interval::from_bounds(x, x));
+        let piece = |a: f64, b: f64| piece_box(&carrier, a, b);
         parts(
             &piece,
             &near,
@@ -741,48 +738,24 @@ fn parts(
         && parts(piece, near, (m, b), finer, pad, cell)
 }
 
-/// An enclosure of `carrier` over `[a, b]`: a line's `origin + dir·t`
-/// over the interval `[a, b]`, a conic arc's certified box
-/// ([`geom::curves::boxes::conic_arc_aabb`]), a spline's restricted
-/// control hull (`lifted`, its net as intervals). `None` for a box the
-/// door poisons. Its own mapping rather than `topo`'s edge box, which
-/// reads a body's certified edge curve: there is no body yet.
-fn piece_box(
-    carrier: &Curve3<f64>,
-    lifted: Option<&NurbsCurve3<Interval>>,
-    a: f64,
-    b: f64,
-) -> Option<[Interval; 3]> {
-    let proper = |out: [Interval; 3]| out.iter().all(|c| c.lo() <= c.hi()).then_some(out);
-    match carrier {
-        Curve3::Nurbs(_) => {
-            let p = lifted?.span_enclosure(a, b)?;
-            proper([p.x, p.y, p.z])
-        }
-        Curve3::Line(geom::Line { origin, dir }) => {
-            let i = |x: f64| Interval::from_bounds(x, x);
-            let t = Interval::from_bounds(a, b);
-            proper([
-                i(origin.x) + i(dir.x) * t,
-                i(origin.y) + i(dir.y) * t,
-                i(origin.z) + i(dir.z) * t,
-            ])
-        }
-        Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
-            let bx = geom::curves::boxes::conic_arc_aabb(
-                carrier,
-                a,
-                b,
-                carrier.eval(a),
-                carrier.eval(b),
-            )?;
-            proper([
-                Interval::from_bounds(bx.min_x, bx.max_x),
-                Interval::from_bounds(bx.min_y, bx.max_y),
-                Interval::from_bounds(bx.min_z, bx.max_z),
-            ])
-        }
-    }
+/// An enclosure of `carrier` (its data as intervals) over `[a, b]`: the
+/// bracketed box of its cover over the span ([`Curve3::cover_over`]),
+/// which for a spline is its pieces' nets over the span and narrows as
+/// the piece halves. `None` for a carrier with no cover, or a box the
+/// door poisons. Read here rather than through `topo`'s edge cover,
+/// which reads a body's certified edge curve: there is no body yet.
+fn piece_box(carrier: &Curve3<Interval>, a: f64, b: f64) -> Option<[Interval; 3]> {
+    let window =
+        geom::cover::ParamWindow::new(Interval::from_bounds(a, a), Interval::from_bounds(b, b));
+    let bx = carrier.cover_over(window).ok()?.aabb(0.0);
+    let out = [
+        (bx.min_x, bx.max_x),
+        (bx.min_y, bx.max_y),
+        (bx.min_z, bx.max_z),
+    ];
+    out.iter()
+        .all(|&(lo, hi)| lo <= hi)
+        .then(|| out.map(|(lo, hi)| Interval::from_bounds(lo, hi)))
 }
 
 /// The vertex a use starts at.
@@ -808,7 +781,7 @@ fn use_start(solid: &SolidSpec, u: EdgeUse) -> u64 {
 /// boundary does. The low sub-patch takes its chain, closed by the
 /// minted iso edge, and the high sub-patch the other. Anything else
 /// refuses typed, naming the face and the knot
-/// (`work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md`).
+/// (`work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md`).
 fn split_face_once(
     solid: &mut SolidSpec,
     fi: usize,
@@ -1037,12 +1010,12 @@ mod tests {
             vec![1.0; 6],
         )
         .unwrap();
-        let circle = Curve3::Circle {
-            center: Point3::new(cx, 0.5, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.2,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = Curve3::circle(
+            Point3::new(cx, 0.5, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let t0 = core::f64::consts::FRAC_PI_8;
         let p = circle.eval(t0);
         SolidSpec {
@@ -1114,7 +1087,7 @@ mod tests {
     /// line is not straight, so no chord certifies the edge on it whole,
     /// and piece by piece it would take pieces `ε_in` long: the budget
     /// runs out, the face is kept, and its split refuses typed. The
-    /// residue of `work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md`.
+    /// residue of `work/importgate/the-c0-knot-split-refuses-what-it-cannot-place.md`.
     #[test]
     fn a_face_along_a_curved_knot_line_runs_out_its_budget_and_refuses_typed() {
         let s = NurbsSurface::new(
@@ -1332,12 +1305,12 @@ mod tests {
         }
 
         fn circle(cx: f64, cy: f64, r: f64) -> Curve3<f64> {
-            Curve3::Circle {
-                center: Point3::new(cx, cy, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }
+            Curve3::circle(
+                Point3::new(cx, cy, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                r,
+                Vec3::new(1.0, 0.0, 0.0),
+            )
         }
 
         /// Circles whose rightmost point passes the line `x = xk` by

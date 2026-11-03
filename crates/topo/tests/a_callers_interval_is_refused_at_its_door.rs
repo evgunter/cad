@@ -27,12 +27,7 @@ fn p(x: f64, y: f64) -> Point3<f64> {
 
 /// The unit circle about the origin in the xy plane, of radius `r`.
 fn circle(r: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: r,
-        u_ref: Vec3::unit_x(),
-    }
+    Curve3::circle(Point3::origin(), Vec3::unit_z(), r, Vec3::unit_x())
 }
 
 /// Which span decision refused, once the door's whole render at a build
@@ -46,7 +41,7 @@ fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> Sp
     else {
         panic!("{row}: not the caller's interval: {error:?}");
     };
-    let text = error.to_string();
+    let text = error.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.ends_with(&format!("Recourse: {}", refused.decision().lever())),
         "{row}: {text}"
@@ -80,13 +75,11 @@ fn every_door_refuses_a_callers_interval_typed() {
     };
     let arc = |r: f64, t1: f64| EdgeCurveSpec::arc_of_circle(circle(r), 0.0, t1).unwrap();
     let ellipse = EdgeCurveSpec {
-        carrier: Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            semi_u: 1.0,
-            semi_v: -0.5,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+            -0.5,
+        )),
         param_start: 0.0,
         param_end: 1.0,
         ..line.clone()
@@ -184,7 +177,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         a,
         a,
         |_| None,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

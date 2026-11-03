@@ -717,12 +717,12 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
                 place: Affine3::identity(),
             },
         )),
-        carrier: Curve3::Circle {
-            center: Point3::new(0.5, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 0.5,
-            u_ref: Vec3::new(-1.0, 0.0, 0.0),
-        },
+        carrier: Curve3::circle(
+            Point3::new(0.5, 0.0, 0.0),
+            Vec3::unit_z(),
+            0.5,
+            Vec3::new(-1.0, 0.0, 0.0),
+        ),
         param_start: 0.0,
         param_end: core::f64::consts::PI,
     };
@@ -778,12 +778,12 @@ fn fixed_aliased_interval_refused_at_public_setter() {
                 place: Affine3::identity(),
             },
         )),
-        carrier: Curve3::Circle {
-            center: Point3::new(0.5, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 0.5,
-            u_ref: Vec3::new(-1.0, 0.0, 0.0),
-        },
+        carrier: Curve3::circle(
+            Point3::new(0.5, 0.0, 0.0),
+            Vec3::unit_z(),
+            0.5,
+            Vec3::new(-1.0, 0.0, 0.0),
+        ),
         param_start: 0.0,
         param_end: t1,
     };

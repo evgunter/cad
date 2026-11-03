@@ -1,4 +1,7 @@
-//! [`Live`] — a half-edge key a lookup has returned.
+//! [`Live`] — a half-edge key a lookup has returned — and the lookups
+//! that say where their key came from: the [`KeySource`] doors, and the
+//! [`Body`] walks a link or a proven key reaches a record through (a
+//! face's surface, its loops, its boundary members and its edges).
 //!
 //! [`Body::link_half_edges`] splices by writing `next`/`prev`, and under
 //! the D2 addendum a failed lookup there is a kernel bug announced with
@@ -49,6 +52,17 @@
 //! `Err` to look like a refusal. [`lookup`] is the one place that
 //! decision is made; [`require_key`], [`Body::require_live`] and
 //! [`Body::resolve_half_edge_live`] are it for their callers' shapes.
+//!
+//! # Walks from a face
+//!
+//! A face's record links its surface and its loops, and the walks from
+//! it live here once: [`Body::face_surface_linked`] and
+//! [`Body::face_loops_linked`] from a record in hand,
+//! [`Body::face_boundary_linked`] and [`Body::proven_face_edges`] over
+//! its loops. A face key the kernel enumerated or read out of its own
+//! records is [`proven`] ([`Body::proven_face_surface`],
+//! [`Body::proven_face_edges`]); one a caller passed reads
+//! [`Body::face_surface`] and answers its miss as the caller's own.
 use crate::body::Body;
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -182,12 +196,18 @@ impl KeySource for Link {
 
     #[track_caller]
     fn answer<V>(self, found: Option<V>, key: EntityId) -> V {
-        found.unwrap_or_else(|| dangling_link(self.holder, self.link, key))
+        let Some(found) = found else {
+            dangling_link(self.holder, self.link, key)
+        };
+        found
     }
 
     #[track_caller]
     fn answer_geometry<V>(self, found: Option<V>, key: GeomRef) -> V {
-        found.unwrap_or_else(|| dangling_link(self.holder, self.link, key))
+        let Some(found) = found else {
+            dangling_link(self.holder, self.link, key)
+        };
+        found
     }
 
     fn map<V, W>(answer: V, f: impl FnOnce(V) -> W) -> W {
@@ -206,12 +226,14 @@ impl KeySource for Proven {
 
     #[track_caller]
     fn answer<V>(self, found: Option<V>, key: EntityId) -> V {
-        found.unwrap_or_else(|| unproven(key))
+        let Some(found) = found else { unproven(key) };
+        found
     }
 
     #[track_caller]
     fn answer_geometry<V>(self, found: Option<V>, key: GeomRef) -> V {
-        found.unwrap_or_else(|| unproven(key))
+        let Some(found) = found else { unproven(key) };
+        found
     }
 
     fn map<V, W>(answer: V, f: impl FnOnce(V) -> W) -> W {
@@ -223,8 +245,9 @@ impl KeySource for Proven {
 #[track_caller]
 fn unproven(key: impl core::fmt::Display) -> ! {
     unreachable!(
-        "{key}, which this call resolved or read out of a record, does not resolve: \
-         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}; {OPERATORS_KEEP_LINKS}"
+        "{key}, which this call minted and kept, resolved, or read out of a record, does not \
+         resolve: nothing removes a record during a plan, a call keeps every record it mints \
+         and still reads, and {NAMES_ONLY_LIVE}; {OPERATORS_KEEP_LINKS}"
     )
 }
 
@@ -283,7 +306,23 @@ pub(crate) fn proven<K: slotmap::Key, V, I: core::fmt::Display>(
     key: K,
     id: fn(K) -> I,
 ) -> &V {
-    arena.get(key).unwrap_or_else(|| unproven(id(key)))
+    let Some(record) = arena.get(key) else {
+        unproven(id(key))
+    };
+    record
+}
+
+/// [`proven`], for a record this call writes.
+#[track_caller]
+pub(crate) fn proven_mut<K: slotmap::Key, V, I: core::fmt::Display>(
+    arena: &mut slotmap::SlotMap<K, V>,
+    key: K,
+    id: fn(K) -> I,
+) -> &mut V {
+    let Some(record) = arena.get_mut(key) else {
+        unproven(id(key))
+    };
+    record
 }
 
 /// Requires a key to be live in its arena, answering a miss as `from`
@@ -298,6 +337,32 @@ pub(crate) fn require_key<K: slotmap::Key, V, S: KeySource>(
     from: S,
 ) -> S::Answer<()> {
     S::map(lookup(arena, key, id, from), |_| ())
+}
+
+/// `he`'s place on edge `ek` (its record `data`), for a `he` that names
+/// `ek`: on a tier-1-valid body the edge claims it, so a miss panics.
+#[track_caller]
+fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entity::Claim {
+    data.claim(he).unwrap_or_else(|| {
+        unreachable!(
+            "{he:?}'s edge {ek:?} does not claim it in either slot: on a tier-1-valid \
+             body an edge claims the two half-edges that name it"
+        )
+    })
+}
+
+/// **An edge of a face's loops** ([`Body::proven_face_edges`]), as one of its
+/// half-edges walks it: the half-edge, the edge, its two ends in the
+/// half-edge's direction, and the face across it (the face itself across
+/// a seam inside it).
+#[derive(Clone, Copy)]
+pub(crate) struct FaceEdge {
+    // Read by the probes' frames, which orient the edge by it.
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
+    pub(crate) half: HalfEdgeKey,
+    pub(crate) edge: EdgeKey,
+    pub(crate) ends: [VertexKey; 2],
+    pub(crate) across: FaceKey,
 }
 
 /// One member of a face's boundary ([`Body::face_boundary_linked`]).
@@ -334,7 +399,8 @@ impl<T: Real> Body<T> {
         )
     }
 
-    /// `face`'s chart, a link its record holds.
+    /// `face`'s chart, a link its record holds; for a face key,
+    /// [`Body::face_surface`].
     #[track_caller]
     pub(crate) fn face_surface_linked(&self, face: FaceKey, data: &Face) -> &Surface<T> {
         self.get_surface(data.surface).unwrap_or_else(|| {
@@ -381,6 +447,75 @@ impl<T: Real> Body<T> {
     ) -> impl Iterator<Item = BoundaryMember<'a, T>> + 'a {
         self.face_boundary_by_loop(face, data)
             .flat_map(|(_, members)| members)
+    }
+
+    /// **The surface `face` is a region of**, for a face key the kernel
+    /// enumerated or read out of its own records ([`proven`]): a miss is
+    /// a kernel bug, and panics naming the key and the premise it breaks.
+    /// For a key a caller passed, [`Body::face_surface`].
+    #[track_caller]
+    pub(crate) fn proven_face_surface(&self, face: FaceKey) -> &Surface<T> {
+        self.face_surface_linked(face, proven(&self.faces, face, EntityId::Face))
+    }
+
+    /// **Every edge of `face`'s loops**, rings included, in
+    /// [`Body::face_boundary_linked`]'s order ([`FaceEdge`]), for a face
+    /// key the kernel enumerated or read out of its own records
+    /// ([`proven`]). A loop with no edge (a lone ring vertex, whose point
+    /// the walk resolves) bounds no area and has none.
+    ///
+    /// # Panics
+    ///
+    /// Where `face`, or a record on the walk from it, does not resolve, a
+    /// loop walk does not close, or an edge does not claim a half-edge
+    /// that names it (D2 row 4).
+    pub(crate) fn proven_face_edges(&self, face: FaceKey) -> Vec<FaceEdge> {
+        let data = proven(&self.faces, face, EntityId::Face);
+        self.face_boundary_linked(face, data)
+            .filter_map(|member| match member {
+                BoundaryMember::Isolated { .. } => None,
+                BoundaryMember::Edge { he, half, ek, edge } => Some(FaceEdge {
+                    half: he,
+                    edge: ek,
+                    ends: [half.start, self.proven_half_edge_end(he)],
+                    across: self.face_across_linked(he, ek, edge),
+                }),
+            })
+            .collect()
+    }
+
+    /// The keys of [`Body::proven_face_edges`], each once (a seam inside
+    /// the face once).
+    pub(crate) fn proven_face_edge_set(
+        &self,
+        face: FaceKey,
+    ) -> std::collections::BTreeSet<EdgeKey> {
+        self.proven_face_edges(face)
+            .into_iter()
+            .map(|e| e.edge)
+            .collect()
+    }
+
+    /// The face across `he`, a half of edge `ek` (its record `data`):
+    /// the face of its mate's loop, every hop a link.
+    #[track_caller]
+    fn face_across_linked(&self, he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> FaceKey {
+        let claim = claimed(he, ek, data);
+        let mate = linked(
+            &self.half_edges,
+            claim.mate,
+            EntityId::HalfEdge,
+            EntityId::Edge(ek),
+            claim.mate_field(),
+        );
+        linked(
+            &self.loops,
+            mate.parent_loop,
+            EntityId::Loop,
+            EntityId::HalfEdge(claim.mate),
+            "parent_loop",
+        )
+        .face
     }
 
     /// [`Body::face_boundary_linked`] a loop at a time: each loop's key
@@ -440,19 +575,14 @@ impl<T: Real> Body<T> {
     #[track_caller]
     pub(crate) fn proven_orbit_step(&self, he: HalfEdgeKey) -> HalfEdgeKey {
         let edge = proven(&self.half_edges, he, EntityId::HalfEdge).edge;
-        let Some(claim) = linked(
+        let data = linked(
             &self.edges,
             edge,
             EntityId::Edge,
             EntityId::HalfEdge(he),
             "edge",
-        )
-        .claim(he) else {
-            unreachable!(
-                "{he:?}'s edge {edge:?} does not claim it in either slot: on a tier-1-valid \
-                 body an edge claims the two half-edges that name it"
-            )
-        };
+        );
+        let claim = claimed(he, edge, data);
         linked(
             &self.half_edges,
             claim.mate,
@@ -461,40 +591,6 @@ impl<T: Real> Body<T> {
             claim.mate_field(),
         )
         .next
-    }
-
-    /// **Where a run of duplicate entries alone hangs its strut**: the
-    /// corner after `corner`, a half-edge out of `at`, before its orbit
-    /// successor, the first real entry of `past` (the entries past the
-    /// run in orbit order, each its half-edge and whether it is a real
-    /// edge). The split's insertion and the Boolean's pierce site both
-    /// strut a corner's duplicates there, `what` naming the run.
-    ///
-    /// # Panics
-    ///
-    /// Where that entry is not `corner`'s orbit successor at `at`: an
-    /// earlier mint moved the corner, which neither caller's runs do.
-    #[track_caller]
-    pub(crate) fn strut_before_next_real(
-        &self,
-        (at, corner): (VertexKey, HalfEdgeKey),
-        past: impl IntoIterator<Item = (HalfEdgeKey, bool)>,
-        what: impl FnOnce() -> String,
-    ) -> HalfEdgeKey {
-        let next_real = past
-            .into_iter()
-            .find_map(|(he, real)| real.then_some(he))
-            .unwrap_or_else(|| unreachable!("an orbit has a real half-edge"));
-        if self.proven_orbit_step(corner) != next_real
-            || proven(&self.half_edges, next_real, EntityId::HalfEdge).start != at
-        {
-            unreachable!(
-                "{}'s corner before {next_real:?} left {at:?} or gained a half: no other run's \
-                 mint touches it",
-                what()
-            );
-        }
-        next_real
     }
 
     /// `he`'s end vertex, `start(next(he))` ([`Body::half_edge_end`]),
@@ -1200,5 +1296,53 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                 b.face_boundary_linked(face, &data).count()
             },
         );
+    }
+
+    /// A declined cube and its first face, to tear.
+    fn torn_cube() -> (Body<f64>, FaceKey) {
+        let body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let face = body.faces().next().unwrap().0;
+        (body, face)
+    }
+
+    /// **A stale face key is `face_surface`'s one `None`**; a live face
+    /// whose surface link no longer resolves is a kernel bug, and panics
+    /// naming the link.
+    #[test]
+    fn face_surface_answers_a_stale_key_none() {
+        let (mut body, face) = torn_cube();
+        assert!(body.face_surface(face).is_some(), "a live face reads");
+        body.faces.remove(face);
+        assert!(body.face_surface(face).is_none(), "a stale key reads None");
+    }
+
+    #[test]
+    #[should_panic(expected = "'s surface names")]
+    fn face_surface_panics_on_a_dangling_surface_link() {
+        let (mut body, face) = torn_cube();
+        let surface = body.get_face(face).unwrap().surface;
+        body.surfaces.remove(surface);
+        let _ = body.face_surface(face);
+    }
+
+    /// **`proven_face_edges` panics on a torn loop or a torn mate**, the
+    /// links its walk reads, where its retired copy answered no edges.
+    #[test]
+    #[should_panic(expected = "'s outer names")]
+    fn proven_face_edges_panics_on_a_torn_loop() {
+        let (mut body, face) = torn_cube();
+        let outer = body.get_face(face).unwrap().outer;
+        body.loops.remove(outer);
+        let _ = body.proven_face_edges(face);
+    }
+
+    #[test]
+    #[should_panic(expected = "which does not resolve")]
+    fn proven_face_edges_panics_on_a_torn_mate() {
+        let (mut body, face) = torn_cube();
+        let edge = body.proven_face_edges(face)[0];
+        let mate = body.mate(edge.half).unwrap();
+        body.half_edges.remove(mate);
+        let _ = body.proven_face_edges(face);
     }
 }

@@ -54,8 +54,12 @@ fn y_axis<T: Real>() -> sweep::RevolveAxis<T> {
 fn measured(body: &Body<f64>, what: &str) -> (f64, f64) {
     body.faces()
         .map(|(face, _)| {
-            let r = topo::test_support::face_reading(body, face, tol(), 1e-6)
-                .unwrap_or_else(|e| panic!("{what}: face {face:?} reads: {e}"));
+            let r = topo::test_support::face_reading(body, face, tol(), 1e-6).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: face {face:?} reads: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                )
+            });
             (r.flux, r.area)
         })
         .fold((0.0, 0.0), |(f, a), (g, b)| (f + g, a + b))
@@ -299,12 +303,7 @@ fn a_built_spur_is_out_of_the_chart_image() {
     };
     let inward = outward.cross(along);
     let up = Vec3::new(0.0, 1.0, 0.0);
-    let carrier = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: up.cross(inward),
-        radius: 1.0,
-        u_ref: up,
-    };
+    let carrier = geom::Curve3::circle(Point3::origin(), up.cross(inward), 1.0, up);
     let tip = carrier.eval(1.0);
     let spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, 1.0).unwrap();
     body.mev(MevSite::Fan { he1: he, he2: he }, tip, spec, tol())

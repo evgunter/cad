@@ -213,6 +213,83 @@ fn an_island_and_a_turned_pose_join_along_their_rulings() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
+/// **The walls join along their carried rulings**: in every op and
+/// order of the rod with its caps inside the drum, upright and turned
+/// off the coordinate axes, the result's edges between the two walls
+/// are the section value's two rulings, each a straight carrier
+/// described as the two walls' own intersection, citing the two faces
+/// it lies between, both cylinders, and no plane: the chords are cut
+/// from the pair's carried components, not from a plane both walls are
+/// cut by.
+#[test]
+fn the_walls_join_along_their_carried_rulings() {
+    for pose in [
+        upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+        turned(
+            upright(0.2, (0.5, 0.0), (-0.5, 0.5)),
+            Vec3::new(1.0, 2.0, 0.5),
+            0.7,
+        ),
+    ] {
+        for (op, got, _) in pose.runs() {
+            let what = format!("{} | {op}", pose.label);
+            let out = got.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            let Some(body) = out.body() else {
+                continue;
+            };
+            let body = &body.body;
+            let mut rulings = 0;
+            for (_, e) in body.edges() {
+                let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    continue;
+                };
+                let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
+                    continue;
+                };
+                let cylinders = pair
+                    .keys()
+                    .iter()
+                    .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })));
+                if !cylinders {
+                    continue;
+                }
+                assert!(
+                    matches!(c.carrier(), geom::Curve3::Line(_)),
+                    "{what}: an edge between the walls is a ruling, not {:?}",
+                    c.carrier()
+                );
+                rulings += 1;
+            }
+            assert_eq!(rulings, 2, "{what}: the two rulings, between the walls");
+        }
+    }
+}
+
+/// **A rod's seam lying on the other rod's wall joins along the pair's
+/// carried ruling**: the unit rod about the origin, its seams at
+/// `(±1, 0)`, against a radius-0.3 rod about `(1, 0.3)` over
+/// `z ∈ [−0.5, 0.5]`, whose wall holds the unit rod's seam at `(1, 0)`.
+/// The germ there runs along that seam, an edge of one solid inside the
+/// other's wall, which is one of the pair's two rulings; it rides the
+/// carried lane on that ruling as the germs inside both walls do, and
+/// every op and order builds SOUND at its closed-form volume. (The
+/// rulings lane served this germ until it retired; a reviewer's probe.)
+#[test]
+fn a_seam_lying_on_the_other_wall_joins_along_the_carried_ruling() {
+    let (c, r) = ((1.0, 0.3), 0.3);
+    let (area, _) = lens((0.0, 0.0), 1.0, c, r);
+    let pose = Pose {
+        label: format!("unit rod × rod r {r} at {c:?} on its seam"),
+        a: rod(1.0, (0.0, 0.0), (-1.0, 1.0)),
+        b: rod(r, c, (-0.5, 0.5)),
+        va: PI * 2.0,
+        vb: PI * r * r,
+        shared: area,
+    };
+    let bad = unsound(&[pose]);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
 /// **The row's rods build in every op and order.** Their walls join
 /// along the rulings like the poses above. Each build passes tiers 2 and
 /// 3′, the certificate and its closed-form volume, and is a legal
@@ -499,59 +576,73 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
     }
 }
 
-/// **The join reads the axes of a pair no frame read, at the frame's
-/// lever, and refuses an in-band reading as their angle.**
-/// [`seams_on_the_walls`] upright builds SOUND in every op and order.
-/// Tipped `1.5·zero / 3.2` about `x` or about `y`, the tip reads about
-/// `1.7·zero` over the walls' span (about 3.7, the diameter of their
-/// faces' vertices), in the band, and every op escalates
-/// `cc_axes_parallel` as the axes' own decision, whose lever is a turn;
-/// at the radius it would read `0.47·zero`, parallel, and take the
-/// rulings arm with the axes apart. The lever names the parallel side
-/// alone, the one that passes: turned back to `0.5·zero / 3.2` every op
-/// builds SOUND. Turned clearly apart, a fifth of a radian, every op
-/// ends at a frontier, the same at the three gated tolerances (1e-9,
-/// 1e-6, 1e-12; at 1e-5, 3e-5 and 1e-4 the tilt about `x` escalates
-/// first, on `PierceCurvature` or `ArcCylinderRoots`): about `x` the germ
-/// frame has no arm for the skew walls (`GermFrameUnsupported`), about
-/// `y` an edge pierces a curved face the Boolean cannot yet read
-/// (`CurvedPierceUnsupported`).
+/// **The join reads the axes of a pair no frame read on the section
+/// value, levered across the operation's region, and refuses an in-band
+/// reading as their angle.** [`seams_on_the_walls`] upright builds
+/// SOUND in every op and order. The region is the ball about the
+/// operands' boxes' overlap, `[0, 1]² × [−0.5, 0.5]`, of radius `√3/2`
+/// about `(0.5, 0.5, 0)`, so each axis's foot of its centre levers the
+/// tip by `√2/2 + √3/2 ≈ 1.57`. Tipped `2.15·zero / 3.2` about `x` or
+/// about `y`, the tip reads about `1.06·zero` there, in the band, and
+/// every op escalates `cc_axes_parallel` as the axes' own decision, whose
+/// lever is a turn; the seams' corners move by the tip times `√2`,
+/// `0.95·zero`, inside the zero band, so their overlap decides first
+/// (at `3·zero / 3.2` it read `1.33·zero` and escalated ahead). Tipped `1.5·zero / 3.2`, it reads `0.74·zero` across the
+/// region (over the walls' span, about 3.7, it read `1.7·zero`, in the
+/// band, before the join read the value), parallel, and every op builds
+/// SOUND, as at `0.5·zero / 3.2`. Turned clearly apart, a fifth of a radian, every op
+/// ends at a frontier at the witness band (elsewhere an escalation may
+/// come first, which the row admits): about `x` the join
+/// carries the skew walls' marched section and the result gate refuses
+/// the body, whose spline-chorded walls have no volume lane
+/// (`ResultInvalid`), and about `y` an edge pierces a curved face the
+/// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
-fn seams_lying_on_the_walls_read_the_axes_at_the_walls_span() {
+fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     let tol = Tol::witness();
     let zero = geom_core::Band::linear(tol).unwrap().zero();
     let axes = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)];
     let mut building = vec![seams_on_the_walls(axes[0], 0.0)];
     building.extend(axes.map(|axis| seams_on_the_walls(axis, 0.5 * zero / 3.2)));
+    building.extend(axes.map(|axis| seams_on_the_walls(axis, 1.5 * zero / 3.2)));
     let bad = unsound(&building);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+    // Pinned exactly at the witness band. At 1e-6 the turned pose about
+    // `x` escalates the join's end pairing first, and at 1e-12 the tipped
+    // pose about `y` the corners' overlap: each row there escalates or
+    // meets its frontier, and never builds or desyncs.
+    let witness = (zero - 1e-9).abs() < 1e-12;
     for (axis, frontier) in axes.into_iter().zip([
-        BooleanErrorKind::GermFrameUnsupported,
+        BooleanErrorKind::ResultInvalid,
         BooleanErrorKind::CurvedPierceUnsupported,
     ]) {
-        let tipped = seams_on_the_walls(axis, 1.5 * zero / 3.2);
+        let tipped = seams_on_the_walls(axis, 2.15 * zero / 3.2);
         for (op, r, _) in tipped.runs() {
+            let axes_angle = matches!(
+                &r,
+                Err(e @ BooleanError::Escalated {
+                    decision: topo::BooleanDecision::CylinderAxes,
+                    diag,
+                }) if diag.predicate == Some("cc_axes_parallel")
+                    && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
+            );
             assert!(
-                matches!(
-                    &r,
-                    Err(e @ BooleanError::Escalated {
-                        decision: topo::BooleanDecision::CylinderAxes,
-                        diag,
-                    }) if diag.predicate == Some("cc_axes_parallel")
-                        && e.to_string().ends_with(AXES_LEVER)
-                ),
+                axes_angle || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
         let turned = seams_on_the_walls(axis, 0.2);
         for (op, r, _) in turned.runs() {
             assert!(
-                matches!(&r, Err(e) if e.kind() == frontier),
+                matches!(&r, Err(e) if e.kind() == frontier)
+                    || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: want {frontier:?}, got {:?}",
                 turned.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }
@@ -613,11 +704,13 @@ fn one_face_walls(az: f64, theta: f64) -> Pose {
     }
 }
 
-/// **The frame reads one-face walls' axes as an angle too.**
+/// **The join reads one-face walls' axes as an angle too.**
 /// [`one_face_walls`] tipped `0.2·zero` builds SOUND in every op and
-/// order; tipped `0.6·zero`, read over the walls' span, the tip is in
-/// the band and every op escalates `cc_axes_parallel` as the axes' own
-/// decision, its lever a turn.
+/// order; tipped `0.6·zero`, read across the operation's region (the
+/// ball about the boxes' overlap, `[0.2, 1] × [−1, 1] × [−0.3, 0.3]`,
+/// which levers it by `0.6 + √1.25 ≈ 1.72`), the tip reads `1.03·zero`,
+/// in the band, and every op escalates `cc_axes_parallel` as the axes'
+/// own decision, its lever a turn.
 #[test]
 fn one_face_walls_read_their_axes_as_an_angle() {
     let tol = Tol::witness();
@@ -635,11 +728,12 @@ fn one_face_walls_read_their_axes_as_an_angle() {
                         decision: topo::BooleanDecision::CylinderAxes,
                         diag,
                     }) if diag.predicate == Some("cc_axes_parallel")
-                        && e.to_string().ends_with(AXES_LEVER)
+                        && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
                 ),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }

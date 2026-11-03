@@ -128,12 +128,11 @@
 //!   bound on the cone face's reach from its apex), the displacement the
 //!   crossing angle buys within that scale of the crossing.
 
+use geom::Conic;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
-use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
-};
+use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band};
 use super::region::{
     self, End, Fault, Landing, Legs, Line, Paths, Region, RegionEdge, RegionRefusal, Round,
     Scaffolding, circle_edge_hit, found, in_band, span, targets,
@@ -258,63 +257,11 @@ type Edge<T> = RegionEdge<T>;
 /// The row a place is read against a leg's end on.
 const END: &str = "bool_ruled_region_end";
 
-/// A conic edge's frame: `center + a·û cos θ + b·v̂ sin θ`, `v̂ = axis × û`.
-#[derive(Clone, Copy)]
-struct Conic<T: geom_core::Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    a: T,
-    b: T,
-    u: Vec3<T>,
-}
-
-impl<T: Decide> Conic<T> {
-    /// A circle or ellipse edge's frame.
-    fn of(curve: &geom::Curve3<T>) -> Self {
-        match *curve {
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Self {
-                center,
-                axis,
-                a: radius,
-                b: radius,
-                u: u_ref,
-            },
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Self {
-                center,
-                axis,
-                a: semi_u,
-                b: semi_v,
-                u: u_ref,
-            },
-            geom::Curve3::Line(_) | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                unreachable!("a conic edge of a ruled face is a circle or an ellipse")
-            }
-        }
-    }
-
-    /// The parameter of `y`, a point of the conic, on the branch of
-    /// `span`'s middle.
-    fn angle(&self, y: Point3<T>, span: (T, T)) -> T {
-        let w = y - self.center;
-        let v = self.axis.cross(self.u);
-        near_span((w.dot(v) / self.b).atan2(w.dot(self.u) / self.a), span)
-    }
-
-    /// The smaller semi-axis: a lower bound on the conic's speed.
-    fn slow(&self) -> T {
-        self.a.min(self.b)
-    }
+/// A circle or ellipse edge's carrier read as a conic.
+fn conic_of<T: geom_core::Real>(curve: &geom::Curve3<T>) -> &dyn Conic<T> {
+    curve
+        .conic()
+        .unwrap_or_else(|| unreachable!("a conic edge of a ruled face is a circle or an ellipse"))
 }
 
 /// A leg's course: a parallel, or a ruling.
@@ -375,13 +322,14 @@ type Leg<T> = region::Leg<T, LegShape<T>>;
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
-/// a surface that is neither a cylinder nor a cone, or an outer loop with
+/// [`PointInSolidError::CorruptFace`] for a surface that is neither a
+/// cylinder nor a cone, or an outer loop with
 /// no cycle.
 ///
 /// # Panics
 ///
-/// Where a boundary edge's curve does not resolve (D2 row 4): a torn
+/// Where `face`, a face the kernel enumerated, or a boundary edge's
+/// curve does not resolve (D2 row 4): a torn
 /// curve is not null scaffolding. The links hold at rest and, on the
 /// reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
@@ -390,8 +338,8 @@ pub(crate) fn ruled_face_region<T: Decide>(
     face: FaceKey,
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    let surface = match *body.get_surface(f.surface).ok_or_else(corrupt)? {
+    let f = crate::live::proven(&body.faces, face, crate::entity::EntityId::Face);
+    let surface = match *body.face_surface_linked(face, f) {
         geom::Surface::Cylinder {
             origin,
             axis,
@@ -424,7 +372,11 @@ pub(crate) fn ruled_face_region<T: Decide>(
     let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &ruled)? else {
         return Ok(None);
     };
-    let scale = reach_bound(&surface, &edges);
+    let covers: Vec<_> = edges
+        .iter()
+        .map(|e| super::boxes::edge_cover(body, e.edge))
+        .collect();
+    let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
         surface,
         sense: f.sense,
@@ -436,21 +388,25 @@ pub(crate) fn ruled_face_region<T: Decide>(
 
 /// The lever of a face's crossings ([`RuledFaceRegion::reach`]): the
 /// cylinder's radius, or a bound on the farthest the cone face's
-/// boundary reaches from the apex, never under it. It is bounded edge by
-/// edge: a segment's distance from the apex is convex along it, so its
-/// farther end bounds it, and a conic lies within its larger semi-axis
-/// of its centre.
-fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
+/// boundary reaches from the apex, never under it: edge by edge, its
+/// edge cover's farthest distance from the apex
+/// ([`super::boxes::edge_cover`], one per edge in `covers`), poison for an edge with no cover (its
+/// carrier's reading refuses, or an end vertex is not a finite point),
+/// which the readings levered at it escalate. The boundary was read
+/// certified, so no edge of it is null scaffolding.
+fn reach_bound<T: Decide>(
+    surface: &Ruled<T>,
+    covers: &[Result<geom::cover::Cover<T>, super::EdgeUncovered>],
+) -> T {
     match *surface {
         Ruled::Cylinder { radius, .. } => radius,
-        Ruled::Cone { apex, .. } => edges
+        Ruled::Cone { apex, .. } => covers
             .iter()
-            .map(|e| match e.carrier {
-                geom::Curve3::Line(_) => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
-                ref conic => {
-                    let c = Conic::of(conic);
-                    (c.center - apex).norm() + c.a.max(c.b)
-                }
+            .map(|cover| {
+                cover.as_ref().map_or_else(
+                    |_| geom_core::poison(),
+                    |c| c.distance_range(&geom::cover::Site::Point(apex)).1,
+                )
             })
             .fold(T::zero(), T::max),
     }
@@ -834,11 +790,11 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                 }
             }
             (conic, LegShape::Parallel(round)) => {
-                let conic = Conic::of(conic);
+                let conic = conic_of(conic);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::circle_off_plane(
                         (round.center, round.normal, round.radius, round.e1),
-                        (conic.center, conic.axis),
+                        (conic.frame().center, conic.frame().axis),
                     ),
                     round.radius,
                     T::zero(),
@@ -854,28 +810,29 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
                 }
                 for s in found(roots)? {
                     let y = round.at(s);
-                    let theta = conic.angle(y, (edge.t0, edge.t1));
-                    if let Some(sideless) = span(theta, conic.slow())? {
+                    let theta = conic.param_in(y, (edge.t0, edge.t1));
+                    if let Some(sideless) = span(theta, conic.speed_lo())? {
                         out.push((y, theta, sideless));
                     }
                 }
             }
             (conic, LegShape::Ruling { radial, nappe, .. }) => {
-                let conic = Conic::of(conic);
+                let conic = conic_of(conic);
+                let f = conic.frame();
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::conic_off_plane(
-                        (conic.center, conic.axis, (conic.a, conic.b), conic.u),
+                        (f.center, f.axis, conic.semi_axes(), f.u_ref),
                         (base, normal),
                     ),
-                    conic.a.max(conic.b),
+                    conic.speed_hi(),
                     edge.t0,
                     edge.t1,
                     &ROOT_ROWS,
                     band,
                 );
                 for theta in found(roots)? {
-                    let Some(sideless) = span(theta, conic.slow())? else {
+                    let Some(sideless) = span(theta, conic.speed_lo())? else {
                         continue;
                     };
                     let y = edge.at(theta);

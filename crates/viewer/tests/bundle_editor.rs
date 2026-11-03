@@ -38,7 +38,7 @@ fn authored(
 fn value_on(
     session: &DocSession,
     placement: RecipeNodeId,
-    coord: Coord,
+    coord: Coord<pncad::document::Operand>,
 ) -> (pncad::document::ConstraintId, String) {
     authored(session, placement)
         .iter()
@@ -84,7 +84,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
         value: pncad::document::FreeVar::continuous(Dimension::Length, asm::POST_B_AT[0]),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (slide_x, _) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: bench.post_b,
         slot: SlotId::ValueSlide {
@@ -94,7 +94,7 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    let (_, px) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (_, px) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     let before = session.committed_doc().clone();
     let states = session.history().len();
 
@@ -103,12 +103,12 @@ fn a_value_reading_a_variable_is_kept_beside_a_new_mate() {
     let row = proposal
         .values
         .iter()
-        .find(|row| row.coord == Coord::Slide(TargetAxis::X))
+        .find(|row| row.coord == Coord::slide(TargetAxis::X))
         .expect("a rest along z leaves the slide along x");
     assert_eq!(row.from, ValueFrom::Loaded(slide_x), "loaded, not measured");
     common::commit_mate(&mut session, proposal.op());
 
-    let (id, by) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::X));
+    let (id, by) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
     assert_eq!(id, slide_x, "Apply keeps the loaded value's id");
     assert_eq!(by, px, "the value still reads px");
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -131,7 +131,7 @@ fn a_stale_draft_reloads_and_its_apply_is_refused() {
     let mut session = asm::open_bench(&bench, tol);
     let mut tool = seated(&session, &bench);
     let old = common::proposed(&session, &tool, rest()).expect("the rest proposes");
-    let (slide_y, _) = value_on(&session, bench.post_b, Coord::Slide(TargetAxis::Y));
+    let (slide_y, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::Y));
     let outcome = session.perform(SessionOp::SetSlot {
         node: bench.post_b,
         slot: SlotId::ValueSlide {
@@ -430,9 +430,9 @@ fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
     let tool = seated(&session, &bench);
     let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
     common::commit_mate(&mut session, proposal.op());
-    let loaded: Vec<Coord> = authored(&session, bench.post_b)
+    let loaded: Vec<Coord<pncad::document::Operand>> = authored(&session, bench.post_b)
         .iter()
-        .filter_map(|c| c.value().map(|v| v.coord))
+        .filter_map(|c| c.value().map(|v| v.coord.clone()))
         .collect();
     let (tilt, _) = value_on(&session, bench.shelf_i, Coord::Spin(Some(TargetAxis::X)));
     let outcome = session.perform(SessionOp::SetSlot {
@@ -448,7 +448,8 @@ fn an_untouched_draft_over_a_tilted_target_keeps_its_slides() {
         .expect("post_b is a placement")
         .proposal(doc, ev, tol)
         .expect("the loaded bundle proposes");
-    let coords: Vec<Coord> = draft.values.iter().map(|row| row.coord).collect();
+    let coords: Vec<Coord<pncad::document::Operand>> =
+        draft.values.iter().map(|row| row.coord.clone()).collect();
     assert_eq!(coords, loaded, "the loaded slides and spin");
     assert!(
         draft.dropped.is_empty(),
@@ -488,8 +489,8 @@ fn a_create_draft_over_a_body_placed_since_is_refused() {
     let states = session.history().len();
     let again = session.perform(proposal.op());
     assert!(
-        matches!(again.refusal, Some(Refusal::BundleStale { .. })),
-        "a second Create of the body is stale: {:?}",
+        matches!(&again.refusal, Some(Refusal::BodyPlaced { body: placed, .. }) if placed.id() == body),
+        "a second Create of the body names its copy: {:?}",
         again.refusal
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
@@ -497,7 +498,13 @@ fn a_create_draft_over_a_body_placed_since_is_refused() {
 
 /// Declare the angle `name` at `at` and let `post_b`'s value `coord`
 /// read it.
-fn reads_angle(session: &mut DocSession, bench: &asm::Bench, coord: Coord, name: &str, at: f64) {
+fn reads_angle(
+    session: &mut DocSession,
+    bench: &asm::Bench,
+    coord: Coord<pncad::document::Operand>,
+    name: &str,
+    at: f64,
+) {
     let outcome = session.perform(SessionOp::DeclareVar {
         name: VarName::new(name).expect("a name"),
         value: pncad::document::FreeVar::continuous(Dimension::Angle, at),
@@ -626,7 +633,7 @@ fn a_turn_at_the_chains_pole_is_said_dropped() {
     let read = |rows: &[viewer::matetool::ValueRow]| {
         rows.iter()
             .filter(|row| viewer::matetool::value_text(doc, &row.by).contains("pa"))
-            .map(|row| row.coord)
+            .map(|row| row.coord.clone())
             .collect::<Vec<_>>()
     };
     assert!(
@@ -640,5 +647,45 @@ fn a_turn_at_the_chains_pole_is_said_dropped() {
         "pa is said dropped: {:?}",
         struck.dropped
     );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}
+
+/// **A placement's value rows in Properties name their freedom**: each
+/// row is called by the coordinate its value sets, as the editor's own
+/// rows and the tree's constraint rows are, so post_b's slides along
+/// `x`, `y` and `z` read apart.
+#[test]
+fn a_value_row_in_properties_names_its_axis() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-labels", tol);
+    let session = asm::open_bench(&bench, tol);
+    let rows = viewer::props::slot_rows(session.committed_doc(), bench.post_b);
+    let values: Vec<_> = authored(&session, bench.post_b)
+        .iter()
+        .filter_map(|c| c.value().map(|v| (c.id, v.coord.clone())))
+        .collect();
+    assert!(values.len() >= 2, "post_b holds several values: {values:?}");
+    for (id, coord) in &values {
+        let row = rows
+            .iter()
+            .find(|row| {
+                matches!(row.slot,
+                    SlotId::ValueSlide { constraint } | SlotId::ValueSpin { constraint }
+                        if constraint == *id)
+            })
+            .unwrap_or_else(|| panic!("a row for the value on {coord:?}"));
+        assert_eq!(row.label, coord.value_label(), "the row on {coord:?}");
+    }
+    let (slide_x, _) = value_on(&session, bench.post_b, Coord::slide(TargetAxis::X));
+    let x = rows
+        .iter()
+        .find(|row| {
+            row.slot
+                == SlotId::ValueSlide {
+                    constraint: slide_x,
+                }
+        })
+        .expect("the slide along x has a row");
+    assert_eq!(x.label, "slide along x value", "the slide along x's row");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }

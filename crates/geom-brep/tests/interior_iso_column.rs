@@ -187,7 +187,10 @@ fn a1_body<T: Decide + Bounds>(row: &str) {
     // (the collapse at 0.5 weighs rows 1..=3 as 1/8, 3/4, 1/8: ~1.4e-4 m
     // from the nearest row, so a row-copy mutant cannot pass)
     let cache = certify_column::<T>(&chart, &carrier, 0.5).unwrap_or_else(|e| {
-        panic!("{row}: an interior column of a polynomial chart certifies exactly: {e}")
+        panic!(
+            "{row}: an interior column of a polynomial chart certifies exactly: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
     });
     assert_certified(row, &cache);
     println!("{row}: envelope {:e} m", cache.certificate().envelope.hi());
@@ -224,7 +227,10 @@ fn a2_body<T: Decide + Bounds>(row: &str) {
         "the witness sits on the cylinder: {r}"
     );
     let cache = certify_column::<T>(&chart, &carrier, u_star).unwrap_or_else(|e| {
-        panic!("{row}: an interior column of a case-(b) rational chart certifies: {e}")
+        panic!(
+            "{row}: an interior column of a case-(b) rational chart certifies: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
     });
     assert_certified(row, &cache);
     println!("{row}: envelope {:e} m", cache.certificate().envelope.hi());

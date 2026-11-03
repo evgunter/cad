@@ -7,10 +7,9 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Dimension, Formula};
 
 use common::asm;
-use common::{ang, len, scl};
+use common::{ang, len};
 use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
@@ -383,7 +382,7 @@ fn patterned_post(
             input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(PATTERN_STEP),
             },
         },
@@ -492,7 +491,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     }
 }
 
-/// **A9 — a pick on a pattern copy OVER A TRANSFORM is a target**, read
+/// **A9 — a pick on a pattern copy OVER A PLACEMENT is a target**, read
 /// at the node the ray met: the copy's placement, under the pattern's
 /// copy-headed name. The composed offset is the solve's to apply.
 #[test]
@@ -500,22 +499,33 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matepatternnon", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A transform between the instance and the pattern: the pattern's
-    // input is the move's `Place`, not an `InstantiatePart`, which is
-    // one of the heads `member_of` declines.
-    let moved = common::session_insert(
-        &mut session,
-        SessionOp::AddTransform {
-            input: bench.post_b.into(),
-            translation: [
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Formula::zero(Dimension::Angle),
-        },
+    session.pump();
+    // A placement between the instance and the pattern — a duplicate of
+    // the instance, stood back on it by the Transform tool's Edit door,
+    // every value zero: the pattern's input is the duplicate's `Place`,
+    // not an `InstantiatePart`, which is one of the heads `member_of`
+    // declines.
+    let duplicated = session.perform(SessionOp::Duplicate {
+        input: bench.post_b.into(),
+        beside: None,
+    });
+    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
+    let moved = duplicated.made.expect("the duplicate's copy");
+    assert!(
+        matches!(
+            session.committed_doc().node(moved),
+            Some(pncad::document::Node::Place { .. })
+        ),
+        "the pattern's head is a Place"
     );
+    let mut values = common::slides([0.0; 3]);
+    values.extend(
+        pncad::document::TargetAxis::ALL
+            .map(|axis| (pncad::document::Coord::Spin(Some(axis)), common::ang(0.0))),
+    );
+    let op = common::transformed(&mut session, moved, &values);
+    let stood = session.perform(op);
+    assert!(stood.refusal.is_none(), "{:?}", stood.refusal);
     session.pump();
     let pattern = common::session_insert(
         &mut session,
@@ -523,7 +533,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
             input: moved.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(PATTERN_STEP),
             },
         },
@@ -629,6 +639,82 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     );
 }
 
+/// **The Transform tool reads a pick through a union by A11's member
+/// walk**, as the editor's first pick does: one rule decides which door
+/// a pick opens. A face of the union's own body, named as post_b's
+/// member face, opens the Edit door of the copy the walk reaches — not a
+/// Create door on the union.
+#[test]
+fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
+    let tol = Tol::witness();
+    let bench = asm::bench("transformunion", tol);
+    let session = asm::open_bench(&bench, tol);
+    let mut doc = session.committed_doc().clone();
+    let members = vec![
+        asm::copy(&bench, &doc, bench.post_a),
+        asm::copy(&bench, &doc, bench.post_b),
+    ];
+    let union = common::insert_into(
+        &mut doc,
+        pncad::document::Node::Union {
+            members: pncad::document::Bodies::Spelled(members.clone()),
+        },
+        tol,
+    );
+    let (doc, union_copy) = common::inserted(
+        &doc,
+        crate::fixture::stood(pncad::document::BodyRead::plain(
+            pncad::document::Operand::from(union),
+        )),
+        tol,
+    );
+    let doc = common::pin(
+        &doc,
+        union_copy,
+        &pncad::document::Frame::translation([0.0, UNION_SHIFT, 0.0]),
+        &bench.opts(),
+        tol,
+    );
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    ws.resave(&doc, tol).expect("the assembly stores");
+    let mut session = asm::open_bench(&bench, tol);
+    session.pump();
+    let on_copy = asm::pick_face(
+        &session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + UNION_SHIFT + asm::POST_SECTION / 2.0,
+        ),
+    );
+    // The same face, picked on the union's own body.
+    let on_union = viewer::session::FaceSelection {
+        node: union,
+        ..on_copy.clone()
+    };
+    let doc = session.committed_doc();
+    let walked = pncad::document::member_of(
+        doc,
+        &pncad::document::SitedRef::new(union, on_union.name.clone()),
+    )
+    .expect("the walk reaches post_b's member")
+    .instance;
+    let editor = viewer::matetool::MateTool::moving_picked(doc, on_union)
+        .unwrap_or_else(|event| panic!("a door opens: {event}"));
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+    assert!(
+        matches!(
+            editor.door(),
+            Some(viewer::matetool::PlaceDoor::Edit { placement, .. }) if *placement == walked
+        ),
+        "the Edit door of {walked:?}, which the walk reaches: {:?}",
+        editor.door()
+    );
+    assert!(
+        walked != union && walked != bench.post_a,
+        "post_b's member, not {walked:?}"
+    );
+}
+
 /// The quarter turn the circular row spins post_b by.
 const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 
@@ -649,8 +735,7 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
             input: bench.post_b.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
-                through: common::len3([0.0; 3]),
-                direction: common::scl3([0.0, 1.0, 0.0]),
+                axis: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
                 step: ang(QUARTER_TURN),
             },
         },
@@ -1047,7 +1132,7 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let turn = 10.0_f64.to_radians();
     for (coord, value) in [
-        (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+        (Coord::slide(TargetAxis::Y), (Dimension::Length, 0.02)),
         (Coord::Spin(Some(TargetAxis::Z)), (Dimension::Angle, turn)),
     ] {
         let constraint = match session.committed_doc().node(bench.post_b) {
@@ -1058,9 +1143,10 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
             _ => None,
         }
         .expect("post_b's pin writes the freedom");
-        let slot = match coord {
-            Coord::Slide(_) => SlotId::ValueSlide { constraint },
-            Coord::Spin(_) => SlotId::ValueSpin { constraint },
+        let slot = if coord.is_slide() {
+            SlotId::ValueSlide { constraint }
+        } else {
+            SlotId::ValueSpin { constraint }
         };
         let outcome = session.perform(SessionOp::SetSlot {
             node: bench.post_b,
@@ -1196,7 +1282,7 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
         let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
         let mut ok = true;
         for (coord, value) in [
-            (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+            (Coord::slide(TargetAxis::Y), (Dimension::Length, 0.02)),
             (
                 Coord::Spin(Some(TargetAxis::Z)),
                 (Dimension::Angle, zt.to_radians()),
@@ -1218,9 +1304,10 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
                 ok = false;
                 continue;
             };
-            let slot = match coord {
-                Coord::Slide(_) => SlotId::ValueSlide { constraint },
-                Coord::Spin(_) => SlotId::ValueSpin { constraint },
+            let slot = if coord.is_slide() {
+                SlotId::ValueSlide { constraint }
+            } else {
+                SlotId::ValueSpin { constraint }
             };
             let outcome = session.perform(SessionOp::SetSlot {
                 node: bench.post_b,

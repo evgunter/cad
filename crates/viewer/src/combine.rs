@@ -4,8 +4,8 @@
 //!
 //! # Shape
 //!
-//! The revolve tool's shape, once per tool here, on the shared seat
-//! machinery [`crate::seats`] carries: single-select stays ruled (GQ7), so
+//! One shape per tool here, on the shared seat machinery
+//! [`crate::seats`] carries: single-select stays ruled (GQ7), so
 //! each tool holds its picks in tool state and consumes the ordinary
 //! selection stream — a tree click is a node pick directly, a viewport
 //! face or edge pick reaches the node whose DRAWN body the ray met
@@ -35,7 +35,10 @@ use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
 use crate::session::refuse::one_body;
-use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
+use crate::session::{
+    BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
+    SessionOp, SplitPlane,
+};
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
 
@@ -293,13 +296,178 @@ impl BooleanTool {
     }
 }
 
-/// **The split tool**: a body pick plus the cutting plane's fields,
-/// committing one [`SessionOp::AddSplit`]. The plane is a point and a
-/// normal in the target's own coordinates, read off its geometry by the
-/// session door.
+/// **A body seat and the plane read beside it** — what the split and
+/// the mirror tools hold, one value for both.
+///
+/// The plane is a FACE pick, held as the mate tool holds its picks and
+/// marked as they are (`crate::marks::Held`): a face is a name, so it
+/// survives by resolving against the landed evaluation
+/// ([`Self::reconcile_plane`]) and is re-seated by a rename, where the
+/// body seat survives as every seat does ([`Seats::reconcile`]). A plane
+/// variable the document defines survives while the document holds it.
+///
+/// **The first face pick fills both**: the body it is on and its own
+/// plane. A later face pick re-picks the plane alone; a tree pick
+/// re-picks the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaneSeats {
+    seats: Seats,
+    /// The body seat's role, which names it in the line.
+    seat: Seat,
+    /// The plane's role, which names it in the line and in a drop.
+    role: FaceRole,
+    /// The plane, said as it was picked ([`HeldPick::new`]), its nodes
+    /// as the document last spoke them ([`Self::respeak`]), so a drop
+    /// says what the line said.
+    plane: Option<HeldPlane>,
+}
+
+/// **A held plane**.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HeldPlane {
+    /// A face, read as its plane.
+    Face(HeldPick),
+    /// A plane variable the document defines, read as it is, or a
+    /// frame's, read through its `xy`.
+    Defined {
+        /// The variable, by the name the document last gave it.
+        var: pncad::document::SpokenVar,
+        /// The role it is read through: `xy` for a frame.
+        through: Option<pncad::document::pose::PoseRole>,
+    },
+}
+
+impl PlaneSeats {
+    /// A body seat `seat` and no plane, the plane named `role`.
+    const fn new(seat: Seat, role: FaceRole) -> Self {
+        Self {
+            seats: Seats::one(seat),
+            seat,
+            role,
+            plane: None,
+        }
+    }
+
+    /// The held plane's face, where the plane is a face.
+    fn face(&self) -> Option<&FaceSelection> {
+        match &self.plane {
+            Some(HeldPlane::Face(held)) => Some(held.face()),
+            Some(HeldPlane::Defined { .. }) | None => None,
+        }
+    }
+
+    /// **Feed one face pick**: the plane, and the body it is on while
+    /// no body is held.
+    fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        if self.seats.is_empty() {
+            self.seats.pick_at(doc, face.node, Some(face.body));
+        }
+        self.plane = Some(HeldPlane::Face(HeldPick::new(doc, face)));
+    }
+
+    /// **Feed one variable pick**: the plane, where `var` is one — a
+    /// `Plane` variable read as it is, a `Frame` read through its
+    /// `xy`. A variable of any other kind is no plane, and the pick is
+    /// not taken.
+    fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: pncad::document::VarId) {
+        let through = match doc.var(var).map(pncad::document::Var::kind) {
+            Some(pncad::document::VarKind::Plane) => None,
+            Some(pncad::document::VarKind::Frame) => Some(pncad::document::pose::PoseRole::Xy),
+            _ => return,
+        };
+        self.plane = Some(HeldPlane::Defined {
+            var: doc.spoken_var(var),
+            through,
+        });
+    }
+
+    /// Empty the seat and the plane.
+    fn clear(&mut self) {
+        self.seats.clear();
+        self.plane = None;
+    }
+
+    /// **The plane's survival step**: a held face re-read against the
+    /// landed pair, as the mate tool re-reads its picks, and a held
+    /// variable looked up in the landed document; each dropped when it
+    /// no longer resolves.
+    fn reconcile_plane(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Option<PlaneEvent> {
+        let role = self.role;
+        // Each arm hands the plane back where it still resolves, or
+        // turns it into its drop: the plane goes nowhere else. A lost
+        // face is said by the words kept at the pick, not read again,
+        // since a deleted copy would answer its own node, which the
+        // line never said.
+        match self.plane.take()? {
+            HeldPlane::Face(plane) => {
+                let face = plane.face();
+                let verdict =
+                    crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
+                if crate::session::select::resolves(&verdict) {
+                    self.plane = Some(HeldPlane::Face(plane));
+                    return None;
+                }
+                Some(PlaneEvent::PlaneLost {
+                    role,
+                    plane,
+                    resolution: Box::new(verdict),
+                })
+            }
+            HeldPlane::Defined { var, through } => {
+                if doc.var(var.id()).is_some() {
+                    self.plane = Some(HeldPlane::Defined { var, through });
+                    return None;
+                }
+                Some(PlaneEvent::DefinedLost { role, var })
+            }
+        }
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+        match &mut self.plane {
+            Some(HeldPlane::Face(plane)) => *plane = plane.respoken(doc),
+            Some(HeldPlane::Defined { var, .. }) => *var = var.respoken(doc),
+            None => {}
+        }
+    }
+
+    /// **The face held** ([`crate::session::Holds`]).
+    fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.plane {
+            Some(HeldPlane::Face(held)) => vec![crate::session::select::Held::One(held)],
+            Some(HeldPlane::Defined { .. }) | None => Vec::new(),
+        }
+    }
+
+    /// **The panel's held-picks line**: the body seat and the plane,
+    /// each said by `by` — the body seat's node (the body a click on a
+    /// copy seats), the plane on the copy it was clicked on, or as the
+    /// variable it is. A node `by` does not hold is said as the tool
+    /// kept it.
+    fn line(&self, by: Speaker<'_>) -> String {
+        let body = self.seats.said(by, 0);
+        let plane = self.plane.as_ref().map(|plane| match plane {
+            HeldPlane::Face(held) => Said(held, by).to_string(),
+            HeldPlane::Defined { var, .. } => var.to_string(),
+        });
+        picks_line([(self.seat.name(), body), (self.role.name(), plane)])
+    }
+}
+
+/// **The split tool**: a target seat and the plane it is cut along
+/// ([`PlaneSeats`]), committing one [`SessionOp::AddSplit`]. A plane
+/// the document already defines, a `Plane` variable or a `Frame` read
+/// through its `xy`, is taken when the selection names the variable
+/// (`Selection::Variable`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
-    seats: Seats,
+    held: PlaneSeats,
 }
 
 impl Default for SplitTool {
@@ -312,92 +480,124 @@ impl SplitTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::one(Seat::SplitTarget),
+            held: PlaneSeats::new(Seat::SplitTarget, FaceRole::SplitPlane),
         }
     }
 
     /// The seats, roles and picks together — what the panel's line is
     /// composed from ([`crate::seats::seat_line`]).
     pub fn seats(&self) -> &Seats {
-        &self.seats
+        &self.held.seats
     }
 
     /// The held target body.
     pub fn target(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+        self.held.seats.held(0)
     }
 
-    /// Feed one node pick — a second pick REPLACES the first, this tool
-    /// having only the one seat. `doc` routes it, and does not judge it.
-    /// A pick on a copy seats the body it places.
+    /// The held plane.
+    pub fn plane(&self) -> Option<&HeldPlane> {
+        self.held.plane.as_ref()
+    }
+
+    /// The held plane's face, where the plane is a face.
+    pub fn face(&self) -> Option<&FaceSelection> {
+        self.held.face()
+    }
+
+    /// Feed one node pick: it REPLACES the target. A pick on a copy
+    /// seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
+        self.held.seats.pick(doc, node);
     }
 
-    /// [`Self::pick`] of the output `body` a viewport pick hit.
-    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        self.seats.pick_at(doc, node, body);
+    /// **Feed one face pick** ([`PlaneSeats`]).
+    pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        self.held.pick_plane(doc, face);
+    }
+
+    /// **Feed one variable pick** ([`PlaneSeats`]).
+    pub fn pick_defined(&mut self, doc: &Doc<ProfileProgram>, var: pncad::document::VarId) {
+        self.held.pick_defined(doc, var);
     }
 
     /// The half seat `i` reads, when it holds a split picked alone
     /// ([`Seats::choose_half`]).
     pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
+        self.held.seats.choose_half(i, half);
     }
 
-    /// Empty the seat.
+    /// Empty the seat and the plane.
     pub fn clear(&mut self) {
-        self.seats.clear();
+        self.held.clear();
     }
 
-    /// The survival step ([`crate::seats`]).
+    /// The target seat's survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
+        self.held.seats.reconcile(doc)
+    }
+
+    /// The plane's survival step ([`PlaneSeats`]).
+    pub fn reconcile_plane(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Option<PlaneEvent> {
+        self.held.reconcile_plane(doc, eval)
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
+        self.held.respeak(doc);
     }
 
-    /// **The one committed edit**: the split by the plane through
-    /// `origin` with normal `normal`.
+    /// **The face the tool holds** ([`crate::session::Holds`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.held.held()
+    }
+
+    /// **The panel's held-picks line** ([`PlaneSeats`]).
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        self.held.line(by)
+    }
+
+    /// **The one committed edit**: the target split along the held
+    /// plane.
     ///
     /// # Errors
     ///
-    /// [`SeatError::Empty`] until a body is picked.
-    pub fn op(&self, origin: [Formula; 3], normal: [Formula; 3]) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddSplit {
-            target: self.seats.require_read(0)?,
-            origin,
-            normal,
-        })
+    /// [`SeatError::Empty`] until a target is picked, and naming the
+    /// plane until one is.
+    pub fn op(&self) -> Result<SessionOp, SeatError> {
+        let target = self.held.seats.require_read(0)?;
+        let plane = match &self.held.plane {
+            Some(HeldPlane::Face(held)) => SplitPlane::Face(held.face().clone()),
+            Some(HeldPlane::Defined { var, through }) => {
+                let read = Operand::Var(var.id());
+                SplitPlane::Read(match through {
+                    Some(role) => pncad::document::pose::RoleRead::through(read, *role),
+                    None => pncad::document::pose::RoleRead::plain(read),
+                })
+            }
+            None => {
+                return Err(SeatError::NoFace {
+                    role: FaceRole::SplitPlane,
+                });
+            }
+        };
+        Ok(SessionOp::AddSplit { target, plane })
     }
 }
 
 /// **The mirror tool**: a body seat and the face whose plane the body
-/// is reflected across, committing one [`SessionOp::AddMirror`].
-///
-/// The plane is a FACE pick, held as the mate tool holds its picks and
-/// marked as they are (`crate::marks::Held`): a face is a name, so it
-/// survives by resolving against the landed evaluation
-/// ([`Self::reconcile_plane`]) and is re-seated by a rename, where the
-/// body seat survives as every seat does ([`Seats::reconcile`]).
-///
-/// **The first face pick fills both**: the body it is on and its own
-/// plane — a body mirrored across one of its own faces is the
-/// symmetric part's case. A later face pick re-picks the plane alone, so
-/// a body is mirrored across another body's face by picking that face
-/// second; a tree pick re-picks the body.
+/// is reflected across ([`PlaneSeats`]), committing one
+/// [`SessionOp::AddMirror`]. The first face pick fills both: a body
+/// mirrored across one of its own faces is the symmetric part's case,
+/// and a body is mirrored across another body's face by picking that
+/// face second.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MirrorTool {
-    seats: Seats,
-    /// The plane: the face, said on the copy it was clicked on
-    /// ([`HeldPick::new`]), with the nodes its words name
-    /// as the document last spoke them ([`Self::respeak`]). The line and
-    /// the drop both say the plane from it, so a drop after the copy it
-    /// was clicked on is deleted says what the line said.
-    plane: Option<HeldPick>,
+    held: PlaneSeats,
 }
 
 impl Default for MirrorTool {
@@ -410,107 +610,73 @@ impl MirrorTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::one(Seat::MirrorBody),
-            plane: None,
+            held: PlaneSeats::new(Seat::MirrorBody, FaceRole::MirrorPlane),
         }
     }
 
     /// The body seat.
     pub fn seats(&self) -> &Seats {
-        &self.seats
+        &self.held.seats
     }
 
     /// The held body.
     pub fn input(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+        self.held.seats.held(0)
     }
 
     /// The held plane face.
     pub fn plane(&self) -> Option<&FaceSelection> {
-        self.plane.as_ref().map(HeldPick::face)
+        self.held.face()
     }
 
     /// Feed one node pick: it REPLACES the body.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
+        self.held.seats.pick(doc, node);
     }
 
-    /// **Feed one face pick**: the plane, and the body it is on while
-    /// no body is held (the type's docs).
+    /// **Feed one face pick** ([`PlaneSeats`]).
     pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        if self.seats.is_empty() {
-            self.seats.pick_at(doc, face.node, Some(face.body));
-        }
-        self.plane = Some(HeldPick::new(doc, face));
+        self.held.pick_plane(doc, face);
     }
 
     /// The half the body seat reads, when it holds a split picked
     /// alone ([`Seats::choose_half`]).
     pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
+        self.held.seats.choose_half(i, half);
     }
 
     /// Empty the seat and the plane.
     pub fn clear(&mut self) {
-        self.seats.clear();
-        self.plane = None;
+        self.held.clear();
     }
 
     /// The body seat's survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
+        self.held.seats.reconcile(doc)
     }
 
-    /// **The plane's survival step**: the held face re-read against the
-    /// landed pair, as the mate tool re-reads its picks, and dropped
-    /// when it no longer resolves.
+    /// The plane's survival step ([`PlaneSeats`]).
     pub fn reconcile_plane(
         &mut self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-    ) -> Option<MirrorEvent> {
-        let face = self.plane.as_ref()?.face();
-        let verdict = crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
-        if crate::session::select::resolves(&verdict) {
-            return None;
-        }
-        // Said on the body kept at the pick: read again here, a deleted
-        // copy would answer its own node, which the line never said.
-        Some(MirrorEvent::PlaneLost {
-            plane: self.plane.take()?,
-            resolution: Box::new(verdict),
-        })
+    ) -> Option<PlaneEvent> {
+        self.held.reconcile_plane(doc, eval)
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
-        if let Some(plane) = &mut self.plane {
-            *plane = plane.respoken(doc);
-        }
+        self.held.respeak(doc);
     }
 
     /// **The plane the tool holds** ([`crate::session::Holds`]).
     pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
-        self.plane
-            .iter_mut()
-            .map(|held| crate::session::select::Held::One(held))
-            .collect()
+        self.held.held()
     }
 
-    /// **The panel's held-picks line**: the body seat and the plane,
-    /// each said by `by` — the body seat's node (the body a click on a
-    /// copy seats), and the plane as the chrome says a held pick
-    /// ([`HeldPick`]), on the copy it was clicked on, since the plane
-    /// was taken there. A node `by` does not hold is said as the tool
-    /// kept it.
+    /// **The panel's held-picks line** ([`PlaneSeats`]).
     pub fn line(&self, by: Speaker<'_>) -> String {
-        let body = self.seats.said(by, 0);
-        let plane = self.plane.as_ref().map(|plane| Said(plane, by).to_string());
-        picks_line([
-            (Seat::MirrorBody.name(), body),
-            (FaceRole::MirrorPlane.name(), plane),
-        ])
+        self.held.line(by)
     }
 
     /// **The one committed edit**: the body mirrored across the held
@@ -521,7 +687,7 @@ impl MirrorTool {
     /// [`SeatError::Empty`] until a body is picked, and naming the
     /// plane until a face is.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
-        let body = self.seats.require_read(0)?;
+        let body = self.held.seats.require_read(0)?;
         let plane = self.plane().cloned().ok_or(SeatError::NoFace {
             role: FaceRole::MirrorPlane,
         })?;
@@ -529,27 +695,353 @@ impl MirrorTool {
     }
 }
 
-/// A typed mirror-tool event the chrome renders: the plane's drop. The
-/// body seat's drop is a [`SeatEvent`].
+/// A typed event of a held plane ([`PlaneSeats`]) the chrome renders:
+/// the plane's drop. The body seat's drop is a [`SeatEvent`].
 #[derive(Debug)]
-pub enum MirrorEvent {
+pub enum PlaneEvent {
     /// The held plane face no longer resolves against the landed
     /// evaluation; the tool dropped it.
     PlaneLost {
-        /// The plane that was held, said on the body the panel line said
-        /// it on, by the last labels the tool kept for its nodes.
+        /// The plane's role.
+        role: FaceRole,
+        /// The plane that was held, said as the panel line said it.
         plane: HeldPick,
         /// The resolution machinery's own verdict.
         resolution: Box<pncad::select::Resolution>,
     },
+    /// The held plane variable is no longer in the document; the tool
+    /// dropped it.
+    DefinedLost {
+        /// The plane's role.
+        role: FaceRole,
+        /// The variable, by the last name the document gave it.
+        var: pncad::document::SpokenVar,
+    },
 }
 
 /// A node `by` does not hold is said as the tool kept it.
-impl Say for MirrorEvent {
+impl Say for PlaneEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { plane, .. } => {
-                crate::matetool::pick_lost(f, FaceRole::MirrorPlane.name(), plane, by)
+            Self::PlaneLost { role, plane, .. } => {
+                crate::matetool::pick_lost(f, role.name(), plane, by)
+            }
+            Self::DefinedLost { role, var } => write!(
+                f,
+                "the {} pick ({var}) is no longer in the document; the tool dropped it",
+                role.name()
+            ),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node as the tool
+/// kept it.
+impl core::fmt::Display for PlaneEvent {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
+            Self::DefinedLost { .. } => self.say(f, Speaker::TAG),
+        }
+    }
+}
+
+vocabulary! {
+    /// **Which side a clearance requirement bounds** — the clearance
+    /// form's choice, and which of [`ClearanceBounds`]' shapes its
+    /// commit writes: from below, from above, both at one value, or a
+    /// band.
+    ///
+    /// [`ClearanceBounds`]: pncad::document::ClearanceBounds
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum ClearanceBoundChoice {
+        /// `clearance(a, b) ≥ c`.
+        #[default]
+        AtLeast = "at least",
+        /// `clearance(a, b) ≤ c`.
+        AtMost = "at most",
+        /// `clearance(a, b) = c`.
+        Equal = "exactly",
+        /// `lo ≤ clearance(a, b) ≤ hi`.
+        Between = "between",
+    }
+
+    /// Every choice with its button label — the form's radio row.
+    pub const ALL;
+}
+
+impl ClearanceBoundChoice {
+    /// **The bounds this choice writes**: its shape, with every end at
+    /// `at`. The insert writes contact (`0`); each end is then a slot
+    /// row of the requirement (`SlotId::ClearanceBound`).
+    pub fn bounds<S: Clone>(self, at: S) -> pncad::document::ClearanceBounds<S> {
+        use pncad::document::ClearanceBounds as B;
+        match self {
+            Self::AtLeast => B::AtLeast(at),
+            Self::AtMost => B::AtMost(at),
+            Self::Equal => B::Equal(at),
+            Self::Between => B::Within {
+                lo: at.clone(),
+                hi: at,
+            },
+        }
+    }
+}
+
+/// **One seat of a clearance requirement, as the tool holds it**: a
+/// body (all of its faces), picked in the tree, or a face, picked in
+/// the picture.
+///
+/// **Held where it is drawn, not where it is built.** A requirement
+/// between two parts is about the parts as they stand, so a seat is
+/// never re-read on the body a copy places, which every other seated
+/// tool does ([`Seats::pick`]); the commit door reads a tree pick of a
+/// construction on its world copy (`DocSession`'s `AddClearance` arm).
+///
+/// That redirect is why the seat is not a [`Seats`]: for a construction
+/// the world copies ONCE, a `Seats`-held body would land on the same
+/// copy, but a construction copied several times names no one copy —
+/// which part the author means is not in the pick — so the tool refuses
+/// such a pick itself ([`ClearanceEvent::SeveralCopies`]) and asks for
+/// the copy in the picture, where `Seats` would seat the construction
+/// and leave the insert door to refuse two seats in different spaces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ClearancePick {
+    /// A body: the node picked, as the document last spoke it.
+    Body(SpokenNode),
+    /// A face, held as the mirror tool holds its plane.
+    Face(HeldPick),
+}
+
+/// **The clearance tool**: a requirement's two seats, a body or a face
+/// each, committing one [`SessionOp::AddClearance`] with the bounds the
+/// form holds.
+///
+/// A pick fills the first open seat; with both full it replaces the
+/// second, the seats' pick rule ([`Seats::pick`]). A face picked in the
+/// picture seats that face, on the body the picture draws it on; a node
+/// picked in the tree seats its body.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ClearanceTool {
+    picks: [Option<ClearancePick>; 2],
+}
+
+/// **Seat `i`'s role**, as a body and as a face: the first seat, then
+/// the second.
+fn cleared(i: usize) -> (Seat, FaceRole) {
+    if i == 0 {
+        (Seat::ClearedFirst, FaceRole::ClearedFirst)
+    } else {
+        (Seat::ClearedSecond, FaceRole::ClearedSecond)
+    }
+}
+
+impl ClearanceTool {
+    /// A tool holding nothing.
+    pub const fn new() -> Self {
+        Self {
+            picks: [None, None],
+        }
+    }
+
+    /// The seat the next pick lands in.
+    fn next(&self) -> usize {
+        usize::from(self.picks[0].is_some())
+    }
+
+    /// **Feed one node pick**: its body, in the next seat — or, for a
+    /// body the world draws more than once, the refusal that names no
+    /// one copy ([`ClearanceEvent::SeveralCopies`]), the seat untouched.
+    #[must_use = "a declined pick is only reported if its notice is shown"]
+    pub fn seat_body(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+    ) -> Option<ClearanceEvent> {
+        let copies = crate::world::world_copies_of_read(doc, &Operand::Node(node)).len();
+        if copies > 1 {
+            return Some(ClearanceEvent::SeveralCopies {
+                node: doc.spoken(node),
+                copies,
+            });
+        }
+        let i = self.next();
+        self.picks[i] = Some(ClearancePick::Body(doc.spoken(node)));
+        None
+    }
+
+    /// **Feed one face pick**: the face, in the next seat.
+    pub fn seat_face(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        let i = self.next();
+        self.picks[i] = Some(ClearancePick::Face(HeldPick::new(doc, face)));
+    }
+
+    /// The face seat `i` holds, if it holds one.
+    pub fn face(&self, i: usize) -> Option<&FaceSelection> {
+        match self.picks.get(i)? {
+            Some(ClearancePick::Face(held)) => Some(held.face()),
+            Some(ClearancePick::Body(_)) | None => None,
+        }
+    }
+
+    /// The node seat `i` holds as a body, if it holds one.
+    pub fn body(&self, i: usize) -> Option<RecipeNodeId> {
+        match self.picks.get(i)? {
+            Some(ClearancePick::Body(node)) => Some(node.id()),
+            Some(ClearancePick::Face(_)) | None => None,
+        }
+    }
+
+    /// Empty both seats.
+    pub fn clear(&mut self) {
+        self.picks = [None, None];
+    }
+
+    /// **The body seats' survival step** ([`crate::seats`]): a seat
+    /// whose node the document no longer holds is dropped, said by the
+    /// last label it had.
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
+        let mut events = Vec::new();
+        for (i, pick) in self.picks.iter_mut().enumerate() {
+            let (seat, _) = cleared(i);
+            if let Some(ClearancePick::Body(node)) = pick
+                && doc.node(node.id()).is_none()
+                && let Some(ClearancePick::Body(node)) = pick.take()
+            {
+                events.push(SeatEvent::PickLost { seat, node });
+            }
+        }
+        events
+    }
+
+    /// **The face seats' survival step**: each held face re-read
+    /// against the landed pair, and dropped when it no longer resolves
+    /// — the mirror tool's plane's rule.
+    pub fn reconcile_faces(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Vec<ClearanceEvent> {
+        let mut events = Vec::new();
+        for (i, pick) in self.picks.iter_mut().enumerate() {
+            let (_, role) = cleared(i);
+            let Some(ClearancePick::Face(held)) = pick else {
+                continue;
+            };
+            let face = held.face();
+            let verdict = crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
+            if crate::session::select::resolves(&verdict) {
+                continue;
+            }
+            let Some(ClearancePick::Face(face)) = pick.take() else {
+                unreachable!("the seat was just read as a face")
+            };
+            events.push(ClearanceEvent::FaceLost {
+                role,
+                face,
+                resolution: Box::new(verdict),
+            });
+        }
+        events
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        for pick in self.picks.iter_mut().flatten() {
+            match pick {
+                ClearancePick::Body(node) => *node = node.respoken(doc),
+                ClearancePick::Face(held) => *held = held.respoken(doc),
+            }
+        }
+    }
+
+    /// **The faces the tool holds** ([`crate::session::Holds`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.picks
+            .iter_mut()
+            .filter_map(|pick| match pick {
+                Some(ClearancePick::Face(held)) => Some(crate::session::select::Held::One(held)),
+                Some(ClearancePick::Body(_)) | None => None,
+            })
+            .collect()
+    }
+
+    /// **The panel's held-picks line**: each seat said by `by` — a body
+    /// as a seat says its node, a face as the chrome says a held pick.
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        let said = |i: usize| match &self.picks[i] {
+            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, Port::Alone)),
+            Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
+            None => None,
+        };
+        picks_line([
+            (cleared(0).1.name(), said(0)),
+            (cleared(1).1.name(), said(1)),
+        ])
+    }
+
+    /// **The one committed edit**: the requirement between the two
+    /// seats, within `bounds`.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] naming the first seat still open.
+    pub fn op(
+        &self,
+        bounds: pncad::document::ClearanceBounds<Formula>,
+    ) -> Result<SessionOp, SeatError> {
+        let seat = |i: usize| match &self.picks[i] {
+            Some(ClearancePick::Body(node)) => Ok(ClearedSeat::Body(Operand::Node(node.id()))),
+            Some(ClearancePick::Face(held)) => Ok(ClearedSeat::Face(held.face().clone())),
+            None => Err(SeatError::Empty { seat: cleared(i).0 }),
+        };
+        Ok(SessionOp::AddClearance {
+            a: seat(0)?,
+            b: seat(1)?,
+            bounds,
+        })
+    }
+}
+
+/// A typed clearance-tool event the chrome renders: a face seat's drop.
+/// A body seat's drop is a [`SeatEvent`].
+#[derive(Debug)]
+pub enum ClearanceEvent {
+    /// A held face no longer resolves against the landed evaluation;
+    /// the tool dropped it and the seat is open.
+    FaceLost {
+        /// Which seat.
+        role: FaceRole,
+        /// The face that was held, by the last labels the tool kept.
+        face: HeldPick,
+        /// The resolution machinery's own verdict.
+        resolution: Box<pncad::select::Resolution>,
+    },
+    /// A tree pick of a body the world draws more than once: the pick
+    /// names no one copy, so the tool took nothing.
+    SeveralCopies {
+        /// The body picked.
+        node: SpokenNode,
+        /// How many world copies draw it.
+        copies: usize,
+    },
+}
+
+/// A node `by` does not hold is said as the tool kept it.
+impl Say for ClearanceEvent {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::FaceLost { role, face, .. } => {
+                crate::matetool::pick_lost(f, role.name(), face, by)
+            }
+            Self::SeveralCopies { node, copies } => {
+                let held: HeldNodes = [node.clone()].into_iter().collect();
+                write!(
+                    f,
+                    "{} stands in the world {copies} times, so it names no one part — pick a \
+                     face of the copy you mean in the picture",
+                    by.or_held(&held).node(node.id())
+                )
             }
         }
     }
@@ -557,10 +1049,14 @@ impl Say for MirrorEvent {
 
 /// The sentence where no document is at hand: each node as the tool
 /// kept it.
-impl core::fmt::Display for MirrorEvent {
+impl core::fmt::Display for ClearanceEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
+            Self::FaceLost { face, .. } => self.say(f, Speaker::held(face.said())),
+            Self::SeveralCopies { node, .. } => {
+                let held: HeldNodes = [node.clone()].into_iter().collect();
+                self.say(f, Speaker::held(&held))
+            }
         }
     }
 }
@@ -578,87 +1074,44 @@ pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode
     )
 }
 
-/// **The transform tool**: one body pick plus the placement fields,
-/// committing one [`SessionOp::AddTransform`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// **The Transform tool before its door opens**: a pick opens the
+/// placement editor in its place ([`crate::matetool::MateTool::moving`]),
+/// and a split picked whole waits here for the half that is the body.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TransformTool {
-    seats: Seats,
-}
-
-impl Default for TransformTool {
-    fn default() -> Self {
-        Self::new()
-    }
+    split: Option<SpokenNode>,
 }
 
 impl TransformTool {
-    /// A tool holding nothing.
+    /// A tool waiting for its pick.
     pub const fn new() -> Self {
-        Self {
-            seats: Seats::one(Seat::TransformBody),
-        }
+        Self { split: None }
     }
 
-    /// The seats, roles and picks together — what the panel's line is
-    /// composed from ([`crate::seats::seat_line`]).
-    pub fn seats(&self) -> &Seats {
-        &self.seats
+    /// The split picked whole, waiting for its half.
+    pub fn awaiting_half(&self) -> Option<&SpokenNode> {
+        self.split.as_ref()
     }
 
-    /// The held body.
-    pub fn input(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
+    /// Wait on `split` for its half.
+    pub(crate) fn await_half(&mut self, split: SpokenNode) {
+        self.split = Some(split);
     }
 
-    /// Feed one node pick — a second pick REPLACES the first, this tool
-    /// having only the one seat. `doc` routes it, and does not judge it.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
-    }
-
-    /// [`Self::pick`] of the output `body` a viewport pick hit.
-    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        self.seats.pick_at(doc, node, body);
-    }
-
-    /// The half seat `i` reads, when it holds a split picked alone
-    /// ([`Seats::choose_half`]).
-    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
-    }
-
-    /// Empty the seat.
-    pub fn clear(&mut self) {
-        self.seats.clear();
-    }
-
-    /// The survival step ([`crate::seats`]).
-    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
-    }
-
-    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    /// The split, spoken again from `doc` ([`SpokenNode::respoken`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
+        self.split = self.split.take().map(|split| split.respoken(doc));
     }
 
-    /// **The one committed edit**: the rigid placement.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a body is picked.
-    pub fn op(
-        &self,
-        translation: [Formula; 3],
-        rotation_axis: [Formula; 3],
-        rotation_angle: Formula,
-    ) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddTransform {
-            input: self.seats.require_read(0)?,
-            translation,
-            rotation_axis,
-            rotation_angle,
-        })
+    /// The survival step: a split `doc` no longer holds stops waiting.
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) {
+        if self
+            .split
+            .as_ref()
+            .is_some_and(|split| doc.node(split.id()).is_none())
+        {
+            self.split = None;
+        }
     }
 }
 
@@ -689,22 +1142,83 @@ vocabulary! {
 
 /// **The pattern tool**: a body pick, committing one
 /// [`SessionOp::AddPattern`] or one [`SessionOp::AddFusedPattern`] (a
-/// family, or the union of one); the
-/// circular rule's axis is a point and a direction in the body's own
-/// coordinates, read off its geometry by the session door.
+/// family, or the union of one).
 ///
 /// **One tool, two ops**: the output choice ([`PatternOutputChoice`])
-/// picks which op each door mints, because everything the tool holds is
-/// the same either way — the same prototype seat, the same count and
-/// the same rule fields.
+/// picks which op each door mints, because everything the tool holds,
+/// its one prototype seat, is the same either way.
 ///
 /// **Two commit doors rather than one taking a rule value**: each rule
-/// has fields the other lacks. The chrome's rule choice picks the door,
-/// which is the same decision it was already making.
+/// has values the other lacks. The chrome's rule choice picks the door,
+/// and the panel hands it the defaults below; the pattern's rows edit
+/// them afterwards.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
     seats: Seats,
 }
+
+/// **How many copies a pattern inserts with**, either rule: a ring of
+/// four at [`RING_STEP`] closes the circle. The index's count row edits
+/// it afterwards.
+pub const PATTERN_COUNT: i64 = 4;
+
+/// **The spacing a row inserts with**: `clears` metres, the step that
+/// clears the body ([`duplicate_step`]), rounded UP to one significant
+/// figure in `unit` ([`crate::props::one_figure_length`]), so the copies
+/// still clear and the row's slide reads a round number in the unit the
+/// person works in (`60 mm` for a 51.8 mm step).
+///
+/// # Errors
+///
+/// [`RowSpacingFault::NotPositive`] for a step that is not a positive
+/// finite length, and the literal door's refusal for a figure that is
+/// not finite.
+pub fn row_spacing(
+    clears: f64,
+    unit: pncad::quantity::LengthUnit,
+) -> Result<Formula, RowSpacingFault> {
+    if !(clears.is_finite() && clears > 0.0) {
+        return Err(RowSpacingFault::NotPositive { clears });
+    }
+    crate::props::one_figure_length(clears, unit, crate::props::Rounding::Up)
+        .map_err(RowSpacingFault::Dimension)
+}
+
+/// **Why a row has no default spacing** ([`row_spacing`]).
+#[derive(Debug)]
+pub enum RowSpacingFault {
+    /// The step that clears the body is no positive finite length.
+    NotPositive {
+        /// The step, metres.
+        clears: f64,
+    },
+    /// The literal door refused the figure.
+    Dimension(pncad::document::DimensionError),
+}
+
+impl core::fmt::Display for RowSpacingFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotPositive { clears } => write!(
+                f,
+                "the step that clears the body is {clears} m, not a positive length to space a \
+                 row by"
+            ),
+            Self::Dimension(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for RowSpacingFault {}
+
+/// **The axis a ring inserts about**: the target's `z`.
+pub const RING_ABOUT: pncad::document::TargetAxis = pncad::document::TargetAxis::Z;
+
+/// **The angle a ring steps by**, radians: a quarter turn.
+pub const RING_STEP: f64 = core::f64::consts::FRAC_PI_2;
+
+// The ring a pattern inserts closes: its count of steps is one turn.
+const _: () = assert!(PATTERN_COUNT as f64 * RING_STEP == core::f64::consts::TAU);
 
 impl Default for PatternTool {
     fn default() -> Self {
@@ -718,6 +1232,16 @@ impl PatternTool {
         Self {
             seats: Seats::one(Seat::PatternBody),
         }
+    }
+
+    /// **The body read the seat holds**, what the panel measures the
+    /// row's spacing off.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] with no body picked.
+    pub fn read(&self) -> Result<Operand, SeatError> {
+        self.seats.require_read(0)
     }
 
     /// The seats, roles and picks together — what the panel's line is
@@ -763,7 +1287,8 @@ impl PatternTool {
         self.seats.respeak(doc);
     }
 
-    /// **The one committed edit**, stepping along a direction.
+    /// **The one committed edit**, stepping `spacing` along
+    /// `direction`.
     ///
     /// # Errors
     ///
@@ -774,7 +1299,7 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        direction: [Formula; 3],
+        direction: PatternDirection,
         spacing: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(pattern_op(
@@ -785,8 +1310,7 @@ impl PatternTool {
         ))
     }
 
-    /// **The one committed edit**, stepping around the axis through
-    /// `through` along `direction`.
+    /// **The one committed edit**, stepping `step` around `axis`.
     ///
     /// # Errors
     ///
@@ -795,17 +1319,16 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        through: [Formula; 3],
-        direction: [Formula; 3],
+        axis: PatternDirection,
         step: Formula,
     ) -> Result<SessionOp, SeatError> {
         let input = self.seats.require_read(0)?;
-        let rule = PatternRuleSpec::Circular {
-            through,
-            direction,
-            step,
-        };
-        Ok(pattern_op(output, input, count, rule))
+        Ok(pattern_op(
+            output,
+            input,
+            count,
+            PatternRuleSpec::Circular { axis, step },
+        ))
     }
 }
 
@@ -836,46 +1359,6 @@ pub fn fresh_index(doc: &Doc<ProfileProgram>) -> pncad::document::VarName {
         .find(|name| doc.var_named(name).is_none())
         .and_then(|name| pncad::document::VarName::new(&name).ok())
         .unwrap_or_else(|| unreachable!("an unnamed index"))
-}
-
-/// **A row's slides**: each target axis whose component of `direction`
-/// is written nonzero, stepped `spacing` times it.
-///
-/// # Errors
-///
-/// [`pncad::document::DimensionError`] where a component is no scalar
-/// or `spacing` no length — the expression door's answer.
-pub fn row_steps(
-    direction: &[Formula; 3],
-    spacing: &Formula,
-) -> Result<Vec<(pncad::document::TargetAxis, Formula)>, pncad::document::DimensionError> {
-    use pncad::document::TargetAxis as A;
-    [A::X, A::Y, A::Z]
-        .into_iter()
-        .zip(direction)
-        .filter(|(_, d)| !written_zero(d))
-        .map(|(axis, d)| Ok((axis, Formula::mul(spacing.clone(), d.clone())?)))
-        .collect()
-}
-
-/// **The target axis a ring's free slide is written on**: the last
-/// of `z`, `y`, `x` whose component of the axis `direction` is written
-/// nonzero, which the slide along the axis spans.
-pub fn ring_slide_axis(direction: &[Formula; 3]) -> pncad::document::TargetAxis {
-    use pncad::document::TargetAxis as A;
-    [
-        (A::Z, &direction[2]),
-        (A::Y, &direction[1]),
-        (A::X, &direction[0]),
-    ]
-    .into_iter()
-    .find(|(_, d)| !written_zero(d))
-    .map_or(A::Z, |(axis, _)| axis)
-}
-
-/// Whether `d` is written zero: the zero formula, or a literal `0`.
-fn written_zero(d: &Formula) -> bool {
-    d.is_zero() || d.literal_value() == Some(0.0)
 }
 
 /// **The part tool**: one pick of a family, committing one
@@ -1061,18 +1544,20 @@ impl DuplicateTool {
     }
 }
 
-/// **Which way a stepped copy goes by default**: +x of the space the
-/// body is in, unnormalized as every direction slot in this vocabulary
-/// is. A duplicate is placed at its original copy's pose, so it lands
-/// along that copy's own +x.
-///
-/// ONE home for the two gestures that step a copy along a line: the
-/// duplicate tool commits it, and the pattern form's direction field
-/// opens on it (`Drafts::default`). The pattern form's SPACING is not
-/// shared, because the two answer different questions — a pattern's
-/// spacing is a number the person types, a duplicate's is measured off
-/// the body ([`duplicate_step`]).
-pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
+/// **The axis a stepped copy goes along by default**: the `x` of the
+/// space the body is in. A duplicate steps its copy along it, at its
+/// original copy's pose, so along that copy's own `x`; a pattern's row
+/// inserts along it, spaced by the same measure ([`duplicate_step`]),
+/// so the copies clear.
+pub const STEP_ALONG: pncad::document::TargetAxis = pncad::document::TargetAxis::X;
+
+/// [`STEP_ALONG`] as components, unnormalized as every direction slot
+/// in this vocabulary is: what [`duplicate_step`] measures along.
+pub const STEP_DIRECTION: [f64; 3] = match STEP_ALONG {
+    pncad::document::TargetAxis::X => [1.0, 0.0, 0.0],
+    pncad::document::TargetAxis::Y => [0.0, 1.0, 0.0],
+    pncad::document::TargetAxis::Z => [0.0, 0.0, 1.0],
+};
 
 /// **How much clear space a duplicate leaves AT LEAST**, as a fraction
 /// of the body's own width along [`STEP_DIRECTION`]: the copy's near
@@ -1171,8 +1656,12 @@ pub enum DuplicateFault {
     },
 }
 
-impl core::fmt::Display for DuplicateFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl DuplicateFault {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<pncad::geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::NotLanded => f.write_str(
                 "the document has not evaluated yet, so there is no body to measure a copy's \
@@ -1199,7 +1688,8 @@ impl core::fmt::Display for DuplicateFault {
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
-                "{input}'s body could not be measured for the copy's step: {error}"
+                "{input}'s body could not be measured for the copy's step: {}",
+                pncad::geom_brep::recourse::read_at(error, at)
             ),
             Self::NoExtent { input } => {
                 write!(f, "{input}'s body has no width to step a copy by")
@@ -1212,6 +1702,8 @@ impl core::fmt::Display for DuplicateFault {
         }
     }
 }
+
+pncad::geom_brep::ended_by_write!(DuplicateFault);
 
 impl core::error::Error for DuplicateFault {}
 
@@ -1419,7 +1911,7 @@ pub fn duplicate_moves(
         .filter(|&(_, d)| d != 0.0)
         .map(|(axis, d)| {
             Ok((
-                Coord::Slide(axis),
+                Coord::slide(axis),
                 Formula::literal(d * step, Dimension::Length)?,
             ))
         })

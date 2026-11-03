@@ -582,8 +582,8 @@ fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
                     matches!(
                         c,
                         geom::Curve3::Line(_)
-                            | geom::Curve3::Circle { .. }
-                            | geom::Curve3::Ellipse { .. }
+                            | geom::Curve3::Circle(..)
+                            | geom::Curve3::Ellipse(..)
                     )
                 })
             {
@@ -601,7 +601,7 @@ fn some_loop_rides_an_arc(body: &Body<f64>, pairs: &[(FaceKey, topo::LoopKey)]) 
     pairs.iter().any(|&(_, l)| {
         loop_carriers(body, l)
             .iter()
-            .any(|c| matches!(c, geom::Curve3::Circle { .. }))
+            .any(|c| matches!(c, geom::Curve3::Circle(..)))
     })
 }
 
@@ -838,7 +838,7 @@ fn a_narrow_arc_cap_certifies_honest_and_refuses_inverted() {
         .filter(|&(_, l)| {
             loop_carriers(&body, l)
                 .iter()
-                .any(|c| matches!(c, geom::Curve3::Circle { .. }))
+                .any(|c| matches!(c, geom::Curve3::Circle(..)))
         })
         .collect::<Vec<_>>();
     assert_eq!(caps.len(), 2, "both caps carry the concave arc");
@@ -878,8 +878,8 @@ fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
             .map(|(k, f)| (k, f.outer))
             .collect()
     };
-    let elliptic = planar(|c| matches!(c, geom::Curve3::Ellipse { .. }));
-    let circular = planar(|c| matches!(c, geom::Curve3::Circle { .. }));
+    let elliptic = planar(|c| matches!(c, geom::Curve3::Ellipse(..)));
+    let circular = planar(|c| matches!(c, geom::Curve3::Circle(..)));
     assert_eq!(elliptic.len(), 1, "the tilted cut face rides an `Ellipse`");
     assert_eq!(circular.len(), 1, "the bottom cap rides circle arcs");
     assert!(
@@ -964,7 +964,7 @@ fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
         .filter(|&(_, l, _, _)| {
             loop_carriers(body, l)
                 .iter()
-                .any(|c| matches!(c, geom::Curve3::Circle { .. }))
+                .any(|c| matches!(c, geom::Curve3::Circle(..)))
         })
         .collect()
 }
@@ -1161,7 +1161,8 @@ fn every_new_cap_plane_refusal_states_one_ending_and_no_declaration() {
         sweep::CapPlaneError::Orientation(esc),
         sweep::CapPlaneError::EdgeOn,
     ] {
-        let s = sweep::ExtrudeError::CapPlane { source: e }.to_string();
+        let s =
+            sweep::ExtrudeError::CapPlane { source: e }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&s), 1, "{s}");
         assert!(!s.contains("declare"), "{s}");
     }

@@ -407,6 +407,13 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// the edge curve's `Debug` the digest feeds. With that `Debug` written in
 /// main's shape every digest here reproduces main's value at all three
 /// ε rows, so nothing else moved.
+/// RE-BLESSED when `Curve3::Circle` and `Curve3::Ellipse` came to hold a
+/// `geom::Circle` / `geom::Ellipse` over a `geom::Frame`
+/// (`Circle(Circle { frame: Frame { .. }, radius })` where it spelled
+/// `Circle { center, axis, radius, u_ref }`), which changes the edge
+/// curve's `Debug` the digest feeds. With that `Debug` written in main's
+/// shape every row here reproduces main's value at all three ε rows, so
+/// nothing else moved.
 /// RE-BLESSED when `Curve3::Line` came to hold a `geom::Line`
 /// (`Line(Line { .. })` where it spelled `Line { .. }`), which changes the
 /// edge curve's `Debug` the digest feeds. With that `Debug` written in
@@ -416,9 +423,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x1b67_5045_b07d_c96e_u64),
+        ("cut_cylinder", 0x6102_93d4_6278_840a_u64),
         ("part_select", 0x8429_e064_94cc_634d),
-        ("kitchen_sink", 0x64f5_d641_5746_f16a),
+        ("kitchen_sink", 0x510a_2f5d_167b_a85a),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

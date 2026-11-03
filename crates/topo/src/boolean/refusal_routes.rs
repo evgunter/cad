@@ -8,7 +8,7 @@
 //!   the kernel's own, so it ends on the kernel-defect sentence.
 //! - [`BooleanDecision`]: which decision `BooleanError::Escalated`
 //!   escalated on, set at the site that wraps the escalation.
-//!   [`BooleanDecision::render`] composes the whole sentence from the
+//!   [`BooleanDecision::written`] composes the whole sentence from the
 //!   decision and its verdict: a coincidence between the two solids its
 //!   subject ([`Coincide::subject`]) and its own ending from its own
 //!   pass set, led by the declaration where one read ahead of it would
@@ -190,8 +190,8 @@ pub enum BooleanDecision {
     WallRoots(WallRung),
     /// Whether the axes of a cylinder face of each solid are parallel,
     /// so the walls meet in rulings: the sine between the axes levered
-    /// at the walls' span (`cc_axes_parallel`, read where the join takes
-    /// the pair's section).
+    /// across the operation's region (`cc_axes_parallel`, the pair's
+    /// pose on its section value).
     CylinderAxes,
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
@@ -527,6 +527,12 @@ pub enum Coincide {
     /// band, so no margin it carries binds the operation
     /// (the lever alone).
     VertexOnFace,
+    /// Whether a vertex of one solid on the plane of a face of the other
+    /// lies on the section that plane cuts in a curved face at the vertex
+    /// (`vertex_section`), where every side passes. Refused at the first
+    /// vertex read in band, as [`Coincide::VertexOnFace`] is (the lever
+    /// alone).
+    VertexOnSection,
     /// Whether an end of a straight edge of one solid lies on a curved
     /// face of the other: every side passes, a vertex definitely inside
     /// the face going on to the exact wall roots.
@@ -624,6 +630,10 @@ impl Coincide {
             Self::VertexOnFace | Self::VertexOnCurvedFace | Self::VertexOnCoveredFace => {
                 "whether a vertex of one solid lies on a face of the other"
             }
+            Self::VertexOnSection => {
+                "whether a vertex of one solid on the plane of a face of the other lies on the \
+                 section that plane cuts in a face at the vertex"
+            }
             Self::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
@@ -675,6 +685,7 @@ impl Coincide {
             | (
                 Self::Planes
                 | Self::VertexOnFace
+                | Self::VertexOnSection
                 | Self::VertexOnCurvedFace
                 | Self::VertexOnCoveredFace
                 | Self::EdgeOnPlane
@@ -703,7 +714,7 @@ impl Coincide {
             Self::Planes => Ending::Frontier(PLANES_FRONTIER),
             Self::Rim => Ending::Lever(RIM_LEVER),
             Self::OnPlanes | Self::Carriers => Ending::Lever(geom_core::coincidence_move_arm!()),
-            Self::VertexOnFace => Ending::Lever(proximity_lever!()),
+            Self::VertexOnFace | Self::VertexOnSection => Ending::Lever(proximity_lever!()),
             Self::EdgeOnPlane | Self::SectorSide | Self::Sectors | Self::Join => {
                 Ending::Sized(proximity(SizedPass::AnySign))
             }
@@ -734,6 +745,7 @@ impl Coincide {
             // settles them either: their own ending.
             Self::Planes
             | Self::VertexOnFace
+            | Self::VertexOnSection
             | Self::VertexOnCurvedFace
             | Self::VertexOnCoveredFace
             | Self::EdgeOnPlane
@@ -1595,7 +1607,7 @@ impl BooleanDecision {
             // on to other escalations and then to the skew and
             // meeting-axes frontiers, so the lever names the parallel
             // side alone and no smaller tolerance decides it passing.
-            // The margin is the axes' drift over the walls' span, which a
+            // The margin is the axes' drift across the operation's region, which a
             // turn moves.
             Self::CylinderAxes => {
                 Ending::Lever("turn one part so the two cylinders' axes are clearly parallel")
@@ -1681,16 +1693,29 @@ impl BooleanDecision {
         }
     }
 
-    /// The whole sentence an escalation of this decision renders, at the
-    /// Boolean that built the geometry: the subject, the payload and the
-    /// one ending the verdict gives.
-    #[must_use]
-    pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        diag.undecided(self.subject(), self.recourse(diag))
-            .to_string()
+    /// **The sentence an escalation of this decision says**: the
+    /// subject, the payload and, where its holder is read at a door, the
+    /// one ending the verdict gives; the payload alone where it is read
+    /// at none (the holder's `Display`). The ending is the Boolean's
+    /// whichever door reads the holder: only a build reports this
+    /// decision.
+    pub(crate) fn written(
+        self,
+        diag: &Indeterminate,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> impl core::fmt::Display + '_ {
+        let ending = at.map(|_| self.recourse(diag));
+        let subject = self.subject();
+        core::fmt::from_fn(move |f| {
+            write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(diag, subject, ending.clone())
+            )
+        })
     }
 
-    /// [`Self::render`] at the split door ([`crate::SplitFinishError::ResultEscalated`]):
+    /// [`Self::written`]'s sentence at the split door ([`crate::SplitFinishError::ResultEscalated`]):
     /// a reading of the result's side ([`Self::ShellRole`]) ends in the
     /// split's own spelling of its
     /// lever, every other decision as at the Boolean.
@@ -1790,7 +1815,9 @@ pub(in crate::boolean) mod tests {
             margin: MarginDiag::INVALID,
             ..straddle
         };
-        let said = |site, read, diag| BooleanError::coincidence(site, read, diag).to_string();
+        let said = |site, read, diag| {
+            BooleanError::coincidence(site, read, diag).render(geom_brep::recourse::Reading::Build)
+        };
         let tangent = DeclarationRead::Spent(GlueClass::Tangent);
         for site in [Coincide::Rim, Coincide::TangentLocus] {
             let (after, before) = (said(site, tangent, straddle), said(site, tangent, poisoned));
@@ -1911,7 +1938,10 @@ pub(in crate::boolean) mod tests {
         let (operator, margin) = raise();
         assert!(margin > 0.0, "the midpoint margin is positive: {margin:e}");
         let rendered = [
-            ("the operator", operator.to_string()),
+            (
+                "the operator",
+                operator.render(geom_brep::recourse::Reading::Build),
+            ),
             (
                 "the split",
                 SplitReduceError::CrossingInsertion {
@@ -1919,7 +1949,7 @@ pub(in crate::boolean) mod tests {
                     endpoints: (VertexKey::default(), VertexKey::default()),
                     source: Box::new(raise().0),
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ),
             (
                 "the Boolean",
@@ -1928,7 +1958,7 @@ pub(in crate::boolean) mod tests {
                     edge,
                     source: raise().0,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ),
         ];
         for (door, text) in rendered {
@@ -2094,6 +2124,10 @@ pub(in crate::boolean) mod tests {
             | Coincide::VertexOnCoveredFace => {
                 "whether a vertex of one solid lies on a face of the other"
             }
+            Coincide::VertexOnSection => {
+                "whether a vertex of one solid on the plane of a face of the other lies on the \
+                 section that plane cuts in a face at the vertex"
+            }
             Coincide::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
@@ -2139,7 +2173,7 @@ pub(in crate::boolean) mod tests {
             ),
             Coincide::OnPlanes | Coincide::Carriers => Ending::Lever("Recourse: move the geometry"),
             // Refused at the first vertex read in band, the rest unread.
-            Coincide::VertexOnFace => Ending::Lever(MEET),
+            Coincide::VertexOnFace | Coincide::VertexOnSection => Ending::Lever(MEET),
             // Clear of the face passes only beside an end the face
             // records, and contradicts the declaration elsewhere.
             Coincide::VertexOnCoveredFace => {
@@ -2202,6 +2236,7 @@ pub(in crate::boolean) mod tests {
             )),
             Coincide::Planes
             | Coincide::VertexOnFace
+            | Coincide::VertexOnSection
             | Coincide::VertexOnCurvedFace
             | Coincide::VertexOnCoveredFace
             | Coincide::EdgeOnPlane
@@ -2665,7 +2700,8 @@ pub(in crate::boolean) mod tests {
                 MarginDiag::INVALID,
             ] {
                 let diag = diag_of(margin);
-                let text = BooleanError::Escalated { decision, diag }.to_string();
+                let text = BooleanError::Escalated { decision, diag }
+                    .render(geom_brep::recourse::Reading::Build);
                 let label = format!("{decision:?} at {margin}");
                 let problems = short_of_the_guard(&text, &[]);
                 assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
@@ -2775,7 +2811,11 @@ pub(in crate::boolean) mod tests {
                     predicate: Some("side_of_plane"),
                     terminal_sliver: false,
                 };
-                let text = format!("{WRAPPER} {}", BooleanError::Escalated { decision, diag });
+                let text = format!(
+                    "{WRAPPER} {}",
+                    BooleanError::Escalated { decision, diag }
+                        .render(geom_brep::recourse::Reading::Build)
+                );
                 let words = text.split_whitespace().count();
                 if words >= 75 {
                     over.push(format!("{decision:?} at {margin}: {words} words: {text}"));
@@ -2807,6 +2847,7 @@ pub(in crate::boolean) mod tests {
                 }
                 Coincide::Planes
                 | Coincide::VertexOnFace
+                | Coincide::VertexOnSection
                 | Coincide::VertexOnCurvedFace
                 | Coincide::VertexOnCoveredFace
                 | Coincide::EdgeOnPlane
@@ -2924,7 +2965,7 @@ pub(in crate::boolean) mod tests {
             },
             diag,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(
                 "Recourse: move the point exactly onto the face's surface or clearly off it"
@@ -2954,8 +2995,8 @@ pub(in crate::boolean) mod tests {
                 face: crate::entity::FaceKey::default(),
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
             };
-            let split = crate::SplitError::Join(join()).to_string();
-            let boolean = BooleanError::from(join()).to_string();
+            let split = crate::SplitError::Join(join()).render(geom_brep::recourse::Reading::Build);
+            let boolean = BooleanError::from(join()).render(geom_brep::recourse::Reading::Build);
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");
@@ -3014,12 +3055,12 @@ pub(in crate::boolean) mod tests {
                 edge: EdgeKey::default(),
                 fault,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let boolean = BooleanError::Escalated {
                 decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
                 diag,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{fault:?}: {problems:?}: {text}");
@@ -3117,7 +3158,7 @@ pub(in crate::boolean) mod tests {
                 }
                 _ => panic!("{label}: the arm's own refusal: {err:?}"),
             }
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
             let lever = match half {
@@ -3196,7 +3237,7 @@ pub(in crate::boolean) mod tests {
                         PlaneDoor::OnPair(DeclarationRead::Moot),
                         diag,
                     )
-                    .to_string();
+                    .render(geom_brep::recourse::Reading::Build);
                     let problems = short_of_the_guard(&text, &[]);
                     assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
                     assert!(
@@ -3269,7 +3310,8 @@ pub(in crate::boolean) mod tests {
             panic!("the gate escalates: {err:?}");
         };
         assert_eq!(decision, BooleanDecision::Neighbours(PlaneRung::Parallel));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         let problems = short_of_the_guard(&text, &[]);
         assert!(problems.is_empty(), "{problems:?}: {text}");
         assert!(
@@ -3483,7 +3525,7 @@ pub(in crate::boolean) mod tests {
             panic!("the gate's own refusal: {err:?}");
         };
         assert_eq!(operand, Operand::A);
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         let problems = short_of_the_guard(&text, &[]);
         assert!(problems.is_empty(), "{problems:?}: {text}");
         assert!(
@@ -3553,7 +3595,7 @@ pub(in crate::boolean) mod tests {
             ),
         ];
         for (name, err, offer) in rows {
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
             assert!(!text.contains("declare"), "{name}: {text}");
@@ -3565,7 +3607,7 @@ pub(in crate::boolean) mod tests {
             edge: EdgeKey::default(),
             band: b,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             pierce.ends_with("Recourse: move the geometry"),
             "the frontier's definite half keeps its in-band sibling's levers, less the \
@@ -3580,7 +3622,8 @@ pub(in crate::boolean) mod tests {
                 margin: MarginDiag::value(-1e-3),
             },
         ] {
-            let text = BooleanError::CurvedSectorSideUnsupported { verdict }.to_string();
+            let text = BooleanError::CurvedSectorSideUnsupported { verdict }
+                .render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(PIERCE_LEVER),
                 "the definite pierce curvature tells its in-band sibling's story: {text}"
@@ -3630,8 +3673,10 @@ pub(in crate::boolean) mod tests {
             PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::Tangent)),
             PlaneDoor::Neighbours,
         ];
-        let texts =
-            doors.map(|door| BooleanError::plane_identity(PlaneRung::Norm, door, diag).to_string());
+        let texts = doors.map(|door| {
+            BooleanError::plane_identity(PlaneRung::Norm, door, diag)
+                .render(geom_brep::recourse::Reading::Build)
+        });
         for text in &texts {
             let problems = short_of_the_guard(text, &[]);
             assert!(problems.is_empty(), "{problems:?}: {text}");
@@ -3663,7 +3708,8 @@ pub(in crate::boolean) mod tests {
                 panic!("{rung:?}: an escalation: {err:?}");
             };
             assert_eq!(got, rung);
-            let text = BooleanError::plane_identity(rung, PlaneDoor::Neighbours, diag).to_string();
+            let text = BooleanError::plane_identity(rung, PlaneDoor::Neighbours, diag)
+                .render(geom_brep::recourse::Reading::Build);
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{rung:?}: {problems:?}: {text}");
             assert!(

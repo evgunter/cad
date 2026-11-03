@@ -59,6 +59,8 @@ mod fixture;
 // one is not, because its subject is `serde_json`.
 mod wire;
 
+#[path = "a_blend_refusal_names_its_edge.rs"]
+mod a_blend_refusal_names_its_edge;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "aligned_overlap_quiets.rs"]
@@ -239,6 +241,8 @@ mod g_ring_closure_measure;
 mod gap_reads_a_cell_against_a_round_face;
 #[path = "gap_reads_vertex_and_edge_cells.rs"]
 mod gap_reads_vertex_and_edge_cells;
+#[path = "placement_values_direction.rs"]
+mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refactor_pose_definitions.rs"]
@@ -307,6 +311,8 @@ mod load_door_payload_param_ref;
 mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
+#[path = "loft_section_ids.rs"]
+mod loft_section_ids;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]
@@ -710,6 +716,8 @@ mod m10_9_pins_interval;
 #[path = "m10_9_r2_probes_interval.rs"]
 mod m10_9_r2_probes_interval;
 
+#[path = "kernel_runs_take_the_callers_stop.rs"]
+mod kernel_runs_take_the_callers_stop;
 #[path = "kstats_bracket_rows.rs"]
 mod kstats_bracket_rows;
 
@@ -782,6 +790,8 @@ mod emit_edge_piece_locality;
 mod emit_nested_union_flat;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
+#[path = "emit_per_face_parent.rs"]
+mod emit_per_face_parent;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]

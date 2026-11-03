@@ -114,7 +114,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse(..)))
         })
         .map(|(k, _)| k)
         .collect()
@@ -146,7 +146,7 @@ fn rim_pairs(label: &str, a: &Body<f64>, b: &Body<f64>) -> (usize, usize) {
             .filter(|(e, f)| rim.contains(e) && walls.contains(f))
             .count()
     };
-    (count(&ab.examined), count(&ab.accepted))
+    (count(ab.examined()), count(ab.accepted()))
 }
 
 fn run(

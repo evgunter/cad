@@ -61,6 +61,10 @@ fn both(cone: &Surface<f64>, partner: &Surface<f64>) -> Section<f64> {
             }
         }
         (Section::Tangent(a), Section::Tangent(b)) => assert_eq!(a, b),
+        (Section::Touch(a), Section::Touch(b)) => {
+            assert_eq!(a.name, b.name, "the touch's row, both ways");
+            assert_eq!((a.at - b.at).norm(), 0.0, "the touch's point, both ways");
+        }
         (Section::Intractable, Section::Intractable) => {}
         _ => panic!("the two orders disagree: {s:?} against {t:?}"),
     }
@@ -323,7 +327,7 @@ fn a_ball_through_the_apex_or_on_a_generator_refuses_as_a_tangency() {
 
 /// **Coaxial partners meet the cone in parallels, essential on both.**
 /// A cylinder, always; a cone with its apex elsewhere on the axis,
-/// always, and a common apex is R-tan; a torus when its tube reaches a
+/// always, and a common apex is a touch there; a torus when its tube reaches a
 /// nappe's generator (`r − |R cos α ∓ z sin α|`), else nothing, and a
 /// tube tangent to one R-tan. The torus below the apex reaches only the
 /// mirror nappe. The mutants: the torus's two nappes required together,
@@ -350,10 +354,12 @@ fn coaxial_partners_meet_the_cone_in_parallels() {
         shape(&both(&cone, &other(p(0.0, 0.0, 2.0), -Vec3::unit_z()))),
         pair
     );
-    assert_eq!(
-        tangent(&both(&cone, &other(p(0.0, 0.0, 0.0), Vec3::unit_z()))),
-        "section_cone_coaxial_apexes"
-    );
+    // Through the cone's own apex the two meet there alone: a touch at
+    // the apex.
+    let at_apex =
+        super::section_cert_rows::touch(&both(&cone, &other(p(0.0, 0.0, 0.0), Vec3::unit_z())));
+    assert_eq!(at_apex.name, "section_cone_coaxial_apexes");
+    assert_eq!((at_apex.at - p(0.0, 0.0, 0.0)).norm(), 0.0);
     let ring = |z: f64, big: f64| Surface::Torus {
         center: p(0.0, 0.0, z),
         axis: Vec3::unit_z(),
@@ -414,12 +420,7 @@ fn cone_rim(
             pair: SurfacePair::new(cone, rim_plane),
             selector: geom_brep::CurveSelector::Witness(p(-z, 0.0, z)),
         },
-        carrier: Curve3::Circle {
-            center: p(0.0, 0.0, z),
-            axis: -normal,
-            radius: z,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: Curve3::circle(p(0.0, 0.0, z), -normal, z, Vec3::unit_x()),
         param_start: 0.0,
         param_end: TAU,
     };
@@ -530,10 +531,7 @@ fn scan_with(
 }
 
 fn describes(body: &Body<f64>, face: FaceKey) -> Sheet {
-    let surface = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let surface = body.face_surface(face).unwrap().clone();
     ops::ChartCache::default()
         .describes(crate::Operand::A, body, face, &surface, band())
         .unwrap()

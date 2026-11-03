@@ -459,9 +459,15 @@ fn notch_fill_dense_ties() {
             Err(
                 e @ (BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. }),
             ) => {
-                eprintln!("op {op:?}: refused: {e}");
+                eprintln!(
+                    "op {op:?}: refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
             }
-            Err(e) => panic!("unexpected error class: {e}"),
+            Err(e) => panic!(
+                "unexpected error class: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -847,5 +853,8 @@ fn corrected_subtract_cells_geometric() {
 /// A ball of radius `arm` about the origin: the extent a bare arm
 /// names.
 fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(geom_core::Point3::origin(), arm))
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(
+        geom_core::Point3::origin(),
+        arm,
+    ))
 }

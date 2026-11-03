@@ -220,12 +220,11 @@ fn assert_on_within(
     surfaces: &[&Surface<f64>],
     reach: f64,
 ) {
-    let Curve3::Ellipse {
-        center,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame { center, .. },
         semi_u,
         semi_v,
-        ..
-    } = *curve
+    }) = *curve
     else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
@@ -233,13 +232,13 @@ fn assert_on_within(
         semi_u.is_finite() && semi_v.is_finite(),
         "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
     );
-    let scale = (center - Point3::origin()).norm() + semi_u.abs().max(semi_v.abs()).min(reach);
+    let scale = (center - Point3::origin()).norm() + semi_u.max(semi_v).min(reach);
     let rounding = 8.0 * f64::EPSILON * scale;
     let (mut worst_plane, mut worst, mut read) = (0.0_f64, 0.0_f64, 0);
     // The whole period, or where the reach is finite, stations spread
     // evenly along the larger semi-axis's span within it, both sides.
     let ts: Vec<f64> = if reach.is_finite() {
-        let (major, along_u) = (semi_u.abs().max(semi_v.abs()), semi_u.abs() >= semi_v.abs());
+        let (major, along_u) = (semi_u.max(semi_v), semi_u >= semi_v);
         (0..=4096)
             .flat_map(|i| {
                 let x = (f64::from(i) / 2048.0 - 1.0) * reach.min(major) / major;
@@ -295,8 +294,12 @@ fn validated_halves(
     volumes: [f64; 2],
 ) {
     let plane = topo::test_support::split_plane(q, n, tol());
-    let got = topo::splitting::split(body, &plane, tol())
-        .unwrap_or_else(|e| panic!("{what}: the split refused: {e}"));
+    let got = topo::splitting::split(body, &plane, tol()).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the split refused: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     for (side, part, want) in [
         ("above", &got.above, volumes[0]),
         ("below", &got.below, volumes[1]),
@@ -429,9 +432,9 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
         for r in SECTION_SCALES {
             let cyl = moved(&map, &wall(r));
             let q = map.transform_point(Point3::new(0.0, 0.0, 0.5 * r));
-            let reach = Reach::Measured {
-                at: q,
-                lever: 5.0_f64.sqrt() * r,
+            let reach = {
+                let lever = 5.0_f64.sqrt() * r;
+                Reach::fixture(q, lever)
             };
             let section = |s: f64| {
                 let plane = moved(
@@ -500,8 +503,12 @@ fn a_near_square_rod_minus_a_box_builds() {
         for s in gap_sines(r, r / 2.0) {
             let what = format!("r {r:e}, sin θ {s:e}");
             let rod = rotated(&rod(r), Vec3::unit_y(), s.asin());
-            let got = topo::subtract(&rod, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&rod, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cos = (1.0 - s * s).sqrt();
             assert_volume(
                 &what,
@@ -520,7 +527,7 @@ struct Frustum {
     /// `None` where the body is pinned to refuse as limb 2's kernel
     /// limit: at 1 km and ε = 1e-12, where its cone's rim rounds at its
     /// own extent past the band
-    /// (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+    /// (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
     body: Option<Body<f64>>,
     cone: Surface<f64>,
     r0: f64,
@@ -632,10 +639,7 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
             let q = map.transform_point(q0);
             let rim = 0.5 * (f.r0 + f.r1);
             let lever = (2.0 * f.r0).max((scale * scale + (f.r0 + f.r1).powi(2)).sqrt());
-            let reach = Reach::Measured {
-                at: map.transform_point(Point3::new(0.0, f.apex, 0.0)),
-                lever,
-            };
+            let reach = Reach::fixture(map.transform_point(Point3::new(0.0, f.apex, 0.0)), lever);
             let section = |s: f64| {
                 let plane = moved(
                     &map,
@@ -720,8 +724,12 @@ fn a_near_square_frustum_minus_a_box_builds() {
                 Vec3::unit_z(),
                 s.asin(),
             );
-            let got = topo::subtract(&turned, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&turned, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let delta = f.apex * (1.0 - s * s).sqrt() - y0;
             let want = PI * f.r0 * f.r0 * f.apex / 3.0 - apex_cone_volume(delta, s);
             assert_volume(&what, &got.body().expect("a body").body, want);
@@ -759,10 +767,7 @@ fn sliver_walls(map: &Affine3<f64>, r: f64, phi: f64) -> (Surface<f64>, Surface<
 }
 
 fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
-    let reach = Reach::Measured {
-        at: map.transform_point(Point3::origin()),
-        lever: r,
-    };
+    let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
     let walls = |phi: f64| sliver_walls(map, r, phi);
     // a − b = r·(sec(φ/2) − 1) ≈ r·sin²φ/8.
     for s in gap_sines(r, r / 8.0) {
@@ -773,7 +778,7 @@ fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
             panic!("{what}: the two bisector ellipses, got {got:?}");
         };
         let near = |e: &Curve3<f64>| match *e {
-            Curve3::Ellipse { semi_u, semi_v, .. } => (semi_u - semi_v).abs() < r,
+            Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u - semi_v).abs() < r,
             _ => false,
         };
         let (round, long) = if near(e1) { (e1, e2) } else { (e2, e1) };
@@ -817,10 +822,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
         {
             let what = format!("{frame}, r {r:e}, φ {phi:e}");
             let (a, b) = sliver_walls(&map, r, phi);
-            let reach = Reach::Measured {
-                at: map.transform_point(Point3::origin()),
-                lever: r,
-            };
+            let reach = Reach::of_frame(map.transform_point(Point3::origin()), (r, r));
             let got = cylinder_cylinder_section(&a, &b, &reach.ball(), band());
             let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
             else {
@@ -829,7 +831,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
             match &got {
                 Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
                     let semi = |e: &Curve3<f64>| match *e {
-                        Curve3::Ellipse { semi_u, semi_v, .. } => semi_u.max(semi_v),
+                        Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => semi_u.max(semi_v),
                         _ => panic!("{what}: an ellipse, got {e:?}"),
                     };
                     let long = semi(e1).max(semi(e2));
@@ -893,8 +895,12 @@ fn a_turned_near_square_rod_minus_a_box_builds() {
             let what = format!("turned, r {r:e}, sin θ {s:e}");
             let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), s.asin());
             let rod = moved_body(&rod(r), &(map * tilt));
-            let got = topo::subtract(&rod, &cutter, tol())
-                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let got = topo::subtract(&rod, &cutter, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the subtract refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let cos = (1.0 - s * s).sqrt();
             assert_volume(
                 &what,

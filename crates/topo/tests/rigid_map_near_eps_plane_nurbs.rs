@@ -116,7 +116,7 @@ fn hull_at(delta: f64, band: Band) -> geom_brep::PlaneNurbsLimbs<f64> {
         (arc(1.0 + delta, false)).knot_values().domain(),
         &plane(),
         &wall(),
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band,
     )
     .unwrap_or_else(|e| panic!("δ = {delta:e}: the seated edge certifies: {e}"))
@@ -216,7 +216,12 @@ fn lamina(delta: f64) -> Body<f64> {
             },
             tol,
         )
-        .unwrap_or_else(|e| panic!("the seated edge certifies through the attach door: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the seated edge certifies through the attach door: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
     body
 }
@@ -256,7 +261,12 @@ fn every_rotation_moves_an_edge_certified_near_eps() {
             &geom_core::test_support::rigid(&map, Tol::witness()),
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{name}: the image of an edge certified near ε moves: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: the image of an edge certified near ε moves: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 
@@ -319,7 +329,7 @@ fn the_certificate_re_derives_within_rounding_under_a_rotation() {
                 .domain(),
             &mapped_plane,
             &wall().map_points(|p| map.transform_point(p)),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             loose,
         )
         .unwrap_or_else(|e| panic!("{name}: the image certifies at the loose band: {e}"));

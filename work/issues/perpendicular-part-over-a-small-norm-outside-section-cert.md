@@ -50,3 +50,23 @@ Owners: `join` (the first two), `offset`/`shell` (the third), `flux`
 (the fourth). The fix in each is `square_to`'s spelling or a local
 copy of it, with a row that measures the point or plane against its
 carriers near the grazing pose and is red without it.
+
+## 2026-11-02: a cited site retired (SECTARMS stage 3)
+
+Branch `sectarms/cylinder-join-reads-value` retires `topo::boolean::join`'s
+`cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`
+and `parallel_radical_plane`. The join now reads two cylinders on the
+section value (`join::cylinder_read`), and the parallel lane takes its
+plane from `geom_brep::CylinderCylinderPose::rulings_plane`. The hit
+above that cites one of those sites no longer exists. The rest of the
+row stands as filed.
+
+## 2026-11-02: the rulings plane retired too (SECTARMS stage 3b-i)
+
+Branch `sectarms/cylinder-carried-closed-form` retires the parallel
+lane's plane: `geom_brep::CylinderCylinderPose::rulings_plane` and
+`topo::boolean::join`'s `GermLane::Rulings`, `rulings_are_straight` and
+`rulings_normal` are gone. A parallel cylinder pair now rides its
+carried rulings (`chord_join::carried_chord_spec`'s closed-form arm).
+The note above that names the rulings plane no longer points at live
+code. The rest of the row stands as filed.

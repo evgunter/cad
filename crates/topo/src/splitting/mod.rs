@@ -78,7 +78,7 @@ pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
-mod neighborhood;
+pub(crate) mod neighborhood;
 pub(crate) use neighborhood::{EntryFault, entry_side, wide_entries};
 // `pub(crate)` for `order::{FRAME_ARM, FRAME_AXIS}`, which
 // `chord_join` reads rather than minting a second copy.
@@ -301,6 +301,18 @@ pub struct SectorEntry {
     /// The current classification (initial → after rule (a) → after
     /// rule (b)).
     pub class: PlaneSide,
+}
+
+impl crate::star::Member for SectorEntry {
+    fn he(&self) -> HalfEdgeKey {
+        self.he
+    }
+    fn real(&self) -> bool {
+        self.kind == SectorEntryKind::Edge
+    }
+    fn moved(&self) -> bool {
+        self.class == PlaneSide::Above
+    }
 }
 
 /// One minted null edge, with its F9 orientation attribute and birth
@@ -746,8 +758,13 @@ impl From<EulerOpError> for SplitReduceError {
 /// declarations, so its plane is the first lever.
 pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
-impl core::fmt::Display for SplitReduceError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitReduceError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use core::fmt::Display as _;
         use geom_core::RANGE_RECOURSE;
         match self {
             Self::Band(e) => write!(f, "{e}"),
@@ -777,11 +794,13 @@ impl core::fmt::Display for SplitReduceError {
             // since a split takes no declaration.
             Self::CrossingEscalated { fault, .. } => {
                 let diag = fault.diag();
-                let ending = fault.decision().map_or_else(
-                    || geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None),
-                    |decision| decision.ending_of(&diag),
-                );
-                diag.undecided(fault.subject(), ending).fmt(f)
+                // The coincidence lever is the same at every door; a
+                // crossing decision's ending is read at this one.
+                let ending = match fault.decision() {
+                    None => Some(geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None)),
+                    Some(decision) => at.map(|at| decision.ending_of(&diag, at)),
+                };
+                geom_brep::recourse::undecided_at(&diag, fault.subject(), ending).fmt(f)
             }
             Self::TangencyUnsupported { .. } => write!(
                 f,
@@ -910,9 +929,14 @@ impl core::fmt::Display for SplitReduceError {
             } => write!(
                 f,
                 "inserting the plane crossing on edge {edge:?} (endpoints {u:?}/{v:?}) \
-                 refused: {source}"
+                 refused: {}",
+                geom_brep::recourse::read_at(source.as_ref(), at)
             ),
-            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Euler(e) => write!(
+                f,
+                "an Euler operation refused: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::LineageRow(refusal) => write!(
                 f,
                 "{}. {}",
@@ -922,6 +946,8 @@ impl core::fmt::Display for SplitReduceError {
         }
     }
 }
+
+geom_brep::ended_by_write!(SplitReduceError);
 
 impl std::error::Error for SplitReduceError {}
 
@@ -1019,7 +1045,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     for &v in &on_vertices {
         let (entries, rays) =
             neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, &tips, band)?;
-        let runs = insert::above_runs(&entries);
+        let runs = crate::star::runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A
         // crossing's vertex was minted on the plane, so no margin
@@ -1134,20 +1160,28 @@ impl SplitError {
 // layer prefixes again, and so does the binding. `Pcurves` is the one
 // stage whose error is shared with callers that are not splits, so it
 // is the one arm that says where it ran.
-impl core::fmt::Display for SplitError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl SplitError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         match self {
-            Self::Reduce(e) => write!(f, "{e}"),
-            Self::Join(e) => write!(f, "{e}"),
-            Self::Finish(e) => write!(f, "{e}"),
-            Self::Pcurves(e) => write!(f, "{e}"),
+            Self::Reduce(e) => write!(f, "{}", read_at(e, at)),
+            Self::Join(e) => write!(f, "{}", read_at(e, at)),
+            Self::Finish(e) => write!(f, "{}", read_at(e, at)),
+            Self::Pcurves(e) => write!(f, "{}", read_at(e, at)),
             Self::Pieces(e) => write!(
                 f,
-                "a side of the split could not be sorted into solids: {e}"
+                "a side of the split could not be sorted into solids: {}",
+                read_at(e, at)
             ),
         }
     }
 }
+
+geom_brep::ended_by_write!(SplitError);
 
 impl std::error::Error for SplitError {}
 

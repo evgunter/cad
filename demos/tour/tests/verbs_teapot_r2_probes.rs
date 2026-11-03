@@ -235,7 +235,10 @@ fn r2_revolved_tube_separates_seam_from_axis() {
         &chart,
         tol,
     ) {
-        Err(e) => println!("[r2-2] REFUSED: {e}"),
+        Err(e) => println!(
+            "[r2-2] REFUSED: {e_at}",
+            e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+        ),
         Ok(pncad::topo::Shelled { body: cup, .. }) => {
             println!(
                 "[r2-2] Ok: tier3 = {:?}; shells = {}; rings = {}; genus = {}",
@@ -308,7 +311,10 @@ fn r2_partial_revolve_one_cap_face() {
             &chart,
             tol,
         ) {
-            Err(e) => println!("[r2-3] OPEN refuses: {e}"),
+            Err(e) => println!(
+                "[r2-3] OPEN refuses: {e_at}",
+                e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+            ),
             Ok(pncad::topo::Shelled { body: cup, .. }) => println!(
                 "[r2-3] OPEN Ok: rings = {}, genus = {}, mesh = {:?}",
                 rings(&cup),
@@ -384,10 +390,13 @@ fn r2_ring_anatomy_on_a_drum() {
                     .and_then(|g| g.certified())
                     .map(|c| match c.carrier() {
                         Curve3::Line(_) => "line".to_string(),
-                        Curve3::Circle { center, radius, .. } => {
+                        Curve3::Circle(pncad::geom::Circle {
+                            frame: pncad::geom::Frame { center, .. },
+                            radius,
+                        }) => {
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)
                         }
-                        Curve3::Ellipse { .. } => "ellipse".to_string(),
+                        Curve3::Ellipse(..) => "ellipse".to_string(),
                         Curve3::Spiric { .. } => "spiric".to_string(),
                         Curve3::Nurbs(_) => "nurbs".to_string(),
                     })

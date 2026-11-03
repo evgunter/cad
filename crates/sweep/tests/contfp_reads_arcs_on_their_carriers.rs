@@ -73,7 +73,12 @@ fn outer_vertex_xs(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
 }
 
 fn ask(body: &Body<f64>, (face, normal): (FaceKey, Vec3<f64>), q: Point3<f64>) -> FaceContainment {
-    contfp(body, face, normal, q, band()).unwrap_or_else(|e| panic!("contfp refused at {q:?}: {e}"))
+    contfp(body, face, normal, q, band()).unwrap_or_else(|e| {
+        panic!(
+            "contfp refused at {q:?}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
 }
 
 /// The bored D-rod with both of its creases filleted: its transverse
@@ -384,7 +389,7 @@ fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
                 let c = body.get_edge(e).and_then(|e| body.get_curve_geom(e.curve));
                 matches!(
                     c.and_then(|c| c.certified()).map(|c| c.carrier()),
-                    Some(geom::Curve3::Ellipse { .. })
+                    Some(geom::Curve3::Ellipse(..))
                 )
             })
             .collect();
@@ -537,7 +542,11 @@ fn a_steep_ellipse_is_off_where_it_is_off() {
                 .unwrap()
                 .certified()
                 .unwrap();
-            let geom::Curve3::Ellipse { center, u_ref, .. } = *curve.carrier() else {
+            let geom::Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, u_ref, .. },
+                ..
+            }) = *curve.carrier()
+            else {
                 panic!("an ellipse");
             };
             let (t0, t1) = curve.params();

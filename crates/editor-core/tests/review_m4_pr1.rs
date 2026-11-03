@@ -844,7 +844,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let placed = editor_core::Placed::of(
         &doc,
         Vec::new(),
-        vec![(editor_core::Coord::Slide(editor_core::TargetAxis::X), slide)],
+        vec![(editor_core::Coord::slide(editor_core::TargetAxis::X), slide)],
     );
     let (doc, ids) = apply_all(
         doc,

@@ -67,8 +67,8 @@ use sweep::blend::{
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
     FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
     FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-    FILLET3_TURN_RECOURSE,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE,
+    FILLET3_WEDGE_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -143,20 +143,6 @@ fn outer_box_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .collect()
 }
 
-/// The edges of `body` whose two supports are the SAME surface — a
-/// chart seam, whose dihedral is tangential at margin zero. The
-/// counterpart of [`rim_arcs_at`]'s second half, which excludes
-/// exactly these.
-fn seam_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let surface_of = |he| -> Option<topo::SurfaceKey> {
-        let l = body.get_half_edge(he)?.parent_loop;
-        Some(body.get_face(body.get_loop(l)?.face)?.surface)
-    };
-    body.edges()
-        .filter_map(|(k, e)| (surface_of(e.he_plus)? == surface_of(e.he_minus)?).then_some(k))
-        .collect()
-}
-
 /// The three edges meeting at `body`'s first vertex.
 fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
     let v0 = body.vertices().next().unwrap().0;
@@ -202,7 +188,7 @@ fn chamfers(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 
 /// The refusal carries exactly the recourse under test.
 fn carries(err: &BlendError, recourse: &str, what: &str) {
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         shown.contains(recourse),
         "{what}: the refusal must carry its own recourse.\n  got: {shown}"
@@ -264,36 +250,69 @@ fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
     builds(&body, &rim, 0.05, "the reduced blend size");
 }
 
-/// **`FILLET3_TANGENTIAL_RECOURSE` — "blend an edge whose supports meet
+/// **`FILLET3_WEDGE_RECOURSE` — "blend an edge whose supports meet
 /// at a definite angle".**
 ///
-/// A chart seam's two supports are one surface, so its dihedral decides
-/// Zero at any lever. The definite-angle edge the sentence names is on
-/// the SAME body: the dome's equator, where the base plane meets the
-/// sphere.
+/// A slit — a plate bored by a declared-cusp lune, whose kiss is a strut
+/// where the plate's material meets itself across one tangent plane —
+/// decides Zero with the outward normals opposed. The definite-angle
+/// edge the sentence names is on the SAME body: one of the plate's own
+/// vertical corners.
 #[test]
 fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
-    let body = dome(1.0, tol());
-    let seams = seam_edges(&body);
-    assert!(!seams.is_empty(), "the full revolve mints chart seams");
-    let err = refusal(&body, &seams[..1], 0.05, "a chart seam", false);
+    let plate = bulge_loop(sweep::test_support::corners(&[
+        (-1.0, -1.0),
+        (3.0, -1.0),
+        (3.0, 5.0),
+        (-1.0, 5.0),
+    ]));
+    let body = sweep::test_support::extruded(
+        SketchPlane::xy(),
+        vec![plate, sweep::test_support::lune(tol())],
+        1.0,
+        tol(),
+    );
+    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let ends = |e: EdgeKey| {
+        let he = body.get_edge(e).unwrap().he_plus;
+        [
+            point(body.get_half_edge(he).unwrap().start),
+            point(body.half_edge_end(he).unwrap()),
+        ]
+    };
+    let on_cylinders = |e: EdgeKey| {
+        let (a, b) = topo::readback::edge_sides(&body, e).unwrap().faces();
+        [a, b].iter().all(|&f| {
+            matches!(
+                body.get_surface(body.get_face(f).unwrap().surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+    };
+    let edges = query::all_edges(&body);
+    let kiss = *edges
+        .iter()
+        .find(|&&e| on_cylinders(e))
+        .expect("the slit is a strut between the two arcs' walls");
+    let corner = *edges
+        .iter()
+        .find(|&&e| {
+            ends(e)
+                .iter()
+                .all(|p| (p.x - 3.0).abs() < 1e-9 && (p.y - 5.0).abs() < 1e-9)
+        })
+        .expect("the plate's vertical corner at (3, 5)");
+    let err = refusal(&body, &[kiss], 0.05, "a slit strut", false);
     assert!(
         matches!(
             err,
-            BlendError::TangentialEdge { margin, .. }
-                if margin.predicate == "fillet3_convexity_sign"
-                    && margin.sign == Sign::Zero
-                    && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0)
+            BlendError::KnifeEdge { margin, .. }
+                if margin.predicate == "fillet3_convexity_sign" && margin.sign == Sign::Zero
         ),
-        "a co-surface seam is the zero-margin wedge, got {err:?}"
+        "a slit is the zero-margin wedge, got {err:?}"
     );
-    carries(&err, FILLET3_TANGENTIAL_RECOURSE, "tangential edge");
-    builds(
-        &body,
-        &[one_edge_rim_at(&body, 1.0, 0.0)],
-        0.1,
-        "the definite-angle edge",
-    );
+    carries(&err, FILLET3_WEDGE_RECOURSE, "knife edge");
+    builds(&body, &[corner], 0.05, "the definite-angle edge");
 }
 
 /// **`FILLET3_CHAIN_RECOURSE` — at the junction it still fires at.**
@@ -702,7 +721,7 @@ fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
         ),
         "a nearly flat trihedron escalates the independence decision, got {err:?}"
     );
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains(FILLET3_CORNER_INDEPENDENCE_RECOURSE) && !text.contains("declare"),
         "{text}"
@@ -978,7 +997,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
 /// the copy this suite used to keep is exactly the failure the home's
 /// own doc records.
 fn carries_no_named_recourse(err: &BlendError, what: &str) {
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     for (name, sentence) in ALL_RECOURSES {
         assert!(
             !shown.contains(sentence),
@@ -1016,9 +1035,10 @@ fn a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of() {
         );
         carries_no_named_recourse(&err, "a nonpositive setback");
         assert!(
-            err.to_string()
+            err.render(geom_brep::recourse::Reading::Build)
                 .contains("supply a positive radius or setback"),
-            "and it advises anyway: {err}"
+            "and it advises anyway: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         );
     }
     chamfers(&body, &edges, 0.1, "the positive setback it names");
@@ -1042,8 +1062,10 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
     );
     carries_no_named_recourse(&err, "a repeated edge");
     assert!(
-        err.to_string().contains("request each edge once"),
-        "and it advises anyway: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("request each edge once"),
+        "and it advises anyway: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
     builds(&body, &edges, 0.1, "each edge requested once");
 }
@@ -1091,7 +1113,10 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
             Err(BlendError::FaceClearanceUncertified { .. } | BlendError::Escalated { .. }) => {
                 clearance += 1;
             }
-            Err(other) => panic!("r = {r}: unexpected outcome {other}"),
+            Err(other) => panic!(
+                "r = {r}: unexpected outcome {other_at}",
+                other_at = other.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
     assert!(
@@ -1151,7 +1176,8 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
         "mixed convexity is met at the CORNER, not along a chain, got {err:?}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_CONVEXITY_RECOURSE),
+        !err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_CONVEXITY_RECOURSE),
         "and the caller is handed the corner recourse, not the convexity one"
     );
 }
@@ -1192,7 +1218,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
         matches!(err, BlendError::UnsupportedGeometry { .. }),
         "the ring's ellipse carriers are what refuse, got {err:?}"
     );
-    let shown = err.to_string();
+    let shown = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         shown.contains(FILLET3_GEOMETRY_RECOURSE),
         "the caller is handed the geometry recourse: {shown}"
@@ -1261,7 +1287,8 @@ fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
          meters the ring gap first, got {err:?}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_RING_RECOURSE),
+        !err.render(geom_brep::recourse::Reading::Build)
+            .contains(FILLET3_RING_RECOURSE),
         "and the caller reads the clearance recourse here, not the ring one"
     );
 }
@@ -1291,9 +1318,10 @@ fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
 /// and the bore subtracted after. The chamfer's band is a plane strip,
 /// which the Boolean serves against the bore's cylinder, so the
 /// reordered request builds, tier-3 valid. The fillet's band is a
-/// cylinder skew to the bore's, a pair the Boolean does not serve yet,
-/// so the reordered fillet refuses at the Boolean: the leg is the
-/// sentence's, the gap the intersection table's.
+/// cylinder skew to the bore's, which the Boolean reads on its section
+/// value and carries, marched; the result gate then refuses the body,
+/// whose spline-chorded walls have no volume lane: the leg is the
+/// sentence's, the gap the volume lane's.
 #[test]
 fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     use crate::common::bores::bored_brick;
@@ -1320,8 +1348,13 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         } else {
             fillet_edges(&rest, &edge, d, tol())
         };
-        out.unwrap_or_else(|e| panic!("chamfer {chamfer}: the brick's edge blends: {e}"))
-            .body
+        out.unwrap_or_else(|e| {
+            panic!(
+                "chamfer {chamfer}: the brick's edge blends: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
+        .body
     };
     let cut = |b: &Body<f64>| {
         topo::subtract(
@@ -1331,7 +1364,12 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
         )
     };
     let chamfered = cut(&blended(true))
-        .unwrap_or_else(|e| panic!("the bore after the chamfer builds: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the bore after the chamfer builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body()
         .expect("the bore leaves material")
         .body
@@ -1351,15 +1389,13 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     let filleted = cut(&blended(false));
     assert!(
         matches!(
-            filleted,
-            Err(topo::boolean::BooleanError::GermFrameUnsupported {
-                a_kind: geom::SurfaceKind::Cylinder,
-                b_kind: geom::SurfaceKind::Cylinder,
-                ..
-            })
+            &filleted,
+            Err(topo::boolean::BooleanError::ResultInvalid { errors })
+                if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))
         ),
-        "the bore after the fillet: the Boolean does not serve the band's cylinder against \
-         the skew bore yet; once it does, this row flips to a build. Got {:?}",
+        "the bore after the fillet: the band's cylinder against the skew bore is carried, and \
+         the body waits on the volume lane of a spline-chorded wall; once that lands, this row \
+         flips to a build. Got {:?}",
         filleted.err()
     );
 }

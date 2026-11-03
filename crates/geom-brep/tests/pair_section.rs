@@ -80,7 +80,7 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
             [true, false],
             "circle {k} winds about the cylinder"
         );
-        let ClassCarrier::Closed(curve @ Curve3::Circle { .. }) = &c.carrier else {
+        let ClassCarrier::Closed(curve @ Curve3::Circle(..)) = &c.carrier else {
             panic!("circle {k}: a closed-form circle, got {:?}", c.carrier);
         };
         for i in 0..6 {
@@ -231,10 +231,7 @@ fn a_pose_in_the_band_escalates() {
 /// C5 table's pose question.
 #[test]
 fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
-    let reach = geom_brep::Reach::Measured {
-        at: Point3::new(0.0, 0.0, 0.0),
-        lever: 1.0,
-    };
+    let reach = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.0), 1.0);
     for (label, cyl, sph) in [
         (
             "negative cylinder, coaxial",
@@ -919,4 +916,30 @@ fn near_the_node_no_site_reads_on_the_other_sheets_loop() {
     // The row is a reading, not a run of refusals: 2716 of its 3104
     // sites read at every ε when it landed.
     assert!(read >= 2500, "{read} sites read, {refused} refusals");
+}
+
+/// **A closed form is seated by its span**: each of the coaxial pose's
+/// circles, seated at any angle, is its own carrier over that angle to
+/// a turn on, with no lane asked for and no certificate. Its seat point
+/// is the circle's point at that angle, so a chord cut from it starts
+/// there.
+#[test]
+fn a_closed_form_is_seated_by_its_span() {
+    let (cyl, sph) = (cylinder(1.0), sphere(0.0, 2.0));
+    let section = built(&cyl, &sph);
+    let carried = section.carry(None, band()).expect("closed forms carry");
+    for c in carried.components() {
+        let (lo, hi) = c.span;
+        assert!(c.closed() && c.certificate.is_none(), "a closed form");
+        for at in [lo, lo + 1.0, lo + 3.0, lo - 2.5, hi + 0.5] {
+            let seated = section
+                .seat(None, c, at, band())
+                .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
+            assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
+            assert!(
+                (seated.carrier.eval(at) - c.carrier.eval(at)).norm() == 0.0,
+                "seat {at}: the carrier is as it was"
+            );
+        }
+    }
 }

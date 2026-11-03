@@ -398,7 +398,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
         BlendError::FaceClearance { .. } => "FaceClearance",
-        BlendError::TangentialEdge { .. } => "TangentialEdge",
+        BlendError::KnifeEdge { .. } => "KnifeEdge",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",
         BlendError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
@@ -614,7 +614,12 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
         0.12,
         Tol::witness(),
     )
-    .unwrap_or_else(|r| panic!("the destination's cube fillets inside its shell: {r}"));
+    .unwrap_or_else(|r| {
+        panic!(
+            "the destination's cube fillets inside its shell: {r_at}",
+            r_at = r.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         out.shells, base_shells,
         "only the destination's shell is carved"

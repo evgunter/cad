@@ -11,15 +11,6 @@ use pncad::document::AuthoredNode;
 use pncad::document::{Bodies, Formula, Node, Operand};
 use pncad::topo::BooleanOp;
 
-/// **The add-profile door's loop vocabulary**, re-exported from the
-/// module that owns it.
-///
-/// It is named by [`super::SessionOp::AddProfile`], so it has to be
-/// reachable beside the op; it is DEFINED in [`crate::sketch`],
-/// because the PATHS verb set and its lowering are a vocabulary of
-/// their own and this file is the crate's accretion case (#1386).
-pub use crate::sketch::ProfileShape;
-
 /// The payload of one pattern form (GAUTH-4), beside the other
 /// authoring spec for the reason it is here at all: it names what a
 /// form authors.
@@ -27,30 +18,45 @@ pub use crate::sketch::ProfileShape;
 /// `Explicit` has no arm by the plan's ruling: a list of absolute
 /// frames is not a form's job.
 ///
-/// **The fields are `Expr`, not numbers** — see [`super::SessionOp`]'s note on
-/// the authoring vocabulary. Not `Copy` in consequence, which an
-/// `Expr` cannot be.
+/// **The numbers are `Expr`, not numbers** — see [`super::SessionOp`]'s
+/// note on the authoring vocabulary — and **a direction is never
+/// numbers** (D10 `[variables.poses]`): it is one of the pattern's
+/// space's axes, or picked geometry the pattern reads, so it follows
+/// that geometry when it is edited ([`PatternDirection`]).
 #[derive(Clone, Debug, PartialEq)]
 pub enum PatternRuleSpec {
-    /// Stepped along a direction ([`pncad::pattern::linear_pattern`]).
+    /// Stepped along a direction ([`pncad::pattern::linear_pattern`]):
+    /// each member slid `scalar(k)·spacing` along it.
     Linear {
-        /// Step direction components (`Scalar`).
-        direction: [Formula; 3],
+        /// The direction stepped along.
+        direction: PatternDirection,
         /// Distance between copies (`Length`).
         spacing: Formula,
     },
-    /// Stepped around an axis ([`pncad::pattern::circular_pattern`]): the line
-    /// through `through` along `direction`, in the patterned body's
-    /// own coordinates, read off its geometry at the numbers' nominal
-    /// values.
+    /// Stepped around an axis ([`pncad::pattern::circular_pattern`]):
+    /// each member spun `scalar(k)·step` about it, from where the body
+    /// stands.
     Circular {
-        /// A point on the axis (`Length`).
-        through: [Formula; 3],
-        /// The axis direction (`Scalar`).
-        direction: [Formula; 3],
+        /// The axis turned about: a picked edge's line or a round face's
+        /// axis, or one of the space's axes through its origin.
+        axis: PatternDirection,
         /// Angular step between copies (`Angle`).
         step: Formula,
     },
+}
+
+/// **A pattern's direction or axis, as the form names it**: one of the
+/// pattern's space's axes, or geometry picked in the viewport, read in
+/// the space the pattern places into.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PatternDirection {
+    /// One of the space's axes (through its origin, for a ring).
+    Axis(pncad::document::TargetAxis),
+    /// A picked edge's line: a straight edge's, or a round edge's axis.
+    Edge(super::select::EdgeSelection),
+    /// A picked face: a flat face's normal for a row; a round face's
+    /// carrier axis for a row or a ring.
+    Face(super::select::FaceSelection),
 }
 
 /// **Which copy of a pattern one part form selects** — the

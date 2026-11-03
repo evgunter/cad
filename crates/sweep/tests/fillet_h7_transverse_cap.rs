@@ -100,7 +100,12 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
         R,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{what}: both creases carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(
         out.corner_faces.is_empty() && out.band_faces.is_empty(),
@@ -169,12 +174,12 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 .get_curve_geom(out.body.get_edge(a).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified arc");
-            let Curve3::Circle {
-                center,
+            let Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center, axis: ax, ..
+                },
                 radius: rr,
-                axis: ax,
-                ..
-            } = *c.carrier()
+            }) = *c.carrier()
             else {
                 panic!("{what}: a cut-off arc is a circle, got {:?}", c.carrier());
             };
@@ -472,7 +477,12 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                 R,
                 tol(),
             )
-            .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the oblique cap cuts off, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
             assert_naming_totality(below, &out, &request, &what);
@@ -503,15 +513,17 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
                     .and_then(|g| g.certified())
                     .expect("a certified end curve");
                 match *c.carrier() {
-                    Curve3::Circle { center, .. } => {
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    }) => {
                         assert!(center.z.abs() < 1e-12, "{what}: the circle is the bottom's");
                     }
-                    Curve3::Ellipse {
+                    Curve3::Ellipse(geom::Ellipse {
+                        frame: geom::Frame { axis, .. },
                         semi_u,
                         semi_v,
-                        axis,
-                        ..
-                    } => {
+                    }) => {
                         ellipses += 1;
                         assert_eq!(semi_v, R, "{what}: minor = r");
                         assert!(
@@ -551,19 +563,24 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let band = Band::linear(tol()).expect("a band");
     let v = VertexKey::default();
     let tau = Vec3::new(0.0, 0.0, 1.0);
-    let circle = cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, R, 1.0, band)
+    let arm = |r: f64| geom_core::test_support::fixture_lever(r);
+    let circle = cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, R, arm(1.0), band)
         .expect("a perpendicular cap is Zero");
     assert!(matches!(circle, EndSection::Circle), "{circle:?}");
     let phi = 0.3f64;
     let n = Vec3::new(phi.sin(), 0.0, phi.cos());
-    let oblique = cap_transverse(v, n, tau, R, 1.0, band).expect("an oblique cap is the ellipse");
-    let EndSection::Ellipse(Curve3::Ellipse {
+    let oblique =
+        cap_transverse(v, n, tau, R, arm(1.0), band).expect("an oblique cap is the ellipse");
+    let EndSection::Ellipse(Curve3::Ellipse(geom::Ellipse {
+        frame:
+            geom::Frame {
+                u_ref: u_major,
+                axis: normal,
+                ..
+            },
         semi_u,
         semi_v,
-        u_ref: u_major,
-        axis: normal,
-        ..
-    }) = oblique
+    })) = oblique
     else {
         panic!("a definite departure picks the ellipse, got {oblique:?}");
     };
@@ -578,21 +595,20 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         "the ellipse's axis is the cap's normal"
     );
     let t = 0.5 * (band.zero() + band.escalate());
-    let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, 1.0, band)
+    let escalated = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, arm(1.0), band)
         .expect_err("an in-band cap escalates");
     let BlendError::Escalated { source, .. } = &escalated else {
         panic!("the in-band row must escalate, got {escalated:?}");
     };
     assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
     let n = Vec3::new(t, 0.0, 1.0);
-    let sliver = cap_transverse(v, n, tau, R, 1e3, band)
+    let sliver = cap_transverse(v, n, tau, R, arm(1e3), band)
         .expect("levered up, the departure is definite: the ellipse");
-    let EndSection::Ellipse(Curve3::Ellipse {
+    let EndSection::Ellipse(Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame { u_ref: u_major, .. },
         semi_u,
         semi_v,
-        u_ref: u_major,
-        ..
-    }) = sliver
+    })) = sliver
     else {
         panic!("the sliver band picks the ellipse, got {sliver:?}");
     };
@@ -643,12 +659,14 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         .and_then(|g| g.certified())
         .unwrap()
         .clone();
-    let Curve3::Circle {
-        center,
-        axis,
+    let Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = *c.carrier()
+    }) = *c.carrier()
     else {
         panic!("an arc");
     };
@@ -664,21 +682,11 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
     let mutants = [
         (
             "wrong radius",
-            Curve3::Circle {
-                center,
-                axis,
-                radius: radius * 1.05,
-                u_ref,
-            },
+            Curve3::circle(center, axis, radius * 1.05, u_ref),
         ),
         (
             "wrong centre",
-            Curve3::Circle {
-                center: center + Vec3::new(0.01, 0.0, 0.0),
-                axis,
-                radius,
-                u_ref,
-            },
+            Curve3::circle(center + Vec3::new(0.01, 0.0, 0.0), axis, radius, u_ref),
         ),
     ];
     for (label, carrier) in mutants {

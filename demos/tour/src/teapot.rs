@@ -714,6 +714,7 @@ fn spout_loft(
     let (first, _) = sections.next().expect("a loft has a first section");
     let then = sections
         .map(|(profile, station)| LoftSection {
+            id: None,
             profile: profile.into(),
             station,
         })
@@ -724,6 +725,7 @@ fn spout_loft(
             first: first.into(),
             then,
             v_degree: Formula::count(3),
+            first_id: None,
         },
         tol,
     )
@@ -734,7 +736,7 @@ fn spout_loft(
 /// `y` onto `+x`, `z` onto `+y`: a quarter turn back about `x`, then
 /// one back about `y`), that frame turned by [`spout_turn`] about `+z`,
 /// and slid to [`SPOUT_ROOT`].
-fn spout_values() -> Vec<(Coord, Formula)> {
+fn spout_values() -> Vec<(Coord<pncad::document::Operand>, Formula)> {
     let mut values = vec![
         (
             Coord::Spin(Some(TargetAxis::X)),
@@ -756,7 +758,7 @@ fn spout_values() -> Vec<(Coord, Formula)> {
 
 /// **The handle's values on the pot's axes**: its spine centre slid onto
 /// the belly wall, its axes the pot's.
-fn handle_values() -> Vec<(Coord, Formula)> {
+fn handle_values() -> Vec<(Coord<pncad::document::Operand>, Formula)> {
     crate::world::slides([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
 }
 
@@ -1198,7 +1200,10 @@ fn rim_circle(
                 .and_then(|g| g.certified())
                 .expect("a rim carries a certified curve");
             match *c.carrier() {
-                Curve3::Circle { center, radius, .. } => {
+                Curve3::Circle(pncad::geom::Circle {
+                    frame: pncad::geom::Frame { center, .. },
+                    radius,
+                }) => {
                     assert!(
                         center.x.abs() < 1e-12 && center.z.abs() < 1e-12,
                         "a latitude rim's circle is centred ON the axis: got {center:?}"
@@ -1257,7 +1262,7 @@ fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
             kind.name(),
             other_kind.name()
         ),
-        Err(other) => format!("{other}"),
+        Err(other) => other.render(pncad::geom_brep::recourse::Reading::Build),
     }
 }
 

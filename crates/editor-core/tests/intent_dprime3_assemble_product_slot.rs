@@ -155,6 +155,7 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> usize {
         doc,
         ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the checks run")
@@ -383,6 +384,7 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the checks run");
@@ -800,6 +802,7 @@ fn an_instances_census_decisions_are_its_parts() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the checks run")

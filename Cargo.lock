@@ -1193,6 +1193,7 @@ dependencies = [
 name = "geom-brep"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom",
  "geom-core",
  "num-bigint",
@@ -3701,6 +3702,7 @@ name = "step-export"
 version = "0.0.0"
 dependencies = [
  "geom",
+ "geom-brep",
  "geom-core",
  "profile",
  "proptest",
@@ -4192,6 +4194,7 @@ dependencies = [
 name = "verbs"
 version = "0.0.0"
 dependencies = [
+ "geom-brep",
  "geom-core",
  "profile",
  "sweep",

@@ -38,6 +38,7 @@
 //! when it is carried. Over a tangent gap the components are one tangent
 //! component, a point where the pose is a touch.
 
+use geom::cover::Cover;
 use geom::{Curve3, Surface};
 use geom_core::k_stats::decide_reported;
 use geom_core::{
@@ -94,8 +95,8 @@ pub enum AxisPose<T: Real> {
 /// The lever of a tilt read about the pivot `at` over `ball`: the
 /// ball's farthest distance from it, doubled (the section certificate's
 /// module docs, the lever and its pivot).
-pub fn lever<T: Real>(at: Point3<T>, ball: ExtentBall<T>) -> T {
-    ball.lever_from(at) * T::from_f64(2.0)
+pub fn lever<T: Real>(at: Point3<T>, ball: ExtentBall<T>) -> geom_core::Lever<T> {
+    ball.twice_lever_from(at)
 }
 
 /// Where the turn onto the torus axis is read: the pivot, the axes' tilt
@@ -142,7 +143,7 @@ pub fn axis_pose<T: Decide>(
         return AxisPose::Other;
     }
     let (perp, e) = square_part(at - c, a);
-    let swing = line_tilt(a, d) * ball.lever_from(at)
+    let swing = line_tilt(a, d) * ball.lever_from(at).length()
         + turn(&Turn {
             at,
             tilt,
@@ -238,7 +239,10 @@ pub struct Ring<T: Real> {
 
 impl<T: Decide> Ring<T> {
     /// The torus `s` shown inside its ring convention; `None` for another
-    /// kind.
+    /// kind. A centre, axis or `u_ref` that is not a finite number reaches
+    /// the convention's margins as poison, so the torus is not shown a
+    /// ring and refuses typed there: every ring this mints has finite
+    /// data.
     fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
             center,
@@ -250,12 +254,23 @@ impl<T: Decide> Ring<T> {
         else {
             return None;
         };
+        let axis = axis / axis.norm();
+        let finite = [
+            center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
+        ]
+        .into_iter()
+        .all(geom_core::is_finite_length);
+        let defect = if finite {
+            T::zero()
+        } else {
+            (T::zero() - T::one()).sqrt()
+        };
         Some(
-            TorusRefusal::require(major_radius, minor_radius, band)
+            TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
                 .map(|()| Self {
                     center,
-                    axis: axis / axis.norm(),
+                    axis,
                     u_ref,
                     big_r: major_radius,
                     r: minor_radius,
@@ -293,9 +308,14 @@ impl<T: Real> Ring<T> {
         Core::of(self.center, self.axis, self.u_ref, self.big_r)
     }
 
-    /// The ball holding the torus, and so every section of it.
+    /// The ball holding the torus, and so every section of it: its
+    /// tube's ([`Cover::tube`]). A ring's data is finite ([`Ring::of`]),
+    /// so it has one.
     pub fn ball(self) -> ExtentBall<T> {
-        ExtentBall::of_torus(self.center, self.big_r, self.r)
+        match Cover::tube(self.center, self.axis, self.u_ref, self.big_r, self.r) {
+            Some(tube) => ExtentBall::of_cover(&tube),
+            None => unreachable!("Ring::of mints a ring of finite data only"),
+        }
     }
 
     /// The size of the torus's coordinates: its centre's distance from
@@ -307,12 +327,12 @@ impl<T: Real> Ring<T> {
 
     /// The parallel of radius `rho` at height `z`.
     fn parallel(self, rho: T, z: T) -> Curve3<T> {
-        Curve3::Circle {
-            center: self.center + self.axis * z,
-            axis: self.axis,
-            u_ref: geom::square_frame(self.axis, self.u_ref).u_ref,
-            radius: rho,
-        }
+        Curve3::circle(
+            self.center + self.axis * z,
+            self.axis,
+            rho,
+            geom::square_frame(self.axis, self.u_ref).u_ref,
+        )
     }
 }
 
@@ -648,7 +668,7 @@ impl<T: Decide> SphereTorusPose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::new(self.center, self.radius)
+        ExtentBall::of_sphere(self.center, self.radius)
     }
 
     /// How the sphere stands.
@@ -756,11 +776,12 @@ pub(super) fn sphere_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: ring.r,
+        lever: geom_core::Lever::curvature_radius(ring.r),
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     })
 }
 
@@ -1019,11 +1040,12 @@ pub(super) fn cylinder_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: ring.r,
+        lever: geom_core::Lever::curvature_radius(ring.r),
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     })
 }
 
@@ -1097,13 +1119,14 @@ impl<T: Decide> TorusTorusPose<T> {
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
             // serves.
+            let (b1, b2) = (r1.ball(), r2.ball());
             let ball = match geom_core::k_stats::decide(
                 "tt_smaller_ball",
-                Margin::of((r2.big_r + r2.r) - (r1.big_r + r1.r)),
+                Margin::of(b2.radius() - b1.radius()),
                 band,
             ) {
-                Ok(Sign::Negative) => r2.ball(),
-                Ok(Sign::Positive | Sign::Zero) | Err(_) => r1.ball(),
+                Ok(Sign::Negative) => b2,
+                Ok(Sign::Positive | Sign::Zero) | Err(_) => b1,
             };
             let (c2, a2) = (r2.center, r2.axis);
             // The centre's height is read off `c2` itself, which the turn
@@ -1260,10 +1283,12 @@ pub(super) fn torus_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: r1.r.min(r2.r),
+        lever: geom_core::Lever::curvature_radius(r1.r)
+            .min(geom_core::Lever::curvature_radius(r2.r)),
         pose: PairPose::TorusTorus(pose),
         decided,
         components,
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     })
 }

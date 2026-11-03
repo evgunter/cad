@@ -137,7 +137,7 @@ pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, IndexFault,
     LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded,
     Recording, SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed,
-    cascade_delete_order, measure, sketch_on_face,
+    cascade_delete_order, measure, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
@@ -145,11 +145,11 @@ pub use eval::{
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
     EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError,
     NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault,
-    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
-    traced_faces,
+    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped, ValuePayload,
+    evaluate, traced_faces,
 };
 pub use refusal::Refusal;
-pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
+pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
     SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
@@ -176,8 +176,8 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, ClearanceSeat,
-    MeasurePrimitive, MeasureVerb, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, BoundEnd, Claim, ClearanceBounds,
+    ClearanceSeat, MeasurePrimitive, MeasureVerb, UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
@@ -197,8 +197,8 @@ pub use names::{
 };
 pub use node::{
     AuthoredNode, Axis3, ConstraintId, InputFault, InterfaceCrossing, InterfaceRecord, ListFault,
-    LoftSection, Node, OutputPort, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId,
-    StationMove, StepArg, StepId, TubeWindow, VectorSlot,
+    LoftSection, Node, OutputPort, PortKind, RecipeNodeId, SectionId, SectionIdFault, SitedFace,
+    SitedRef, SlotId, StationMove, StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
@@ -207,7 +207,9 @@ pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
     load, save,
 };
-pub use persist::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
+pub use persist::{
+    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
+};
 pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
@@ -225,8 +227,8 @@ pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SplitError,
-    SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SectionMap,
+    SplitError, SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

@@ -251,7 +251,7 @@ A new row pins the gap's flip from the old nominal. Filed on CPAIR:
 - `m10_3_r2_probes_interval` containment (≈ 2000 s): not run locally.
 - Owned by other rows, left to them:
   - `m10_3_driver::the_certification_width…`, `m10_4_r1_probes` and
-    `m10_9_no_registrant` (`work/offset/main-red-three-m10-interval-pins-moved-at-5728.md`);
+    `m10_9_no_registrant` (`work/shell/main-red-three-m10-interval-pins-moved-at-5728.md`);
   - `e6_drive_over_a_loft` ×2 (`work/isotail/a-loft-drive-at-interval-refuses-every-leaf-since-the-one-polynomial-weight-test.md`);
   - `perf12` (`work/restread/main-red-perf12-census-golden-kitchen-sink-loses-a-curved-pair-at-5817.md`).
 - `k-lint (dev-probe)`: still stops on the ray-wall row, 62 pairs. The

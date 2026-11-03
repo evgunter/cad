@@ -686,10 +686,11 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
-            "tree.rs",
-            ".usable(",
-            "`split_reading` reads a staged split, which has no row: the split panel's verdict \
-             before commit, said in the panel and nowhere the tree draws",
+            "matetool.rs",
+            "face_carrier_kind(",
+            "`MateReading::at_site` asks only whether a picked face's carrier is no plane, to \
+             choose its reading; a refusal keeps the plane reading, and the placement the mate \
+             is committed into states its own refusal on its row",
         ),
         (
             "features.rs",
@@ -764,6 +765,13 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             ".usable(",
             "`body_reach` sizes a trace's window off the body's value; a refusal is dropped \
              (`.ok()`) and the window falls back to a unit reach, never drawn",
+        ),
+        (
+            "session.rs",
+            ".usable(",
+            "`holds_a_clearance` asks only whether a clearance answered at `f64`, to decide \
+             whether the landing owes a certified answer; one that refused is its own row's \
+             failure, which the tree draws",
         ),
     ];
 

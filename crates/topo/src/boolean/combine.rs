@@ -64,7 +64,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::NAMES_ONLY_LIVE;
+use crate::live::{NAMES_ONLY_LIVE, proven, proven_mut};
 use crate::null::CurveGeom;
 use geom_core::{Point3, Tol};
 
@@ -145,18 +145,30 @@ fn image<K: Key, I: core::fmt::Display>(
     holder: impl core::fmt::Display,
     field: &str,
 ) -> K {
-    map.get(key)
-        .copied()
-        .unwrap_or_else(|| crate::live::dangling_link(holder, field, id(key)))
+    let Some(&image) = map.get(key) else {
+        crate::live::dangling_link(holder, field, id(key))
+    };
+    image
 }
 
-/// `key`'s record in the destination arena it was minted into by this
-/// transplant.
+/// `key`'s provenance record in the source's table `table`. Tier 1
+/// gives every live topology entity one (`validate` pass 12) and every
+/// public door keeps the body tier-1-valid, so a miss is a torn source
+/// (D2 row 4).
 #[track_caller]
-fn fresh<K: Key, V>(arena: &mut SlotMap<K, V>, key: K) -> &mut V {
-    arena.get_mut(key).unwrap_or_else(|| {
-        unreachable!("graft: {key:?}, minted into the destination by this call, does not resolve")
-    })
+fn source_provenance<K: Key>(
+    table: &SecondaryMap<K, crate::provenance::Provenance>,
+    key: K,
+    id: fn(K) -> EntityId,
+) -> &crate::provenance::Provenance {
+    let Some(record) = table.get(key) else {
+        unreachable!(
+            "graft source: {} carries no provenance record: tier 1 gives every live topology \
+             entity one, and {NAMES_ONLY_LIVE}",
+            id(key)
+        )
+    };
+    record
 }
 
 /// One graft's record forwarding, every key kind a payload carries.
@@ -216,7 +228,7 @@ fn graft_door<T: crate::props::AtRestPolicy>(
     start: Point3<T>,
     end: Point3<T>,
     surfaces: &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: geom_core::Band,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError> {
     let origin = crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft);
@@ -229,7 +241,7 @@ pub(crate) type GraftDoor<T> = fn(
     Point3<T>,
     Point3<T>,
     &dyn Fn(SurfaceKey) -> Option<geom::Surface<T>>,
-    T,
+    geom_core::Lever<T>,
     geom_core::Band,
 ) -> Result<geom_brep::EdgeCurve<T>, geom_brep::CertifyError>;
 
@@ -493,14 +505,10 @@ fn graft_solids_impl<T: geom_core::Decide>(
         }
         Targets::Minted => {
             for (k, _) in src.solids() {
-                let Some(p) = src.solid_provenance.get(k) else {
-                    unreachable!(
-                        "graft source: solid {k:?} carries no provenance: every entity of a \
-                         tier-1-valid body does, and every public door keeps the body \
-                         tier-1-valid"
-                    )
-                };
-                minted.push((k, p));
+                minted.push((
+                    k,
+                    source_provenance(&src.solid_provenance, k, EntityId::Solid),
+                ));
             }
         }
     }
@@ -637,34 +645,28 @@ fn graft_solids_impl<T: geom_core::Decide>(
         }),
     };
     for (k, &dk) in vertices.iter() {
-        if let Some(p) = src.vertex_provenance.get(k) {
-            dst.vertex_provenance.insert(dk, p.forwarded(&mut fwd));
-        }
+        let p = source_provenance(&src.vertex_provenance, k, EntityId::Vertex);
+        dst.vertex_provenance.insert(dk, p.forwarded(&mut fwd));
     }
     for (k, &dk) in half_edges.iter() {
-        if let Some(p) = src.half_edge_provenance.get(k) {
-            dst.half_edge_provenance.insert(dk, p.forwarded(&mut fwd));
-        }
+        let p = source_provenance(&src.half_edge_provenance, k, EntityId::HalfEdge);
+        dst.half_edge_provenance.insert(dk, p.forwarded(&mut fwd));
     }
     for (k, &dk) in edges.iter() {
-        if let Some(p) = src.edge_provenance.get(k) {
-            dst.edge_provenance.insert(dk, p.forwarded(&mut fwd));
-        }
+        let p = source_provenance(&src.edge_provenance, k, EntityId::Edge);
+        dst.edge_provenance.insert(dk, p.forwarded(&mut fwd));
     }
     for (k, &dk) in loops.iter() {
-        if let Some(p) = src.loop_provenance.get(k) {
-            dst.loop_provenance.insert(dk, p.forwarded(&mut fwd));
-        }
+        let p = source_provenance(&src.loop_provenance, k, EntityId::Loop);
+        dst.loop_provenance.insert(dk, p.forwarded(&mut fwd));
     }
     for (k, &dk) in faces.iter() {
-        if let Some(p) = src.face_provenance.get(k) {
-            dst.face_provenance.insert(dk, p.forwarded(&mut fwd));
-        }
+        let p = source_provenance(&src.face_provenance, k, EntityId::Face);
+        dst.face_provenance.insert(dk, p.forwarded(&mut fwd));
     }
     for (k, &dk) in shells.iter() {
-        if let Some(p) = src.shell_provenance.get(k) {
-            dst.shell_provenance.insert(dk, p.forwarded(&mut fwd));
-        }
+        let p = source_provenance(&src.shell_provenance, k, EntityId::Shell);
+        dst.shell_provenance.insert(dk, p.forwarded(&mut fwd));
     }
     for (&(_, p), &(_, dk)) in minted.iter().zip(&pairs) {
         dst.solid_provenance.insert(dk, p.forwarded(&mut fwd));
@@ -674,7 +676,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // ---- Pass 2: patch every cross-reference to result keys. ----
     for (k, &dk) in vertices.iter() {
         let holder = EntityId::Vertex(k);
-        let v = fresh(&mut dst.vertices, dk);
+        let v = proven_mut(&mut dst.vertices, dk, EntityId::Vertex);
         v.point = image(&points, v.point, GeomRef::Point, holder, "point");
         if let Some(e) = v.emanating {
             v.emanating = Some(image(
@@ -688,7 +690,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     }
     for (k, &dk) in half_edges.iter() {
         let holder = EntityId::HalfEdge(k);
-        let he = fresh(&mut dst.half_edges, dk);
+        let he = proven_mut(&mut dst.half_edges, dk, EntityId::HalfEdge);
         he.edge = image(&edges, he.edge, EntityId::Edge, holder, "edge");
         he.start = image(&vertices, he.start, EntityId::Vertex, holder, "start");
         he.parent_loop = image(
@@ -703,7 +705,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     }
     for (k, &dk) in edges.iter() {
         let holder = EntityId::Edge(k);
-        let e = fresh(&mut dst.edges, dk);
+        let e = proven_mut(&mut dst.edges, dk, EntityId::Edge);
         e.he_plus = image(
             &half_edges,
             e.he_plus,
@@ -722,7 +724,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     }
     for (k, &dk) in loops.iter() {
         let holder = EntityId::Loop(k);
-        let l = fresh(&mut dst.loops, dk);
+        let l = proven_mut(&mut dst.loops, dk, EntityId::Loop);
         l.boundary = match l.boundary {
             LoopBoundary::Empty { vertex } => LoopBoundary::Empty {
                 vertex: image(&vertices, vertex, EntityId::Vertex, holder, "vertex"),
@@ -735,7 +737,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
     }
     for (k, &dk) in faces.iter() {
         let holder = EntityId::Face(k);
-        let f = fresh(&mut dst.faces, dk);
+        let f = proven_mut(&mut dst.faces, dk, EntityId::Face);
         f.surface = image(&surfaces, f.surface, GeomRef::Surface, holder, "surface");
         f.outer = image(&loops, f.outer, EntityId::Loop, holder, "outer");
         for r in &mut f.rings {
@@ -748,9 +750,9 @@ fn graft_solids_impl<T: geom_core::Decide>(
         // it in the source — its own back-pointer, so a multi-solid
         // source keeps every shell with its solid.
         let holder = EntityId::Shell(sk);
-        let owner = src.shells[sk].solid;
+        let owner = proven(&src.shells, sk, EntityId::Shell).solid;
         let target = image(&solid_map, owner, EntityId::Solid, holder, "solid");
-        let s = fresh(&mut dst.shells, dk);
+        let s = proven_mut(&mut dst.shells, dk, EntityId::Shell);
         for f in &mut s.faces {
             *f = image(&faces, *f, EntityId::Face, holder, "faces");
         }
@@ -761,12 +763,13 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // fully-finished grafts carry none). ----
     for (k, pair) in src.null_faces.iter() {
         let holder = EntityId::Face(k);
-        let dk = faces.get(k).copied().unwrap_or_else(|| {
-            unreachable!(
-                "graft source: a null-face record names {holder}, which does not resolve: a \
-                 null-face record is removed with its face, and {NAMES_ONLY_LIVE}"
-            )
-        });
+        let dk = image(
+            &faces,
+            k,
+            EntityId::Face,
+            "a null-face record (one is removed with its face)",
+            "face",
+        );
         let ml = |l: LoopKey, field| image(&loops, l, EntityId::Loop, holder, field);
         let mapped = match *pair {
             crate::null::NullFacePair::Split {
@@ -819,43 +822,28 @@ fn graft_solids_impl<T: geom_core::Decide>(
     // a refusal here is loud, never a dangling reference. ----
     for (k, &dk) in curves.iter() {
         // `curves` holds exactly the source arena's keys.
-        let CurveGeom::Certified(curve) = crate::live::proven(&src.curves, k, GeomRef::Curve)
-        else {
+        let CurveGeom::Certified(curve) = proven(&src.curves, k, GeomRef::Curve) else {
             continue;
         };
         let Bridge::Recertify { tol, door } = bridge else {
             // Handles only, certificate verbatim (see `Bridge`).
-            let remapped = curve
-                .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "graft source: {}'s description names a surface the source does not \
-                         hold: {NAMES_ONLY_LIVE}",
-                        GeomRef::Curve(k)
-                    )
-                });
-            let Some(slot) = dst.curves.get_mut(dk) else {
-                unreachable!(
-                    "graft (handle remap): `dk` was minted into `dst.curves` by this \
-                     call's curve pass"
+            let remapped = curve.with_remapped_surfaces_total(|sk| {
+                image(
+                    &surfaces,
+                    sk,
+                    GeomRef::Surface,
+                    GeomRef::Curve(k),
+                    "description",
                 )
-            };
-            *slot = CurveGeom::Certified(remapped);
+            });
+            *proven_mut(&mut dst.curves, dk, GeomRef::Curve) = CurveGeom::Certified(remapped);
             continue;
         };
         let description = match *curve.description() {
             geom_brep::EdgeDescription::Intersection { pair, ref selector } => {
-                let Some((pair, selector)) = selector.remapped(pair, |s| {
-                    Some(image(
-                        &surfaces,
-                        s,
-                        GeomRef::Surface,
-                        GeomRef::Curve(k),
-                        "pair",
-                    ))
-                }) else {
-                    unreachable!("graft (handle remap): an infallible map answers every key")
-                };
+                let (pair, selector) = selector.remapped_total(pair, |s| {
+                    image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")
+                });
                 geom_brep::EdgeDescriptionSpec::Intersection { pair, selector }
             }
             geom_brep::EdgeDescription::TangentIntersection { pair, witness } => {
@@ -868,10 +856,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             geom_brep::EdgeDescription::OnPair { pair } => geom_brep::EdgeDescriptionSpec::OnPair {
                 pair: pair
                     .map(|s| image(&surfaces, s, GeomRef::Surface, GeomRef::Curve(k), "pair")),
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
+                declared: curve.authority().declared(),
             },
             // The image travels verbatim (chart COORDINATES); only
             // the handle moves. The authority record travels beside
@@ -886,10 +871,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
                 ),
                 image: Some(c.pcurve.clone()),
                 wrap: c.wrap,
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
+                declared: curve.authority().declared(),
             },
             geom_brep::EdgeDescription::Scaffold(_) => continue, // no surface keys
         };
@@ -906,12 +888,25 @@ fn graft_solids_impl<T: geom_core::Decide>(
                     GeomRef::Curve(k)
                 )
             });
-        let dst_edge_key = edges[src_edge_key];
-        let e = &dst.edges[dst_edge_key];
-        let he_plus = &dst.half_edges[e.he_plus];
+        let dst_edge_key = image(
+            &edges,
+            src_edge_key,
+            EntityId::Edge,
+            GeomRef::Curve(k),
+            "owning edge",
+        );
+        let e = proven(&dst.edges, dst_edge_key, EntityId::Edge);
+        let he_plus = proven(&dst.half_edges, e.he_plus, EntityId::HalfEdge);
         let start_v = he_plus.start;
-        let end_v = dst.half_edges[he_plus.next].start;
-        let point = |v: VertexKey| dst.points[dst.vertices[v].point];
+        let end_v = proven(&dst.half_edges, he_plus.next, EntityId::HalfEdge).start;
+        let point = |v: VertexKey| {
+            *proven(
+                &dst.points,
+                proven(&dst.vertices, v, EntityId::Vertex).point,
+                GeomRef::Point,
+            )
+        };
+        let (start, end) = (point(start_v), point(end_v));
         let spec = geom_brep::EdgeCurveSpec {
             description,
             carrier: curve.carrier().clone(),
@@ -928,33 +923,25 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.params(),
         );
         let surfaces = |sk| dst.surfaces.get(sk).cloned();
-        let recert = door(spec, point(start_v), point(end_v), &surfaces, reach, band)
-            .map_err(BooleanError::GraftRecertify)?;
-        let Some(slot) = dst.curves.get_mut(dk) else {
-            unreachable!(
-                "graft (recertify): `dk` was minted into `dst.curves` by this call's \
-                 curve pass"
-            )
-        };
-        *slot = CurveGeom::Certified(recert);
+        let recert =
+            door(spec, start, end, &surfaces, reach, band).map_err(BooleanError::GraftRecertify)?;
+        *proven_mut(&mut dst.curves, dk, GeomRef::Curve) = CurveGeom::Certified(recert);
     }
 
     // ---- Attach the shells to the destination solids (source order,
     // per solid and within each solid). ----
     for &(src_solid, dst_solid) in &pairs {
         let holder = EntityId::Solid(src_solid);
-        let shell_list: Vec<ShellKey> = src.solids[src_solid]
+        let shell_list: Vec<ShellKey> = proven(&src.solids, src_solid, EntityId::Solid)
             .shells
             .iter()
             .map(|&s| image(&shells, s, EntityId::Shell, holder, "shells"))
             .collect();
-        let Some(solid) = dst.get_solid_mut(dst_solid) else {
-            unreachable!(
-                "graft: destination solid {dst_solid:?} was checked live in, or minted into, \
-                 the body this transplant writes"
-            )
-        };
-        solid.shells.extend(shell_list);
+        // Minted above, or a destination solid the caller resolved in `dst`
+        // (`graft_staged` checks each).
+        proven_mut(&mut dst.solids, dst_solid, EntityId::Solid)
+            .shells
+            .extend(shell_list);
     }
 
     let map = GraftMap {
@@ -1050,7 +1037,7 @@ mod recertify_door_tests {
                     start,
                     end,
                     surfaces,
-                    1.0,
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     geom_brep::NurbsLane::certified(),
                 )

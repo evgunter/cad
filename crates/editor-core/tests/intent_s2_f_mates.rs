@@ -60,11 +60,11 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
         mate,
         &[
             (
-                Coord::Slide(TargetAxis::X),
+                Coord::slide(TargetAxis::X),
                 Formula::zero(Dimension::Length),
             ),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -162,6 +162,7 @@ fn a_cut_severing_a_mates_read_refuses_as_a_severed_read() {
         DocumentId::derive("f-split-cell"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("the mate's side reads the cut body");
     assert!(
@@ -296,9 +297,9 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         p,
         seat(body, (b, b), (a, a)),
         &[
-            (Coord::Slide(TargetAxis::X), len(-5.0)),
+            (Coord::slide(TargetAxis::X), len(-5.0)),
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -322,7 +323,7 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
             &[(mate.placement, std::slice::from_ref(row))],
             ev.resolver(),
             Tol::witness(),
-            &editor_core::CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("an uncanceled door")
         .remove(0)
@@ -571,6 +572,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
         DocumentId::derive("f-posed-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("the measure's copy is posed");
     assert!(

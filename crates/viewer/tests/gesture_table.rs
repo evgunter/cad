@@ -93,7 +93,7 @@ use viewer::session::BooleanSpec;
 
 use std::collections::BTreeSet;
 
-use common::{len, len3, scl3};
+use common::len;
 use pncad::document::{
     Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, Node, ProfileProgram, RecipeNodeId,
     SlotId, VarId, VarName,
@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 64;
+const OP_COUNT: usize = 63;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -227,14 +227,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
         SessionOp::SaveAsNewDocument(save_to.with_file_name("forked.pncad")),
-        SessionOp::Stage {
-            creation: viewer::session::Creation::of(SessionOp::AddSplit {
-                target: node.into(),
-                origin: len3([0.0; 3]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            })
-            .expect("a split creates a node"),
-        },
         SessionOp::SetBodyOn { node, on: false },
         SessionOp::SetSpaceHidden {
             space: VarId::WORLD,
@@ -285,20 +277,17 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddSplit {
             target: node.into(),
-            origin: len3([0.0; 3]),
-            normal: scl3([0.0, 0.0, 1.0]),
-        },
-        SessionOp::AddTransform {
-            input: node.into(),
-            translation: common::no_translation(),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Formula::zero(Dimension::Angle),
+            plane: viewer::session::SplitPlane::Face(FaceSelection {
+                name: face(node),
+                node,
+                body: 0,
+            }),
         },
         SessionOp::AddPattern {
             input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -306,7 +295,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
+                direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::X),
                 spacing: len(0.05),
             },
         },
@@ -411,6 +400,11 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             },
         },
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(node.into()),
+            b: viewer::session::ClearedSeat::Body(node.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+        },
     ]
 }
 
@@ -475,7 +469,6 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
         SessionOp::AddSplit { .. } => (34, false),
-        SessionOp::AddTransform { .. } => (35, false),
         SessionOp::AddPattern { .. } => (36, false),
         SessionOp::AddFusedPattern { .. } => (37, false),
         SessionOp::AddFillet { .. } => (38, false),
@@ -514,8 +507,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::IntoOwnSpace { .. } => (54, false),
         // The placement editor's two Applies: an insert door and a
         // bundle written, each fenced with every other document edit.
-        SessionOp::Place { .. } => (62, false),
-        SessionOp::SetBundle { .. } => (63, false),
+        SessionOp::Place { .. } => (61, false),
+        SessionOp::SetBundle { .. } => (35, false),
         // An insert door, fenced with every other one.
         SessionOp::AddMirror { .. } => (55, false),
         // What the document makes: a document edit, fenced with every
@@ -526,13 +519,12 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // The fork re-identifies every state of the history the drag
         // previews against.
         SessionOp::SaveAsNewDocument(_) => (58, false),
-        // A draft's question: it stages on the committed document and
-        // records nothing, so a drag has nothing to protect from it.
-        SessionOp::Stage { .. } => (59, true),
         // A display operation, as `SetBodyOn` is.
-        SessionOp::SetSpaceHidden { .. } => (60, true),
+        SessionOp::SetSpaceHidden { .. } => (59, true),
         // What the document makes, as `SetProduct` is.
-        SessionOp::AddToProduct { .. } => (61, false),
+        SessionOp::AddToProduct { .. } => (60, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddClearance { .. } => (62, false),
     }
 }
 
@@ -1026,7 +1018,6 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::Stage { .. }
         | SessionOp::SetBodyOn { .. }
         | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
@@ -1043,7 +1034,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
+        | SessionOp::AddClearance { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

@@ -600,6 +600,11 @@ BOUND_AS = {
     # The run's member budget's one default is what `evaluate`'s
     # `member_budget=None` runs under.
     "DEFAULT_MEMBER_BUDGET": "evaluate",
+    # How a run a door ran stopped: a Python evaluation records its own
+    # as `Evaluation.canceled` / `Evaluation.exhausted`, and a door that
+    # refuses as stopped crosses it as its refusal's `"stopped"` (or
+    # `"canceled"`) variant word, its budget in the message.
+    "Stopped": ("Evaluation.canceled", "Evaluation.exhausted"),
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
     # door's proof as `rung` (`None` unproven) beside `residual`.
@@ -646,6 +651,10 @@ BOUND_AS = {
     # `Node.clearance`, whose bounds are its keyword arguments.
     "Claim": "Node.clearance",
     "ClearanceBounds": "Node.clearance",
+    # Which end of the band a clearance's bound slot holds is spelled
+    # into the slot's word (`clearance_low`, `clearance_high`), the
+    # word `EditError.slot` answers in and `DocEdit.set_param` takes.
+    "BoundEnd": "EditError.slot",
     # A clearance verdict reads through the one `Verdict`: its state,
     # its refusal's class (with the sentence on `reason`), and the pair
     # that decided it, whose two points and distance are a
@@ -1013,6 +1022,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # `SectionIdFault` is what `EditError::SectionIdsRefused` carries,
+    # and its arms cross at the carrier's second word.
+    "SectionIdFault": "EditError.inner_variant",
     # `LoftFault` is what `EditError::LoftShape` carries, and its arms
     # cross at the carrier's second word.
     "LoftFault": "EditError.inner_variant",
@@ -1382,6 +1394,7 @@ BOUND_AS = {
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "StepMap": "SplitOutcome.step_map",
+    "SectionMap": "SplitOutcome.section_map",
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
@@ -2273,6 +2286,11 @@ NOT_BOUND = {
     "Select": SHAPE,
     "SelectionCount": SHAPE,
     "SelectionBodyFault": SHAPE,
+    # A saved loft's section ids no door would write: a load's refusal,
+    # crossing as `PersistError.inner_variant` `section_ids` and its
+    # sentence (which carries the regenerate recourse for a file from
+    # before sections were minted); no Python door writes a save's ids.
+    "SectionIdBreak": SHAPE,
     "OutputPort": SHAPE,
     "PortKind": SHAPE,
     # An operand's address and what it admits: Python names a refused
@@ -2561,6 +2579,10 @@ NOT_BOUND = {
     "Labelled": SHAPE,
     "Labels": SHAPE,
     "PASS_A_RESOLVER": SHAPE,
+    # The one recourse of a run out of its member budget: read in the
+    # message of every refusal that states it (`Evaluation.exhausted`'s
+    # runs, and each door's `stopped` arm).
+    "RAISE_THE_MEMBER_BUDGET": SHAPE,
     "Recourse": SHAPE,
     "Staged": SHAPE,
     "Real": SHAPE,
@@ -3017,6 +3039,10 @@ NOT_BOUND = {
     # by a `Formula`, `Formula.turn_over(4)` a quarter turn).
     "corner_frame_in": INTERIOR,
     "moved_frame": INTERIOR,
+    # The target axes a row's other slides run along, read off picked
+    # directions by a gesture holding an evaluation: Python names them
+    # itself (`Node.linear_pattern(..., across=["x", "z"])`).
+    "slides_across": INTERIOR,
     "FrameMove": INTERIOR,
     # A pose variable's evaluated value, read by the mates and the
     # splits that consume it: a Python caller reads where a face sits
@@ -3030,6 +3056,11 @@ NOT_BOUND = {
     "ExtrudeSide": INTERIOR,
     "SketchPlane": INTERIOR,
     "validated": INTERIOR,
+    # The edit door's one dimension check, public so a GUI draft can
+    # ask it before it writes (FORMS, PR 6390). A Python caller writes
+    # through the door itself, which refuses a wrong-dimension formula
+    # in the same words.
+    "slot_admits": INTERIOR,
     # **The MC lane's reduction, which `monte_carlo` has already
     # applied by the time anything crosses.** `summarize` is public so
     # that a Rust consumer holding its OWN replay of the lane's draws
@@ -3552,6 +3583,7 @@ MEMBERS_BOUND_AS = {
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
     "ChecksError::Product": "ChecksError.variant",
+    "ChecksError::Canceled": "ChecksError.variant",
     # What an accepted edit did that the caller did not ask for, read
     # off `Doc.last_maintenance`: the offset a placing mate cleared, and
     # the references a delete stranded — a payload name on its carrying
@@ -3603,6 +3635,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::SectionIdsRefused": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
@@ -3707,6 +3740,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
+    "InlineError::NameOnDroppedSection": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3724,6 +3758,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::Backwards": "MateFault.variant",
     "MateFault::Unoriented": "MateFault.variant",
     "MateFault::SideUnevaluated": "MateFault.variant",
+    "MateFault::ReadUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
     "MateFault::Unpinned": "MateFault.variant",
     # A bundle with no mate goes whole: `Doc.remove_mate` on any of its
@@ -3836,9 +3871,11 @@ MEMBERS_BOUND_AS = {
     "SplitError::SpaceStraddlesCut": "SplitError.variant",
     "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
+    "SplitError::Stopped": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
+    "SplitError::NameOnDroppedSection": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
@@ -4034,6 +4071,7 @@ MEMBERS_BOUND_AS = {
     "McRefusal::BandHasNoMeasure": "McRefusal.variant",
     "McRefusal::NoSamples": "McRefusal.variant",
     "McRefusal::NominalDoesNotBuild": "McRefusal.variant",
+    "McRefusal::Stopped": "McRefusal.variant",
     # --- an arm or a field that crosses as a DOOR ------------------
     # An analyzed axis's DIMENSION, which is the parameter's own — the
     # field is `dim` in the kernel and the reader is `dimension`, the

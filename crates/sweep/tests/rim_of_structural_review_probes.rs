@@ -37,7 +37,12 @@ fn boolean(name: &str, op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64>
         SweepStrategy::Realized,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("{name}: the boolean builds, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{name}: the boolean builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     out.body()
         .unwrap_or_else(|| panic!("{name}: a body"))
         .body
@@ -63,12 +68,10 @@ fn lower_he(body: &Body<f64>, k: EdgeKey) -> HalfEdgeKey {
 fn circle(body: &Body<f64>, k: EdgeKey) -> Option<(Vec3<f64>, f64, Vec3<f64>)> {
     let e = body.get_edge(k)?;
     match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-        Curve3::Circle {
-            center,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            axis,
-            ..
-        } => Some((
+        }) => Some((
             Vec3::new(center.x, center.y, center.z),
             *radius,
             Vec3::new(axis.x, axis.y, axis.z),
@@ -315,7 +318,12 @@ fn corpus() -> Vec<(String, Body<f64>)> {
         ] {
             let rim = circle_arcs_at_z(&body, z);
             let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
-                .unwrap_or_else(|e| panic!("filleted {name}({n}): carves, got {}", e.error));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "filleted {name}({n}): carves, got {}",
+                        e.error.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             v.push((format!("filleted {name}_of_arcs({n})"), out.body));
         }
     }

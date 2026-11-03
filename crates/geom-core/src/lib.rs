@@ -67,7 +67,7 @@ pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, Culprit, DAMAGED_FILE_ENDING, DEFAULT_K,
     DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,
     Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING,
-    KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin,
+    KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Lever, Margin,
     MarginDiag, MarginKind, MissReading, MissSource, MissingRecourse, NOT_YET_ENDING,
     RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords,
     StoredCulprit, SupSpeed, UNNAMED_DECISION, UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE,
@@ -76,7 +76,7 @@ pub use predicate::{
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, TangentTransport, Uncertified, Witness,
-    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, pow2,
+    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

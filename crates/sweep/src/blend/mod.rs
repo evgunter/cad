@@ -36,7 +36,8 @@
 //!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
-//! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
+//! 5. [`battery::wedge_at`] — `fillet3_convexity_sign`, and on a
+//!    decided zero `material_wedge_side`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
@@ -151,15 +152,15 @@ use core::fmt;
 
 use geom_brep::LeverRung;
 use geom_brep::recourse::{
-    Classified, LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass,
+    Classified, LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, MarginKind, Sign};
 use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Overrun, Turn, TurnRunOut,
-    run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, LinkWedge, Overrun, Turn,
+    TurnRunOut, run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -222,11 +223,22 @@ pub struct BlendRefusal {
     pub error: BlendError,
 }
 
-impl fmt::Display for BlendRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.verb, self.error)
+impl BlendRefusal {
+    fn write(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{}: {}",
+            self.verb,
+            geom_brep::recourse::read_at(&self.error, at)
+        )
     }
 }
+
+geom_brep::ended_by_write!(BlendRefusal);
 
 impl core::error::Error for BlendRefusal {}
 
@@ -252,8 +264,13 @@ pub enum BlendDecision {
     /// `fillet3_chain_arm`: a link is long enough to measure an angle
     /// over, gating [`Self::ChainG1`] and [`Self::ConvexitySign`].
     ChainArm,
-    /// `fillet3_convexity_sign`: the edge has a definite wedge side.
+    /// `fillet3_convexity_sign`: the edge is convex, concave, or
+    /// neither at its lever.
     ConvexitySign,
+    /// `material_wedge_side`: an edge whose convexity sign decided zero
+    /// is a smooth seam or a cusp or slit
+    /// ([`geom_brep::MATERIAL_PAIRING`]).
+    MaterialSide,
     /// `fillet3_ring_clearance`: a trimline clears a ring or edge in its
     /// support face.
     RingClearance,
@@ -312,13 +329,14 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
         Self::ChainG1,
         Self::ChainArm,
         Self::ConvexitySign,
+        Self::MaterialSide,
         Self::RingClearance,
         Self::SupportCoaxiality,
         Self::ContactArm,
@@ -354,6 +372,7 @@ impl BlendDecision {
             Self::ChainG1 => "fillet3_chain_g1",
             Self::ChainArm => "fillet3_chain_arm",
             Self::ConvexitySign => "fillet3_convexity_sign",
+            Self::MaterialSide => "material_wedge_side",
             Self::RingClearance => "fillet3_ring_clearance",
             Self::SupportCoaxiality => "fillet3_support_coaxiality",
             Self::ContactArm => "dihedral_arm",
@@ -383,6 +402,7 @@ impl BlendDecision {
             Self::ChainG1 => "whether two links of the chain meet tangentially",
             Self::ChainArm => "whether a link of the chain is long enough to measure an angle over",
             Self::ConvexitySign => "whether the edge is convex or concave",
+            Self::MaterialSide => geom_brep::material_pairing_clause!(),
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
             Self::ContactArm => concat!(
@@ -439,7 +459,11 @@ impl BlendDecision {
             Self::FaceClearance => FILLET3_CLEARANCE_RECOURSE,
             Self::SpineRegularity => FILLET3_SPINE_RECOURSE,
             Self::ChainG1 | Self::ChainArm => FILLET3_CHAIN_RECOURSE,
-            Self::ConvexitySign => FILLET3_TANGENTIAL_RECOURSE,
+            Self::ConvexitySign => FILLET3_WEDGE_RECOURSE,
+            // Past the arm gate, the pairing refuses only an arm too
+            // short to read a side over (`geom_brep::MATERIAL_PAIRING`):
+            // the arm gate's own lever.
+            Self::MaterialSide => FILLET3_CHAIN_RECOURSE,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
@@ -467,6 +491,9 @@ impl BlendDecision {
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
+            // The pairing's own margin, over the folded arm; the wedge
+            // it can quote instead is read in `sized_on`.
+            Self::MaterialSide => Some(("length", SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             // Either definite sign of the sagitta picks a description.
             Self::ContactSecondOrder => Some(("separation", SizedPass::AnySign)),
@@ -489,19 +516,49 @@ impl BlendDecision {
         }
     }
 
+    /// [`Self::sized`], read for the margin `arm` actually carries.
+    ///
+    /// [`Self::MaterialSide`]'s refusal carries one of two margins: the
+    /// pairing's, `cos θ · arm` over the folded arm (a length: an arm too
+    /// short to read a side over), or, where the tolerance the pairing
+    /// would offer leaves the smooth verdict's wedge in band, the wedge
+    /// `sin θ · arm` it re-quotes under `material_pairing_wedge`
+    /// (`geom_brep::classify_material_pairing`). A smaller tolerance
+    /// decides that one positive, and reads the edge as a crease.
+    fn sized_on(self, arm: &RefusedArm<'_>) -> Option<(&'static str, SizedPass)> {
+        match (self, arm) {
+            (Self::MaterialSide, RefusedArm::Undecided(source))
+                if source.predicate == Some("material_pairing_wedge") =>
+            {
+                Some(("wedge opening", SizedPass::Positive))
+            }
+            _ => self.sized(),
+        }
+    }
+
     /// The one ending a refusal of this decision carries on `arm`
     /// ([`Self::recourse_with`] at the decision's own lever).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>) -> String {
-        self.recourse_with(self.lever(), arm)
+    pub fn recourse(
+        self,
+        arm: RefusedArm<'_>,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        self.recourse_with(self.lever(), arm, at)
     }
 
     /// The one ending a refusal of this decision carries on `arm`, led
     /// by `lever`: through [`SizedDecision`] where the decision is
     /// sized, read at the build; otherwise the lever alone, with the
     /// unreadable-margin note on a poisoned reading.
-    fn recourse_with(self, lever: &'static str, arm: RefusedArm<'_>) -> String {
-        match self.sized() {
+    fn recourse_with(
+        self,
+        lever: &'static str,
+        arm: RefusedArm<'_>,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        let at = at.into();
+        match self.sized_on(&arm) {
             Some((size, passes)) => SizedDecision {
                 lever,
                 size,
@@ -509,8 +566,8 @@ impl BlendDecision {
                 side: RefusedSide::Lever,
                 no_size: None,
             }
-            .recourse(arm, Reading::Build),
-            None => LeverOnly { lever }.recourse(arm, Reading::Build),
+            .recourse(arm, at),
+            None => LeverOnly { lever }.recourse(arm, at),
         }
     }
 }
@@ -1032,12 +1089,15 @@ pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, enlarge the
 pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request \
      into SEQUENTIAL calls (the second on the first's result), since the two setbacks \
      belong to different chains";
-/// The recourse for an edge whose dihedral sign decided Zero — no
-/// definite wedge side at the metered lever, at any size. Both verbs
-/// meter the dihedral (the strip needs a wedge to sit in exactly as
-/// the ball does), so the sentence speaks of the blend, not the ball.
-pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; with no definite wedge \
-     side the blend has no side to sit in, at any size";
+/// The recourse for an edge whose supports meet tangentially with their
+/// material facing each other — a cusp or slit — and for a convexity
+/// sign in band. A cusp's or slit's blend is defined (its rolling ball
+/// rests where the supports' offsets meet, away from the edge) but not
+/// built: `work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`. So the sentence asks for the edge to be left out
+/// of the request. Both verbs meter the dihedral, so it speaks of the
+/// blend, not the ball.
+pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle, or leave a cusp or \
+     slit out of the request";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
@@ -1473,15 +1533,19 @@ pub enum BlendError {
         /// of the face's boundary inside the material, another outside.
         bounded: bool,
     },
-    /// **Predicate 5, the undecided wedge**: the dihedral's signed
-    /// margin decided Zero, so there is no definite wedge side for a
-    /// rolling ball at the metered lever. Genuine tangency — the two
-    /// supports sharing a tangent plane along the edge — is one cause
-    /// (a co-surface seam produces it at a margin of exactly zero),
-    /// not a fact this refusal establishes. Distinct from
-    /// [`BlendError::ConvexitySignFlip`]: a `Zero` edge does not
-    /// disagree with the chain's convexity — none was decided.
-    TangentialEdge {
+    /// **Predicate 5, the knife edge**: the dihedral's signed margin
+    /// decided Zero with the two faces' outward normals opposed
+    /// ([`geom_brep::EdgeWedge::Knife`]): a cusp (wedge 0) or a knife
+    /// slit (wedge 2π). Its rolling ball is defined, centred where the
+    /// supports' `r`-offsets meet and touching them away from the edge,
+    /// where they open to `2r` (the concave fill between two tangent
+    /// cylinders, centre at `R + r` from both axes); that construction
+    /// is not built (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`). (Zero with
+    /// the normals aligned is the smooth seam, which the verb leaves
+    /// as it is.) Distinct from [`BlendError::ConvexitySignFlip`]: a
+    /// `Zero` edge does not disagree with the chain's convexity — none
+    /// was decided.
+    KnifeEdge {
         /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
         /// `((n_a × n_b)·τ̂)·arm`, meters — decided Zero at the
@@ -1518,7 +1582,8 @@ pub enum BlendError {
     },
     /// **Predicate 5**: the dihedral's convexity sign is not constant
     /// along the chain. (An edge whose sign decided Zero is not a
-    /// flip — it refuses as [`BlendError::TangentialEdge`].)
+    /// flip — it is a smooth seam, or refuses as
+    /// [`BlendError::KnifeEdge`].)
     ///
     /// # No fixture reaches this arm through a `Body`, and why
     ///
@@ -1880,6 +1945,53 @@ pub enum BlendError {
     },
 }
 
+impl BlendError {
+    /// **The one edge this refusal is about**, where it names one: a
+    /// link's, or the entity it was read at when that is an edge. A
+    /// consumer that holds names for the operand's edges says it by
+    /// name; the key itself is the operand's arena slot.
+    #[must_use]
+    pub fn edge(&self) -> Option<EdgeKey> {
+        match self {
+            Self::ChainNotConnected { edge }
+            | Self::KnifeEdge { edge, .. }
+            | Self::ConvexitySignFlip { edge, .. }
+            | Self::SpineUnsupported { edge, .. }
+            | Self::ChamferArmUnsupported { edge, .. }
+            | Self::RepeatedEdge { edge }
+            | Self::UnsupportedChain { edge, .. }
+            | Self::Escalated {
+                site: BlendSite::Link { edge },
+                ..
+            } => Some(*edge),
+            Self::FaceClearance { at, .. }
+            | Self::UnsupportedRunOut { at, .. }
+            | Self::UnsupportedGeometry { at, .. }
+            | Self::BodyNotIntact { at, .. }
+            | Self::SurgeryInvariant { at, .. }
+            | Self::WhollyInside { at, .. } => match at {
+                EntityId::Edge(edge) => Some(*edge),
+                _ => None,
+            },
+            Self::Band(_)
+            | Self::RadiusHeadroom { .. }
+            | Self::FaceClearanceUncertified { .. }
+            | Self::SpineIrregular { .. }
+            | Self::ChainNotG1 { .. }
+            | Self::UnsupportedCorner { .. }
+            | Self::Escalated { .. }
+            | Self::NonpositiveSize { .. }
+            | Self::ScaffoldingOperand { .. }
+            | Self::InsideOutOperand { .. }
+            | Self::UnjoinedOperand { .. }
+            | Self::RingClearance { .. }
+            | Self::Certify { .. }
+            | Self::Op { .. }
+            | Self::Join { .. } => None,
+        }
+    }
+}
+
 impl From<BandError> for BlendError {
     fn from(source: BandError) -> Self {
         Self::Band(source)
@@ -1905,8 +2017,13 @@ impl From<topo::Unfinished> for BlendError {
 /// proves the rule: an arm only a fillet run can mint (the rolling
 /// ball's headroom and spine) speaks of the ball, because the ball is
 /// the fact, not the verb.
-impl fmt::Display for BlendError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl BlendError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        door: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        let ended = |ending: Option<String>| ending.map(|e| format!(". {e}")).unwrap_or_default();
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::ChainNotConnected { .. } => write!(
@@ -1917,8 +2034,8 @@ impl fmt::Display for BlendError {
             Self::RadiusHeadroom { margin, radius, .. } => write!(
                 f,
                 "radius {radius} m exceeds a support face's curvature headroom \
-                 ({margin} at lever arm {radius} m). {}",
-                BlendDecision::RadiusHeadroom.recourse(margin.arm())
+                 ({margin} at lever arm {radius} m){}",
+                ended(door.map(|door| BlendDecision::RadiusHeadroom.recourse(margin.arm(), door)))
             ),
             Self::FaceClearanceUncertified {
                 gap,
@@ -1935,9 +2052,13 @@ impl fmt::Display for BlendError {
                     f,
                     "the clearance screen cannot certify that a support face survives: two \
                      of its boundary features are {} m apart, nearer than the blend sets \
-                     back from them; the screen is conservative by direction. {}",
+                     back from them; the screen is conservative by direction{}",
                     Measured(*gap),
-                    BlendDecision::FaceClearance.recourse_with(lever, margin.arm())
+                    ended(door.map(|door| BlendDecision::FaceClearance.recourse_with(
+                        lever,
+                        margin.arm(),
+                        door
+                    )))
                 )
             }
             Self::FaceClearance {
@@ -1961,28 +2082,30 @@ impl fmt::Display for BlendError {
                 };
                 write!(
                     f,
-                    "{whom} {how} the material its band {what} ({margin}). {}",
-                    BlendDecision::FaceClearance.recourse(margin.arm())
+                    "{whom} {how} the material its band {what} ({margin}){}",
+                    ended(
+                        door.map(|door| BlendDecision::FaceClearance.recourse(margin.arm(), door))
+                    )
                 )
             }
-            Self::TangentialEdge { margin, .. } => write!(
+            Self::KnifeEdge { margin, .. } => write!(
                 f,
-                "an edge's supports meet tangentially, so its dihedral has no definite \
-                 wedge side ({margin}). {}",
-                BlendDecision::ConvexitySign.recourse(margin.arm())
+                "an edge is a cusp or slit ({margin}), whose blend is not built yet: its ball \
+                 touches the supports away from the edge, where they open to 2r{}",
+                ended(door.map(|door| BlendDecision::ConvexitySign.recourse(margin.arm(), door)))
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
                 "the rolling-ball spine folds at radius {radius} m ({margin} at lever \
-                 arm {radius} m). {}",
-                BlendDecision::SpineRegularity.recourse(margin.arm())
+                 arm {radius} m){}",
+                ended(door.map(|door| BlendDecision::SpineRegularity.recourse(margin.arm(), door)))
             ),
             Self::ChainNotG1 { margin, arm, .. } => write!(
                 f,
                 "the chain is not tangent-continuous at a vertex ({margin} at lever arm \
-                 {} m). {}",
+                 {} m){}",
                 Measured(*arm),
-                BlendDecision::ChainG1.recourse(margin.arm())
+                ended(door.map(|door| BlendDecision::ChainG1.recourse(margin.arm(), door)))
             ),
             Self::ConvexitySignFlip { margin, chain, .. } => write!(
                 f,
@@ -2029,12 +2152,15 @@ impl fmt::Display for BlendError {
             // ending is the only recourse.
             Self::Escalated {
                 decision, source, ..
-            } => source
-                .undecided(
+            } => write!(
+                f,
+                "{}",
+                geom_brep::recourse::undecided_at(
+                    source,
                     decision.subject(),
-                    decision.recourse(RefusedArm::Undecided(source)),
+                    door.map(|door| decision.recourse(RefusedArm::Undecided(source), door)),
                 )
-                .fmt(f),
+            ),
             Self::RepeatedEdge { .. } => write!(
                 f,
                 "the request names one edge twice. Recourse: request each edge once"
@@ -2113,8 +2239,10 @@ impl fmt::Display for BlendError {
                 };
                 write!(
                     f,
-                    "{what} the part of a face the blend {fate} ({margin}{how}). {}",
-                    BlendDecision::RingClearance.recourse(margin.arm())
+                    "{what} the part of a face the blend {fate} ({margin}{how}){}",
+                    ended(
+                        door.map(|door| BlendDecision::RingClearance.recourse(margin.arm(), door))
+                    )
                 )
             }
             Self::WhollyInside { at, chain, margin } => {
@@ -2134,15 +2262,21 @@ impl fmt::Display for BlendError {
                 )
             }
             Self::Certify { site, source } => {
-                write!(f, "{site} — {source}")
+                write!(f, "{site} — {}", geom_brep::recourse::read_at(source, door))
             }
             Self::Op { site, source } => {
-                write!(f, "assembly refused at {site} — {source}")
+                write!(
+                    f,
+                    "assembly refused at {site} — {}",
+                    geom_brep::recourse::read_at(source.as_ref(), door)
+                )
             }
-            Self::Join { refusal } => write!(f, "{refusal}"),
+            Self::Join { refusal } => write!(f, "{}", geom_brep::recourse::read_at(refusal, door)),
         }
     }
 }
+
+geom_brep::ended_by_write!(BlendError);
 
 impl core::error::Error for BlendError {}
 
@@ -2160,7 +2294,7 @@ pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("contact-wedge", FILLET3_CONTACT_WEDGE_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
-    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
+    ("wedge", FILLET3_WEDGE_RECOURSE),
     ("spine", FILLET3_SPINE_RECOURSE),
     ("chain", FILLET3_CHAIN_RECOURSE),
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
@@ -2190,7 +2324,7 @@ mod recourse_tests {
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
     };
 
     /// **A contact edge's must-carry escalation ends as the decision its
@@ -2221,7 +2355,7 @@ mod recourse_tests {
                 decision,
                 source,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(want.lever()), "{want:?}: {text}");
             assert!(text.contains(want.subject()), "{want:?}: {text}");
             assert_eq!(
@@ -2300,7 +2434,7 @@ mod recourse_tests {
                 })
             }
             BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
-            BlendError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
+            BlendError::KnifeEdge { .. } => Recourse::Exactly(FILLET3_WEDGE_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
@@ -2391,7 +2525,7 @@ mod recourse_tests {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 bounded: true,
             },
-            BlendError::TangentialEdge {
+            BlendError::KnifeEdge {
                 edge: EdgeKey::default(),
                 margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
             },
@@ -2576,7 +2710,7 @@ mod recourse_tests {
                 breach,
                 detail: "a support",
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
         };
         let none = "There is no way through".to_owned();
         let finish = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
@@ -2614,7 +2748,7 @@ mod recourse_tests {
     #[test]
     fn a_recourse_is_appended_only_where_the_table_allows_it() {
         for seed in seeds() {
-            let text = seed.to_string();
+            let text = seed.render(geom_brep::recourse::Reading::Build);
             let found = recourses_in(&text);
             match contract(&seed) {
                 Recourse::Exactly(one) => assert!(
@@ -2645,7 +2779,7 @@ mod recourse_tests {
     fn every_recourse_sentence_is_rendered_by_some_variant() {
         let rendered: Vec<&'static str> = seeds()
             .iter()
-            .flat_map(|seed| recourses_in(&seed.to_string()))
+            .flat_map(|seed| recourses_in(&seed.render(geom_brep::recourse::Reading::Build)))
             .collect();
         for (_, sentence) in super::ALL_RECOURSES {
             assert!(
@@ -2686,7 +2820,7 @@ mod recourse_tests {
                 },
                 bounded: false,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(says), "{chain}: {text}");
             assert!(!text.contains(never), "{chain}: {text}");
         }
@@ -2709,7 +2843,7 @@ mod recourse_tests {
                 },
                 bounded,
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
         };
         let (bound, measured) = (render(true), render(false));
         assert!(
@@ -2724,7 +2858,7 @@ mod recourse_tests {
     /// **No refusal this enum can render carries a `Debug` field
     /// dump.**
     ///
-    /// A `BlendError` reaches Python as the text of its `Display`, and
+    /// A `BlendError` reaches Python as its text rendered at a build, and
     /// `pncad-py`'s prose gate asserts on every raise that the text
     /// carries no `" { "` — the fingerprint `Debug` puts on a
     /// named-field struct or struct variant. That assertion is live in
@@ -2739,7 +2873,7 @@ mod recourse_tests {
     #[test]
     fn no_refusal_renders_a_field_brace_dump() {
         for seed in seeds() {
-            let text = seed.to_string();
+            let text = seed.render(geom_brep::recourse::Reading::Build);
             assert!(
                 !text.contains(" { "),
                 "{seed:?} renders a payload through `Debug`, which panics the \

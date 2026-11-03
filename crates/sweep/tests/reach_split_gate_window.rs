@@ -430,7 +430,12 @@ fn a_cut_clear_of_the_faces_window_splits() {
                         &posed_plane(map, n, d),
                         Tol::witness(),
                     )
-                    .unwrap_or_else(|e| panic!("{what}: a cut clear of the face splits: {e}"));
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{what}: a cut clear of the face splits: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
                     for (part, sign, side) in [
                         (&result.above, 1.0, "above"),
                         (&result.below, -1.0, "below"),

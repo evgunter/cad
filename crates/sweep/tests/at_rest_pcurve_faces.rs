@@ -91,12 +91,7 @@ fn oblique_circle_through(p: Point3<f64>) -> Curve3<f64> {
     let helper = Vec3::unit_x();
     let u = unit(helper - axis * helper.dot(axis));
     let radius = 0.3;
-    Curve3::Circle {
-        center: p - u * radius,
-        axis,
-        radius,
-        u_ref: u,
-    }
+    Curve3::circle(p - u * radius, axis, radius, u)
 }
 
 /// A circle ⊥ the torus's axis through `p` on its crest, centred
@@ -106,12 +101,12 @@ fn crest_circle_through(p: Point3<f64>) -> Curve3<f64> {
     let delta = 2.0 * tol().k() * tol().eps();
     let center = Point3::new(0.0, p.y, delta);
     let radius = p.distance(center);
-    Curve3::Circle {
+    Curve3::circle(
         center,
-        axis: Vec3::unit_y(),
+        Vec3::unit_y(),
         radius,
-        u_ref: (p - center) * (1.0 / radius),
-    }
+        (p - center) * (1.0 / radius),
+    )
 }
 
 fn strut(body: &mut Body<f64>, he: HalfEdgeKey, end: Point3<f64>, spec: EdgeCurveSpec<f64>) {
@@ -138,12 +133,17 @@ fn off_chart(e: &PcurveMintError) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+            error: PcurveCertifyError::CarrierOffChart {
+                margin: Some(geom_brep::OffMargin::Past(_)),
+                ..
+            },
             ..
         }
-    ) && e.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING)
+    ) && e
+        .render(geom_brep::recourse::Reading::Build)
+        .ends_with(geom_core::KERNEL_DEFECT_ENDING)
         && topo::ValidationError::Pcurve { finding: e.clone() }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
             .ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
 }
 
@@ -267,7 +267,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
             .unwrap()
             .carrier()
             .clone();
-        if !matches!(carrier, Curve3::Circle { .. }) {
+        if !matches!(carrier, Curve3::Circle(..)) {
             continue;
         }
         let cache = base.pcurve(h1).unwrap().clone();
@@ -303,12 +303,12 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
 /// zone.
 fn tilted_parallel_through(p: Point3<f64>, tilt: f64) -> Curve3<f64> {
     let r = (p.x * p.x + p.z * p.z).sqrt();
-    Curve3::Circle {
-        center: Point3::new(0.0, p.y, 0.0),
-        axis: unit(Vec3::new(tilt, 1.0, 0.0)),
-        radius: r,
-        u_ref: Vec3::new(p.x / r, 0.0, p.z / r),
-    }
+    Curve3::circle(
+        Point3::new(0.0, p.y, 0.0),
+        unit(Vec3::new(tilt, 1.0, 0.0)),
+        r,
+        Vec3::new(p.x / r, 0.0, p.z / r),
+    )
 }
 
 fn certificate_refused(e: &PcurveMintError) -> bool {
@@ -413,7 +413,7 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
             .unwrap()
             .carrier()
             .clone();
-        if !matches!(carrier, Curve3::Circle { .. }) {
+        if !matches!(carrier, Curve3::Circle(..)) {
             continue;
         }
         let cache = base.pcurve(h1).unwrap().clone();
@@ -580,12 +580,12 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         let chart = body.get_face(face).unwrap().surface;
         let tilt = (r / big).asin();
         let side = Vec3::new(0.0, family * tilt.sin(), sweep * tilt.cos());
-        let villarceau = Curve3::Circle {
-            center: Point3::new(r, 0.0, 0.0),
-            axis: Vec3::unit_x().cross(side),
-            radius: big,
-            u_ref: Vec3::unit_x(),
-        };
+        let villarceau = Curve3::circle(
+            Point3::new(r, 0.0, 0.0),
+            Vec3::unit_x().cross(side),
+            big,
+            Vec3::unit_x(),
+        );
         assert!(villarceau.eval(0.0).distance(outer) < 1e-12);
         assert!(villarceau.eval(core::f64::consts::PI).distance(inner) < 1e-12);
         let spec = EdgeCurveSpec::arc_of_circle(villarceau, 0.0, core::f64::consts::PI)
@@ -600,7 +600,12 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
                 topo::construction::FaceSurface::Inherit,
                 tol(),
             )
-            .unwrap_or_else(|e| panic!("family {family}: the Villarceau split refuses: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "family {family}: the Villarceau split refuses: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         for he in [made.he_plus, made.he_minus] {
             let row = body
                 .pcurve(he)
@@ -689,7 +694,10 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
             matches!(
                 finding,
                 PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+                    error: PcurveCertifyError::CarrierOffChart {
+                        margin: Some(geom_brep::OffMargin::Past(_)),
+                        ..
+                    },
                     ..
                 }
             ),
@@ -697,9 +705,11 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
         );
         let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
         assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
-        let built = minted.to_string();
-        let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
-        let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
+        let built = minted.render(geom_brep::recourse::Reading::Build);
+        let wrapped =
+            sweep::ExtrudeError::Pcurve(minted.clone()).render(geom_brep::recourse::Reading::Build);
+        let at_rest = topo::ValidationError::Pcurve { finding: minted }
+            .render(geom_brep::recourse::Reading::AtRest);
         for (door, text, culprit) in [
             ("build", &built, geom_core::KERNEL_DEFECT_ENDING),
             (
@@ -718,7 +728,20 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
                 "declared {declared} at {door}: {text}"
             );
         }
-        texts.push([built, wrapped, at_rest]);
+        texts.push([built, wrapped, at_rest].map(|t| unquoted(&t)));
     }
     assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
+}
+
+/// `text` without the margin its read quotes: the two placements read
+/// the one miss from coordinates rounded at their own reach, so the
+/// quoted number may differ in its last place while the words may not.
+fn unquoted(text: &str) -> String {
+    match text.find(" (margin ") {
+        Some(at) => {
+            let close = at + text[at..].find(')').expect("the quote closes");
+            format!("{}{}", &text[..at], &text[close + 1..])
+        }
+        None => text.to_owned(),
+    }
 }

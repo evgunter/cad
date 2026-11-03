@@ -103,8 +103,10 @@ fn on_lane(
         assertion,
         &leaf.box_,
         verdict.symbolic(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
+    .expect("the replay is not stopped")
     .expect("an assertion node has a verdict over a certified leaf")
 }
 
@@ -489,7 +491,14 @@ fn uniform() -> Distribution {
 fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document() {
     let (doc, _, _) = web_plate(1.0, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let witness = eval_over::<f64>(&doc, None);
     let full = VerdictVector::of(&witness);
     let shipped = verdict.witness_vector();
@@ -533,7 +542,14 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         uniform(),
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -562,6 +578,7 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -620,6 +637,7 @@ fn report_key_tells_two_budgets_apart() {
             max_leaves: 4,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("builds");
@@ -630,6 +648,7 @@ fn report_key_tells_two_budgets_apart() {
             max_leaves: 4096,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("builds");
@@ -769,7 +788,14 @@ fn neck_related(
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let (doc, assertion) = neck_related(0.3, 9, uniform(), AssertionRelation::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(!verdict.certified().is_empty());
     let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
     assert_eq!(v.holds(), Some(false), "{v:?}");
@@ -781,7 +807,14 @@ fn a_planted_violated_reads_violated_over_a_certified_leaf() {
 fn the_at_least_arm_reads_violated_off_the_faces_upper_end() {
     let (doc, assertion) = neck(0.5, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
     assert_eq!(v.holds(), Some(false), "{v:?}");
 }
@@ -795,8 +828,14 @@ fn equal_over_a_clearance_is_violated_off_either_bound() {
     let at = |bound| {
         let (doc, assertion) = neck_related(bound, 9, uniform(), AssertionRelation::Equal);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let verdict =
-            drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+        let verdict = drive(
+            &doc,
+            &analyzed,
+            &DriveConfig::default(),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("builds");
         on_lane(&doc, &verdict, &verdict.certified()[0], assertion)
     };
     for bound in [0.3, 0.5] {
@@ -819,6 +858,7 @@ fn a_wall_against_itself_reads_zero_and_violates_its_at_least_bound() {
             max_leaves: 64,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the f64 witness builds: no engine runs at a point scalar");
@@ -859,6 +899,7 @@ fn a_wide_box_over_a_copy_certifies_whole() {
             max_leaves: 64,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("builds");
@@ -927,8 +968,14 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         }
         other => panic!("{other:?}"),
     }
-    let verdict =
-        drive(&r.doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &r.doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("mixed:\n{}\n{}", budget.render(&r.doc), budget.serialize());
     assert!(budget.render(&r.doc).contains("FORCED, not priced: lift"));
@@ -966,6 +1013,7 @@ fn the_mc_lane_over_a_clearance_document_decides_nothing_and_says_so() {
             samples: 16,
             ..McConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("replays");
@@ -1067,7 +1115,14 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("builds");
     eprintln!("== drive\n{}", verdict.render(&doc, &analyzed));
     assert!(
         !verdict.certified().is_empty(),
@@ -1075,7 +1130,18 @@ fn the_bracket_walk_through_the_public_doors() {
     );
 
     eprintln!("== stackup(web)");
-    let report = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol).expect("a stackup");
+    let report = stackup(
+        &doc,
+        web,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("a stackup");
     eprintln!("{}", report.render(&doc, &analyzed));
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
@@ -1086,7 +1152,11 @@ fn the_bracket_walk_through_the_public_doors() {
         &verdict,
         &Selection::body_of(verdict_post(&doc)),
         &Selection::body_of(verdict_base(&doc)),
-        &ClearanceQuery::at_dials(editor_core::clearance::ClearanceBound::at_least(0.1), tol),
+        &ClearanceQuery::at_dials(
+            editor_core::clearance::ClearanceBound::at_least(0.1),
+            crate::fixture::no_stop(),
+            tol,
+        ),
     );
     // **§2's two doors and the key, on the three reports that shipped
     // with no row at all** (R2's MINOR-10): `LeafFold`'s trio,
@@ -1129,7 +1199,15 @@ fn the_bracket_walk_through_the_public_doors() {
     );
 
     eprintln!("== histogram(web)");
-    let h = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
+    let h = leaf_histogram(
+        &doc,
+        &analyzed,
+        &verdict,
+        web,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("no stop");
     eprintln!("{}", h.render(&doc));
     eprintln!("== assertions over the certified leaves");
     for leaf in verdict.certified() {
@@ -1142,7 +1220,14 @@ fn the_bracket_walk_through_the_public_doors() {
     }
 
     eprintln!("== mc");
-    let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
+    let mc = monte_carlo(
+        &doc,
+        &analyzed,
+        &McConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("replays");
     eprintln!("{}", mc.render(&doc));
     assert_eq!(mc.measures.len(), 1, "the web; a clearance holds no value");
 
@@ -1164,12 +1249,38 @@ fn the_bracket_walk_through_the_public_doors() {
         },
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("== band budget\n{}", budget.render(&doc));
     assert!(matches!(budget.basis, MassBasis::Forced { .. }));
-    assert!(monte_carlo(&doc, &analyzed, &McConfig::default(), tol).is_err());
-    if let Ok(report) = stackup(&doc, web, &analyzed, &verdict, None, true, None, tol) {
+    assert!(
+        monte_carlo(
+            &doc,
+            &analyzed,
+            &McConfig::default(),
+            &editor_core::Stop::default(),
+            tol
+        )
+        .is_err()
+    );
+    if let Ok(report) = stackup(
+        &doc,
+        web,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &editor_core::Stop::default(),
+        tol,
+    ) {
         eprintln!("== band stackup\n{}", report.render(&doc, &analyzed));
     }
 }
@@ -1319,10 +1430,27 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     }));
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
-    let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");
+    let verdict = drive(
+        &r.doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("builds");
     assert!(!verdict.certified().is_empty());
-    let report =
-        stackup(&r.doc, measure, &analyzed, &verdict, None, true, None, tol).expect("stackup");
+    let report = stackup(
+        &r.doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &editor_core::Stop::default(),
+        tol,
+    )
+    .expect("stackup");
     eprintln!(
         "stop 2: worst_case [{:e}, {:e}] bound {bound:e} (lo − bound = {:e}, ε = {:e})",
         report.worst_case.lo,

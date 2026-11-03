@@ -35,9 +35,8 @@
 //! A plane tangent to the cone along a ruling is a tangency between
 //! distinct carriers, and an undeclared one refuses typed at the
 //! ruling's rim end (`CurvedBooleanUnsupported`), never building. The
-//! apex against its copy's apex is a vertex pair, whose algebra over a
-//! fan of rulings is unbuilt: it refuses `VertexPairAtConeApex` by name.
-//! A vertex near a needle cone's axis, off its apex, refuses
+//! apex against another solid's vertex is pinned in
+//! `a_cone_apex_meets_a_vertex`. A vertex near a needle cone's axis, off its apex, refuses
 //! `VertexNearConeAxis` by name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -77,13 +76,10 @@ fn the_cone(r: f64) -> Region {
     Box::new(move |p: Point3<f64>| (r * (1.0 - p.y) - p.x.hypot(p.z)).min(p.y).min(1.0 - p.y))
 }
 
-/// The half-space `n·(p − NORTH) > 0`, as the cube of side 8 with a face
-/// on its plane, the apex at that face's centre.
-fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
-    let n = n.normalize();
-    let b = topo::test_support::brick((0.0, 8.0), (-4.0, 4.0), (-4.0, 4.0), tol());
+/// The turn taking `+x` onto the unit `n`, about the origin.
+fn turn_onto(n: Vec3<f64>) -> Affine3<f64> {
     let x = Vec3::new(1.0, 0.0, 0.0);
-    let turn = if x.cross(n).norm() < 1e-15 {
+    if x.cross(n).norm() < 1e-15 {
         Affine3::rotation_about_axis(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -95,21 +91,36 @@ fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
             x.cross(n).normalize(),
             x.dot(n).clamp(-1.0, 1.0).acos(),
         )
-    };
-    let m = Affine3::translation(NORTH - Point3::origin()) * turn;
+    }
+}
+
+/// The half-space `n·(p − NORTH) > 0`, as the cube of side 8 with a face
+/// on its plane, the apex at that face's centre.
+fn half_space(n: Vec3<f64>) -> AtRestBody<f64> {
+    let n = n.normalize();
+    let b = topo::test_support::brick((0.0, 8.0), (-4.0, 4.0), (-4.0, 4.0), tol());
+    let m = Affine3::translation(NORTH - Point3::origin()) * turn_onto(n);
     let moved =
         topo::transform_rigid(&b, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap();
     finished("the half-space", moved, tol())
 }
 
-/// The half-space's region, cut to its cube.
+/// The half-space's region: [`half_space`]'s cube, its sides along `n`
+/// and the turned `y` and `z`.
 fn the_half_space(n: Vec3<f64>) -> Region {
     let n = n.normalize();
+    let turn = turn_onto(n);
+    let (u, v) = (
+        turn.transform_vec(Vec3::new(0.0, 1.0, 0.0)),
+        turn.transform_vec(Vec3::new(0.0, 0.0, 1.0)),
+    );
     Box::new(move |p: Point3<f64>| {
-        let along = n.dot(p - NORTH);
+        let q = p - NORTH;
+        let along = n.dot(q);
         along
             .min(8.0 - along)
-            .min(4.0 - (p - NORTH - n * along).norm())
+            .min(4.0 - u.dot(q).abs())
+            .min(4.0 - v.dot(q).abs())
     })
 }
 
@@ -433,33 +444,6 @@ fn a_plane_grazing_a_tipped_cone_along_a_ruling_refuses_typed() {
                 }
             }
         }
-    }
-}
-
-/// **The apex against its copy's apex refuses the vertex pair by name**:
-/// the copy turned over about the apex, the two cones meeting there
-/// alone.
-#[test]
-fn a_tipped_cones_apex_on_its_copys_refuses_the_vertex_pair_by_name() {
-    let c = tipped(45.0);
-    let over = Affine3::translation(Vec3::new(0.0, 2.0, 0.0))
-        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI);
-    let copy = topo::transform_rigid(
-        &one_wrap_edge(cone(45.0), true).0,
-        &geom_core::test_support::rigid(&over, tol()),
-        tol(),
-    )
-    .unwrap();
-    let copy = finished("the copy", copy, tol());
-    for (op, r) in [
-        ("c ∪ copy", union(&c, &copy, tol())),
-        ("c ∩ copy", intersect(&c, &copy, tol())),
-        ("copy ∖ c", subtract(&copy, &c, tol())),
-    ] {
-        assert!(
-            matches!(r, Err(BooleanError::VertexPairAtConeApex { .. })),
-            "{op}: {r:?}"
-        );
     }
 }
 

@@ -2,7 +2,8 @@
 //!
 //! The mate tool reads a plane off a face, an axis off a face's carrier
 //! or an edge's line, a point off a vertex or a carrier's or a circle's
-//! centre, and a direction off a face's normal or an edge's line. Each
+//! centre, and a direction off a flat face's normal, a round face's
+//! axis or an edge's line. Each
 //! row aims a cursor at drawn geometry (the cursor DERIVED from the
 //! drawn polyline through the camera, never typed in), feeds the pick
 //! the cursor path answers to the open tool through `Tools::feed`, and
@@ -24,7 +25,7 @@ use viewer::display::DisplayView;
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateChoice, MateToolError};
 use viewer::pickindex::{PickIndex, PickKinds, PickedKind};
-use viewer::session::{DocSession, Hovered, ProfileShape, SessionOp};
+use viewer::session::{DocSession, Hovered, SessionOp};
 use viewer::tools::{ToolKind, Tools};
 
 /// The pane every row picks in.
@@ -371,7 +372,7 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
         let profile = common::session_insert(
             session,
             SessionOp::AddProfile {
-                loops: vec![common::shape(&ProfileShape::Circle { centre, radius })],
+                loops: vec![common::circle_at(centre, radius)],
             },
         );
         common::session_insert(
@@ -426,6 +427,86 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
                 .all(|p| ((p.x * p.x + p.y * p.y).sqrt() - SMALL).abs() < 1.0e-6),
         "the rim is drawn about the big peg's axis: {moved:?}"
     );
+}
+
+/// **A cylinder's face kept parallel to an edge** (`Direction` on a
+/// round face): a peg's side reads its carrier's axis, never its plane,
+/// so mated parallel to a block's long top front edge the peg lies
+/// along `x`; after the commit its rims are drawn across `x`.
+#[test]
+fn a_cylinder_face_mated_as_a_direction_runs_parallel() {
+    const RADIUS: f64 = 0.005;
+    const BLOCK_AT: [f64; 2] = [0.05, 0.0];
+    const BLOCK: [f64; 2] = [0.02, 0.01];
+    let tol = Tol::witness();
+    let mut session = DocSession::inline(
+        pncad::document::Doc::empty_derived("mate-kinds-peg-direction", tol),
+        tol,
+    );
+    let extruded = |session: &mut DocSession, shape, height| {
+        let profile = common::session_insert(session, SessionOp::AddProfile { loops: vec![shape] });
+        common::session_insert(
+            session,
+            SessionOp::AddExtrude {
+                profile,
+                distance: common::len(height),
+            },
+        )
+    };
+    let peg = extruded(&mut session, common::circle_at([0.0, 0.0], RADIUS), 0.02);
+    let block = extruded(
+        &mut session,
+        common::rectangle_at(BLOCK_AT, BLOCK[0], BLOCK[1]),
+        0.01,
+    );
+    let doc = session.committed_doc().clone();
+    let (doc, peg_copy) = common::world_copy(&doc, peg, tol);
+    let (doc, block_copy) = common::world_copy(&doc, block, tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let index = asm::index_of(&session);
+    let camera = front_camera(Point3::new(0.025, 0.0, 0.01));
+    let side_front = Point3::new(0.0, -RADIUS, 0.01);
+    let edge_front = Point3::new(BLOCK_AT[0], BLOCK_AT[1] - BLOCK[1] / 2.0, 0.01);
+    let picks = [
+        hovered(&session, &index, &camera, side_front, PickKinds::FacesOnly),
+        hovered(&session, &index, &camera, edge_front, PickKinds::Any),
+    ];
+    let [Hovered::Face(side), Hovered::Edge(edge)] = &picks else {
+        panic!("the peg's side is a face and the block's top front an edge: {picks:?}")
+    };
+    assert_eq!((side.node, edge.node), (peg_copy, block_copy));
+    let tools = mate_fed(&session, &index, &picks);
+    let proposal = common::proposed(
+        &session,
+        tools.mate().expect("the mate tool is open"),
+        choice(VarKind::Direction, false),
+    )
+    .expect("a cylinder's face and an edge mate as directions");
+    common::commit_mate(&mut session, proposal.op());
+    let index = asm::index_of(&session);
+    let rims: Vec<_> = index
+        .edges_in(peg_copy, 0)
+        .iter()
+        .map(|&id| index.edge_polyline_for(id, &DisplayView::none()))
+        .filter(|points| points.len() > 2)
+        .collect();
+    assert!(!rims.is_empty(), "the peg's rims are drawn");
+    for rim in &rims {
+        let spread = |of: fn(&Point3<f64>) -> f64| {
+            let (lo, hi) = rim
+                .iter()
+                .map(of)
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+                    (lo.min(v), hi.max(v))
+                });
+            hi - lo
+        };
+        assert!(
+            spread(|p| p.x) < 1.0e-6 && spread(|p| p.z) > RADIUS,
+            "the peg's rim stands across x: {rim:?}"
+        );
+    }
 }
 
 /// **A frame on a frame** (`Frame`): post_b's frame through its front
@@ -561,7 +642,11 @@ fn striking_a_point_or_a_direction_drops_nothing_silently() {
     let proposal = tool
         .proposal(doc, ev, tol)
         .expect("a point beside a direction proposes");
-    let coords: Vec<Coord> = proposal.values.iter().map(|row| row.coord).collect();
+    let coords: Vec<Coord<pncad::document::Operand>> = proposal
+        .values
+        .iter()
+        .map(|row| row.coord.clone())
+        .collect();
     assert_eq!(
         coords,
         [Coord::SPIN],

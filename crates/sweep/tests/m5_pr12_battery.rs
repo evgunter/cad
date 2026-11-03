@@ -255,7 +255,10 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
             // inward normals, which is exactly the configuration in
             // which the screen is EXACT — so here it really does mean
             // the face is consumed, and the row says which case it is.
-            assert!(format!("{e}").contains("cannot certify"));
+            assert!(
+                e.render(geom_brep::recourse::Reading::Build)
+                    .contains("cannot certify")
+            );
         }
         other => panic!("expected a face-consumption refusal, got {other:?}"),
     }
@@ -377,7 +380,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
                     .get_curve_geom(ed.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle { .. })
+                Some(geom::Curve3::Circle(..))
             ) && z(s) > 0.5
                 && z(t) > 0.5
         })

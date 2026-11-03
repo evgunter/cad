@@ -823,7 +823,15 @@ node where it is indefinite, its arcs ending at it), and a tangency
 along an interior curve, or anything in band, escalates. A side of the
 rectangle collapsed to one point not decided clear of the partner
 refuses at the door, before the sweep, naming the side. The
-interior-loop guard's loop-free stage is that sweep's verdict. A pair
+interior-loop guard's loop-free stage is that sweep's verdict outside
+the touches it decides: about a touch decided Zero, `φ`'s level sets at
+nearby values within the band are small closed curves, so the sweep's
+same-side join exempts the touch's cells, and the touch is the section
+there. On a wall with creases (knots of multiplicity at least the
+degree) the one sweep reads each piece of the rectangle between them,
+each crease line along itself and each crossing of two as a point: an
+extremum of `φ` on a crease is a critical point of `φ` along that line,
+or a crossing. A pair
 of two spline sides (NURBS, or `Approx` read as its fit) is classified
 the same way over both rectangles; until that is built, its tangency is
 its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
@@ -914,7 +922,17 @@ through the form's divisor, the torus read only as a ring torus
 (`R > r`), where the divisor's lower bound is positive; the pass reads
 `f∘C` along each side as the curve × face table's ring composite and
 `∇f(S)·S_d` across it; and where the sweep declines, the pose refuses as
-the general rung's, its whole reading unbuilt.
+the general rung's, its whole reading unbuilt. The sweep decides a cell
+it cannot read at the floor as a critical point: each cluster of such
+cells is isolated as `∇φ`'s one zero by the Krawczyk operator on the
+wall's jet, its Hessian's determinant read for a touch or a node, and
+its value on a ceiling in metres for Zero; a cluster not decided so
+declines the sweep. A section whose decided points are touches alone,
+and whose pass found no end, is those touches, each a point component
+with its witness and a tangency decided Zero, the reading the guard's
+touch arm takes; a node, or a touch beside components with ends,
+pinches them (`spline_critical_value`), since the march that would list
+them does not start at a decided tangency.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
@@ -940,7 +958,17 @@ extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
 or ends at a node (Edge descriptions): a node is
 decided on the pose as a Zero tangency whose section still has
-carriers, placed in closed form, and a site at it reads as the node.
+carriers, placed in closed form or enclosed alone in a certified box,
+and a site at it reads as the node. The value lists each node with the
+surfaces' common normal, its two tangent lines and the side of each
+other the surfaces lie on in the sectors between them, all read off
+their relative second fundamental form there, indefinite and
+nondegenerate. Each arc end at a node names its line and the sense it
+leaves along. A germ leaving a node is minted from its arc end, and no
+reading of a site names an arc there.
+Arcs that share nodes are one node-joined set (`NodeSet`), the
+connected component: the set claims its winding about each surface,
+and its arcs claim none.
 Two cylinders decide their pose on closed-form margins: parallelism as
 `sin θ · L` at the region's radius `L`; then the gap `e` along the
 common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
@@ -1158,8 +1186,20 @@ so is a bisector bound in the boolean's sector passes; the split's
 subdivision bisectors (`wide_entries`, `split_bisector_side`) read
 their side of the plane outside it. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
-carrier's curvature bounds less the first-order residue. An in-band
-second-order tie escalates. Readings of different equations are never
+carrier's curvature bounds less the first-order residue. Any other
+tied bound descends by the parting of its bend past the face's normal
+section along it (a bisector bends as its own sector's face does), on
+the first order's own ladder: decided, it leaves the face; within the
+zero band, it rides it; in the gap between the zero band and the
+escalation band, or where no bend is certified (a spline face, a
+spiric or spline edge against a curved face), it falls back to its
+first-order tie; a poisoned reading refuses. A tied line or conic edge
+against a sphere or a cylinder is read on its witness as well, its own
+point at the arm the parting was read at, by the carrier's signed
+distance on the same reading (`topo::link::Round`): off the zero band
+the verdict stands only on that point's side; a point back within the
+zero band reads as the tie, and one on the other side refuses.
+Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed

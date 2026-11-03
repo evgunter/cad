@@ -493,6 +493,8 @@ pub fn revolved_caps<T: Real>(r: &Revolved<T>) -> Result<WedgeFrames<T>, WedgeCa
 pub enum RevolveError {
     /// The run's tolerance could not form a classification band.
     Band(BandError),
+    /// The profile has no loops: the empty region sweeps nothing.
+    EmptyProfile,
     /// The axis direction's length is **not a finite number**: its
     /// components overflow the norm (past ~1e154), or one of them is
     /// not a number. Distinct from [`RevolveError::DegenerateAxis`]
@@ -803,10 +805,15 @@ impl ClearanceDecision {
     }
 }
 
-impl fmt::Display for RevolveError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl RevolveError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
+            Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
             Self::NonFiniteAxis => write!(
                 f,
                 "the revolve axis direction has no finite length (a component overflows \
@@ -1002,11 +1009,19 @@ impl fmt::Display for RevolveError {
                  on the axis, so the run's wall has no strut there"
             ),
             Self::CapPlane { source } => write!(f, "{source}"),
-            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
-            Self::Pcurve(source) => write!(f, "{source}"),
+            Self::Op { source } => {
+                write!(
+                    f,
+                    "an Euler operation refused: {}",
+                    geom_brep::recourse::read_at(source, at)
+                )
+            }
+            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
+
+geom_brep::ended_by_write!(RevolveError);
 
 impl std::error::Error for RevolveError {}
 
@@ -1076,6 +1091,9 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let band = Band::linear(tol).map_err(RevolveError::Band)?;
+    if profile.loops().is_empty() {
+        return Err(RevolveError::EmptyProfile);
+    }
     let frame = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
 
     // ---- Angle classification (module docs), metered at the
@@ -1230,7 +1248,11 @@ mod tests {
             }
         }
         for (text, err) in built {
-            assert_eq!(err.to_string(), text, "{err:?}");
+            assert_eq!(
+                err.render(geom_brep::recourse::Reading::Build),
+                text,
+                "{err:?}"
+            );
         }
     }
 
@@ -1252,14 +1274,14 @@ mod tests {
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 RevolveError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ] {
                 assert_eq!(
                     text.contains("curve apart there or share their curvature is undecided: "),
@@ -1307,7 +1329,7 @@ mod tests {
             },
         ];
         for e in errors {
-            let msg = e.to_string();
+            let msg = e.render(geom_brep::recourse::Reading::Build);
             assert_eq!(
                 msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
                 1,
@@ -1318,7 +1340,7 @@ mod tests {
         // the list above: a direction with no finite length is not a
         // coincidence at any tolerance, so the shared recourse is the
         // wrong one to offer and the arm carries its own.
-        let msg = RevolveError::NonFiniteAxis.to_string();
+        let msg = RevolveError::NonFiniteAxis.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             0,

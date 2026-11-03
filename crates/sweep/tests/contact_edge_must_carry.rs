@@ -164,15 +164,15 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         let s2 = body.get_surface(s2).expect("a described edge's surface");
         let carrier = c.carrier();
         let (t0, t1) = c.params();
-        let chord = carrier.eval(t0).distance(carrier.eval(t1));
-        let extent = edge_extent_inf(carrier, t0, t1, chord);
+        let extent = edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
         let in_lane = tangent_certificate_lane(carrier, s1, s2);
         let stations = (1..CERT_SAMPLES - 1)
             .map(|i| {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                let margin = Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value();
+                let margin =
+                    Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm.length()).value();
                 let tag = match reading.verdict.map(|d| d.sign) {
                     Ok(Sign::Positive) => "+",
                     Ok(Sign::Zero) => "0",
@@ -243,7 +243,12 @@ fn corpus() -> Vec<(String, Body<f64>)> {
     let tol = tol();
     let carve = |name: &str, body: &Body<f64>, edges: &[EdgeKey], r: f64| {
         let out = fillet_edges(&sweep::test_support::at_rest(body, tol), edges, r, tol)
-            .unwrap_or_else(|e| panic!("{name} carves on the corpus: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{name} carves on the corpus: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         (name.to_owned(), out.body)
     };
     let mut rows = Vec::new();
@@ -404,7 +409,10 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
                 source,
             } = &error
             else {
-                panic!("{what}: refused, but not as the rule's in-band escalation: {error}");
+                panic!(
+                    "{what}: refused, but not as the rule's in-band escalation: {error_at}",
+                    error_at = error.render(geom_brep::recourse::Reading::Build)
+                );
             };
             assert_eq!(
                 source.predicate,
@@ -421,7 +429,7 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
                 b.zero(),
                 b.escalate()
             );
-            let shown = error.to_string();
+            let shown = error.render(geom_brep::recourse::Reading::Build);
             assert!(
                 shown.contains(FILLET3_CONTACT_RECOURSE),
                 "{what}: the refusal names the radius as the lever.\n  got: {shown}"
@@ -525,7 +533,12 @@ fn every_contact_edge_on_the_corpus_is_jet_determinate() {
 #[test]
 fn the_rod_family_the_door_admits_stores_the_intrinsic_description() {
     for ratio in [2.0, 1.5, 1.2, 1.16] {
-        let out = rod_family(ratio, 0.1).unwrap_or_else(|e| panic!("R/r = {ratio} carves: {e}"));
+        let out = rod_family(ratio, 0.1).unwrap_or_else(|e| {
+            panic!(
+                "R/r = {ratio} carves: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let readings = contact_readings(&out.body);
         assert_eq!(
             readings.len(),
@@ -626,7 +639,12 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
         "the die at r = 1.5·Kε",
     );
     let out = fillet_edges(&die, &query::all_edges(&die), 3.0 * b.escalate(), tol())
-        .unwrap_or_else(|e| panic!("the die at r = 3·Kε builds: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the die at r = 3·Kε builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     let readings = contact_readings(&out.body);
     assert_eq!(readings.len(), 48, "the die's contact edges, all intrinsic");
     assert!(
@@ -638,8 +656,12 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
 
     let r = radius_for_margin(2.0, 0.75);
     in_band_refusal(rod_family(2.0, r), "the rod at R/r = 2, margin 0.75·Kε");
-    let out = rod_family(2.0, 2.0 * r)
-        .unwrap_or_else(|e| panic!("the rod at twice the scale builds: {e}"));
+    let out = rod_family(2.0, 2.0 * r).unwrap_or_else(|e| {
+        panic!(
+            "the rod at twice the scale builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let readings = contact_readings(&out.body);
     assert_eq!(readings.len(), 2, "both trimlines intrinsic");
     assert!(
@@ -661,7 +683,12 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
             radius,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("the slim wedge at r = {radius:e} builds: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the slim wedge at r = {radius:e} builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             corner_arc_pairs(&out),
             0,
@@ -716,7 +743,12 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
         Probe(ROD_FILLET),
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the D-rod's creases carve: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the D-rod's creases carve: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
@@ -760,8 +792,15 @@ fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
             });
             let carrier = c.carrier().map_scalar(Interval::from_f64);
             let (t0, t1) = c.params();
-            let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
-            let extent = Interval::from_f64(edge_extent_inf(c.carrier(), t0, t1, chord));
+            let extent = geom_core::test_support::fixture_lever(Interval::from_f64(
+                edge_extent_inf(
+                    c.carrier(),
+                    t0,
+                    t1,
+                    (c.carrier().eval(t0), c.carrier().eval(t1)),
+                )
+                .length(),
+            ));
             let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
             let ab = must_carry_over_edge(&a, &b, &carrier, t0, t1, extent, band);
             let ba = must_carry_over_edge(&b, &a, &carrier, t0, t1, extent, band);

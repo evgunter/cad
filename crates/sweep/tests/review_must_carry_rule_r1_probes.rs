@@ -69,12 +69,7 @@ fn meridian_sharing_tori() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     };
     // θ = 0 at the outer equator point (1 + r, 0, 0); station i of the
     // schedule sits at θ = i·π/4.
-    let carrier = Curve3::Circle {
-        center: Point3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: r,
-        u_ref: x,
-    };
+    let carrier = Curve3::circle(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), r, x);
     (a, b, carrier)
 }
 
@@ -91,7 +86,8 @@ fn kappa_rel_varies_along_a_lane_admitted_carrier_and_the_second_station_decides
         geom_brep::tangent_certificate_lane(&carrier, &a, &b),
         "a Circle carrier on a torus pair is inside the lane"
     );
-    let extent = 2.0 * 0.25; // a full circle's extent is its diameter
+    // A full circle's extent is its diameter.
+    let extent = geom_core::test_support::fixture_lever(2.0 * 0.25);
     let at = |i: u32| {
         let t = geom_brep::sample_param(0.0, TAU, i);
         geom_brep::tangent_second_order(&a, &b, carrier.eval(t), carrier.deriv(t), extent, band())
@@ -156,14 +152,22 @@ fn an_edge_decided_at_the_second_station_spends_two_samples() {
         minor_radius: pr(0.25),
         u_ref: v(1.0, 0.0, 0.0),
     };
-    let carrier = Curve3::Circle {
-        center: pt(1.0, 0.0, 0.0),
-        axis: v(0.0, 1.0, 0.0),
-        radius: pr(0.25),
-        u_ref: v(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        pt(1.0, 0.0, 0.0),
+        v(0.0, 1.0, 0.0),
+        pr(0.25),
+        v(1.0, 0.0, 0.0),
+    );
     k_stats::start_recording();
-    let answer = must_carry_over_edge(&a, &b, &carrier, pr(0.0), pr(TAU), pr(0.5), band());
+    let answer = must_carry_over_edge(
+        &a,
+        &b,
+        &carrier,
+        pr(0.0),
+        pr(TAU),
+        geom_core::test_support::fixture_lever(pr(0.5)),
+        band(),
+    );
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")

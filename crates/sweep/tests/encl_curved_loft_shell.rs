@@ -220,7 +220,10 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     )
     .expect_err("a spline-walled body does not shell today");
     let ShellError::Face { face, error } = &e else {
-        panic!("expected a per-face offset refusal, got {e}");
+        panic!(
+            "expected a per-face offset refusal, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     // Which door answers first depends on ε: a wall's fit reaches
     // 1.39486e-10 m on a 62 x 35 grid, the last within the sample cap,
@@ -232,7 +235,8 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     if eps < 1.39486e-10 {
         assert!(
             is_spline_wall(&nurbs_walls(&body), *face),
-            "the refusing face is not a wall: {e}"
+            "the refusing face is not a wall: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
         let ReplaceFaceError::Fit {
             error:
@@ -245,7 +249,10 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
             ..
         } = error.as_ref()
         else {
-            panic!("eps {eps:e}: expected the wall's fit to reach the sample cap, got {e}");
+            panic!(
+                "eps {eps:e}: expected the wall's fit to reach the sample cap, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         };
         assert!(
             *grid == (62, 35) && (achieved - 1.39486e-10).abs() < 1e-14,
@@ -314,7 +321,10 @@ fn an_outward_cap_offset_runs_past_the_seam_patchs_end() {
         let e = topo::replace_face_offset(&mut moved, top_cap(&body), THICKNESS, Tol::witness())
             .expect_err("the walls end at the cap and do not extend");
         let ReplaceFaceError::ReanchorPastCarrierEnd { edge, gap } = e else {
-            panic!("{name}: expected the past-the-end refusal, got {e}");
+            panic!(
+                "{name}: expected the past-the-end refusal, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         };
         assert_wall_seam(&body, edge, name);
         assert!(
@@ -451,11 +461,15 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     )
     .expect_err("a spline-walled body does not shell today");
     let ShellError::Face { face, error } = &e else {
-        panic!("expected a per-face offset refusal, got {e}");
+        panic!(
+            "expected a per-face offset refusal, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         is_spline_wall(&walls, *face),
-        "the refusing face is not a wall: {e}"
+        "the refusing face is not a wall: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     assert!(
         matches!(
@@ -467,7 +481,8 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
                 ..
             }
         ),
-        "expected the wall's fit to refuse at its crease, got {e}"
+        "expected the wall's fit to refuse at its crease, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     // The bottom cap, moved alone into the vase.
     let (cap, d) = body
@@ -696,7 +711,10 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
             ..
         } = &e
         else {
-            panic!("d {d}: expected the marched rim's certificate to refuse, got {e}");
+            panic!(
+                "d {d}: expected the marched rim's certificate to refuse, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         };
         match error {
             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
@@ -725,7 +743,10 @@ fn a_tilted_caps_marched_rim_refuses_at_its_certificate() {
                     "eps {eps:e}, d {d}: limb 2 escalated with no micrometre in the band"
                 );
             }
-            _ => panic!("eps {eps:e}, d {d}: expected limb 2 to answer, got {e}"),
+            _ => panic!(
+                "eps {eps:e}, d {d}: expected limb 2 to answer, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -1020,8 +1041,12 @@ fn a_moved_fitted_cap_stands_its_corners_on_the_held_sides() {
                  {own}"
             );
         }
-        topo::replace_face_offset(&mut body, cap, d, Tol::witness())
-            .unwrap_or_else(|e| panic!("d = {d}: the fitted cap moves: {e}"));
+        topo::replace_face_offset(&mut body, cap, d, Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: the fitted cap moves: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let cap_key = body.get_face(cap).expect("the cap survives").surface;
         assert!(
             matches!(body.get_surface(cap_key), Some(geom::Surface::Approx(_))),
@@ -1201,7 +1226,12 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
             );
             continue;
         }
-        moved.unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the curved fitted cap moves: {e}"));
+        moved.unwrap_or_else(|e| {
+            panic!(
+                "eps {eps:e}, d = {d}: the curved fitted cap moves: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         // The side planes stand the corners at x, y ∈ {0, 2}; the bump
         // sets their height.
         for (_, v) in body.vertices() {
@@ -1240,7 +1270,12 @@ fn a_moved_curved_fitted_cap_builds_where_its_fit_certifies_row() {
             &geom_core::test_support::rigid(&rigid, Tol::witness()),
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("eps {eps:e}, d = {d}: the moved body maps rigidly: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "eps {eps:e}, d = {d}: the moved body maps rigidly: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     }
 }
 
@@ -1278,7 +1313,12 @@ fn a_moved_spline_caps_edges_are_each_images_own_row() {
     let cap_key = body.get_face(cap).expect("the cap resolves").surface;
     let (mut u_rows, mut v_rows) = (0, 0);
     for (edge, spec) in topo::offset_edge_specs_for_tests(&body, cap, d, Tol::witness()) {
-        let spec = spec.unwrap_or_else(|e| panic!("{edge:?}: the cap edge plans: {e}"));
+        let spec = spec.unwrap_or_else(|e| {
+            panic!(
+                "{edge:?}: the cap edge plans: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let EdgeDescriptionSpec::Chart {
             surface,
             image: Some(Pcurve::IsoLine { p0, pl }),
@@ -1387,7 +1427,12 @@ fn a_spline_caps_row_beside_a_tilted_side_is_their_section() {
         |p: geom_core::Point3<f64>| (p - geom_core::Point3::new(2.0, 0.0, 1.0)).dot(normal);
     let mut sections = 0;
     for (edge, spec) in topo::offset_edge_specs_for_tests(&body, cap, d, Tol::witness()) {
-        let spec = spec.unwrap_or_else(|e| panic!("{edge:?}: the cap edge plans: {e}"));
+        let spec = spec.unwrap_or_else(|e| {
+            panic!(
+                "{edge:?}: the cap edge plans: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let old = certified_curve(&body, edge);
         let (t0, t1) = old.params();
         if on_tilted(old.carrier().eval(t0)).abs() > 1e-12

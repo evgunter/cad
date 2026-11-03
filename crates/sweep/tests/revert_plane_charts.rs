@@ -98,7 +98,7 @@ fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
     let mut circles = 0;
     for ((ek, before), (ek2, after)) in stored.iter().zip(&mirrored) {
         assert_eq!(ek, ek2);
-        if matches!(carrier(&cavity, *ek).0, geom::Curve3::Circle { .. }) {
+        if matches!(carrier(&cavity, *ek).0, geom::Curve3::Circle(..)) {
             circles += 1;
         }
         assert_mirrored(&format!("{ek:?}"), before, after, &schedule(&cavity, *ek));
@@ -172,7 +172,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     let band = geom_core::Band::linear(tol()).expect("band");
     let (ek, image) = plane_images(&cavity)
         .into_iter()
-        .find(|(k, _)| matches!(carrier(&cavity, *k).0, geom::Curve3::Circle { .. }))
+        .find(|(k, _)| matches!(carrier(&cavity, *k).0, geom::Curve3::Circle(..)))
         .expect("a latitude half-circle on the plane");
     let (he, curve_key): (HalfEdgeKey, topo::CurveKey) = {
         let edge = cavity.get_edge(ek).unwrap();
@@ -210,6 +210,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     let rerun = mirrored
         .recertify(
             &carrier3,
+            row.params(),
             reverted_plane,
             band,
             <f64 as topo::AtRestPolicy>::fitted_lane(),
@@ -222,6 +223,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     );
     let stale = row.recertify(
         &carrier3,
+        row.params(),
         reverted_plane,
         band,
         <f64 as topo::AtRestPolicy>::fitted_lane(),
@@ -375,7 +377,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             start,
             end,
             surfaces,
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),
         );
@@ -395,7 +397,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
                 start,
                 end,
                 surfaces,
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )
@@ -423,12 +425,12 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
 /// place the sign could have leaked.
 #[test]
 fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
-    let circle = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::unit_z(),
+        1.0,
+        Vec3::unit_x(),
+    );
     let image = Pcurve::free_harmonic(
         Point2::new(0.0, 0.0),
         Vec2::new(1.0, 0.0),

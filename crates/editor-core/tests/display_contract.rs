@@ -1028,6 +1028,7 @@ test_utils::f6_variants! {
         ObservedRead,
         MetadataUnversioned,
         StepIds,
+        SectionIds,
         MintLogOrder,
         NameReadNotMinted,
         AppearanceReadNotABody,
@@ -1505,6 +1506,18 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "Profile 000000000005's step ids",
                 "step id 000000000003 stands for two steps",
+            ],
+        ),
+        (
+            SnapshotError::SectionIds {
+                node: held(5, "Loft"),
+                fault: editor_core::SectionIdBreak::Repeated {
+                    section: editor_core::SectionId::new(0, tagged(3)),
+                },
+            },
+            vec![
+                "Loft 000000000005's section id 000000000003",
+                "stands for a second section in the document",
             ],
         ),
         (
@@ -2262,6 +2275,7 @@ test_utils::f6_variants! {
         UnsupportedSeamSides,
         UnsupportedJoin,
         UnsupportedUnionName,
+        HoldingsUnread,
         UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
@@ -2623,6 +2637,19 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 "member read 000000000025's edge",
                 "is read where one edge is needed",
                 "the member ties that name to several edges",
+            ],
+        ),
+        (
+            NamingError::HoldingsUnread {
+                face: None,
+                refusal: topo::HeldRefusal::Recharted {
+                    face: (1, topo::FaceKey::default()),
+                },
+            },
+            vec![
+                "which member faces a region the boolean discarded holds area of",
+                "could not be read",
+                "turned before the boolean",
             ],
         ),
         (

@@ -81,7 +81,7 @@ use super::enclose::{
     Box3, NurbsBoxes, UvWindow, has_implicit_enclosure, implicit_enclosure, refused_box,
 };
 use super::four::{Box4, PairBoxes};
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, defect_ending};
+use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
 /// is not split again. Fixed and named (C3: "a named constant tied to
@@ -448,7 +448,8 @@ impl FloorRefusal {
     /// tolerance is named); a floor that is not a length is the
     /// caller's knobs; an unreadable root is no input's.
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> String {
+    pub fn ending(&self, reading: impl Into<crate::recourse::ReadAt>) -> String {
+        let reading = reading.into();
         let decision = match (self.fault, self.lane) {
             (FloorFault::NotALength, _) => {
                 return "Recourse: give the domain a feature extent and floor scale whose \
@@ -607,6 +608,23 @@ impl SweepFloor<ParamSpan> {
     }
 }
 
+impl SweepFloor<UvRect> {
+    /// This floor over `root`, a rectangle inside the one it was minted
+    /// over: the same width and lane, its resolution held, since a
+    /// sub-rectangle reaches no further than its parent. `None` for a
+    /// rectangle outside the floor's root.
+    pub(crate) fn within(self, root: UvRect) -> Option<Self> {
+        let inside = |a: (f64, f64), b: (f64, f64)| b.0 <= a.0 && a.0 <= a.1 && a.1 <= b.1;
+        (inside(root.u, self.root.u) && inside(root.v, self.root.v))
+            .then_some(Self { root, ..self })
+    }
+
+    /// The rectangle the floor was minted over.
+    pub(crate) fn root(self) -> UvRect {
+        self.root
+    }
+}
+
 impl<C: SweepCell> SweepFloor<C> {
     /// The one door.
     ///
@@ -698,9 +716,11 @@ enum SweepDuty<'a, C> {
         /// zero inward.
         clear: &'a [C],
     },
-    /// Stop at every cell `regular` holds, and return the centre of the
-    /// first cell that is neither excluded nor regular at the floor: the
-    /// plane × spline pose's regularity sweep, which that cell declines.
+    /// Stop at every cell `regular` holds, and return the centres of the
+    /// cells that are neither excluded nor regular at the floor, up to
+    /// [`REGULAR_SURVIVORS`]: the spline × implicit pose's regularity
+    /// sweep, which decides each cluster of them as a critical point or
+    /// declines.
     Regular(&'a dyn Fn(C) -> bool),
 }
 
@@ -857,8 +877,9 @@ impl SweepTally {
 /// places: at (ii), what accounts for a cell (nothing when seeding, a
 /// tube, region or clear cell when accounting, a regular cell for the
 /// regularity sweep), and at the floor, where seeding banks the
-/// survivor, accounting refuses, and the regularity sweep returns its
-/// first survivor, which declines it. Every other line — the budget,
+/// survivor, accounting refuses, and the regularity sweep banks it too,
+/// to be decided as a critical point, up to [`REGULAR_SURVIVORS`].
+/// Every other line — the budget,
 /// the bookkeeping, the exclude/account/refine ladder — is written once,
 /// so the never-silence refusal cannot be edited in one lane and
 /// forgotten in the other.
@@ -913,10 +934,15 @@ fn sweep<C: SweepCell>(
                     out.push(cell.seed());
                     continue;
                 }
-                // One cell the sweep cannot decide declines it.
+                // A cell the sweep cannot read is a critical point's to
+                // decide; past the cap, there are more than one point
+                // can hold, and the sweep stops.
                 SweepDuty::Regular(_) => {
                     out.push(cell.seed());
-                    return Ok((stats, out));
+                    if out.len() > REGULAR_SURVIVORS {
+                        return Ok((stats, out));
+                    }
+                    continue;
                 }
                 SweepDuty::Account { .. } => {
                     return Err(SsiError::ExhaustivenessInconclusive(
@@ -1020,7 +1046,7 @@ fn excludes_zero(i: Interval) -> bool {
 }
 
 /// A rectangle in a surface's parameter domain — the chart lane's cell.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct UvRect {
     /// `u` bounds, in chart units.
     pub u: (f64, f64),
@@ -1229,13 +1255,18 @@ pub(crate) fn account_chart_plane(
     Ok(tally.receipt(floor.lane, floor.width()))
 }
 
+/// The most floor cells the regularity sweep hands on to be decided as
+/// critical points (D9, a fixed rule): past it the sweep stops, and the
+/// pose declines.
+pub(crate) const REGULAR_SURVIVORS: usize = 256;
+
 /// **The regularity sweep**, chart lane, over the one shared [`sweep`]:
 /// a cell is excluded where `excluded` reads the partner's `φ` over it,
 /// `value`'s enclosure (the plane's height on the accounting's own
 /// enclosure, [`chart_plane_height`]), as past it, and stops where
-/// `regular` holds. The answer is the centre of the first cell neither
-/// holds at the floor, which declines the sweep, or none; and how many
-/// cells read regular.
+/// `regular` holds. The answer is the centres of the cells neither holds
+/// at the floor, more than [`REGULAR_SURVIVORS`] of them where the sweep
+/// stopped; and how many cells read regular.
 ///
 /// # Errors
 ///
@@ -1245,12 +1276,12 @@ pub(crate) fn sweep_chart_regular(
     floor: SweepFloor<UvRect>,
     excluded: impl Fn(UvRect, Interval) -> bool,
     regular: &dyn Fn(UvRect) -> bool,
-) -> Result<(Option<(f64, f64)>, u32), SsiError> {
-    let (tally, declined) = sweep(floor, SweepDuty::Regular(regular), |cell| {
+) -> Result<(Vec<(f64, f64)>, u32), SsiError> {
+    let (tally, survivors) = sweep(floor, SweepDuty::Regular(regular), |cell| {
         let phi = value(cell)?;
         Ok(excluded(cell, phi))
     })?;
-    Ok((declined.first().copied(), tally.regular))
+    Ok((survivors, tally.regular))
 }
 
 /// **The plane's height over a cell**: `φ(u,v) = n·(S(u,v) − p₀)`

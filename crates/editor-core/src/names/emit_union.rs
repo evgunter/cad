@@ -41,17 +41,15 @@
 //! because they read the finished table or the finished body. Each
 //! replaces something the fold wrote down about WHEN it met an entity
 //! with something the finished union says about WHAT the entity is:
-//! - a face is named for its PARENT, the member faces the pairwise
-//!   judgements consumed together, transitively ([`Links`]), which a
-//!   finished face takes from the member faces it descends from by
-//!   entity through the fold ([`Fold`], [`Parents`]): the parent
-//!   itself when the finished body holds it as one face, and
-//!   otherwise the parent and one `Borders`
-//!   over the divider walls each piece borders; a seam edge is named
-//!   for the two parents it lies between; and any other name cites a
-//!   face as its parent ([`name_by_parents`]) — whether a step cut a
-//!   face before or after it merged, and in how many steps, is fold
-//!   history;
+//! - a face is named for its PARENT, exactly the member faces whose
+//!   area it holds, read off the kernel's holdings ([`Fold`],
+//!   [`Parents`]): that parent alone, or with one `Borders` over its
+//!   divider walls where another face holds area of a member face it
+//!   holds; an edge lying within or along member edges is a piece of
+//!   them, and every other edge is named for the two parents it lies
+//!   between; and any other name cites a face as its parent
+//!   ([`name_by_parents`]) — whether a step cut a face before or after
+//!   it merged, and in how many steps, is fold history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner at another member's corner) is
 //!   named for the set of the member entities that hold it, `Merged` of
@@ -107,7 +105,6 @@
 //! declaration can name, and it is the reason the two questions are
 //! asked in two places rather than shared.
 
-use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -119,16 +116,15 @@ use crate::names::defer::{TieRows, mint_candidates};
 use crate::names::discriminate::{ON_MEMBER_EDGE, band};
 use crate::names::emit::{
     DisagreeShape, Incidence, NamingError, SeamSidesShape, SeamVertexShape, UnionNameShape,
-    check_total, edge_ends, ent, face_half_edges, vertex_point,
+    check_total, edge_ends, ent, face_half_edges, read_held, vertex_point,
 };
 use crate::names::emit_topo::{
-    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, Lone, ParentEntities, UNSIDED,
-    edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
-    line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
+    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, HeldFace, Lone, ParentEntities,
+    UNSIDED, edge_reading, edges_holding, held_base, is_straight, joined_along, joined_candidates,
+    line_name as line_name_of, name_corner_copies, name_edge_pieces, name_held_faces,
     sense_along_line, sets_per_line,
 };
 use crate::names::groups::{GroupRecord, Parent as GroupParent, Rederived};
-use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
     Carry, EntityKind, NameRef, Qualifier, RoleSeg, RunLine, SegRewrite, Sense, StableName,
@@ -137,6 +133,7 @@ use crate::names::role::{
 use crate::names::seam_pair;
 use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
+use crate::node::SectionId;
 use crate::var::VarId;
 
 /// One member's table as the UNION sees it: every row's name wrapped
@@ -267,16 +264,16 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     folded: &NameTable,
     members: &[Member<'_, T>],
     fold: &Fold<'_>,
-    links: &Links<T>,
+    pair_senses: &PairSenses<T>,
     tol: geom_core::Tol,
 ) -> Result<(Arc<NameTable>, Rederived), NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
-    let parents = Parents::of(node, body, members, fold, links)?;
+    let parents = Parents::of(node, body, members, fold.holdings())?;
     let flush = Flush::of(node, body, members, &parents, bnd)?;
     let by_parents = name_by_parents(node, &t, body, &parents, fold, &flush)?;
-    let (t, member_edges, member_lines) =
-        group_member_edges(by_parents.table, by_parents.held, &flush)?;
+    let (member_edges, member_lines) = group_member_edges(by_parents.held, &flush)?;
+    let t = by_parents.table;
     let lines = EdgeLines {
         member: member_lines,
         seam: by_parents
@@ -294,7 +291,8 @@ pub(crate) fn name_union<T: geom_core::Decide>(
         by_parents.vertices,
         body,
         (&flush, fold),
-        (&lines, links),
+        (&lines, pair_senses),
+        (&parents, &by_parents.seam_heads),
         &mut groups,
     )?;
     let mut tie = TieRows::default();
@@ -341,82 +339,54 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 
 /// **The pieces of each member edge, grouped under it.**
 ///
-/// A row `From(m, e)` followed only by the fold's
-/// `Fragment(Ends)`, `e` an edge, is a piece of `m`'s edge `e`; so is
-/// any edge row that lies within a member edge whatever the fold named
-/// it (a merged edge the fold met as a seam). Either is a piece of the
-/// member edge it lies within, or of the SET of them where it lies
-/// within several flush there ([`Flush`]). An edge row that lies
-/// within none but runs along several member edges covering it, however
-/// the fold named it, is a piece of that SET. Each group is named
-/// `From(m, e)` or `Merged` of the set: a member edge alone where
-/// the finished body holds it whole ([`Flush::holds_whole`]), and
-/// otherwise each piece of it, a lone one included, by its ends over the
-/// union's published vertex names, read off the finished body: the
-/// fold's qualifiers record which step cut the edge and which member
-/// kept a flush stretch, both of which depend on member order.
+/// A finished edge lying within member edges ([`Flush`]) is a piece of
+/// the member edge it lies within, or of the SET of them where it lies
+/// within several flush there; one lying within none but along several
+/// member edges covering it is a piece of that SET; and one no cover is
+/// read for (a wrap edge, or one on a carrier that places no point) is a
+/// piece of the member edge the fold named it for ([`HeldEdge`]). Each group is named `From(m, e)` or `Merged` of
+/// the set: a member edge alone where the finished body holds it whole
+/// ([`Flush::holds_whole`]), and otherwise each piece of it, a lone one
+/// included, by its ends over the union's published vertex names, read
+/// off the finished body.
 ///
-/// Returns the table without those rows, the groups, and each grouped
-/// edge's member edge or set.
-#[allow(clippy::type_complexity)] // the three outputs of one pass
+/// Returns the groups, and each grouped edge's member edge or set.
 fn group_member_edges<T: geom_core::Decide>(
-    t: NameTable,
-    held: Vec<(StableName, Entry)>,
+    held: Vec<HeldEdge>,
     flush: &Flush<'_, T>,
-) -> Result<(NameTable, Vec<PieceGroup>, BTreeMap<topo::EdgeKey, Along>), NamingError> {
+) -> Result<(Vec<PieceGroup>, BTreeMap<topo::EdgeKey, Along>), NamingError> {
     // Member edge, or set of them → (from a tie, its edges, whether
-    // every row is an edge the finished body holds as the whole member
+    // every edge is one the finished body holds as the whole member
     // edge).
     let mut groups: BTreeMap<Along, (bool, Vec<topo::EdgeKey>, bool)> = BTreeMap::new();
     let mut lines = BTreeMap::new();
-    let mut out = NameTable::new();
-    let rows = t
-        .iter()
-        .map(|(name, entry)| (name.clone(), entry.clone()))
-        .chain(held);
-    for (name, entry) in rows {
-        let keys = match &entry {
-            Entry::Unique(e) => vec![e.key],
-            Entry::Tied(es) => es.iter().map(|e| e.key).collect(),
-        };
-        let edges = keys
-            .iter()
-            .filter_map(|k| match k {
-                EntityKey::Edge(k) => Some(*k),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let (key, whole) = match (member_edge_piece(&name), edges.as_slice()) {
-            (Some(_), []) => unreachable!(
-                "union row {name:?} is a member edge's piece and names no edge but {keys:?}: a \
-                 table seats a row only on entities of its name's kind"
-            ),
-            (_, [k]) if flush.spans.contains_key(k) => (
-                Some(Along::Set(flush.spans[k].iter().cloned().collect())),
-                true,
-            ),
-            (Some((member, edge, _)), [k]) => {
-                flush.piece_of(*k, flush.within_or(*k, (member, edge)))?
-            }
-            (Some((member, edge, _)), _) => (Some(Along::One((member, edge))), false),
-            (None, [k]) => match flush.within(*k) {
-                Some(within) => flush.piece_of(*k, within.clone())?,
-                None => (None, false),
-            },
-            (None, _) => (None, false),
-        };
-        match key {
-            Some(key) => {
-                for &k in &edges {
-                    lines.insert(k, key.clone());
+    for HeldEdge { edge: k, tied, own } in held {
+        let (key, whole) = match flush.spans.get(&k) {
+            Some(set) => (Along::Set(set.iter().cloned().collect()), true),
+            None => {
+                let within = match (flush.within(k), own) {
+                    (Some(within), _) => within.clone(),
+                    (None, Some(own)) => BTreeSet::from([own]),
+                    (None, None) => unreachable!(
+                        "union edge {k:?} was routed to the member edges and lies within or \
+                         along none, and no member edge names it: `name_by_parents` routes \
+                         only those"
+                    ),
+                };
+                match flush.piece_of(k, within)? {
+                    (Some(key), whole) => (key, whole),
+                    (None, _) => unreachable!(
+                        "union edge {k:?} is a piece of no member edge of a non-empty set: \
+                         `Flush::piece_of` reads one from each"
+                    ),
                 }
-                let group = groups.entry(key).or_insert((false, Vec::new(), true));
-                group.0 |= matches!(entry, Entry::Tied(_));
-                group.1.extend(edges);
-                group.2 &= whole;
             }
-            None => put_entry(&mut out, name, &entry)?,
-        }
+        };
+        lines.insert(k, key.clone());
+        let group = groups.entry(key).or_insert((false, Vec::new(), true));
+        group.0 |= tied;
+        group.1.push(k);
+        group.2 &= whole;
     }
     let in_sets: BTreeSet<MemberEntity> = groups
         .keys()
@@ -445,7 +415,17 @@ fn group_member_edges<T: geom_core::Decide>(
             edges,
         })
         .collect();
-    Ok((out, groups, lines))
+    Ok((groups, lines))
+}
+
+/// A finished edge that is a piece of member edges, as
+/// [`name_by_parents`] routes it to [`group_member_edges`]: whether its
+/// fold row is tied, and, for an edge no cover is read for
+/// ([`Flush::uncovered`]), the member edge its fold row is a piece of.
+struct HeldEdge {
+    edge: topo::EdgeKey,
+    tied: bool,
+    own: Option<MemberEntity>,
 }
 
 /// What each finished edge at a vertex is a line of (N2): a member edge
@@ -628,28 +608,28 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// "Holds" is read off the finished body and the members' own bodies,
 /// never off the fold:
 /// - a finished EDGE lies within member `n`'s edge `e` when its two
-///   faces descend from `e`'s two faces in `n` (their names cite them,
-///   through a `Merged` set or a `Fragment`) and it lies within `e`
+///   faces hold `e`'s two faces in `n` (their parents cite them, alone
+///   or through a `Merged` set) and it lies within `e`
 ///   along `e`'s carrier: a segment of its line where `e` is straight,
 ///   a span of its certified curve where `e` is curved
 ///   ([`joined_along`], [`ON_MEMBER_EDGE`]); it runs ALONG `e` when
 ///   instead the two overlap over a length of that carrier;
 /// - a finished VERTEX sits at member `n`'s vertex `w` when it is at
-///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it descends
-///   from a face of `n` that `w` lies on.
+///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it holds a face
+///   of `n` that `w` lies on.
 ///
 /// The face test is what keeps two shells apart that only touch: a
 /// shell's entity lies on the other member's edge or corner, but none
-/// of its faces descends from that member.
+/// of its faces holds a face of that member.
 struct Flush<'a, T: geom_core::Decide> {
     union: RecipeNodeId,
     body: &'a topo::Body<T>,
     members: &'a [Member<'a, T>],
     inc: Incidence,
-    /// Finished face → the member faces it descends from, each by its
-    /// member's index: a tied name's candidates are separate parents
-    /// spelled alike, so a member face is read by its key and never
-    /// looked up by name.
+    /// Finished face → the member faces it holds, each by its member's
+    /// index: a tied name's candidates are separate parents spelled
+    /// alike, so a member face is read by its key and never looked up by
+    /// name.
     face_ents: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
     /// Finished edge → the member edges it lies within.
     edges: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
@@ -662,7 +642,7 @@ struct Flush<'a, T: geom_core::Decide> {
 }
 
 impl<'a, T: geom_core::Decide> Flush<'a, T> {
-    /// The finished body's faces as the collapsed table `t` names them,
+    /// The finished body's faces by their parents ([`Parents`]),
     /// and every finished edge's member edges.
     fn of(
         union: RecipeNodeId,
@@ -710,8 +690,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     /// How finished edge `k`, between faces `fs`, lies along the member
-    /// edges between two faces of one member that its faces descend
-    /// from ([`joined_candidates`], [`joined_along`]), each by its
+    /// edges between two faces of one member that its faces hold
+    /// ([`joined_candidates`], [`joined_along`]), each by its
     /// member's name for it, a tied one included.
     ///
     /// # Errors
@@ -774,7 +754,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let Some(member) = self.members.get(i) else {
             unreachable!(
                 "a union reads a member entity under index {i} of {} members: every index is a \
-                 member's place in the fold (`Fold`, `Links::judged`)",
+                 member's place in the fold (`Fold`, `PairSenses::judged`)",
                 self.members.len()
             )
         };
@@ -843,15 +823,6 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         edges_holding(p, on, self.bnd)
     }
 
-    /// What a row the fold named a piece of `own`, finished edge `k`, is
-    /// a piece of: every member edge `k` lies within, whatever the fold
-    /// named it, and `own` where it lies within none.
-    fn within_or(&self, k: topo::EdgeKey, own: MemberEntity) -> BTreeSet<MemberEntity> {
-        self.within(k)
-            .cloned()
-            .unwrap_or_else(|| BTreeSet::from([own]))
-    }
-
     /// What finished edge `k`, lying within member edges `within`, is a
     /// piece of, and whether it is the whole of it: one member edge, or
     /// the set of several, which a lone edge holds whole.
@@ -907,6 +878,20 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         })
     }
 
+    /// Whether no cover is read for finished edge `k`
+    /// ([`Flush::edge_cover`]): it does not lie between two faces (a
+    /// wrap edge, one face on both sides), or it lies on a carrier that
+    /// places no point.
+    fn uncovered(&self, k: topo::EdgeKey) -> Result<bool, NamingError> {
+        if self.inc.edge_faces.get(&k).is_none_or(|fs| fs.len() != 2) {
+            return Ok(true);
+        }
+        Ok(matches!(
+            EdgeCarrier::of_edge(self.body, k)?,
+            EdgeCarrier::Unread
+        ))
+    }
+
     /// The member edges finished edge `k` lies within, if any.
     fn within(&self, k: topo::EdgeKey) -> Option<&BTreeSet<MemberEntity>> {
         self.edges.get(&k).filter(|w| !w.is_empty())
@@ -918,10 +903,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// Its lines are the member edges the finished edges at `v` lie on,
     /// those that run flush on one line once as the set of them
     /// ([`sets_per_line`], [`Flush::line_sense`]), and each seam
-    /// at `v` whose two faces descend from no face of those member edges,
+    /// at `v` whose two faces hold no face of those member edges,
     /// cited by its group's base ([`EdgeLines`]). One member edge and no
     /// seam is the `Crossing` of that edge and the one face at `v` that
-    /// descends from none of its faces, cited by its parent; two or more
+    /// holds none of its faces, cited by its parent; two or more
     /// lines are their `EdgeCrossing` run. Each line carries its sense
     /// against the members of the name's other entries: a line of member
     /// edges from the pairwise judgements ([`Flush::line_sense`]), a seam
@@ -942,7 +927,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         &self,
         v: topo::VertexKey,
         lines: &EdgeLines<'_>,
-        links: &Links<T>,
+        pair_senses: &PairSenses<T>,
     ) -> Result<Option<StableName>, NamingError> {
         let bug = |what| NamingError::Emission { what };
         let at = self.inc.vertex_edges.get(&v).map_or(&[][..], Vec::as_slice);
@@ -965,9 +950,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             } else {
                 unreachable!(
                     "union vertex {v:?} lies on finished edge {k:?}, which is neither a member \
-                     edge's piece nor a seam: every edge of a union's body is a piece of member \
-                     edges or lies between two members' faces (`group_member_edges`, \
-                     `name_by_parents`)"
+                     edge's piece nor a seam: `name_by_parents` routes every edge of every row \
+                     of the table, which is total over the body, to one or the other"
                 );
             }
         }
@@ -1045,7 +1029,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     ));
                 }
             };
-            let sense = self.line_sense(v, line, &others, links)?;
+            let sense = self.line_sense(v, line, &others, pair_senses)?;
             return Ok(Some(StableName {
                 kind: EntityKind::Vertex,
                 node: self.union,
@@ -1072,7 +1056,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             }
             run.push(RunLine {
                 line: line_name(self.union, line),
-                sense: self.line_sense(v, line, &others, links)?,
+                sense: self.line_sense(v, line, &others, pair_senses)?,
             });
         }
         for (base, (_, pieces)) in seams {
@@ -1200,11 +1184,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         v: topo::VertexKey,
         line: impl IntoIterator<Item = &'e MemberEntity>,
         others: &BTreeSet<VarId>,
-        links: &Links<T>,
+        pair_senses: &PairSenses<T>,
     ) -> Result<Sense, NamingError> {
         let mut read = Vec::new();
         for e in line {
-            let (stored, reading) = self.sense_against(v, e, others, links)?;
+            let (stored, reading) = self.sense_against(v, e, others, pair_senses)?;
             read.push((e, stored, reading));
         }
         self.compose(v, read)
@@ -1234,7 +1218,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         Ok(sides)
     }
 
-    /// The members finished face `f` descends from a face of, by read.
+    /// The members finished face `f` holds a face of, by read.
     fn members_of(&self, f: &topo::FaceKey) -> BTreeSet<VarId> {
         self.face_ents
             .get(f)
@@ -1250,7 +1234,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// ([`edge_reading`]): each side of `v` along the edge lies in them
     /// where any pairwise judgement of the edge's member with one of them
     /// classed a piece of the edge there in the other's closed body
-    /// ([`Links`]).
+    /// ([`PairSenses`]).
     ///
     /// # Errors
     ///
@@ -1265,7 +1249,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         v: topo::VertexKey,
         line: &MemberEntity,
         others: &BTreeSet<VarId>,
-        links: &Links<T>,
+        pair_senses: &PairSenses<T>,
     ) -> Result<(Sense, EdgeReading), NamingError> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
@@ -1314,7 +1298,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         };
         let mut sides: [Option<bool>; 2] = [None, None];
         let mut piece = BTreeSet::new();
-        for c in &links.classes {
+        for c in &pair_senses.classes {
             if !rows.contains_key(&c.edge) || !here(c.member, c.other, c.at)? {
                 continue;
             }
@@ -1326,7 +1310,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // member's edges there, by its own account: the crossing refuses
         // naming why, so no listed vertex reaches the missing-row bug.
         let unread = || -> Result<Option<NamingError>, NamingError> {
-            for u in &links.unread {
+            for u in &pair_senses.unread {
                 if here(u.member, u.other, u.at)? {
                     return Ok(Some(NamingError::PartnerUnread {
                         vertex: v,
@@ -1626,7 +1610,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// **The name of the member vertices finished vertex `v` sits at**,
     /// if any: each vertex `w` of a member `n` at `v`'s point that lies on
-    /// a face of `n` a face around `v` descends from, the one such vertex
+    /// a face of `n` a face around `v` holds, the one such vertex
     /// or `Merged` of the several; whether a member's table ties one of
     /// them, a tie its citing name descends from (N2); and the vertices,
     /// each by its member's index.
@@ -1714,7 +1698,7 @@ struct MemberVertices {
     corners: BTreeSet<(usize, topo::VertexKey)>,
 }
 
-/// The member faces a face name of the union descends from: its own
+/// The member faces a face name of the union cites: its own
 /// member face, or every constituent's of a `Merged` set, through any
 /// `Fragment` after either.
 fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
@@ -1801,7 +1785,8 @@ fn cite_member_edges<T: geom_core::Decide>(
     vertex_rows: Vec<(StableName, Entry)>,
     body: &topo::Body<T>,
     (flush, fold): (&Flush<'_, T>, &Fold<'_>),
-    (lines, links): (&EdgeLines<'_>, &Links<T>),
+    (lines, pair_senses): (&EdgeLines<'_>, &PairSenses<T>),
+    (parents, seam_heads): (&Parents, &BTreeMap<StableName, StableName>),
     rec: &mut Rederived,
 ) -> Result<NameTable, NamingError> {
     let mut out = NameTable::new();
@@ -1831,7 +1816,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             None => None,
         };
         let crossing = match (&member_vertex, at) {
-            (None, Some(v)) => flush.meeting(v, lines, links)?,
+            (None, Some(v)) => flush.meeting(v, lines, pair_senses)?,
             _ => None,
         };
         let cited = match (member_vertex, crossing) {
@@ -1845,7 +1830,22 @@ fn cite_member_edges<T: geom_core::Decide>(
                 continue;
             }
             (None, Some(crossing)) => crossing,
+            (None, None) if name.kind != EntityKind::Vertex => {
+                let whole = name.clone().rewrite_path(&mut WholeMemberEdges {
+                    union: name.node,
+                    at,
+                    flush,
+                })?;
+                flush.resensed(&name, at, whole)?
+            }
             (None, None) => {
+                // A vertex's faces cited as parents, and the seams it
+                // cites by their heads.
+                let name = name.rewrite_path(&mut CiteParents {
+                    union: flush.union,
+                    parents,
+                    seams: seam_heads,
+                })?;
                 let whole = name.clone().rewrite_path(&mut WholeMemberEdges {
                     union: name.node,
                     at,
@@ -1992,6 +1992,11 @@ struct WholeMemberEdges<'f, 'a, T: geom_core::Decide> {
 impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     type Error = NamingError;
 
+    /// A union's names stay in its document: a section id is kept.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, NamingError> {
+        Ok(s)
+    }
+
     fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
         if n.node != self.union {
             return Ok(Carry::Keep);
@@ -2030,27 +2035,18 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
 /// reaches no name.
 type MemberFace = (usize, topo::FaceKey);
 
-/// **What a union's pairwise judgements record for its end pass**: the
-/// member faces each consumed together (N2), and each member edge piece
-/// each classified beside a point against the other member's closed body
-/// (N2's senses).
-///
-/// A judgement is the two members' own union, so a pair it merged
-/// (`BooleanNaming::merge_groups`) or whose region it held through the
-/// other face (`BooleanNaming::substituted`) is one its margins decided one
-/// carrier (declared or not, D10), and that lies with one orientation:
-/// the kernel merges and covers no other. A certified pair the judgement
-/// never brought together is in neither record and links nothing.
-pub(crate) struct Links<T: geom_core::Real> {
-    pairs: Vec<(MemberFace, MemberFace)>,
+/// **What a union's pairwise judgements record for its end pass**: each
+/// member edge piece each classified beside a point against the other
+/// member's closed body, and each member vertex one met the other member
+/// at and read no partner of (N2's senses).
+pub(crate) struct PairSenses<T: geom_core::Real> {
     classes: Vec<PairClass<T>>,
     unread: Vec<UnreadAt<T>>,
 }
 
-impl<T: geom_core::Real> Default for Links<T> {
+impl<T: geom_core::Real> Default for PairSenses<T> {
     fn default() -> Self {
         Self {
-            pairs: Vec::new(),
             classes: Vec::new(),
             unread: Vec::new(),
         }
@@ -2084,7 +2080,7 @@ struct UnreadAt<T: geom_core::Real> {
     record: topo::UnreadPartner,
 }
 
-impl<T: geom_core::Real> Links<T> {
+impl<T: geom_core::Real> PairSenses<T> {
     /// What one judgement recorded: members `a` (operand A) and `b`
     /// (operand B), the kernel's record `naming` of their union and its
     /// result `body`; `reads` are the members' reads and `b_body` is
@@ -2113,36 +2109,9 @@ impl<T: geom_core::Real> Links<T> {
         reads: [crate::VarId; 2],
         b_body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
-        // A judgement's body is named by no pair emitter, and its faces
-        // are the node's links.
+        // A judgement's body is named by no pair emitter.
         let inv = super::emit_topo::GraftInverse::of(naming);
         super::emit_topo::refuse_turned_cells(body, naming, &inv, reads, b_body)?;
-        let descent = topo::FaceDescent::of(naming);
-        let member = |(operand, f): (topo::Operand, topo::FaceKey)| match operand {
-            topo::Operand::A => (a, f),
-            topo::Operand::B => (b, f),
-        };
-        for faces in descent.merged().values() {
-            let mut held = BTreeSet::new();
-            for &g in faces {
-                held.insert(member(descent.result_face(g)));
-            }
-            for &x in held.iter().filter(|m| m.0 == a) {
-                for &y in held.iter().filter(|m| m.0 == b) {
-                    self.pairs.push((x, y));
-                }
-            }
-        }
-        for s in &naming.substituted {
-            let (fa, fb) = match s.operand {
-                topo::Operand::A => (s.face, s.by),
-                topo::Operand::B => (s.by, s.face),
-            };
-            self.pairs.push((
-                (a, descent.clone_face(topo::Operand::A, fa)),
-                (b, descent.clone_face(topo::Operand::B, fb)),
-            ));
-        }
         let grafted: BTreeMap<topo::VertexKey, topo::VertexKey> =
             naming.graft_vertices.iter().copied().collect();
         let settler = naming.settler(body);
@@ -2202,63 +2171,76 @@ impl<T: geom_core::Real> Links<T> {
     }
 }
 
-/// **What a union's fold records for its end pass**: which member faces
-/// each face of the accumulation descends from, read off the kernel's
-/// n-ary door ([`topo::MemberLineage`], the last step's), and every
-/// step's discards ([`Obstacles`]) keyed by the member faces the
-/// discarded face descends from.
+/// **What a union's fold records for its end pass**: the member faces
+/// each face of the last accumulation holds area of, read off the
+/// kernel's n-ary door ([`topo::NaryStep::holdings`], the last step's),
+/// and every step's discards ([`Obstacles`]), each keyed by the member
+/// faces whose area the region it lost held.
 pub(crate) struct Fold<'l> {
-    /// Accumulation face → the member faces it descends from.
-    lineage: Cow<'l, topo::MemberLineage>,
+    holdings: Option<&'l topo::Holdings>,
     obstacles: Obstacles<MemberFace>,
 }
 
 impl<'l> Fold<'l> {
-    /// The fold before any step: the first member's body.
-    pub(crate) fn new<T: geom_core::Real>(first: usize, body: &topo::Body<T>) -> Self {
+    /// The fold before any step.
+    pub(crate) fn new() -> Self {
         Self {
-            lineage: Cow::Owned(topo::MemberLineage::of_member(first, body)),
+            holdings: None,
             obstacles: Obstacles::new(),
         }
     }
 
-    /// One fold step: `member` folded into the accumulation, giving
-    /// `result` with the kernel's record `naming`, whose faces descend
-    /// from the member faces `lineage` holds. A discarded face is read
-    /// through the kernel's own rule ([`topo::MemberLineage::operand_faces`]).
+    /// One fold step: its result `result`, with the kernel's record
+    /// `naming`, and the member faces each of its faces and each of its
+    /// discards holds ([`topo::NaryStep::holdings`]).
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::HoldingsUnread`] where the kernel could not read
+    /// what a discarded region held.
     pub(crate) fn step<T: geom_core::Real>(
         &mut self,
-        member: usize,
         naming: &topo::BooleanNaming,
         result: &topo::Body<T>,
-        lineage: &'l topo::MemberLineage,
+        holdings: &'l topo::Holdings,
     ) -> Result<(), NamingError> {
-        let descent = topo::FaceDescent::of(naming);
-        let held = &self.lineage;
-        self.obstacles.record(naming, result, |operand, f| {
-            Ok(held.operand_faces(member, operand, descent.clone_face(operand, f)))
+        self.obstacles.record(naming, result, |row| {
+            let Some(fs) = read_held(holdings.lost(row), None)? else {
+                unreachable!(
+                    "a union fold step's discard row {row} has no holdings: the n-ary door \
+                         reads one for every row of every step (`topo::NaryStep::holdings`)"
+                )
+            };
+            Ok(fs.clone())
         })?;
-        self.lineage = Cow::Borrowed(lineage);
+        self.holdings = Some(holdings);
         Ok(())
+    }
+
+    /// The last step's holdings.
+    #[track_caller]
+    fn holdings(&self) -> &'l topo::Holdings {
+        self.holdings.unwrap_or_else(|| {
+            unreachable!(
+                "a union's end pass read a fold that ran no step, though a fold of two or more \
+                 members runs one per member after the first"
+            )
+        })
     }
 }
 
-/// **A union's faces, grouped by parent** (N2, N3).
+/// **A union's faces, by parent** (N2, N3).
 ///
-/// Member faces are linked in member space, by the pairs the pairwise
-/// judgements consumed ([`Links`]), and linking is transitive. The
-/// member faces so linked are one parent, named `Merged` of all of them;
-/// a member face nothing links is its own parent, named as the member's
-/// face. A finished face takes the parent of the member faces it
-/// descends from, read by entity off the fold ([`Fold`]); which faces a
-/// fold step merged, kept or discarded does not enter, and a finished
-/// face descending from faces of two parents refuses. Tied member faces
-/// are separate parents spelled alike.
+/// A finished face's parent is exactly the set of member faces whose
+/// area it holds, read off the kernel's holdings ([`Fold`]): one member
+/// face is named as the member's face, several are `Merged` of all of
+/// them. Faces holding the same set share a parent; which faces a fold
+/// step merged, kept or discarded does not enter. Tied member faces are
+/// separate parents spelled alike.
 struct Parents {
     /// Finished face → its parent.
     of_face: BTreeMap<topo::FaceKey, usize>,
-    /// Member face, by name → the names of the parents it is linked
-    /// into (several only for a tied name whose candidates went apart).
+    /// Member face, by name → the names of the parents holding its area.
     /// A merged member face's constituents are keyed too, each to its
     /// face's parents.
     of_member: BTreeMap<MemberEntity, BTreeSet<StableName>>,
@@ -2268,9 +2250,9 @@ struct Parents {
 /// One parent of [`Parents`].
 struct Parent {
     name: StableName,
-    /// The member faces linked into it.
+    /// The member faces whose area its faces hold.
     entities: BTreeSet<MemberFace>,
-    /// The finished faces that are it or pieces of it.
+    /// The finished faces holding exactly those.
     faces: Vec<topo::FaceKey>,
     /// Whether a member face in it is tied in its member's table (N2's
     /// tie, propagated).
@@ -2279,97 +2261,63 @@ struct Parent {
 
 impl Parents {
     /// The parents of the finished body's faces.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::HoldingsUnread`] where the kernel could not read
+    /// what a finished face holds.
     fn of<T: geom_core::Decide>(
         union: RecipeNodeId,
         body: &topo::Body<T>,
         members: &[Member<'_, T>],
-        fold: &Fold<'_>,
-        links: &Links<T>,
+        holdings: &topo::Holdings,
     ) -> Result<Self, NamingError> {
-        // Finished face → the member faces it descends from, and the
-        // least of them.
-        let mut rows: Vec<(topo::FaceKey, &BTreeSet<MemberFace>, MemberFace)> = Vec::new();
+        // Member faces → the finished faces holding exactly them.
+        let mut sets: BTreeMap<&BTreeSet<MemberFace>, Vec<topo::FaceKey>> = BTreeMap::new();
         for (f, _) in body.faces() {
-            let (from, first) = fold
-                .lineage
-                .member_faces(f)
-                .and_then(|s| Some((s, *s.first()?)))
+            match read_held(holdings.of(f), Some(f))? {
+                Some(held) if !held.is_empty() => {
+                    sets.entry(held).or_default().push(f);
+                }
+                held => unreachable!(
+                    "finished face {f:?} of union {union:?} has holdings {held:?}: the n-ary \
+                     door reads every face of every accumulation as holding at least the \
+                     member face it is a piece of (`topo::NaryStep::holdings`)"
+                ),
+            }
+        }
+        // A member face's member and its name in that member's table.
+        let named = |(m, f): MemberFace| {
+            let member = members.get(m).unwrap_or_else(|| {
+                unreachable!(
+                    "union {union:?} holds member face {f:?} under index {m} of {} members: \
+                     every index is a member's place in the fold",
+                    members.len()
+                )
+            });
+            let of = member
+                .table
+                .name_ref_of(&ent(0, EntityKey::Face(f)))
                 .unwrap_or_else(|| {
                     unreachable!(
-                        "finished face {f:?} of union {union:?} descends from no member face: \
-                         the body is the fold's last result, and each fold step gives each of \
-                         its faces the member faces its operands' faces descend from, one or \
-                         more (`Fold::step`)"
+                        "member {:?}'s face {f:?}, which union {union:?} holds, is unnamed in \
+                         its table: a member's table is total over its body (`check_total`)",
+                        member.read
                     )
                 });
-            rows.push((f, from, first));
-        }
-        let mut link = LeastRoot::new();
-        for &(x, y) in &links.pairs {
-            link.insert(x);
-            link.insert(y);
-            link.join(x, y);
-        }
-        for (_, from, _) in &rows {
-            for &m in *from {
-                link.insert(m);
-            }
-        }
-        // What the fold merged does not link: a finished face whose member
-        // faces are of several parents has no one parent to take. Two
-        // faces of DIFFERENT members a fold step merged meet in their own
-        // pair's union too (a union only adds material, and the pair is
-        // judged under the same declarations), and that judgement merges
-        // or covers them. Two faces of ONE member a judgement merges link
-        // nothing: `Links::judged` records member-a × member-b pairs
-        // only. A legal recipe reaches that (a bar through a sunk boss's
-        // two wall pieces,
-        // `wire_legal_union_refusals::a_bar_through_a_sunk_boss_refuses_at_the_unions_parents`)
-        // and refuses here under the bug's words; what such a pair is
-        // is `work/refs/a-union-judgement-that-merges-two-faces-of-one-member-links-neither.md`'s.
-        // A curved run the pair leaves unmerged (`merge_skipped`), the
-        // fold, holding no fewer of its faces, leaves unmerged too.
-        for (_, from, _) in &rows {
-            let mut roots = from.iter().map(|&m| link.root(m));
-            let first = roots.next();
-            if roots.any(|r| Some(r) != first) {
-                return Err(NamingError::Emission {
-                    what: "a union's face descends from member faces no judged pair links",
-                });
-            }
-        }
-        let mut classes: BTreeMap<MemberFace, BTreeSet<MemberFace>> = BTreeMap::new();
-        for m in link.keys() {
-            classes.entry(link.root(m)).or_default().insert(m);
-        }
+            (member, of)
+        };
         let mut parents = Parents {
             of_face: BTreeMap::new(),
             of_member: BTreeMap::new(),
             all: Vec::new(),
         };
-        let mut index: BTreeMap<MemberFace, usize> = BTreeMap::new();
-        for (r, entities) in classes {
+        for (entities, faces) in sets {
             let mut from = BTreeSet::new();
             let mut tied = false;
-            for &(m, f) in &entities {
-                let member = members.get(m).unwrap_or_else(|| {
-                    unreachable!(
-                        "union {union:?} links member face {f:?} under index {m} of {} members: \
-                         every index is a member's place in the fold (`Fold`, `Links::judged`)",
-                        members.len()
-                    )
-                });
-                let of = member
-                    .table
-                    .name_ref_of(&ent(0, EntityKey::Face(f)))
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "member {:?}'s face {f:?}, which union {union:?} holds, is unnamed in \
-                             its table: a member's table is total over its body (`check_total`)",
-                            member.read
-                        )
-                    })
-                    .clone();
+            for &m in entities {
+                let (member, of) = named(m);
+                let of = of.clone();
                 tied |= member.table.is_tied(&of);
                 from.insert((member.read, of));
             }
@@ -2386,23 +2334,15 @@ impl Parents {
             for m in from.iter().cloned().chain(constituents) {
                 parents.of_member.entry(m).or_default().insert(name.clone());
             }
-            index.insert(r, parents.all.len());
+            for &f in &faces {
+                parents.of_face.insert(f, parents.all.len());
+            }
             parents.all.push(Parent {
                 name,
-                entities,
-                faces: Vec::new(),
+                entities: entities.clone(),
+                faces,
                 tied,
             });
-        }
-        for (f, _, first) in rows {
-            let p = *index.get(&link.root(first)).unwrap_or_else(|| {
-                unreachable!(
-                    "finished face {f:?} of union {union:?} has no parent: every member face it \
-                     descends from was linked, and each link class is a parent"
-                )
-            });
-            parents.all[p].faces.push(f);
-            parents.of_face.insert(f, p);
         }
         Ok(parents)
     }
@@ -2429,12 +2369,12 @@ impl Parents {
         &self.all[p]
     }
 
-    /// The parent a face name some row embeds cites: the one parent all
-    /// the member faces it lists are linked into. `None` for a name that
+    /// The parent a face name some row embeds cites: the one parent
+    /// holding area of the member faces it lists. `None` for a name that
     /// is not a member face, a merge of member faces or a piece of
     /// either.
     ///
-    /// A name listing member faces of several parents cites no one face
+    /// A name whose member faces several parents hold cites no one face
     /// of the finished body, and refuses.
     fn cited(
         &self,
@@ -2471,14 +2411,16 @@ impl Parents {
 
 /// What [`name_by_parents`] hands on.
 struct ByParents {
-    /// Every face, and every row but a seam edge or a vertex.
+    /// Every face, and every row but an edge or a vertex.
     table: NameTable,
-    /// Seam rows lying along a member edge, their faces cited as
-    /// parents, for [`group_member_edges`].
-    held: Vec<(StableName, Entry)>,
-    /// Vertex rows, their faces cited as parents and the seams they cite
-    /// by their heads.
+    /// The edges that are pieces of member edges, for
+    /// [`group_member_edges`].
+    held: Vec<HeldEdge>,
+    /// Vertex rows, as the fold spelled them.
     vertices: Vec<(StableName, Entry)>,
+    /// A unique seam row's collapsed spelling → its published head, for
+    /// a vertex name that cites it ([`CiteParents`]).
+    seam_heads: BTreeMap<StableName, StableName>,
     /// The seam edges, grouped by their two parents.
     seams: Vec<PieceGroup>,
     /// The groups formed.
@@ -2489,50 +2431,32 @@ struct ByParents {
 /// flat (N3): a member face that is itself a merged face, a nested
 /// union's, stands for its constituents, each keyed by its member.
 fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName {
-    match from.iter().collect::<Vec<_>>().as_slice() {
-        [one] => entity_name(union, one),
-        many => canonical::form(StableName {
-            kind: EntityKind::Face,
-            node: union,
-            path: vec![RoleSeg::Merged(
-                many.iter()
-                    .flat_map(|m| {
-                        let n = entity_name(union, m);
-                        crate::names::merged::constituents_through_wrappers(&n)
-                            .unwrap_or_else(|| vec![n])
-                    })
-                    .collect(),
-            )],
-        }),
-    }
+    held_base(union, from.iter().map(|m| entity_name(union, m)).collect())
 }
 
 /// **A union's faces and seam edges are named for parents, read off the
 /// finished body** (N2, N3).
 ///
-/// - **Faces.** A parent the finished body holds as one face is that
-///   face's name. A parent it holds as several faces qualifies each with
-///   one `Fragment(Borders)` over the divider walls it borders, each
-///   cited by its parent's name: the one rule the pair boolean reads
-///   ([`Obstacles::split`], over every fold step's discards). Pieces
-///   with one set are N2's tie.
-/// - **Seam edges.** A seam edge that lies along no member edge is
-///   `Seam` of the parents on its two sides, in name order. Several such
-///   edges between the same two parents are pieces of that seam, grouped
-///   to be told apart by their ends once the vertices are named.
+/// - **Faces.** Each is named for exactly the member faces whose area it
+///   holds, its parent ([`Parents`]), with one `Fragment(Borders)` over
+///   its divider walls where another face holds area of one of them
+///   ([`name_held_faces`], over every fold step's discards). Faces one
+///   name does not tell apart are N2's tie.
+/// - **Edges.** A finished edge is a piece of member edges where it lies
+///   within or along them ([`Flush`]), returned apart for
+///   [`group_member_edges`]; every other edge is a seam, `Seam` of the
+///   parents on its two sides, in name order. Several such edges between
+///   the same two parents are pieces of that seam, grouped to be told
+///   apart by their ends once the vertices are named. How the fold
+///   spelled an edge does not enter, save that an edge no cover is read
+///   for keeps the member edge its fold row names.
 /// - **Groups.** The groups formed are returned for the diagnosis
 ///   ladder. Each is one parent's: a face group holds one parent's
 ///   faces, and a seam group is keyed by its two parents' member faces.
 ///   So two tied parents, which share a base, form two groups, and each
 ///   counts its own.
-/// - **Every other row** cites a face as its parent, and a re-derived
-///   seam edge by its head (N2: a vertex cites an edge by its head,
-///   never by a piece's qualifier).
-///
-/// A seam edge lying along a member edge is returned apart, with only
-/// the faces it cites rewritten: [`group_member_edges`] names it as a
-/// piece of that member edge, so its seam spelling is never published
-/// and must not collide with one that is.
+/// - **Vertex rows** are returned as the fold spelled them, with each
+///   unique seam row's head, for [`cite_member_edges`].
 fn name_by_parents<T: geom_core::Decide>(
     union: RecipeNodeId,
     t: &NameTable,
@@ -2544,41 +2468,50 @@ fn name_by_parents<T: geom_core::Decide>(
     let mut out = NameTable::new();
     let mut tie = TieRows::default();
     let mut rec = GroupRecord::new();
-    let mut held: Vec<(StableName, Entry)> = Vec::new();
+    let mut held: Vec<HeldEdge> = Vec::new();
 
-    // ---- Seam edges, by the parents on their two sides. ----
-    let is_seam = |name: &StableName| {
-        name.kind == EntityKind::Edge && matches!(name.path.first(), Some(RoleSeg::Seam { .. }))
-    };
+    // ---- Edges: pieces of member edges, and seams. ----
     let mut seams: BTreeSet<topo::EdgeKey> = BTreeSet::new();
     // A unique seam row's collapsed spelling → its edge.
     let mut respelled: BTreeMap<StableName, topo::EdgeKey> = BTreeMap::new();
     for (name, entry) in t.iter() {
-        if !is_seam(name) {
+        if name.kind != EntityKind::Edge {
             continue;
         }
-        let keys = match entry {
-            Entry::Unique(e) => vec![e.key],
-            Entry::Tied(es) => es.iter().map(|e| e.key).collect(),
-        };
-        let mut edges = Vec::with_capacity(keys.len());
-        for key in keys {
-            let EntityKey::Edge(k) = key else {
+        let tied = matches!(entry, Entry::Tied(_));
+        let own = member_edge_piece(name).map(|(m, e, _)| (m, e));
+        let mut row_seams = Vec::new();
+        for e in entry.entities() {
+            let EntityKey::Edge(k) = e.key else {
                 unreachable!(
-                    "union seam row {name:?} names {key:?}: a table seats a row only on entities \
-                     of its name's kind"
+                    "union edge row {name:?} names {:?}: a table seats a row only on entities \
+                     of its name's kind",
+                    e.key
                 );
             };
-            edges.push(k);
+            if flush.edges.contains_key(&k) || flush.spans.contains_key(&k) {
+                held.push(HeldEdge {
+                    edge: k,
+                    tied,
+                    own: None,
+                });
+            } else if let Some(own) = match &own {
+                Some(own) if flush.uncovered(k)? => Some(own.clone()),
+                _ => None,
+            } {
+                held.push(HeldEdge {
+                    edge: k,
+                    tied,
+                    own: Some(own),
+                });
+            } else {
+                row_seams.push(k);
+            }
         }
-        if edges.iter().any(|k| flush.edges.contains_key(k)) {
-            held.push((name.clone(), entry.clone()));
-            continue;
-        }
-        if let [k] = edges.as_slice() {
+        if let ([k], [_]) = (row_seams.as_slice(), entry.entities()) {
             respelled.insert(name.clone(), *k);
         }
-        seams.extend(edges);
+        seams.extend(row_seams);
     }
     // (base, the two parents) → (from a tie, its edges).
     type SeamKey = (StableName, ParentEntities<MemberFace>);
@@ -2592,9 +2525,10 @@ fn name_by_parents<T: geom_core::Decide>(
                 shape: SeamSidesShape::NotTwoFaces,
             });
         };
-        // A pair that merges A's face with B's links them, but the fold
-        // may skip the same curved group (`SkippedMerge` reads the
-        // group's shape, and the fold's group holds more faces).
+        // Two faces holding exactly the same member faces are one
+        // parent, which the fold can still hold as two faces meeting
+        // here, off every member edge; no rule names an edge inside one
+        // parent.
         if parents.of_face.get(f0) == parents.of_face.get(f1) {
             return Err(NamingError::UnsupportedSeamSides {
                 edge: k,
@@ -2640,61 +2574,58 @@ fn name_by_parents<T: geom_core::Decide>(
         });
     }
 
-    // ---- Faces, by parent. ----
-    for parent in parents.all.iter().filter(|p| !p.faces.is_empty()) {
-        let faces = &parent.faces;
+    // ---- Faces: each named for exactly the member faces it holds. ----
+    let mut held_faces = BTreeMap::new();
+    for parent in &parents.all {
         rec.record(
             &parent.name,
-            faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
+            parent
+                .faces
+                .iter()
+                .map(|&f| ent(0, EntityKey::Face(f)))
+                .collect(),
             GroupParent::Elsewhere,
         );
-        name_parent_faces(
-            &mut out,
-            &mut tie,
-            parent.tied,
-            parent.name.clone(),
-            faces,
-            &[],
-            (&fold.obstacles, body, &parent.entities),
-            |g| Ok(parents.face(g).name.clone()),
-        )?;
+        for &f in &parent.faces {
+            held_faces.insert(
+                f,
+                HeldFace {
+                    base: parent.name.clone(),
+                    tied: parent.tied,
+                    holds: parent.entities.clone(),
+                },
+            );
+        }
     }
+    name_held_faces(&mut out, &mut tie, body, &held_faces, &fold.obstacles)?;
 
-    // ---- Every other row: its faces cited as parents. ----
-    let mut cite = CiteParents {
-        union,
-        parents,
-        seams: respelled
-            .into_iter()
-            .filter_map(|(old, k)| Some((old, seam_head.get(&k)?.clone())))
-            .collect(),
-    };
+    // ---- Every other row: a vertex, named over the finished body
+    // ([`cite_member_edges`]), or the body. ----
+    let seam_heads = respelled
+        .into_iter()
+        .filter_map(|(old, k)| Some((old, seam_head.get(&k)?.clone())))
+        .collect();
     let mut vertices = Vec::new();
     for (name, entry) in t.iter() {
-        if name.kind == EntityKind::Face || is_seam(name) {
-            continue;
+        match name.kind {
+            EntityKind::Face | EntityKind::Edge => {}
+            EntityKind::Vertex => vertices.push((name.clone(), entry.clone())),
+            _ => put_entry(&mut out, name.clone(), entry)?,
         }
-        let spelled = name.clone().rewrite_path(&mut cite)?;
-        if name.kind == EntityKind::Vertex {
-            vertices.push((spelled, entry.clone()));
-        } else {
-            put_entry(&mut out, spelled, entry)?;
-        }
-    }
-    for (name, _) in &mut held {
-        *name = name.clone().rewrite_path(&mut cite)?;
     }
     tie.flush(&mut out)?;
     Ok(ByParents {
         table: out,
         held,
         vertices,
+        seam_heads,
         seams: groups,
         groups: rec,
     })
 }
 
-/// The [`SegRewrite`] of [`name_by_parents`]: a face a name embeds is
+/// The [`SegRewrite`] of a vertex name the finished body does not name
+/// ([`cite_member_edges`]): a face a name embeds is
 /// cited as its parent, and a seam edge the union re-derived as it now
 /// publishes. Only names the UNION minted are rewritten: a
 /// member-keyed `From`'s own name is the member's, final in the member.
@@ -2702,11 +2633,16 @@ struct CiteParents<'p> {
     union: RecipeNodeId,
     parents: &'p Parents,
     /// A unique seam row's collapsed spelling → its published head.
-    seams: BTreeMap<StableName, StableName>,
+    seams: &'p BTreeMap<StableName, StableName>,
 }
 
 impl SegRewrite for CiteParents<'_> {
     type Error = NamingError;
+
+    /// A union's names stay in its document: a section id is kept.
+    fn section(&mut self, s: SectionId) -> Result<SectionId, NamingError> {
+        Ok(s)
+    }
 
     fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
         if n.node != self.union {
@@ -3634,10 +3570,9 @@ mod tests {
         }
     }
 
-    /// **The fold's tie over two pieces of a member edge is grouped
-    /// under the member edge**, as one group descended from a tie: the
-    /// pieces are told apart by their ends afterwards, so no rule has to
-    /// pick one edge, and the fold's qualifier is not carried.
+    /// **Two tied pieces of a member edge are grouped under the member
+    /// edge**, as one group descended from a tie: the pieces are told
+    /// apart by their ends afterwards, so no rule has to pick one edge.
     #[test]
     fn a_tied_member_edge_piece_is_grouped_under_its_member_edge() {
         let (union, m) = (RecipeNodeId::new(0, 9), RecipeNodeId::new(0, 4));
@@ -3653,18 +3588,9 @@ mod tests {
             )],
         };
         let read = crate::VarId::new(1, 4);
-        let mut piece = member_name(union, read, &edge);
-        piece.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
-            member_vertex(union, 3),
-            member_vertex(union, 4),
-        ])));
         let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
         let mut member_table = NameTable::new();
         member_table.insert(edge.clone(), edge_ref(k0)).unwrap();
-        let mut tied_rows = NameTable::new();
-        tied_rows
-            .insert_tied(piece, vec![edge_ref(k0), edge_ref(k1)])
-            .unwrap();
         let members = [Member {
             read,
             body: &body,
@@ -3672,8 +3598,15 @@ mod tests {
         }];
         let parents = Parents::empty();
         let flush = Flush::of(union, &body, &members, &parents, bnd).unwrap();
-        let (rest, groups, _) = group_member_edges(tied_rows, Vec::new(), &flush).unwrap();
-        assert_eq!(rest.iter().count(), 0, "the row was not taken into a group");
+        let own = (read, NameRef::new(edge.clone()));
+        let held = [k0, k1]
+            .map(|k| HeldEdge {
+                edge: k,
+                tied: true,
+                own: Some(own.clone()),
+            })
+            .into();
+        let (groups, _) = group_member_edges(held, &flush).unwrap();
         let [group] = groups.as_slice() else {
             panic!("one group, got {}", groups.len());
         };
@@ -3808,8 +3741,9 @@ mod tests {
                 NameTable::new(),
                 rows,
                 &self.body,
-                (&flush, &Fold::new(0, &self.body)),
-                (&lines, &Links::default()),
+                (&flush, &Fold::new()),
+                (&lines, &PairSenses::default()),
+                (&Parents::empty(), &BTreeMap::new()),
                 &mut Rederived::default(),
             )
         }
@@ -3852,8 +3786,7 @@ mod tests {
                 predicate: None,
             },
         };
-        let links = Links {
-            pairs: Vec::new(),
+        let pair_senses = PairSenses {
             classes: Vec::new(),
             unread: vec![UnreadAt {
                 member: 0,
@@ -3868,18 +3801,18 @@ mod tests {
         let line = (members[0].read, NameRef::new((**of).clone()));
         let others = BTreeSet::from([members[1].read]);
         assert!(matches!(
-            flush.sense_against(listed, &line, &others, &links),
+            flush.sense_against(listed, &line, &others, &pair_senses),
             Err(NamingError::PartnerUnread { vertex, partner, unread })
                 if vertex == listed && partner == record.partner && unread == record
         ));
         // Judged against a member the name does not cite, the record
         // says nothing of this crossing.
         assert!(matches!(
-            flush.sense_against(listed, &line, &BTreeSet::from([members[0].read]), &links),
+            flush.sense_against(listed, &line, &BTreeSet::from([members[0].read]), &pair_senses),
             Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
         ));
         assert!(matches!(
-            flush.sense_against(other, &line, &others, &links),
+            flush.sense_against(other, &line, &others, &pair_senses),
             Err(NamingError::Emission { what }) if what == UNCLASSIFIED_SIDE
         ));
     }
@@ -4314,11 +4247,17 @@ mod tests {
         }
 
         /// The member's flush reading, through [`Parents::of`] and
-        /// [`Flush::of`] over a fold that is the member alone.
+        /// [`Flush::of`] over holdings that are the member alone.
         fn flush<'a>(&'a self, members: &'a [Member<'a, f64>]) -> Flush<'a, f64> {
-            let fold = Fold::new(0, &self.body);
-            let parents =
-                Parents::of(self.union, &self.body, members, &fold, &Links::default()).unwrap();
+            let holdings = topo::Holdings::fixture(
+                self.body
+                    .faces()
+                    .map(|(f, _)| (f, topo::Held::Faces(BTreeSet::from([(0, f)]))))
+                    .collect(),
+                Vec::new(),
+                Vec::new(),
+            );
+            let parents = Parents::of(self.union, &self.body, members, &holdings).unwrap();
             Flush::of(
                 self.union,
                 &self.body,
@@ -4430,8 +4369,9 @@ mod tests {
             t,
             Vec::new(),
             &m.body,
-            (&flush, &Fold::new(0, &m.body)),
-            (&lines, &Links::default()),
+            (&flush, &Fold::new()),
+            (&lines, &PairSenses::default()),
+            (&Parents::empty(), &BTreeMap::new()),
             &mut Rederived::default(),
         )
         .unwrap();
@@ -4525,8 +4465,9 @@ mod tests {
             t,
             Vec::new(),
             &tied.body,
-            (&flush, &Fold::new(0, &tied.body)),
-            (&lines, &Links::default()),
+            (&flush, &Fold::new()),
+            (&lines, &PairSenses::default()),
+            (&Parents::empty(), &BTreeMap::new()),
             &mut Rederived::default(),
         )
         .unwrap();

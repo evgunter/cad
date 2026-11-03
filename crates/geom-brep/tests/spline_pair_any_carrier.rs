@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::test_support::fixture_lever;
 use std::sync::Arc;
 
 use crate::shared::fixture::quarter_cylinder_wall;
@@ -75,19 +76,25 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1)),
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1)),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1)),
+        }) => arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1)),
         _ => unreachable!("the rows twin a line, a circle or an ellipse"),
     }
     .unwrap();
@@ -114,12 +121,12 @@ fn arc(
 /// A height-`z` unit circle about the z axis, `t` its angle: on the
 /// quarter-cylinder wall.
 fn circle(z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// The plane `z = h`.
@@ -138,13 +145,15 @@ fn ellipse() -> (Curve3<f64>, Surface<f64>) {
     let s = (1.0 + k * k).sqrt();
     let axis = Vec3::new(-k / s, 0.0, 1.0 / s);
     (
-        Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.4),
-            axis,
-            semi_u: s,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0 / s, 0.0, k / s),
-        },
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.4),
+                axis,
+                Vec3::new(1.0 / s, 0.0, k / s),
+            ),
+            s,
+            1.0,
+        )),
         Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.4),
             normal: axis,
@@ -235,12 +244,12 @@ type PlaneRow = (
 /// differ and only the verdict is compared.
 fn plane_rows_meet_their_twins(rows: Vec<PlaneRow>) {
     for (name, carrier, params, plane, wall, want) in rows {
-        let got = plane_nurbs_limbs(&carrier, params, &plane, &wall, 1.0, band());
+        let got = plane_nurbs_limbs(&carrier, params, &plane, &wall, fixture_lever(1.0), band());
         let (closed, bound) = verdict(name, &got);
         let spline = twin(&carrier, params);
         let (twinned, twin_bound) = verdict(
             name,
-            &plane_nurbs_limbs(&spline, params, &plane, &wall, 1.0, band()),
+            &plane_nurbs_limbs(&spline, params, &plane, &wall, fixture_lever(1.0), band()),
         );
         println!("{name}: {closed:?} on {bound:e} m; its twin {twinned:?} on {twin_bound:e} m");
         for (who, v, b) in [
@@ -356,7 +365,7 @@ fn the_certificate_reads_the_edges_whole_interval() {
         (0.0, 1.0),
         &diagonal_plane(),
         &wall,
-        1.0,
+        fixture_lever(1.0),
         band(),
     );
     assert!(
@@ -368,7 +377,7 @@ fn the_certificate_reads_the_edges_whole_interval() {
         (0.0, 0.5),
         &diagonal_plane(),
         &wall,
-        1.0,
+        fixture_lever(1.0),
         band(),
     );
     assert!(half.is_ok(), "its first half is on the wall: {half:?}");
@@ -416,12 +425,12 @@ fn a_closed_form_carrier_between_two_spline_charts_meets_its_twins_verdict() {
         ),
     ];
     for (name, carrier, params, a, b, want) in rows {
-        let got = nurbs_pair_limbs(&carrier, params, &a, &b, 1.0, band());
+        let got = nurbs_pair_limbs(&carrier, params, &a, &b, fixture_lever(1.0), band());
         let (closed, bound) = verdict(name, &got);
         let spline = twin(&carrier, params);
         let (twinned, twin_bound) = verdict(
             name,
-            &nurbs_pair_limbs(&spline, params, &a, &b, 1.0, band()),
+            &nurbs_pair_limbs(&spline, params, &a, &b, fixture_lever(1.0), band()),
         );
         println!("{name}: {closed:?} on {bound:e} m; its twin {twinned:?} on {twin_bound:e} m");
         assert_eq!(
@@ -500,7 +509,14 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
     let wall = bumped_wall(2.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
         let (got, frame) = geom_core::k_stats::detached(|| {
-            plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band())
+            plane_nurbs_limbs(
+                &carrier,
+                (0.0, 1.0),
+                &plane,
+                &wall,
+                fixture_lever(1.0),
+                band(),
+            )
         });
         match got {
             Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
@@ -551,7 +567,14 @@ fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
     };
     let wall = bumped_wall(100.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
-        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, 1.0, band()) {
+        match plane_nurbs_limbs(
+            &carrier,
+            (0.0, 1.0),
+            &plane,
+            &wall,
+            fixture_lever(1.0),
+            band(),
+        ) {
             Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
                 assert_eq!(
                     limb,
@@ -628,7 +651,7 @@ fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
         (0.0, 1.0),
         &plane,
         &slanted_wall(10.0),
-        1.0,
+        fixture_lever(1.0),
         band(),
     );
     let Err(refusal @ PlaneNurbsRefusal::Limb { limb, .. }) = &got else {
@@ -669,7 +692,14 @@ fn a_carrier_the_door_cannot_enclose_is_refused_by_kind_and_span() {
     };
     let p = |x, y| Point3::new(x, y, 0.0);
     let wall = bilinear([p(1.0, -1.0), p(1.0, 1.0), p(2.0, -1.0), p(2.0, 1.0)]);
-    let got = plane_nurbs_limbs(&spiric, (3.0, 3.3), &plane, &wall, 1.0, band());
+    let got = plane_nurbs_limbs(
+        &spiric,
+        (3.0, 3.3),
+        &plane,
+        &wall,
+        fixture_lever(1.0),
+        band(),
+    );
     let Err(PlaneNurbsRefusal::CarrierEnclosure(CarrierEnclosureRefusal { kind, span })) = got
     else {
         panic!("the door's refusal, typed: {got:?}")
@@ -733,8 +763,16 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         ),
     ] {
         let (arena, spec) = door_spec(a, b, line.clone(), (0.0, 1.0));
-        let edge = EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band(), lane)
-            .unwrap_or_else(|e| panic!("{name}: the line certifies through the door: {e}"));
+        let edge = EdgeCurve::certify(
+            spec,
+            ends.0,
+            ends.1,
+            arena,
+            fixture_lever(1.0),
+            band(),
+            lane,
+        )
+        .unwrap_or_else(|e| panic!("{name}: the line certifies through the door: {e}"));
         assert!(
             edge.certificate().max_residual <= eps(),
             "{name}: within ε: {:e}",
@@ -752,7 +790,15 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
     let foot = carrier_foot_sup(&arc, (t0, t1), &quarter_cylinder_wall());
     println!("the circle's own foot reads {foot:e} m at most");
     assert!(foot <= ON_THE_WALL, "the circle is on the wall: {foot:e} m");
-    let got = EdgeCurve::certify(spec, arc.eval(t0), arc.eval(t1), arena, 1.0, band(), lane);
+    let got = EdgeCurve::certify(
+        spec,
+        arc.eval(t0),
+        arc.eval(t1),
+        arena,
+        fixture_lever(1.0),
+        band(),
+        lane,
+    );
     let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) = got else {
         panic!("the circle refuses at a limb through the door: {got:?}")
     };
@@ -789,8 +835,16 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
             carrier.clone(),
             (0.0, 1.0),
         );
-        let edge = EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band(), lane)
-            .unwrap_or_else(|e| panic!("{:?} certifies: {e}", carrier.kind()));
+        let edge = EdgeCurve::certify(
+            spec,
+            ends.0,
+            ends.1,
+            arena,
+            fixture_lever(1.0),
+            band(),
+            lane,
+        )
+        .unwrap_or_else(|e| panic!("{:?} certifies: {e}", carrier.kind()));
         bounds.push(edge.certificate().max_residual);
     }
     println!("spline, then line: bounds {bounds:?}");
@@ -853,7 +907,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 (0.0, 1.0),
                 &diagonal_plane(),
                 &flat_wall(),
-                1.0,
+                fixture_lever(1.0),
                 band(),
             ),
             plane_nurbs_limbs(
@@ -861,7 +915,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 lifted((0.0, 1.0)),
                 &diagonal_plane().map_scalar(itv),
                 &flat_wall().map_scalar(itv),
-                one,
+                fixture_lever(one),
                 band(),
             ),
         ),
@@ -872,7 +926,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 (0.0, 1.0),
                 &flat_wall(),
                 &diagonal_wall(),
-                1.0,
+                fixture_lever(1.0),
                 band(),
             ),
             nurbs_pair_limbs(
@@ -880,7 +934,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 lifted((0.0, 1.0)),
                 &flat_wall().map_scalar(itv),
                 &diagonal_wall().map_scalar(itv),
-                one,
+                fixture_lever(one),
                 band(),
             ),
         ),
@@ -891,7 +945,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 short_arc,
                 &horizontal(0.5),
                 &quarter_cylinder_wall(),
-                1.0,
+                fixture_lever(1.0),
                 band(),
             ),
             plane_nurbs_limbs(
@@ -899,7 +953,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 lifted(short_arc),
                 &horizontal(0.5).map_scalar(itv),
                 &quarter_cylinder_wall().map_scalar(itv),
-                one,
+                fixture_lever(one),
                 band(),
             ),
         ),
@@ -924,7 +978,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
         (0.1, 1.4),
         &horizontal(0.5),
         &quarter_cylinder_wall(),
-        1.0,
+        fixture_lever(1.0),
         band(),
     );
     let at_itv = plane_nurbs_limbs(
@@ -932,7 +986,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
         lifted((0.1, 1.4)),
         &horizontal(0.5).map_scalar(itv),
         &quarter_cylinder_wall().map_scalar(itv),
-        one,
+        fixture_lever(one),
         band(),
     );
     // The tell's label, not only a refusal, is the scalar's to agree on:
@@ -981,7 +1035,7 @@ fn a_short_arc_past_two_pi_certifies_on_the_same_bound() {
             params,
             &horizontal(0.5),
             &quarter_cylinder_wall(),
-            1.0,
+            fixture_lever(1.0),
             band(),
         )
         .unwrap_or_else(|e| panic!("{params:?}: the short arc certifies: {e}"))

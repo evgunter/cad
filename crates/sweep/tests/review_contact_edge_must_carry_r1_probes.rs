@@ -70,7 +70,10 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
                 source,
             } = &error
             else {
-                panic!("{what}: refused, but not as the rule's in-band escalation: {error}");
+                panic!(
+                    "{what}: refused, but not as the rule's in-band escalation: {error_at}",
+                    error_at = error.render(geom_brep::recourse::Reading::Build)
+                );
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
             let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
@@ -84,8 +87,11 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
                 b.escalate()
             );
             assert!(
-                error.to_string().contains(FILLET3_CONTACT_RECOURSE),
-                "{what}: the refusal carries the contact recourse.\n  got: {error}"
+                error
+                    .render(geom_brep::recourse::Reading::Build)
+                    .contains(FILLET3_CONTACT_RECOURSE),
+                "{what}: the refusal carries the contact recourse.\n  got: {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             m
         }
@@ -135,7 +141,7 @@ fn equator(body: &Body<f64>) -> EdgeKey {
                 .get_curve_geom(body.get_edge(k).unwrap().curve)
                 .and_then(|g| g.certified())
                 .expect("a certified rim");
-            let geom::Curve3::Circle { radius, .. } = *c.carrier() else {
+            let geom::Curve3::Circle(geom::Circle { radius, .. }) = *c.carrier() else {
                 panic!("a rim is a circle");
             };
             (radius, k)
@@ -193,7 +199,12 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
         r1,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the zone at r = 0.3·R builds: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the zone at r = 0.3·R builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         intrinsic_edges(&out.body),
         2,
@@ -208,7 +219,12 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
         2.0 * r,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the zone at twice the scale builds: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the zone at twice the scale builds: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         intrinsic_edges(&out.body),
         2,
@@ -333,7 +349,12 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
         0.1,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the D-bore's crease carves, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the D-bore's crease carves, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(out.blend_faces.len(), 1, "one band");
     let census = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
     let (v0, e0, f0) = census(&body);
@@ -410,7 +431,12 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
         Probe(0.15),
         tol(),
     )
-    .unwrap_or_else(|e| panic!("the die carves: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the die carves: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
@@ -480,7 +506,12 @@ fn r1_a_slim_wedges_corner_arcs_are_the_intrinsic_tangency() {
             r,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("the skew at θ = {theta:e} builds: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the skew at θ = {theta:e} builds: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             topo::validate_geometric(&out.body, tol()),
             Ok(()),

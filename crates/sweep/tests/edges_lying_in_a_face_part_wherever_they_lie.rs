@@ -132,7 +132,11 @@ fn every_op_but(scene: &Scene<'_>, skip: Option<&str>) -> Vec<String> {
                 continue;
             }
             Err(e) => {
-                wrong.push(format!("{what}: refuses {:?}: {e}", e.kind()));
+                wrong.push(format!(
+                    "{what}: refuses {:?}: {e_at}",
+                    e.kind(),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ));
                 continue;
             }
         };

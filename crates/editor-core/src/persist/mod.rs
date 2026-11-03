@@ -166,7 +166,9 @@ use crate::var::{Var, VarId};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
-pub use check::{NonFiniteSite, OutputFault, ProgramFault, SelectionBodyFault, SnapshotError};
+pub use check::{
+    NonFiniteSite, OutputFault, ProgramFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
+};
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Deserialize)]

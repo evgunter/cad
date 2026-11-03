@@ -46,7 +46,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
 /// carriers shared by both verbs deliberately (they meter the same
 /// margins) and are therefore stripped before the check.
 fn assert_speaks_as_the_chamfer(refusal: &BlendRefusal, label: &str) {
-    let text = format!("{refusal}");
+    let text = refusal.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.starts_with("chamfer: "),
         "the {label} refusal must open with the chamfer's verb: {text}"
@@ -66,7 +66,7 @@ fn assert_speaks_as_the_chamfer(refusal: &BlendRefusal, label: &str) {
 /// The fillet-side single-prefix claim: the verb opens the text and
 /// is not rendered twice by the door-plus-inner composition.
 fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
-    let text = format!("{refusal}");
+    let text = refusal.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.starts_with("fillet: "),
         "the {label} refusal must open with the fillet's verb: {text}"
@@ -103,7 +103,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
         "the shared run-out arm is what refused: {err:?}"
     );
     assert_speaks_as_the_chamfer(&err, "run-out");
-    let text = format!("{err}");
+    let text = err.render(geom_brep::recourse::Reading::Build);
     assert!(
         text.contains("end the blend at a flat-faced corner"),
         "the recourse speaks of the band, not the other verb: {text}"
@@ -276,13 +276,14 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
     );
 }
 
-/// **The shared TANGENTIAL arm is chamfer-reachable, and speaks as the
+/// **The shared wedge read is chamfer-reachable, and speaks as the
 /// chamfer**: the dihedral sign is metered during link RESOLUTION,
 /// before the arm table, so a co-surface seam meridian (one sphere on
-/// both sides, sine exactly zero) refuses `TangentialEdge` through
-/// `chamfer_edges` too — not the arm-table refusal.
+/// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
+/// leaves as it is, and a declared cusp's kiss refuses `KnifeEdge`
+/// through it — not the arm-table refusal.
 #[test]
-fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
+fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
     let ball = sweep::test_support::revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         sweep::Revolution::Full,
@@ -293,26 +294,49 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
         .map(|(k, _)| k)
         .find(|k| both_sides_spheres(&ball, *k))
         .expect("a full ball carries a co-surface seam meridian");
-    let err = chamfer_edges(
-        &sweep::test_support::at_rest(&ball, Tol::witness()),
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Chamfer,
+        &ball,
+        &[seam],
         &[seam],
         0.05,
         Tol::witness(),
+    );
+    let lune = sweep::test_support::extruded(
+        profile::SketchPlane::xy(),
+        vec![sweep::test_support::lune(Tol::witness())],
+        1.0,
+        Tol::witness(),
+    );
+    let kiss = lune
+        .edges()
+        .map(|(k, _)| k)
+        .find(|&k| {
+            let (a, b) = topo::readback::edge_sides(&lune, k).unwrap().faces();
+            let surface = |f| lune.get_face(f).unwrap().surface;
+            [a, b].iter().all(|&f| {
+                matches!(
+                    lune.get_surface(surface(f)),
+                    Some(geom::Surface::Cylinder { .. })
+                )
+            })
+        })
+        .expect("the lune's kiss is a strut between its two arcs' walls");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&lune, Tol::witness()),
+        &[kiss],
+        0.05,
+        Tol::witness(),
     )
-    .expect_err("a co-surface seam has no definite wedge side");
+    .expect_err("a cusp's strip is not built");
     match err.error {
-        BlendError::TangentialEdge { margin, .. } => {
+        BlendError::KnifeEdge { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, geom_core::Sign::Zero);
-            assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "a co-surface seam's sine is structurally zero"
-            );
         }
-        ref other => panic!("expected the shared tangential arm, got {other:?}"),
+        ref other => panic!("expected the shared knife arm, got {other:?}"),
     }
-    assert_speaks_as_the_chamfer(&err, "tangential");
+    assert_speaks_as_the_chamfer(&err, "knife");
 }
 
 /// **An ESCALATED margin under the chamfer's verb**: a setback whose

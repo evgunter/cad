@@ -77,6 +77,71 @@ pub struct RecipeNodeId(pub MintId);
 )]
 pub struct StepId(pub MintId);
 
+/// **A loft section's identity** (`names/README.md`, N1): minted from
+/// the document's mint chain ([`crate::Mint`]) when the section is
+/// authored — by `InsertNode`, or by `SetLoftSections` for a section
+/// it adds — never reused, never positional, and unique across the
+/// document. A loft's walls, seams and interior rings are named by the
+/// ids of the sections they lie at, so a section inserted or dropped
+/// elsewhere renames none of them.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub struct SectionId(pub MintId);
+
+impl SectionId {
+    /// The section id with mint ordinal `ordinal` and digest head
+    /// `digest` ([`MintId::new`]).
+    #[must_use]
+    pub const fn new(ordinal: u32, digest: u64) -> Self {
+        Self(MintId::new(ordinal, digest))
+    }
+}
+
+/// **Why an edit door refused a loft's section ids**
+/// (`names/README.md`, N1): `Preminted` at `InsertNode`, the others at
+/// `SetLoftSections`. The load door's refusal is
+/// `SnapshotError::SectionIds`, with its own faults: a save's ids are
+/// no edit's to correct.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionIdFault {
+    /// A loft entering the document by `InsertNode` already carries
+    /// ids: they are minted by the door, never supplied.
+    Preminted,
+    /// A section `SetLoftSections` was given keeps an id that is not a
+    /// section of the loft the node holds.
+    NotThisLofts {
+        /// The id.
+        section: SectionId,
+    },
+    /// `SetLoftSections` keeps one id on two sections.
+    Repeated {
+        /// The id.
+        section: SectionId,
+    },
+}
+
+impl core::fmt::Display for SectionIdFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Preminted => f.write_str(
+                "the loft already carries section ids; a loft entering the document carries \
+                 none, and the insert mints them",
+            ),
+            Self::NotThisLofts { section } => write!(
+                f,
+                "section id {section} is not a section of the loft this node holds, so there is \
+                 nothing for it to keep; a new section carries no id"
+            ),
+            Self::Repeated { section } => {
+                write!(f, "section id {section} stands for two sections")
+            }
+        }
+    }
+}
+
+impl core::error::Error for SectionIdFault {}
+
 /// **A constraint's identity** (D10, FORK-S3M): minted from the
 /// document's mint chain ([`crate::Mint`]) by the edit that adds it to
 /// a placement ([`crate::DocEdit::AddConstraint`]), never reused and
@@ -459,6 +524,10 @@ pub enum SlotId {
         /// Which constraint of the placement: the value.
         constraint: ConstraintId,
     },
+    /// One end of a clearance assertion's band (Length): `≥ c` and
+    /// `= c` hold the low end, `≤ c` the high end, a band both
+    /// ([`crate::measure::ClearanceBounds`]).
+    ClearanceBound(crate::measure::BoundEnd),
     /// A loft's / sweep's v-direction interpolation degree (Book
     /// §10.3) — STRUCTURAL: changing it changes the produced
     /// surface's knot vector, so it is Count-typed like every other
@@ -606,7 +675,7 @@ impl SlotId {
             Self::VDegree | Self::Stations | Self::Index { .. } => Dimension::Count,
             Self::StationSlide { .. } => Dimension::Length,
             Self::StationSpin { .. } => Dimension::Angle,
-            Self::ValueSlide { .. } => Dimension::Length,
+            Self::ValueSlide { .. } | Self::ClearanceBound(_) => Dimension::Length,
             Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
@@ -708,6 +777,7 @@ impl SlotId {
             }
             Self::ValueSlide { .. } => String::from("slide value"),
             Self::ValueSpin { .. } => String::from("spin value"),
+            Self::ClearanceBound(end) => format!("{} bound", end.label()),
             // Every component variant answered above.
             Self::Origin(_) => self.component().map_or_else(
                 || String::from("component"),
@@ -744,7 +814,8 @@ impl SlotId {
             | Self::StationSlide { .. }
             | Self::StationSpin { .. }
             | Self::ValueSlide { .. }
-            | Self::ValueSpin { .. } => None,
+            | Self::ValueSpin { .. }
+            | Self::ClearanceBound(_) => None,
         }
     }
 
@@ -965,6 +1036,12 @@ pub struct LoftSection<R = crate::VarId, S = crate::VarId> {
     pub profile: R,
     /// The moves from the first section's plane to this one's.
     pub station: Vec<StationMove<S>>,
+    /// The section's minted id ([`SectionId`]): the id it keeps
+    /// through an edit, or `None` where none is minted yet — a section
+    /// an `InsertNode` or a `SetLoftSections` adds, which that door
+    /// mints. Every section of a loft the document holds carries one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<SectionId>,
 }
 
 macro_rules! station_rows {
@@ -1022,6 +1099,7 @@ impl<R, S> LoftSection<R, S> {
         f: &mut impl FnMut(&S) -> Result<S2, E>,
     ) -> Result<LoftSection<R2, S2>, E> {
         Ok(LoftSection {
+            id: self.id,
             profile: read(&self.profile)?,
             station: self
                 .station
@@ -1097,12 +1175,14 @@ pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> 
 
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
-/// but [`Node::Assertion`].
+/// but a value [`Node::Assertion`].
 ///
 /// The slot vocabulary is the ordinary home for a node's expressions,
 /// and it stays so: this is the escape hatch for the two expressions
 /// whose dimension a slot ADDRESS cannot fix — an assertion's value
-/// and its bound, whose dimension is whatever the value's is.
+/// and its bound, whose dimension is whatever the value's is. A
+/// clearance's bounds are lengths, so they are slots
+/// ([`SlotId::ClearanceBound`]).
 ///
 /// One order, three consumers: the evaluator resolves these once, the
 /// content key hashes the resolved values, and the op reads the same
@@ -1124,7 +1204,7 @@ pub fn payload_exprs<P, S: Slot>(node: &Node<P, S>) -> Option<Vec<&S>> {
 macro_rules! expr_table {
     ($node:expr, $exprs:ident, $wrap:expr, $rest:ident => $other:expr) => {{
         match $node {
-            Node::Assertion(claim) => $wrap(claim.$exprs()),
+            Node::Assertion(claim @ crate::measure::Claim::Value { .. }) => $wrap(claim.$exprs()),
             $rest @ (Node::Profile(_)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
@@ -1145,7 +1225,8 @@ macro_rules! expr_table {
             | Node::World
             | Node::Space
             | Node::InstantiatePart { .. }
-            | Node::Measure { .. }) => $other,
+            | Node::Measure { .. }
+            | Node::Assertion(crate::measure::Claim::Clearance { .. })) => $other,
         }
     }};
 }
@@ -1618,6 +1699,10 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Loft {
         /// The first section's profile node.
         first: S::Read,
+        /// The first section's minted id, as [`LoftSection::id`] is
+        /// each later section's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        first_id: Option<SectionId>,
         /// The sections after the first, in skin order (≥ 1). Order is
         /// data: reversing it reverses the produced surface's
         /// v-direction.
@@ -2074,6 +2159,7 @@ macro_rules! node_rows {
             }
             Node::Loft {
                 first: _,
+                first_id: _,
                 then,
                 v_degree,
             } => {
@@ -2122,13 +2208,18 @@ macro_rules! node_rows {
                     index_rows!(seat, member, $rows, $out);
                 }
             }
+            // A clearance's bounds are lengths, one slot per end of its
+            // band.
+            Node::Assertion(crate::measure::Claim::Clearance { a: _, b: _, bounds }) => {
+                $out.extend(bounds.$rows())
+            }
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]); a measure reads names,
             // and an assertion's value and bound take their dimension
             // from the variable the value reads, which no slot address
-            // can state. Both are payload instead
-            // ([`payload_exprs`]), and so are a clearance's bounds.
-            Node::Measure { primitive: _ } | Node::Assertion(_) => {}
+            // can state. Both are payload instead ([`payload_exprs`]).
+            Node::Measure { primitive: _ }
+            | Node::Assertion(crate::measure::Claim::Value { .. }) => {}
         }
     }};
 }
@@ -2144,6 +2235,35 @@ impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
     /// rows.
     pub fn slots(&self) -> Vec<SlotId> {
         self.rows().into_iter().map(|(slot, _)| slot).collect()
+    }
+
+    /// **A slot's name on this node**: [`SlotId::label`], except that a
+    /// value's number is named by the freedom it sets
+    /// ([`crate::mate::Coord::value_label`]), which its address does not
+    /// carry.
+    pub fn slot_label(&self, slot: SlotId) -> String {
+        // `= c` has one bound, which is no end of a band.
+        if let (
+            SlotId::ClearanceBound(_),
+            Node::Assertion(crate::measure::Claim::Clearance {
+                bounds: crate::measure::ClearanceBounds::Equal(_),
+                ..
+            }),
+        ) = (slot, self)
+        {
+            return String::from("bound");
+        }
+        let value = match slot {
+            SlotId::ValueSlide { constraint } | SlotId::ValueSpin { constraint } => {
+                crate::mate::solve::bundle_of(self)
+                    .into_iter()
+                    .flatten()
+                    .find(|c| c.id == constraint)
+                    .and_then(crate::mate::Constraint::value)
+            }
+            _ => None,
+        };
+        value.map_or_else(|| slot.label(), |value| value.coord.value_label())
     }
 
     /// The expression in a named slot, `None` if this node type does
@@ -2242,6 +2362,7 @@ impl<P> Node<P> {
             Node::Tube { .. } | Node::HollowTube { .. } => Vec::new(),
             Node::Loft {
                 first,
+                first_id: _,
                 then,
                 v_degree: _,
             } => core::iter::once(*first)
@@ -2339,6 +2460,7 @@ impl<P> Node<P> {
             Node::Tube { .. } | Node::HollowTube { .. } => Vec::new(),
             Node::Loft {
                 first,
+                first_id: _,
                 then,
                 v_degree: _,
             } => core::iter::once(first)
@@ -2403,11 +2525,6 @@ impl<P> Node<P> {
             Node::Assertion(crate::measure::Claim::Value { value, bound, .. }) => {
                 AssertionBoundFault::against(dim(value)?, dim(bound)?)
             }
-            // A clearance is a length, so each bound is one.
-            Node::Assertion(crate::measure::Claim::Clearance { bounds, .. }) => bounds
-                .exprs()
-                .into_iter()
-                .find_map(|b| AssertionBoundFault::against(Dimension::Length, dim(b)?)),
             _ => None,
         }
     }
@@ -2624,6 +2741,31 @@ impl OutputPort {
 }
 
 impl<P, S: Slot> Node<P, S> {
+    /// **A loft's section ids**, first to last, each `None` where the
+    /// section carries none yet; `None` for a node that is not a loft.
+    #[must_use]
+    pub fn loft_section_ids(&self) -> Option<Vec<Option<SectionId>>> {
+        match self {
+            Self::Loft { first_id, then, .. } => Some(
+                core::iter::once(*first_id)
+                    .chain(then.iter().map(|section| section.id))
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+
+    /// **Writes a door's minted `ids` onto a loft's sections**, first to
+    /// last, one per section; a node that is not a loft is untouched.
+    pub(crate) fn set_loft_section_ids(&mut self, ids: Vec<SectionId>) {
+        if let Self::Loft { first_id, then, .. } = self {
+            let mut ids = ids.into_iter();
+            for id in core::iter::once(first_id).chain(then.iter_mut().map(|s| &mut s.id)) {
+                *id = ids.next();
+            }
+        }
+    }
+
     /// **The operation's output signature** (D10, Operations): the
     /// fixed list of named, typed ports its variant defines, in port
     /// order, possibly none. The insert door mints one variable per
@@ -2742,10 +2884,12 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Loft {
                 first,
+                first_id,
                 then,
                 v_degree,
             } => Node::Loft {
                 first: read(O::Section(0), first)?,
+                first_id: *first_id,
                 then: then
                     .iter()
                     .enumerate()
@@ -2942,6 +3086,15 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
             Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
+            Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
+                constraints
+                    .iter()
+                    .filter_map(|c| {
+                        let coord = &c.value()?.coord;
+                        Some((coord.seat(c.id), coord.read()?.role))
+                    })
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }
@@ -2956,6 +3109,17 @@ impl<P, S: Slot> Node<P, S> {
         match (self, seat) {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
             (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
+            (
+                Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. },
+                O::Along { constraint } | O::About { constraint },
+            ) => constraints
+                .iter_mut()
+                .find(|c| c.id == constraint)
+                .and_then(|c| match &mut c.kind {
+                    crate::mate::ConstraintKind::Value(v) => v.coord.read_mut(),
+                    crate::mate::ConstraintKind::Mate(_) => None,
+                })
+                .map(|read| &mut read.role),
             _ => None,
         }
     }
@@ -3057,17 +3221,20 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// **The variables the expressions no slot addresses read**, each
     /// with the dimension it is read at ([`payload_exprs`]'s order): an
     /// assertion's value and bound at their variables' kinds — or,
-    /// where `doc` no longer holds one, at the other's — and a
-    /// clearance's bounds as lengths. `None` for a slot-only node.
+    /// where `doc` no longer holds one, at the other's. `None` for a
+    /// slot-only node.
     pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
-        let Node::Assertion(claim) = self else {
+        let Node::Assertion(claim @ crate::measure::Claim::Value { .. }) = self else {
             return None;
         };
         Some(claim_reads(doc, claim))
     }
 }
 
-/// [`Node::payload_reads`] of an assertion's claim.
+/// **The variables an assertion's claim evaluates**, each with the
+/// dimension it is read at: [`Node::payload_reads`] of a value claim,
+/// and a clearance's bound slots as lengths. The evaluator reads each
+/// with the measured values bound, since only an assertion may read one.
 pub(crate) fn claim_reads<P>(
     doc: &crate::Doc<P>,
     claim: &crate::measure::Claim,
@@ -3455,27 +3622,20 @@ where
 }
 
 /// **A bundle's pose reads**, each at its seat
-/// ([`crate::OperandSlot::Side`]), in bundle order, `on` before a pose
-/// `to` (a world read reads no variable).
+/// ([`crate::OperandSlot::Side`], [`crate::OperandSlot::Along`],
+/// [`crate::OperandSlot::About`]), in bundle order, a mate's `on` before
+/// its `to`.
 fn side_rows<S: Slot>(
     constraints: &[crate::mate::Constraint<S>],
 ) -> Vec<(crate::OperandSlot, S::Read)>
 where
     S::Read: Clone,
 {
-    let mut out = Vec::new();
-    for c in constraints {
-        let seat = |side| crate::OperandSlot::Side {
-            constraint: c.id,
-            side,
-        };
-        let Some(mate) = c.mate() else {
-            continue;
-        };
-        out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
-        out.push((seat(crate::mate::MateSide::To), mate.to.clone()));
-    }
-    out
+    constraints
+        .iter()
+        .flat_map(crate::mate::Constraint::reads)
+        .map(|(seat, read)| (seat, read.clone()))
+        .collect()
 }
 
 /// [`side_rows`], writable, in the same order.
@@ -3489,11 +3649,18 @@ fn side_rows_mut<S: Slot>(
             constraint: id,
             side,
         };
-        let Some(crate::mate::Mate { on, to, .. }) = c.mate_mut() else {
-            continue;
-        };
-        out.push((seat(crate::mate::MateSide::On), on));
-        out.push((seat(crate::mate::MateSide::To), to));
+        match &mut c.kind {
+            crate::mate::ConstraintKind::Mate(crate::mate::Mate { on, to, .. }) => {
+                out.push((seat(crate::mate::MateSide::On), on));
+                out.push((seat(crate::mate::MateSide::To), to));
+            }
+            crate::mate::ConstraintKind::Value(value) => {
+                let at = value.coord.seat(id);
+                if let Some(read) = value.coord.read_mut() {
+                    out.push((at, &mut read.read));
+                }
+            }
+        }
     }
     out
 }
@@ -3507,20 +3674,6 @@ fn map_constraints<S: Slot, S2: Slot, E>(
 ) -> Result<Vec<crate::mate::Constraint<S2>>, E> {
     constraints
         .iter()
-        .map(|c| {
-            let id = c.id;
-            c.try_map(
-                |side, r| {
-                    read(
-                        crate::OperandSlot::Side {
-                            constraint: id,
-                            side,
-                        },
-                        r,
-                    )
-                },
-                f,
-            )
-        })
+        .map(|c| c.try_map(&mut *read, f))
         .collect()
 }

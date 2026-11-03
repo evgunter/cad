@@ -187,59 +187,73 @@ pub enum TransformError {
 }
 
 impl TransformError {
-    /// This refusal's text read at `at`: a nested certification or
-    /// pcurve refusal renders at that door, a defect ends in the door's
-    /// defect ending ([`geom_brep::recourse::defect_ending`]), and
-    /// scaffolding ends in its edit's lever at a build.
-    #[must_use]
-    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
-        let at = at.into();
-        let defect = geom_brep::recourse::defect_ending(at);
+    /// This refusal's text, ended at `at` where it is `Some`: a nested
+    /// certification or pcurve refusal reads at that door, a defect ends
+    /// in the door's defect ending ([`geom_brep::recourse::defect_ending`]),
+    /// and scaffolding ends in its edit's lever at a build. `None` writes
+    /// the payload alone, its `Display`.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::{ReadAt, read_at};
+        let defect = at.map(geom_brep::recourse::defect_ending);
+        let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
-            Self::Pcurve { source } => source.render(at),
-            Self::Band(e) => e.to_string(),
-            Self::Certify { source, .. } => format!(
+            Self::Pcurve { source } => write!(f, "{}", read_at(source, at)),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Certify { source, .. } => write!(
+                f,
                 "an edge the map moved failed re-certification: {}",
-                source.render(at)
+                read_at(source, at)
             ),
-            Self::NullScaffold { edge } => match at {
-                geom_brep::recourse::ReadAt::Run(geom_brep::recourse::Reading::Build) => {
-                    format!(
-                        "the body still carries what an edit left behind, which the map cannot \
-                         move. Recourse: {}",
-                        crate::Unfinished::SCAFFOLDING_RECOURSE
-                    )
-                }
-                _ => format!(
+            Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
+                f,
+                "the body still carries what an edit left behind, which the map cannot \
+                 move. Recourse: {}",
+                crate::Unfinished::SCAFFOLDING_RECOURSE
+            ),
+            Self::NullScaffold { edge } => match defect {
+                Some(defect) => write!(
+                    f,
                     "edge {edge:?} carries a transient null-scaffold curve, which a body at \
                      rest never does. {defect}"
                 ),
+                None => write!(
+                    f,
+                    "edge {edge:?} carries a transient null-scaffold curve, which the map \
+                     cannot move"
+                ),
             },
-            Self::ApproxLaneUnsupported { scalar } => format!(
+            Self::ApproxLaneUnsupported { scalar } => write!(
+                f,
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
                  offset-fit door in hand: its certificate is re-derived on the moved pair, and \
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
-            Self::ApproxRecertify { source } => format!(
-                "a moved approximating surface could not be re-certified or re-fitted: {source}"
+            // The fit door's meter ends at a build at every door that
+            // reads the map's refusal.
+            Self::ApproxRecertify { source } => write!(
+                f,
+                "a moved approximating surface could not be re-certified or re-fitted: {}",
+                read_at(source, geom_brep::recourse::at_build(at))
             ),
-            Self::NurbsPlaceholder => format!(
+            Self::NurbsPlaceholder => write!(
+                f,
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::Corrupt { found } => format!("the body is corrupt: {found}. {defect}"),
+            Self::Corrupt { found } => {
+                write!(f, "the body is corrupt: {found}{}", ended(defect))
+            }
         }
     }
 }
 
-/// Read at a build: the map is the operation that built what it moved.
-impl core::fmt::Display for TransformError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
-    }
-}
+geom_brep::ended_by_write!(TransformError);
 
 // No `source()`, matching every error type in this crate: each arm's
 // `Display` renders its nested payload's own `Display` in full, so the
@@ -475,38 +489,29 @@ fn map_carrier<T: Real>(
     hand: Hand,
     c: &Curve3<T>,
 ) -> Result<Curve3<T>, TransformError> {
+    let frame = |f: &geom::Frame<T>| {
+        geom::Frame::new(
+            map.transform_point(f.center),
+            hand.axial(map, f.axis),
+            map_vec(map, f.u_ref),
+        )
+    };
     Ok(match *c {
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(map.transform_point(origin), map_vec(map, dir))
         }
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => Curve3::Circle {
-            center: map.transform_point(center),
-            axis: hand.axial(map, axis),
-            radius,
-            u_ref: map_vec(map, u_ref),
-        },
-        // A rigid map preserves the semi-axis lengths and the frame's
-        // orthonormality — the axis ordering invariant transfers
-        // unchanged, so no re-decision is needed (the constructor
-        // decided at mint; this is evaluation-lane data motion).
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => Curve3::Ellipse {
-            center: map.transform_point(center),
-            axis: hand.axial(map, axis),
-            semi_u,
-            semi_v,
-            u_ref: map_vec(map, u_ref),
-        },
+        // A rigid map preserves the sizes and the frame's orthonormality —
+        // the ellipse's axis ordering transfers unchanged, so no
+        // re-decision is needed (the constructor decided at mint; this is
+        // evaluation-lane data motion).
+        Curve3::Circle(c) => Curve3::Circle(geom::Circle {
+            frame: frame(&c.frame),
+            ..c
+        }),
+        Curve3::Ellipse(e) => Curve3::Ellipse(geom::Ellipse {
+            frame: frame(&e.frame),
+            ..e
+        }),
         // The same argument: a rigid map preserves both radii, the
         // stand-off and the frame's orthonormality, so the two-oval
         // regime and the carried side transfer unchanged — no
@@ -772,6 +777,13 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let end = endpoint(&out, he_plus, true)?;
         let (param_start, param_end) = old.params();
         let carrier = map_carrier(map, hand, old.carrier())?;
+        // A sketch pushforward is stated in 3-space, so the authority
+        // record travels with the map.
+        let declared = || {
+            old.authority()
+                .declared()
+                .map(|mc| map_mapped_curve(map, hand, &mc))
+        };
         let description = match old.description() {
             // Re-mint (module docs above): construction-fresh witness
             // from the MAPPED carrier at the pinned mid parameter
@@ -807,36 +819,22 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                     witness: carrier.mid_point(param_start, param_end),
                 }
             }
-            // The pair's keys are stable; the declaration maps as a
-            // chart image's does.
-            EdgeDescription::OnPair { pair } => {
-                let on_pair = EdgeDescriptionSpec::on_pair(*pair);
-                match old.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => {
-                        on_pair.declared_by(map_mapped_curve(map, hand, &mc))
-                    }
-                    geom_brep::EdgeAuthority::Derived => on_pair,
-                }
-            }
+            // The pair's keys are stable.
+            EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
+                pair: *pair,
+                declared: declared(),
+            },
             // A chart image is a PARAMETER-SPACE fact, invariant under
             // a rigid map: the mapped SURFACE carries the whole map,
             // and the image on it is the image it always was (M6-3;
             // a seam is likewise defined by its key-stable surface).
-            // The authority record travels with the map, because a
-            // sketch pushforward is stated in 3-space.
             EdgeDescription::Chart(c) => {
                 let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
-                let chart = EdgeDescriptionSpec::Chart {
+                EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(image),
                     wrap: c.wrap,
-                    declared: None,
-                };
-                match old.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => {
-                        chart.declared_by(map_mapped_curve(map, hand, &mc))
-                    }
-                    geom_brep::EdgeAuthority::Derived => chart,
+                    declared: declared(),
                 }
             }
             EdgeDescription::Scaffold(mc) => {
@@ -1107,7 +1105,7 @@ mod tests {
         });
         let err = transform_rigid(&orphaned, &aside_motion(), Tol::witness())
             .expect_err("an orphan curve entry is corruption");
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.starts_with("the body is corrupt: a curve entry is referenced by no edge."),
             "{shown}"

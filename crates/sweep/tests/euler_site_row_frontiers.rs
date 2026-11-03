@@ -127,12 +127,7 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
     // plane normal to world `X` is not a rim of this cone.
     let p = start_point(&body, he);
     let (r, theta) = (0.1, 0.5);
-    let carrier = Curve3::Circle {
-        center: p - Vec3::unit_y() * r,
-        axis: Vec3::unit_x(),
-        radius: r,
-        u_ref: Vec3::unit_y(),
-    };
+    let carrier = Curve3::circle(p - Vec3::unit_y() * r, Vec3::unit_x(), r, Vec3::unit_y());
     let end = carrier.eval(theta);
     let spec = EdgeCurveSpec::arc_of_circle(carrier, 0.0, theta).unwrap();
     let made = body
@@ -177,8 +172,9 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
         "tier 3 reads the mint's own refusal"
     );
     assert!(cycle.iter().all(|&he| body.pcurve(he).is_none()));
-    let built = refused.to_string();
-    let at_rest = topo::ValidationError::Pcurve { finding: refused }.to_string();
+    let built = refused.render(geom_brep::recourse::Reading::Build);
+    let at_rest = topo::ValidationError::Pcurve { finding: refused }
+        .render(geom_brep::recourse::Reading::AtRest);
     assert!(built.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{built}");
     assert!(
         at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),

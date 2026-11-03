@@ -263,7 +263,10 @@ fn p2_ring_touch_trio_through_the_front_door() {
             Tol::witness(),
         )
         .expect_err("a crossing trim circle must refuse pre-mutation");
-        println!("P2b: -5mm refuses with: {err}");
+        println!(
+            "P2b: -5mm refuses with: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
     // (c) in-band: the gap sits inside [eps, K*eps).
     {
@@ -284,7 +287,10 @@ fn p2_ring_touch_trio_through_the_front_door() {
             Tol::witness(),
         )
         .expect_err("an in-band clearance must escalate");
-        println!("P2c: in-band refuses with: {err}");
+        println!(
+            "P2c: in-band refuses with: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 }
 
@@ -301,7 +307,10 @@ fn p2d_box_fillet_ring_touch_refuses() {
         Tol::witness(),
     )
     .expect_err("a ring crossing the trimline must refuse pre-mutation");
-    println!("P2d: refuses with: {err}");
+    println!(
+        "P2d: refuses with: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// P3: one-pip and two-adjacent-pips ladders; then a too-close pair.
@@ -492,7 +501,10 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             Tol::witness(),
         )
         .expect_err("overlapping widened circles must refuse");
-        println!("P3-tight: refuses with: {err}");
+        println!(
+            "P3-tight: refuses with: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 }
 
@@ -513,7 +525,10 @@ fn p4_rim_at_a_face_edge_refuses_typed() {
                 RIM_R,
                 Tol::witness(),
             ) {
-                Err(e) => println!("P4: fillet refuses typed: {e}"),
+                Err(e) => println!(
+                    "P4: fillet refuses typed: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                ),
                 Ok(out) => {
                     assert_eq!(
                         topo::validate_geometric(&out.body, Tol::witness()),
@@ -573,7 +588,12 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             RIM_R,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("theta {theta}: rim fillet: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "theta {theta}: rim fillet: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             topo::validate_geometric(&out.body, Tol::witness()),
             Ok(()),
@@ -642,34 +662,45 @@ fn p6_reversed_pip_walls_carry_through() {
     println!("P6: cap FaceKeys and senses intact through BOTH surgeries");
 }
 
-/// P7 (charter F, dev 1): every-edge fillet on a pipped body refuses
-/// TangentialEdge at margin EXACTLY 0.0, at every radius — the
-/// margin must be structural (co-surface cap meridians), not tuned.
+/// P7 (charter F, dev 1): the pipped body's cap meridians (two half-cap
+/// faces on ONE sphere) read smooth at margin EXACTLY 0.0, at every
+/// radius — the margin is structural, not tuned — and an every-edge
+/// fillet builds what it builds with them left out.
 #[test]
 fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     let (pipped, _) = one_pip(0.5, 0.5);
-    let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
+    let surface = |f: topo::FaceKey| pipped.get_face(f).unwrap().surface;
+    let mut meridians: Vec<EdgeKey> = pipped
+        .edges()
+        .map(|(k, _)| k)
+        .filter(|&k| {
+            let (a, b) = topo::readback::edge_sides(&pipped, k).unwrap().faces();
+            surface(a) == surface(b)
+        })
+        .collect();
+    meridians.sort_unstable();
+    assert_eq!(meridians.len(), 2, "the cap's two meridians");
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
-        let err = fillet_edges(
-            &sweep::test_support::at_rest(&pipped, Tol::witness()),
-            &every,
-            r,
-            Tol::witness(),
-        )
-        .expect_err("every-edge on a pipped body must refuse");
-        match err.error {
-            sweep::blend::BlendError::TangentialEdge { margin, .. } => {
-                assert_eq!(margin.predicate, "fillet3_convexity_sign");
-                assert_eq!(
-                    margin.reading.diagnostic_f64_for_error_text().value(),
-                    Some(0.0),
-                    "radius {r}: {margin} is not structural zero"
-                );
-            }
-            other => panic!("radius {r}: expected TangentialEdge, got {other}"),
+        for &m in &meridians {
+            let margin = sweep::test_support::smooth_reading(&pipped, m, r, Tol::witness());
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(
+                margin.reading.diagnostic_f64_for_error_text().value(),
+                Some(0.0),
+                "radius {r}: {margin} is not structural zero"
+            );
         }
     }
-    println!("P7: TangentialEdge margin bit-zero at all radii");
+    let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Fillet,
+        &pipped,
+        &every,
+        &meridians,
+        RIM_R,
+        Tol::witness(),
+    );
+    println!("P7: meridian margins bit-zero at all radii; every-edge builds");
 }
 
 /// P8: a duplicated edge in the request refuses before the battery.
@@ -689,6 +720,7 @@ fn p8_duplicate_edge_refuses() {
     // caller can act on it without re-deriving which edge doubled.
     assert!(
         matches!(err.error, sweep::blend::BlendError::RepeatedEdge { edge } if edge == box_edges[0]),
-        "{err}"
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
 }

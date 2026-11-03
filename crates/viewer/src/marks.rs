@@ -58,7 +58,7 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, VarId};
 use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, StableName, attribute};
 
@@ -94,6 +94,13 @@ pub struct Highlight {
     pub selected: u32,
     /// The hovered patch's id, or [`IdMap::NOTHING`].
     pub hovered: u32,
+    /// **A second patch the selection lights**, or [`IdMap::NOTHING`]:
+    /// a selected clearance row lights both faces of its witness pair
+    /// ([`witness`]), the first in [`Self::selected`].
+    pub selected_second: u32,
+    /// A second patch the hover lights: a hovered clearance row's
+    /// second witness face, as [`Self::selected_second`] is.
+    pub hovered_second: u32,
     /// The held faces' patch ids, slot for slot with [`Held::faces`],
     /// each [`IdMap::NOTHING`] where its slot holds nothing drawn.
     pub held: [u32; HELD_FACES],
@@ -121,6 +128,9 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
     Highlight {
         selected: selection.face().map_or(IdMap::NOTHING, mark),
         hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
+        // A face pick is one face; only a clearance row lights two.
+        selected_second: IdMap::NOTHING,
+        hovered_second: IdMap::NOTHING,
         // Nothing a SELECTION implies: a held pick is held by a form
         // or a tool, so [`compose`] adds it from [`Held`].
         held: [IdMap::NOTHING; HELD_FACES],
@@ -164,8 +174,8 @@ pub const HELD_FACES: usize = 3;
 /// **The picks a form or a tool HOLDS**: the second source of marks
 /// beside the live selection.
 ///
-/// A held pick outlives the selection that made it. The add-profile
-/// form drawing on a face latches the face so that an author can click the feature tree
+/// A held pick outlives the selection that made it. The traced-profile
+/// form latches the faces it reads so that an author can click the feature tree
 /// without losing it, and a modal tool keeps its picks until it
 /// commits. Nothing in the selection says so, so a picture that marked
 /// the selection alone would show no sign of a pick the next click
@@ -294,6 +304,69 @@ pub fn compose(
     (highlight, edges)
 }
 
+/// **Which mark a clearance row's witness wears**: the row is
+/// selected, or the pointer is over it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WitnessLit {
+    /// The row is the selection: the selection's mark.
+    Selected,
+    /// The pointer is over the row: the hover's mark.
+    Hovered,
+}
+
+/// **A clearance row's witness pair, marked** over what a frame already
+/// marks: its two faces lit in the selection's lanes or the hover's
+/// ([`Highlight::selected`] and [`Highlight::selected_second`], or the
+/// hovered pair), and the leg between its two points drawn in the
+/// matching edge lane, where the picture draws each end
+/// ([`crate::pickindex::witness_leg`]).
+///
+/// A face the picture does not draw lights nothing, by [`drawn_patch`]'s
+/// rule; the leg is drawn either way, since its ends are points of the
+/// faces wherever those are. A leg the display seam cannot hold is
+/// not drawn ([`LegLane`]).
+pub fn witness(
+    index: &PickIndex,
+    display: &DisplayView,
+    witnessed: &crate::session::Witnessed<'_>,
+    lit: WitnessLit,
+    (highlight, edges): (&mut Highlight, &mut EdgeOverlay),
+) {
+    let [a, b] = witnessed
+        .faces
+        .each_ref()
+        .map(|face| drawn_patch(index, display, face).unwrap_or(IdMap::NOTHING));
+    let [face_a, face_b] = &witnessed.faces;
+    let [from, to] = crate::pickindex::witness_leg(
+        display,
+        witnessed.computing,
+        [
+            (face_a.node, witnessed.points[0]),
+            (face_b.node, witnessed.points[1]),
+        ],
+    );
+    let mut leg = LegLane::default();
+    leg.leg(from, to);
+    let (first, second, lane, probed) = match lit {
+        WitnessLit::Selected => (
+            &mut highlight.selected,
+            &mut highlight.selected_second,
+            &mut edges.selected,
+            &mut edges.selected_probed,
+        ),
+        WitnessLit::Hovered => (
+            &mut highlight.hovered,
+            &mut highlight.hovered_second,
+            &mut edges.hovered,
+            &mut edges.hovered_probed,
+        ),
+    };
+    *first = a;
+    *second = b;
+    lane.extend(leg.into_segments());
+    *probed |= moved(display, face_a.node) || moved(display, face_b.node);
+}
+
 /// Whether `node` is drawn in a free-moved space — the one read behind
 /// every probe flag on an [`EdgeOverlay`].
 fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
@@ -382,14 +455,12 @@ pub struct EdgeOverlay {
     ///
     /// A lane of its own rather than the preview's, because the two
     /// say different things — this one is in the document and the
-    /// preview is not. **No loop is meant to be in both**, and two
-    /// things keep it so. The create form's preview is of a profile
-    /// that is not a node yet, and the form comes to rest when its add
-    /// is accepted (`crate::drafts::Drafts::accepted`), so the node
-    /// it became is drawn here and nowhere else. A form that previews
-    /// an edit of a COMMITTED profile has to name that node to
-    /// `crate::sketch::committed`'s `except`, which leaves it out of
-    /// this lane; nothing checks that it does.
+    /// preview is not. **No loop is meant to be in both**: the profile
+    /// editor's preview is of an edit of a COMMITTED profile, and names
+    /// that node to `crate::sketch::committed`'s `except`, which leaves
+    /// it out of this lane; nothing checks that it does. (The
+    /// traced-profile form's preview is a trace, never a profile's
+    /// loops.)
     pub profiles: Vec<[f32; 3]>,
 }
 
@@ -905,11 +976,11 @@ fn marked_for(
 
 /// Whether any of `node`'s slot expressions reads the variable `var`
 /// — through `Expr::reads`, the public read side, so a reader nested
-/// inside arithmetic counts exactly as a bare one does. Slots only: a
-/// payload expression (a measured value, an assertion's bound) moves
-/// no geometry.
+/// inside arithmetic counts exactly as a bare one does. An assertion
+/// is not driven, its bound slots included: it moves no geometry, and
+/// neither does a payload expression (a measured value).
 fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, var: VarId) -> bool {
-    let Some(recipe_node) = doc.node(node) else {
+    let Some(recipe_node) = doc.node(node).filter(|n| !matches!(n, Node::Assertion(_))) else {
         return false;
     };
     recipe_node.slots().into_iter().any(|slot| {
@@ -1004,7 +1075,7 @@ mod tests {
     /// **The case a person can author and can see**: an outline most
     /// of which is ordinary and one corner of which is past the seam.
     ///
-    /// `7e307` is a number the add-profile form takes, because it is a
+    /// `7e307` is a number the profile editor takes, because it is a
     /// number. The lane draws the legs between the ordinary corners
     /// and drops the two that reach the far one, so what is on screen
     /// is a chain with a gap in it at a camera framed on the ordinary

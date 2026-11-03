@@ -143,7 +143,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
     ),
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     (
         "Revolve/VoidInsertion",
         "inserting the cavity of hole loop 1 refused",
@@ -171,7 +171,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Boolean/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
     ),
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
@@ -200,12 +200,12 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Extrude/SmoothJoinRefuted",
         span: "EdgeKey(null)",
-        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     Admission {
         row: "Revolve/SmoothJoinRefuted",
         span: "EdgeKey(null)",
-        filed: "work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A shell-role escalation names the aimed ray's faces by key.
     Admission {
@@ -256,7 +256,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/profilerest/paths-refusals-short-of-the-shape-guard.md
     "Profile/DegenerateSegment",
     "Profile/EmptyLoop",
-    "Profile/EmptyProfile",
     "Profile/MultipleOuterLoops",
     "Profile/NearFullArc",
     "Profile/NestingTooDeep",
@@ -287,7 +286,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
-    // work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/lathe/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Revolve/PinnedRunStation",
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
@@ -310,7 +309,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Reduce/NullEdgeAtVertex",
     "Split/Reduce/UnrecordedSide",
     "Split/Reduce/UnboundedFace",
-    // work/carvetail/carve-refusals-short-of-the-shape-guard.md
+    // work/lathe/carve-refusals-short-of-the-shape-guard.md
     "Blend/SurgeryInvariant",
     "Extrude/CapPlane",
     "Extrude/SidePlane",
@@ -656,7 +655,7 @@ const DRIVER_CARRIED: &[&str] = &[
 
 #[test]
 fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
-    let carried = payloads::euler().to_string();
+    let carried = payloads::euler().render(geom_brep::recourse::Reading::Build);
     let (_, recourse) = carried
         .split_once("Recourse: ")
         .expect("the sample operation refusal states a recourse");
@@ -817,7 +816,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `ExtrudeError`'s arms, for the `Extrude/` rows.
         pub(super) const EXTRUDE_ERROR: ExtrudeError = [
-            Band, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
+            Band, EmptyProfile, DegenerateExtrusion, NegativeDepth, ObliqueExtrusion,
             ExtrusionEscalated, CosurfaceEscalated, SliverJoin, SliverRim,
             SmoothJoinRefuted, CapPlane, SidePlane, Op, Pcurve,
         ];
@@ -826,7 +825,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `RevolveError`'s arms, for the `Revolve/` rows.
         pub(super) const REVOLVE_ERROR: RevolveError = [
-            Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
+            Band, EmptyProfile, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
             NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
@@ -846,7 +845,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `SkinError`'s arms, for the `Skin/` rows.
         pub(super) const SKIN_ERROR: SkinError = [
-            TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
+            TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
             PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
@@ -868,7 +867,7 @@ mod kernel {
         /// `BlendError`'s arms, for the `Blend/` rows.
         pub(super) const BLEND_ERROR: BlendError = [
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
-            FaceClearance, TangentialEdge, SpineIrregular, ChainNotG1,
+            FaceClearance, KnifeEdge, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
             ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
@@ -880,7 +879,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `ProfileError`'s arms, for the `Profile/` rows.
         pub(super) const PROFILE_ERROR: ProfileError = [
-            Band, EmptyProfile, PlaneNotFinite, EmptyLoop, DegenerateSegment,
+            Band, PlaneNotFinite, EmptyLoop, DegenerateSegment,
             NearFullArc, InconsistentArc, ArcBelowSceneResolution, NonSimple,
             TangentialContact, TangentJointOutOfRange, TangentJointOnFullTurn,
             TangencyContradicted, SliverLoop, MultipleOuterLoops, NestingTooDeep,
@@ -930,7 +929,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled,
         ];
     }
 
@@ -1930,6 +1929,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
     use sweep::ExtrudeError as E;
     [
         ("Band", E::Band(band_error())),
+        ("EmptyProfile", E::EmptyProfile),
         ("DegenerateExtrusion", E::DegenerateExtrusion),
         (
             "NegativeDepth",
@@ -2036,6 +2036,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
     use sweep::RevolveError as E;
     vec![
         ("Band", E::Band(band_error())),
+        ("EmptyProfile", E::EmptyProfile),
         ("NonFiniteAxis", E::NonFiniteAxis),
         ("UnderflowedAxis", E::UnderflowedAxis),
         ("DegenerateAxis", E::DegenerateAxis),
@@ -3361,9 +3362,11 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             "SectionProfile",
             E::SectionProfile {
                 section: 2,
-                source: profile::ProfileError::EmptyProfile,
+                source: profile::ProfileError::EmptyLoop { loop_index: 0 },
             },
         ),
+        ("EmptyProfile", E::EmptyProfile { section: Some(2) }),
+        ("EmptyProfile", E::EmptyProfile { section: None }),
         (
             "DomainNotUnit",
             E::DomainNotUnit {
@@ -3625,8 +3628,8 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "TangentialEdge",
-            E::TangentialEdge {
+            "KnifeEdge",
+            E::KnifeEdge {
                 edge,
                 margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
             },
@@ -3897,6 +3900,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Blend {
                 verb: BlendKind::Fillet,
                 error: e,
+                edge: None,
             },
         )
     })
@@ -3918,7 +3922,6 @@ fn profile() -> Vec<(String, NodeErrorKind)> {
     );
     [
         ("Band", E::Band(band_error())),
-        ("EmptyProfile", E::EmptyProfile),
         ("PlaneNotFinite", E::PlaneNotFinite),
         ("EmptyLoop", E::EmptyLoop { loop_index: 0 }),
         ("DegenerateSegment", E::DegenerateSegment(a)),
@@ -4465,6 +4468,13 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 carrier: geom::SurfaceKind::Nurbs,
             }),
         ),
+        (
+            "Carrier/Unbounded",
+            F::Carrier(TraceFault::Unbounded {
+                carrier: geom::SurfaceKind::Sphere,
+                what: geom::cover::Unknown::NonFinite,
+            }),
+        ),
         ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),
         ("Carrier/Apex", F::Carrier(TraceFault::Apex)),
         ("Carrier/OnCarrier", F::Carrier(TraceFault::OnCarrier)),
@@ -4725,6 +4735,15 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::UnsupportedUnionName {
                 name: Box::new(stable(EntityKind::Vertex, 3)),
                 shape: editor_core::UnionNameShape::SeveralParents,
+            },
+        ),
+        (
+            "HoldingsUnread",
+            NamingError::HoldingsUnread {
+                face: Some(topo::FaceKey::default()),
+                refusal: topo::HeldRefusal::UncutRemainder {
+                    face: topo::FaceKey::default(),
+                },
             },
         ),
         (
@@ -6042,7 +6061,10 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         let words = "the sign of a shell's volume cannot be read: this scalar carries no \
                      interval to certify its sums, and the volume lies within their rounding";
         let ending = geom_core::NOT_YET_ENDING;
-        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        assert_eq!(
+            source.render(geom_brep::recourse::Reading::Build),
+            format!("{words}. {ending}")
+        );
         let text = render(CheckEvidence::Unsupported {
             source: source.clone(),
         });
@@ -6372,6 +6394,7 @@ fn every_blend_detail_renders_within_the_budget() {
                 as_the_viewer_shows_it(NodeErrorKind::Blend {
                     verb,
                     error: error(),
+                    edge: None,
                 }),
             ));
         }
@@ -6567,7 +6590,7 @@ fn longest_breach() -> &'static str {
     .max_by_key(|&breach| {
         let detail = "";
         BlendError::BodyNotIntact { at, breach, detail }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
             .split_whitespace()
             .count()
     })

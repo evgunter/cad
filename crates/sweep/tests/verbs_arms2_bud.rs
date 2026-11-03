@@ -218,7 +218,11 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle { center, radius, .. } = *c.carrier() else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            radius,
+        }) = *c.carrier()
+        else {
             panic!("a trim circle")
         };
         assert!(
@@ -406,7 +410,7 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     };
     match run_battery(&req, band()) {
         Err(e @ BlendError::SpineUnsupported { .. }) => {
-            let text = format!("{e}");
+            let text = e.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains("do not share one axis of revolution"),
                 "the refusal must name the hypothesis that failed, not the kinds: {text}"

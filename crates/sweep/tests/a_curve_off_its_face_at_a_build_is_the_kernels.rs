@@ -60,7 +60,10 @@ fn seam<T: Decide + Bounds>(body: &Body<T>) -> EdgeKey {
             body.get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)
                 .is_some_and(|c| match c.carrier() {
-                    Curve3::Circle { axis, .. } => axis.y.hi().abs() < 0.5,
+                    Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { axis, .. },
+                        ..
+                    }) => axis.y.hi().abs() < 0.5,
                     _ => false,
                 })
         })
@@ -125,7 +128,13 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
     let derived = refused::<T>(false);
     for refusal in [&declared, &derived] {
         assert!(
-            matches!(refusal, CertifyError::CarrierOffChart { margin: None, .. }),
+            matches!(
+                refusal,
+                CertifyError::CarrierOffChart {
+                    margin: Some(geom_brep::OffMargin::Past(_)),
+                    ..
+                }
+            ),
             "{lane}: {refusal:?}"
         );
         assert_eq!(
@@ -152,7 +161,7 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
             edge: EdgeKey::default(),
             error: refusal,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             at_rest.contains(topo::test_support::incidence_reasons::OFF)
                 && at_rest.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),

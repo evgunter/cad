@@ -367,13 +367,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     );
     // A ring of base about an axis read off it (data only).
     let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
-    let (doc, _, pat) = crate::fixture::circular(
-        doc,
-        base,
-        (ax, editor_core::TargetAxis::Z),
-        std::f64::consts::FRAC_PI_2,
-        4,
-    );
+    let (doc, _, pat) = crate::fixture::circular(doc, base, ax, std::f64::consts::FRAC_PI_2, 4);
     // Revolve: half-turn of a square offset from the axis.
     let (doc, rp) = on_frame(
         doc,

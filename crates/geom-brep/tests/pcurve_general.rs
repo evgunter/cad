@@ -151,12 +151,12 @@ fn an_analytic_chart_refuses_a_fitted_grade_image() {
         ),
         "an analytic chart refuses the fitted grade by kind: {got:?}"
     );
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: geom_core::Vec3::new(0.6_f64.sin(), 0.0, 0.6_f64.cos()),
-        radius: 1.0,
-        u_ref: geom_core::Vec3::new(0.6_f64.cos(), 0.0, -0.6_f64.sin()),
-    };
+    let circle = Curve3::circle(
+        Point3::origin(),
+        geom_core::Vec3::new(0.6_f64.sin(), 0.0, 0.6_f64.cos()),
+        1.0,
+        geom_core::Vec3::new(0.6_f64.cos(), 0.0, -0.6_f64.sin()),
+    );
     let got = PcurveCache::certify_general(
         image(0.0),
         0.0,
@@ -256,12 +256,12 @@ fn stated_image(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Arc<NurbsCurve2<
 
 /// A height-`z` circle on the quarter-cylinder wall, `t` its angle.
 fn circle(z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// The wall's section by the plane `z = 0.4 + 0.3·x`:
@@ -269,13 +269,15 @@ fn circle(z: f64) -> Curve3<f64> {
 fn ellipse() -> Curve3<f64> {
     let k = 0.3_f64;
     let s = (1.0 + k * k).sqrt();
-    Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, 0.4),
-        axis: Vec3::new(-k / s, 0.0, 1.0 / s),
-        semi_u: s,
-        semi_v: 1.0,
-        u_ref: Vec3::new(1.0 / s, 0.0, k / s),
-    }
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.4),
+            Vec3::new(-k / s, 0.0, 1.0 / s),
+            Vec3::new(1.0 / s, 0.0, k / s),
+        ),
+        s,
+        1.0,
+    ))
 }
 
 /// **A circle and an ellipse on a spline chart certify at the fitted
@@ -289,23 +291,24 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
     for (name, carrier, off) in [
         ("circle", circle(0.5), circle(0.501)),
         ("ellipse", ellipse(), {
-            let Curve3::Ellipse {
-                center,
-                axis,
+            let Curve3::Ellipse(geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 semi_u,
                 semi_v,
-                u_ref,
-            } = ellipse()
+            }) = ellipse()
             else {
                 unreachable!()
             };
-            Curve3::Ellipse {
-                center: center + Vec3::new(0.0, 0.0, 1e-3),
-                axis,
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(center + Vec3::new(0.0, 0.0, 1e-3), axis, u_ref),
                 semi_u,
                 semi_v,
-                u_ref,
-            }
+            ))
         }),
     ] {
         let image = stated_image(&carrier, span);
@@ -318,7 +321,12 @@ fn a_circle_and_an_ellipse_certify_on_a_spline_chart() {
             band(),
             Some(FittedLane::certified()),
         )
-        .unwrap_or_else(|e| panic!("{name}: certifies on the spline chart: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: certifies on the spline chart: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(
             got.certificate().envelope <= band().zero(),
             "{name}: the hull bound is within ε: {:?}",
@@ -547,7 +555,8 @@ fn a_general_image_wrong_between_samples_refuses_at_the_hull() {
         assert_eq!(
             refusal.ending(Reading::AtRest).as_deref(),
             Some(geom_brep::recourse::defect_ending(Reading::AtRest)),
-            "{name}: a stored image a millimetre off is a stored contradiction: {refusal}"
+            "{name}: a stored image a millimetre off is a stored contradiction: {refusal_at}",
+            refusal_at = refusal.render(geom_brep::recourse::Reading::Build)
         );
     }
 }

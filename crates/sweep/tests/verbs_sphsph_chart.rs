@@ -392,7 +392,11 @@ fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::
             let c = body
                 .get_curve_geom(ed.curve)
                 .and_then(topo::null::CurveGeom::certified)?;
-            let geom::Curve3::Circle { axis: n, .. } = *c.carrier() else {
+            let geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { axis: n, .. },
+                ..
+            }) = *c.carrier()
+            else {
                 return None;
             };
             ((n.dot(axis).abs() < 1e-9) == meridian).then(|| body.get_half_edge(he).unwrap().edge)
@@ -518,7 +522,7 @@ fn the_refusal_names_the_class_it_needs() {
     let msg = PointInSolidError::PartialSphereFace {
         face: FaceKey::default(),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     for want in [
         "sphere face",
         "Recourse: cut the sphere face only where its edges are circles",
@@ -568,12 +572,14 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
 
     let mut planted = base.clone();
     let (edge, carrier, plane_key) = seam_meridian(&planted, f);
-    let geom::Curve3::Circle {
-        center,
-        axis,
+    let geom::Curve3::Circle(geom::Circle {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         radius,
-        u_ref,
-    } = carrier
+    }) = carrier
     else {
         panic!("a meridian great circle")
     };
@@ -586,12 +592,7 @@ fn a_meridian_edge_through_a_pole_is_read_at_the_face_door() {
     // measured, a decreasing span and a span past a full turn each
     // refuse as the caller's `StatedInterval`, so the reversal
     // is not a convenience — it is the only spelling the door takes.)
-    let long = geom::Curve3::Circle {
-        center,
-        axis: Vec3::zero() - axis,
-        radius,
-        u_ref,
-    };
+    let long = geom::Curve3::circle(center, Vec3::zero() - axis, radius, u_ref);
     let width = core::f64::consts::PI + 1.0;
     planted
         .set_edge_curve(
@@ -680,12 +681,7 @@ fn a_boundary_circle_tilted_against_the_chart_is_read_at_the_face_door() {
         let rad = (1.0 - s0 * s0).sqrt();
         let u = (p0 - c) * (1.0 / rad);
         let t1 = (p1 - c).dot(m.cross(u)).atan2((p1 - c).dot(u));
-        let tilted = geom::Curve3::Circle {
-            center: c,
-            axis: m,
-            radius: rad,
-            u_ref: u,
-        };
+        let tilted = geom::Curve3::circle(c, m, rad, u);
         // The disc face carries the tilted circle's own plane, so the
         // pair the description names IS the edge's adjacent pair.
         let disc = flat_disc(&planted);
@@ -850,7 +846,12 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
         matches!(err, PointInSolidError::PartialSphereFace { .. }),
         "{err:?}"
     );
-    assert!(err.to_string().contains("edges are circles"), "{err}");
+    assert!(
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("edges are circles"),
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// The body's one flat disc face — the revolve's cap, whose plane's
@@ -905,7 +906,11 @@ fn boundary_pick(
         else {
             continue;
         };
-        let geom::Curve3::Circle { axis: n, .. } = *c.carrier() else {
+        let geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { axis: n, .. },
+            ..
+        }) = *c.carrier()
+        else {
             continue;
         };
         let is_meridian = n.dot(axis).abs() < 1e-9;

@@ -182,12 +182,12 @@ fn refusals_render_as_prose_not_debug_guts() {
     // The fourth `Display` this suite claims to pin. Its validate arm
     // holds a `profile::ProfileError`, so it forwards rather than
     // re-stating — the same rule as `NodeErrorKind`'s payload arms.
-    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::EmptyProfile);
+    let program = editor_core::ProgramRefusal::Validate(profile::ProfileError::PlaneNotFinite);
     assert_eq!(
         program.to_string(),
         format!(
             "the replayed loops failed profile validation: {}",
-            profile::ProfileError::EmptyProfile
+            profile::ProfileError::PlaneNotFinite
         )
     );
 
@@ -282,7 +282,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     vec![
-        K::Profile(profile::ProfileError::EmptyProfile),
+        K::Profile(profile::ProfileError::PlaneNotFinite),
         K::Expr {
             slot: editor_core::SlotId::Distance,
             source: editor_core::EvalError::NonFiniteResult,
@@ -333,6 +333,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
             error: sweep::blend::BlendError::RepeatedEdge {
                 edge: topo::EdgeKey::default(),
             },
+            edge: None,
         },
         K::Transform(topo::transform::TransformError::NurbsPlaceholder),
         K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(
@@ -368,13 +369,13 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             K::Expr { source, .. } => source.to_string(),
             K::SelectResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
-            K::Extrude(e) => e.to_string(),
-            K::Revolve(e) => e.to_string(),
+            K::Extrude(e) => e.render(geom_brep::recourse::Reading::Build),
+            K::Revolve(e) => e.render(geom_brep::recourse::Reading::Build),
             K::Skin(e) => e.to_string(),
-            K::Loft(e) => e.to_string(),
-            K::Blend { error, .. } => error.to_string(),
-            K::Transform(e) => e.to_string(),
-            K::Split(e) => e.to_string(),
+            K::Loft(e) => e.render(geom_brep::recourse::Reading::Build),
+            K::Blend { error, .. } => error.render(geom_brep::recourse::Reading::Build),
+            K::Transform(e) => e.render(geom_brep::recourse::Reading::Build),
+            K::Split(e) => e.render(geom_brep::recourse::Reading::Build),
             other => panic!("add the new case's payload here: {other:?}"),
         };
         assert!(

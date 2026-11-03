@@ -118,15 +118,6 @@ pub enum SessionOp {
         /// The field to probe.
         target: BoundsTarget,
     },
-    /// **Stage a creating operation for its verdict**, committing
-    /// nothing ([`crate::session::DocSession::staged_for`]): the run its
-    /// door would record, evaluated beside the picture. A draft's
-    /// question, not an action: it neither edits nor counts as one
-    /// ([`crate::frame::acts`]).
-    Stage {
-        /// The operation staged.
-        creation: Creation,
-    },
     /// Change how a slot's literal is WRITTEN — its display unit —
     /// leaving the canonical value bit-identical.
     ///
@@ -521,7 +512,7 @@ pub enum SessionOp {
         /// The mate, `on` read off that copy.
         mate: Box<Mate<Formula>>,
         /// The freedoms it leaves that are set, each to its number.
-        values: Vec<(Coord, Formula)>,
+        values: Vec<(Coord<Operand>, Formula)>,
         /// Whether the author asked, by name, to move the copy into the
         /// space the mate's `to` reads where that is not its target:
         /// the placement is first stood by the identity bundle, then
@@ -529,11 +520,15 @@ pub enum SessionOp {
         /// mate at the door, naming both spaces.
         into_target_space: bool,
     },
-    /// **The placement editor's Create** ([`crate::matetool::MateTool`]):
-    /// one placement of `body` into `target` holding the whole bundle
+    /// **The placement editor's Create** ([`crate::matetool::MateTool`]),
+    /// the Transform tool's on a body nothing places
+    /// ([`crate::matetool::MateTool::moving`]): one placement of `body` into `target` holding the whole bundle
     /// `constraints` (`DocEdit::place`), and what read the body along a
     /// path the picture is seen through — a `⊔` operand, the product —
-    /// re-pointed to it, in one action. One history state, one undo.
+    /// re-pointed to it, in one action. One history state, one undo. A
+    /// `body` that is itself a copy refuses [`Refusal::CreateOnACopy`],
+    /// and one a placement copies [`Refusal::BodyPlaced`], naming that
+    /// copy: each moves by its copy's Edit door.
     Place {
         /// The body, as a seat reads it.
         body: Operand,
@@ -542,7 +537,8 @@ pub enum SessionOp {
         /// The bundle, as authored, in order.
         constraints: Vec<pncad::document::Constraint<Formula>>,
     },
-    /// **The placement editor's Edit**: `placement`'s bundle written
+    /// **The placement editor's Edit**, the Transform tool's on a copy:
+    /// `placement`'s bundle written
     /// whole (`DocEdit::SetConstraints`), each constraint the draft
     /// loaded under its own id. Refused [`Refusal::BundleStale`] where
     /// the placement no longer holds `base`, the bundle the draft was
@@ -585,16 +581,17 @@ pub enum SessionOp {
         /// (`work/vseam/a-new-documents-typed-name-is-kept-nowhere`).
         name: String,
     },
-    /// Insert one profile node from template loops, drawn on its own
-    /// plane — the add-profile tool's one committed edit.
+    /// Insert one profile node, drawn on its own plane — New profile's
+    /// committed edit, with no loops.
     ///
     /// `loops` is DESCRIPTION order, nothing more: which loop is the
     /// outer boundary and which are holes is decided by the profile
     /// layer's containment forest at replay
     /// (`profile::structure`), never by list position — a list
-    /// written holes-first describes the same profile. Every refusal
-    /// is the edit door's own: an empty list, a degenerate loop and a
-    /// non-nested pair all refuse through the authoring-time check
+    /// written holes-first describes the same profile. An empty list
+    /// inserts the empty region, a profile with no loops. Every refusal
+    /// is the edit door's own: a degenerate loop and a non-nested pair
+    /// both refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
     /// the literal door). A profile reads no frame: where it stands is
@@ -652,9 +649,8 @@ pub enum SessionOp {
         /// The loops, outer first, in the document's vocabulary.
         chains: Vec<pncad::trace::Chain>,
     },
-    /// **Write the path editor's program over a committed profile's**
-    /// — the door the add-profile form's editor commits through when
-    /// it is opened on an existing node instead of on nothing. A
+    /// **Write the profile editor's program over a committed
+    /// profile's** — the door each of its changes commits through. A
     /// `node` that is not a `Node::Profile` refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
@@ -666,8 +662,8 @@ pub enum SessionOp {
     /// one undo — whatever moved: numbers, steps inserted, removed or
     /// reordered, verbs, arc modes, targets, a split circle's count.
     /// Nothing at all reaches it when the program is the committed one
-    /// with every step kept in place, which is what makes opening a
-    /// profile and applying it untouched cost no history entry.
+    /// with every step kept in place, so a draft that moved nothing
+    /// costs no history entry.
     ///
     /// Every argument of a kept step that did not move is written as
     /// the document holds it, so only what moved takes the editor's
@@ -699,8 +695,8 @@ pub enum SessionOp {
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node — the extrude
-    /// tool's one committed action. It lands unplaced, drawn in its own
+    /// Insert one extrude of an existing profile node — what the
+    /// extrude button commits. It lands unplaced, drawn in its own
     /// space. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
@@ -715,8 +711,9 @@ pub enum SessionOp {
         distance: Formula,
     },
     /// Insert one revolve of an existing profile node about an axis
-    /// line in the profile's own plane, and its identity world
-    /// placement (A10) — the revolve tool's one committed action.
+    /// line in the profile's own plane — what the revolve button
+    /// commits. It lands unplaced, drawn in its own space, as an
+    /// extrude does.
     /// A wrong-kind profile pick refuses [`Refusal::WrongNodeKind`] at
     /// the door.
     AddRevolve {
@@ -756,10 +753,10 @@ pub enum SessionOp {
     /// operand after the first whose value lives in another space than
     /// the first's is placed into the first's, in the same action. A
     /// construction is placed at the identity and the boolean reads the
-    /// new placement; a copy placed into its own body's space
-    /// ([`Self::AddTransform`]'s) is re-targeted in place, its bundle
-    /// the values on the first's space's axes that stand it at the pose
-    /// it held relative to its body. An operand whose pose does not
+    /// new placement; a copy placed into its own body's space by values
+    /// alone ([`Self::Place`] with no mate) is re-targeted in place, its
+    /// values as written, so it stands on the first's axes as it stood
+    /// on its body's. An operand whose pose does not
     /// solve is read as it is, and the boolean refuses `SpaceMismatch`
     /// at evaluation, on its own badge.
     AddBoolean {
@@ -781,22 +778,19 @@ pub enum SessionOp {
     /// re-pointed alone, and nothing read through them is re-seated
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
-    /// The plane is the one through `origin` with normal `normal` in
-    /// the target's own coordinates, read off the target's geometry
-    /// (`Node::Split`'s tool is a plane read whose reads reach its
-    /// operand's root alone) at the numbers' nominal values in the
-    /// document. A target seat of the wrong kind refuses
-    /// [`Refusal::WrongNodeKind`]; a number of the wrong dimension, one
-    /// that does not evaluate, a normal that names no direction and a
-    /// target with no geometry to read the plane off refuse
-    /// [`Refusal::Frame`].
+    /// The plane is any plane the document reads in the target's space
+    /// ([`SplitPlane`]): a picked face's own, read where it was picked
+    /// as the mirror reads its plane, or a plane read the caller
+    /// writes. A target seat of the wrong kind refuses
+    /// [`Refusal::WrongNodeKind`]; a plane read in another space refuses
+    /// at the insert door (`EditError::SpaceMismatch`). Whether the
+    /// face is planar, and which side is empty, are the split's own to
+    /// say where it evaluates.
     AddSplit {
         /// The body split.
         target: Operand,
-        /// A point on the plane (`Length`).
-        origin: [Formula; 3],
-        /// The plane's normal (`Scalar`).
-        normal: [Formula; 3],
+        /// The plane it is cut along.
+        plane: SplitPlane,
     },
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
@@ -824,32 +818,18 @@ pub enum SessionOp {
         /// The face whose plane it is reflected across.
         plane: FaceSelection,
     },
-    /// **Move an existing body rigidly** — the transform tool's one
-    /// committed action: a placement of the body into the space it is
-    /// in (`Node::Place`, no mate), its values on that space's axes —
-    /// rotated by `rotation_angle` about `rotation_axis` through the
-    /// body's own origin, then translated — and the body's world
-    /// placements taken over by it (A10, Ev's residue 1;
-    /// `Recording::take_over`), as one action.
-    ///
-    /// The translation is written as the three slides, each formula as
-    /// given; a rotation about one of the space's axes is the spin about
-    /// it by `rotation_angle` as given, and one about any other axis is
-    /// the chain of turns its frame makes at the numbers' NOMINAL
-    /// values. What the placement holds afterwards is its values,
-    /// editable through their slots. A number of the wrong dimension,
-    /// one that does not evaluate, and an axis that names no direction
-    /// refuse [`Refusal::Frame`]; an input that is no placeable body
-    /// refuses as a body seat does.
-    AddTransform {
-        /// The body placed.
-        input: Operand,
-        /// Translation components (`Length`).
-        translation: [Formula; 3],
-        /// Rotation-axis components (`Scalar`).
-        rotation_axis: [Formula; 3],
-        /// Rotation angle (`Angle`).
-        rotation_angle: Formula,
+    /// **Add a clearance requirement** — the clearance tool's one
+    /// committed action: an assertion that `clearance(a, b)` lies within
+    /// `bounds` (`Node::clearance`), each seat a body or a face. The
+    /// bounds are written as typed: a reversed band and a negative
+    /// bound are the evaluation's to refuse, on the requirement's row.
+    AddClearance {
+        /// The first seat.
+        a: ClearedSeat,
+        /// The second seat.
+        b: ClearedSeat,
+        /// The bounds, each a length.
+        bounds: pncad::document::ClearanceBounds<Formula>,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -870,9 +850,9 @@ pub enum SessionOp {
         input: Operand,
         /// Copy count.
         count: i64,
-        /// The replication rule; a circular rule's axis is read off
-        /// the input's own geometry at its numbers' nominal values, and
-        /// refuses [`Refusal::Frame`] as [`Self::AddSplit`]'s plane does.
+        /// The replication rule: its direction or axis one of the
+        /// space's axes or picked geometry the pattern reads, refusing
+        /// [`Refusal::Frame`] where the pick reads none.
         rule: PatternRuleSpec,
     },
     /// Insert one FUSED pattern of an existing body — the pattern
@@ -997,7 +977,7 @@ pub enum SessionOp {
     /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
     /// before anything has landed, while an edit has not landed yet,
     /// and for an input whose value is several bodies — which the body
-    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// seat's node-kind gate admits for a placement of a pattern, and
     /// which a pattern of two would index in place, adding nothing.
     /// Both numbers land in the pattern's ordinary slots and are edited
     /// in the property panel afterwards.
@@ -1291,7 +1271,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1312,7 +1292,6 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
-            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1391,7 +1370,6 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
-            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1421,7 +1399,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1604,7 +1582,6 @@ impl SessionOp {
         match self {
             Self::Select(_)
             | Self::Hover(_)
-            | Self::Stage { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
             | Self::PreviewVariableGesture { .. }
@@ -1652,7 +1629,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1741,7 +1718,6 @@ impl SessionOp {
             Self::Open(_) | Self::NewDocument { .. } => false,
             Self::Select(_)
             | Self::Hover(_)
-            | Self::Stage { .. }
             | Self::PreviewGesture { .. }
             | Self::CommitGesture { .. }
             | Self::PreviewVariableGesture { .. }
@@ -1787,7 +1763,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1801,6 +1777,28 @@ impl SessionOp {
             | Self::SetProduct { .. }
             | Self::AddToProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
+        }
+    }
+
+    /// **Whether this creation's gesture follows the rule that a
+    /// creation selects the node its noun names**
+    /// (`crates/viewer/README.md`, "A create gesture commits the
+    /// node"): the chrome selects [`OpOutcome::made`] once the op
+    /// lands, so the node's edit surface opens on it. A gesture brought
+    /// under the rule joins the list here.
+    #[must_use]
+    pub fn selects_what_it_makes(&self) -> bool {
+        match self {
+            Self::CreateLabelled { creation, .. } => creation.op().selects_what_it_makes(),
+            op => matches!(
+                op,
+                Self::AddProfile { .. }
+                    | Self::AddDrawnProfile { .. }
+                    | Self::AddExtrude { .. }
+                    | Self::AddRevolve { .. }
+                    | Self::AddSplit { .. }
+                    | Self::AddMirror { .. }
+            ),
         }
     }
 
@@ -1841,7 +1839,6 @@ impl SessionOp {
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
             | Self::ProbeBounds { .. }
-            | Self::Stage { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1865,7 +1862,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddTransform { .. }
+            | Self::AddClearance { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1881,6 +1878,27 @@ impl SessionOp {
             Self::CreateLabelled { creation, .. } => creation.op().replaces_the_document(),
         }
     }
+}
+
+/// **The plane a split cuts along** ([`SessionOp::AddSplit`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SplitPlane {
+    /// A face, read as its plane on the body it was picked on
+    /// (`crate::matetool::plane_of`).
+    Face(FaceSelection),
+    /// A plane read as written: a `Plane` variable, or a frame's
+    /// coordinate plane read through its role.
+    Read(pncad::document::pose::RoleRead<Operand>),
+}
+
+/// **One seat of a clearance requirement** ([`SessionOp::AddClearance`]):
+/// a body, all of its faces, or one face picked in the picture.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClearedSeat {
+    /// A body read.
+    Body(Operand),
+    /// A face, read on the body it was picked on.
+    Face(FaceSelection),
 }
 
 /// **An operation that creates a node** — the only operation

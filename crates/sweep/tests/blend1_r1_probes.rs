@@ -282,7 +282,12 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         0.1,
         tol(),
     )
-    .unwrap_or_else(|r| panic!("a sharp-cornered hexagon cycle mitres its turns, got {r}"));
+    .unwrap_or_else(|r| {
+        panic!(
+            "a sharp-cornered hexagon cycle mitres its turns, got {r_at}",
+            r_at = r.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("the mitred hexagon is tier-3 valid");
     let rec = out.naming.as_ref().expect("births");
     assert_eq!(
@@ -395,7 +400,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
 /// `SeamVertex` rows) nor a superset of the rim's arcs reaches the
 /// carve — only the rim itself.
 #[test]
-fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
+fn p5_the_rim_arcs_plus_a_seam_meridian_carve_the_rim_and_leave_the_seam() {
     let body = lantern();
     let mut req = rim_arcs_at(&body, SHOULDER.0, SHOULDER.1);
     assert_eq!(req.len(), 2);
@@ -409,25 +414,30 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);
-    match fillet_edges(
+    let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &req,
         0.05,
         tol(),
     )
-    .map_err(|r| r.error)
-    {
-        Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(margin.sign, Sign::Zero);
-            assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "a co-surface seam is tangential exactly"
-            );
-        }
-        other => panic!("a request carrying a seam meridian refuses tangential, got {other:?}"),
-    }
+    .unwrap_or_else(|e| panic!("the rim carves past the seam it leaves, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "the rim is carved whole, one band");
+    sweep::test_support::assert_blends_as_without(
+        sweep::blend::BlendKind::Fillet,
+        &body,
+        &req,
+        &[seam],
+        0.05,
+        tol(),
+    );
+    let margin = sweep::test_support::smooth_reading(&body, seam, 0.05, tol());
+    assert_eq!(margin.predicate, "fillet3_convexity_sign");
+    assert_eq!(margin.sign, Sign::Zero);
+    assert_eq!(
+        margin.reading.diagnostic_f64_for_error_text().value(),
+        Some(0.0),
+        "a co-surface seam is tangential exactly"
+    );
 }
 
 // ------------------------------------------------------------------

@@ -258,6 +258,7 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
                     symbolic: dials(rules),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .map(|v| v.serialize())
@@ -402,13 +403,7 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
             "f64 at t = {t}"
         );
         // And through the enum, which is what the certifier calls.
-        let c = Curve3::Circle {
-            center,
-            axis,
-            radius: 0.8e-3,
-            u_ref,
-        }
-        .eval(t);
+        let c = Curve3::circle(center, axis, 0.8e-3, u_ref).eval(t);
         assert_eq!(
             [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()],
             [b.x.to_bits(), b.y.to_bits(), b.z.to_bits()]
@@ -468,6 +463,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the link builds");

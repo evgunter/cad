@@ -57,12 +57,12 @@ fn tilted_plane<T: Real>() -> Surface<T> {
 /// sphere — its plane neither ⊥ the polar axis nor containing it.
 fn general_circle<T: Real>() -> Curve3<T> {
     let tilt = 0.6_f64;
-    Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(T::from_f64(tilt.sin()), T::zero(), T::from_f64(tilt.cos())),
-        radius: T::from_f64(1.0),
-        u_ref: Vec3::new(T::from_f64(tilt.cos()), T::zero(), T::from_f64(-tilt.sin())),
-    }
+    Curve3::circle(
+        Point3::origin(),
+        Vec3::new(T::from_f64(tilt.sin()), T::zero(), T::from_f64(tilt.cos())),
+        T::from_f64(1.0),
+        Vec3::new(T::from_f64(tilt.cos()), T::zero(), T::from_f64(-tilt.sin())),
+    )
 }
 
 /// The traversed arc: a quarter turn away from the azimuth seam.
@@ -201,12 +201,12 @@ fn pole_circle() -> (Curve3<f64>, Surface<f64>) {
         normal,
         u_ref,
     };
-    let circle = Curve3::Circle {
-        center: Point3::origin() + normal * tilt.cos(),
-        axis: normal,
-        radius: tilt.sin(),
+    let circle = Curve3::circle(
+        Point3::origin() + normal * tilt.cos(),
+        normal,
+        tilt.sin(),
         u_ref,
-    };
+    );
     (circle, plane)
 }
 
@@ -245,8 +245,10 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
         "the refusal is the arc fence's, typed: {err:?}"
     );
     assert!(
-        err.to_string().contains("Recourse:"),
-        "the refusal carries a recourse: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("Recourse:"),
+        "the refusal carries a recourse: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
     let (mut clear, he_plus, _) = spur_body(&circle, plane, (0.2, 1.2));
     topo::mint_pcurves(&mut clear, Tol::witness())

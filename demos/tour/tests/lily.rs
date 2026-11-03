@@ -414,7 +414,7 @@ mod review_probes {
                         .is_some_and(|c| {
                             matches!(
                                 c.carrier(),
-                                pncad::geom::Curve3::Circle { radius, .. }
+                                pncad::geom::Curve3::Circle(pncad::geom::Circle { radius, .. })
                                     if (radius - ARCH_R).abs() < 1e-12
                             )
                         })
@@ -854,7 +854,12 @@ mod review_probes {
             let e = pncad::topo::validate_geometric_certificate(b, Tol::witness())
                 .expect("the swept leaf is tier 3 clean")
                 .measure(demo_tour::printed())
-                .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                .unwrap_or_else(|refusal| {
+                    panic!(
+                        "{name}: no certified volume: {refusal_at}",
+                        refusal_at = refusal.render(pncad::geom_brep::recourse::Reading::AtRest)
+                    )
+                })
                 .enclosure
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
@@ -1355,7 +1360,11 @@ mod review_probes {
         b.edges()
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
-                let pncad::geom::Curve3::Circle { center, radius, .. } = *geom.carrier() else {
+                let pncad::geom::Curve3::Circle(pncad::geom::Circle {
+                    frame: pncad::geom::Frame { center, .. },
+                    radius,
+                }) = *geom.carrier()
+                else {
                     return None;
                 };
                 ((center - origin).dot(normal).abs() < 1e-9).then(|| {

@@ -81,7 +81,9 @@
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
 // arm can name what it caught; `LoftFault` is the same for
-// `EditError::LoftShape`.
+// `EditError::LoftShape`. `SectionId` and `SectionIdFault` are the same
+// pair for `DocEdit::SetLoftSections` and
+// `EditError::SectionIdsRefused`.
 // `AuthoredStep` is how an author who recorded a step reaches its id
 // and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
 // keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
@@ -90,7 +92,8 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
     Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
-    Recording, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
+    apply_replayed, slot_admits,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -153,7 +156,8 @@ pub use editor_core::{Label, LabelFault};
 // K-census consumer can name the row rather than spell the string.
 // `Claim` and `ClearanceBounds` are what `Node::Assertion` holds: a
 // value against a bound, or a clearance between two seats within its
-// bounds.
+// bounds; `BoundEnd` addresses a clearance's bound slot
+// (`SlotId::ClearanceBound`).
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
@@ -161,7 +165,7 @@ pub use editor_core::{Label, LabelFault};
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, FaceName,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, BoundEnd, Claim, ClearanceBounds, FaceName,
     MeasureOutcome, MeasurePrimitive, MeasureVerb, Measured, NotAFaceName, ObservedRefusal,
     SitedFace, SitedRef, UnevaluatedReason, measure,
 };
@@ -330,7 +334,7 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
     Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, SplitSide, ValuePayload, evaluate,
+    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
 };
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
@@ -346,14 +350,16 @@ pub use editor_core::{Carry, Piece, Pieces};
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
-    SelectionBodyFault, SnapshotError, load, save,
+    SectionIdBreak, SelectionBodyFault, SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
 // the sentence a carrier that names the stage renders
 // ([`Staged::sentence`]); the recourse label, and what an API door
 // given no part resolver says to do.
-pub use editor_core::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
+pub use editor_core::{
+    Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+};
 
 // Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —
@@ -450,6 +456,10 @@ pub use editor_core::{
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
+/// The target axes a bundle with no mate's other slides run along,
+/// beside slides along picked directions: what a row along a read
+/// direction is written across ([`crate::pattern::linear_pattern`]).
+pub use editor_core::mate::slides_across;
 pub use editor_core::{
     Composing, Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide,
     Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed, Placing,
@@ -496,7 +506,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
-    NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
+    NodeMap, SectionMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

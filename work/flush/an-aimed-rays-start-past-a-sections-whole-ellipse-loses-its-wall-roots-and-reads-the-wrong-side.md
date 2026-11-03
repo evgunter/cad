@@ -316,7 +316,7 @@ suite red is base-red.
 - **Residue:**
   - `work/inside/a-rays-root-rounding-reaches-its-order-but-not-its-trim-test-or-the-blocking-arms.md`
     (now naming PR 6168's `reach_margin` too);
-  - `work/roots/the-edge-sweeps-line-wall-and-line-sphere-roots-carry-no-root-slack.md`
+  - `work/germ/the-edge-sweeps-line-wall-and-line-sphere-roots-carry-no-root-slack.md`
     (with the far-start sphere disc finding);
   - the `curved_edges.rs:182` `hi − lo` premise break, filed on INSIDE;
   - `work/inside/decide-magnitude-reported-callers-unswept-for-a-negative-margin.md`.

@@ -129,7 +129,7 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // enclosure at round 0) AND `#389` adopts (#388): the two
         // former frontiers each stood in front of this one.
         Err(StepImportError::Pcurves { source, .. }) => {
-            let shown = source.to_string();
+            let shown = source.render(geom_brep::recourse::Reading::Build);
             assert!(
                 shown.contains("not an arc rim of this chart"),
                 "the frontier past the retired gap is the arc-rim pick: {shown}"
@@ -146,7 +146,7 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 solid.is_some_and(|id| id > 0) && !errors.is_empty(),
                 "the refusal must name an entity: solid {solid:?}, verdicts {errors:?}"
             );
-            let shown = StepImportError::TierInvalid { solid, errors }.to_string();
+            let shown = StepImportError::TierInvalid { solid, errors }.render();
             assert!(
                 !shown.contains("this tolerance targets"),
                 "a BUDGET refusal at the at-rest gate is check 7 back to consuming a \
@@ -321,7 +321,7 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
             attempts.len()
         ),
         Err(StepImportError::Pcurves { source, .. }) => {
-            let shown = source.to_string();
+            let shown = source.render(geom_brep::recourse::Reading::Build);
             assert!(
                 shown.contains("not an arc rim of this chart"),
                 "the successor frontier is the arc-rim pick: {shown}"

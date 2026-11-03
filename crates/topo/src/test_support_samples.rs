@@ -144,6 +144,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
         ChartRegionError::MissingCache {
             half_edge: HalfEdgeKey::default(),
         },
+        ChartRegionError::TrimOffFace {
+            face,
+            half_edge: HalfEdgeKey::default(),
+            read: geom_brep::IncidenceRead::Off(Some(geom_core::MarginDiag::value(0.5))),
+        },
         ChartRegionError::ArmUnbounded { chart: "sphere" },
         ChartRegionError::SeamBranch,
         ChartRegionError::PeriodFold,
@@ -711,7 +716,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "a sphere holds no line",
+            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
             margin: None,
         },
         PcurveCertifyError::CarrierOffChart {
@@ -2054,12 +2059,13 @@ mod tests {
     fn no_sample_renders_a_run_of_spaces() {
         let rendered = super::validation_error_samples()
             .into_iter()
-            .map(|(label, e)| (label, e.to_string()))
-            .chain(
-                super::mass_props_errors()
-                    .into_iter()
-                    .map(|e| (format!("{e:?}"), e.to_string())),
-            );
+            .map(|(label, e)| (label, e.render(geom_brep::recourse::Reading::AtRest)))
+            .chain(super::mass_props_errors().into_iter().map(|e| {
+                (
+                    format!("{e:?}"),
+                    e.render(geom_brep::recourse::Reading::AtRest),
+                )
+            }));
         let problems: Vec<_> = rendered
             .filter(|(_, text)| text.contains("  ") || text.contains('\n'))
             .map(|(label, text)| format!("{label}: {text:?}"))

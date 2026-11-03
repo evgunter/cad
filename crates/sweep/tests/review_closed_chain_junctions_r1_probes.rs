@@ -231,7 +231,12 @@ fn carve(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) {
     )
     .volume;
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
-        .unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: carves, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert_eq!(out.band_faces.len(), 1, "{what}: one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     let p1 = topo::mass_properties(
@@ -310,7 +315,12 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
         RHO,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "both rims carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(out.band_faces.len(), 2);
     validate_geometric(&out.body, tol()).unwrap();
     let v1 = topo::test_support::pinned_volume(
@@ -441,7 +451,7 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle { center, .. }) if (center.z - 1.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })) if (center.z - 1.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -455,7 +465,10 @@ fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
             .unwrap()
             .carrier()
         {
-            geom::Curve3::Circle { center, radius, .. } => [
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => [
                 center.x.to_bits(),
                 center.y.to_bits(),
                 center.z.to_bits(),

@@ -127,7 +127,12 @@ fn has_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 /// The sealed hollow, with tier 3 and the two-shell shape first.
 fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
     let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
-        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: the axial door must hollow this, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
     assert_eq!(
         topo::validate_geometric(&out, tol()),
@@ -314,16 +319,31 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
             &geom_core::test_support::rigid(&map, tol()),
             tol(),
         )
-        .unwrap_or_else(|e| panic!("{what}: the hollow re-poses, got {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: the hollow re-poses, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let posed_first =
             transform_rigid(&body, &geom_core::test_support::rigid(&map, tol()), tol())
-                .unwrap_or_else(|e| panic!("{what}: the operand re-poses, got {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: the operand re-poses, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
         let hollow_after = topo::shell(
             &finished("the operand", posed_first.clone(), tol()),
             T,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}, re-posed: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
         let want: Vec<Point3<f64>> = posed_after.vertex_points().map(|(_, p)| p).collect();
         let mut pool: Vec<Point3<f64>> = hollow_after.vertex_points().map(|(_, p)| p).collect();
@@ -426,7 +446,10 @@ fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
         tol(),
     )
     .expect_err("a wall thicker than the tube has no cavity");
-    println!("[torax] the over-thick wall refuses: {e}");
+    println!(
+        "[torax] the over-thick wall refuses: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     let ShellError::WallClearance {
         gap,
         needed,
@@ -434,7 +457,10 @@ fn torax_a_wall_thicker_than_the_tube_refuses_typed() {
         other,
     } = e
     else {
-        panic!("the over-thick wall is the operand clearance gate's, got {e}");
+        panic!(
+            "the over-thick wall is the operand clearance gate's, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert_ne!(face, other, "the gate names two distinct faces");
     assert!(
@@ -478,10 +504,16 @@ fn torax_the_torus_arms_floor_is_the_ring_closing() {
     .expect_err("an offset tube that reaches the major radius has no ring left");
     println!("[torax] the closed ring refuses: {e:?}");
     let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door's refusal: {e}");
+        panic!(
+            "not the offset door's refusal: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     let topo::ReplaceFaceError::Offset { error, .. } = *error else {
-        panic!("the ring floor is the surface mint's, not a corner's: {error}");
+        panic!(
+            "the ring floor is the surface mint's, not a corner's: {error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
+        );
     };
     let geom_brep::OffsetError::TorusRing { realized_minor } = error else {
         panic!("the mint must name the ring convention, got {error}");
@@ -751,7 +783,10 @@ fn torax_the_sphere_lune_rim_solves_in_closed_form() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle { center, radius, .. } => {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => {
                 rims += 1;
                 let (rho_c, h_c) = axial(*center);
                 assert!(
@@ -890,7 +925,7 @@ fn torax_the_sphere_lune_hollows_to_its_closed_form() {
 /// across the axis, so a counterpart's boundary meets its designated
 /// face's, which a box opened at two adjacent faces meets the same way
 /// (`ShellError::OpenFaceRimNotExpressible`'s own scope; scheduled as
-/// `work/shelf/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
+/// `work/shell/shell-open-at-two-adjacent-mouths-refuses-at-the-rim-glue.md`).
 #[test]
 fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
     let (r, t) = (0.3, 0.05);
@@ -984,9 +1019,15 @@ fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
         tol(),
     )
     .expect_err("parallel moved caps leave the rim corner under-determined");
-    println!("[torax] the half-turn lune: {e}");
+    println!(
+        "[torax] the half-turn lune: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door's refusal: {e}");
+        panic!(
+            "not the offset door's refusal: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     let topo::ReplaceFaceError::TogetherAxialCorner { surfaces, what, .. } = *error else {
         panic!("the parallel caps must refuse at the corner they under-determine: {error:?}");
@@ -1016,7 +1057,10 @@ fn torax_the_narrow_lune_refuses_where_the_cap_line_misses_the_circle() {
     let band = Band::linear(tol()).expect("band");
     let e = topo::offset_charts_together(&mut cavity, &hollow_moves(&body, 0.05), band, tol())
         .expect_err("a meeting line outside the moved circle answers no corner");
-    println!("[torax] the narrow lune: {e}");
+    println!(
+        "[torax] the narrow lune: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
+    );
     let topo::ReplaceFaceError::TogetherAxialCorner { surfaces, what, .. } = e else {
         panic!("the miss must refuse at the meridian-pair corner: {e:?}");
     };
@@ -1165,7 +1209,10 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
                     "the meeting line stays parallel to the axis, got {dir:?}"
                 );
             }
-            geom::Curve3::Circle { center, radius, .. } => {
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                radius,
+            }) => {
                 rims += 1;
                 let (rho_c, h_c) = axial(*center);
                 assert!(

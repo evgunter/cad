@@ -2480,6 +2480,7 @@ fn lofted(
         Node::Loft {
             first: sec0.into(),
             then: vec![editor_core::LoftSection {
+                id: None,
                 profile: sec1.into(),
                 station: vec![editor_core::StationMove::Slide {
                     along: editor_core::Axis3::Z,
@@ -2487,6 +2488,7 @@ fn lofted(
                 }],
             }],
             v_degree: Formula::count(1),
+            first_id: None,
         },
     );
     (doc, [sec0, sec1, loft])
@@ -2512,7 +2514,31 @@ fn loft_wall(
 ) -> StableName {
     fname(
         loft,
-        RoleSeg::LoftWall(secs.iter().map(|&s| fixture::piece(doc, s, 0, k)).collect()),
+        RoleSeg::LoftWall(
+            secs.iter()
+                .zip(fixture::section_ids(doc, loft))
+                .map(|(&s, sid)| (sid, fixture::piece(doc, s, 0, k)))
+                .collect(),
+        ),
+    )
+}
+
+/// A loft seam at canonical vertex `k`, spelled by each section's
+/// vertex there.
+fn loft_seam(
+    doc: &ProfileDoc,
+    loft: RecipeNodeId,
+    secs: [RecipeNodeId; 2],
+    k: usize,
+) -> StableName {
+    fixture::ename(
+        loft,
+        RoleSeg::LoftSeam(
+            secs.iter()
+                .zip(fixture::section_ids(doc, loft))
+                .map(|(&s, sid)| (sid, fixture::vpiece(doc, s, 0, k)))
+                .collect(),
+        ),
     )
 }
 
@@ -2526,13 +2552,7 @@ fn a_loft_names_its_walls_and_seams_by_every_sections_piece() {
     let t = table(&ev, loft);
     for k in 0..4 {
         let _ = fixture::face_of(t, "loft wall", &loft_wall(&doc, loft, [sec0, sec1], k));
-        let seam = fixture::ename(
-            loft,
-            RoleSeg::LoftSeam(vec![
-                fixture::vpiece(&doc, sec0, 0, k),
-                fixture::vpiece(&doc, sec1, 0, k),
-            ]),
-        );
+        let seam = loft_seam(&doc, loft, [sec0, sec1], k);
         let _ = edge_of(t, "loft seam", &seam);
         let bottom = fixture::rim_edge(loft, CapEnd::Start, fixture::piece(&doc, sec0, 0, k));
         let top = fixture::rim_edge(loft, CapEnd::End, fixture::piece(&doc, sec1, 0, k));
@@ -2606,13 +2626,7 @@ fn upper_section_names(
         .map(|k| {
             [
                 loft_wall(doc, loft, [sec0, sec1], k),
-                fixture::ename(
-                    loft,
-                    RoleSeg::LoftSeam(vec![
-                        fixture::vpiece(doc, sec0, 0, k),
-                        fixture::vpiece(doc, sec1, 0, k),
-                    ]),
-                ),
+                loft_seam(doc, loft, [sec0, sec1], k),
                 fixture::rim_edge(loft, CapEnd::End, fixture::piece(doc, sec1, 0, k)),
             ]
         })
@@ -2712,5 +2726,187 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
         3,
         "{:?}",
         crate::fixture::without_anonymous(&applied.maintenance)
+    );
+}
+
+/// The extrude's refusal and the profile's value under `doc`: the
+/// profile evaluates to no loops, and the extrude of it refuses
+/// `EmptyProfile` at its own door.
+fn the_empty_region_and_its_extrude(
+    doc: &ProfileDoc,
+    profile: RecipeNodeId,
+    extrude: RecipeNodeId,
+    what: &str,
+) {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    assert!(
+        matches!(
+            ev.value(profile).map(|v| &v.payload),
+            Some(editor_core::ValuePayload::Profile(p)) if p.validated.loops().is_empty()
+        ),
+        "{what}: the profile evaluates to no loops: {:?}",
+        ev.node_error(profile)
+    );
+    let refused = ev.node_error(extrude).map(|e| &e.kind);
+    assert!(
+        matches!(
+            refused,
+            Some(NodeErrorKind::Extrude(sweep::ExtrudeError::EmptyProfile))
+        ),
+        "{what}: the extrude refuses at its own door: {refused:?}"
+    );
+    let words = ev.node_error(extrude).map(|e| e.kind.to_string());
+    assert!(
+        words
+            .as_deref()
+            .is_some_and(|w| w.contains("profile has no loops — nothing to sweep")),
+        "{what}: in EmptyProfile's words: {words:?}"
+    );
+}
+
+/// **A profile with no loops is a document state**: inserted, and
+/// reached by a `SetProgram` that drops every loop, it is admitted and
+/// evaluates to the empty region; what sweeps it refuses at its own
+/// door; and a log holding both saves, loads and replays identically.
+#[test]
+fn a_profile_with_no_loops_is_admitted_evaluates_and_round_trips() {
+    let empty = ProfileDoc::empty_derived("no-loops", tol());
+    let inserted = DocEdit::InsertNode {
+        node: Box::new(Node::Profile(ProfileProgram {
+            loops: Vec::new(),
+            ids: Vec::new(),
+            on: None,
+        })),
+        fresh: Vec::new(),
+    };
+    let (doc, bare) = insert(
+        empty.clone(),
+        Node::Profile(ProfileProgram {
+            loops: Vec::new(),
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, bare_extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: bare.into(),
+            distance: len(ROD_L),
+        },
+    );
+    the_empty_region_and_its_extrude(&doc, bare, bare_extrude, "inserted");
+
+    // The rod, emptied by `SetProgram`.
+    let (doc, rod_profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![rod_loop(false)],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let (doc, rod_extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: rod_profile.into(),
+            distance: len(ROD_L),
+        },
+    );
+    let emptied = DocEdit::SetProgram {
+        node: rod_profile,
+        loops: Vec::new(),
+        ids: Vec::new(),
+        fresh: Vec::new(),
+    };
+    let doc = apply(&doc, &emptied, tol())
+        .expect("a SetProgram that drops every loop is admitted")
+        .doc;
+    assert!(ids_of(&doc, rod_profile).is_empty(), "no loop, no ids");
+    the_empty_region_and_its_extrude(&doc, rod_profile, rod_extrude, "emptied");
+
+    // The same document as a log: it saves, loads and replays.
+    let log = vec![
+        inserted,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: bare.into(),
+                distance: len(ROD_L),
+            }),
+            fresh: Vec::new(),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                loops: vec![rod_loop(false)],
+                ids: Vec::new(),
+                on: None,
+            })),
+            fresh: Vec::new(),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(Node::Extrude {
+                profile: rod_profile.into(),
+                distance: len(ROD_L),
+            }),
+            fresh: Vec::new(),
+        },
+        emptied,
+    ];
+    let text = save(&empty, &log, tol()).expect("saves");
+    let loaded = load(&text, tol()).expect("loads");
+    assert_eq!(loaded.edits, log, "the log round-trips");
+    let replayed = ProfileDoc::replay(empty.id(), &log, tol()).expect("replays");
+    assert!(
+        replayed.bit_eq(&doc),
+        "the log replays to the applied document"
+    );
+    assert!(
+        loaded.doc.bit_eq(&replayed),
+        "the loaded document is the replayed one"
+    );
+    the_empty_region_and_its_extrude(&loaded.doc, bare, bare_extrude, "loaded, inserted");
+    the_empty_region_and_its_extrude(&loaded.doc, rod_profile, rod_extrude, "loaded, emptied");
+
+    // And as a snapshot with no log.
+    let text = save(&loaded.doc, &[], tol()).expect("the snapshot saves");
+    let reloaded = load(&text, tol()).expect("the snapshot loads");
+    assert!(reloaded.doc.bit_eq(&loaded.doc), "the snapshot round-trips");
+}
+
+/// **A program of no loops carries every id it has**, minted or not:
+/// it has no step to carry one. So it names no piece rather than
+/// refusing `Unminted`, which a program of loops with no id list still
+/// does; and the insert door mints it (the row above inserts one).
+#[test]
+fn a_program_of_no_loops_carries_its_ids_and_names_no_piece() {
+    let stored = |doc: &ProfileDoc, node: RecipeNodeId| match doc.node(node) {
+        Some(Node::Profile(p)) => p.clone(),
+        other => panic!("node {} is a profile: {other:?}", node.0),
+    };
+    let r = rod("no-loops-pieces", &[]);
+    let (doc, bare) = insert(
+        r.doc,
+        Node::Profile(ProfileProgram {
+            loops: Vec::new(),
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    let env = doc.var_env::<f64>();
+    let empty = stored(&doc, bare);
+    assert!(empty.carries_step_ids(), "no loops, no step without an id");
+    let pieces = empty.pieces(&env, tol()).expect("no loops names no piece");
+    assert!(
+        pieces.edges.is_empty() && pieces.vertices.is_empty(),
+        "{pieces:?}"
+    );
+    let mut unminted = stored(&doc, r.profile);
+    unminted.ids.clear();
+    assert!(!unminted.carries_step_ids(), "loops with no id list");
+    assert!(
+        matches!(
+            unminted.pieces(&env, tol()),
+            Err(editor_core::ProgramRefusal::Unminted)
+        ),
+        "a program of loops with no id list is unminted"
     );
 }

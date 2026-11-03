@@ -167,3 +167,23 @@ point each is handed; none beyond the above is handed a tangency foot.
 - `splitting::conic_plane_candidates` (`crates/topo/src/splitting/classify.rs`): its graze row's `Zero` places the double root by the generic root formula.
 - `rim_wedge::crossings` (`crates/topo/src/boolean/rim_wedge.rs`): its line and circle closed forms are lenient in the band, and place a touch the same way.
 Not measured on a body. Both were found by reading, in the review of PR 5154.
+
+## 2026-11-02: a cited site retired (SECTARMS stage 3)
+
+Branch `sectarms/cylinder-join-reads-value` retires `topo::boolean::join`'s
+`cylinder_pair_axes`, `cylinder_pair_frame`, `crossing_cylinder_reading`
+and `parallel_radical_plane`. The join now reads two cylinders on the
+section value (`join::cylinder_read`), and the parallel lane takes its
+plane from `geom_brep::CylinderCylinderPose::rulings_plane`. The hit
+above that cites one of those sites no longer exists. The rest of the
+row stands as filed.
+
+## 2026-11-02: the rulings plane retired too (SECTARMS stage 3b-i)
+
+Branch `sectarms/cylinder-carried-closed-form` retires the parallel
+lane's plane: `geom_brep::CylinderCylinderPose::rulings_plane` and
+`topo::boolean::join`'s `GermLane::Rulings`, `rulings_are_straight` and
+`rulings_normal` are gone. A parallel cylinder pair now rides its
+carried rulings (`chord_join::carried_chord_spec`'s closed-form arm).
+The note above that names the rulings plane no longer points at live
+code. The rest of the row stands as filed.

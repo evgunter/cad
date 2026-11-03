@@ -475,14 +475,22 @@ impl fmt::Display for SlabPair {
     }
 }
 
-impl fmt::Display for LoftError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl LoftError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::Skin(e) => write!(f, "{e}"),
-            Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
+            Self::Euler(e) => write!(
+                f,
+                "an Euler operation of the assembly refused: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::CapPlane(e) => write!(f, "{e}"),
-            Self::Pcurve(e) => write!(f, "{e}"),
+            Self::Pcurve(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::SeamStructure { source } => write!(
                 f,
                 "a wall's boundary curve failed to re-wrap (kernel bug, not an input \
@@ -667,6 +675,8 @@ impl fmt::Display for LoftError {
         }
     }
 }
+
+geom_brep::ended_by_write!(LoftError);
 
 impl std::error::Error for LoftError {}
 
@@ -1122,7 +1132,7 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
     };
     let (t0, t1) = (spec.param_start, spec.param_end);
     let image = match spec.carrier {
-        Curve3::Circle { .. } => geom_brep::pick_arc_rim(
+        Curve3::Circle(..) => geom_brep::pick_arc_rim(
             &spec.carrier,
             (t0, t1 - t0),
             &Surface::Nurbs(Arc::clone(wall)),
@@ -1788,7 +1798,9 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum, with every refusal
-/// [`crate::sweep_places`] makes arriving through [`LoftError::Skin`].
+/// [`crate::sweep_places`] makes arriving through [`LoftError::Skin`];
+/// a profile with no loops is [`SkinError::EmptyProfile`] with no
+/// section.
 ///
 /// # Panics
 ///
@@ -1803,6 +1815,9 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
+    if profile.is_empty() {
+        return Err(LoftError::Skin(SkinError::EmptyProfile { section: None }));
+    }
     // One carry, composed onto the start frame in `T` and onto its
     // point value in `f64`, where the stations' structure is selected.
     let carry = PathCarry::of(path, stations, tol).map_err(LoftError::Skin)?;
@@ -1840,11 +1855,13 @@ mod undecided_tests {
         );
         for ((source, near), far) in readings("loft_stacking").into_iter().zip(near).zip(far) {
             assert_eq!(
-                LoftError::StackingEscalated { slab: 1, source }.to_string(),
+                LoftError::StackingEscalated { slab: 1, source }
+                    .render(geom_brep::recourse::Reading::Build),
                 near
             );
             assert_eq!(
-                LoftError::FarStackingEscalated { slab: 1, source }.to_string(),
+                LoftError::FarStackingEscalated { slab: 1, source }
+                    .render(geom_brep::recourse::Reading::Build),
                 far
             );
         }
@@ -1881,7 +1898,7 @@ mod undecided_tests {
                     slab: 1,
                     source
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 corner
             );
             assert_eq!(
@@ -1890,7 +1907,7 @@ mod undecided_tests {
                     segments: [at(0, 2), at(1, 0)],
                     source
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 apart
             );
         }

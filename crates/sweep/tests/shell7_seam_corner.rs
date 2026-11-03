@@ -71,8 +71,13 @@ fn minor_radii(body: &Body<f64>) -> Vec<f64> {
 
 /// Shell to tier 3, two shells, and the wall's closed form.
 fn shelled_to_closed_form(what: &str, body: &Body<f64>) -> topo::Shelled<f64> {
-    let out = topo::shell(&finished("the operand", body.clone(), tol()), T, tol())
-        .unwrap_or_else(|e| panic!("{what}: the full torus shells, got {e}"));
+    let out =
+        topo::shell(&finished("the operand", body.clone(), tol()), T, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: the full torus shells, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
         Ok(()),
@@ -138,12 +143,10 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle {
-            center,
-            axis,
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } = c
+        }) = c
         else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };
@@ -240,7 +243,10 @@ fn a_corner_with_no_profile_constraint_refuses_typed_at_the_direct_door() {
         what,
     } = error
     else {
-        panic!("expected TogetherAxialCorner, got {error}");
+        panic!(
+            "expected TogetherAxialCorner, got {error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert_eq!(vertex, split, "the refusal names the split vertex");
     assert_eq!(surfaces, 2, "the two meridian caps, and nothing else");
@@ -298,8 +304,12 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
     let at = point(&body, split);
     let (rho0, h0) = axial(at);
     assert!((rho0 - r).abs() <= 1e-15 && (h0 - h / 2.0).abs() <= 1e-15);
-    let (moved, outcome) =
-        direct_door(&body, T).unwrap_or_else(|e| panic!("the split drum moves, got {e}"));
+    let (moved, outcome) = direct_door(&body, T).unwrap_or_else(|e| {
+        panic!(
+            "the split drum moves, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(topo::validate_geometric(&moved, tol()), Ok(()), "tier 3");
     // The door ends with the join: the image stands between the two
     // half-seams on one generator of the moved wall, so the join takes
@@ -378,8 +388,13 @@ fn shells_with_one_surface_vertices(
         Ok(()),
         "{what}: operand"
     );
-    let out = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
-        .unwrap_or_else(|e| panic!("{what}: shells, got {e}"));
+    let out =
+        topo::shell(&finished("the operand", body.clone(), tol()), t, tol()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: shells, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
         Ok(()),
@@ -463,8 +478,14 @@ fn cavity_at_closed_form(
     );
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol())
-        .unwrap_or_else(|e| panic!("{what}: the door takes it, got {e}"));
+    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol()).unwrap_or_else(
+        |e| {
+            panic!(
+                "{what}: the door takes it, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        },
+    );
     assert_eq!(
         topo::validate_geometric(&cavity, tol()),
         Ok(()),
@@ -606,7 +627,12 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
         let mut cavity = body.clone();
         let band = geom_core::Band::linear(tol()).expect("band");
         topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
-            .unwrap_or_else(|e| panic!("station {v}: the door takes it, got {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "station {v}: the door takes it, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
         assert_eq!(
             topo::validate_geometric(&cavity, tol()),
             Ok(()),
@@ -643,7 +669,12 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
             let mut cavity = body.clone();
             let band = geom_core::Band::linear(tol()).expect("band");
             topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
-                .unwrap_or_else(|e| panic!("{label}: the door takes it, got {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{label}: the door takes it, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             assert_eq!(
                 topo::validate_geometric(&cavity, tol()),
                 Ok(()),
@@ -744,7 +775,10 @@ fn a_line_profile_beside_one_meridian_cap_refuses_at_the_direct_door() {
         what,
     } = error
     else {
-        panic!("not a corner refusal: {error}");
+        panic!(
+            "not a corner refusal: {error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert_eq!(vertex, split);
     assert_eq!(surfaces, 2);
@@ -811,7 +845,12 @@ fn a_three_quarter_turn_cone_frustum_hollows() {
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     let hollow = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
-        .unwrap_or_else(|e| panic!("the three-quarter frustum hollows, got {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the three-quarter frustum hollows, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "tier 3");
     let frustum = core::f64::consts::PI * h * (r0 * r0 + r0 * r1 + r1 * r1) / 3.0;
@@ -889,8 +928,12 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
                 "{what}: one cone chart"
             );
             let band = geom_core::Band::linear(tol()).expect("band");
-            topo::offset_charts_together(&mut body, &moves, band, tol())
-                .unwrap_or_else(|e| panic!("{what}, d {d}: the cone-only move refused: {e}"));
+            topo::offset_charts_together(&mut body, &moves, band, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}, d {d}: the cone-only move refused: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert_eq!(
                 topo::validate_geometric(&body, tol()),
                 Ok(()),

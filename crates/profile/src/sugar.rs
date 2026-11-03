@@ -583,7 +583,12 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
 
     // (2) the corner's turn: its sign is the side both carriers offset
     // toward, so the offset construction never searches.
-    let turn = Margin::levered(leg_in.dir.perp_dot(leg_out.dir), arm);
+    // Unsourced lever: the shorter leg's arm at the corner, a length of the consumed legs with
+    // no extent home in `profile`.
+    let turn = Margin::levered(
+        leg_in.dir.perp_dot(leg_out.dir),
+        geom_core::Lever::unsourced(arm),
+    );
     let decided = decide("fillet_corner_turn", turn, band).map_err(ArcTrimRefusal::Escalated)?;
     let Some((sgn, sense)) = turn_side::<T>(decided).zip(turn_sense(decided)) else {
         return Err(ArcTrimRefusal::TurnInBand {

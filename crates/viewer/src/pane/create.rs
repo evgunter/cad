@@ -4,45 +4,38 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{DocumentId, Said, Speaker, TracePassage, TraceSense};
+use pncad::document::{
+    DimensionError, DocumentId, Formula, Said, Speaker, TracePassage, TraceSense,
+};
+use pncad::quantity::WrittenLength;
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
-use crate::drafts::{CommitFault, Drafts, scalars};
-use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
-    UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+use crate::combine::{
+    BooleanTool, ClearanceBoundChoice, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION,
 };
+use crate::drafts::{CommitFault, Drafts};
+use crate::forms::{COUNT_DRAG_SPEED, PatternLayoutChoice, boolean_op_label, split_half_label};
 use crate::frame::{self, Tone};
 use crate::matetool::{MATE_KINDS, MateTool, PlaceDoor};
-use crate::pane::profile::{
-    REMOVE_LOOP, add_loop_row, notation_row, path_steps_ui, preview_verdict,
-};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
 use crate::session::BundleVerdict;
-use crate::session::{
-    Creation, NodeKindWanted, ProfileShape, Selection, SessionOp, Staged, admits,
-};
+use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::tree::DrawnBody;
-use crate::widgets::{
-    CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, point_fields,
-    unit_field, unit_vec3_row, vec3_row,
-};
+use crate::widgets::{CANCEL, commit_row, door, form_door, number_field};
 
 /// **The smallest instance index the part form offers.**
 ///
 /// A family's members are indexed from zero, and an index below it
 /// refuses at evaluation (`MemberOutOfRange`, typed, on the node's own
-/// badge), so the form declines to author one — the same rule
-/// [`MIN_PATTERN_COUNT`] follows. There is deliberately no upper
+/// badge), so the form declines to author one. There is deliberately no upper
 /// bound: how many instances the pattern has is a fact about its
 /// VALUE, not about the document, so a cap here would be a limit read
 /// off a picture that can change under it.
@@ -74,6 +67,18 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
         Tone::Advisory,
     );
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
+}
+
+/// **The clearance form's shape row**: which side the requirement
+/// bounds. Its bounds are inserted at contact and edited on the
+/// requirement's own rows.
+pub(crate) fn clearance_shape_row(ui: &mut egui::Ui, drafts: &mut Drafts) {
+    ui.horizontal(|ui| {
+        ui.label("clearance");
+        for (choice, label) in ClearanceBoundChoice::ALL {
+            ui.radio_value(&mut drafts.clearance_bound, choice, label);
+        }
+    });
 }
 
 /// **What the duplicate tool tells a user before they click it** —
@@ -204,18 +209,6 @@ pub(crate) fn mate_picks_row(
     crate::widgets::message_toned(ui, tool.line(row, by), theme, Tone::Advisory);
 }
 
-/// **The smallest pattern count the form offers.**
-///
-/// A pattern of zero is a family of no member, and fused it is the
-/// empty boolean value: both evaluate, so the form offers it, as the
-/// door does. A count below zero refuses at evaluation
-/// (`IndexCountOutOfRange`, typed, on the family's own badge), so the
-/// form declines to author one — the rule [`MIN_PART_INSTANCE`]
-/// follows. There is deliberately NO upper bound: the property panel
-/// imposes none on the index afterwards, and a cap here would be a
-/// limit the document does not have.
-pub(crate) const MIN_PATTERN_COUNT: i64 = 0;
-
 /// **The "Add part" chooser's window**, as wide as the pane its door
 /// is drawn in (`opener`) and never under
 /// [`crate::widgets::message_floor`].
@@ -283,23 +276,23 @@ const PICK_PART: &str = "add";
 /// What the button that opens the part chooser says.
 pub(crate) const ADD_PART: &str = "Add part…";
 
-/// What the extrude form's commit button says, before the profile's
-/// number once one is selected.
+/// What the extrude button says, before the selected profile's name.
 pub(crate) const EXTRUDE: &str = "Extrude";
 
-/// What the add-profile form's commit button says.
-pub(crate) const ADD_PROFILE: &str = "Add profile";
+/// The button that inserts an empty profile.
+pub(crate) const NEW_PROFILE: &str = "New profile";
 
-/// Why the add-profile form's commit waits while its preview refuses
-/// the loops: the refusal itself is said above it.
-const PREVIEW_REFUSES: &str = "the preview above refuses these loops";
+/// What the revolve button says, before the selected profile's name.
+pub(crate) const REVOLVE: &str = "Revolve";
 
-/// What the door that opens the add-profile form says.
-pub(crate) const ADD_PROFILE_DOOR: &str = "Add profile…";
+/// The depth an extrude is inserted at, metres.
+const DEFAULT_EXTRUDE_DISTANCE: f64 = 0.01;
 
-/// What the add-profile form asks for while it draws on a face and
-/// holds none.
-pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
+/// The traced-profile form's commit.
+pub(crate) const NEW_TRACED_PROFILE: &str = "New traced profile";
+
+/// What the door that opens the traced-profile form says.
+pub(crate) const NEW_TRACED_PROFILE_DOOR: &str = "New traced profile…";
 
 /// The traced path's latch for the plane face the sketch is drawn in:
 /// square to the traced face's axis.
@@ -308,7 +301,7 @@ pub(crate) const TRACE_PLANE: &str = "sketch plane on";
 /// The traced path's latch for the face it traces.
 pub(crate) const TRACE_FACE: &str = "trace";
 
-/// What the add-profile form says while no frame reads off the traced
+/// What the traced-profile form says while no frame reads off the traced
 /// path's picks.
 pub(crate) const NO_TRACED_FRAME: &str =
     "pick a traced face with an axis and a plane face square to it";
@@ -322,45 +315,17 @@ const MAX_TRACE_CROSSING: u32 = 4;
 /// pick.
 pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 
-/// What the split panel says of the plane's numbers: which coordinates
-/// they are in.
-const SPLIT_COORDINATES: &str = "pick the body; the plane's point and normal are in the coordinates \
-     of the space the body is built in, and the viewport draws the plane on the copy you picked";
-
-/// The split panel's line for a target picked without the viewport (a
-/// tree click): no drawn part was hit, so the viewport has nowhere to
-/// draw the plane.
-const SPLIT_NOT_AIMED: &str = "the plane is not drawn: the body was not picked in the viewport; pick it there to see the plane on it";
-
-/// The split panel's line for a viewport pick whose part the picture no
-/// longer draws (hidden, or gone from the picture), or whose body has no
-/// landed value to draw the plane against.
-const SPLIT_NOT_DRAWN: &str =
-    "the plane is not drawn: what was picked is not in the picture as it stands";
-
-/// The split panel's line for a target with no corner to centre the
-/// plane's point on.
-const SPLIT_NO_CENTRE: &str = "the body has no corners to centre the plane on, so the plane starts through its space's origin";
-
-/// The split panel's line while the staged split runs.
-const SPLIT_CHECKING: &str = "checking the plane against the body…";
-
-/// The split panel's line for a plane with material on both sides.
-const SPLIT_CUTS: &str = "the plane cuts the body in two";
-
-/// The split panel's verdict on a plane that leaves a side empty, before
-/// the row's own word for which.
-const SPLIT_LEAVES: &str = "committed as it stands, the split would read";
-
-/// Why a side is empty, said beside [`SPLIT_LEAVES`].
-const SPLIT_MISSES: &str = "the plane misses the body or lies on one of its faces";
+/// What the split panel says of its picks.
+const SPLIT_PICKS: &str = "pick a face: its body is split along its plane — pick another face to \
+     cut along that one; a tree pick re-picks the body";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
-/// `node_kind_noun`'s words, which a form's proposed label counts by.
-/// `creation_nouns` (below) holds the profile's, the extrude's and the
-/// part chooser's to the node their op mints.
+/// `node_kind_noun`'s words, which a proposed label counts by.
+/// `creation_nouns` (below) holds the profile's, the extrude's, the
+/// revolve's and the part chooser's to the node their op mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
+const REVOLVE_NOUN: &str = "Revolve";
 
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
@@ -374,9 +339,13 @@ pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
 /// The heading of the section whose tools reshape a body's edges.
 pub(crate) const BLEND_EDGES: &str = "Blend edges";
 
-/// The heading of the section whose tools bring in another document
-/// and place it.
+/// The heading of the section whose tools place a body: an instance of
+/// another document, the Transform tool, and the placement editor.
 pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
+
+/// The heading of the section whose tools record a requirement the
+/// geometry is checked against.
+pub(crate) const REQUIREMENTS: &str = "Requirements";
 
 /// **The chooser's answer, drawn**: the directory it read, then the
 /// parts on offer or what it has to say instead — and the entry that
@@ -426,18 +395,18 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
         // The refusing layer's own sentence — the store's or the
         // directory rule's — never one composed here.
         Err(refusal) => {
-            crate::widgets::message_toned(ui, refusal.to_string(), theme, chooser.tone());
+            crate::widgets::message_toned(ui, crate::shown(refusal), theme, chooser.tone());
         }
     }
     chosen
 }
 
-/// **Why the add-profile button is withheld**, when it is — and how loud
+/// **Why the traced-profile button is withheld**, when it is — and how loud
 /// that is, which depends on which of two things it is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Withheld {
-    /// The form is waiting for its next input: a face, a shape, a
-    /// first step. The form asking, [`Tone::Advisory`].
+    /// The form is waiting for its next input: a face to latch. The
+    /// form asking, [`Tone::Advisory`].
     Waiting(&'static str),
     /// An input the reader gave is refused, and the button stays shut
     /// until they change it: [`Tone::Actionable`].
@@ -459,14 +428,13 @@ impl Withheld {
     }
 }
 
-/// **The one reason the add-profile button is withheld for**, out of every
+/// **The one reason the traced-profile button is withheld for**, out of every
 /// reason the form found, handed over in the form's own top-to-bottom
 /// order.
 ///
-/// A refused input outranks the form waiting for one: a missing face,
-/// shape or first step shows in the form itself (no face held, no
-/// shape chosen, an empty chain), while a refused value looks like any
-/// other number in its field and has no other voice. Between two of
+/// A refused input outranks the form waiting for one: a missing face
+/// shows in the form itself (its latch says nothing is held), while a
+/// refused pair of faces has no other voice. Between two of
 /// one kind the earlier in the form is said, so the first thing a
 /// person is asked for is the first thing the form lacks.
 fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
@@ -476,133 +444,103 @@ fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
     })
 }
 
-/// One loop's fields as the per-loop editor takes them: the numbers a
-/// template is authored by, or a path's steps.
-enum LoopFields<'a> {
-    Circle {
-        centre: &'a mut [f64; 2],
-        radius: &'a mut f64,
-    },
-    Rectangle {
-        centre: &'a mut [f64; 2],
-        width: &'a mut f64,
-        height: &'a mut f64,
-    },
-    Path {
-        steps: &'a mut Vec<pncad::profile::Step<f64>>,
-    },
-}
-
-impl<'a> LoopFields<'a> {
-    /// The fields of an added loop's shape.
-    fn of(shape: &'a mut ProfileShape) -> Self {
-        match shape {
-            ProfileShape::Circle { centre, radius } => Self::Circle { centre, radius },
-            ProfileShape::Rectangle {
-                centre,
-                width,
-                height,
-            } => Self::Rectangle {
-                centre,
-                width,
-                height,
-            },
-            ProfileShape::Path { steps } => Self::Path { steps },
-        }
-    }
-}
-
-/// **One loop's header in the add-profile form**: its label, its shape
-/// choice, and — on a loop that can go — [`REMOVE_LOOP`]. Answers the
-/// shape picked, when it is not `kind`, and whether Remove was clicked.
-fn loop_header(
-    ui: &mut egui::Ui,
-    label: &str,
-    kind: Option<ShapeKind>,
-    removable: bool,
-) -> (Option<ShapeKind>, bool) {
-    ui.horizontal(|ui| {
-        ui.label(label);
-        let mut picked = None;
-        for (option, word) in ShapeKind::ALL {
-            if ui.radio(kind == Some(option), word).clicked() && kind != Some(option) {
-                picked = Some(option);
-            }
-        }
-        let removed = removable && ui.button(REMOVE_LOOP).clicked();
-        (picked, removed)
-    })
-    .inner
-}
-
-/// **One loop's fields** — the first loop's and every added loop's,
-/// drawn by this one editor; `pickers` draws the form's unit pickers
-/// beside them, which the first loop carries for the whole form.
-/// Answers the wait of a chain with no step: a form waiting for its
-/// first one, not a chain that fails to close, whose lattice refusal
-/// would be about a program nobody had started writing.
-fn loop_fields_ui(
-    ui: &mut egui::Ui,
-    salt: &str,
-    tol: pncad::geom_core::Tol,
-    notation: &mut Notation,
-    pickers: bool,
-    fields: LoopFields<'_>,
-) -> Option<Withheld> {
-    let unit = notation.length.def();
-    match fields {
-        LoopFields::Circle { centre, radius } => {
-            ui.horizontal(|ui| {
-                ui.label("centre");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
-                ui.label("radius");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, radius);
-                if pickers {
-                    length_picker(ui, &format!("{salt}_circle"), &mut notation.length);
-                }
-            });
-            None
-        }
-        LoopFields::Rectangle {
-            centre,
-            width,
-            height,
-        } => {
-            ui.horizontal(|ui| {
-                ui.label("centre");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[0]);
-                unit_field(ui, unit, FIELD_DRAG_SPEED, &mut centre[1]);
-                ui.label("width");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, width);
-                ui.label("height");
-                unit_field(ui, unit, FIELD_DRAG_SPEED, height);
-                if pickers {
-                    length_picker(ui, &format!("{salt}_rectangle"), &mut notation.length);
-                }
-            });
-            None
-        }
-        LoopFields::Path { steps } => {
-            let salt = format!("{salt}_path");
-            if pickers {
-                notation_row(ui, &salt, &mut notation.length, &mut notation.angle);
-            }
-            let mut written = crate::widgets::WrittenIn::of(*notation);
-            if let Some(row) = path_steps_ui(ui, &salt, tol, &mut written, steps) {
-                row.apply(steps);
-            }
-            steps
-                .is_empty()
-                .then_some(Withheld::Waiting("add a step to the chain"))
-        }
-    }
-}
-
 /// The withheld button's reason, drawn in its own voice. A free function
 /// over the `Ui` so a headless drive can reach it.
 fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
     crate::widgets::message_toned(ui, withheld.words(), theme, withheld.tone());
+}
+
+/// **Why the revolve button cannot work out a default axis** for the
+/// selected profile, said on the disabled button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NoAxis {
+    /// The landed evaluation answers an older document than the one
+    /// shown, so the profile's extent there may not be its extent now.
+    Evaluating,
+    /// The profile has no value in the current evaluation.
+    NoValue,
+    /// The profile has no loops: there is nothing to revolve.
+    NoLoops,
+    /// The extent, or the axis read off it, is not a finite number in
+    /// the working unit.
+    NotFinite,
+}
+
+impl NoAxis {
+    fn words(self) -> &'static str {
+        match self {
+            Self::Evaluating => {
+                "waiting for the profile to evaluate, to place the axis clear of it"
+            }
+            Self::NoValue => {
+                "the profile does not evaluate, so there is no extent to place the axis by"
+            }
+            Self::NoLoops => "the profile has no loops to revolve",
+            Self::NotFinite => "the profile's extent is not a finite number in the working unit",
+        }
+    }
+}
+
+/// **The profile's x extent**, `(lo, hi)` in metres in its own
+/// coordinates, from its value: each loop's vertices and each arc's
+/// whole circle, so the bound is never narrower than the profile.
+fn profile_x_extent(value: &pncad::document::NodeValue<f64>) -> Result<(f64, f64), NoAxis> {
+    let pncad::document::ValuePayload::Profile(profile) = &value.payload else {
+        return Err(NoAxis::NoValue);
+    };
+    profile
+        .validated
+        .loops()
+        .iter()
+        .flat_map(|lp| {
+            let vertices = lp.vertices().iter().map(|p| (p.x, p.x));
+            let arcs = lp.segments().iter().filter_map(|s| match s.kind {
+                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Arc { arc, .. } => {
+                    Some((arc.centre.x - arc.radius, arc.centre.x + arc.radius))
+                }
+            });
+            vertices.chain(arcs).collect::<Vec<_>>()
+        })
+        .reduce(|(lo, hi), (a, b)| (lo.min(a), hi.max(b)))
+        .ok_or(NoAxis::NoLoops)
+}
+
+/// **The x of a revolve's default axis**, written in the working unit,
+/// for a profile whose x extent in that unit is `lo..hi`: at least the
+/// extent's width left of it, rounded outward (further left) to a
+/// multiple of the power of ten below that width, so the slot reads
+/// like a number a person typed.
+///
+/// The axis runs along the profile's `+y` (the heading the revolve
+/// button inserts). `sweep::revolve` sweeps the side a quarter turn
+/// clockwise of the heading, which for `+y` is `+x`, so every point of
+/// the profile lies on it, at least one width clear. An axis on the
+/// extent's edge would make a solid of a rectangle but refuse a circle
+/// (an arc tangent to the axis) or a polygon touching it at one vertex;
+/// clear of it, every profile with loops revolves into a ring.
+fn revolve_axis_x(lo: f64, hi: f64) -> Result<f64, NoAxis> {
+    let width = hi - lo;
+    if !(width.is_finite() && width > 0.0 && lo.is_finite()) {
+        return Err(NoAxis::NotFinite);
+    }
+    let clear = lo - width;
+    #[allow(clippy::cast_possible_truncation)]
+    let exponent = width.log10().floor() as i32;
+    // A power of ten divided by, not multiplied by its reciprocal, so a
+    // decimal multiple reads back as its shortest spelling.
+    let x = if exponent >= 0 {
+        let step = 10_f64.powi(exponent);
+        (clear / step).floor() * step
+    } else {
+        let per = 10_f64.powi(-exponent);
+        (clear * per).floor() / per
+    };
+    if x.is_finite() {
+        Ok(x)
+    } else {
+        Err(NoAxis::NotFinite)
+    }
 }
 
 impl ViewerBehavior<'_> {
@@ -610,16 +548,15 @@ impl ViewerBehavior<'_> {
     /// or form in it behind its own button, so the pane at rest is the
     /// headers. A form whose op takes the selection is not here: it is
     /// drawn beside the selection while its op admits it
-    /// ([`Self::extrude_ui`]). Each form is minimal — its few required
+    /// ([`Self::sweep_ui`]). Each form is minimal — its few required
     /// fields with sensible defaults — and emits exactly one creation
     /// op; the property panel is the editor for everything after the
     /// insert — for a profile, through this section's own path editor
     /// opened on the node ([`Self::edit_profile_ui`]).
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing(ADD_FEATURE, |ui| {
-            self.add_profile_ui(ui);
-            ui.separator();
-            self.revolve_tool_ui(ui);
+            self.new_profile_ui(ui);
+            self.traced_profile_ui(ui);
         });
         // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
@@ -630,8 +567,6 @@ impl ViewerBehavior<'_> {
             self.split_tool_ui(ui);
             ui.separator();
             self.mirror_tool_ui(ui);
-            ui.separator();
-            self.transform_tool_ui(ui);
             ui.separator();
             self.pattern_tool_ui(ui);
             ui.separator();
@@ -649,13 +584,47 @@ impl ViewerBehavior<'_> {
         ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
-        // The tools whose subject is another document: an instance of
-        // a part, and the mate that places one.
+        // The tools that place a body: an instance of a part, the
+        // Transform tool's door, and the placement editor it opens.
         ui.collapsing(ASSEMBLE_PARTS, |ui| {
             self.add_part_ui(ui);
+            self.transform_tool_ui(ui);
             self.mate_tool_ui(ui);
         });
+        // The requirements: a recorded claim the geometry is checked
+        // against, which makes no body.
+        ui.collapsing(REQUIREMENTS, |ui| {
+            self.clearance_tool_ui(ui);
+        });
         ui.separator();
+    }
+
+    /// **The clearance tool's panel** — "add a clearance requirement":
+    /// its two seats, a body or a face each, held as picks
+    /// ([`crate::combine::ClearanceTool`]); which side the requirement
+    /// bounds; its one or two lengths; and the one committed edit, which
+    /// writes the assertion through the document's own door.
+    pub(crate) fn clearance_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.clearance().cloned() else {
+            return self.tool_door(ui, ToolKind::Clearance);
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Clearance.says(
+                &"add a clearance requirement: pick a face in the picture, or a body in the tree, for each of its two seats",
+            ),
+        );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &self.theme,
+            Tone::Advisory,
+        );
+        clearance_shape_row(ui, self.drafts);
+        self.tool_commit_row(ui, ToolKind::Clearance, None, |drafts, notation| {
+            let contact = notation.length_literal(0.0)?;
+            Ok(tool.op(drafts.clearance_bound.bounds(contact))?)
+        });
     }
 
     /// **The placement editor's panel**: its door, one line per mate
@@ -733,7 +702,11 @@ impl ViewerBehavior<'_> {
         });
         let doc = self.session.committed_doc();
         let coords: Vec<_> = match &proposal {
-            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            Some(Ok(proposal)) => proposal
+                .values
+                .iter()
+                .map(|row| row.coord.clone())
+                .collect(),
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
@@ -761,16 +734,17 @@ impl ViewerBehavior<'_> {
                         if field.changed() {
                             match held {
                                 Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
-                                None => {
-                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
-                                }
+                                None => self
+                                    .drafts
+                                    .mate_value_edits
+                                    .push((row.coord.clone(), text.clone())),
                             }
                         }
                         if field.lost_focus()
                             && let Some(at) = held
                         {
                             let (coord, typed) = self.drafts.mate_value_edits.remove(at);
-                            match crate::matetool::typed_value(doc, coord, &typed) {
+                            match crate::matetool::typed_value(doc, coord.clone(), &typed) {
                                 Ok(by) => edited.type_value(coord, by),
                                 Err(error) => self
                                     .notices
@@ -823,7 +797,7 @@ impl ViewerBehavior<'_> {
                 let said = match verdict {
                     BundleVerdict::Stands(_) => Ok("the copy stands as the draft says".to_owned()),
                     BundleVerdict::Faults(fault) => Err(fault.to_string()),
-                    BundleVerdict::Refused(refusal) => Err(refusal.to_string()),
+                    BundleVerdict::Refused(refusal) => Err(crate::shown(&refusal)),
                     BundleVerdict::Unsolved => {
                         Err("what the placement reads does not evaluate".to_owned())
                     }
@@ -891,9 +865,8 @@ impl ViewerBehavior<'_> {
                 .clicked()
             {
                 // NOT part of the one-modal-tool-at-a-time rule the
-                // mate and revolve activations keep, deliberately: that
-                // rule exists because those two consume the same
-                // SELECTION stream, so a pick would fill two seats. A
+                // seated tools keep, deliberately: that rule exists
+                // because they consume the same SELECTION stream, so a pick would fill two seats. A
                 // chooser consumes no picks — it reads a directory and
                 // emits its op from a button — so it neither closes a
                 // pick tool nor is closed by one, and a pick made while
@@ -943,215 +916,64 @@ impl ViewerBehavior<'_> {
         ui.separator();
     }
 
-    /// The add-profile form: a template shape with Length fields, one
-    /// [`SessionOp::AddProfile`] on commit — the profile on its own
-    /// plane — or, drawing on a face, one [`SessionOp::SketchOnFace`]:
-    /// the profile extruded away from the face picked in the viewport
-    /// and fused with its body, in one submit and one undo. Behind its
-    /// `Add profile…` door, as every tool is behind its button: at rest
-    /// the form is one control, and it closes with its commit
+    /// **New profile**: one button, which inserts a profile with no
+    /// loops on the profile's own plane ([`SessionOp::AddProfile`]).
+    /// The creation selects it ([`SessionOp::selects_what_it_makes`]),
+    /// so the profile editor opens on it ([`Self::edit_profile_ui`])
+    /// and every loop is added there.
+    pub(crate) fn new_profile_ui(&mut self, ui: &mut egui::Ui) {
+        if ui.button(NEW_PROFILE).clicked() {
+            self.push_labelled(PROFILE_NOUN, SessionOp::AddProfile { loops: Vec::new() });
+        }
+    }
+
+    /// **The traced-profile form** ([`SessionOp::AddDrawnProfile`]):
+    /// the picks a profile continuing tangent to a face's trace reads —
+    /// the face whose plane it is drawn on and the face it traces — and
+    /// which branch of the trace it takes. Its commit inserts the
+    /// profile with the traced template's chain
+    /// ([`crate::drafts::traced_template`]), selected, and its numbers
+    /// are the profile editor's from there. Behind its door, as every
+    /// tool is behind its button: it closes with its commit
     /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
-    ///
-    /// The first loop is the chosen shape; loops added under it
-    /// ([`Self::added_loops_ui`]) are each their own shape, and
-    /// containment decides which are holes.
-    pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
-        if !form_door(ui, ADD_PROFILE_DOOR, &mut self.drafts.profile_open) {
+    pub(crate) fn traced_profile_ui(&mut self, ui: &mut egui::Ui) {
+        if !form_door(ui, NEW_TRACED_PROFILE_DOOR, &mut self.drafts.traced_open) {
             return;
         }
         self.profile_drawn.create = true;
-        if let (Some(picked), _) = loop_header(ui, "profile", self.drafts.profile_shape, false) {
-            self.drafts.profile_shape = Some(picked);
-        }
-        ui.checkbox(&mut self.drafts.sketch_on_face, "on the picked face");
-        if self.drafts.sketch_on_face {
-            self.sketch_face_rows(ui);
-        }
-        let shape = self.drafts.profile_shape;
-        // Every reason the button is withheld, in the form's order; which
-        // one is said is `withheld_for`'s to decide, not any one arm's.
-        let mut withholds: Vec<Withheld> = Vec::new();
-        if self.drafts.sketch_on_face && self.drafts.held_face().is_none() {
-            withholds.push(Withheld::Waiting(PICK_A_FACE));
-        }
-        let tol = self.session.tol();
-        let mut waits_on_a_step = false;
-        match shape {
-            // No shape chosen: the form is at rest. It says what it is
-            // waiting for and draws nothing — no fields to fill in for
-            // a shape nobody picked, and no preview in the viewport.
-            None => withholds.push(Withheld::Waiting("choose a shape to add")),
-            Some(kind) => {
-                let drafts = &mut *self.drafts;
-                let fields = match kind {
-                    ShapeKind::Circle => LoopFields::Circle {
-                        centre: &mut drafts.profile_centre,
-                        radius: &mut drafts.profile_radius,
-                    },
-                    ShapeKind::Rectangle => {
-                        let [width, height] = &mut drafts.profile_extent;
-                        LoopFields::Rectangle {
-                            centre: &mut drafts.profile_centre,
-                            width,
-                            height,
-                        }
-                    }
-                    ShapeKind::Path => LoopFields::Path {
-                        steps: &mut drafts.profile_path,
-                    },
-                };
-                if let Some(wait) = loop_fields_ui(ui, "profile", tol, self.notation, true, fields)
-                {
-                    waits_on_a_step = true;
-                    withholds.push(wait);
-                }
-            }
-        }
-        match shape {
-            Some(ShapeKind::Path) => {
-                if !self.drafts.sketch_on_face {
-                    ui.checkbox(
-                        &mut self.drafts.trace_on,
-                        "continue tangent to a face's trace",
-                    );
-                }
-                if self.drafts.traces() {
-                    withholds.extend(self.trace_rows(ui));
-                }
-            }
-            Some(ShapeKind::Circle | ShapeKind::Rectangle) | None => {}
-        }
-        if shape.is_some() {
-            let (added, waits) = self.added_loops_ui(ui);
-            waits_on_a_step |= waits;
-            withholds.extend(added);
-        }
-        let blocked = withheld_for(withholds);
+        let blocked = withheld_for(self.trace_rows(ui));
         if let Some(withheld) = blocked {
             withheld_line(ui, &self.theme, withheld);
         }
-        // **What the loops would draw, said before they are
-        // authored.** The preview ran the commit door's own ladder,
-        // so a refusal here is the refusal the button would get —
-        // which is why the button waits on it rather than letting a
-        // reader find out by clicking.
-        // **A form at rest reports no preview.** With no shape chosen,
-        // or a path chain with no steps, there are no loops to have an
-        // opinion about — and a refusal about nothing would be a line
-        // of text arguing with the "choose a shape" the form has just
-        // said. `blocked` already carries that sentence, and it is
-        // what disables the commit; this only keeps a second one from
-        // contradicting it.
-        // A traced chain is drawn by the evaluation, which the preview
-        // does not run: the trace rows say what it shows instead.
-        let at_rest =
-            shape.is_none() || waits_on_a_step && blocked.is_some() || self.drafts.traces();
-        let refused = preview_verdict(
-            ui,
-            self.theme,
-            self.profile_previews.create.as_ref().filter(|_| !at_rest),
-        );
-        self.creation_label_row(ui, PROFILE_NOUN);
-        let withheld = match blocked {
-            Some(withheld) => Some(withheld.words()),
-            None => refused.then_some(PREVIEW_REFUSES),
-        };
-        let closing = commit_row(ui, ADD_PROFILE, withheld, |_| {});
+        let closing = commit_row(ui, NEW_TRACED_PROFILE, blocked.map(Withheld::words), |_| {});
         if closing.cancel {
-            self.drafts.profile_open = false;
+            self.drafts.traced_open = false;
         }
         if closing.commit {
-            // Lowered HERE rather than in the session: the notation is
-            // the form's, and a literal that forgot it between the two
-            // is exactly the gap this carries across.
-            match self.drafts.profile_op(*self.notation) {
+            match self.drafts.traced_op(*self.notation) {
                 Ok(Some(op)) => self.push_labelled(PROFILE_NOUN, op),
                 // Unreachable while the button is gated on `blocked`,
                 // and typed rather than unwrapped: a form's enabling
-                // condition and its commit are two pieces of code, and
-                // this one does not assume the other got it right.
+                // condition and its commit are two pieces of code.
                 Ok(None) => {
                     self.notices.push(frame::tool_news(
-                        &FormKind::AddProfile.refuses(&PICK_A_FACE),
+                        &FormKind::TracedProfile.refuses(&NO_TRACED_FRAME),
                     ));
                 }
                 Err(error) => {
                     self.notices
-                        .push(frame::tool_news(&FormKind::AddProfile.refuses(&error)));
+                        .push(frame::tool_news(&FormKind::TracedProfile.refuses(&error)));
                 }
             }
         }
-    }
-
-    /// **The loops the form authors after its first**
-    /// ([`crate::drafts::Drafts::profile_more`]), each drawn by the
-    /// first loop's own editor ([`loop_header`], [`loop_fields_ui`])
-    /// with a [`REMOVE_LOOP`] on its header; and under them the
-    /// editor's add-loop row. A shape chosen on an added loop starts it
-    /// again as that shape's template ([`crate::drafts::fresh_loop`]).
-    ///
-    /// **The form does not say which loop is the outer.** Containment
-    /// decides it, and the preview draws what it decided: an added loop
-    /// larger than the first becomes the outer and the first a hole,
-    /// which is a profile the person can see and keep: "add loop"
-    /// promises nothing about the role.
-    ///
-    /// Answers what the commit waits for — a traced chain is the
-    /// profile's one loop — and whether an added path has no step yet.
-    fn added_loops_ui(&mut self, ui: &mut egui::Ui) -> (Vec<Withheld>, bool) {
-        let tol = self.session.tol();
-        let mut removed = None;
-        let mut reshaped = None;
-        let mut waits = Vec::new();
-        for (index, shape) in self.drafts.profile_more.iter_mut().enumerate() {
-            // The first loop is loop 0, as the edit door counts.
-            let number = index + 1;
-            let kind = match shape {
-                ProfileShape::Circle { .. } => ShapeKind::Circle,
-                ProfileShape::Rectangle { .. } => ShapeKind::Rectangle,
-                ProfileShape::Path { .. } => ShapeKind::Path,
-            };
-            let (picked, remove) = loop_header(ui, &format!("loop {number}"), Some(kind), true);
-            if let Some(picked) = picked {
-                reshaped = Some((index, picked));
-            }
-            if remove {
-                removed = Some(index);
-            }
-            let salt = format!("profile_loop_{number}");
-            let fields = LoopFields::of(shape);
-            waits.extend(loop_fields_ui(ui, &salt, tol, self.notation, false, fields));
-        }
-        if let Some(index) = removed {
-            self.drafts.profile_more.remove(index);
-        }
-        if let Some((index, kind)) = reshaped {
-            self.drafts.profile_more[index] = crate::drafts::fresh_loop(kind);
-        }
-        let waiting = !waits.is_empty();
-        if self.drafts.traces() {
-            if !self.drafts.profile_more.is_empty() {
-                waits.push(Withheld::Refused(
-                    "a chain traced along a face is the profile's one loop — remove the added \
-                     loops, or untick the trace",
-                ));
-            }
-            return (waits, waiting);
-        }
-        if let Some(kind) = add_loop_row(ui) {
-            self.drafts
-                .profile_more
-                .push(crate::drafts::fresh_loop(kind));
-        }
-        (waits, waiting)
     }
 
     /// **The traced path's rows** ([`SessionOp::AddDrawnProfile`]): the
     /// two latches — the face whose body's plane the sketch is drawn on,
     /// and the face it traces — each taking the viewport's face pick on
     /// its button; the trace the two show, or the trace's own refusal;
-    /// and the gesture's row and branches. Answers what the commit still
-    /// waits for.
+    /// and the trace's branches. Answers what the commit still waits
+    /// for.
     fn trace_rows(&mut self, ui: &mut egui::Ui) -> Vec<Withheld> {
         let picked = match self.session.selection() {
             Selection::Face(face) => Some(face.clone()),
@@ -1213,14 +1035,7 @@ impl ViewerBehavior<'_> {
             }
             None => {}
         }
-        let rows = self.drafts.profile_path.len().max(1);
         let gesture = &mut self.drafts.trace_gesture;
-        ui.horizontal(|ui| {
-            ui.label("after row");
-            let mut row = gesture.after + 1;
-            ui.add(number_field(&mut row, COUNT_DRAG_SPEED).range(1..=rows));
-            gesture.after = row.saturating_sub(1);
-        });
         ui.horizontal(|ui| {
             ui.label("to crossing");
             ui.add(
@@ -1239,77 +1054,30 @@ impl ViewerBehavior<'_> {
         });
         crate::widgets::message(
             ui,
-            "the piece after that row runs to the crossing, counted along it from the pen, and \
-             the chain heads along the trace there: both are read off the traced face at every \
+            "the chain's heading runs to the crossing, counted along it from the pen, and the \
+             chain heads along the trace there: both are read off the traced face at every \
              evaluation, and a crossing the piece does not make refuses on the profile",
         );
         withholds
     }
 
-    /// **The on-face rows**: the held face pick, the depth the sketch is
-    /// extruded away from it, and its spin.
-    ///
-    /// The seat LATCHES the viewport's face pick — a face is not a
-    /// node a combo can list, so the selection is this form's picker
-    /// and there is no widget to draw for it. Writing it here rather
-    /// than reading the live selection at the commit is what lets an
-    /// author pick a face, type a depth and click the feature tree
-    /// without losing the pick; a second face pick moves the seat.
-    fn sketch_face_rows(&mut self, ui: &mut egui::Ui) {
-        if let Selection::Face(face) = self.session.selection() {
-            crate::drafts::latch(&mut self.drafts.sketch_face, self.session.doc(), face);
-        }
-        ui.horizontal(|ui| {
-            ui.label("face");
-            // Said from the landed pair the pick was read off, a node
-            // that document no longer holds as the form kept it.
-            ui.weak(crate::drafts::latch_said(
-                self.drafts.held_face(),
-                frame::landed_speaker(self.session.landed_pair()),
-            ));
-        });
-        ui.horizontal(|ui| {
-            ui.label("depth");
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.sketch_depth,
-            );
-            length_picker(ui, "sketch_depth", &mut self.notation.length);
-        });
-        ui.horizontal(|ui| {
-            ui.label("spin");
-            unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.sketch_spin,
-            );
-            angle_picker(ui, "sketch_spin", &mut self.notation.angle);
-        });
-        // What the numbers MEAN, said where they are typed.
-        crate::widgets::message(
-            ui,
-            "extruded away from the face and fused with its body; its +x turned about the face's \
-             outward normal",
-        );
-    }
-
-    /// The extrude form: the current selection is the profile (a tree
-    /// pick, or a face pick whose feature is one — `Selection::node`),
-    /// one distance field, one [`SessionOp::AddExtrude`] on commit.
-    ///
-    /// **Drawn only while a profile is selected**, by the test the
-    /// door itself refuses with ([`admits`] for
+    /// **The sweeps of the selected profile**: an extrude button and a
+    /// revolve button, drawn while the selection is a profile, by the
+    /// test the door itself refuses with ([`admits`] for
     /// [`NodeKindWanted::Profile`], over the committed document as
-    /// `DocSession::require_kind` reads it): the form is offered
-    /// exactly where the op would accept it, as the instance section
-    /// is (`ViewerBehavior::instance_ui`) — and beside the selection,
-    /// outside the collapsed creation sections ([`Self::create_ui`]),
-    /// so no header has to be opened to find it.
-    pub(crate) fn extrude_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(node) =
+    /// `DocSession::require_kind` reads it), beside the selection and
+    /// outside the collapsed creation sections ([`Self::create_ui`]).
+    ///
+    /// Each button inserts its node at default values, labelled `Kind N`
+    /// ([`tree::proposed_label`]), as one undo step, and the node is
+    /// then selected ([`SessionOp::selects_what_it_makes`]), so its
+    /// Properties slot rows are where every value is written. The
+    /// revolve's axis is placed off the profile's extent in the
+    /// evaluation of the document as it stands ([`revolve_axis_x`]);
+    /// until that evaluation lands, or where it holds no extent, the
+    /// button is disabled and says why.
+    pub(crate) fn sweep_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(profile) =
             self.session.selection().node().filter(|node| {
                 admits(self.session.committed_doc(), *node, NodeKindWanted::Profile)
             })
@@ -1317,116 +1085,63 @@ impl ViewerBehavior<'_> {
             return;
         };
         ui.separator();
+        let named = Speaker::of(self.session.doc())
+            .or_held(self.session.selection_said())
+            .node(profile)
+            .to_string();
+        let notation = *self.notation;
+        let unit = WrittenLength::in_unit(1.0, notation.length).meters();
+        let axis_x = if self.session.busy() {
+            Err(NoAxis::Evaluating)
+        } else {
+            self.session
+                .evaluation()
+                .and_then(|evaluation| evaluation.value(profile))
+                .ok_or(NoAxis::NoValue)
+                .and_then(profile_x_extent)
+                .and_then(|(lo, hi)| revolve_axis_x(lo / unit, hi / unit))
+        };
+        let mut pushed: Option<(&'static str, SessionOp)> = None;
+        let mut refused: Option<(FormKind, DimensionError)> = None;
         ui.horizontal(|ui| {
-            ui.label("extrude");
-            ui.label("distance");
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.extrude_distance,
-            );
-            length_picker(ui, "extrude_distance", &mut self.notation.length);
-        });
-        self.creation_label_row(ui, EXTRUDE_NOUN);
-        if ui
-            .button(format!(
-                "{EXTRUDE} {}",
-                Speaker::of(self.session.doc())
-                    .or_held(self.session.selection_said())
-                    .node(node)
-            ))
-            .clicked()
-        {
-            match self.notation.length_literal(self.drafts.extrude_distance) {
-                Ok(distance) => self.push_labelled(
-                    EXTRUDE_NOUN,
-                    SessionOp::AddExtrude {
-                        profile: node,
-                        distance,
-                    },
-                ),
-                Err(error) => {
-                    self.notices
-                        .push(frame::tool_news(&FormKind::Extrude.refuses(&error)));
+            if ui.button(format!("{EXTRUDE} {named}")).clicked() {
+                match notation.length_literal(DEFAULT_EXTRUDE_DISTANCE) {
+                    Ok(distance) => {
+                        pushed = Some((EXTRUDE_NOUN, SessionOp::AddExtrude { profile, distance }));
+                    }
+                    Err(error) => refused = Some((FormKind::Extrude, error)),
                 }
             }
+            let revolve = ui
+                .add_enabled(
+                    axis_x.is_ok(),
+                    egui::Button::new(format!("{REVOLVE} {named}")),
+                )
+                .on_disabled_hover_text(axis_x.err().map_or("", NoAxis::words));
+            if let (true, Ok(x)) = (revolve.clicked(), axis_x) {
+                let op = || {
+                    Ok(SessionOp::AddRevolve {
+                        profile,
+                        axis_through: [
+                            Formula::written_length(WrittenLength::in_unit(x, notation.length))?,
+                            notation.length_literal(0.0)?,
+                        ],
+                        axis_heading: notation.angle_literal(core::f64::consts::FRAC_PI_2)?,
+                        angle: notation.angle_literal(core::f64::consts::TAU)?,
+                    })
+                };
+                match op() {
+                    Ok(op) => pushed = Some((REVOLVE_NOUN, op)),
+                    Err(error) => refused = Some((FormKind::Revolve, error)),
+                }
+            }
+        });
+        if let Some((noun, op)) = pushed {
+            self.push_labelled(noun, op);
         }
-    }
-
-    /// The revolve tool's panel: activation, the held profile pick, the
-    /// axis line in the profile's own coordinates, the angle field, and
-    /// the one committed edit — the same chrome shape as every other
-    /// seated tool.
-    pub(crate) fn revolve_tool_ui(&mut self, ui: &mut egui::Ui) {
-        // A copy of the small tool value, for the reason the mate
-        // panel takes one: the panel reads it while pushing ops and
-        // closing the tool; the authoritative copy is only ever
-        // replaced whole.
-        let Some(tool) = self.tools.revolve() else {
-            return self.tool_door(ui, ToolKind::Revolve);
-        };
-        crate::widgets::message(
-            ui,
-            ToolKind::Revolve.says(&"pick the profile, then write its axis"),
-        );
-        if let Some((seat, half)) = seats_row(
-            ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
+        if let Some((form, error)) = refused {
+            self.notices.push(frame::tool_news(&form.refuses(&error)));
         }
-        let unit = self.notation.length.def();
-        // Whether a field below was edited: the viewport may already
-        // have drawn this frame's axis from the old values, so an edit
-        // asks for the next frame.
-        let mut edited = false;
-        ui.horizontal(|ui| {
-            ui.label("axis through");
-            edited |= point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
-            length_picker(ui, "revolve_axis_through", &mut self.notation.length);
-        });
-        ui.horizontal(|ui| {
-            ui.label("axis heading");
-            edited |= unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.revolve_axis_heading,
-            );
-        });
-        // Where the numbers are measured, said where they are typed.
-        crate::widgets::message(
-            ui,
-            "x, y and the heading from x are the profile's own; the axis lies in its plane",
-        );
-        crate::widgets::message(
-            ui,
-            "the viewport draws the axis: the profile must lie on the side its ticks point to, \
-             and a positive angle turns it right-handed about the arrow",
-        );
-        ui.horizontal(|ui| {
-            ui.label("angle");
-            edited |= unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.revolve_angle,
-            );
-            angle_picker(ui, "revolve_angle", &mut self.notation.angle);
-        });
-        if edited {
-            ui.ctx().request_repaint();
-        }
-        self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
-            Ok(tool.op(
-                notation.point_literals(drafts.revolve_axis_through.to_array())?,
-                notation.angle_literal(drafts.revolve_axis_heading)?,
-                notation.angle_literal(drafts.revolve_angle)?,
-            )?)
-        });
     }
 
     /// The boolean tool's panel: activation, the operation choice, the
@@ -1479,148 +1194,33 @@ impl ViewerBehavior<'_> {
         {
             open.clear();
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Boolean, None, |_, _| Ok(tool.op()?));
     }
 
-    /// The split tool's panel: a body pick, the cutting plane's point
-    /// and normal in the body's own coordinates, and the one committed
-    /// edit.
+    /// The split tool's panel: the target and the plane it is cut
+    /// along, held as picks ([`crate::combine::SplitTool`]), and the one
+    /// committed edit, withheld while a pick is missing.
     pub(crate) fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.split() else {
+        let Some(tool) = self.tools.split().cloned() else {
             return self.tool_door(ui, ToolKind::Split);
         };
-        crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_COORDINATES));
-        if let Some((seat, half)) = seats_row(
+        crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_PICKS));
+        crate::widgets::message_toned(
             ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
             &self.theme,
-        ) {
+            Tone::Advisory,
+        );
+        let waiting = tool
+            .seats()
+            .awaits_half(0)
+            .then(|| (0, Seat::SplitTarget.name().to_owned()));
+        if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.seed_split_plane(&tool);
-        let drawn = (self.drafts.split_origin, self.drafts.split_normal);
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                "plane through",
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.split_origin,
-            );
-            length_picker(ui, "split_origin", &mut self.notation.length);
-        });
-        vec3_row(ui, "normal", UNIT_DRAG_SPEED, &mut self.drafts.split_normal);
-        // The viewport drew this frame's plane before the panel ran: an
-        // edit asks for the next frame, which draws it as typed.
-        if (self.drafts.split_origin, self.drafts.split_normal) != drawn {
-            ui.ctx().request_repaint();
-        }
-        self.split_plane_rows(ui, &tool);
-        self.tool_commit_row(ui, ToolKind::Split, |drafts, notation| {
-            Ok(tool.op(
-                notation.length_literals(drafts.split_origin)?,
-                scalars(drafts.split_normal)?,
-            )?)
-        });
-    }
-
-    /// **The split plane's point, seeded for a new target**: at the
-    /// centre of the body's extent in its own coordinates
-    /// ([`crate::splitplane::centre`]), so the plane the panel opens
-    /// with passes through the body rather than along one of its faces.
-    /// Seeded once per target, so what the person types stands.
-    fn seed_split_plane(&mut self, tool: &crate::combine::SplitTool) {
-        let target = tool.seats().read(0);
-        if target == self.drafts.split_seeded {
-            return;
-        }
-        let Some(read) = target.as_ref() else {
-            self.drafts.split_seeded = None;
-            return;
-        };
-        let Some((doc, evaluation)) = self.session.landed_pair() else {
-            return;
-        };
-        let Some(source) = crate::splitplane::source(doc, evaluation, read) else {
-            return;
-        };
-        // A body with no corner has no centre to seed: the plane starts
-        // at the origin, and the panel says why ([`SPLIT_NO_CENTRE`]).
-        self.drafts.split_origin = crate::splitplane::centre(source).unwrap_or([0.0; 3]);
-        self.drafts.split_seeded = target;
-    }
-    /// **What the split plane does to its target, before commit**, and
-    /// whether the viewport draws it.
-    ///
-    /// The verdict is the split door's own: the split the panel would
-    /// commit, staged on the committed document and evaluated beside
-    /// the picture ([`SessionOp::Stage`]), read as its tree row would
-    /// read it ([`tree::split_reading`]). It is asked again whenever the
-    /// draft or the document moves, and says it is checking until the
-    /// staged run lands.
-    fn split_plane_rows(&mut self, ui: &mut egui::Ui, tool: &crate::combine::SplitTool) {
-        if tool.seats().read(0).is_none() {
-            return;
-        }
-        if let Some((doc, evaluation)) = self.session.landed_pair()
-            && let Some(read) = tool.seats().read(0)
-            && crate::splitplane::source(doc, evaluation, &read)
-                .is_some_and(|source| crate::splitplane::centre(source).is_none())
-        {
-            crate::widgets::message_toned(ui, SPLIT_NO_CENTRE, &self.theme, Tone::Advisory);
-        }
-        if tool.seats().through(0).is_none() {
-            crate::widgets::message_toned(ui, SPLIT_NOT_AIMED, &self.theme, Tone::Advisory);
-        } else if self.split_plane_preview().is_none() {
-            crate::widgets::message_toned(ui, SPLIT_NOT_DRAWN, &self.theme, Tone::Advisory);
-        }
-        let op = (|| {
-            tool.op(
-                self.notation
-                    .length_literals(self.drafts.split_origin)
-                    .ok()?,
-                scalars(self.drafts.split_normal).ok()?,
-            )
-            .ok()
-        })();
-        let Some(Ok(creation)) = op.map(Creation::of) else {
-            return;
-        };
-        let staged = self.session.staged_for(&creation);
-        let said = match staged {
-            None | Some(Staged::Checking) => None,
-            Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
-            Some(Staged::Exhausted { doc, out }) => {
-                Some(format!("the staged run {}", out.said(doc)))
-            }
-            Some(Staged::Evaluated {
-                node, evaluation, ..
-            }) => match tree::split_reading(evaluation, node) {
-                Ok(None) => None,
-                Ok(Some(empty)) => Some(format!("{SPLIT_LEAVES} `{empty}`: {SPLIT_MISSES}")),
-                Err(standing) => Some(standing.to_string()),
-            },
-        };
-        match (staged.is_some(), said) {
-            (false, _) => {
-                self.ops.push(SessionOp::Stage { creation });
-                crate::widgets::message(ui, SPLIT_CHECKING);
-                ui.ctx().request_repaint();
-            }
-            (true, Some(said)) => {
-                crate::widgets::message_toned(ui, said, &self.theme, Tone::Advisory);
-            }
-            (true, None) if matches!(staged, Some(Staged::Checking)) => {
-                crate::widgets::message(ui, SPLIT_CHECKING);
-                // A staged answer is not a user event, so nothing else
-                // would wake the frame loop to collect it.
-                ui.ctx().request_repaint();
-            }
-            (true, None) => {
-                crate::widgets::message(ui, SPLIT_CUTS);
-            }
-        }
+        let op = tool.op();
+        let blocked = op.as_ref().err().map(ToString::to_string);
+        self.tool_commit_row(ui, ToolKind::Split, blocked.as_deref(), |_, _| Ok(op?));
     }
 
     /// The mirror tool's panel: the body and the face it is reflected
@@ -1633,7 +1233,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Mirror.says(
-                &"pick a face: its body mirrors across it — pick another face to mirror across that one; a drawn body becomes its symmetric part, the body and its image fused",
+                &"pick a face: its body mirrors across it — pick another face to mirror across that one; the body becomes its symmetric part, the body and its image fused",
             ),
         );
         crate::widgets::message_toned(
@@ -1649,62 +1249,46 @@ impl ViewerBehavior<'_> {
         if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
             self.tools.choose_half(seat, half);
         }
-        self.tool_commit_row(ui, ToolKind::Mirror, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Mirror, None, |_, _| Ok(tool.op()?));
     }
 
-    /// The transform tool's panel: one body pick plus the placement
-    /// fields, and the one committed edit.
+    /// **The Transform tool's panel**: its one pick, which opens the
+    /// placement editor on the body or the copy picked
+    /// ([`crate::matetool::MateTool::moving`]); a split picked whole
+    /// asks which half is the body. Cancel closes it.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
-        let Some(tool) = self.tools.transform() else {
+        let Some(split) = self
+            .tools
+            .transform()
+            .map(|tool| tool.awaiting_half().cloned())
+        else {
             return self.tool_door(ui, ToolKind::Transform);
         };
-        crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        if let Some((seat, half)) = seats_row(
+        crate::widgets::message(
             ui,
-            tool.seats(),
-            frame::landed_speaker(self.session.landed_pair()),
-            &self.theme,
-        ) {
-            self.tools.choose_half(seat, half);
-        }
-        ui.horizontal(|ui| {
-            unit_vec3_row(
-                ui,
-                "translation",
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.transform_translation,
-            );
-            length_picker(ui, "transform_translation", &mut self.notation.length);
-        });
-        vec3_row(
-            ui,
-            "rotation axis",
-            UNIT_DRAG_SPEED,
-            &mut self.drafts.transform_axis,
+            ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        ui.horizontal(|ui| {
-            ui.label("rotation angle");
-            unit_field(
-                ui,
-                self.notation.angle.def(),
-                ANGLE_DRAG_SPEED,
-                &mut self.drafts.transform_angle,
-            );
-            angle_picker(ui, "transform_angle", &mut self.notation.angle);
-        });
-        self.tool_commit_row(ui, ToolKind::Transform, |drafts, notation| {
-            Ok(tool.op(
-                notation.length_literals(drafts.transform_translation)?,
-                scalars(drafts.transform_axis)?,
-                notation.angle_literal(drafts.transform_angle)?,
-            )?)
-        });
+        let waiting = split.map(|split| (0, split.to_string()));
+        if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
+            for notice in self
+                .tools
+                .transform_half(self.session.committed_doc(), half)
+            {
+                self.notices
+                    .push(frame::tool_notice(&notice, self.session.landed_pair()));
+            }
+        }
+        if ui.button("Cancel").clicked() {
+            self.tools.close();
+        }
     }
 
-    /// The pattern tool's panel: a body pick, a rule choice with its
-    /// fields, the axis pick the circular rule needs, the output
-    /// choice, and the one committed edit.
+    /// The pattern tool's panel: a body pick, the rule and output
+    /// choices, and the one committed edit, which writes the defaults
+    /// the code owns ([`crate::combine::PatternTool`]): a row along the
+    /// target's `x` spaced, rounded up, so the copies clear the body
+    /// ([`crate::combine::row_spacing`]), or a ring about
+    /// its `z`. Each value is then a row of the pattern.
     ///
     /// The output row is what fuses a pattern into the part: `fused`
     /// commits the family with a `Union` over it, ONE body, where
@@ -1713,11 +1297,7 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.pattern() else {
             return self.tool_door(ui, ToolKind::Pattern);
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Pattern
-                .says(&"pick the body; a circular rule's axis is in its own coordinates"),
-        );
+        crate::widgets::message(ui, ToolKind::Pattern.says(&"pick the body"));
         if let Some((seat, half)) = seats_row(
             ui,
             tool.seats(),
@@ -1738,77 +1318,25 @@ impl ViewerBehavior<'_> {
                 ui.radio_value(&mut self.drafts.pattern_output, output, label);
             }
         });
-        ui.horizontal(|ui| {
-            ui.label("count");
-            ui.add(
-                number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
-                    .range(MIN_PATTERN_COUNT..=i64::MAX),
-            );
-        });
-        match self.drafts.pattern_kind {
+        let session = self.session;
+        self.tool_commit_row(ui, ToolKind::Pattern, None, |drafts, notation| match drafts
+            .pattern_kind
+        {
             PatternLayoutChoice::Linear => {
-                vec3_row(
-                    ui,
-                    "direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_direction,
-                );
-                ui.horizontal(|ui| {
-                    ui.label("spacing");
-                    unit_field(
-                        ui,
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_spacing,
-                    );
-                    length_picker(ui, "pattern_spacing", &mut self.notation.length);
-                });
-            }
-            PatternLayoutChoice::Circular => {
-                ui.horizontal(|ui| {
-                    unit_vec3_row(
-                        ui,
-                        "axis through",
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_through,
-                    );
-                    length_picker(ui, "pattern_through", &mut self.notation.length);
-                });
-                vec3_row(
-                    ui,
-                    "axis direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_axis,
-                );
-                ui.horizontal(|ui| {
-                    ui.label("step");
-                    unit_field(
-                        ui,
-                        self.notation.angle.def(),
-                        ANGLE_DRAG_SPEED,
-                        &mut self.drafts.pattern_step,
-                    );
-                    angle_picker(ui, "pattern_step", &mut self.notation.angle);
-                });
-            }
-        }
-        self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
-            match drafts.pattern_kind {
-                PatternLayoutChoice::Linear => Ok(tool.linear_op(
+                let clears = session.clearing_step(&tool.read()?)?;
+                Ok(tool.linear_op(
                     drafts.pattern_output,
-                    drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
-                    notation.length_literal(drafts.pattern_spacing)?,
-                )?),
-                PatternLayoutChoice::Circular => Ok(tool.circular_op(
-                    drafts.pattern_output,
-                    drafts.pattern_count,
-                    notation.length_literals(drafts.pattern_through)?,
-                    scalars(drafts.pattern_axis)?,
-                    notation.angle_literal(drafts.pattern_step)?,
-                )?),
+                    crate::combine::PATTERN_COUNT,
+                    crate::session::PatternDirection::Axis(crate::combine::STEP_ALONG),
+                    crate::combine::row_spacing(clears, notation.length)?,
+                )?)
             }
+            PatternLayoutChoice::Circular => Ok(tool.circular_op(
+                drafts.pattern_output,
+                crate::combine::PATTERN_COUNT,
+                crate::session::PatternDirection::Axis(crate::combine::RING_ABOUT),
+                notation.angle_literal(crate::combine::RING_STEP)?,
+            )?),
         });
     }
 
@@ -1837,7 +1365,7 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         part_selector_rows(ui, &self.theme, &mut self.drafts.part_instance);
-        self.tool_commit_row(ui, ToolKind::Part, |drafts, _| {
+        self.tool_commit_row(ui, ToolKind::Part, None, |drafts, _| {
             Ok(tool.instance_op(drafts.part_instance)?)
         });
     }
@@ -1864,12 +1392,14 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, ToolKind::Duplicate, |_, _| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Duplicate, None, |_, _| Ok(tool.op()?));
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
-    /// choice with its one Length field, and the one committed edit.
+    /// choice, and the one committed edit. The blend is inserted at
+    /// [`crate::blend::default_size`], and its size is then its
+    /// Properties slot row.
     ///
     /// **The freeze sentence is not decoration.** #217 makes the
     /// selection a commitment — a later edit that adds an edge does
@@ -1902,16 +1432,6 @@ impl ViewerBehavior<'_> {
             for (kind, label) in BlendKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.blend_kind, kind, label);
             }
-        });
-        ui.horizontal(|ui| {
-            ui.label(self.drafts.blend_kind.size_label());
-            unit_field(
-                ui,
-                self.notation.length.def(),
-                FIELD_DRAG_SPEED,
-                &mut self.drafts.blend_size,
-            );
-            length_picker(ui, "blend_size", &mut self.notation.length);
         });
         self.blend_commit_row(ui, count);
     }
@@ -2001,7 +1521,7 @@ impl ViewerBehavior<'_> {
             tool.clear();
         }
         if closing.commit {
-            match self.notation.length_literal(self.drafts.blend_size) {
+            match crate::blend::default_size(self.notation.length) {
                 Ok(size) => {
                     let op: Option<SessionOp> =
                         self.tools
@@ -2037,9 +1557,9 @@ impl ViewerBehavior<'_> {
 
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by —
-    /// or `None` for the mate tool, whose commit is a constraint in a
-    /// placement's bundle and creates no node, so its form offers no
-    /// label ([`Self::tool_commit_row`]). It is read off the tool, not
+    /// or `None` for the mate tool, whose commit writes a bundle, and
+    /// the Transform tool, which commits nothing but opens it: neither
+    /// form offers a label ([`Self::tool_commit_row`]). It is read off the tool, not
     /// the op ([`SessionOp::creates_a_node`]), because the label is
     /// offered before the picks make an op; a noun beside an op that
     /// creates no node is said at the commit ([`Self::push_labelled`]).
@@ -2047,30 +1567,19 @@ impl ViewerBehavior<'_> {
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
-    /// projection, and the mirror tool's, for a drawn body, the union
-    /// of its symmetric part; the label lands there.
+    /// projection, where the label lands. The mirror tool's noun is
+    /// the mirror, which its insert labels and selects, not the union
+    /// of the symmetric part it reads into.
     fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
         Some(match kind {
-            ToolKind::Mate => return None,
-            ToolKind::Revolve => "Revolve",
+            ToolKind::Mate | ToolKind::Transform => return None,
             ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
                 Some(BooleanOp::Union) | None => "Union",
                 Some(BooleanOp::Intersect) => "Intersect",
                 Some(BooleanOp::Subtract) => "Subtract",
             },
             ToolKind::Split => "Split",
-            // A drawn body becomes its symmetric part, whose last node
-            // is the union; an unplaced body's image stands alone.
-            ToolKind::Mirror => match self.tools.mirror().and_then(|tool| tool.seats().read(0)) {
-                Some(body)
-                    if !crate::world::placements_of_read(self.session.committed_doc(), &body)
-                        .is_empty() =>
-                {
-                    "Union"
-                }
-                _ => "Mirror",
-            },
-            ToolKind::Transform => "Transform",
+            ToolKind::Mirror => "Mirror",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Place",
                 PatternOutputChoice::Fused => "Union",
@@ -2080,6 +1589,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part | ToolKind::Duplicate => "Part",
+            ToolKind::Clearance => "Assertion",
         })
     }
 
@@ -2116,9 +1626,11 @@ impl ViewerBehavior<'_> {
     /// **A create form's commit, with its label**: `op` queued as
     /// [`SessionOp::CreateLabelled`] when the form's label field holds
     /// a label — the insert and the label as one undo — or alone when
-    /// it is blank. The field's draft is kept until the creation
-    /// commits (`Drafts::creation_landed`), so a refused creation does
-    /// not cost what was typed. A text the label rule refuses queues
+    /// it is blank. A gesture with no label field (the sweep buttons)
+    /// holds no draft, so it stores the proposal, `Kind N`. The field's
+    /// draft is kept until the creation commits
+    /// (`Drafts::creation_landed`), so a refused creation does not cost
+    /// what was typed. A text the label rule refuses queues
     /// nothing and is said on the status line.
     fn push_labelled(&mut self, noun: &'static str, op: SessionOp) {
         let text = self.creation_label_text(noun);
@@ -2167,13 +1679,14 @@ impl ViewerBehavior<'_> {
         &mut self,
         ui: &mut egui::Ui,
         kind: ToolKind,
+        blocked: Option<&str>,
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let noun = self.tool_noun(kind);
-        if let Some(noun) = noun {
+        if let Some(noun) = noun.filter(|_| kind.offers_label()) {
             self.creation_label_row(ui, noun);
         }
-        let closing = commit_row(ui, kind.commit(), None, |_| {});
+        let closing = commit_row(ui, kind.commit(), blocked, |_| {});
         if closing.commit {
             match op(self.drafts, *self.notation) {
                 Ok(op) => self.push_tool_op(noun, op),
@@ -2255,78 +1768,6 @@ mod tests {
     use crate::theme::Theme;
     use pncad::select::SplitHalf;
     use pncad::topo::BooleanOp;
-
-    /// **The pattern form's floor is the least count a pattern
-    /// evaluates at**, through both doors the form commits by. At
-    /// [`super::MIN_PATTERN_COUNT`] the unfused pattern is a family of
-    /// no member and the fused one the empty boolean value; one below
-    /// it, the family refuses typed on its own badge and the fused
-    /// pattern has no value. So the form offers exactly the counts that
-    /// evaluate, and the door, which judges no count, takes them all.
-    #[test]
-    fn the_pattern_forms_floor_is_the_least_count_that_evaluates() {
-        use crate::session::{DocSession, PatternRuleSpec, SessionOp};
-        use pncad::document::{BooleanValue, NodeErrorKind, NodeResult, ValuePayload};
-        let tol = Tol::witness();
-        let (doc, body) = crate::scene::plate_with_hole(tol).expect("the plate");
-        let floor = super::MIN_PATTERN_COUNT;
-        for fused in [false, true] {
-            for count in [floor, floor - 1] {
-                let mut session = DocSession::inline(doc.clone(), tol);
-                session.pump();
-                let rule = PatternRuleSpec::Linear {
-                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
-                    spacing: crate::test_support::len(0.05),
-                };
-                let op = if fused {
-                    SessionOp::AddFusedPattern {
-                        input: body.into(),
-                        count,
-                        rule,
-                    }
-                } else {
-                    SessionOp::AddPattern {
-                        input: body.into(),
-                        count,
-                        rule,
-                    }
-                };
-                let outcome = session.perform(op);
-                assert!(
-                    outcome.refusal.is_none(),
-                    "fused {fused}, count {count}: the door admits it: {:?}",
-                    outcome.refusal
-                );
-                let made = outcome.made.expect("the door made a node");
-                session.pump();
-                let eval = session.evaluation().expect("the inline seam landed");
-                let value = eval.value(made).map(|value| &value.payload);
-                match (fused, count == floor) {
-                    (false, true) => assert!(
-                        matches!(value, Some(ValuePayload::Instances(members)) if members.is_empty()),
-                        "the floor is a family of no member: {value:?}"
-                    ),
-                    (true, true) => assert!(
-                        matches!(value, Some(ValuePayload::Boolean(BooleanValue::Empty))),
-                        "the fused floor is the empty boolean value: {value:?}"
-                    ),
-                    (false, false) => assert!(
-                        matches!(
-                            eval.result(made),
-                            Some(NodeResult::Failed(error))
-                                if matches!(error.kind, NodeErrorKind::IndexCountOutOfRange { .. })
-                        ),
-                        "below the floor the family refuses typed: {:?}",
-                        eval.result(made)
-                    ),
-                    (true, false) => assert!(
-                        value.is_none(),
-                        "below the floor the fused pattern has no value: {value:?}"
-                    ),
-                }
-            }
-        }
-    }
 
     /// The end cap `minted` made, picked on the body of `drawn`.
     fn cap_on(minted: u64, drawn: u64) -> FaceSelection {
@@ -2445,7 +1886,7 @@ mod tests {
             },
             tol,
         );
-        let mut tool = crate::combine::TransformTool::new();
+        let mut tool = crate::combine::SplitTool::new();
         tool.pick(&doc, split);
         let mut chosen = None;
         let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
@@ -2780,10 +2221,10 @@ mod tone_tests {
     /// one kind, the earlier.
     #[test]
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Withheld::Waiting("pick a face to draw on");
-        let chain = Withheld::Waiting("add a step to the chain");
-        let refused = Withheld::Refused("the traced chain is the profile's one loop");
-        let later = Withheld::Refused("the traced frame does not read");
+        let frame = Withheld::Waiting("pick the face whose plane the sketch is on");
+        let chain = Withheld::Waiting("pick the face to trace");
+        let refused = Withheld::Refused("the traced frame does not read");
+        let later = Withheld::Refused("a later refusal");
         assert_eq!(withheld_for([frame, chain]), Some(frame));
         assert_eq!(withheld_for([frame, refused]), Some(refused));
         assert_eq!(withheld_for([refused, frame]), Some(refused));
@@ -2792,7 +2233,7 @@ mod tone_tests {
         assert_eq!(withheld_for([]), None);
     }
 
-    /// **The add-profile form's withholding reason**: a refused input is loud,
+    /// **The traced-profile form's withholding reason**: a refused input is loud,
     /// the form waiting for one is quiet.
     #[test]
     fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
@@ -2802,16 +2243,88 @@ mod tone_tests {
                 theme,
                 Withheld::Refused("the traced frame does not read"),
             );
-            withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
+            withheld_line(ui, theme, Withheld::Waiting("pick the face to trace"));
         });
         assert_eq!(
             find(&painted, "the traced frame does not read").ink,
             Some(voices.actionable)
         );
         assert_eq!(
-            find(&painted, "choose a shape to add").ink,
+            find(&painted, "pick the face to trace").ink,
             Some(voices.weak)
         );
+    }
+}
+
+/// **A revolve's default axis**: off the profile's whole extent, arcs
+/// included, and written as a round number in the working unit.
+#[cfg(test)]
+mod revolve_default_axis {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use pncad::document::{Doc, LoopProgram, ProfileProgram};
+    use pncad::geom_core::Tol;
+
+    use super::{NoAxis, profile_x_extent, revolve_axis_x};
+    use crate::session::{DocSession, SessionOp};
+
+    /// The x extent of a profile of `loops`, as the evaluation holds it.
+    fn extent(loops: Vec<LoopProgram<pncad::document::Formula>>) -> Result<(f64, f64), NoAxis> {
+        let tol = Tol::witness();
+        let mut session =
+            DocSession::inline(Doc::<ProfileProgram>::empty_derived("axis", tol), tol);
+        let made = session
+            .perform(SessionOp::AddProfile { loops })
+            .made
+            .expect("the profile is inserted");
+        session.pump();
+        let evaluation = session.evaluation().expect("the inline seam landed");
+        profile_x_extent(evaluation.value(made).expect("the profile evaluates"))
+    }
+
+    /// **A circle split only at its top and bottom has vertices that
+    /// span no x**: its extent is its arcs' circles', so the axis is
+    /// read off the circle and not off its seam.
+    #[test]
+    fn the_extent_reaches_an_arcs_circle_where_no_vertex_does() {
+        let split = LoopProgram::circle_split(0.02, 0.0, 0.005, 2, core::f64::consts::FRAC_PI_2)
+            .expect("a finite circle");
+        let (lo, hi) = extent(vec![split]).expect("a circle has an extent");
+        assert!(
+            (lo - 0.015).abs() < 1e-12 && (hi - 0.025).abs() < 1e-12,
+            "the circle's whole width, not its seam's: {lo}..{hi}"
+        );
+    }
+
+    #[test]
+    fn a_profile_with_no_loops_has_no_extent_to_place_an_axis_by() {
+        assert_eq!(extent(Vec::new()), Err(NoAxis::NoLoops));
+    }
+
+    /// **The axis is rounded outward to a round number**, and stays at
+    /// least the extent's width clear of it.
+    #[test]
+    fn the_axis_is_a_round_number_at_least_a_width_clear() {
+        // (lo, hi) in the working unit, and the axis it gets.
+        for (lo, hi, want) in [
+            // A 10 mm circle at 15..25 mm: clear of 5, rounded to 10s.
+            (15.0, 25.0, 0.0),
+            // Its width a hair under 10 rounds to 1s instead.
+            (15.000_000_000_000_002, 25.0, 5.0),
+            // The same circle in inches.
+            (0.015 / 0.0254, 0.025 / 0.0254, 0.1),
+            // In metres.
+            (0.015, 0.025, 0.0),
+            // A rectangle wholly at negative x, in metres.
+            (-0.05, -0.0373, -0.07),
+            (120.0, 470.0, -300.0),
+        ] {
+            let x = revolve_axis_x(lo, hi).expect("a finite extent");
+            assert_eq!(x, want, "{lo}..{hi}");
+            assert!(x <= lo - (hi - lo), "{lo}..{hi}: {x} is a width clear");
+            assert_eq!(format!("{x}"), format!("{want}"), "reads as typed");
+        }
+        assert_eq!(revolve_axis_x(0.0, f64::INFINITY), Err(NoAxis::NotFinite));
     }
 }
 
@@ -2827,7 +2340,7 @@ mod creation_nouns {
     };
     use pncad::geom_core::Tol;
 
-    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN};
+    use super::{EXTRUDE_NOUN, INSTANCE_NOUN, PROFILE_NOUN, REVOLVE_NOUN};
     use crate::session::{DocSession, SessionOp};
     use crate::test_support::{len, square_profile};
 
@@ -2841,7 +2354,7 @@ mod creation_nouns {
     }
 
     #[test]
-    fn the_profile_and_extrude_forms_nouns_are_their_nodes_kinds() {
+    fn the_profile_extrude_and_revolve_nouns_are_their_nodes_kinds() {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("creation-nouns", tol);
         let (doc, profile) = square_profile(&doc, 0.02, tol);
@@ -2851,6 +2364,13 @@ mod creation_nouns {
             distance: len(0.01),
         };
         assert_eq!(minted_noun(&mut session, extrude), EXTRUDE_NOUN);
+        let revolve = SessionOp::AddRevolve {
+            profile,
+            axis_through: [len(-0.05), len(0.0)],
+            axis_heading: crate::test_support::ang(core::f64::consts::FRAC_PI_2),
+            angle: crate::test_support::ang(core::f64::consts::TAU),
+        };
+        assert_eq!(minted_noun(&mut session, revolve), REVOLVE_NOUN);
         let add_profile = SessionOp::AddProfile {
             loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
         };
@@ -2873,9 +2393,9 @@ mod creation_nouns {
     }
 }
 
-/// **The add-profile form's held face across a selection that moved
-/// on** ([`ViewerBehavior::sketch_face_rows`]'s pick, and
-/// `Drafts::respeak` after each op).
+/// **The traced-profile form's held faces across a selection that
+/// moved on** (its two latches, `Drafts::trace_plane` and
+/// `Drafts::trace_face`, and `Drafts::respeak` after each op).
 #[cfg(test)]
 mod sketch_face_said {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -2887,9 +2407,9 @@ mod sketch_face_said {
     use crate::drafts::Drafts;
     use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
-    /// **The add-profile form keeps its latches' nodes past the
-    /// selection**: once the selection moves on, the on-face row and
-    /// both trace latches still say their face's minting node by the
+    /// **The traced-profile form keeps its latches' nodes past the
+    /// selection**: once the selection moves on, both trace latches
+    /// still say their face's minting node by the
     /// last label it had, after a rename and a delete, where the
     /// selection's snapshot no longer names it. Each row is read as the
     /// form draws it (`latch_said`, by the landed speaker).
@@ -2928,7 +2448,6 @@ mod sketch_face_said {
             &mut drafts,
             SessionOp::Select(Selection::Face(face.clone())),
         );
-        crate::drafts::latch(&mut drafts.sketch_face, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_plane, session.doc(), &face);
         crate::drafts::latch(&mut drafts.trace_face, session.doc(), &face);
         perform(
@@ -2954,9 +2473,9 @@ mod sketch_face_said {
         let by = crate::frame::landed_speaker(session.landed_pair());
         let last = format!("the end cap of Extrude \"plinth\" ({t})");
         assert_eq!(
-            [&drafts.sketch_face, &drafts.trace_plane, &drafts.trace_face]
+            [&drafts.trace_plane, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
-            [last.clone(), last.clone(), last],
+            [last.clone(), last],
             "each latch says its face's node by its last label"
         );
         assert_eq!(
@@ -3072,10 +2591,8 @@ mod tools_respeak {
     #[test]
     fn a_seated_tool_says_its_lost_pick_by_its_last_label() {
         for kind in [
-            ToolKind::Revolve,
             ToolKind::Boolean,
             ToolKind::Split,
-            ToolKind::Transform,
             ToolKind::Pattern,
             ToolKind::Part,
             ToolKind::Duplicate,

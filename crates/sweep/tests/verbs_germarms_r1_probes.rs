@@ -117,7 +117,7 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
     let n = OutwardNormal::from_chart(Vec3::new(-1.0, 0.0, 0.0), true);
     let d = Vec3::new(-eps, 1.0, 0.0).normalize();
     assert_eq!(
-        enters_material(d, n, arm, band()).unwrap(),
+        enters_material(d, n, geom_core::test_support::fixture_lever(arm), band()).unwrap(),
         EntersMaterial::Exits,
         "the first-order verdict is a definite Out"
     );
@@ -209,7 +209,7 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     );
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let err = topo::union(&pipe, &bar, tol).expect_err("a tangency keeps the pierce door");
-    let text = err.to_string();
+    let text = err.render(geom_brep::recourse::Reading::Build);
     let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
         panic!("not the pierce door: {err:?}");
     };

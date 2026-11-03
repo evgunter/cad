@@ -468,7 +468,14 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     let certifies_whole = |half: f64| {
         let doc = slab(1.0, half);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        let v = drive(
+            &doc,
+            &analyzed,
+            &config(64),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .unwrap();
         v.receipt().splits == 0 && v.receipt().certified == 1
     };
     // A bracket, then bisect it: `lo` certifies whole, `hi` does not.
@@ -514,7 +521,14 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     // This is what makes "the flip" the wrong account of it.
     let doc = slab(1.0, hi * 1.01);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(
         v.receipt().splits > 0 && v.refused().is_empty(),
         "just past the ceiling the box must certify after bisection with nothing refused, \
@@ -540,7 +554,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     // `dihedral_wedge` at the extrude's wall join (`SliverJoin`): a
     // wall's line carrier has no certified enclosure over the box, and
     // that arrives first. It is what moved the ceiling down
-    // (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`).
+    // (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     assert!(
         why.iter()
             .any(|f| f.contains("CarrierEnclosure(CarrierEnclosureRefusal { kind: Line")),
@@ -566,7 +580,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
 /// at 1e-12, measured 2026-09-04. A move this far DOWN is, by this
 /// row's own reading, the tier no longer discharging an identity, and
 /// the mechanism is unread
-/// (`work/offset/main-red-three-m10-interval-pins-moved-at-5728`):
+/// (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`):
 /// closing that row restores the per-ε ceilings or re-documents the
 /// account above. The band is 2%: wide enough to absorb the last bits
 /// of a bisection search, far too narrow to absorb a change of
@@ -641,6 +655,7 @@ fn a_macroscopic_box_certifies_at_the_shipped_depth_budget() {
             max_leaves: 32,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
@@ -693,6 +708,7 @@ fn the_tier_off_reproduces_the_pre_e12_refusal() {
             symbolic: SymbolicDials::off(),
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
@@ -723,7 +739,14 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
     let certifies_whole = |half: f64| {
         let doc = two_param_plate(uniform(half), uniform(half));
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        let v = drive(
+            &doc,
+            &analyzed,
+            &config(64),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .unwrap();
         v.receipt().splits == 0 && v.receipt().certified == 1
     };
     let (mut lo, mut hi) = (eps() / 4.0, 0.25);
@@ -757,11 +780,31 @@ fn evidence_two_param_plate_whole_certifying_half_width() {
 /// was 0.022 until the circle stored its authored carrier), so an
 /// ε-scaled box does not split and a row about bisection has to be
 /// wider than that.
+///
+/// Pinned red at every ε row: since the cylinder rim's axial decision
+/// every leaf refuses (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
+    test_utils::pinned_red::row(
+        eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the two-parameter drive",
+        &["the box should certify SOMETHING: Receipt { certified: 0, refused: 4, splits: 3 }"],
+        the_two_parameter_drive_rows,
+    );
+}
+
+fn the_two_parameter_drive_rows() {
     let doc = two_param_plate(uniform(0.1), uniform(0.1));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
 
     assert!(v.receipt().holds(), "receipt: {:?}", v.receipt());
     assert!(
@@ -797,8 +840,22 @@ fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it(
 fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let seq = drive(&doc, &analyzed, &config(256), Tol::witness()).unwrap();
-    let again = drive(&doc, &analyzed, &config(256), Tol::witness()).unwrap();
+    let seq = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
+    let again = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let par = drive(
         &doc,
         &analyzed,
@@ -806,6 +863,7 @@ fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
             parallel: true,
             ..config(256)
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
@@ -836,7 +894,14 @@ fn driving_writes_nothing() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
     let before = doc.clone();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let _ = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+    let _ = drive(
+        &doc,
+        &analyzed,
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(doc.bit_eq(&before));
 }
 
@@ -849,7 +914,14 @@ fn driving_writes_nothing() {
 fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     let doc = notch(-0.25, 0.3);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(4096),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert!(v.receipt().holds());
     assert!(!v.certified().is_empty(), "the witness side must certify");
 
@@ -903,7 +975,14 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
 fn a_box_inside_the_witness_chamber_certifies_whole() {
     let doc = slab(1.0, eps() / 16.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(v.receipt().holds());
     assert!(
         v.refused().is_empty(),
@@ -927,7 +1006,14 @@ fn a_box_inside_the_witness_chamber_certifies_whole() {
 fn certification_reads_the_vector_and_nothing_else() {
     let doc = slab(1.0, eps() / 16.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let witness = v.witness_vector().clone();
     assert!(
         witness.rows.iter().any(|r| !r.verdicts.is_empty()),
@@ -976,7 +1062,14 @@ fn certification_reads_the_vector_and_nothing_else() {
 fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
     let doc = sliver_axis();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(4096),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert!(v.receipt().holds());
     let slivers: Vec<_> = v
         .refused()
@@ -1035,7 +1128,14 @@ fn a_terminal_sliver_refuses_naming_its_predicate_and_is_not_refined() {
 fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).expect("the nominal builds");
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(4096),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert!(v.receipt().holds());
     let classes: Vec<_> = v.refused().iter().map(|l| l.reason.class()).collect();
     let slivers: Vec<&'static str> = v
@@ -1086,7 +1186,14 @@ fn a_sliver_wrapped_in_the_ops_own_error_is_priced_sliver_terminal_not_budget() 
 fn an_exhausted_leaf_budget_refuses_typed_and_priced() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(4),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(v.receipt().holds(), "receipt: {:?}", v.receipt());
     assert!(
         v.refused()
@@ -1115,6 +1222,7 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
             max_depth: 0,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
@@ -1147,17 +1255,41 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// above): a leaf that covers a band's WHOLE support prices as 1 by
 /// the band's own rule (`box_mass`), so the refusal this row is about
 /// needs a leaf that covers part of it, i.e. a drive that split.
+///
+/// Pinned red at every ε row, on the drive the row above pins
+/// (`work/pcert/the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive.md`).
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
+    test_utils::pinned_red::row(
+        eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the banded two-parameter drive",
+        &[
+            "a band must not stop certification",
+            "Receipt { certified: 0, refused: 4, splits: 3 }",
+        ],
+        a_band_parameter_rows,
+    );
+}
+
+fn a_band_parameter_rows() {
     let w = 0.1;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
     let analyzed = analyzed_box(&banded, &AnalysisPolicy::default());
-    let v = drive(&banded, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
+    let v = drive(
+        &banded,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert!(v.receipt().holds());
     assert!(
         !v.certified().is_empty(),
-        "a band must not stop certification"
+        "a band must not stop certification: {:?}",
+        v.receipt()
     );
     // Certification is UNCHANGED by the band: the same document with a
     // uniform in place of the band produces the same leaf structure.
@@ -1165,6 +1297,7 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
         &priced,
         &analyzed_box(&priced, &AnalysisPolicy::default()),
         &config(256),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
@@ -1198,7 +1331,14 @@ fn a_band_parameter_certifies_normally_and_prices_nothing() {
 fn containment_does_not_fire_while_a_boundary_leaf_certifies() {
     let doc = slab(20.0 * eps(), 40.0 * eps());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(4096),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     let root = v.root();
     assert!(
         v.certified()
@@ -1239,7 +1379,13 @@ fn a_document_with_nothing_varying_refuses_up_front() {
     let doc = slab(1.0, 0.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(
-        drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()),
+        drive(
+            &doc,
+            &analyzed,
+            &DriveConfig::default(),
+            &editor_core::Stop::default(),
+            Tol::witness()
+        ),
         Err(DriveRefusal::NothingVaries)
     );
 }
@@ -1254,8 +1400,14 @@ fn a_witness_that_does_not_build_refuses_up_front() {
     // build itself cannot classify it.
     let doc = crate::fixture::label_every_node(slab(5.0 * eps(), eps()), "slab");
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let err = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect_err("a sliver-thin nominal does not build");
+    let err = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect_err("a sliver-thin nominal does not build");
     let DriveRefusal::WitnessDoesNotBuild { node, cause } = &err else {
         panic!("expected WitnessDoesNotBuild, got {err:?}");
     };
@@ -1319,7 +1471,14 @@ fn cert4r1_the_driver_widening_scales_with_the_box_not_with_a_period() {
         let half = e * k;
         let doc = slab(1.0, half);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        let v = drive(
+            &doc,
+            &analyzed,
+            &config(64),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .unwrap();
         let r = v.receipt();
         println!(
             "cert4r1 half={half:e} (eps*{k:e}): splits {} certified {} refused {}",

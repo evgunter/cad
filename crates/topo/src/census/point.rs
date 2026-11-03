@@ -60,8 +60,7 @@ enum Locus<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    let face = body.get_face(f)?;
-    match *body.get_surface(face.surface)? {
+    match *body.face_surface(f)? {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
         geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
         _ => None,
@@ -285,12 +284,10 @@ pub(super) fn edge_face<T: Decide>(
     };
     let touch = match (curve, surface(body, face)) {
         (
-            geom::Curve3::Circle {
-                center,
-                axis,
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
                 radius,
-                ..
-            },
+            }),
             Some(Surface::Plane { origin, normal }),
         ) => match circle_plane((center, axis, radius), (origin, normal), band, errors) {
             None => None,

@@ -1324,6 +1324,24 @@ impl Doc {
             .collect())
     }
 
+    /// **The minted id of every section of the loft at `loft`**, first
+    /// to last: what `DocEdit.set_loft_sections` keeps a section by.
+    ///
+    /// Raises `ValueError` for a node that is not a loft.
+    fn section_ids(&self, loft: &NodeId) -> PyResult<Vec<super::step::SectionId>> {
+        match self.inner.node(loft.0).and_then(d::Node::loft_section_ids) {
+            Some(ids) => Ok(ids
+                .into_iter()
+                .flatten()
+                .map(super::step::SectionId)
+                .collect()),
+            None => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{} is not a loft",
+                self.inner.spoken(loft.0)
+            ))),
+        }
+    }
+
     /// **The id the profile at `profile` minted for the step `h`
     /// addresses** in its loop `loop`, which the author states: `h` is
     /// the `.step` of the chain state (or closed loop) the step's verb
@@ -1549,7 +1567,12 @@ impl Doc {
         let mut action = d::Recording::start(&self.inner, tol);
         let edit_failed = |err: d::EditError| edit_err(py, &err);
         let minted = action
-            .constrain(placement.0, mate.0.clone(), &d::EvalOptions::default())
+            .constrain(
+                placement.0,
+                mate.0.clone(),
+                &d::EvalOptions::default(),
+                &d::CancelToken::new(),
+            )
             .map_err(edit_failed)?;
         let done = action.finish().map_err(edit_failed)?;
         self.take_up(done.doc, done.maintenance);
@@ -1733,6 +1756,7 @@ impl Doc {
                 spin,
                 orient.map(|o| o.0),
                 &d::EvalOptions::default(),
+                &d::CancelToken::new(),
             )
             .map_err(edit_failed)?;
         if let Some(label) = label {
@@ -1778,8 +1802,15 @@ impl Doc {
             ..d::EvalOptions::default()
         };
         let tol = Tol::witness();
-        let done = d::take_over(&self.inner, &copies, &result, &opts, tol)
-            .map_err(|err| edit_err(py, &err))?;
+        let done = d::take_over(
+            &self.inner,
+            &copies,
+            &result,
+            &opts,
+            &d::CancelToken::new(),
+            tol,
+        )
+        .map_err(|err| edit_err(py, &err))?;
         let mut moved = Vec::new();
         for (copy, names) in &done.taken.moved.0 {
             for (from, to) in names {
@@ -1928,6 +1959,7 @@ impl Doc {
             at(up),
             at(toward),
             &opts,
+            &d::CancelToken::new(),
             Tol::witness(),
         )
         .map(|inner| super::pose::PoseDef { inner })
@@ -1961,7 +1993,12 @@ impl Doc {
         let mut action = d::Recording::start(&self.inner, Tol::witness());
         let edit_failed = |err: d::EditError| edit_err(py, &err);
         let minted = action
-            .remove_mate(at.placement, at.id, &d::EvalOptions::default())
+            .remove_mate(
+                at.placement,
+                at.id,
+                &d::EvalOptions::default(),
+                &d::CancelToken::new(),
+            )
             .map_err(edit_failed)?;
         let done = action.finish().map_err(edit_failed)?;
         self.take_up(done.doc, done.maintenance);
@@ -2149,10 +2186,21 @@ impl Doc {
                 | pncad::pattern::Recognised::Circular { index, .. } => (*index, None),
                 pncad::pattern::Recognised::Grid { outer, inner } => (outer.0, Some(inner.0)),
             };
+            let (steps, inner_steps) = match &r {
+                pncad::pattern::Recognised::Linear { steps, .. } => {
+                    (slides(&self.inner, steps), Vec::new())
+                }
+                pncad::pattern::Recognised::Grid { outer, inner } => {
+                    (slides(&self.inner, &outer.1), slides(&self.inner, &inner.1))
+                }
+                pncad::pattern::Recognised::Circular { .. } => (Vec::new(), Vec::new()),
+            };
             Recognised {
                 index: Var::of(&self.inner, index),
                 inner_index: within.map(|var| Var::of(&self.inner, var)),
                 inner: r,
+                steps,
+                inner_steps,
             }
         })
     }
@@ -2405,24 +2453,83 @@ impl StationMove {
     }
 }
 
-/// One step of a row as Python writes it, `(axis, pitch)`: the axis by
-/// its word, the pitch a length.
+/// **A row's direction as Python writes it**: a target axis's word, or
+/// a pose read in the target space.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum DirectionArg {
+    /// `"x"`, `"y"` or `"z"`.
+    Axis(String),
+    /// A `Direction`, or an `Axis` for its direction, plainly or
+    /// through a role.
+    Read(super::pose::PoseArg),
+}
+
+/// A row's step as Python writes it, `(direction, pitch)`.
 fn pattern_step(
     py: Python<'_>,
-    axis: &str,
+    along: DirectionArg,
     pitch: &super::expr::SlotArg,
-) -> PyResult<(d::TargetAxis, d::Formula)> {
+) -> PyResult<(pncad::pattern::RowDirection, d::Formula)> {
+    let along = match along {
+        DirectionArg::Axis(axis) => {
+            pncad::pattern::RowDirection::Axis(super::mate::target_axis(&axis)?)
+        }
+        DirectionArg::Read(read) => pncad::pattern::RowDirection::Read(read.read()),
+    };
     Ok((
-        super::mate::target_axis(axis)?,
+        along,
         super::pose::scalar_at(py, d::Dimension::Length, pitch, "row's pitch")?,
     ))
 }
 
-/// A ring's axis as Python writes it, `(on, to, along)`.
+/// The target axes a row's other slides run along, by their words.
+fn slides_across(across: Option<Vec<String>>) -> PyResult<Option<d::SlideAxes>> {
+    across
+        .map(|words| {
+            words
+                .iter()
+                .map(|w| super::mate::target_axis(w))
+                .collect::<PyResult<Vec<_>>>()
+                .map(d::SlideAxes::of)
+        })
+        .transpose()
+}
+
+/// **A ring's axis as Python writes it**: `(on, to)`, an `Axis` mate;
+/// or an axis read in the target space.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum RingAxisArg {
+    /// The mate's two axes.
+    Mated(OperandArg, OperandArg),
+    /// An axis read off a body in the target space.
+    About(super::pose::PoseArg),
+}
+
+/// A ring's axis, its mated ring slid `slide` (zero where `None`).
 fn ring_axis(
-    (on, to, along): (OperandArg, OperandArg, String),
-) -> PyResult<(d::Operand, d::Operand, d::TargetAxis)> {
-    Ok((on.read(), to.read(), super::mate::target_axis(&along)?))
+    py: Python<'_>,
+    axis: RingAxisArg,
+    slide: Option<super::expr::SlotArg>,
+) -> PyResult<pncad::pattern::RingAxis> {
+    match axis {
+        RingAxisArg::Mated(on, to) => Ok(pncad::pattern::RingAxis::Mated {
+            on: on.read(),
+            to: to.read(),
+            slide: match slide {
+                Some(slide) => {
+                    super::pose::scalar_at(py, d::Dimension::Length, &slide, "ring's slide")?
+                }
+                None => d::Formula::zero(d::Dimension::Length),
+            },
+        }),
+        RingAxisArg::About(about) if slide.is_none() => {
+            Ok(pncad::pattern::RingAxis::About(about.read()))
+        }
+        RingAxisArg::About(_) => Err(pyo3::exceptions::PyTypeError::new_err(
+            "a ring about an axis read in the target takes no slide=: it turns each member \
+             from where its source stands",
+        )),
+    }
 }
 
 /// The node a pattern writer authored. Every argument's dimension is
@@ -2443,6 +2550,45 @@ pub(crate) struct Recognised {
     inner: pncad::pattern::Recognised,
     index: Var,
     inner_index: Option<Var>,
+    steps: Vec<(Direction, super::expr::Formula)>,
+    inner_steps: Vec<(Direction, super::expr::Formula)>,
+}
+
+/// **A row's direction as Python reads it**: a target axis's word, the
+/// variable read, or the variable read through a role.
+#[derive(Clone, IntoPyObject)]
+pub(crate) enum Direction {
+    /// `"x"`, `"y"` or `"z"`.
+    Axis(&'static str),
+    /// A pose read plainly.
+    Read(Var),
+    /// A pose read through a role.
+    Role(super::pose::RoleRead),
+}
+
+/// Slides as Python reads them: each direction and its pitch.
+fn slides(
+    doc: &d::ProfileDoc,
+    steps: &[(pncad::pattern::RowDirection, d::Formula)],
+) -> Vec<(Direction, super::expr::Formula)> {
+    steps
+        .iter()
+        .map(|(along, pitch)| {
+            let along = match along {
+                pncad::pattern::RowDirection::Axis(axis) => {
+                    Direction::Axis(super::mate::axis_word(*axis))
+                }
+                pncad::pattern::RowDirection::Read(read) => match (&read.read, read.role) {
+                    (d::Operand::Var(var), None) => Direction::Read(Var::of(doc, *var)),
+                    (operand, Some(role)) => {
+                        Direction::Role(super::pose::RoleRead::of(operand.clone(), role))
+                    }
+                    (_, None) => unreachable!("a recognised read is a variable by id"),
+                },
+            };
+            (along, super::expr::Formula(pitch.clone()))
+        })
+        .collect()
 }
 
 #[pymethods]
@@ -2469,28 +2615,19 @@ impl Recognised {
         self.inner_index
     }
 
-    /// A row's slides, or a grid's along its outer index, each axis
-    /// (`"x"`, `"y"`, `"z"`) and its pitch per member; empty for a ring.
+    /// A row's slides, or a grid's along its outer index, each
+    /// direction (a target axis's word `"x"`, `"y"` or `"z"`, the `Var`
+    /// read, or a `RoleRead` of it) and its pitch per member; empty for a
+    /// ring.
     #[getter]
-    fn steps(&self) -> Vec<(&'static str, super::expr::Formula)> {
-        match &self.inner {
-            pncad::pattern::Recognised::Linear { steps, .. }
-            | pncad::pattern::Recognised::Grid {
-                outer: (_, steps), ..
-            } => slides(steps),
-            pncad::pattern::Recognised::Circular { .. } => Vec::new(),
-        }
+    fn steps(&self) -> Vec<(Direction, super::expr::Formula)> {
+        self.steps.clone()
     }
 
     /// A grid's slides along its inner index; empty for a row or a ring.
     #[getter]
-    fn inner_steps(&self) -> Vec<(&'static str, super::expr::Formula)> {
-        match &self.inner {
-            pncad::pattern::Recognised::Grid {
-                inner: (_, steps), ..
-            } => slides(steps),
-            _ => Vec::new(),
-        }
+    fn inner_steps(&self) -> Vec<(Direction, super::expr::Formula)> {
+        self.inner_steps.clone()
     }
 
     /// A ring's turn per member; `None` for a row.
@@ -2509,21 +2646,6 @@ impl Recognised {
     fn __repr__(&self) -> String {
         format!("Recognised.{}({})", self.kind(), self.index.__repr__())
     }
-}
-
-/// Slides as Python reads them: each axis word and its pitch.
-fn slides(
-    steps: &[(pncad::document::TargetAxis, pncad::document::Formula)],
-) -> Vec<(&'static str, super::expr::Formula)> {
-    steps
-        .iter()
-        .map(|(axis, pitch)| {
-            (
-                super::mate::axis_word(*axis),
-                super::expr::Formula(pitch.clone()),
-            )
-        })
-        .collect()
 }
 
 /// **The loop programs an `outline` argument spells** — ONE
@@ -2859,11 +2981,13 @@ impl Node {
                 then: then
                     .into_iter()
                     .map(|(profile, station)| d::LoftSection {
+                        id: None,
                         profile: profile.read(),
                         station: station.into_iter().map(|m| m.0).collect(),
                     })
                     .collect(),
                 v_degree: slot_expr(py, d::SlotId::VDegree, &v_degree)?,
+                first_id: None,
             },
         })
     }
@@ -3186,10 +3310,17 @@ impl Node {
     }
 
     /// **A row** (D10 `[repetition]`): `source` copied into `target`,
-    /// member `k` slid `scalar(k)·pitch` along each `(axis, pitch)` of
-    /// `steps` on the target's axes (`"x"`, `"y"`, `"z"`), with no mate
-    /// — `pncad::pattern::linear_pattern`'s program, a `Node.place`
-    /// like any other.
+    /// member `k` slid `scalar(k)·pitch` along each `(direction, pitch)`
+    /// of `steps`, with no mate — `pncad::pattern::linear_pattern`'s
+    /// program, a `Node.place` like any other. A direction is one of the
+    /// target's axes (`"x"`, `"y"`, `"z"`) or a `Direction` or `Axis`
+    /// read off a body in the target space, plainly or through a role
+    /// (an edge's axis, `RoleRead(face_plane, "normal")`), so the row
+    /// follows that body when it is edited. Every other freedom is the
+    /// constant `0`: its slides along the target axes `across` names
+    /// (which with the row's directions are independent — beside a row
+    /// along a read direction, the two it does not run most along), or
+    /// `x`, `y` and `z` in order.
     ///
     /// `index` names an index the document declares
     /// (`DocEdit.declare_var(k, VarDecl.index(n))`), so the placement
@@ -3198,58 +3329,69 @@ impl Node {
     /// otherwise, as `MateValue`'s); the insert refuses a name the
     /// document does not hold (`unlowered_name`) as any formula's.
     #[staticmethod]
+    #[pyo3(signature = (index, source, target, steps, across=None))]
     fn linear_pattern(
         py: Python<'_>,
         index: &VarName,
         source: BodyArg,
         target: SpaceArg,
-        steps: Vec<(String, super::expr::SlotArg)>,
+        steps: Vec<(DirectionArg, super::expr::SlotArg)>,
+        across: Option<Vec<String>>,
     ) -> PyResult<Self> {
         let steps = steps
-            .iter()
-            .map(|(axis, pitch)| pattern_step(py, axis, pitch))
+            .into_iter()
+            .map(|(along, pitch)| pattern_step(py, along, &pitch))
             .collect::<PyResult<Vec<_>>>()?;
         pattern_node(pncad::pattern::linear_pattern(
             &index.0,
             source.read(),
             target.read(),
             &steps,
+            slides_across(across)?,
         ))
     }
 
     /// **A grid**: `Node.linear_pattern` over two indices, each
-    /// `(index, axis, pitch)`, `inner`'s index declared within
-    /// `outer`'s (`VarDecl.index(n, within=outer)`), member
-    /// `(i, j)` slid along both — the family indexed `[outer, inner]`.
+    /// `(index, direction, pitch)`, `inner`'s index declared within
+    /// `outer`'s (`VarDecl.index(n, within=outer)`), member `(i, j)`
+    /// slid along both — the family indexed `[outer, inner]`. Along two
+    /// read directions, a parallelogram lattice.
     #[staticmethod]
+    #[pyo3(signature = (outer, inner, source, target, across=None))]
     fn grid(
         py: Python<'_>,
-        outer: (VarName, String, super::expr::SlotArg),
-        inner: (VarName, String, super::expr::SlotArg),
+        outer: (VarName, DirectionArg, super::expr::SlotArg),
+        inner: (VarName, DirectionArg, super::expr::SlotArg),
         source: BodyArg,
         target: SpaceArg,
+        across: Option<Vec<String>>,
     ) -> PyResult<Self> {
-        let (outer_k, outer_axis, outer_pitch) = &outer;
-        let (inner_k, inner_axis, inner_pitch) = &inner;
+        let (outer_k, outer_along, outer_pitch) = outer;
+        let (inner_k, inner_along, inner_pitch) = inner;
         pattern_node(pncad::pattern::grid(
-            (&outer_k.0, pattern_step(py, outer_axis, outer_pitch)?),
-            (&inner_k.0, pattern_step(py, inner_axis, inner_pitch)?),
+            (&outer_k.0, pattern_step(py, outer_along, &outer_pitch)?),
+            (&inner_k.0, pattern_step(py, inner_along, &inner_pitch)?),
             source.read(),
             target.read(),
+            slides_across(across)?,
         ))
     }
 
-    /// **A ring**: `source` copied into `target` by one `Axis` mate
-    /// equating `axis[0]` (an axis read off the copy) with `axis[1]`
-    /// (an axis in the target), member `k` spun `scalar(k)·step` about
-    /// it and slid zero along the target axis `axis[2]` it runs on.
+    /// **A ring**: `source` copied into `target`, member `k` spun
+    /// `scalar(k)·step` about `axis`. `axis` is `(on, to)`, one `Axis`
+    /// mate equating an axis read off the copy with an axis in the
+    /// target, each member slid `slide` along the mated direction (a
+    /// raised ring stands up its axis); or an `Axis` read off a body in
+    /// the target space, plainly or through a role, each member spun
+    /// about that line with no mate from where the source stands (a bolt
+    /// circle about a flange's axis), where `slide` is `0`.
     ///
     /// Exactly one of `count` and `step` says how far apart the
     /// members turn: `count` a full ring of that many (`turn / count`),
     /// `step` the angle as written. `doc` reads the mate's kinds, as
     /// `Placed.of`'s.
     #[staticmethod]
-    #[pyo3(signature = (doc, index, source, target, axis, *, count=None, step=None))]
+    #[pyo3(signature = (doc, index, source, target, axis, *, count=None, step=None, slide=None))]
     #[allow(clippy::too_many_arguments)]
     fn circular_pattern(
         py: Python<'_>,
@@ -3257,9 +3399,10 @@ impl Node {
         index: &VarName,
         source: BodyArg,
         target: SpaceArg,
-        axis: (OperandArg, OperandArg, String),
+        axis: RingAxisArg,
         count: Option<super::expr::SlotArg>,
         step: Option<super::expr::SlotArg>,
+        slide: Option<super::expr::SlotArg>,
     ) -> PyResult<Self> {
         let step = match (count, step) {
             (Some(count), None) => pncad::pattern::RingStep::Full(super::pose::scalar_at(
@@ -3285,7 +3428,7 @@ impl Node {
             &index.0,
             source.read(),
             target.read(),
-            ring_axis(axis)?,
+            ring_axis(py, axis, slide)?,
             step,
         ))
     }
@@ -3300,7 +3443,7 @@ impl Node {
         count: super::expr::SlotArg,
         source: BodyArg,
         target: SpaceArg,
-        axis: (OperandArg, OperandArg, String),
+        axis: RingAxisArg,
     ) -> PyResult<Self> {
         let count = super::pose::scalar_at(py, d::Dimension::Count, &count, "ring's count")?;
         pattern_node(pncad::pattern::bolt_circle(
@@ -3309,7 +3452,7 @@ impl Node {
             count,
             source.read(),
             target.read(),
-            ring_axis(axis)?,
+            ring_axis(py, axis, None)?,
         ))
     }
 
@@ -4316,19 +4459,33 @@ impl DocEdit {
     /// wrong dimension, `loft_shape` for too few sections, an empty
     /// station or a degree outside `1 ≤ d ≤ len − 1`. A node that is
     /// not a loft refuses `set_loft_sections_on_non_loft`.
+    ///
+    /// Each section says which old section it is, as its last entry:
+    /// `first` is `(profile, keep)` and each later section `(profile,
+    /// station, keep)`, where `keep` is the `SectionId` of the old
+    /// section it keeps (`Doc.section_ids` reads them) or `None` for a
+    /// section it adds, which the door mints. The entry is part of the
+    /// tuple, so no section's is left out by omission. A loft's walls,
+    /// seams and rings are named by their sections' ids, so a kept
+    /// section's names survive the edit wherever it moves. Refuses
+    /// `section_ids_refused` for a `keep` this loft does not hold, or
+    /// one kept twice.
     #[staticmethod]
     fn set_loft_sections(
         node: &NodeId,
-        first: OperandArg,
-        then: Vec<(OperandArg, Vec<StationMove>)>,
+        first: (OperandArg, Option<super::step::SectionId>),
+        then: Vec<(OperandArg, Vec<StationMove>, Option<super::step::SectionId>)>,
     ) -> Self {
+        let (first, first_id) = first;
         Self {
             inner: d::DocEdit::SetLoftSections {
                 node: node.0,
                 first: first.read(),
+                first_id: first_id.map(|k| k.0),
                 then: then
                     .into_iter()
-                    .map(|(profile, station)| d::LoftSection {
+                    .map(|(profile, station, keep)| d::LoftSection {
+                        id: keep.map(|k| k.0),
                         profile: profile.read(),
                         station: station.into_iter().map(|m| m.0).collect(),
                     })

@@ -40,7 +40,7 @@ use geom_core::Tol;
 /// target's own frame: a slide is a coordinate on the target's own axes,
 /// its start cap where the identity orientation puts the copy's.
 fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: TargetAxis, to: f64) -> ProfileDoc {
-    let slot = value_slot(&doc, placed, Coord::Slide(axis));
+    let slot = value_slot(&doc, placed, Coord::slide(axis));
     let by = to;
     step(
         doc,
@@ -1652,27 +1652,7 @@ fn assert_wall_chords_cite_the_merged_parent(
 ) {
     use crate::fixture::{ends, point};
     let on_wall = |p: geom_core::Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
-    let boss_body = body_of(ev, boss);
-    let pieces: Vec<String> = table(ev, boss)
-        .iter()
-        .filter_map(|(name, entry)| match entry {
-            Entry::Unique(ent) => match ent.key {
-                EntityKey::Face(f)
-                    if topo::query::face_surface_kind(&boss_body, f)
-                        == Some(geom::SurfaceKind::Cylinder) =>
-                {
-                    Some(name.to_string())
-                }
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        pieces.len(),
-        2,
-        "{label}: the boss wall is two pieces: {pieces:?}"
-    );
+    let pieces = wall_pieces(ev, boss);
     let body = body_of(ev, out);
     let mut seams: BTreeMap<RoleSeg, usize> = BTreeMap::new();
     for (name, entry) in table(ev, out).iter() {
@@ -1780,6 +1760,325 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
     }
 }
 
+/// The plate `[0,3]² × [0,1]` and the sunk boss of [`cylinder`] joined
+/// by a two-member union: the document, the plate, the boss and the
+/// union.
+fn sunk_boss_joined() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("sunk-boss-joined", Tol::witness());
+    let (doc, [plate, boss]) = crate::wire_legal_union_refusals::plate_and_boss(doc);
+    let (doc, joined) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
+        },
+    );
+    (doc, plate, boss, joined)
+}
+
+/// The boss's two wall pieces, as its own table names them, said by tag.
+pub(crate) fn wall_pieces(ev: &Evaluation<f64>, boss: RecipeNodeId) -> [String; 2] {
+    let boss_body = body_of(ev, boss);
+    let pieces: Vec<String> = table(ev, boss)
+        .iter()
+        .filter_map(|(name, entry)| match entry {
+            Entry::Unique(ent) => match ent.key {
+                EntityKey::Face(f)
+                    if topo::query::face_surface_kind(&boss_body, f)
+                        == Some(geom::SurfaceKind::Cylinder) =>
+                {
+                    Some(name.to_string())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    let [p0, p1] = pieces.as_slice() else {
+        panic!("the boss wall is two pieces: {pieces:?}");
+    };
+    [p0.clone(), p1.clone()]
+}
+
+/// `node`'s face names, said by tag with `node`'s own tag replaced by
+/// `NODE`, so two nodes' tables compare modulo their ids.
+fn face_names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
+    let tag = node.to_string();
+    table(ev, node)
+        .iter()
+        .filter(|(name, _)| name.kind == EntityKind::Face)
+        .map(|(name, _)| name.to_string().replace(&tag, "NODE"))
+        .collect()
+}
+
+/// Every row `node`'s table holds, said by tag with `node`'s own tag
+/// replaced by `NODE`, so the tables of two nodes, or of one node over
+/// two member orders, compare whole.
+pub(crate) fn names_modulo(ev: &Evaluation<f64>, node: RecipeNodeId) -> BTreeSet<String> {
+    let tag = node.to_string();
+    table(ev, node)
+        .iter()
+        .map(|(name, _)| name.to_string().replace(&tag, "NODE"))
+        .collect()
+}
+
+/// Every one of `tables`, one per member order in `orders`, is the
+/// first: the names do not depend on member order.
+pub(crate) fn one_table<O: std::fmt::Debug>(
+    label: &str,
+    orders: &[O],
+    tables: &[BTreeSet<String>],
+) {
+    assert_eq!(tables.len(), orders.len(), "{label}: every order named");
+    let Some(first) = tables.first() else {
+        panic!("{label}: no member order named");
+    };
+    for (order, t) in orders.iter().zip(tables).skip(1) {
+        assert_eq!(
+            t,
+            first,
+            "{label}: member order {order:?} names otherwise than {:?}; only there {:?}, only \
+             in the first {:?}",
+            orders[0],
+            t.difference(first).collect::<Vec<_>>(),
+            first.difference(t).collect::<Vec<_>>(),
+        );
+    }
+}
+
+/// **A bar through a sunk boss names its merged wall as the slot does.**
+///
+/// The plate and sunk boss joined by a union; a bar x 1.4 to 1.6,
+/// y 0.5 to 2.5, z 0.8 to 2.0 joined to that union by a second union.
+/// The bar cuts each wall piece in two, and the judgement of the two
+/// members merges the two cosurface pieces on each side of the bar:
+/// two faces of the FIRST member, which that merge links (N2's first
+/// clause), so the wall is one parent held as two faces. The union
+/// names, alike in both member orders, and its faces are the
+/// subtract's of the same bar (the sunk-boss slot of
+/// [`a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`])
+/// modulo the two nodes' ids, but for the bar's cap each keeps: the
+/// union its top, the slot its floor. Each chord where a bar wall meets
+/// the merged wall cites its parent.
+#[test]
+fn a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let (sub_doc, cut) = insert(
+        doc.clone(),
+        Node::Subtract {
+            from: joined.into(),
+            tool: bar.into(),
+        },
+    );
+    let sub_ev = run(&sub_doc);
+    assert!(
+        failure(&sub_ev, cut).is_none(),
+        "the slot names: {:?}",
+        failure(&sub_ev, cut)
+    );
+    let slot = face_names_modulo(&sub_ev, cut);
+    let orders = [[joined, bar], [bar, joined]];
+    let mut tables = Vec::new();
+    for order in orders {
+        let (docx, barred) = crate::fixture::union_over(doc.clone(), &order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, barred).is_none(),
+            "{order:?}: the barred union names: {:?}",
+            failure(&ev, barred)
+        );
+        assert_wall_chords_cite_the_merged_parent(&format!("{order:?}"), &ev, boss, barred, 4);
+        let union = face_names_modulo(&ev, barred);
+        let only_union: Vec<&String> = union.difference(&slot).collect();
+        let only_slot: Vec<&String> = slot.difference(&union).collect();
+        assert!(
+            matches!(
+                (only_union.as_slice(), only_slot.as_slice()),
+                ([top], [floor]) if top.starts_with("the end cap of node ")
+                    && **top == floor.replacen("the start cap", "the end cap", 1)
+            ),
+            "{order:?}: the faces one names and the other does not are the bar's top in the \
+             union and its floor in the slot: {only_union:?} against {only_slot:?}"
+        );
+        tables.push(names_modulo(&ev, barred));
+    }
+    one_table("bar", &orders, &tables);
+}
+
+/// **A half-block intersect of a sunk boss names its wall as one merged
+/// face.** The plate and sunk boss joined by a union, intersected with a
+/// block x 0 to 1.5, z 0.5 to 2.0: the block's wall at x = 1.5 opens the
+/// boss wall's ring, and the judgement merges the two wall pieces' left
+/// halves, two faces of one member, into one half-cylinder. That merge
+/// links them (N2's first clause), so the face is cited by the `Merged`
+/// parent of both pieces, in both member orders.
+#[test]
+fn a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, half) = block_on(doc, plate, (0.0, 1.5), (0.0, 3.0), 0.5, 1.5);
+    let orders = [[joined, half], [half, joined]];
+    let mut tables = Vec::new();
+    for order in orders {
+        let (docx, both) = intersect_over(doc.clone(), &order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, both).is_none(),
+            "{order:?}: the intersect names: {:?}",
+            failure(&ev, both)
+        );
+        let pieces = wall_pieces(&ev, boss);
+        let citing: Vec<(String, usize)> = face_names_modulo(&ev, both)
+            .into_iter()
+            .map(|n| {
+                let cites = pieces.iter().filter(|p| n.contains(p.as_str())).count();
+                (n, cites)
+            })
+            .filter(|(_, cites)| *cites > 0)
+            .collect();
+        assert!(
+            matches!(citing.as_slice(), [(name, 2)] if name.starts_with("the merged face of")),
+            "{order:?}: one face cites the wall, by the merged parent of both pieces: {citing:?}"
+        );
+        tables.push(names_modulo(&ev, both));
+    }
+    one_table("half", &orders, &tables);
+}
+
+/// **A sunk boss joined to its plate keeps its wall's two pieces.** The
+/// boss's wall ring stays closed in the union, so no merge holds both
+/// pieces and nothing links them: each is its own parent, named as
+/// piece 0 and as piece 1 of the profile step, in both member orders.
+#[test]
+fn a_sunk_boss_joined_to_its_plate_names_its_wall_pieces_apart() {
+    let doc = ProfileDoc::empty_derived("sunk-boss-joined", Tol::witness());
+    let (doc, [plate, boss]) = crate::wire_legal_union_refusals::plate_and_boss(doc);
+    let orders = [[plate, boss], [boss, plate]];
+    let mut tables = Vec::new();
+    for order in orders {
+        let (docx, joined) = crate::fixture::union_over(doc.clone(), &order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, joined).is_none(),
+            "{order:?}: the union names: {:?}",
+            failure(&ev, joined)
+        );
+        let pieces = wall_pieces(&ev, boss);
+        let citing: Vec<String> = face_names_modulo(&ev, joined)
+            .into_iter()
+            .filter(|n| pieces.iter().any(|p| n.contains(p.as_str())))
+            .collect();
+        let [a, b] = citing.as_slice() else {
+            panic!("{order:?}: two faces cite the wall: {citing:?}");
+        };
+        for (name, piece) in [(a, "piece 0"), (b, "piece 1")] {
+            assert!(
+                name.starts_with(&format!("the side wall over {piece} of")),
+                "{order:?}: the wall piece is named as its own {piece}: {name}"
+            );
+        }
+        tables.push(names_modulo(&ev, joined));
+    }
+    one_table("joined", &orders, &tables);
+}
+
+/// An intersect of `members` in that order, inserted afresh: its node
+/// id follows the order, which [`names_modulo`] reads past.
+fn intersect_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+        },
+    )
+}
+
+/// Every face of `node` that cites a piece of the boss's wall cites
+/// both, by their `Merged` parent, and at least one does.
+fn wall_cited_merged(label: &str, ev: &Evaluation<f64>, boss: RecipeNodeId, node: RecipeNodeId) {
+    let pieces = wall_pieces(ev, boss);
+    let citing: Vec<String> = face_names_modulo(ev, node)
+        .into_iter()
+        .filter(|n| pieces.iter().any(|p| n.contains(p.as_str())))
+        .collect();
+    assert!(!citing.is_empty(), "{label}: a face cites the wall");
+    for n in &citing {
+        assert!(
+            pieces.iter().all(|p| n.contains(p.as_str())),
+            "{label}: a face citing the wall cites both its pieces, by their merged parent: {n}"
+        );
+    }
+}
+
+/// The orders of `members`, every one.
+fn every_order_of(members: [RecipeNodeId; 3]) -> Vec<Vec<RecipeNodeId>> {
+    permutations(&[0, 1, 2])
+        .into_iter()
+        .map(|o| o.into_iter().map(|i| members[i]).collect())
+        .collect()
+}
+
+/// **A merge a later fold step makes names in every member order.** The
+/// plate and sunk boss joined; a cap block x and y 1 to 2, z 1.3 to 1.8
+/// over the boss's top, whose floor meets the wall in a seam on each
+/// wall piece; and the bar of
+/// [`a_bar_through_a_sunk_boss_names_its_merged_wall_as_the_slot_does`],
+/// whose judgement with the joined pair merges the two pieces. Folded
+/// in last, the bar's step merges the cap's two seams along with the
+/// pieces and spells the edge `Merged` of them; folded earlier, the
+/// seams are minted against the merged wall. Either way the edge lies
+/// off every member edge, between the cap's floor and the merged wall,
+/// so it is a piece of their seam, and all six orders name with one
+/// table, the wall cited by its merged parent.
+#[test]
+fn a_cap_and_a_bar_over_a_sunk_boss_name_alike_in_every_order() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, cap) = block_on(doc, plate, (1.0, 2.0), (1.0, 2.0), 1.3, 0.5);
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let orders = every_order_of([joined, cap, bar]);
+    let mut tables = Vec::new();
+    for order in &orders {
+        let (docx, u) = crate::fixture::union_over(doc.clone(), order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: the union names: {:?}",
+            failure(&ev, u)
+        );
+        wall_cited_merged(&format!("{order:?}"), &ev, boss, u);
+        tables.push(names_modulo(&ev, u));
+    }
+    one_table("cap, bar", &orders, &tables);
+}
+
+/// **A three-member intersect over a sunk boss names in every order.**
+/// The plate and sunk boss joined, the half block of
+/// [`a_half_block_intersect_of_a_sunk_boss_names_its_wall_as_one_merged_face`],
+/// and a block over the whole plate, z 0.2 to 1.3: the half block's
+/// judgement merges the two wall pieces' left halves, and where its
+/// step comes after the big block's, it merges the seams the big
+/// block's top made on the two pieces, spelled `Merged` of them. All six
+/// orders name with one table, the wall cited by its merged parent.
+#[test]
+fn a_three_member_intersect_of_a_sunk_boss_names_alike_in_every_order() {
+    let (doc, plate, boss, joined) = sunk_boss_joined();
+    let (doc, half) = block_on(doc, plate, (0.0, 1.5), (0.0, 3.0), 0.5, 1.5);
+    let (doc, big) = block_on(doc, plate, (0.0, 3.0), (0.0, 3.0), 0.2, 1.1);
+    let orders = every_order_of([joined, half, big]);
+    let mut tables = Vec::new();
+    for order in &orders {
+        let (docx, u) = intersect_over(doc.clone(), order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: the intersect names: {:?}",
+            failure(&ev, u)
+        );
+        wall_cited_merged(&format!("{order:?}"), &ev, boss, u);
+        tables.push(names_modulo(&ev, u));
+    }
+    one_table("half, big", &orders, &tables);
+}
+
 /// A plate `[0,3] × [0,2] × [0,1]` with a V-notch cut into its far
 /// side, its apex at (1.5, 1.2).
 fn notched_plate() -> Mem {
@@ -1853,17 +2152,18 @@ fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle() {
         ],
         vec![
             (
+                "m1:y=1.20",
+                vec![w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"])],
+            ),
+            (
                 "m1:y=1.20+m2:y=1.20",
-                vec![
-                    w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"]),
-                    w(&["plate:z=1.00", "s:x=0.80"]),
-                ],
+                vec![w(&["plate:z=1.00", "s:x=0.80"])],
             ),
             (
                 "plate:z=1.00",
                 vec![
+                    w(&["m1:y=1.20", "s:x=0.60"]),
                     w(&["m1:y=1.20+m2:y=1.20", "m2:x=2.00", "s:x=0.80"]),
-                    w(&["m1:y=1.20+m2:y=1.20", "s:x=0.60"]),
                 ],
             ),
         ],
@@ -1944,10 +2244,8 @@ fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
             ),
         ],
         vec![
-            (
-                "m1:z=0.50+m2:z=0.50",
-                vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])],
-            ),
+            ("m1:z=0.50+m2:z=0.50", vec![w(&["plate:y=2.00"])]),
+            ("m2:z=0.50", vec![w(&["plate:y=0.00"])]),
             (
                 "m2:z=1.50",
                 vec![w(&["m1:x=1.50"]), w(&["m1:y=1.20+m2:y=1.20"])],
@@ -2247,11 +2545,6 @@ fn splits_by_order(
         .collect()
 }
 
-/// The refusal of a union whose member orders decide differently
-/// (`work/borders/a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early.md`).
-const NO_DISCARD_BETWEEN: &str =
-    "a piece of a face held as several borders no recorded discard between them";
-
 /// **A corner touching the far half of a joined seam is not cited.**
 /// `m` covers the stepped plate's pocket extension, so its wall at
 /// `y = 1` merges with the riser, and the lower top's edge there is
@@ -2259,8 +2552,9 @@ const NO_DISCARD_BETWEEN: &str =
 /// `t` crosses it and the lower top, so the two are one divider. A
 /// diamond's corner rests on the riser's half, at `(1.6, 1, 1)`, and
 /// it meets no lost region of the top, so it is an obstacle on the
-/// right piece alone and is never cited. Every order that publishes
-/// gives one table; the rest refuse.
+/// right piece alone and is never cited. West of `t` the top meets
+/// `m`'s wall where it is not merged with the riser, so that piece
+/// cites `m`'s wall alone. Every order publishes one table.
 #[test]
 fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
     let (doc, ids, labels) = stepped_plate_and(
@@ -2279,17 +2573,11 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
         ],
     );
     let top = vec![
-        w(&["plate:y=1.00+m:y=1.00", "t:x=0.40"]),
+        w(&["m:y=1.00", "t:x=0.40"]),
         w(&["plate:y=1.00+m:y=1.00", "t:x=0.60"]),
     ];
     let mut published: Vec<(Vec<usize>, Splits)> = Vec::new();
     for (order, got) in splits_by_order(&doc, &ids, &labels) {
-        // Orders that fold the plate before `m` or `t` refuse.
-        let at = |i| order.iter().position(|&o| o == i);
-        if at(0) < at(1).max(at(2)) {
-            assert_eq!(got, Err(NO_DISCARD_BETWEEN), "{order:?}: refuses");
-            continue;
-        }
         let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
         assert_eq!(
             got.get("plate:z=1.00"),
@@ -2301,11 +2589,7 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
         }
         published.push((order, got));
     }
-    assert_eq!(
-        published.len(),
-        8,
-        "the orders that fold the plate after `m` and `t` publish"
-    );
+    assert_eq!(published.len(), 24, "every order publishes");
 }
 
 /// **A divider beside a joined seam does not reach across it.** The
@@ -2314,7 +2598,8 @@ fn a_corner_touching_the_far_half_of_a_joined_seam_is_not_cited() {
 /// with `t` at `x` in `[1.5, 1.7]`: `t`'s discard lies on the riser's
 /// side of the join and meets neither `m`'s discard on the lower top
 /// nor the region `m`'s wall lost inside the plate, so only `t`
-/// divides the lower top and the merged wall.
+/// divides the lower top and the riser. West of `t` the riser holds
+/// `m`'s wall too, east of it the plate's alone.
 ///
 /// Orders (plate, m, t) and (m, plate, t) link `t`'s discard to `m`'s
 /// through its chain along the joined edge and cite the merged wall
@@ -2331,7 +2616,8 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
     );
     let apart = || vec![w(&["t:x=1.50"]), w(&["t:x=1.70"])];
     let right: Splits = [
-        ("plate:y=1.00+m:y=1.00", apart()),
+        ("plate:y=1.00", vec![w(&["t:x=1.70"])]),
+        ("plate:y=1.00+m:y=1.00", vec![w(&["t:x=1.50"])]),
         ("plate:z=1.00", apart()),
         ("plate:z=2.00", apart()),
         ("t:z=0.50", vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])]),
@@ -2346,8 +2632,8 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
             assert_eq!(
                 got.get("plate:z=1.00"),
                 Some(&vec![
+                    w(&["plate:y=1.00", "t:x=1.70"]),
                     w(&["plate:y=1.00+m:y=1.00", "t:x=1.50"]),
-                    w(&["plate:y=1.00+m:y=1.00", "t:x=1.70"]),
                 ]),
                 "{order:?}: the lower top, over-linked"
             );
@@ -2364,13 +2650,13 @@ fn a_divider_beside_a_joined_seam_does_not_reach_across_it() {
 /// `(0.75, 1, 1)`, on the half of the joined edge `m`'s discard borders:
 /// the right piece cites the diamond's walls.
 ///
-/// Where the plate folds after `m` and `t` and before the diamond, the
-/// join is made before the diamond's step and nothing in the record
-/// says which half of the joined edge its corner lies on, so the corner
-/// meets no discard and the right piece does not cite it
+/// Where the diamond folds after the plate and `m`, the join is made
+/// before the diamond's step and nothing in the record says which half
+/// of the joined edge its corner lies on, so the corner meets no
+/// discard and the right piece does not cite it
 /// (`work/borders/borders-records-a-join-twice-and-reads-lineage-three-ways.md`).
-/// Those orders are held apart here; the orders that fold the plate
-/// before `m` or `t` refuse.
+/// Those orders are held apart here. The left piece meets `m`'s wall
+/// where it is not merged with the riser, and cites it alone.
 #[test]
 fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
     let (doc, ids, labels) = stepped_plate_and(
@@ -2388,7 +2674,7 @@ fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
             ),
         ],
     );
-    let left = w(&["plate:y=1.00+m:y=1.00", "t:x=0.20"]);
+    let left = w(&["m:y=1.00", "t:x=0.20"]);
     let right = w(&[
         "dia:slant",
         "dia:slant",
@@ -2397,16 +2683,11 @@ fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
         "plate:y=1.00+m:y=1.00",
         "t:x=0.40",
     ]);
-    let under_linked = [vec![1, 2, 0, 3], vec![2, 1, 0, 3]];
     let mut published = 0;
     for (order, got) in splits_by_order(&doc, &ids, &labels) {
         let at = |i| order.iter().position(|&o| o == i);
-        if at(0) < at(1).max(at(2)) {
-            assert_eq!(got, Err(NO_DISCARD_BETWEEN), "{order:?}: refuses");
-            continue;
-        }
         let got = got.unwrap_or_else(|e| panic!("{order:?}: refuses {e}"));
-        let top = if under_linked.contains(&order) {
+        let top = if at(3) > at(0).max(at(1)) {
             vec![left.clone(), w(&["plate:y=1.00+m:y=1.00", "t:x=0.40"])]
         } else {
             vec![right.clone(), left.clone()]
@@ -2418,8 +2699,5 @@ fn a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider() {
         );
         published += 1;
     }
-    assert_eq!(
-        published, 8,
-        "the orders that fold the plate after `m` and `t` publish"
-    );
+    assert_eq!(published, 24, "every order publishes");
 }

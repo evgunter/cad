@@ -153,8 +153,12 @@ pub(crate) fn assert_taken<T: Decide + Bounds + AtRestPolicy + geom_core::Certif
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     assert!(!cups.is_empty(), "{what}: the source carries the cup");
     let c0 = topo::readback::euler_counts(body);
-    let out = blend(verb, body, edges, r)
-        .unwrap_or_else(|e| panic!("{what}: the cup goes with the band, got {e}"));
+    let out = blend(verb, body, edges, r).unwrap_or_else(|e| {
+        panic!(
+            "{what}: the cup goes with the band, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
     validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3′, {e:?}"));
@@ -550,7 +554,7 @@ fn a_cups_head_a_hair_across_the_band_surface_crosses_and_one_inside_goes() {
 /// band's supports are a cylinder and a plane, whose reach has no exact
 /// core, so the pin's end is never read inside and its wall, which meets
 /// the end, is not certified through it
-/// (`work/bandrule/a-ruled-bands-cup-has-no-core-to-read-its-far-faces-in.md`).
+/// (`work/band/a-ruled-bands-cup-has-no-core-to-read-its-far-faces-in.md`).
 #[test]
 fn a_pin_inside_a_concave_ruled_creases_fill_refuses_as_a_bound() {
     let (body, crease) = d_pocket(None, 0.002);
@@ -749,7 +753,7 @@ fn a_cup_leaning_across_the_fillets_disk_crosses_and_the_chamfer_takes_it() {
 /// refuse `WhollyInside`**: the rule takes them (each lies inside the
 /// region, which goes whole), but `plan` admits only a disk on one cap
 /// or an annulus between two
-/// (`work/bandrule/a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved.md`).
+/// (`work/band/a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved.md`).
 /// - A square blind bore of half-side `0.004` with a square cross bar
 ///   spanning it at `x = 0.2`: one mouth, genus 1, so
 ///   `V − E + F − R = −1`, under both verbs.

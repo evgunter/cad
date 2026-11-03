@@ -29,7 +29,9 @@ fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<editor_core::CheckFin
         unused: Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = editor_core::run_checks(doc, ev, &cfg, Tol::witness()).expect("the checks run");
+    let report =
+        editor_core::run_checks(doc, ev, &cfg, &editor_core::Stop::default(), Tol::witness())
+            .expect("the checks run");
     assert!(
         report
             .findings
@@ -61,7 +63,7 @@ fn proofs(doc: &ProfileDoc, node: RecipeNodeId, rows: &[NamedCoincidence]) -> Ve
         &[(node, rows)],
         None,
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door")
     .pop()
@@ -802,7 +804,14 @@ fn the_check_off_is_visibly_skipped() {
         unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
     };
-    let report = editor_core::run_checks(&doc, &ev, &cfg, Tol::witness()).expect("the checks run");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &cfg,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     assert!(report.skipped.contains(&CheckId::UnprovenCoincidence));
     assert!(
         report
@@ -901,8 +910,14 @@ fn a_reunited_splits_section_caps_are_one_construction() {
             "every row of the reunion is one construction, with no replay"
         );
     }
-    let report = editor_core::run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
-        .expect("the checks run");
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run");
     assert!(
         !report.skipped.contains(&CheckId::UnprovenCoincidence),
         "the premise: the check ran"
@@ -1887,7 +1902,7 @@ fn proved_rows(
         &nodes,
         None,
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door");
     nodes
@@ -1964,7 +1979,7 @@ fn census_the_door_over_the_corpus() {
             &nodes,
             None,
             Tol::witness(),
-            &editor_core::CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("an uncanceled door");
         let door = t.elapsed();
@@ -2052,7 +2067,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
             &nodes,
             None,
             Tol::witness(),
-            &editor_core::CancelToken::new(),
+            &editor_core::Stop::default(),
         )
         .expect("an uncanceled door")
         .into_iter()
@@ -2251,7 +2266,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
                 &[(node, &rows[..])],
                 None,
                 Tol::witness(),
-                &editor_core::CancelToken::new(),
+                &editor_core::Stop::default(),
             )
             .expect("the door runs");
             let rung = match proof[0][0] {
@@ -2305,6 +2320,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
         &ev,
         editor_core::Subject::Product(&gathered),
         &cfg,
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the checks run");
@@ -2335,7 +2351,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
     );
     let job = job.expect("a row asks for the door");
     at_rest.settle(
-        job.run(&cd.doc, &editor_core::CancelToken::new())
+        job.run(&cd.doc, &editor_core::Stop::default())
             .expect("an uncanceled door"),
     );
     assert_eq!(at_rest, sync);
@@ -3053,22 +3069,17 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 ///   reading that comes before it, at the edge and the face where the
 ///   door reads the touch in the band's gap (at `1e-9`,
 ///   `bool_conic_quadric_sub_side`; at `1e-12`, `bool_conic_quadric_disc`).
-/// - `shaft_and_bearing_rounded`: a shaft crossing the torus of a bore's
-///   rounded mouth, coaxial with it; `CurvedBooleanUnsupported` on the
-///   torus.
-/// - `shaft_and_bearing_ball`: a sphere on the shaft, its centre on the
-///   axis; `CurvedBooleanUnsupported` on the shaft's cylinder.
 ///
-/// So no document reaches the sites `CoaxialCylinderTorus` or
-/// `CoaxialSphere`
-/// (`work/germ/coaxial-unions-with-a-torus-or-a-sphere-and-a-tangent-cone-refuse.md`).
+/// `shaft_and_bearing_ball` and `shaft_and_bearing_rounded` left this
+/// row when the join's carried lane came to chord a coaxial pair's
+/// circles
+/// ([`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`]).
 ///
 /// Red once a union passes: that scene then joins the registry and its
 /// rows are pinned like the others.
 #[test]
 fn the_curved_stage6_scenes_refuse_at_their_unions() {
     use editor_core::NodeErrorKind::Boolean;
-    use geom::SurfaceKind;
     use topo::BooleanError as B;
     let refused = |cd: crate::corpus::CorpusDoc, kind: &dyn Fn(&B) -> bool| {
         let ev = run(&cd.doc);
@@ -3083,24 +3094,110 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
             || matches!(e, B::Escalated { diag, .. } | B::CurvedPierceEscalated { diag, .. }
                 if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
     });
-    refused(crate::corpus::shaft_and_bearing::rounded_mouth(), &|e| {
-        matches!(
-            e,
-            B::CurvedBooleanUnsupported {
-                kind: SurfaceKind::Torus,
-                ..
+}
+
+/// **The rounded mouth's union volume**: the housing ring `ρ ∈ [1/2, 1]`,
+/// `y ∈ [0, 1]`, less its mouth's fillet (radius `r = 1/8`, centre
+/// `(5/8, 7/8)`, the spandrel's area `r²(1 − π/4)` turned about the axis
+/// at its centroid, `r(10 − 3π)/(12 − 3π)` off the bore), the shaft of
+/// radius `9/16` over `y ∈ [−2, 3/2]`, the collar `ρ ∈ [9/16, 3/4]` over
+/// `y ∈ [−1, −1/2]`, less what the shaft shares with the housing: the
+/// ring `ρ ∈ [1/2, 9/16]` below the fillet and, beside it, the shaft's
+/// slices beyond the fillet's arc, exact through
+/// `∫√(r² − u²) du = (u√(r² − u²) + r² asin(u/r))/2`.
+fn rounded_mouth_volume() -> f64 {
+    use std::f64::consts::PI;
+    let (r, c, rs) = (0.125_f64, 0.625_f64, 0.5625_f64);
+    let spandrel = r * r * (1.0 - PI / 4.0);
+    let centroid = 0.5 + r * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI);
+    let housing = PI * 0.75 - 2.0 * PI * centroid * spandrel;
+    let shaft = PI * rs * rs * 3.5;
+    let collar = PI * (0.75 * 0.75 - rs * rs) * 0.5;
+    let u0 = (r * r - (c - rs).powi(2)).sqrt();
+    let beside = PI
+        * ((rs * rs - c * c - r * r) * u0
+            + u0.powi(3) / 3.0
+            + c * (u0 * (r * r - u0 * u0).sqrt() + r * r * (u0 / r).asin()));
+    housing + shaft + collar - PI * (rs * rs - 0.25) * 0.875 - beside
+}
+
+/// **The coaxial stage-6 scenes union green at `f64`, on the door's
+/// coaxial rows** (INTENT stage 6):
+/// - `shaft_and_bearing_ball`, a sphere on the shaft, its centre on the
+///   axis: four `OnCarrier` rows at `CoaxialSphere`, one for each of the
+///   ball's two faces against each of the shaft's two wall faces;
+/// - `shaft_and_bearing_rounded`, a shaft crossing the torus of the
+///   bore's rounded mouth, coaxial with it: two `Coaxial` rows at
+///   `CoaxialCylinderTorus`, proven by one construction.
+///
+/// Each refused at the join, `CurvedBooleanUnsupported` on the shaft's
+/// cylinder or on the torus, until the carried lane chorded the pair's
+/// circles as the closed forms they are (SECTARMS stage 3b-i). Each
+/// union builds at its exact volume: the ball's
+/// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
+/// ([`rounded_mouth_volume`]). At `Interval` each escalates, so both stay
+/// beside the registry, which requires every lane green.
+///
+/// Red if a union stops building at `f64`, if its volume moves, if its
+/// coaxial rows change in number or kind, or once it passes at
+/// `Interval` (then it joins the registry).
+#[test]
+fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
+    for (cd, row, count, want) in [
+        (
+            crate::corpus::shaft_and_bearing::with_a_ball(),
+            "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
+            4,
+            5.836_839_596_566_8,
+        ),
+        (
+            crate::corpus::shaft_and_bearing::rounded_mouth(),
+            "Coaxial CoaxialCylinderTorus SameConstruction",
+            2,
+            rounded_mouth_volume(),
+        ),
+    ] {
+        let name = cd.name;
+        let union = cd.result.expect("a scene's head is its union");
+        let ev = run(&cd.doc);
+        let got = match ev.nodes.get(&union) {
+            Some(editor_core::NodeResult::Ok(v)) => {
+                let b = v.payload.output_body(0).expect("one body").body();
+                let measured = topo::test_support::finished(name, b.clone(), Tol::witness());
+                topo::test_support::pinned_volume(name, &measured, Tol::witness()).volume
             }
-        )
-    });
-    refused(crate::corpus::shaft_and_bearing::with_a_ball(), &|e| {
-        matches!(
-            e,
-            B::CurvedBooleanUnsupported {
-                kind: SurfaceKind::Cylinder,
-                ..
-            }
-        )
-    });
+            other => panic!("{name}: the union builds at f64: {other:?}"),
+        };
+        assert!(
+            (got - want).abs() <= 1e-9 * want,
+            "{name}: the union's volume {got} against {want}"
+        );
+        let (_, lines) = door_lines(&cd);
+        let coaxial: Vec<&String> = lines
+            .iter()
+            .filter(|l| l.contains(row.split(' ').nth(1).expect("a site")))
+            .collect();
+        assert_eq!(
+            coaxial,
+            vec![row; count],
+            "{name}: the door's coaxial rows: {lines:?}"
+        );
+        let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
+        assert!(
+            matches!(
+                ev.nodes.get(&union),
+                Some(editor_core::NodeResult::Failed(editor_core::NodeError {
+                    kind: editor_core::NodeErrorKind::Boolean(e),
+                    ..
+                // An escalation, at whichever door reads it first: the
+                // ball's at the containment or a curved pierce, the
+                // rounded mouth's in the join.
+                })) if format!("{e:?}").contains("Escalated")
+            ),
+            "{name}: the union escalates at Interval: {:?}",
+            ev.nodes.get(&union)
+        );
+    }
 }
 
 /// **Two blocks resting on one floor are one plane at their bases**
@@ -3344,7 +3441,7 @@ fn proofs_with(
         &[(node, rows)],
         opts.resolver.as_ref(),
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("an uncanceled door")
     .remove(0)
@@ -3410,7 +3507,7 @@ fn an_instanced_shaft_mated_onto_a_revolves_axis_is_coaxial_by_construction() {
         ),
         vec![
             (
-                Coord::Slide(TargetAxis::Y),
+                Coord::slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (Coord::SPIN, Formula::turn_over(4).expect("a quarter turn")),
@@ -3575,8 +3672,25 @@ fn tag(var: VarId) -> String {
 ///
 /// Red if the edit is chosen by cell order, or names a pose no mate
 /// reaches.
+///
+/// Pinned red at every ε row: the union refuses `RingHomingAmbiguous`
+/// (`work/sect/a-union-of-two-axis-placed-revolves-refuses-ring-homing-ambiguous-since-rehome-by-path.md`).
 #[test]
 fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        "the housing, shaft and collar union",
+        &[
+            "evaluates",
+            "UnionFoldStep { member: 2",
+            "RingHomingAmbiguous { ring: LoopKey(1v3) }",
+        ],
+        the_axis_edit_rows,
+    );
+}
+
+fn the_axis_edit_rows() {
     use crate::corpus::{Recorder, placed_in, revolved};
     use editor_core::{Coord, Dimension, Operand, TargetAxis};
     let rect = |inner: f64, outer: f64, (lo, hi): (f64, f64)| {
@@ -3593,9 +3707,9 @@ fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
     let by_values = |y: f64, spin: Formula| editor_core::Placed {
         mates: Vec::new(),
         values: vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (Coord::slide(TargetAxis::X), len(0.0)),
+            (Coord::slide(TargetAxis::Y), len(y)),
+            (Coord::slide(TargetAxis::Z), len(0.0)),
             (Coord::Spin(Some(TargetAxis::X)), none()),
             (Coord::Spin(Some(TargetAxis::Y)), spin),
             (Coord::Spin(Some(TargetAxis::Z)), none()),
@@ -3612,7 +3726,7 @@ fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
                 mates: vec![crate::fixture::mate(shaft.axis(), housing.axis())],
                 values: vec![
                     (
-                        Coord::Slide(TargetAxis::Y),
+                        Coord::slide(TargetAxis::Y),
                         Formula::zero(Dimension::Length),
                     ),
                     (Coord::SPIN, quarter()),
@@ -3629,7 +3743,7 @@ fn the_axis_edit_mates_the_copy_no_mate_reaches_in_either_cell_order() {
             editor_core::Placed {
                 mates: vec![crate::fixture::mate(collar.axis(), housing.axis())],
                 values: vec![
-                    (Coord::Slide(TargetAxis::Y), len(-1.0)),
+                    (Coord::slide(TargetAxis::Y), len(-1.0)),
                     (Coord::SPIN, none()),
                 ],
             }
@@ -3792,9 +3906,9 @@ fn a_refused_bundle_states_nothing() {
         editor_core::Placed {
             mates: Vec::new(),
             values: vec![
-                (Coord::Slide(TargetAxis::X), len(0.0)),
-                (Coord::Slide(TargetAxis::Y), len(0.0)),
-                (Coord::Slide(TargetAxis::Z), len(0.0)),
+                (Coord::slide(TargetAxis::X), len(0.0)),
+                (Coord::slide(TargetAxis::Y), len(0.0)),
+                (Coord::slide(TargetAxis::Z), len(0.0)),
                 (Coord::Spin(Some(TargetAxis::X)), none()),
                 (
                     Coord::Spin(Some(TargetAxis::Y)),
@@ -3824,7 +3938,7 @@ fn a_refused_bundle_states_nothing() {
                 )],
                 values: vec![
                     (
-                        Coord::Slide(TargetAxis::Y),
+                        Coord::slide(TargetAxis::Y),
                         Formula::zero(Dimension::Length),
                     ),
                     (Coord::SPIN, Formula::zero(Dimension::Angle)),
@@ -4028,7 +4142,10 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                             .map(geom_brep::EdgeCurve::carrier)
                             .expect("an edge has a carrier")
                         {
-                            Curve3::Circle { center, axis, .. } => line_on(*center, Some(*axis)),
+                            Curve3::Circle(geom::Circle {
+                                frame: geom::Frame { center, axis, .. },
+                                ..
+                            }) => line_on(*center, Some(*axis)),
                             Curve3::Line(geom::Line { origin, dir }) => {
                                 line_on(*origin, Some(*dir))
                             }
@@ -4109,9 +4226,9 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
         editor_core::Placed {
             mates: Vec::new(),
             values: vec![
-                (Coord::Slide(TargetAxis::X), len(3.0)),
-                (Coord::Slide(TargetAxis::Y), len(0.5)),
-                (Coord::Slide(TargetAxis::Z), len(0.25)),
+                (Coord::slide(TargetAxis::X), len(3.0)),
+                (Coord::slide(TargetAxis::Y), len(0.5)),
+                (Coord::slide(TargetAxis::Z), len(0.25)),
                 (
                     Coord::Spin(Some(TargetAxis::X)),
                     Formula::zero(Dimension::Angle),
@@ -4138,7 +4255,7 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
                 )),
             )],
             values: vec![
-                (Coord::Slide(TargetAxis::Y), len(0.0)),
+                (Coord::slide(TargetAxis::Y), len(0.0)),
                 (Coord::SPIN, crate::fixture::ang(0.7)),
             ],
         },

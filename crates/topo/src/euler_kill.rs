@@ -2543,7 +2543,7 @@ mod tests {
                 .kev(strut.he_minus)
                 .map(|_| ())
                 .unwrap_err()
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(lever), "{pose}: {text}");
             assert_eq!(
                 test_utils::refusal::recourse_markers(&text),
@@ -3063,7 +3063,7 @@ mod tests {
                 point(e.he_plus),
                 point(e.he_minus),
                 |k| body.get_surface(k).cloned(),
-                1.0,
+                geom_core::test_support::fixture_lever(1.0),
                 geom_core::Band::linear(tol).unwrap(),
                 geom_brep::NurbsLane::certified(),
             )
@@ -3680,7 +3680,7 @@ mod tests {
             },
         ];
         for err in &errors {
-            assert!(!err.to_string().is_empty());
+            assert!(!err.render(geom_brep::recourse::Reading::Build).is_empty());
             let _: &dyn std::error::Error = err;
         }
     }

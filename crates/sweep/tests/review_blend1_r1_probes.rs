@@ -9,10 +9,10 @@
 
 use crate::common::approx::band;
 use crate::common::three_arc;
-use geom_core::{Point2, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
-use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
+use sweep::blend::battery::{BlendRequest, run_battery, wedge_at};
 use sweep::blend::{BlendError, BlendSite};
 use sweep::test_support::{disc_of_arcs, extruded, finished, sketch_from_axes};
 use sweep::{Extrusion, extrude};
@@ -57,12 +57,10 @@ fn tilt_raised_cap(
         .find_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             match c.carrier() {
-                geom::Curve3::Circle {
-                    center,
+                geom::Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    axis,
-                    ..
-                } if center.z > 0.5 => Some((k, *axis, *radius)),
+                }) if center.z > 0.5 => Some((k, *axis, *radius)),
                 _ => None,
             }
         })
@@ -271,7 +269,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(geom::Curve3::Circle { center, .. }) if center.z > 0.5
+                    Some(geom::Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. })) if center.z > 0.5
                 )
             })
             .expect("a raised arc")
@@ -335,7 +333,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
 /// sentence, not the chain-flip one.** A 5ε wedge at a 1 m arm
 /// escalates `fillet3_convexity_sign` at the link's own lever; that
 /// is the same site and the same user situation as the wedge decided
-/// `Zero`, whose refusal is `TangentialEdge`, so the two arms carry
+/// `Zero`, whose refusal is `KnifeEdge`, so the two arms carry
 /// one recourse (D4 ¶1 addendum). "Split the chain at the convexity
 /// flip" belongs to `ConvexitySignFlip` — a chain whose links all
 /// resolved definitely and disagree — and is advice about a flip no
@@ -345,23 +343,25 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
     let body = cylinder();
     let e = body.edges().next().unwrap().0;
     let tau = Vec3::new(0.0, 0.0, 1.0);
-    let escalated = convexity_at(
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(1.0, in_band(), 0.0).normalize(),
-        tau,
-        1.0,
-        e,
-        band(),
-    )
-    .unwrap_err();
-    let text = format!("{escalated}");
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let plane = |normal: Vec3<f64>| geom::Surface::Plane {
+        origin: o,
+        normal,
+        u_ref: Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
+    };
+    let out = |s: &geom::Surface<f64>| geom_brep::implicit_outward_normal(s, true, o);
+    let metre = || geom_core::test_support::fixture_lever(1.0);
+    let x = plane(Vec3::new(1.0, 0.0, 0.0));
+    let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
+    let escalated = wedge_at(out(&x), out(&tilted), tau, metre(), e, band()).unwrap_err();
+    let text = escalated.render(geom_brep::recourse::Reading::Build);
     assert!(
         matches!(&escalated, BlendError::Escalated { source, .. }
             if source.predicate == Some("fillet3_convexity_sign")),
         "{escalated:?}"
     );
     assert!(
-        text.contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
+        text.contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
         "the decided-Zero sibling's sentence: {text}"
     );
     assert!(
@@ -369,22 +369,14 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         "no flip was decided, so the flip sentence is absent: {text}"
     );
     // The definite neighbour, rendered from the same site: a wedge
-    // decided Zero. Both arms, one sentence.
-    let flat = convexity_at(
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        tau,
-        1.0,
-        e,
-        band(),
-    )
-    .unwrap_err();
+    // decided Zero with the material facing itself. Both arms, one
+    // sentence.
+    let back = plane(Vec3::new(-1.0, 0.0, 0.0));
+    let flat = wedge_at(out(&x), out(&back), tau, metre(), e, band()).unwrap_err();
+    assert!(matches!(flat, BlendError::KnifeEdge { .. }), "{flat:?}");
     assert!(
-        matches!(flat, BlendError::TangentialEdge { .. }),
-        "{flat:?}"
-    );
-    assert!(
-        format!("{flat}").contains(sweep::blend::FILLET3_TANGENTIAL_RECOURSE),
+        flat.render(geom_brep::recourse::Reading::Build)
+            .contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
         "{flat}"
     );
 }
@@ -432,7 +424,10 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
         ) {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("(d={d:e}, L={l}, h={h}) the extrude door refuses: {e}");
+                eprintln!(
+                    "(d={d:e}, L={l}, h={h}) the extrude door refuses: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
                 continue;
             }
         };
@@ -479,7 +474,10 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
         let r = verdict(&body, edge);
         eprintln!("(d={d:e}, L={l}, h={h}) battery on the wedge: {r:?}");
         if let Err(e @ BlendError::Escalated { .. }) = &r {
-            eprintln!("  renders: {e}");
+            eprintln!(
+                "  renders: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
     }
 }
@@ -497,7 +495,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
             .filter_map(|(k, e)| {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match c.carrier() {
-                    geom::Curve3::Circle { center, .. } if center.z > 0.5 => Some(k),
+                    geom::Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    }) if center.z > 0.5 => Some(k),
                     _ => None,
                 }
             })
@@ -529,7 +530,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
         matches!(definite, BlendError::SpineUnsupported { .. }),
         "{definite:?}"
     );
-    let (d, e) = (format!("{definite}"), format!("{escalated}"));
+    let (d, e) = (
+        definite.render(geom_brep::recourse::Reading::Build),
+        escalated.render(geom_brep::recourse::Reading::Build),
+    );
     assert!(d.contains(sweep::blend::FILLET3_SPINE_KIND_RECOURSE), "{d}");
     assert!(e.contains(sweep::blend::FILLET3_SPINE_KIND_RECOURSE), "{e}");
 }
@@ -600,7 +604,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
                     let Some(c) = body.get_curve_geom(e.curve).and_then(|c| c.certified()) else {
                         continue;
                     };
-                    if !matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+                    if !matches!(c.carrier(), geom::Curve3::Circle(..)) {
                         continue;
                     }
                     seen += 1;
@@ -610,7 +614,10 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
                 assert!(seen > 0, "the union has a circular rim");
             }
             Err(e) => {
-                eprintln!("departure {departure:e}: the boolean answers first: {e}");
+                eprintln!(
+                    "departure {departure:e}: the boolean answers first: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
             }
         }
     }

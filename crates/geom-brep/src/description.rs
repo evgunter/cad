@@ -118,6 +118,16 @@ impl<T: Real> EdgeAuthority<T> {
     pub fn is_declared(&self) -> bool {
         matches!(*self, EdgeAuthority::Declared(_))
     }
+
+    /// The declaration a restated description carries
+    /// ([`EdgeDescriptionSpec::declared_by`]), if a modeler made one.
+    #[must_use]
+    pub fn declared(self) -> Option<MappedCurve<T>> {
+        match self {
+            EdgeAuthority::Declared(mc) => Some(mc),
+            EdgeAuthority::Derived => None,
+        }
+    }
 }
 
 /// **Which curve of a pair's intersection an edge is** (D2's selector).
@@ -148,6 +158,25 @@ impl<T: Real> CurveSelector<T> {
         pair: SurfacePair,
         mut f: impl FnMut(SurfaceKey) -> Option<SurfaceKey>,
     ) -> Option<(SurfacePair, Self)> {
+        self.try_remapped(pair, |k| f(k).ok_or(())).ok()
+    }
+
+    /// [`CurveSelector::remapped`] through a total `f`.
+    #[must_use]
+    pub fn remapped_total(
+        &self,
+        pair: SurfacePair,
+        mut f: impl FnMut(SurfaceKey) -> SurfaceKey,
+    ) -> (SurfacePair, Self) {
+        let Ok(remapped) = self.try_remapped(pair, |k| Ok::<_, core::convert::Infallible>(f(k)));
+        remapped
+    }
+
+    pub(crate) fn try_remapped<E>(
+        &self,
+        pair: SurfacePair,
+        mut f: impl FnMut(SurfaceKey) -> Result<SurfaceKey, E>,
+    ) -> Result<(SurfacePair, Self), E> {
         let [lo, hi] = pair.keys();
         let (new_lo, new_hi) = (f(lo)?, f(hi)?);
         let new = SurfacePair::new(new_lo, new_hi);
@@ -159,7 +188,7 @@ impl<T: Real> CurveSelector<T> {
                 CurveSelector::Structural(Structural::SharedRow(SharedRow { images }))
             }
         };
-        Some((new, selector))
+        Ok((new, selector))
     }
 }
 

@@ -139,9 +139,9 @@ pub(crate) fn section(
     let &geom::Surface::Cone { apex, .. } = cone else {
         panic!("the fixture sections a cone")
     };
-    let reach = geom_brep::Reach::Measured {
-        at: apex,
-        lever: 4.0 * s,
+    let reach = {
+        let lever = 4.0 * s;
+        geom_brep::Reach::fixture(apex, lever)
     };
     match geom_brep::plane_cone_section(&plane(o, n), cone, &reach, band()).unwrap() {
         geom_brep::PlaneConeSection::TiltedEllipse(c)
@@ -152,24 +152,7 @@ pub(crate) fn section(
 
 /// The conic parameter of `p`, a point of `c`.
 fn conic_param(c: &geom::Curve3<f64>, p: Point3<f64>) -> f64 {
-    let (center, axis, u, a, b) = match *c {
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => (center, axis, u_ref, semi_u, semi_v),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => (center, axis, u_ref, radius, radius),
-        _ => unreachable!(),
-    };
-    let w = p - center;
-    (w.dot(axis.cross(u)) / b).atan2(w.dot(u) / a)
+    c.conic().unwrap().angle_of(p)
 }
 
 /// One edge of an [`Island`], travelled from its corner to the next:

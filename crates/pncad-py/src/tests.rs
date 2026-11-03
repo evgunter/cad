@@ -2146,8 +2146,8 @@ fn inner_arm_tags_are_stable() {
         ("shell", Some("thickness"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Profile(ProfileError::EmptyProfile)),
-        ("profile", Some("empty_profile"))
+        pair(&NodeErrorKind::Profile(ProfileError::PlaneNotFinite)),
+        ("profile", Some("plane_not_finite"))
     );
     // The blend's carrier word is the VERB, so the two words here are
     // "which blend" and "what it refused about" — the clearest case
@@ -2156,6 +2156,7 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::Blend {
             verb: BlendKind::Chamfer,
             error: BlendError::NonpositiveSize { size: -1.0 },
+            edge: None,
         }),
         ("chamfer", Some("nonpositive_size"))
     );
@@ -2782,7 +2783,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ProfileProgramRefused {
             node: sp(1),
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
-                pncad::profile::ProfileError::EmptyProfile,
+                pncad::profile::ProfileError::PlaneNotFinite,
             )),
         },
         &["node"],
@@ -3101,6 +3102,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainG1,
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
+        BlendDecision::MaterialSide,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -3126,7 +3128,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
                 terminal_sliver: false,
             },
         };
-        let text = refused.to_string();
+        let text = refused.render(pncad::geom_brep::recourse::Reading::Build);
         assert!(
             reads_as_prose(&text) && !text.contains("Key("),
             "a {decision:?} escalation panics the binding rather than raising: {text}"
@@ -3547,7 +3549,11 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         );
         assert_eq!(
             words.reason.as_deref(),
-            Some(negative.to_string().as_str()),
+            Some(
+                negative
+                    .render(pncad::geom_brep::recourse::Reading::AtRest)
+                    .as_str()
+            ),
             "the validator's own sentence for {word}"
         );
     }
@@ -3617,7 +3623,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     };
 
     for finding in [&census, &stale] {
-        let message = finding.to_string();
+        let message = finding.render(pncad::geom_brep::recourse::Reading::AtRest);
         assert!(
             reads_as_prose(&message),
             "a tier-3′ census finding must read as prose: it is raised \
@@ -3635,7 +3641,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     // The prose names what touched and where, in words — the keys
     // ride in the typed payload a caller resolves against — and ends
     // on the recourse.
-    let message = census.to_string();
+    let message = census.render(pncad::geom_brep::recourse::Reading::AtRest);
     assert!(
         message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
@@ -4005,7 +4011,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
             // move by its section and its place in the station, a
             // value's number by its constraint, a list's entry by its
             // position, a constraint's side by its constraint and which
-            // side, an indexed read's index by its seat, and a drawn
+            // side, a value's direction or axis by its constraint, an
+            // indexed read's index by its seat, and a drawn
             // profile's traced face by its place among the faces it
             // reads, none of which the word carries.
             None => assert!(
@@ -4022,6 +4029,8 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "measured"
                         | "cleared"
                         | "side"
+                        | "along"
+                        | "about"
                         | "traced"
                 ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
@@ -4356,6 +4365,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face_clearance",
             "face_clearance_uncertified",
             "inside_out_operand",
+            "knife_edge",
             "nonpositive_size",
             "op",
             "radius_headroom",
@@ -4365,7 +4375,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spine_irregular",
             "spine_unsupported",
             "surgery_invariant",
-            "tangential_edge",
             "unjoined_operand",
             "unsupported_chain",
             "unsupported_corner",
@@ -4453,7 +4462,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangency_unsupported",
-            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4519,6 +4527,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "checks_error_tag",
         values: &[
             "band",
+            "canceled",
             "evaluation_of_another_document",
             "placement_without_value",
             "product_unavailable",
@@ -4560,7 +4569,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coord_tag",
         values: &[
-            "slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z",
+            "slide",
+            "slide_along",
+            "slide_x",
+            "slide_y",
+            "slide_z",
+            "spin",
+            "spin_about",
+            "spin_x",
+            "spin_y",
+            "spin_z",
         ],
         delegates: &[],
     },
@@ -4704,6 +4722,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_no_references",
             "rebind_target_missing_node",
             "rebind_unknown_name",
+            "section_ids_refused",
             "selection_name_kind",
             "selection_shape",
             "set_loft_sections_on_non_loft",
@@ -4754,6 +4773,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_fault_tag",
             "product_read_fault_tag",
             "program_refusal_tag",
+            "section_id_fault_tag",
             "selection_fault_tag",
             "step_id_fault_tag",
         ],
@@ -4833,6 +4853,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "cosurface_escalated",
             "degenerate_extrusion",
+            "empty_profile",
             "extrusion_escalated",
             "negative_depth",
             "oblique_extrusion",
@@ -4905,6 +4926,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_seam",
             "inline_edit",
             "instance_body_name_referenced",
+            "name_on_dropped_section",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
@@ -5052,7 +5074,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "mc_refusal_tag",
-        values: &["no_samples", "nominal_does_not_build"],
+        values: &["no_samples", "nominal_does_not_build", "stopped"],
         delegates: &["measure_unavailable_tag"],
     },
     TagEntry {
@@ -5091,6 +5113,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "entity_named",
             "escalated",
+            "holdings_unread",
             "joined_piece_off_root",
             "kind_mismatch",
             "member_edge_tied",
@@ -5118,7 +5141,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &["slide_turns_a_ball", "slides_do_not_span"],
+        values: &[
+            "read_slides_do_not_span",
+            "slide_turns_a_ball",
+            "slides_do_not_span",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5267,6 +5294,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
+            "about",
+            "along",
             "axis",
             "body",
             "cleared",
@@ -5443,7 +5472,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_segment",
             "empty_loop",
-            "empty_profile",
             "escalated",
             "inconsistent_arc",
             "multiple_outer_loops",
@@ -5557,6 +5585,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cosurface_escalated",
             "degenerate_angle",
             "degenerate_axis",
+            "empty_profile",
             "full_range_angle",
             "hole_touches_axis",
             "non_finite_axis",
@@ -5628,6 +5657,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_seam_vertex_no_edge_pair",
             "unsupported_seam_vertex_one_operand_seam",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "section_id_fault_tag",
+        values: &["not_this_lofts", "preminted", "repeated"],
         delegates: &[],
     },
     TagEntry {
@@ -5725,6 +5759,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_section",
             "domain_not_unit",
+            "empty_profile",
             "fit",
             "knot_algebra",
             "no_parameter_step",
@@ -5746,6 +5781,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "axis_heading",
             "chamfer_distance",
+            "clearance_high",
+            "clearance_low",
             "distance",
             "index",
             "origin_x",
@@ -5800,6 +5837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_read",
             "read_cycle",
             "reader_of_unminted_var",
+            "section_ids",
             "selection_body",
             "selection_shape",
             "shared_var_needs_name",
@@ -5825,6 +5863,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cuts_the_world",
             "definition_straddles_cut",
             "empty_cut",
+            "name_on_dropped_section",
             "name_on_dropped_step",
             "name_outside_part_world",
             "name_straddles_cut",
@@ -5837,6 +5876,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "severed_edge",
             "space_straddles_cut",
             "split_pin",
+            "stopped",
             "uncut_var_reference",
             "unknown_cut_node",
             "unresolved_var_crosses_cut",
@@ -5983,6 +6023,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_run",
             "off_trace",
             "on_carrier",
+            "unbounded_carrier",
             "undrawn",
             "unevaluated",
             "unreached",
@@ -6288,6 +6329,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
+    // One fact: the extrude, the revolve and the loft or path sweep each
+    // refuse a profile with no loops at their own door;
+    // `an_empty_profile_is_one_word_at_every_sweep` pins them.
+    ("empty_profile", 3),
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
@@ -6334,6 +6379,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Two vocabularies: a pose constructed where two others meet, and a
     // coincidence row whose cells share one point.
     ("meet", 2),
+    // A split's and an inline's refusal of a name on a dropped section:
+    // one fact (`editor_core::refactor::Unmapped::Section`), one word.
+    ("name_on_dropped_section", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
@@ -6371,6 +6419,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
+    // One fact: ids handed to the insert door, which mints them, a
+    // profile's step ids and a loft's section ids alike.
+    ("preminted", 2),
     // One fact: the edit that moved the product's body out of the
     // world (`maintenance_tag`) and the gather that refuses it after
     // (`product_error_tag`).
@@ -6384,8 +6435,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // alphabet forwards.
     ("profile", 2),
     // One fact: a list that names one entry twice, a selection's face
-    // set (`selection_fault_tag`) as a profile's kept step ids.
-    ("repeated", 2),
+    // set (`selection_fault_tag`) as a profile's kept step ids and a
+    // loft's kept section ids.
+    ("repeated", 3),
     ("revolve", 2),
     ("ring_on_curved_face", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
@@ -6415,6 +6467,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `a_split_lineage_cycle_has_one_word_wherever_it_is_met` pins it.
     ("split_lineage_cycle", 2),
     ("step_ids", 3),
+    // One fact: an evaluation a door ran stopped short
+    // (`editor_core::Stopped`), at the Monte-Carlo and split doors.
+    ("stopped", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     // One fact at the edit door and in the skin: a loft through fewer
@@ -6499,6 +6554,20 @@ fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
     assert_eq!(
         edit_error_tag(&refused),
         node_error_tag(NodeErrorClass::SpaceMismatch)
+    );
+}
+
+/// `empty_profile` is one fact at every sweep: a profile with no loops,
+/// refused at the extrude's door, the revolve's and the skin's.
+#[test]
+fn an_empty_profile_is_one_word_at_every_sweep() {
+    use crate::tags::{extrude_error_tag, revolve_error_tag, skin_error_tag};
+    use pncad::sweep::{ExtrudeError, RevolveError, SkinError};
+    let word = extrude_error_tag(&ExtrudeError::EmptyProfile);
+    assert_eq!(word, revolve_error_tag(&RevolveError::EmptyProfile));
+    assert_eq!(
+        word,
+        skin_error_tag(&SkinError::EmptyProfile { section: Some(0) })
     );
 }
 
@@ -10343,7 +10412,15 @@ mod product_memo_rows {
 
         let memo = ProductMemo::default();
         let checks_then_product = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
         });
         assert_eq!(checks_then_product, 1);
@@ -10351,8 +10428,24 @@ mod product_memo_rows {
         let memo = ProductMemo::default();
         let product_then_checks = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("and runs again");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("and runs again");
         });
         assert_eq!(product_then_checks, 1);
     }
@@ -10370,7 +10463,15 @@ mod product_memo_rows {
         let count = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
             product_memo::body_and_names(&memo, &doc, &ev, tol).expect("and names its entities");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(count, 1);
     }
@@ -10393,7 +10494,15 @@ mod product_memo_rows {
         let tol = Tol::witness();
         let memo = ProductMemo::default();
         let none = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(none, 0);
         let first = gathers(|| {
@@ -10439,6 +10548,7 @@ mod product_memo_rows {
             &doc,
             &ev,
             &d::ChecksConfig::default(),
+            &pncad::document::Stop::default(),
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
@@ -10528,6 +10638,7 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         DocumentId::derive("place-node-map-part"),
         Tol::witness(),
         None,
+        &pncad::document::Stop::default(),
     )
     .expect("a cut of free profiles splits");
     let listed = crate::node_map::in_target_id_order(&out.node_map, &out.part);

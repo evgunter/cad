@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_blend_leaves_a_smooth_edge_as_it_is.rs"]
+mod a_blend_leaves_a_smooth_edge_as_it_is;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
@@ -72,6 +74,8 @@ mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
 mod a_face_across_a_wavy_corner;
+#[path = "a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest.rs"]
+mod a_face_moved_off_its_edges_ends_as_their_incidence_read_at_rest;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_face_reads_its_chart_image.rs"]
@@ -86,6 +90,8 @@ mod a_flipped_shallow_dimple;
 mod a_keel_on_a_bores_ruling;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
 mod a_keel_ring_in_an_elliptic_section;
+#[path = "a_keel_tree_in_the_plane.rs"]
+mod a_keel_tree_in_the_plane;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
@@ -174,6 +180,8 @@ mod an_annular_tube_through_a_plate;
 mod an_apex_lying_in_a_partners_face;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
+#[path = "an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read.rs"]
+mod an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
@@ -298,6 +306,8 @@ mod pcurve_p1b_r2_probes;
 mod pieces_oblique_bore;
 #[path = "pinned_corners_at_the_loft_door.rs"]
 mod pinned_corners_at_the_loft_door;
+#[path = "pins_of_todays_blend_refusals.rs"]
+mod pins_of_todays_blend_refusals;
 #[path = "pipeline_null_edge_rows.rs"]
 mod pipeline_null_edge_rows;
 #[path = "pis_arc_capped_poses.rs"]
@@ -1267,6 +1277,9 @@ mod shell10_r2_dump;
 #[path = "cross_solid_apart.rs"]
 mod cross_solid_apart;
 
+#[path = "holdings_of_a_sunk_boss.rs"]
+mod holdings_of_a_sunk_boss;
+
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;
 
@@ -1350,12 +1363,16 @@ mod fallback_rows_review;
 
 #[path = "a_box_along_a_fillets_line_arc_junction.rs"]
 mod a_box_along_a_fillets_line_arc_junction;
+#[path = "a_cone_apex_meets_a_vertex.rs"]
+mod a_cone_apex_meets_a_vertex;
 #[path = "a_cone_apex_on_a_plane_through_it.rs"]
 mod a_cone_apex_on_a_plane_through_it;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
+#[path = "a_saddle_cut_by_its_tangent_plane.rs"]
+mod a_saddle_cut_by_its_tangent_plane;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]

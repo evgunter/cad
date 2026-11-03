@@ -82,7 +82,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
             .get_curve_geom(e.curve)
             .and_then(|g| g.certified())
             .expect("a certified arc");
-        if !matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. }) {
+        if !matches!(c.carrier(), Curve3::Circle(..) | Curve3::Ellipse(..)) {
             continue;
         }
         arcs += 1;
@@ -242,9 +242,12 @@ pub(crate) fn carve(
     removed: f64,
     what: &str,
 ) -> Blended<f64> {
-    let out = verb
-        .run(body, edges)
-        .unwrap_or_else(|e| panic!("{what} ({verb:?}): builds, got {e}"));
+    let out = verb.run(body, edges).unwrap_or_else(|e| {
+        panic!(
+            "{what} ({verb:?}): builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what} ({verb:?}): tier 3, got {e:?}"));
     let c = topo::readback::euler_counts(&out.body);

@@ -84,7 +84,7 @@ fn a_pocket_floor_edge_at_slanted_walls_adds_its_section_on_both_verbs() {
                             .get_curve_geom(c)
                             .and_then(|g| g.certified())
                             .map(|c| c.carrier()),
-                        Some(Curve3::Ellipse { .. })
+                        Some(Curve3::Ellipse(..))
                     )
                 })
                 .count();
@@ -139,7 +139,7 @@ fn a_near_perpendicular_end_builds_its_ellipse_or_decides_the_circle() {
     );
     for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
         assert!(
-            matches!(carrier(&out, *arc), Some(Curve3::Ellipse { .. })),
+            matches!(carrier(&out, *arc), Some(Curve3::Ellipse(..))),
             "a definite lean of {s} is the ellipse"
         );
     }
@@ -150,9 +150,12 @@ fn a_near_perpendicular_end_builds_its_ellipse_or_decides_the_circle() {
     let s = band.zero() / 10.0;
     let body = trapezoid(s);
     let edges = [top(&body)];
-    let out = Verb::Fillet
-        .run(&body, &edges)
-        .unwrap_or_else(|e| panic!("a lean of {s} builds the circle, got {e}"));
+    let out = Verb::Fillet.run(&body, &edges).unwrap_or_else(|e| {
+        panic!(
+            "a lean of {s} builds the circle, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("tier 3");
     assert_naming_totality(&body, &out, &edges, "a lean inside the zero band");
     let removed = Verb::Fillet.section() * (2.0 - 2.0 * s * Verb::Fillet.centroid());
@@ -169,7 +172,7 @@ fn a_near_perpendicular_end_builds_its_ellipse_or_decides_the_circle() {
                     .get_curve_geom(c)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(Curve3::Circle { .. })
+                Some(Curve3::Circle(..))
             ),
             "a lean inside the zero band is the circle"
         );
@@ -303,7 +306,7 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
                     .get_curve_geom(c)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(Curve3::Ellipse { .. })
+                Some(Curve3::Ellipse(..))
             ),
             "an oblique end is an ellipse at Interval"
         );
@@ -402,7 +405,12 @@ fn a_drafted_wall_builds_its_ellipse() {
             r,
             tol(),
         )
-        .unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
+        .unwrap_or_else(|e| {
+            panic!(
+                "a {deg}° draft builds, got {}",
+                e.error.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol()).expect("tier 3");
         let section = r * r * (1.0 - PI / 4.0);
         let centroid = r * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI);
@@ -423,7 +431,7 @@ fn a_drafted_wall_builds_its_ellipse() {
                         .get_curve_geom(c)
                         .and_then(|g| g.certified())
                         .map(|c| c.carrier()),
-                    Some(Curve3::Ellipse { .. })
+                    Some(Curve3::Ellipse(..))
                 ),
                 "{deg}°: a definite draft ends in the ellipse"
             );
@@ -518,7 +526,12 @@ fn a_hole_in_a_slanted_wall_refuses_in_the_sliver_and_builds_in_the_kept_wall() 
             let body = drilled(s, t, h, rad);
             let out = Verb::Fillet
                 .run(&body, &[front(&body)])
-                .unwrap_or_else(|e| panic!("a hole {what} at s = {s} is kept: builds, got {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "a hole {what} at s = {s} is kept: builds, got {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("a hole {what} at s = {s}: tier 3, got {e:?}"));
         }
@@ -560,9 +573,12 @@ fn a_hole_in_a_square_walls_sliver_goes_with_the_band_under_both_verbs() {
 fn a_steep_drilled_wall_keeps_its_bottom_edge_clear() {
     let body = drilled(20.0, 10.0, 0.5, 0.05);
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = Verb::Fillet
-        .run(&body, &[e])
-        .unwrap_or_else(|e| panic!("a hole far along a steep wall builds, got {e}"));
+    let out = Verb::Fillet.run(&body, &[e]).unwrap_or_else(|e| {
+        panic!(
+            "a hole far along a steep wall builds, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).expect("tier 3");
 }
 

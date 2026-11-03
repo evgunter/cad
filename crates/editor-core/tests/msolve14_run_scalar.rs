@@ -251,8 +251,8 @@ fn seat(
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), x),
-            (Coord::Slide(TargetAxis::Y), y),
+            (Coord::slide(TargetAxis::X), x),
+            (Coord::slide(TargetAxis::Y), y),
             (Coord::SPIN, spin),
         ],
     )
@@ -368,15 +368,15 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
             named(turn(), Dimension::Angle),
         ),
         (
-            Coord::Slide(TargetAxis::X),
+            Coord::slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),
         ),
         (
-            Coord::Slide(TargetAxis::Y),
+            Coord::slide(TargetAxis::Y),
             plus(metres(5.0, sin()), metres(s3, cos())),
         ),
         (
-            Coord::Slide(TargetAxis::Z),
+            Coord::slide(TargetAxis::Z),
             plus(named(lift(), Dimension::Length), len(-c3)),
         ),
     ];
@@ -424,7 +424,7 @@ fn bolted(label: &str) -> Bolted {
     let (doc, k) = fixture::index(doc, "k", 3);
     let slide = Formula::mul(fixture::scalar_of(k), named(spacing(), Dimension::Length))
         .expect("a count times a length");
-    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::Slide(TargetAxis::X), slide)]);
+    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::slide(TargetAxis::X), slide)]);
     Bolted {
         doc,
         opts: p.opts(),
@@ -589,7 +589,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
-            (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
+            (Coord::slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
             (Coord::SPIN, ang(0.3)),
         ],
     );
@@ -1061,7 +1061,7 @@ fn assert_encloses_corners(
 /// transform, which certifies each placed edge on its placed carrier,
 /// and a box-wide translation widens those two independently past the
 /// band — a refusal every boxed placer meets today
-/// (`work/topotail/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
+/// (`work/topo/a-boxed-rotation-refuses-not-rigid-at-every-placer.md`,
 /// its "Measured" section). A box a fraction of ε wide is placed, and
 /// the rows that read the BODY read it over one; the rows that read
 /// the SOLVE read it over a wide one ([`assert_pose_encloses_corners`]).
@@ -1090,6 +1090,7 @@ fn assert_pose_encloses_corners(
     let poses = editor_core::mate::solve_document_at::<Interval>(
         doc,
         &boxed(doc, opts, param.clone(), lo, hi),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     assert!(
@@ -1480,7 +1481,7 @@ fn a2_a_box_on_a_value_encloses_the_mated_part() {
 /// (`NodeErrorKind::Motion`), which a widened rotation's enclosure
 /// cannot pass by its seven margins alone. Over a box this wide the
 /// bolt still refuses, at the placed edge's endpoint certification
-/// (`work/shelf/transform-rigid-recertifies-images-enclosed-apart.md`).
+/// (`work/shell/transform-rigid-recertifies-images-enclosed-apart.md`).
 ///
 /// *Breaks if* a placement's boxed rotation is decided by its widened
 /// matrix's orthogonality residuals rather than admitted as a rotation.
@@ -1526,8 +1527,8 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
             )),
         ),
         &[
-            (Coord::Slide(TargetAxis::X), len(x)),
-            (Coord::Slide(TargetAxis::Y), len(y)),
+            (Coord::slide(TargetAxis::X), len(x)),
+            (Coord::slide(TargetAxis::Y), len(y)),
             (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
@@ -1536,6 +1537,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
     let poses = editor_core::mate::solve_document_at::<Interval>(
         &doc,
         &boxed(&doc, &opts, drift(), lo, hi),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     assert!(poses.fault(bolt).is_none(), "{:?}", poses.fault(bolt));
@@ -1597,6 +1599,7 @@ fn a_box_on_a_tilted_standoff_widens_the_map_by_the_box_alone() {
     let poses = editor_core::mate::solve_document_at::<Interval>(
         &doc,
         &boxed(&doc, &opts, gap(), lo, hi),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     assert!(poses.fault(bolt).is_none(), "{:?}", poses.fault(bolt));
@@ -2041,6 +2044,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
         None,
         false,
         Some(&resolver),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the driver runs");
@@ -2071,6 +2075,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
             None,
             false,
             Some(&resolver),
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
     };
@@ -2104,6 +2109,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
             None,
             false,
             Some(&gone),
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .err(),
@@ -2145,6 +2151,7 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
             &copy2,
             &ClearanceQuery::at_dials(
                 editor_core::clearance::ClearanceBound::at_least(c),
+                crate::fixture::no_stop(),
                 Tol::witness(),
             )
             .resolved_by(&resolver),
@@ -2206,6 +2213,7 @@ fn r1_clearance_answers_alike_in_either_order() {
             y,
             &ClearanceQuery::at_dials(
                 editor_core::clearance::ClearanceBound::at_least(c),
+                crate::fixture::no_stop(),
                 Tol::witness(),
             )
             .resolved_by(&resolver),

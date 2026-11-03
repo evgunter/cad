@@ -50,7 +50,12 @@ use viewer::camera::Camera;
 /// the kernel's public door. `doc` is the session's landed document, or
 /// one derived from it that resolves against the same directory.
 pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
-    solve_document(doc, &session.eval_options(), tol)
+    solve_document(
+        doc,
+        &session.eval_options(),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
 }
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
 
@@ -109,7 +114,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use viewer::props::Notation;
-use viewer::sketch::ProfileShape;
 
 // The literal, edit, frame, rectangle and δ doors are `viewer`'s own
 // `test_support` (its `test-support` feature, on for these suites through
@@ -125,15 +129,32 @@ pub fn band() -> pncad::geom_core::Band {
     pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
-/// One form template lowered CANONICALLY — what a suite means when it
-/// authors a shape without a word about notation.
+/// One loop of steps at plain numbers lowered CANONICALLY — what a
+/// suite means when it authors a loop without a word about notation.
 ///
 /// The suites that DO care which unit a literal remembers say so by
-/// naming the notation (`sketch::loop_program` with one of its own),
+/// naming the notation (`sketch::path_program` with one of its own),
 /// which is the point of the units riding the lowering rather than
 /// the op.
-pub fn shape(template: &ProfileShape) -> LoopProgram<Formula> {
-    viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
+pub fn shape(steps: &[pncad::profile::Step<f64>]) -> LoopProgram<Formula> {
+    viewer::sketch::path_program(steps, Notation::CANONICAL, &|_, _| None).expect("finite steps")
+}
+
+/// A circle of `radius` on `centre`, as [`shape`] lowers it.
+pub fn circle_at(centre: [f64; 2], radius: f64) -> LoopProgram<Formula> {
+    shape(&[pncad::profile::Step::Circle {
+        centre: pncad::geom_core::Point2::from_array(centre),
+        radius,
+    }])
+}
+
+/// A `width` by `height` rectangle on `centre`, as [`shape`] lowers it.
+pub fn rectangle_at(centre: [f64; 2], width: f64, height: f64) -> LoopProgram<Formula> {
+    shape(&[pncad::profile::Step::Rectangle {
+        centre: pncad::geom_core::Point2::from_array(centre),
+        width,
+        height,
+    }])
 }
 
 /// The name of the parametric fixture's driving variable.
@@ -415,7 +436,7 @@ pub fn mate_into(
     doc: &mut Doc<ProfileProgram>,
     placement: RecipeNodeId,
     mate: pncad::document::Mate<Formula>,
-    values: Vec<(pncad::document::Coord, Formula)>,
+    values: Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)>,
     tol: Tol,
 ) -> pncad::document::MateRef {
     let (next, mate) = viewer::test_support::mated(doc, placement, mate, values, tol);
@@ -487,11 +508,7 @@ pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> Recipe
     session_insert(
         session,
         SessionOp::AddProfile {
-            loops: vec![shape(&ProfileShape::Rectangle {
-                centre: [0.0, 0.0],
-                width,
-                height,
-            })],
+            loops: vec![rectangle_at([0.0, 0.0], width, height)],
         },
     )
 }
@@ -518,6 +535,72 @@ pub fn box_in(
 /// combine, blend or measure.
 pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, size).1
+}
+
+/// **The plane a split row cuts `body` along**: the plane `by` metres
+/// up from the start cap of the extrude `body` is built from, which is
+/// the plane square to `z` at `by` in that extrude's coordinates. A
+/// plane read as a caller writes one
+/// ([`viewer::session::SplitPlane::Read`]): the cap's plane slid into
+/// the body along its normal ([`plane_inside`]).
+pub fn cut_across(
+    session: &DocSession,
+    body: impl Into<pncad::document::Operand>,
+    by: f64,
+) -> viewer::session::SplitPlane {
+    use pncad::document::{Node, Operand};
+    let mut on = body.into();
+    let doc = session.committed_doc();
+    // The extrude the body's start cap was made by: the body's own, or
+    // the one a copy or a union's first member reads. A union's cap is
+    // read on its first member, in the union's space, where a merge
+    // with another member's cap cannot rename it.
+    let mut node = match &on {
+        Operand::Node(node) | Operand::Output { node, .. } => *node,
+        other => panic!("{other:?} names a node"),
+    };
+    loop {
+        let next = match doc.node(node) {
+            Some(Node::Place { source, .. }) => source.read,
+            Some(Node::Union {
+                members: pncad::document::Bodies::Spelled(members),
+            }) => {
+                on = Operand::Var(members[0].read);
+                members[0].read
+            }
+            _ => break,
+        };
+        let Some(read) = doc.operation_of(next) else {
+            break;
+        };
+        node = read;
+    }
+    let cap = Operand::select(
+        on,
+        vec![pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Face,
+            node,
+            path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::Start)],
+        }],
+    );
+    plane_inside(cap, by)
+}
+
+/// **The plane `depth` metres inside the plane face `face`**, facing
+/// into the body: the face's plane turned over, so its normal points
+/// inward and a split's `above` side is the body's, then slid along it.
+pub fn plane_inside(face: pncad::document::Operand, depth: f64) -> viewer::session::SplitPlane {
+    use pncad::document::Operand;
+    use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+    let plane = Operand::Pose(Box::new(PoseDef::Plane { face }));
+    let inward = Operand::Pose(Box::new(PoseDef::Flip {
+        pose: RoleRead::plain(plane),
+    }));
+    viewer::session::SplitPlane::Read(RoleRead::plain(Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::plain(inward.clone()),
+        along: RoleRead::through(inward, PoseRole::Normal),
+        by: len(depth),
+    }))))
 }
 
 /// **One node's row out of a tree render.**
@@ -950,4 +1033,67 @@ pub fn proposed(
     tool.clone()
         .chosen(choice)?
         .proposal(doc, ev, session.tol())
+}
+
+/// **The Transform tool, as a person drives it**: the placement editor
+/// opened on `node` by the tool's door
+/// ([`viewer::matetool::MateTool::moving`]), each of `values` typed on
+/// its value row, and its Apply — the Create door's `Place` on a body
+/// nothing places, the Edit door's `SetBundle` on a copy. Pumps first:
+/// the editor derives its Apply against the landed pair.
+///
+/// # Panics
+///
+/// Where the door does not open or the draft proposes no Apply.
+pub fn transformed(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
+) -> SessionOp {
+    transformed_at(session, node, None, values)
+}
+
+/// [`transformed`] of the output `body` of `node` a viewport pick hit —
+/// a split's half.
+pub fn transformed_at(
+    session: &mut DocSession,
+    node: RecipeNodeId,
+    body: Option<u32>,
+    values: &[(pncad::document::Coord<pncad::document::Operand>, Formula)],
+) -> SessionOp {
+    session.pump();
+    let tol = session.tol();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
+        .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
+    for (coord, by) in values {
+        tool.type_value(coord.clone(), by.clone());
+    }
+    tool.proposal(doc, ev, tol)
+        .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
+        .op()
+}
+
+/// **The three slides the Transform tool types**, each zero the constant
+/// `0` ([`translation`]).
+pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord<pncad::document::Operand>, Formula)> {
+    pncad::document::TargetAxis::ALL
+        .into_iter()
+        .zip(translation(by))
+        .map(|(axis, by)| (pncad::document::Coord::slide(axis), by))
+        .collect()
+}
+
+/// **`node` moved by the Transform tool to the slides `by`**, its other values
+/// as the door loads them, and the placement it wrote: the new copy a
+/// Create inserts, or the copy an Edit rewrote.
+pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
+    let op = transformed(session, node, &slides(by));
+    let edited = match &op {
+        SessionOp::SetBundle { placement, .. } => Some(*placement),
+        _ => None,
+    };
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    edited.unwrap_or_else(|| outcome.made.expect("the Create door made a copy"))
 }

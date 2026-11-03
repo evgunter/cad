@@ -20,12 +20,7 @@ fn band() -> Band {
 /// The quarter arc of the unit circle about `z` in `z = 0`.
 fn arc() -> EdgeCurveSpec<f64> {
     EdgeCurveSpec::arc_of_circle(
-        geom::Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        geom::Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
         0.0,
         core::f64::consts::FRAC_PI_2,
     )
@@ -43,13 +38,11 @@ fn arc_ends() -> (Point3<f64>, Point3<f64>) {
 /// cylinder's axis, `x` about `r/θ`.
 fn far_centre(x: f64) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec {
-        carrier: geom::Curve3::Ellipse {
-            center: Point3::new(-x, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            semi_u: x,
-            semi_v: 1.0,
-            u_ref: Vec3::unit_x(),
-        },
+        carrier: geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::new(-x, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            x,
+            1.0,
+        )),
         param_start: -1e-3,
         param_end: 1e-3,
         ..arc()
@@ -186,7 +179,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
                 ) => {
                     assert_eq!(*diag, cause(), "x {x:e}");
                     assert_eq!(*resolution, MarginDiag::value(k * rho), "x {x:e}");
-                    let text = got.to_string();
+                    let text = got.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         text.starts_with(
                             "whether a section curve's end meets its vertex is undecided"
@@ -244,8 +237,9 @@ fn a_definite_miss_within_the_resolution_is_the_carriers() {
                 },
                 ..
             }
-        ) && got.to_string() == want,
-        "within: {got:?}: {got}"
+        ) && got.render(geom_brep::recourse::Reading::Build) == want,
+        "within: {got:?}: {got_at}",
+        got_at = got.render(geom_brep::recourse::Reading::Build)
     );
     for (what, spec, at) in [
         ("past the resolution", spec.clone(), off(100.0 * rho)),
@@ -366,10 +360,7 @@ fn a_chord_carries_the_tables_reading_of_the_plane() {
         half_angle: 0.5_f64.atan(),
         u_ref: Vec3::unit_x(),
     };
-    let reach = geom_brep::Reach::Measured {
-        at: Point3::new(0.0, 0.0, 1.0),
-        lever: 1.0,
-    };
+    let reach = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 1.0), 1.0);
     for (tilt, want) in [
         (0.0, SectionEndReading::SquareToAxis),
         (0.3, SectionEndReading::OnPlane),
@@ -433,7 +424,7 @@ fn a_torus_square_to_its_axis_is_read_square() {
             band(),
             &cut,
             &torus,
-            SectionReach::Torus(2.5),
+            SectionReach::Torus(geom_core::test_support::fixture_lever(2.5)),
         ) {
             Ok(SectionCase::Loops { loops, .. }) => {
                 for curve in &loops {

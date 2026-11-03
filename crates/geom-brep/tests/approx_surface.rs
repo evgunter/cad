@@ -69,8 +69,12 @@ fn approx_of(s: &Surface<f64>) -> &geom::ApproxSurface<f64> {
 fn the_door_stores_what_it_was_asked_for() {
     for d in [0.05_f64, -0.05] {
         let base = Arc::new(bowed());
-        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band())
-            .unwrap_or_else(|e| panic!("d = {d}: {e}"));
+        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band()).unwrap_or_else(|e| {
+            panic!(
+                "d = {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let a = approx_of(&s);
         let geom::SurfaceDescription::Offset {
             base: stored,
@@ -127,7 +131,8 @@ fn an_unreachable_tolerance_refuses_typed() {
                 ..
             }
         ),
-        "expected the sample cap's refusal, got {e}"
+        "expected the sample cap's refusal, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -140,7 +145,8 @@ fn a_degenerate_request_refuses_typed() {
             .expect_err("a degenerate d has no offset");
         assert!(
             matches!(e, OffsetFitError::InvalidRequest { .. }),
-            "d = {d}: got {e}"
+            "d = {d}: got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
     }
 }
@@ -327,7 +333,8 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
         .expect_err("the re-derivation must refuse the coarsened fit");
     assert!(
         matches!(e, OffsetFitError::Limb { .. }),
-        "expected a limb refusal, got {e}"
+        "expected a limb refusal, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -351,7 +358,8 @@ fn a_loose_mint_is_green_at_its_target_and_red_at_a_tighter_one() {
         .expect_err("a loose mint must refuse at a tighter epsilon");
     assert!(
         matches!(e, OffsetFitError::Limb { .. }),
-        "expected a limb refusal naming the bound it measured, got {e}"
+        "expected a limb refusal naming the bound it measured, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -387,7 +395,8 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
     .expect_err("a sub-window is not a bound this certificate proved");
     assert!(
         matches!(e, OffsetFitError::WindowUnsupported { .. }),
-        "got {e}"
+        "got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -462,7 +471,7 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
             let cert = certify_offset_at(&mapped_base, &mapped_fit, d, TARGET, band())
                 .unwrap_or_else(|e| {
                     panic!(
-                        "d = {d}, {name}: the composition law must hold under certification: {e}"
+                        "d = {d}, {name}: the composition law must hold under certification: {e_at}", e_at = e.render(geom_brep::recourse::Reading::Build)
                     )
                 });
             assert!(
@@ -605,7 +614,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             a,
             b,
             move |k| arena.get(k).cloned(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         )

@@ -170,8 +170,11 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
             continue;
         };
         let conic = match c.carrier() {
-            Curve3::Ellipse { .. } => tilted,
-            Curve3::Circle { center, .. } => !tilted && center.y == 0.5,
+            Curve3::Ellipse(..) => tilted,
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                ..
+            }) => !tilted && center.y == 0.5,
             _ => false,
         };
         if !conic {
@@ -217,7 +220,12 @@ fn tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes() {
                 &plane(phi, 0.5),
                 Tol::witness(),
             )
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let (above, below) = halves(&result, &what);
             assert_section(&above, phi > 0.0, &what);
             assert_section(&below, phi > 0.0, &what);
@@ -261,7 +269,12 @@ fn cuts_through_a_cap_and_the_apex_region() {
             &plane(phi, qy),
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let (above, below) = halves(&result, &what);
         let (va, vb) = (vol(&above), vol(&below));
         assert!((va + vb - FRUSTUM_VOLUME).abs() < 1e-12, "{what}: sum");
@@ -293,7 +306,12 @@ fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
             panic!("{conic:?}: expected the open-conic refusal, got {err:?}");
         };
         assert_eq!(*named, conic);
-        assert!(err.to_string().contains(conic.named()), "{conic:?}: {err}");
+        assert!(
+            err.render(geom_brep::recourse::Reading::Build)
+                .contains(conic.named()),
+            "{conic:?}: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
     let eps = Tol::witness().get().eps;
     for k in [-3.0, 3.0] {
@@ -322,8 +340,12 @@ fn a_plane_missing_the_cone_splits_the_body() {
     let total = PI + FRUSTUM_VOLUME;
     for phi in [0.0, 0.3] {
         let what = format!("phi {phi}");
-        let result = split(&tower, &plane(phi, 0.5), Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(&tower, &plane(phi, 0.5), Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let (above, below) = halves(&result, &what);
         let props = |b: &Body<f64>| {
             topo::mass_properties(
@@ -417,8 +439,12 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
     assert!((vol(&cone) - total).abs() < 1e-12, "the uncut cone");
     for qy in [0.15, 0.4, 0.75] {
         let what = format!("axis-normal circle at y = {qy}");
-        let result =
-            split(&cone, &plane(0.0, qy), Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let result = split(&cone, &plane(0.0, qy), Tol::witness()).unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let (above, below) = halves(&result, &what);
         let tip = PI * (1.0 - qy).powi(3) / 3.0;
         assert!((vol(&above) - tip).abs() < 1e-12, "{what}: the tip cone");
@@ -437,8 +463,12 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
                         phi.sin() * psi.sin(),
                     )),
                 };
-                let result =
-                    split(&cone, &cut, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+                let result = split(&cone, &cut, Tol::witness()).unwrap_or_else(|e| {
+                    panic!(
+                        "{what}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
                 let (above, below) = halves(&result, &what);
                 let (va, vb) = (vol(&above), vol(&below));
                 assert!((va + vb - total).abs() < 1e-12, "{what}: sum {}", va + vb);
@@ -509,7 +539,7 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         // The 0.9 km steep frustum's turn re-certifies its rims past the
         // band at ε = 1e-12, at its own extent's rounding: limb 2's
         // kernel limit
-        // (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        // (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
         let pinned: &[f64] = if alpha == 1.3 { &[1e-12] } else { &[] };
         let turned = topo::transform_rigid(&body, &rigid(&motion, tol), tol);
         let Some(body) = test_utils::kernel_limit::pinned(turned, eps, pinned, &what) else {

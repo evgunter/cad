@@ -1,29 +1,28 @@
-//! Certified-conservative [`Aabb`] constructors for curve carriers
-//! (C10, M5 PR 8): a box is a cache with a **containment contract** —
-//! the carrier's true locus over the stated span lies inside it — and
-//! every computation here errs outward only: by the certified
-//! [`Interval`] arithmetic the conic doors run in, or, for the spiric,
-//! by the charge [`crate::spiric_period_box`] states for its own
-//! arithmetic.
+//! Certified [`Aabb`] constructors for curve carriers (C10, M5 PR 8):
+//! a box is a cache with a **containment contract** — the carrier's
+//! true locus over the stated span lies inside it — and each box is an
+//! enclosure by the [`Interval`] arithmetic the conic doors run in, or,
+//! for the spiric, by its scalar's own arithmetic on its period's
+//! corners.
+//! Nothing is charged beyond it (`[simple.conditioned]`).
 //!
-//! **Outward is the only sound direction; it is not a free one.** A
-//! wider box is a weaker answer, not a cheaper one: a consumer that
-//! reads non-overlap as its ANSWER loses that answer to width, and
-//! which consumers read a box that way is not visible from here —
-//! `topo` depends on `geom`, not the reverse. So these docs state the
-//! containment contract and stop. What looseness costs is the reading
-//! door's to state, per door, where the doors are.
+//! **No kernel door reads these boxes now.** An edge's region is its
+//! cover (`crate::cover`, read through `Curve3::cover_over`), and every
+//! box, reach and extent a consumer takes is a method on the cover.
+//! These doors remain as the closed-form references the cover's rows
+//! and the bounds census check against; [`ArcWindow`], the extremum of
+//! a harmonic over a span, is the one body both read.
+//!
+//! **A wider box is a weaker answer, not a cheaper one**: a consumer
+//! that reads non-overlap as its ANSWER loses that answer to width.
 //!
 //! They live HERE, not in the `bvh` crate, so the tree stays below the
-//! geometry crate (the SSI subdivision duty inside them must be able
-//! to consume it — see `bvh`'s crate docs) and each constructor sits
-//! next to the invariant it cites. [`conic_arc_aabb`] is the one door
-//! a consumer boxing an edge of unknown conic kind reads; the two kind
-//! doors under it are its arms. A conic arc's extent along an
-//! ARBITRARY direction is [`conic_arc_extent_along`] (at the carrier's
-//! scalar) and [`conic_arc_extent_along_bracketed`] (certified); the
-//! box doors are the same closed form read along the world axes, so
-//! the extremum has one body ([`ArcWindow`]).
+//! geometry crate and each constructor sits next to the invariant it
+//! cites. A conic arc's extent along an ARBITRARY direction is
+//! [`conic_arc_extent_along`] (at the carrier's scalar) and
+//! [`conic_arc_extent_along_bracketed`] (certified); the box doors are
+//! the same closed form read along the world axes, so the extremum has
+//! one body ([`ArcWindow`]).
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
@@ -44,89 +43,9 @@
 use bvh::Aabb;
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
-use crate::curves::Curve3;
 use crate::curves::nurbs::NurbsCurve3;
+use crate::curves::{Conic, Curve3};
 use crate::net;
-
-/// A conic's frame as the extremum reads it: the centre, the plane
-/// normal, the `t = 0` reference direction and the two semi-axes — a
-/// circle is the ellipse with `semi_u = semi_v = radius`. Each
-/// constructor refuses (`None`) every kind it does not name.
-#[derive(Clone, Copy)]
-struct ConicFrame<T: Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    semi_u: T,
-    semi_v: T,
-}
-
-impl<T: Real> ConicFrame<T> {
-    fn of(carrier: &Curve3<T>) -> Option<Self> {
-        Self::circle(carrier).or_else(|| Self::ellipse(carrier))
-    }
-
-    fn circle(carrier: &Curve3<T>) -> Option<Self> {
-        let Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } = *carrier
-        else {
-            return None;
-        };
-        Some(Self {
-            center,
-            axis,
-            u_ref,
-            semi_u: radius,
-            semi_v: radius,
-        })
-    }
-
-    fn ellipse(carrier: &Curve3<T>) -> Option<Self> {
-        let Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } = *carrier
-        else {
-            return None;
-        };
-        Some(Self {
-            center,
-            axis,
-            u_ref,
-            semi_u,
-            semi_v,
-        })
-    }
-
-    /// `axis × u_ref`, the `t = π/2` reference direction.
-    fn v_ref(&self) -> Vec3<T> {
-        self.axis.cross(self.u_ref)
-    }
-}
-
-impl<T: Bounds> ConicFrame<T> {
-    /// The frame with every scalar entered as the [`Interval`] of its
-    /// bracket. The second reference direction is crossed AFTER the
-    /// lift, so its rounding is the interval's and not `T`'s.
-    fn lifted(self) -> ConicFrame<Interval> {
-        let point = |p: Point3<T>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
-        let vector = |v: Vec3<T>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
-        ConicFrame {
-            center: point(self.center),
-            axis: vector(self.axis),
-            u_ref: vector(self.u_ref),
-            semi_u: lift(self.semi_u),
-            semi_v: lift(self.semi_v),
-        }
-    }
-}
 
 /// A bracket as the certified scalar's enclosure of it. The box doors
 /// read only the result's bounds, never its decoration, so the
@@ -187,13 +106,19 @@ impl<T: Real> ArcWindow<T> {
     }
 
     /// **Whether the crest of `p·cos t + q·sin t` lies in the span**, as
-    /// a reading at most zero iff it does: `π − h` where the span covers
-    /// a full turn, else `A·cos h − (p·cos m + q·sin m)`. The trough is
-    /// the crest of `(−p, −q)`. Read it with [`Real::select_le_zero`]:
-    /// an enclosure that cannot tell takes both arms.
+    /// a reading at most zero iff it does: the lesser of `π − h`, at most
+    /// zero where the span covers a full turn, and
+    /// `A·cos h − (p·cos m + q·sin m)`, at most zero where a span short of
+    /// a turn holds the crest. Short of a turn the first is positive, so
+    /// the second decides. The lesser asks no question of the scalar, so
+    /// a closed span, whose `π − h` an enclosure straddles, still reads
+    /// its crest as held wherever the crest stands clear of its seam. The
+    /// trough is the crest of `(−p, −q)`. Read it with
+    /// [`Real::select_le_zero`]: an enclosure that cannot tell takes both
+    /// arms.
     pub fn crest_outside(&self, p: T, q: T) -> T {
         let tilt = (p.powi(2) + q.powi(2)).sqrt() * self.cos_h - (p * self.cos_m + q * self.sin_m);
-        self.turn_left.select_le_zero(self.turn_left, tilt)
+        self.turn_left.min(tilt)
     }
 
     /// The `(lo, hi)` of `c + p·cos t + q·sin t` over the span.
@@ -208,18 +133,22 @@ impl<T: Real> ArcWindow<T> {
     }
 }
 
-/// The extent of `frame`'s arc over `window` along `n`, about `origin`.
+/// The extent of `conic`'s arc over `window` along `n`, about `origin`.
 fn extent_along<T: Real>(
-    frame: &ConicFrame<T>,
+    conic: &dyn Conic<T>,
     window: &ArcWindow<T>,
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> (T, T) {
-    window.extent(
-        (frame.center - origin).dot(n),
-        frame.semi_u * frame.u_ref.dot(n),
-        frame.semi_v * frame.v_ref().dot(n),
-    )
+    let (p, q) = conic.along(n);
+    window.extent((conic.frame().center - origin).dot(n), p, q)
+}
+
+/// The carrier with every scalar entered as the [`Interval`] of its
+/// bracket. A conic's second reference direction is crossed after the
+/// lift, so its rounding is the interval's and not `T`'s.
+fn lifted<T: Bounds>(carrier: &Curve3<T>) -> Curve3<Interval> {
+    carrier.map_scalar(lift)
 }
 
 /// **A circle or ellipse arc's extent along a direction**: the
@@ -243,9 +172,8 @@ pub fn conic_arc_extent_along<T: Real>(
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> Option<(T, T)> {
-    let frame = ConicFrame::of(carrier)?;
     Some(extent_along(
-        &frame,
+        carrier.conic()?,
         &ArcWindow::new(theta0, theta1),
         origin,
         n,
@@ -263,11 +191,13 @@ pub fn conic_arc_extent_along_bracketed<T: Bounds>(
     origin: Point3<T>,
     n: Vec3<T>,
 ) -> Option<(f64, f64)> {
-    let frame = ConicFrame::of(carrier)?.lifted();
+    carrier.conic()?;
+    let lifted = lifted(carrier);
+    let conic = lifted.conic()?;
     let origin = Point3::new(lift(origin.x), lift(origin.y), lift(origin.z));
     let n = Vec3::new(lift(n.x), lift(n.y), lift(n.z));
     let (lo, hi) = extent_along(
-        &frame,
+        conic,
         &ArcWindow::new(lift(theta0), lift(theta1)),
         origin,
         n,
@@ -280,7 +210,7 @@ pub fn conic_arc_extent_along_bracketed<T: Bounds>(
 /// read along `x̂`, `ŷ`, `ẑ` — at the certified scalar, hulled with the
 /// endpoint seeds.
 fn conic_frame_aabb<T: Bounds>(
-    frame: ConicFrame<T>,
+    conic: &dyn Conic<Interval>,
     theta0: T,
     theta1: T,
     end0: Point3<T>,
@@ -288,14 +218,13 @@ fn conic_frame_aabb<T: Bounds>(
 ) -> Aabb {
     // Endpoint hull: always inside the box (2 points — never empty).
     let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-    let frame = frame.lifted();
     let window = ArcWindow::new(lift(theta0), lift(theta1));
     for (n, min, max) in [
         (Vec3::unit_x(), &mut b.min_x, &mut b.max_x),
         (Vec3::unit_y(), &mut b.min_y, &mut b.max_y),
         (Vec3::unit_z(), &mut b.min_z, &mut b.max_z),
     ] {
-        let (lo, hi) = extent_along(&frame, &window, Point3::origin(), n);
+        let (lo, hi) = extent_along(conic, &window, Point3::origin(), n);
         *min = pfold(*min, lo.lo(), f64::min);
         *max = pfold(*max, hi.hi(), f64::max);
     }
@@ -337,13 +266,14 @@ pub fn circle_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    Some(conic_frame_aabb(
-        ConicFrame::circle(carrier)?,
-        theta0,
-        theta1,
-        end0,
-        end1,
-    ))
+    let Curve3::Circle(_) = carrier else {
+        return None;
+    };
+    let lifted = lifted(carrier);
+    let Curve3::Circle(conic) = &lifted else {
+        return None;
+    };
+    Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
 /// The certified-conservative box of an **ellipse arc**: the carrier's
@@ -362,24 +292,28 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    Some(conic_frame_aabb(
-        ConicFrame::ellipse(carrier)?,
-        theta0,
-        theta1,
-        end0,
-        end1,
-    ))
+    let Curve3::Ellipse(_) = carrier else {
+        return None;
+    };
+    let lifted = lifted(carrier);
+    let Curve3::Ellipse(conic) = &lifted else {
+        return None;
+    };
+    Some(conic_frame_aabb(conic, theta0, theta1, end0, end1))
 }
 
-/// The certified-conservative box of a SPIRIC arc — the whole
-/// period's ([`crate::spiric_period_box`], the one construction, which
-/// charges for its own rounding), run in `T`'s own arithmetic, its two
-/// corners then bracketed, and seeded with the endpoint hull exactly as
-/// [`ellipse_arc_aabb`] is. A
-/// C10 superset: the exact per-axis extremes need a transcendental root
-/// and are not owed; a wider box is a weaker answer, never a wrong one.
-/// Off-regime data (`ρ_min² < d²` beyond the construction's charge) is
-/// poison, and poison flows to the poison box.
+/// The box of a SPIRIC carrier's whole period, in closed form and
+/// **independent of the cover's construction**: the world box of the
+/// oval's four period corners `c + n·d + m·f ± a·r`, `f` at the two
+/// ends of its range ([`crate::curves::spiric_f_range`]),
+/// `n = u_ref`, `m = axis × u_ref`, `a = axis`, in `T`'s own
+/// arithmetic, and hulled with the endpoints exactly as
+/// [`ellipse_arc_aabb`] is. It reads no tube, no window and no
+/// [`ArcWindow`], so the cover's rows hold the cover against it as a
+/// second spelling of the period's box, not as a copy of the cover's
+/// arm. A C10 superset: the exact per-axis extremes need a
+/// transcendental root and are not owed. Off-regime data
+/// (`ρ_min² < d²`) roots at poison, and gives the poison box.
 ///
 /// `None` when `carrier` is not a `Spiric` (wrong lane — refuse loudly
 /// rather than guess). Residual padding stays the caller's
@@ -396,21 +330,32 @@ pub fn spiric_arc_aabb<T: Bounds>(
         major_radius,
         minor_radius,
         offset,
-    } = carrier
+    } = *carrier
     else {
         return None;
     };
-    let (lo, hi) = crate::spiric_period_box(
-        *center,
-        *axis,
-        *u_ref,
-        *major_radius,
-        *minor_radius,
-        *offset,
+    let (f_lo, f_hi) = crate::curves::spiric_f_range(major_radius, minor_radius, offset);
+    let (m, base, tip) = (
+        axis.cross(u_ref),
+        center + u_ref * offset,
+        axis * minor_radius,
     );
-    let ends = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-    let period = Aabb::from_points([lo, hi]).unwrap_or_else(Aabb::poison);
-    Some(ends.hull(&period))
+    let corners = [
+        base + m * f_lo + tip,
+        base + m * f_lo - tip,
+        base + m * f_hi + tip,
+        base + m * f_hi - tip,
+        end0,
+        end1,
+    ];
+    let poisoned = corners
+        .iter()
+        .any(|p| p.x.is_poison() || p.y.is_poison() || p.z.is_poison());
+    Some(if poisoned {
+        Aabb::poison()
+    } else {
+        Aabb::from_points(corners).unwrap_or_else(Aabb::poison)
+    })
 }
 
 /// The certified-conservative box of a conic ARC, whichever conic the
@@ -422,7 +367,7 @@ pub fn spiric_arc_aabb<T: Bounds>(
 /// `Line` or `Nurbs` carrier: those kinds have their own rule (the
 /// chord; the control hull, [`nurbs_curve_aabb`]) and this door refuses
 /// rather than guesses. Everything else — span restriction, outward
-/// rounding (for the spiric, its construction's charge), poison — is
+/// rounding, poison — is
 /// the kind door's contract, verbatim.
 pub fn conic_arc_aabb<T: Bounds>(
     carrier: &Curve3<T>,
@@ -432,8 +377,8 @@ pub fn conic_arc_aabb<T: Bounds>(
     end1: Point3<T>,
 ) -> Option<Aabb> {
     match carrier {
-        Curve3::Circle { .. } => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
-        Curve3::Ellipse { .. } => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Circle(..) => circle_arc_aabb(carrier, theta0, theta1, end0, end1),
+        Curve3::Ellipse(..) => ellipse_arc_aabb(carrier, theta0, theta1, end0, end1),
         Curve3::Spiric { .. } => spiric_arc_aabb(carrier, end0, end1),
         Curve3::Line(_) | Curve3::Nurbs(_) => None,
     }

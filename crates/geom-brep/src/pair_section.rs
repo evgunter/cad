@@ -428,7 +428,7 @@ impl<T: Decide> CylinderSpherePose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::new(self.center, self.big_r)
+        ExtentBall::of_sphere(self.center, self.big_r)
     }
 
     /// The cylinder's radius `r` and the sphere's `R`, both decided
@@ -741,9 +741,9 @@ pub struct SectionComponent<T: Real> {
     /// Whether the arm proves it winds about each surface's carrier (it
     /// is essential there), in the order the section was asked of:
     /// `false` claims nothing, since an arm that does not read
-    /// essentiality lists none. An arc that ends at nodes claims it of
-    /// its node-joined set, the arcs that share its nodes, which is the
-    /// connected component.
+    /// essentiality lists none. An arc that ends at nodes claims
+    /// nothing here: its node-joined set, the connected component,
+    /// claims it ([`PairSection::node_sets`]).
     pub winds: [bool; 2],
     /// One point of it, where the arm names one: in closed form, or a
     /// spline section's wall point with a point of the component
@@ -807,7 +807,22 @@ pub struct PairSection<T: Real> {
     decided: Vec<ZeroVerdict>,
     components: Components<T>,
     nodes: Vec<Point3<T>>,
-    lever: T,
+    node_sets: Vec<NodeSet>,
+    lever: geom_core::Lever<T>,
+}
+
+/// **A node-joined set of a counted section's components** (C5): arcs
+/// that share nodes, which together are one connected component of the
+/// section. Whether that component winds about each surface's carrier is
+/// a fact about the set, not about any one arc of it, so the set claims
+/// it and its arcs claim nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NodeSet {
+    /// The arcs, by their index among the counted components.
+    pub arcs: Vec<usize>,
+    /// Whether the set proves it winds about each surface's carrier, in
+    /// the order the section was asked of; `false` claims nothing.
+    pub winds: [bool; 2],
 }
 
 /// **The pose a section was built over**, one per pair it serves.
@@ -949,6 +964,10 @@ pub(crate) fn whole_reading_refused(e: SsiError) -> SectionError {
 }
 
 /// What [`pair_section`] answers.
+// The section is the variant every reader takes, read once per pair and
+// matched at once; boxing it would cost each of them a deref for the
+// rare `Elsewhere`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum SectionRead<T: Real> {
     /// The pair's section.
@@ -1070,7 +1089,7 @@ pub fn spline_pair_section<T: Decide>(
 /// kind pair `kind` is a side of** — the filter a reader scanning many
 /// pairs applies before it asks [`pair_section`]. Exhaustive, as
 /// `pair_section`'s match is, and a second spelling of it
-/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
+/// (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
 /// is not among them, whether against a plane or another spline: its
 /// section is a whole reading, read per pair through [`pair_section`]'s
 /// march door ([`spline_pair_section`] where rows are handed in) by the
@@ -1116,11 +1135,13 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
         }
     };
     let mut decided = Vec::new();
-    let circle = |station: T| Curve3::Circle {
-        center: pose.center + pose.axis * station,
-        axis: pose.axis,
-        u_ref: geom::square_frame(pose.axis, pose.u_ref).u_ref,
-        radius: pose.r,
+    let circle = |station: T| {
+        Curve3::circle(
+            pose.center + pose.axis * station,
+            pose.axis,
+            pose.r,
+            geom::square_frame(pose.axis, pose.u_ref).u_ref,
+        )
     };
     let ring = |carrier| {
         SectionComponent::closed_form(ComponentShape::Loop, order(true, false), None, carrier)
@@ -1177,11 +1198,12 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     };
     decided.extend(pose.tangency());
     PairSection {
-        lever: pose.r,
+        lever: geom_core::Lever::curvature_radius(pose.r),
         pose: PairPose::CylinderSphere(pose),
         decided,
         components: Components::Counted(components),
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     }
 }
 
@@ -1218,6 +1240,12 @@ impl<T: Decide> PairSection<T> {
     /// ([`ComponentEnds::nodes`]).
     pub fn nodes(&self) -> &[Point3<T>] {
         &self.nodes
+    }
+
+    /// **The node-joined sets of the counted components** ([`NodeSet`]):
+    /// every arc that ends at a node is in exactly one.
+    pub fn node_sets(&self) -> &[NodeSet] {
+        &self.node_sets
     }
 
     /// The components a closed form counts, where one does.
@@ -1335,7 +1363,9 @@ impl<T: Decide> PairSection<T> {
                     .iter()
                     .any(|c| matches!(c.carrier, ClassCarrier::General));
                 let fitted = if general { branches()? } else { Vec::new() };
-                Self::matched(listed, fitted, self.pose.cut(), band)?
+                let carried = Self::matched(listed, fitted, self.pose.cut(), band)?;
+                held_per_set(&self.node_sets, listed, &carried)?;
+                carried
             }
         };
         Ok(CarriedSection {
@@ -1597,9 +1627,11 @@ impl<T: Decide> PairSection<T> {
     /// carrier's period), and the joined carrier is certified again
     /// against the pose's operands through `lane`, since the shifted
     /// knots are rounded. The seated carrier runs from `at`'s point
-    /// round to it. A component that is open, or whose carrier is a
-    /// closed form, is returned as it is: a closed form's parameter is an
-    /// angle, which a chord reads on any branch.
+    /// round to it. A closed form (a circle or an ellipse, whose
+    /// parameter is an angle) is seated by its span alone, `at` to `at`
+    /// plus a turn, its carrier as it is and its witness the new span's
+    /// middle. A component that is open, or a
+    /// spline holding no certificate, is returned as it is.
     ///
     /// # Errors
     ///
@@ -1613,7 +1645,19 @@ impl<T: Decide> PairSection<T> {
         at: T,
         band: Band,
     ) -> Result<CarriedComponent<T>, CarryError> {
-        if !component.closed() || component.certificate.is_none() {
+        if !component.closed() {
+            return Ok(component.clone());
+        }
+        if matches!(component.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+            let (lo, hi) = component.span;
+            let span = (at, at + (hi - lo));
+            return Ok(CarriedComponent {
+                span,
+                witness: component.carrier.mid_point(span.0, span.1),
+                ..component.clone()
+            });
+        }
+        if component.certificate.is_none() {
             return Ok(component.clone());
         }
         let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
@@ -2119,7 +2163,10 @@ pub struct CarriedComponent<T: Real> {
     /// Whether it winds about each surface's carrier, in the order the
     /// section was asked of: a closed form's as classified, a fitted
     /// loop's turns about each surface's axis and core read over its
-    /// uniqueness tube ([`winds`]).
+    /// uniqueness tube ([`winds`]). An arc of a node-joined set claims
+    /// nothing here (`[false, false]`): its set does
+    /// ([`PairSection::node_sets`]), so a reader of a carried arc asks the
+    /// set.
     pub winds: [bool; 2],
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point
@@ -2198,6 +2245,41 @@ impl<T: Decide> CarriedComponent<T> {
     }
 }
 
+/// **Each node-joined set's claimed winding held by its arcs** (C5):
+/// where a set holds a marched arc, the arcs' carried windings together
+/// wind at least as the set claims. A closed form's set is the
+/// classification's own claim, read as made.
+fn held_per_set<T: Real>(
+    sets: &[NodeSet],
+    listed: &[SectionComponent<T>],
+    carried: &[CarriedComponent<T>],
+) -> Result<(), CarryError> {
+    for set in sets {
+        let marched = set
+            .arcs
+            .iter()
+            .any(|&i| matches!(listed[i].carrier, ClassCarrier::General));
+        if !marched {
+            continue;
+        }
+        let held = set.arcs.iter().fold([false, false], |acc, &i| {
+            let w = carried[i].winds;
+            [acc[0] || w[0], acc[1] || w[1]]
+        });
+        if set
+            .winds
+            .iter()
+            .zip(held)
+            .any(|(&claim, held)| claim && !held)
+        {
+            return Err(CarryError::Desync(
+                "a node-joined set's arcs do not wind as the set claims",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// **The march's branches, each a distinct loop**: each branch's
 /// witness, `carrier(mid)`, lies on that branch alone
 /// ([`CarriedComponent::reads`]). A march that found one loop twice
@@ -2226,7 +2308,7 @@ fn distinct<T: Decide>(
 #[derive(Clone, Debug)]
 pub struct CarriedSection<T: Real> {
     components: Vec<CarriedComponent<T>>,
-    lever: T,
+    lever: geom_core::Lever<T>,
 }
 
 /// A site's place on its component: the component, the foot parameter,
@@ -2247,11 +2329,13 @@ impl<T: Decide> CarriedSection<T> {
         &self.components
     }
 
-    /// **The length a direction's angle to a component is levered by**:
-    /// the scale every component of the section turns on, the cylinder's
-    /// radius for cylinder × sphere and a torus's minor radius (the
-    /// smaller of two) for a torus pair.
-    pub fn lever(&self) -> T {
+    /// **The lever a direction's angle to a component is read at**: the
+    /// scale every component of the section turns on, a curvature radius
+    /// for the analytic pairs (the cylinder's for cylinder × sphere, the
+    /// smaller cylinder's for two cylinders, a torus's minor radius, the
+    /// smaller of two, for a torus pair) and the net ball's radius for a
+    /// spline pair.
+    pub fn lever(&self) -> geom_core::Lever<T> {
         self.lever
     }
 
@@ -2531,7 +2615,7 @@ mod wiring {
             Point3::new(0.1, 0.0, 0.0),
             Vec3::new(0.0, 0.3f64.sin(), 0.3f64.cos()),
         );
-        let region = crate::ExtentBall::new(Point3::origin(), 1.5);
+        let region = crate::ExtentBall::of_sphere(Point3::origin(), 1.5);
         let section = match super::pair_section(&a, &b, Some(region), None, band()) {
             Ok(super::SectionRead::Built(s)) => s,
             other => panic!("the value builds the pair: {other:?}"),
@@ -2687,6 +2771,38 @@ mod wiring {
         );
     }
 
+    /// **A node-joined set's winding is held by its arcs or the carry
+    /// desyncs**: the two rings of a sphere past a wall's far ruling,
+    /// read as one node-joined set, carry where the set claims the
+    /// winding about the wall the rings hold, and desync where it claims
+    /// one about the sphere they do not.
+    #[test]
+    fn a_node_sets_claimed_winding_is_held_by_its_arcs() {
+        use super::{CarryError, NodeSet, SsiLane};
+        let (a, b) = wall_and_ball((0.1, 0.0, 0.2), 0.7);
+        let section = built(&a, &b);
+        let with = |winds| super::PairSection {
+            node_sets: vec![NodeSet {
+                arcs: vec![0, 1],
+                winds,
+            }],
+            ..section.clone()
+        };
+        assert!(
+            with([true, false])
+                .carry(Some(SsiLane::marched()), band())
+                .is_ok(),
+            "the rings wind about the wall"
+        );
+        assert!(
+            matches!(
+                with([false, true]).carry(Some(SsiLane::marched()), band()),
+                Err(CarryError::Desync(_))
+            ),
+            "the rings do not wind about the sphere"
+        );
+    }
+
     /// **The witnessless matching is not first fit** (an order that
     /// defeats it): the ball round the donut's axis with its two
     /// components claiming `[true, false]` and `[false, true]` against
@@ -2839,7 +2955,7 @@ mod wiring {
     fn close_rings_carry_counted_and_marched() {
         // Pinned red at 1e-6: at δ 3e-4 no rung of the march's tube is a
         // graph, and nothing refines it
-        // (`work/ssimarch/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
+        // (`work/ssiarith/an-r3-tube-no-rung-makes-a-graph-is-never-refined.md`).
         test_utils::pinned_red::row(
             geom_core::Tol::witness().eps(),
             &[1e-6],

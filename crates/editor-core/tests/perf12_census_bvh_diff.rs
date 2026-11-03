@@ -122,10 +122,11 @@ fn pin(name: &str, doc: &ProfileDoc) -> usize {
             "{name}/{sweep}: the filter pruned pairs the exact sweep decided against: {lost:?}"
         );
         assert_eq!(
-            r.accepted, i.accepted,
+            r.accepted(),
+            i.accepted(),
             "{name}/{sweep}: the accepted pairs differ"
         );
-        pruned += i.examined.len() - r.examined.len();
+        pruned += i.examined().len() - r.examined().len();
     }
     pruned
 }
@@ -218,6 +219,7 @@ fn loft_with_brick() -> ProfileDoc {
     let middle = section(&mut r, PRISM_TRAPEZOID);
     let top = section(&mut r, PRISM_SQUARE);
     let up = |profile: editor_core::RecipeNodeId, z: f64| editor_core::LoftSection {
+        id: None,
         profile: profile.into(),
         station: vec![editor_core::StationMove::Slide {
             along: editor_core::Axis3::Z,
@@ -228,6 +230,7 @@ fn loft_with_brick() -> ProfileDoc {
         first: bottom.into(),
         then: vec![up(middle, 1.0), up(top, 2.0)],
         v_degree: Formula::count(2),
+        first_id: None,
     });
     r.place(body);
     let brick = r.insert(Node::Profile(ProfileProgram {
@@ -320,14 +323,14 @@ fn the_grazing_notch_keeps_the_candidate_the_exact_predicate_rejects() {
     let ideal = run("grazing_notch", &doc, CensusStrategy::Idealized);
     assert_eq!(real.errors, ideal.errors);
     assert!(
-        real.trace.ef.examined.len() >= 4,
+        real.trace.ef.examined().len() >= 4,
         "the brick's four bottom edges lie in the L's top face's box and survive the filter"
     );
     assert!(
-        real.trace.ef.examined.len() < ideal.trace.ef.examined.len(),
+        real.trace.ef.examined().len() < ideal.trace.ef.examined().len(),
         "the faces whose boxes the brick clears are pruned"
     );
-    assert!(real.trace.ef.accepted.is_empty(), "nothing touches");
+    assert!(real.trace.ef.accepted().is_empty(), "nothing touches");
     assert!(
         real.errors.is_empty(),
         "the notch scene is at rest with no contact: {:?}",
@@ -366,7 +369,7 @@ fn planted_degradation_is_caught() {
     );
     let &(_, EntityId::Face(face)) = ideal
         .vf
-        .accepted
+        .accepted()
         .first()
         .expect("the boss's arc joints rest in the plate's top face")
     else {

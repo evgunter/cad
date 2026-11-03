@@ -12,7 +12,7 @@
 //!
 //! `f32::MAX` is about `3.40e38`, so an ordinary finite `f64` narrows
 //! to an infinity — `7e307_f64 as f32` is `inf`, and `7e307` is a
-//! number a person can type into the add-profile form. Guards sited
+//! number a person can type into the profile editor. Guards sited
 //! upstream cannot see that: they ask whether the INPUT is finite, and
 //! it is. [`Narrow::narrow`] asks the only question the seam is about,
 //! which is whether the value the GPU will hold is a number, and
@@ -134,7 +134,7 @@ impl Narrow for Point3<f64> {
 ///
 /// The rows are the seam's boundary and its two failure directions.
 /// Every figure here is executed rather than quoted: the module header
-/// names `7e307` as a coordinate the add-profile form accepts, and
+/// names `7e307` as a coordinate the profile editor accepts, and
 /// [`a_finite_coordinate_a_person_can_author_does_not_narrow`] is what
 /// holds that sentence to the arithmetic.
 #[cfg(test)]
@@ -159,7 +159,7 @@ mod tests {
     /// **The defect the door exists for**: every input is a number, at
     /// every guard, and the value the GPU would hold is not.
     ///
-    /// `7e307` is the add-profile form's witness — a corner a person
+    /// `7e307` is the profile editor's witness — a corner a person
     /// can type, which replays, flattens and reaches
     /// `crate::pane::viewport`'s overlay lanes.
     #[test]

@@ -16,7 +16,9 @@ test_utils::loud_skip_marker!(
 #[cfg(feature = "app")]
 mod driven {
     use crate::common;
+    use pncad::document::{Axis3, SlotId};
     use viewer::app::drive::{DriveError, Driver};
+    use viewer::session::Selection;
 
     /// The startup document, driven, over a preferences file of its own.
     fn started(label: &str) -> Driver {
@@ -32,25 +34,24 @@ mod driven {
         let mut driver = started("drive-profile");
         let before = driver.session().tree_rows().len();
         assert!(
-            !driver.shows("Add profile"),
-            "the creation forms start folded"
+            !driver.shows("New profile"),
+            "the creation sections start folded"
         );
         driver.click("Add feature", 0).expect("the section opens");
-        assert!(
-            !driver.shows("Add profile"),
-            "the open section offers the form's door, not the form"
-        );
-        driver.click("Add profile…", 0).expect("the form opens");
-        driver.click("rectangle", 0).expect("the shape is chosen");
         driver
-            .click("Add profile", 0)
+            .click("New profile", 0)
             .expect("the profile is added");
+        driver.settle().expect("settles");
+        driver
+            .click("Add rectangle loop", 0)
+            .expect("the editor is open on it");
+        driver.settle().expect("settles");
         let rows = driver.session().tree_rows();
-        assert_eq!(rows.len(), before + 1, "one node per Add");
+        assert_eq!(rows.len(), before + 1, "one node per New profile");
         let added = rows.last().expect("a row").spoken.to_string();
         assert!(
             added.contains("Profile 2"),
-            "the new row is the profile the form named: {added}"
+            "the new row is the profile the insert named: {added}"
         );
         assert!(
             driver.dump().contains("Profile 2"),
@@ -60,11 +61,17 @@ mod driven {
 
     /// **A failed feature takes away its own picture and no other's**
     /// — the replay of `work/chrome/a-failed-feature-hides-every-later-edit.md`.
-    /// A revolve that refuses (the default axis, along the semicircle's
-    /// own diameter) leaves its copy undrawn; a second revolve of the
-    /// same profile, at heading 0, is the sphere, and it is drawn and
-    /// picked. Before, the first failure refused the whole index and the
-    /// sphere never reached the picture.
+    /// A revolve that refuses (its axis point's x written 0, so the axis
+    /// is the profile's own y axis, across the semicircle) leaves its
+    /// copy undrawn; a second revolve of the same profile, its heading
+    /// written 0, so the axis runs along the semicircle's diameter, is
+    /// the sphere, and it is drawn and picked. Before, the first
+    /// failure refused the whole index and the sphere never reached the
+    /// picture.
+    ///
+    /// Over the slow-set bar, but `app`-gated, which the slow-set name
+    /// check cannot see
+    /// (`work/ciw/an-app-feature-only-test-cannot-be-listed-in-the-slow-set.md`).
     #[test]
     fn a_failed_revolve_does_not_hide_the_sphere_revolved_after_it() {
         let mut driver = started("drive-partial-picture");
@@ -75,25 +82,26 @@ mod driven {
         driver.click("Create document", 0).expect("created");
         driver.settle().expect("settles");
         driver.click("Add feature", 0).expect("the section opens");
-        driver.click("Add profile…", 0).expect("the form opens");
-        driver.click("path", 0).expect("the path shape");
+        driver
+            .click("New profile", 0)
+            .expect("the profile is added");
+        driver.settle().expect("settles");
+        driver.click("Add path loop", 0).expect("the path template");
+        driver.settle().expect("settles");
         driver.click("line_to", 0).expect("a line row");
         driver.click("arc_to", 0).expect("an arc row");
+        driver.settle().expect("settles");
         driver.click("0.50", 0).expect("the arc's field");
         driver.type_text("1").expect("typed");
         driver
             .key(egui::Key::Enter, egui::Modifiers::NONE)
             .expect("entered");
+        driver.settle().expect("settles");
         driver.click("×", 2).expect("a row removed");
+        driver.settle().expect("settles");
         driver.click("×", 2).expect("another row removed");
         driver.settle().expect("settles");
-        driver
-            .click("Add profile", 0)
-            .expect("the profile is added");
-        driver.settle().expect("settles");
-        for heading in [None, Some("0")] {
-            driver.click("Revolve tool…", 0).expect("the tool opens");
-            driver.settle().expect("settles");
+        for slot in [SlotId::Origin(Axis3::X), SlotId::AxisHeading] {
             // The tree row, by the prefix its fresh tag follows.
             let row = driver
                 .screen()
@@ -103,16 +111,54 @@ mod driven {
                 .expect("the profile's tree row is on screen");
             driver
                 .click_at(row, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
-                .expect("the profile is picked");
+                .expect("the profile is selected");
             driver.settle().expect("settles");
-            if let Some(heading) = heading {
-                driver.click("0.500", 0).expect("the heading field");
-                driver.type_text(heading).expect("typed");
-                driver
-                    .key(egui::Key::Enter, egui::Modifiers::NONE)
-                    .expect("entered");
-            }
-            driver.click("Commit revolve", 0).expect("committed");
+            let selected = |driver: &Driver| match driver.session().selection() {
+                Selection::Node(node) => *node,
+                other => panic!("a node is selected: {other:?}"),
+            };
+            let profile = selected(&driver);
+            let button = format!(
+                "Revolve {}",
+                pncad::document::Speaker::of(driver.session().doc()).node(profile)
+            );
+            driver.click(&button, 0).expect("the profile is revolved");
+            driver.settle().expect("settles");
+            let revolve = selected(&driver);
+            let row = viewer::props::slot_rows(driver.session().doc(), revolve)
+                .into_iter()
+                .find(|row| row.slot == slot)
+                .expect("the revolve's row");
+            // The slot's field is the run just right of its label, on
+            // the label's line (`slot_group_ui`'s scalar row).
+            let label = driver
+                .screen()
+                .iter()
+                .filter(|landed| landed.text == row.label)
+                .find_map(|landed| landed.visible())
+                .unwrap_or_else(|| panic!("the {:?} row's label is on screen", row.label));
+            let field = driver
+                .screen()
+                .iter()
+                .filter_map(|landed| landed.visible())
+                .filter(|rect| {
+                    rect.left() > label.right() && (rect.center().y - label.center().y).abs() < 4.0
+                })
+                .min_by(|a, b| a.left().total_cmp(&b.left()))
+                .expect("the slot's field, right of its label")
+                .center();
+            driver
+                .click_at(
+                    field,
+                    egui::PointerButton::Primary,
+                    egui::Modifiers::NONE,
+                    1,
+                )
+                .expect("the slot's field");
+            driver.type_text("0").expect("typed");
+            driver
+                .key(egui::Key::Enter, egui::Modifiers::NONE)
+                .expect("entered");
             driver.settle().expect("settles");
         }
 
@@ -169,6 +215,11 @@ mod driven {
             None,
             "the tree's FAILED row is the notice; the toolbar adds none"
         );
+        // The document's first body was the first revolve at its
+        // default axis, which the camera was fitted to before its axis
+        // was written across the profile.
+        driver.click("Zoom to fit", 0).expect("the sphere framed");
+        driver.settle().expect("settles");
         let centre = driver.in_viewport(0.5, 0.5).expect("the viewport");
         driver
             .click_at(
@@ -343,56 +394,6 @@ mod driven {
                 Err(DriveError::NotOnScreen { shown: 1, .. })
             ),
             "a second painting of a label painted once is not on screen"
-        );
-    }
-
-    /// **The split panel seeds its plane through the body it picked,
-    /// says the staged split's verdict, and the viewport draws the plane
-    /// on that body** (row `the-split-tools-plane-is-typed-blind`): the
-    /// row's own replay, through the chrome. The startup plate picked
-    /// in the viewport seeds the plane's point at the plate's centre,
-    /// the panel reads the door's verdict that it cuts, and the plane
-    /// is drawn at the plate's mid-height, where its world copy stands.
-    ///
-    /// *Breaks if* the panel stops seeding (the old default lies on the
-    /// plate's bottom face, and the panel would say so), stops asking
-    /// the staged split, or the preview is not drawn on the picked copy.
-    #[test]
-    fn the_split_tool_seeds_its_plane_through_the_picked_plate_and_draws_it_there() {
-        let mut driver = started("drive-split-plane");
-        driver.click("Zoom to fit", 0).expect("the fit");
-        driver
-            .click("Combine bodies", 0)
-            .expect("the section opens");
-        driver.click("Split tool…", 0).expect("the tool opens");
-        let plate = driver.in_viewport(0.3, 0.45).expect("a viewport");
-        driver
-            .click_at(
-                plate,
-                egui::PointerButton::Primary,
-                egui::Modifiers::NONE,
-                1,
-            )
-            .expect("the pick settles");
-        let bounds = viewer::scene::plate_bounds();
-        let mid = 0.5 * (bounds.min_z + bounds.max_z);
-        let origin = driver.split_origin();
-        assert!(
-            (origin[2] - mid).abs() < 1e-12,
-            "the panel seeds the plane at the plate's centre: {origin:?}"
-        );
-        assert!(
-            driver.shows("the plane cuts the body in two"),
-            "the panel reads the staged split's verdict: {}",
-            driver.dump()
-        );
-        let plane = driver
-            .split_plane()
-            .expect("the plane is drawn on the picked plate");
-        assert!(
-            (plane.centre.z - mid).abs() < 1e-9,
-            "the plane is drawn at the plate's mid-height: {:?}",
-            plane.centre
         );
     }
 }

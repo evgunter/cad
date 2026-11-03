@@ -2,10 +2,11 @@
 id: torus-extent-overreaches-the-support-along-a-turned-direction
 kind: issue
 title: boxes::torus_extent reaches (R+r)|a⊥| + r|aᵢ| along a direction whose true support is R|a⊥| + r, so a face just off a torus refuses CurvedWithinReach
-status: open
+status: parked
 opened: 2026-10-10
 priority: P3
 cost: M
+blocked_on: [cover-topo-faces]
 ---
 
 
@@ -43,3 +44,7 @@ existing touch/cut refusals.
 ## Since PR 6336 (BOXES, 2026-11-02)
 
 `torus_window_extent` is gone; the windowed arm is the closed form, whose full-turn reading is the exact support `R·|e⊥| + r` this row asks for. `torus_extent` survives as the windowless arm and as a meet that cannot bind on a point description (PR 6336's review, n2), so it is the only remaining overreach. (BOXES orchestrator)
+
+## Since `cover-geom-readings` (BOXES, 2026-11-02)
+
+The tube's exact support exists: `geom::cover::Cover::tube`, read by `Surface::cover` for a torus, reaches `c·e + R·|e⊥| + r` along a unit `e` (`cover::tests::the_tubes_support_is_r_times_the_cross_part_plus_r`). `boxes::torus_extent` itself is untouched there: it is the windowless arm of the two face box lanes, which `cover-topo-faces` deletes when `face_box` and `census::face_reach(_in)` read the face's cover. The pin this row asks for lands with that arm.

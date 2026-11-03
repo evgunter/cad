@@ -724,6 +724,7 @@ fn split_and_inline_carry_readers_by_id() {
         DocumentId::derive("intent-vars-3-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("the cut alone reads h");
     let part_h = id(&out.part, "h");
@@ -758,6 +759,7 @@ fn split_and_inline_carry_readers_by_id() {
         DocumentId::derive("intent-vars-3-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("an anonymous variable crosses a split");
     let carried = out
@@ -849,6 +851,7 @@ fn split_into_store(
         DocumentId::derive(seed),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .unwrap_or_else(|e| panic!("the split admits the cut: {e}"));
     let mut store = PartStore::default();
@@ -943,6 +946,7 @@ fn a_definition_reading_both_sides_refuses() {
         DocumentId::derive("fork6-mixed-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     ) {
         Err(SplitError::DefinitionStraddlesCut {
             var,
@@ -1055,6 +1059,7 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
         DocumentId::derive("fork6-deleted-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect_err("k reads a variable the document no longer holds");
     let SplitError::DefinitionStraddlesCut {
@@ -1465,6 +1470,7 @@ fn split_and_inline_declare_in_declaration_order() {
         DocumentId::derive("intent-vars-3-order-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     )
     .expect("the cut alone reads the four");
     assert_eq!(declared_names(&out.part), declared_names(&doc));
@@ -1510,6 +1516,7 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
         DocumentId::derive("intent-vars-3-dead-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     ) {
         Err(e @ SplitError::UnresolvedVarCrossesCut { .. }) => {
             let SplitError::UnresolvedVarCrossesCut { var, node } = &e else {
@@ -1811,6 +1818,7 @@ fn a_box_from_before_a_rename_speaks_the_new_name() {
         &renamed,
         &before,
         &editor_core::mc::McConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect_err("a band has no measure to sample");
