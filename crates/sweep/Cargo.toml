@@ -60,6 +60,8 @@ profile = { path = "../profile" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# review-6429 probe: names `quantity::Length` for a tighter `Settle::Resolution`.
+quantity = { path = "../quantity" }
 # The symbolic tier's re-valuation instrument (`geom_core::sym::revalue`,
 # test-only), for the rows that pin a computed value entered through
 # `Real::from_computed` rather than as a constant. `test-support` for
