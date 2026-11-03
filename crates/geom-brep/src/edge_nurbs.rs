@@ -557,7 +557,9 @@ impl LaneDecision<'_> {
     fn ending(self, at: ReadAt) -> String {
         match self {
             Self::Check(check, arm) => recourse(check, arm, at),
-            Self::SsiUndecided(limb, cause) => crate::ssi::SsiDecision::Limb(limb).ending(cause, at),
+            Self::SsiUndecided(limb, cause) => {
+                crate::ssi::SsiDecision::Limb(limb).ending(cause, at)
+            }
             Self::OneArc(cause) => cause.ending(crate::ssi::OneArcDoor::AtRest, at),
             Self::NotYet => crate::recourse::not_yet(RefusedArm::SignCertain(None), at),
             Self::Defect => crate::recourse::defect_ending(at).to_owned(),
@@ -645,9 +647,7 @@ impl PlaneNurbsRefusal {
             // The two levers the pcurve door gives the same facts
             // (`PcurveCertifyError::CarrierDomain`, `PlaceholderChart`).
             Self::CarrierDomain(_) => LaneDecision::Lever(CARRIER_DOMAIN_RECOURSE),
-            Self::PlaceholderWall => {
-                LaneDecision::Lever(crate::pcurve_cache::PLACEHOLDER_RECOURSE)
-            }
+            Self::PlaceholderWall => LaneDecision::Lever(crate::pcurve_cache::PLACEHOLDER_RECOURSE),
             // A span of the carrier no net encloses, and a shape the
             // lane's inventory does not cover: capability gaps, as the
             // SSI and pcurve doors end them.

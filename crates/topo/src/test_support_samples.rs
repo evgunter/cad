@@ -2399,8 +2399,7 @@ mod tests {
         // gives it, against every door that renders the refusal.
         macro_rules! at_the_doors {
             ($refusal:expr, $nested:expr, $ending:expr, $want:expr, $at:expr) => {{
-                let (refusal, nested, ending, want, at) =
-                    (&$refusal, $nested, $ending, $want, $at);
+                let (refusal, nested, ending, want, at) = (&$refusal, $nested, $ending, $want, $at);
                 if ending != want {
                     wrong.push(format!(
                         "{refusal:?} at {at:?} ends outside its decision: {ending}, not {want}"
@@ -2495,9 +2494,7 @@ mod tests {
                     // The SSI door's own decisions: a certificate limb
                     // escalated there, and the one-arc proof.
                     PK::Escalated => match &refusal {
-                        P::Escalated { limb, cause } => {
-                            SsiDecision::Limb(*limb).ending(cause, at)
-                        }
+                        P::Escalated { limb, cause } => SsiDecision::Limb(*limb).ending(cause, at),
                         _ => unreachable!("the kind is the arm"),
                     },
                     PK::TubeNotOneArc => match &refusal {
@@ -2509,9 +2506,7 @@ mod tests {
                     // A lever on the input, by identity: the same two the
                     // pcurve door gives the same facts.
                     PK::CarrierDomain => geom_brep::CARRIER_DOMAIN_RECOURSE.to_owned(),
-                    PK::PlaceholderWall => {
-                        geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned()
-                    }
+                    PK::PlaceholderWall => geom_brep::pcurve_cache::PLACEHOLDER_RECOURSE.to_owned(),
                     // Capability gaps (D3): never a defect, never a
                     // tolerance, no lever.
                     PK::CarrierEnclosure | PK::Unsupported => not_yet(definite, at),
