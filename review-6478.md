@@ -1,8 +1,7 @@
 # Review R2 of PR 6478 — rotational-chart Green lane, stage 1 (cylinder)
 
-Frozen head reviewed: **`e12e3c8d0017f9b83be830d4881f580afcb28c9d`**. Probes: branch
-`spiricarm-rev6478-r2/probes` (`ac8dab727`), file
-`crates/geom-brep/src/props/quad/rotational/swap_rows/probes_r2.rs`.
+Head: **`e12e3c8d0017f9b83be830d4881f580afcb28c9d`**. Probes: `spiricarm-rev6478-r2/probes`
+(`ac8dab727`), `crates/geom-brep/src/props/quad/rotational/swap_rows/probes_r2.rs`.
 
 ## Verdict: APPROVE-WITH-FIXES
 
@@ -147,7 +146,6 @@ non-test part, end to end); Q3 not exercised.
 10. **Upheld with NOTE 7.**
 
 ## Disclosures
-I read no other reviewer's branch and no PR comment or review. I read the PR body
-through the GitHub tools. I posted nothing to GitHub. I installed mpmath with pip
-in the container. Mutants were applied in place, run, and reverted; none is on the
-probe branch. The probe branch holds one known-red row (MAJOR 1).
+No other reviewer's branch, PR comment or review read; PR body read through the GitHub
+tools; nothing posted. mpmath installed by pip. Mutants applied in place and reverted,
+none committed. The probe branch holds one known-red row (MAJOR 1).
