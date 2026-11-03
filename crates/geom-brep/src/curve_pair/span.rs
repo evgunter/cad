@@ -62,7 +62,7 @@
 //! the band cannot read is a refusal: the carrier's where it refused
 //! too, else the place's.
 
-use geom::{CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
+use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
@@ -314,13 +314,12 @@ impl<'a, T: Decide> Span<'a, T> {
             // piece, so zero puts `q` within `z + 2ℓ` of it, past the
             // zero band `z` the composition's `On` claims, and the place
             // decides no carrier membership of its own (module docs).
-            Clearance::Near(Ok(near)) => Err(CarrierRefusal::Straddle(straddle(
-                "curve_pair_span_past_straddle",
-                near,
-                chord,
-                band,
-            ))),
-            Clearance::Near(Err(diag)) => Err(CarrierRefusal::Escalated(diag)),
+            Clearance::Near(Ok(near)) => {
+                Err(CarrierRefusal::Escalated(CarrierEscalation::Straddle(
+                    straddle("curve_pair_span_past_straddle", near, chord, band),
+                )))
+            }
+            Clearance::Near(Err(diag)) => Err(diag.into()),
         }
     }
 

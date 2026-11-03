@@ -1914,7 +1914,7 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::SplitSmoothRefuted {
             edge: ek,
-            mixed: Some(geom_brep::MixedStations {
+            mixed: Some(geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             }),
@@ -1930,7 +1930,7 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::RestJoinMixed {
             edge: ek,
-            stations: geom_brep::MixedStations {
+            stations: geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             },

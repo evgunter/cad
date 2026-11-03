@@ -148,7 +148,6 @@ REGISTER=(
   "crates/sweep/src/blend/build.rs|face_cycle||1|unaudited"
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
-  "crates/topo/src/boolean/mod.rs|boundary_cuts||1|audited: the lone vertex's point is taken into the vertices on the line before, and it has no edge for the line to meet"
   "crates/topo/src/boolean/mod.rs|conic_reach||1|audited: a lone-vertex loop has no edge to bulge, and its vertex is in the span already — witness_span projects every loop's points through face_boundary_points, which reads the Empty arm by name"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"

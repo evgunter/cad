@@ -16,11 +16,12 @@ from its sweep of `classify_dihedral`'s callers.
 ## What
 
 `topo::boolean::rim_wedge::classify_shared_rim` routes a full-circle
-shared rim by a first-order screen at `CERT_SAMPLES` stations around the
-circle, then a material arm. Both read implicit forms, so a spline face
-on either side is refused by kind before either runs:
-`Indeterminate { predicate: "dihedral_wedge", margin: Invalid }`
-(the "exempt by KIND" block above the screen). A lofted or swept body
+shared rim through the whole-edge fold (`geom_brep::edge_wedge_over`
+over `geom_brep::WedgeWalk::around_circle`, `CERT_SAMPLES` phases round
+the circle), whose first-order and material reads both read implicit
+forms, so a spline face on either side is routed by kind before the fold
+runs: `RimRouting::SplineFace`, which `boolean::route_rim` refuses as
+`BooleanError::TangencyUnsupported`. A lofted or swept body
 whose wall closes on a circular rim reaches it.
 
 ## The likely shape

@@ -10,8 +10,8 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI};
 use geom::{Curve3, CurveKind, SurfaceKind};
 use geom_core::{Band, Point3, Vec3};
 
-use super::{Boundary, BoundaryRefusal, Door, boundary, route};
-use crate::curve_pair::Span;
+use super::{Boundary, BoundaryRefusal, Door, OnBoundary, boundary, route};
+use crate::curve_pair::{Hit, Span};
 
 const ZERO: f64 = 1e-9;
 
@@ -51,7 +51,7 @@ fn read(carrier: &Curve3<f64>, params: (f64, f64)) -> Result<Boundary<f64>, Boun
         .zip(spans)
         .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
         .collect();
-    boundary(&Span::new(carrier, params), &edges, band())
+    boundary(&Span::new(carrier, params), &edges, &[], band())
 }
 
 /// **Every kind pair has a door**, and the ones not built say so. The
@@ -118,14 +118,11 @@ fn the_rest_of_the_rims_circle_does_not_lie_along_it() {
 #[test]
 fn a_run_shorter_than_the_span_meets_at_its_vertex() {
     match read(&unit_circle(Vec3::unit_z()), (0.0, PI)).unwrap() {
-        Boundary::Meets {
-            t,
-            point,
-            edge,
-            on_edge,
-        } => {
-            assert_eq!(edge, 2, "the vertex is the third edge's start");
-            assert_eq!(on_edge, None, "a vertex splits no boundary edge");
+        Boundary::Meets { t, point, at } => {
+            assert!(
+                matches!(at, OnBoundary::Vertex(2)),
+                "the vertex is the third edge's start, which splits no boundary edge: {at:?}"
+            );
             assert!((t - FRAC_PI_2).abs() < 1e-12, "at the corner: {t}");
             assert!((point - Point3::new(0.0, 1.0, 0.0)).norm() < 1e-12);
         }
@@ -138,20 +135,48 @@ fn a_run_shorter_than_the_span_meets_at_its_vertex() {
 fn a_line_across_the_rim_meets_it() {
     let x = 0.75_f64.sqrt();
     match read(&line([0.5, 0.5, 0.0], [1.0, 0.0, 0.0]), (0.0, 1.5)).unwrap() {
-        Boundary::Meets {
-            t, edge, on_edge, ..
-        } => {
-            assert_eq!(edge, 1, "the arc");
+        Boundary::Meets { t, at, .. } => {
+            let OnBoundary::Edge(1, on_edge) = at else {
+                panic!("the arc: {at:?}")
+            };
             assert!((t - (x - 0.5)).abs() < 1e-12, "at the arc: {t}");
             // `(√0.75, 0.5)` is the arc's azimuth π/6: the meeting names
             // where on the boundary edge it put the point.
-            let Some(s) = on_edge else {
-                panic!("a meeting inside the arc holds its parameter there")
+            let Hit::On { t: s, .. } = on_edge else {
+                panic!("a meeting inside the arc holds its parameter there: {on_edge:?}")
             };
             assert!((s - PI / 6.0).abs() < 1e-12, "on the arc: {s}");
         }
         other => panic!("a line across the arc: {other:?}"),
     }
+}
+
+/// **A lone vertex is boundary too**: a span through one meets the
+/// boundary there, and one past it is clear.
+#[test]
+fn a_span_through_a_lone_vertex_meets_it() {
+    let rim = rim();
+    let edges: Vec<_> = rim
+        .iter()
+        .zip([(0.0, 1.0), (0.0, FRAC_PI_2), (0.0, 1.0)])
+        .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
+        .collect();
+    let lone = [Point3::new(0.25, 0.5, 0.0)];
+    let across = line([0.0, 0.5, 0.0], [1.0, 0.0, 0.0]);
+    match boundary(&Span::new(&across, (0.1, 0.5)), &edges, &lone, band()) {
+        Ok(Boundary::Meets {
+            t,
+            at: OnBoundary::Lone(0),
+            ..
+        }) => assert!((t - 0.25).abs() < 1e-12, "at the lone vertex: {t}"),
+        other => panic!("a span through a lone vertex: {other:?}"),
+    }
+    let past = line([0.0, 0.25, 0.0], [1.0, 0.0, 0.0]);
+    let got = boundary(&Span::new(&past, (0.1, 0.5)), &edges, &lone, band());
+    assert!(
+        matches!(got, Ok(Boundary::Clear)),
+        "a span past it: {got:?}"
+    );
 }
 
 /// **An end on the rim is no meeting inside the span**: the boundary
@@ -216,8 +241,12 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
                 dir: normal,
             });
             let edges = [(vertex, Span::new(&leaving, (0.0, 1.0)))];
-            match boundary(&swept, &edges, band) {
-                Ok(Boundary::Meets { t: at, edge: 0, .. }) => {
+            match boundary(&swept, &edges, &[], band) {
+                Ok(Boundary::Meets {
+                    t: at,
+                    at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+                    ..
+                }) => {
                     assert!((at - t).abs() < 1e-6, "{ratio} at {t}: {at}");
                 }
                 other => panic!("{ratio} at {t}: {other:?}"),
@@ -255,7 +284,7 @@ mod review_r2 {
         if endless {
             s = s.endless();
         }
-        boundary(&s, &edges, band())
+        boundary(&s, &edges, &[], band())
     }
 
     #[test]
@@ -287,7 +316,13 @@ mod review_r2 {
     fn a_closed_ellipse_through_the_rim_meets_at_its_far_vertex() {
         let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), false);
         assert!(
-            matches!(got, Ok(Boundary::Meets { edge: 0, .. })),
+            matches!(
+                got,
+                Ok(Boundary::Meets {
+                    at: OnBoundary::Vertex(0) | OnBoundary::Edge(0, _),
+                    ..
+                })
+            ),
             "{got:?}"
         );
         let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), true);
@@ -320,7 +355,12 @@ mod review_r2 {
             .zip(spans)
             .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
             .collect();
-        let got = boundary(&Span::new(&c, (0.0, 2.0 * PI)).endless(), &edges, band());
+        let got = boundary(
+            &Span::new(&c, (0.0, 2.0 * PI)).endless(),
+            &edges,
+            &[],
+            band(),
+        );
         assert!(
             matches!(got, Ok(Boundary::Meets { .. })),
             "endless: {got:?}"
@@ -368,8 +408,12 @@ fn a_joint_between_two_runs_meets_the_span() {
         (circle.eval(0.5), Span::new(&circle, (0.5, FRAC_PI_2))),
         (y_axis.eval(0.0), Span::new(&y_axis, (0.0, 1.0))),
     ];
-    match boundary(&Span::new(&circle, (0.0, FRAC_PI_2)), &edges, band()) {
-        Ok(Boundary::Meets { t, edge: 2, .. }) => {
+    match boundary(&Span::new(&circle, (0.0, FRAC_PI_2)), &edges, &[], band()) {
+        Ok(Boundary::Meets {
+            t,
+            at: OnBoundary::Vertex(2) | OnBoundary::Edge(2, _),
+            ..
+        }) => {
             assert!((t - 0.5).abs() < 1e-12, "at the joint: {t}");
         }
         other => panic!("two runs and their joint: {other:?}"),

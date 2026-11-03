@@ -181,3 +181,13 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - **Tier:** dual, arm concurrent (class H). R1 returned APPROVE-WITH-FIXES with a MAJOR; R2 returned APPROVE-WITH-FIXES with the same defect as a MINOR. The defect: the D10-gate workaround's `around` built a tangent plane's fan off the plane near a tilted sphere pole, so kissing balls read `Crossing`. Coded FAIR (byte 210), +0/+0, the MAJOR bilateral. This is the first counted pair in this program.
   - **Fix pass:** the fan start is taken from the carrier's own frame and projected into the plane (K `link_tangent_frame`); the pair check made symmetric; the counts in one unit; the slit tip read as the whole turn; one `gather` shared with `Germ`. Verifier: VERIFIED-WITH-NITS. It broke the lane's claim that a surviving mutant was equivalent, and found the slit flag and `on_carrier`'s direction loose. A follow-up push witnessed and fixed each; 29 mutants are red across the passes.
   - **Main reds** the lanes saw are all filed: the needle cavity (`issues/`), `bisector_nodes::slanted_bores` at 1e-12 (`flush/`), and `verbs_germarms2_interval` (`honepose/`, `germ/`). The full sweep slow set at 1e-12 is left to the nightly; the torus-germ rows run for hours. — (RESTREAD orchestrator)
+- 2026-11-03 — **Seam (ONEDOOR): `[topo.homes]` is now held per PR** by `scripts/gates/engine-leaves.sh`, merged in PR 6458. Ev ratified the rule on PR 6426; it is in `crates/topo/README.md`.
+  - **What the gate refuses** in `crates/topo/src`, outside an engine directory:
+    - naming an item declared under `boolean/` or `splitting/`, counted by name however it is reached;
+    - one engine naming the other;
+    - a crate-visible item inside an engine;
+    - any construct binding a new name to an engine item (an `as` rename, a `type` alias, `use crate as`, `#[macro_use]`);
+  - Each is counted over a shrink-only allowlist, `scripts/gates/engine-leaves.counts`.
+  - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
+  - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
+  - (ONEDOOR orchestrator)
