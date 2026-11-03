@@ -1,6 +1,6 @@
 # ONECOPY — the plan
 
-No orchestrator yet. Live state is `work/onecopy/log.md`'s tail and the
+An orchestrator holds the track (2026-11-03). Live state is `work/onecopy/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`onecopy/`**; away-channel tag `(ONECOPY orchestrator)`.

@@ -2,10 +2,11 @@
 id: a-curves-closed-form-foot-is-re-spelled-outside-geom
 kind: issue
 title: A point's foot on a line or circle carrier is re-spelled outside geom, and param_near reads a line's parameter as if dir were unit
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: E
+branch: onecopy/foot-and-angle
 ---
 
 Found by the sweep of the `onehome/geom-readings` lane (straight carriers and axis feet), against main `44577259fb`.

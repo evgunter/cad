@@ -2,7 +2,7 @@
 id: onecopy
 kind: program
 title: ONECOPY — one home for a carrier's geometric readings, and for topo's face walks, refusal mappings and ladder searches
-status: ready
+status: active
 opened: 2026-11-03
 group: kernel/boolean/one-home
 prefix: onecopy/

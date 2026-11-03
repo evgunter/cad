@@ -2,10 +2,11 @@
 id: interval-safe-point-angle-read-two-ways
 kind: issue
 title: The interval-safe angle of a point about a conic is spelled twice: on_carrier's angle_near and curve_pair::pose's angle
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onecopy/foot-and-angle
 ---
 
 

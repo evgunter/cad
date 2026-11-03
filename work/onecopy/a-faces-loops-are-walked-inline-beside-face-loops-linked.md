@@ -2,10 +2,11 @@
 id: a-faces-loops-are-walked-inline-beside-face-loops-linked
 kind: issue
 title: A face's loops are walked inline at about fifty sites beside Body::face_loops_linked
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onecopy/face-loops
 ---
 
 Found by the sweep of `slit-reads-a-faces-edges-through-its-own-walk`,
