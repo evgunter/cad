@@ -7656,7 +7656,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
-        for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
+        for loop_key in face.loop_keys() {
             let Some(loop_) = body.loops.get(loop_key) else {
                 continue;
             };
@@ -7920,9 +7920,8 @@ pub(crate) fn tier3_local_checks_marked<
         // read here for what it CLAIMS (which side is material), and
         // the loop's stored winding is falsified against that claim.
         let outward = plane_outward_normal(face, normal).vec();
-        for (l, is_outer) in
-            core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
-        {
+        for (role, l) in face.loop_roles() {
+            let is_outer = role.is_outer();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -8024,8 +8023,8 @@ pub(crate) fn tier3_local_checks_marked<
         // Every loop's chart image: a cylinder face reads its side off
         // its whole boundary's chart Green form, rings included, as its
         // flux does, each loop that bounds area.
-        let Ok(full) = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        let Ok(full) = face
+            .loop_keys()
             .map(|l| crate::props::loop_edges(body, l))
             .collect::<Result<FlatLoops<T>, _>>()
         else {
@@ -8143,7 +8142,7 @@ pub(crate) fn tier3_local_checks_marked<
             .map(|((edges, _), corners)| FaceLoop { edges, corners })
             .collect();
         let Ok(cycles) = crate::surface_boundary::surface_cycles(body, face_key) else {
-            continue; // tier 1 refuses a boundary that does not walk
+            continue; // a rotation that does not close: tier 1 refuses it
         };
         let every: Vec<usize> = (0..cycles.len()).collect();
         for (point, x) in singular_points(&chart) {
@@ -8698,7 +8697,7 @@ pub(crate) fn loop_point_groups<T: Real>(
     face: &crate::entity::Face,
 ) -> Vec<(Vec<HalfEdgeKey>, Vec<usize>)> {
     let mut out = Vec::new();
-    for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for l in face.loop_keys() {
         let Some(cycle) = loop_cycle_of(body, l) else {
             continue;
         };
@@ -10744,7 +10743,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                 to: GeomRef::Surface(face.surface),
             });
         }
-        for &loop_ in core::iter::once(&face.outer).chain(&face.rings) {
+        for loop_ in face.loop_keys() {
             if body.loops.contains_key(loop_) {
                 count_owner(&mut loop_owners, loop_, face_key);
             } else {
@@ -11438,8 +11437,7 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
                     face: face_key,
                     named_loop,
                 });
-            } else if face.is_some_and(|f| f.outer != named_loop && !f.rings.contains(&named_loop))
-            {
+            } else if face.is_some_and(|f| !f.holds_loop(named_loop)) {
                 errors.push(ValidationError::StaleNullFaceOwnership {
                     face: face_key,
                     named_loop,
@@ -11488,7 +11486,7 @@ fn shell_component<T: Real>(
         let face = body.faces.get(face_key)?;
         faces += 1;
         rings += face.rings.len();
-        for &loop_key in core::iter::once(&face.outer).chain(&face.rings) {
+        for loop_key in face.loop_keys() {
             let loop_ = body.loops.get(loop_key)?;
             match loop_.boundary {
                 LoopBoundary::Empty { vertex } => {
@@ -13859,7 +13857,7 @@ mod tests {
         let band = Band::linear(tol).expect("the run's band");
         let mut seen = 0;
         for (_, face) in body.faces() {
-            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for lk in face.loop_keys() {
                 let Some(cycle) = loop_cycle_of(&body, lk) else {
                     continue;
                 };
