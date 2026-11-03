@@ -247,19 +247,23 @@ impl<'a> ImplicitSection<'a> {
     ///
     /// # Errors
     ///
-    /// The boundary pass's, the seeding sweep's, any refusal of the
+    /// The march tolerance's ([`SsiError::SettlingUnresolvable`], naming
+    /// the partner's reach where that binds), the boundary pass's, the
+    /// seeding sweep's, any refusal of the
     /// trace, the fit or the certificate on a branch between crossings
     /// or of a closed loop's march where no tube holds its seed, and the
     /// accounting's ([`SsiError::ExhaustivenessInconclusive`],
     /// [`SsiError::CellBudget`]).
     pub fn all(mut self) -> Result<SsiOutcome, SsiError> {
         let lane = &self.lane;
+        // Every whole reading marches, so the march's tolerance is met
+        // first, ahead of the pass whose crossings it would settle.
+        let ends = lane.ends()?;
         let pass = passed(&self.pass, || lane.wall.pass(&lane.curved))?;
         let seeds = exhaust::seed_chart_partner(lane.seed_floor, |cell| lane.excluded(cell))?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
 
-        let ends = lane.ends()?;
         for branch in ends.branches(&self.banked.open(&pass.crossings))? {
             self.banked.bank(branch);
         }
