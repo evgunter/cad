@@ -7,6 +7,7 @@ crates/editor-core/src/eval/measure.rs	1	turn
 crates/editor-core/src/eval/mod.rs	4	user
 crates/editor-core/src/expr.rs	1	user
 crates/editor-core/src/mate/value.rs	4	user
+crates/geom/src/surfaces.rs	1	chart
 crates/geom-brep/src/intersect.rs	1	harmonic
 crates/geom-brep/src/pair_section/torus_arms.rs	1	chart
 crates/geom-brep/src/pcurve_cache.rs	4	chart
