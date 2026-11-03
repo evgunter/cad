@@ -891,3 +891,18 @@ E1c waits on the answer.
   - `pcurve-certify-error-arms-with-no-ending` is **P1**, cost M. `PcurveCertifyError::ending`'s grouped `None` and topo's at-rest fallback table (`DEFECT` / `NOT_YET` / `TOLERANCE`) are two implementations of one ending, which is the P1 definition.
   - `a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one` is **P3**, cost M: latent unsoundness, since `ring_path`'s parity premise is unmeasured on the cone and the torus.
   - Load 33/36. PCTAIL's slate runs after E1e → E2 → E3 → E4, with the P1 first (`plan.md`).
+- 2026-11-03 — **E1c merged** (PR 5889, `78027e0886`): every mint arm reads incidence before it images a carrier; the stated route, stored rows and the planar tier read through the same door, one read per carrier per certification, in the chart's own frame.
+  - Review tier: dual, class H. The concurrent pair read `6c29a7e439`. It is excluded from the pair count under 6(e): R2's worker restart killed its geom-brep slow run. Tallied 0: both executed MAJORs were bilateral. DR row `docs/dual-review-log/rows/PR-5889.md`.
+  - Four fix rounds:
+    - L1–L10 (the pair's union);
+    - M1–M6 (delta verifier on `2d0bf5a2f6`);
+    - N1–N5 (delta verifier on `76fd375d0f`: three slow rows triaged against a stale base, cost past the line);
+    - O1–O3 (delta verifier on `4ce2b4dffe`: 0 MAJOR, two MINOR). The orchestrator read O.
+  - Main was merged into the branch seven times.
+  - Rulings:
+    - N3 (a): the planar tier reads a conic over its edge's span, while the mint and certify keep the full turn. `a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span` stays open (about 2× to fix) and now names `topo::chart_region`'s plane path, pinned.
+    - Cost: accepted at 1.61× / 1.57× / 1.05× against main `1fcdbde7de`. The head's own times held, and main got about 10% faster. The owed cut, (ii), is on `the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads`.
+  - S5 (`TrimOffFace`'s Display) and the corner lever's wording are on E1e's plan row. Next: E1e.
+- 2026-11-03 — **E1e dispatched** (`pcert/display-payload-only`, from main `32ac2a0820`): a refusal's `Display` carries only its payload, and its ending exists only through `render(at)`, with a gate counting the production spelling sites per reading. It folds in `TrimOffFace`'s at-rest Display (S5) and the planar corner's lever wording.
+  - Review tier: single FULL. The design is ratified (Ev's PR 5838, Q1), and the change moves where endings are spelled, not what they mean. It is wide, though, and a missed door would silently drop an ending, so the review carries correctness claims.
+  - Sequencing: the newly banded P1 `pcurve-certify-error-arms-with-no-ending` runs right after E1e, ahead of E2. Both touch `PcurveCertifyError`'s endings, so running them in parallel would conflict, and E1e's door-rendering is the ground the arms' endings land on.
