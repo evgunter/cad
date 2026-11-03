@@ -47,7 +47,7 @@ use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, Sup
 
 use super::SsiError;
 use super::exhaust::{ParamSpan, SweepFloor, isolate_section};
-use super::residual::Curved;
+use super::residual::ImplicitForm;
 use crate::dihedral::decide_reported;
 use crate::recourse::{Refused, RefusedArm};
 
@@ -150,11 +150,11 @@ struct Pieces {
 }
 
 /// **A curved partner's `φ` in metres along a curve**: `φ` is the
-/// partner's canonical form `f` ([`Curved`]), read against the band
+/// partner's canonical form `f` ([`ImplicitForm`]), read against the band
 /// through its divisor over the curve's control hull in the partner's
 /// frame, which holds every point of the curve.
 struct Scale {
-    curved: Curved,
+    curved: ImplicitForm,
     hull: Vec3<Interval>,
 }
 
@@ -181,7 +181,7 @@ impl Pieces {
     /// partner's frame in certification arithmetic. Its denominator is a
     /// power of the weight function, of the numerator's degree, and its
     /// coefficients are positive, so `φ = h/W` as on the plane.
-    fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
+    fn implicit(curve: &NurbsCurve3<f64>, curved: &ImplicitForm) -> Option<Self> {
         let framed: Vec<Vec3<Interval>> = curve
             .control()
             .iter()
@@ -456,7 +456,7 @@ impl SectionReader {
     /// canonical form along the curve ([`Pieces::implicit`], the
     /// arithmetic the boundary pass reads a side against it by); `None`
     /// where the composite does not certify.
-    pub(crate) fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
+    pub(crate) fn implicit(curve: &NurbsCurve3<f64>, curved: &ImplicitForm) -> Option<Self> {
         Pieces::implicit(curve, curved).map(|pieces| Self { pieces })
     }
 
@@ -591,7 +591,7 @@ pub fn boundary_section(
 /// As [`boundary_section`].
 pub(crate) fn implicit_section(
     curve: &NurbsCurve3<f64>,
-    curved: &Curved,
+    curved: &ImplicitForm,
     speed: SupSpeed<f64>,
     floor_meters: f64,
     arm: f64,
@@ -614,7 +614,7 @@ pub(crate) fn implicit_section(
 /// As [`boundary_section`].
 pub(crate) fn implicit_roots(
     curve: &NurbsCurve3<f64>,
-    curved: &Curved,
+    curved: &ImplicitForm,
     speed: SupSpeed<f64>,
     floor_meters: f64,
     arm: f64,
@@ -849,10 +849,10 @@ pub(crate) fn settle_root(
 }
 
 /// [`settle_root`] for a curved partner: the partner's residual in
-/// metres along the curve ([`Curved::residual`]) settled to `tol`.
+/// metres along the curve ([`ImplicitForm::residual`]) settled to `tol`.
 pub(crate) fn settle_implicit_root(
     curve: &NurbsCurve3<f64>,
-    curved: &Curved,
+    curved: &ImplicitForm,
     bracket: (f64, f64),
     tol: f64,
 ) -> Option<f64> {

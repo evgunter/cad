@@ -2436,7 +2436,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                             what: CHART_TUBE_PARTNER_INEXACT,
                         });
                     }
-                    Some(super::residual::Curved::of(&at_f64).map_err(|_| {
+                    Some(super::residual::ImplicitForm::of(&at_f64).map_err(|_| {
                         SsiError::UnsupportedCertificate {
                             what: CHART_TUBE_NEEDS_FORM,
                         }

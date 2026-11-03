@@ -517,7 +517,7 @@ fn torus_wall(n: usize, major: f64, minor: f64) -> Surface<f64> {
 #[test]
 fn a_torus_wall_three_bands_off_its_torus_is_not_on_it() {
     let d = 1.5 * band().zero();
-    let curved = crate::ssi::residual::Curved::of(&torus(1.0, 0.9)).unwrap();
+    let curved = crate::ssi::residual::ImplicitForm::of(&torus(1.0, 0.9)).unwrap();
     let Surface::Nurbs(net) = torus_wall(8, 1.0 + d, 0.9 - d) else {
         unreachable!("a NURBS wall")
     };
@@ -630,7 +630,7 @@ fn a_torus_corner_in_the_band_is_no_clear_corner() {
     use geom_core::Sign;
     use geom_core::k_stats::decide;
     let b = band();
-    let curved = crate::ssi::residual::Curved::of(&torus(1.0, 0.9)).unwrap();
+    let curved = crate::ssi::residual::ImplicitForm::of(&torus(1.0, 0.9)).unwrap();
     let a = 2.0 * std::f64::consts::FRAC_PI_3;
     let rho = 0.9 - 0.85 * b.escalate();
     let p = pt(1.0 + rho * a.cos(), 0.0, rho * a.sin());

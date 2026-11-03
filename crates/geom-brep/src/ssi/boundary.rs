@@ -56,7 +56,7 @@ use geom_core::{Band, Bounds, CertifiedBounds, Interval, Margin, Point3, Sign, V
 use super::enclose::{ChartSpeeds, NurbsBoxes, UvWindow};
 use super::exhaust::UvRect;
 use super::march::MarchTol;
-use super::residual::Curved;
+use super::residual::ImplicitForm;
 use super::section::{
     BoundarySection, SIDE_SIGN_HALVINGS, SectionRoot, band_verdict, boundary_roots,
     boundary_section, implicit_roots, implicit_section, magnitude, one_signed,
@@ -402,7 +402,7 @@ const CURVED_PARTIAL_PIECES: u32 = 8;
 /// canonical form `f` along a side ([`implicit_section`]), its partials
 /// `∇f(S)·S_d` over the wall's boxes, its value at a corner with a
 /// ceiling in metres, and a crossing settled on the wall alone.
-impl Partner for &Curved {
+impl Partner for &ImplicitForm {
     type State = [f64; 2];
 
     fn side(

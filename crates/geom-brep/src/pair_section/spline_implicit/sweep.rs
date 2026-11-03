@@ -3,7 +3,7 @@
 //! the height of the wall's point over it, `φ = n·(S − o)`, and
 //! `∇φ = n·[S_u S_v]`, so `∇φ` bounded off zero is the wall's normal
 //! bounded off `±n`; against a cylinder, sphere or torus `φ` is its
-//! canonical form along the wall ([`Curved`]), and `∇φ = ∇f(S)·[S_u S_v]`.
+//! canonical form along the wall ([`ImplicitForm`]), and `∇φ = ∇f(S)·[S_u S_v]`.
 //!
 //! The wall's knot rectangle is swept by the chart lane's one
 //! recursion ([`sweep_chart_regular`], shared with seeding and C3's
@@ -14,7 +14,7 @@
 //!   accounting's own enclosure
 //!   ([`crate::ssi::exhaust::chart_plane_height`]), over the normal's
 //!   length; on a curved partner `f` over the cell's box, a floor in
-//!   metres ([`Curved::floor_metres`]). So is `φ − c` for every `c`
+//!   metres ([`ImplicitForm::floor_metres`]). So is `φ − c` for every `c`
 //!   within the band, the band read in metres;
 //! - **regular** where the wall's slope off the partner along `u` or
 //!   `v`, `∇f·S_d / (sup‖∇f‖·sup‖S_d‖)` on the closed cell's derivative
@@ -88,7 +88,7 @@ use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::{
     REGULAR_SURVIVORS, SweepFloor, UvRect, chart_plane_height, sweep_chart_regular,
 };
-use crate::ssi::residual::Curved;
+use crate::ssi::residual::ImplicitForm;
 
 mod critical;
 
@@ -101,7 +101,7 @@ pub(super) enum Phi<'a> {
     /// A plane, read at its pivot: its origin and its normal as stored.
     Plane(Point3<f64>, Vec3<f64>),
     /// A cylinder, sphere or torus.
-    Curved(&'a Curved),
+    Curved(&'a ImplicitForm),
 }
 
 /// What the sweep answers.

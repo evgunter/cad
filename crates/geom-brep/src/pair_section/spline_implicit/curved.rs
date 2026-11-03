@@ -3,7 +3,7 @@
 //! march door, at `f64`.
 //!
 //! - **The hull.** `φ = f∘S` is the composite of the partner's canonical
-//!   form ([`Curved`]) with the wall's rational chart, so on each Bézier
+//!   form ([`ImplicitForm`]) with the wall's rational chart, so on each Bézier
 //!   cell of the wall it is `N/D`: `N` the form written in the wall's
 //!   homogeneous channels `(w·x, w·y, w·z, w)` in the partner's frame, a
 //!   tensor-product polynomial, and `D` the power of the weight function
@@ -40,7 +40,7 @@ use super::sweep::{self, Phi, Sweep};
 use super::{Bracketed, Hull, SplineImplicitPose, contact_reach, door_on, hull_verdict, listed};
 use crate::intersect::SectionError;
 use crate::ssi::ImplicitSection;
-use crate::ssi::residual::{Curved, Form};
+use crate::ssi::residual::{Form, ImplicitForm};
 
 /// **The section read whole** (module docs): C3's 1×2 reading over the
 /// wall's rectangle, every component listed.
@@ -67,7 +67,7 @@ pub(super) fn whole(
 /// # Errors
 ///
 /// [`SectionError::DegenerateOperand`] for a partner the form does not
-/// read ([`Curved::of`]) or a net whose composite does not certify; the
+/// read ([`ImplicitForm::of`]) or a net whose composite does not certify; the
 /// hull's [`SectionError::CoincidentSurfaces`] and
 /// [`SectionError::Escalated`]; the door's
 /// [`SectionError::Unaccounted`]; the pass's refusals, mapped
@@ -77,8 +77,8 @@ pub(super) fn section(
     pose: SplineImplicitPose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
-    let curved =
-        Curved::of(pose.partner()).map_err(|what| SectionError::DegenerateOperand { what })?;
+    let curved = ImplicitForm::of(pose.partner())
+        .map_err(|what| SectionError::DegenerateOperand { what })?;
     if hull(&curved, pose.net(), band)? == Hull::Apart {
         return Ok(pose.section(Components::Counted(Vec::new())));
     }
@@ -119,7 +119,7 @@ pub(super) fn section(
 /// The net's control points in the partner's frame, each certified, and
 /// their hull, which holds every point of the wall.
 fn framed(
-    curved: &Curved,
+    curved: &ImplicitForm,
     net: &NurbsSurface<f64>,
 ) -> Result<(Vec<Vec3<Interval>>, Vec3<Interval>), SectionError> {
     let framed: Vec<Vec3<Interval>> = net
@@ -158,7 +158,7 @@ fn framed(
 /// zero band of the partner everywhere (D10); [`SectionError::Escalated`]
 /// where its ceiling is in the band.
 pub(super) fn hull(
-    curved: &Curved,
+    curved: &ImplicitForm,
     net: &NurbsSurface<f64>,
     band: Band,
 ) -> Result<Hull, SectionError> {
@@ -190,6 +190,7 @@ pub(super) fn hull(
     let w2 = gw.mul(&gw);
     let radial = gx.mul(&gx).add(&gy.mul(&gy));
     let (num, den) = match curved.form() {
+        Form::Plane => (gz, gw),
         Form::Cylinder { radius } => (radial.sub(&w2.scale(radius.sqr())), w2),
         Form::Sphere { radius } => (radial.add(&gz.mul(&gz)).sub(&w2.scale(radius.sqr())), w2),
         Form::Torus { major, minor } => {
@@ -248,7 +249,7 @@ pub(super) fn hull(
 ///
 /// [`SectionError::Unaccounted`], naming the side.
 pub(super) fn door(
-    curved: &Curved,
+    curved: &ImplicitForm,
     net: &NurbsSurface<f64>,
     band: Band,
 ) -> Result<(), SectionError> {

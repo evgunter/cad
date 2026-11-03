@@ -104,7 +104,7 @@ use crate::intersect::SectionError;
 use crate::ssi::boundary::BoundaryPass;
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
-use crate::ssi::residual::Curved;
+use crate::ssi::residual::ImplicitForm;
 use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
 mod curved;
@@ -512,7 +512,7 @@ enum Bracketed<'a> {
     /// A cylinder, sphere or torus: the surface, whose linearized
     /// residual selects the bracket's direction and step, and its form,
     /// whose certified sign decides it.
-    Curved(&'a Surface<f64>, &'a Curved),
+    Curved(&'a Surface<f64>, &'a ImplicitForm),
 }
 
 impl From<Heights> for Bracketed<'_> {

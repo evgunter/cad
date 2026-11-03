@@ -1,34 +1,36 @@
-//! **A curved implicit partner of a spline wall**: a cylinder, sphere or
-//! torus read through its canonical form `f` in its own chart frame, the
-//! one exact description it has (C3's per-side rule), so the section of
-//! it and a wall `S` is the zero set of `φ = f∘S` over the wall's knot
+//! **An implicit partner of a spline wall**: a plane, cylinder, sphere
+//! or torus read through its canonical form `f` in its own chart frame,
+//! the one exact description it has (C3's per-side rule), so the section
+//! of it and a wall `S` is the zero set of `φ = f∘S` over the wall's knot
 //! rectangle (C5).
 //!
 //! The forms are the curve × face table's
-//! ([`geom_core::spline::compose::CanonicalSurface`]): `x² + y² − R²`,
-//! `x² + y² + z² − r²` and `(x² + y² + z² + R² − r²)² − 4R²(x² + y²)`, in
-//! metres², metres² and metres⁴. Every enclosure here is of `f` itself
+//! ([`geom_core::spline::compose::CanonicalSurface`]): `z`,
+//! `x² + y² − R²`, `x² + y² + z² − r²` and
+//! `(x² + y² + z² + R² − r²)² − 4R²(x² + y²)`, in metres, metres²,
+//! metres² and metres⁴. The plane's divisor is 1: its form is the
+//! distance itself. Every enclosure here is of `f` itself
 //! over a box of the frame, and a distance in metres is read from it
 //! through the form's divisor ([`Meters`]) in the direction its decision
 //! needs:
 //!
-//! - **a floor** ([`Curved::floor_metres`]): `f` over an upper bound on
+//! - **a floor** ([`ImplicitForm::floor_metres`]): `f` over an upper bound on
 //!   the divisor, whose magnitude bounds the distance from the surface
 //!   from below and whose sign is `f`'s. A reading past the band on it is
 //!   a box definitely apart from the surface;
-//! - **a ceiling** ([`Curved::ceiling_metres`]): an upper bound on that
+//! - **a ceiling** ([`ImplicitForm::ceiling_metres`]): an upper bound on that
 //!   distance from an upper bound on `|f|` and a lower bound on the
 //!   radial reach, through a lower bound on the divisor. A reading within
 //!   the band on it is a box definitely within the band of the surface.
 //!   On the torus the divisor's lower bound is `(ρ + R)² − r²`, positive
-//!   only where `R > r`, which [`Curved::of`] decides of the operand
+//!   only where `R > r`, which [`ImplicitForm::of`] decides of the operand
 //!   before anything reads it.
 //!
 //! A slope of `φ` is a sine only over the gradient's length: the sine of
 //! the angle between a direction `d` of the wall and the partner's
 //! tangent plane is `|∇f·d| / (‖∇f‖·‖d‖)` at a point of the zero set, so
 //! every slope read against the band is divided by an upper bound on
-//! `‖∇f‖` over the region it is read on ([`Curved::gradient_sup`]).
+//! `‖∇f‖` over the region it is read on ([`ImplicitForm::gradient_sup`]).
 
 use geom::Surface;
 use geom_core::interval::certification::Certification;
@@ -38,25 +40,29 @@ use geom_core::{Bounds, Interval, Point3, Vec3};
 use super::enclose::Box3;
 use crate::pcurve_cache::projected::{Meters, chart_frame};
 
-/// **A cylinder, sphere or torus as a wall's partner** (module docs).
+/// **A plane, cylinder, sphere or torus as a wall's partner** (module
+/// docs).
 #[derive(Clone, Debug)]
-pub(crate) struct Curved {
+pub(crate) struct ImplicitForm {
     surface: Surface<f64>,
-    /// The frame's origin: the axis point, or the centre.
+    /// The frame's origin: the plane's origin, the axis point, or the
+    /// centre.
     origin: Vec3<Interval>,
     /// The frame, enclosing an exactly orthonormal one about the stored
-    /// axis: `e₀` the reference direction made orthogonal to the axis,
-    /// `e₁ = e₂ × e₀`, `e₂` the axis.
+    /// axis (the plane's normal): `e₀` the reference direction made
+    /// orthogonal to the axis, `e₁ = e₂ × e₀`, `e₂` the axis.
     frame: [Vec3<Interval>; 3],
     form: Form,
 }
 
-/// **The three curved forms**, their scalars as certification
-/// enclosures: the cylinder `x² + y² − R²`, the sphere
+/// **The four forms**, their scalars as certification enclosures: the
+/// plane `z`, the cylinder `x² + y² − R²`, the sphere
 /// `x² + y² + z² − r²`, the torus
 /// `(x² + y² + z² + R² − r²)² − 4R²(x² + y²)`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Form {
+    /// The plane through the frame's origin, normal to its third axis.
+    Plane,
     /// The cylinder of `radius` about the frame's third axis.
     Cylinder {
         /// Its radius.
@@ -80,6 +86,7 @@ impl Form {
     /// The form as the composites take it.
     pub(crate) fn canonical(self) -> CanonicalSurface {
         match self {
+            Self::Plane => CanonicalSurface::Plane,
             Self::Cylinder { radius } => CanonicalSurface::Cylinder { radius },
             Self::Sphere { radius } => CanonicalSurface::Sphere { radius },
             Self::Torus { major, minor } => CanonicalSurface::Torus { major, minor },
@@ -89,6 +96,7 @@ impl Form {
     /// Its conversion between `|f|` and metres.
     fn meters(self) -> Meters<Interval> {
         match self {
+            Self::Plane => Meters::Plane,
             Self::Cylinder { radius } => Meters::Cylinder { radius },
             Self::Sphere { radius } => Meters::Sphere { radius },
             Self::Torus { major, minor } => Meters::Torus { major, minor },
@@ -96,14 +104,15 @@ impl Form {
     }
 }
 
-impl Curved {
-    /// The partner `surface`, or why it is none: a plane, a cone or a
-    /// spline is no curved partner here; a frame that does not certify,
-    /// a radius not certified positive, or a torus not certified a ring
-    /// torus (`R > r`) refuses.
+impl ImplicitForm {
+    /// The partner `surface`, or why it is none: a cone or a spline is no
+    /// implicit partner here; a frame that does not certify, a radius not
+    /// certified positive, or a torus not certified a ring torus (`R > r`)
+    /// refuses.
     pub(crate) fn of(surface: &Surface<f64>) -> Result<Self, &'static str> {
         let positive = |x: f64| x.is_finite() && x > 0.0;
         let form = match *surface {
+            Surface::Plane { .. } => Form::Plane,
             Surface::Cylinder { radius, .. } if positive(radius) => Form::Cylinder {
                 radius: Interval::point(radius),
             },
@@ -127,11 +136,10 @@ impl Curved {
             Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
                 return Err("the partner's radius is not certified positive and finite");
             }
-            Surface::Plane { .. }
-            | Surface::Cone { .. }
-            | Surface::Nurbs(_)
-            | Surface::Approx(_) => {
-                return Err("only a cylinder, a sphere or a torus is a curved implicit partner");
+            Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+                return Err(
+                    "only a plane, a cylinder, a sphere or a torus is an implicit partner here",
+                );
             }
         };
         let (origin, [u_ref, _, axis]) =
@@ -164,6 +172,7 @@ impl Curved {
     /// The partner's kind, for a refusal's text.
     pub(crate) fn name(&self) -> &'static str {
         match self.form {
+            Form::Plane => "plane",
             Form::Cylinder { .. } => "cylinder",
             Form::Sphere { .. } => "sphere",
             Form::Torus { .. } => "torus",
@@ -194,6 +203,7 @@ impl Curved {
     pub(crate) fn value(&self, q: Vec3<Interval>) -> Interval {
         let radial = q.x.sqr() + q.y.sqr();
         match self.form {
+            Form::Plane => q.z,
             Form::Cylinder { radius } => radial - radius.sqr(),
             Form::Sphere { radius } => radial + q.z.sqr() - radius.sqr(),
             Form::Torus { major, minor } => {
@@ -207,6 +217,11 @@ impl Curved {
     pub(crate) fn frame_gradient(&self, q: Vec3<Interval>) -> Vec3<Interval> {
         let two = Interval::point(2.0);
         match self.form {
+            Form::Plane => Vec3::new(
+                Interval::point(0.0),
+                Interval::point(0.0),
+                Interval::point(1.0),
+            ),
             Form::Cylinder { .. } => Vec3::new(two * q.x, two * q.y, Interval::point(0.0)),
             Form::Sphere { .. } => Vec3::new(two * q.x, two * q.y, two * q.z),
             Form::Torus { major, minor } => {
@@ -235,6 +250,7 @@ impl Curved {
     pub(crate) fn frame_hessian(&self, q: Vec3<Interval>) -> [[Interval; 3]; 3] {
         let (o, two) = (Interval::point(0.0), Interval::point(2.0));
         match self.form {
+            Form::Plane => [[o; 3]; 3],
             Form::Cylinder { .. } => [[two, o, o], [o, two, o], [o, o, o]],
             Form::Sphere { .. } => [[two, o, o], [o, two, o], [o, o, two]],
             Form::Torus { major, minor } => {
@@ -416,7 +432,7 @@ impl<'a> ImplicitWall<'a> {
     /// naming the partner's reach where that binds).
     pub(crate) fn march_tol(
         &self,
-        curved: &Curved,
+        curved: &ImplicitForm,
     ) -> Result<super::march::MarchTol, super::SsiError> {
         let wall = self.charted.surface();
         let root = self.floor.root();
@@ -466,7 +482,7 @@ impl<'a> ImplicitWall<'a> {
     /// As [`super::boundary::Pass::run`].
     pub(crate) fn pass(
         &self,
-        curved: &Curved,
+        curved: &ImplicitForm,
     ) -> Result<super::boundary::BoundaryPass<[f64; 2]>, super::SsiError> {
         super::boundary::Pass {
             wall: self.charted.surface(),
@@ -488,7 +504,7 @@ mod tests {
     use geom::Surface;
     use geom_core::{Bounds, Point3, Vec3};
 
-    use super::Curved;
+    use super::ImplicitForm;
 
     fn torus(major: f64, minor: f64) -> Surface<f64> {
         Surface::Torus {
@@ -513,10 +529,10 @@ mod tests {
     #[test]
     fn a_torus_reads_metres_only_as_a_ring() {
         assert!(
-            Curved::of(&torus(0.2, 0.3)).is_err(),
+            ImplicitForm::of(&torus(0.2, 0.3)).is_err(),
             "a spindle torus refuses"
         );
-        let ring = Curved::of(&torus(1.0, 0.9)).expect("a ring torus");
+        let ring = ImplicitForm::of(&torus(1.0, 0.9)).expect("a ring torus");
         let off = 1e-6;
         let inner = ring.framed_point(Point3::new(0.1 - off, 0.0, 0.0));
         let outer = ring.framed_point(Point3::new(1.9, 0.0, 0.0));

@@ -159,6 +159,8 @@ mod pair_section;
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]
 mod plane_cone_arc;
+#[path = "plane_fold_differential.rs"]
+mod plane_fold_differential;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]

@@ -1,7 +1,7 @@
 //! **A residual side × NURBS: one complete section, read at a seed or
 //! whole**, on the 1×2 trace (C3).
 //!
-//! The section of a cylinder, sphere or ring torus and a NURBS wall is
+//! The section of a plane, cylinder, sphere or ring torus and a NURBS wall is
 //! the zero set of `φ = f∘S` over the wall's knot rectangle, `f` the
 //! partner's implicit residual in metres and `S` the wall's chart,
 //! traced on the wall's `(u, v)` alone ([`ImplicitChartR2`]): the point
@@ -43,7 +43,7 @@ use super::ends::Ends;
 use super::exhaust::{self, FloorKind, SweepFloor, UvRect};
 use super::handle::{Banked, TubeCell, foot, passed};
 use super::march::MarchContext;
-use super::residual::{Curved, ImplicitWall};
+use super::residual::{ImplicitForm, ImplicitWall};
 use super::system::ImplicitChartR2;
 use super::{
     SSI_MAX_STEPS, SectionReading, SsiDomain, SsiError, SsiOperand, SsiOutcome, branch_chart_tubes,
@@ -52,7 +52,7 @@ use super::{
 
 /// What the section is read over, fixed by [`ImplicitSection::of`].
 struct Lane<'a> {
-    curved: Curved,
+    curved: ImplicitForm,
     wall: ImplicitWall<'a>,
     wall_op: SsiOperand<'a, f64>,
     sys: ImplicitChartR2<'a>,
@@ -99,7 +99,7 @@ impl Lane<'_> {
 const FORM_REFUSED: &str = "the curved partner's form over a cell of the NURBS wall does not \
      certify — the wall's enclosure refused there";
 
-/// **The section of a cylinder, sphere or ring torus and a NURBS wall**
+/// **The section of a plane, cylinder, sphere or ring torus and a NURBS wall**
 /// (module docs): the operands checked, the boundary pass run once, and
 /// every branch certified so far.
 pub struct ImplicitSection<'a> {
@@ -153,9 +153,9 @@ impl<'a> ImplicitSection<'a> {
         band: Band,
         max_steps: usize,
     ) -> Result<Self, SsiError> {
-        let curved = Curved::of(partner).map_err(|_| SsiError::WrongLane {
-            expected: "a cylinder, sphere or ring torus and a NURBS surface traced on the wall's \
-                       chart",
+        let curved = ImplicitForm::of(partner).map_err(|_| SsiError::WrongLane {
+            expected: "a plane, cylinder, sphere or ring torus and a NURBS surface traced on the \
+                       wall's chart",
         })?;
         finite_operand("curved partner", partner)?;
         let read = ImplicitWall::of(wall, domain, band)?;
@@ -207,7 +207,7 @@ impl<'a> ImplicitSection<'a> {
     }
 
     /// The partner's form, as the section reads it.
-    pub(crate) fn curved(&self) -> &Curved {
+    pub(crate) fn curved(&self) -> &ImplicitForm {
         &self.lane.curved
     }
 

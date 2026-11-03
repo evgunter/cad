@@ -571,7 +571,7 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
 
 /// **The partner a chart tube reads `φ` of**, along the wall `S`: the
 /// plane distance `n·(S − p₀)`, or a curved partner's canonical form
-/// `f∘S` ([`Curved`](super::residual::Curved)). Limb 3's chart probe and
+/// `f∘S` ([`ImplicitForm`](super::residual::ImplicitForm)). Limb 3's chart probe and
 /// its one-arc walk read the partner through this alone, one home for
 /// every partner of a chart.
 #[derive(Clone, Copy)]
@@ -580,7 +580,7 @@ pub(crate) enum ChartPhi<'a> {
     /// certification arithmetic.
     Plane([Interval; 3], [Interval; 3]),
     /// A cylinder, sphere or torus, by its canonical form.
-    Curved(&'a super::residual::Curved),
+    Curved(&'a super::residual::ImplicitForm),
 }
 
 impl From<([Interval; 3], [Interval; 3])> for ChartPhi<'_> {
@@ -2808,7 +2808,7 @@ pub(super) mod tests {
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
-            let curved = super::super::residual::Curved::of(&sphere).expect("a sphere");
+            let curved = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
             chart_transverse_margin(
                 &boxes,
                 ChartPhi::Curved(&curved),
@@ -2859,7 +2859,7 @@ pub(super) mod tests {
             axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let curved = super::super::residual::Curved::of(&sphere).expect("a sphere");
+        let curved = super::super::residual::ImplicitForm::of(&sphere).expect("a sphere");
         let m = chart_transverse_margin(
             &boxes,
             ChartPhi::Curved(&curved),
