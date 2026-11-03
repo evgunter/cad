@@ -454,3 +454,5 @@ and bodies unchanged. No orchestrator yet.
   - **Mutants:** the pivot-padding mutant survives (that code predates the PR, and the PR discloses it).
   - **Review:** a dual review is dispatched; claim 5 asks whether any certifying path reaches the timing weakness.
   - **6466:** blind-coded at tally 0 (byte 114, A = R1), and its row is drafted.
+
+- 2026-11-03 22:20 — **Second container restart.** It stopped the 3b-ii fix pass, which had already pushed `b55c17d` and a main merge (`2df83ba`). The lane was resumed to finish its slow-set rerun and report. The PR 6479 reviews run in the cloud and were unaffected.
