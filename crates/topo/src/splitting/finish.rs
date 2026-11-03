@@ -1499,7 +1499,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
 /// keeps its own face** — sound by cancellation for volumes,
 /// point-in-solid and tier 3, though tier 3′ reads what lies inside it
 /// on both faces
-/// (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
+/// (`work/heldrecords/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
 ///
 /// # Errors
 ///

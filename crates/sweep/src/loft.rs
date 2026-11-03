@@ -349,7 +349,7 @@ pub enum LoftError {
     /// cannot settle decides nothing here: the door refuses only contact
     /// it verified, and an unsettled arc pair is the embedding
     /// certificate's
-    /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
+    /// (`work/lathe/self-overlapping-spines-build-and-validate.md`).
     ClearanceUndecided {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
@@ -385,7 +385,7 @@ pub enum LoftError {
     /// oriented lofts: a 10×10 square base under a 4×4 top turned 100°
     /// about `y` (its normal leaning back across the stack) is one. It
     /// retires when the loft door certifies embedding
-    /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
+    /// (`work/lathe/self-overlapping-spines-build-and-validate.md`).
     FarSectionNotForward {
         /// The slab — the pair [`SlabPair`] names; the far section is
         /// its second.

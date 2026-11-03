@@ -47,7 +47,7 @@ use super::march::{
 };
 use super::refine::refine_by_certificate;
 use super::section::{BandVerdict, band_verdict};
-use super::system::{LocalSystem, ParametricPairR4, SectionSystem};
+use super::system::{ImplicitChartR2, LocalSystem, ParametricPairR4, SectionSystem};
 use super::{
     BranchBound, FittedBranch, SsiBranch, SsiError, SsiOperand, certify, fit_branch, seam_tol,
 };
@@ -78,6 +78,14 @@ pub(crate) enum Operands<'a> {
         /// The wall operand.
         wall: &'a SsiOperand<'a, f64>,
     },
+    /// A residual side and a NURBS wall (the 1×2 lane): the wall's
+    /// pcurve carries the chart tube, read against the partner's form.
+    Implicit {
+        /// The partner: a cylinder, sphere or torus.
+        partner: &'a Surface<f64>,
+        /// The wall operand.
+        wall: &'a SsiOperand<'a, f64>,
+    },
     /// Two NURBS charts: both pcurves carry the two-chart tube.
     Pair {
         /// The first chart.
@@ -101,12 +109,16 @@ impl<'a> Operands<'a> {
             what: certify::NURBS_LIMBS_NEED_PCURVE,
         };
         match self {
-            Self::Plane { plane, wall } => {
+            Self::Plane {
+                plane: partner,
+                wall,
+            }
+            | Self::Implicit { partner, wall } => {
                 let (SsiOperand::Nurbs(wall), Some(pcurve)) = (wall, pb) else {
                     return Err(need());
                 };
                 Ok(certify::Lane::Chart {
-                    plane,
+                    partner,
                     wall: wall.clone(),
                     pcurve,
                 })
@@ -136,9 +148,10 @@ pub(crate) fn fit_states<const M: usize, const N: usize, S: SectionSystem<M, N>>
     states: &[[f64; N]],
 ) -> Result<FittedBranch, SsiError> {
     let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
-    let chart_a: Vec<Point2<f64>> = states.iter().map(|s| sys.feet(s)[0]).collect();
-    let chart_b: Vec<Point2<f64>> = states.iter().map(|s| sys.feet(s)[1]).collect();
-    fit_branch(&points, Some((&chart_a, &chart_b)))
+    let chart =
+        |k: usize| -> Option<Vec<Point2<f64>>> { states.iter().map(|s| sys.feet(s)[k]).collect() };
+    let (chart_a, chart_b) = (chart(0), chart(1));
+    fit_branch(&points, [chart_a.as_deref(), chart_b.as_deref()])
 }
 
 /// Ends a marched half-branch `states` (its last state the last one
@@ -314,6 +327,28 @@ impl<'a> Ends<'a, ParametricPairR4<'a>, 3, 4> {
             ctx,
             exit: RectExit::PAIR,
             operands: Operands::Pair { a, b },
+            band,
+        }
+    }
+}
+
+impl<'a> Ends<'a, ImplicitChartR2<'a>, 1, 2> {
+    /// The ends' reader for one residual × NURBS call: the march bounded
+    /// by the wall's rectangle, the state's only coordinates.
+    pub(crate) fn implicit(
+        sys: &'a ImplicitChartR2<'a>,
+        ctx: MarchContext<2>,
+        wall: &'a SsiOperand<'a, f64>,
+        band: Band,
+    ) -> Self {
+        Self {
+            sys,
+            ctx,
+            exit: RectExit::CHART,
+            operands: Operands::Implicit {
+                partner: sys.partner,
+                wall,
+            },
             band,
         }
     }
@@ -606,10 +641,11 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
     /// **The Hermite candidate**: the cubic from `a` to `b`
     /// through their tangents, each scaled to the ends' distance, as one
     /// cubic Bézier per chart on a shared parameter, and the carrier the
-    /// Bézier through the first chart's images of the control states.
-    /// A plane's chart is affine, so against a plane the carrier is that
-    /// chart's image of its own Bézier, exactly; against a NURBS chart it
-    /// is a candidate like the march's, which the certificate decides.
+    /// Bézier through the system's images of the control states. A
+    /// plane's chart is affine, so where the system reads its point on a
+    /// plane's chart the carrier is that chart's image of its own
+    /// Bézier, exactly; through a NURBS chart it is a candidate like the
+    /// march's, which the certificate decides.
     ///
     /// # Errors
     ///
@@ -645,16 +681,15 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
                 ctrl.iter().map(|s| self.sys.point(s)).collect(),
                 vec![1.0; 4],
             )?;
-            let pa = NurbsCurve2::new(
-                bezier()?,
-                ctrl.iter().map(|s| self.sys.feet(s)[0]).collect(),
-                vec![1.0; 4],
-            )?;
-            let pb = NurbsCurve2::new(
-                bezier()?,
-                ctrl.iter().map(|s| self.sys.feet(s)[1]).collect(),
-                vec![1.0; 4],
-            )?;
+            let pcurve = |k: usize| {
+                ctrl.iter()
+                    .map(|s| self.sys.feet(s)[k])
+                    .collect::<Option<Vec<_>>>()
+                    .map(|feet| NurbsCurve2::new(bezier()?, feet, vec![1.0; 4]))
+                    .transpose()
+            };
+            let pa = pcurve(0)?;
+            let pb = pcurve(1)?;
             Ok::<_, geom_core::spline::SplineError>((carrier, pa, pb))
         })();
         let Ok((carrier, pa, pb)) = built else {
@@ -668,7 +703,7 @@ impl<const M: usize, const N: usize, S: SectionSystem<M, N>> Ends<'_, S, M, N> {
             from: a.at,
             to: b.at,
         };
-        self.certified(carrier, Some(pa), Some(pb), end, march_tol)
+        self.certified(carrier, pa, pb, end, march_tol)
     }
 }
 

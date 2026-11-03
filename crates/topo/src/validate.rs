@@ -2957,7 +2957,7 @@ impl fmt::Display for StaleDeclaration {
 /// property row `carried_refusal_payloads_are_matchable_through_the_prelude`
 /// extended to cover it, and a Python word beside the arm on
 /// `ValidationError.findings`. Both are the façade crate's to write
-/// (`work/lib/wedge-check-is-a-rung-under-sliver-dihedral.md`), and
+/// (`work/bind/wedge-check-is-a-rung-under-sliver-dihedral.md`), and
 /// publishing the name without them would add a subject to that rule
 /// with no row to check it.
 ///

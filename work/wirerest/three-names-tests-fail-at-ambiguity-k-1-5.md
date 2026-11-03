@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-21
 priority: P3
 cost: M
-refs: [a-sliver-beside-a-rest-stands-outside-the-band-below-the-default-k]
 ---
 
 

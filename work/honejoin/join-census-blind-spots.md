@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P3
 cost: E
-refs: [boolean-join-resolves-germ-face-surfaces-in-three-closures, boolean-walks-face-to-surface-inline-at-two-dozen-sites]
+refs: [boolean-walks-face-to-surface-inline-at-two-dozen-sites]
 ---
 
 From PR 5061's narrow re-review (verdict MERGE), filed rather than held
