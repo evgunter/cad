@@ -452,6 +452,29 @@ fn a_plug_in_an_annulus_bore() {
     }
 }
 
+/// Whether `e` is the census's refusal of two opposed faces of one
+/// cylinder record abutting along their rim: the region door's
+/// `TouchingBoundary`, which no lane yet decides
+/// (`work/charttail/a-chart-region-reading-decides-two-faces-of-one-curved-record-abutting-along-an-arc-apart.md`).
+fn abutting_walls(body: &Body<f64>, e: &ValidationError) -> bool {
+    let ValidationError::CensusUnsupported {
+        subject: topo::CensusSubject::FacePair(a, b),
+        cause: topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+    } = e
+    else {
+        return false;
+    };
+    let (Some(fa), Some(fb)) = (body.get_face(*a), body.get_face(*b)) else {
+        return false;
+    };
+    fa.surface == fb.surface
+        && fa.sense != fb.sense
+        && matches!(
+            body.get_surface(fa.surface),
+            Some(geom::Surface::Cylinder { .. })
+        )
+}
+
 /// What one op of [`a_boss_over_a_hole_by_pose`] reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Reads {
@@ -517,7 +540,9 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
             assert!(
                 t3p.as_ref()
                     .is_err_and(|es| es.iter().any(rim) == (reads == Reads::Unrecorded)
-                        && es.iter().all(|e| rim(e) || curved(e))),
+                        && es
+                            .iter()
+                            .all(|e| rim(e) || curved(e) || abutting_walls(&b.body, e))),
                 "{row}: tier 3′ {t3p:?}"
             );
             let v =
@@ -1539,7 +1564,7 @@ fn a_hole_sharing_the_rim_along_an_arc_then_leaving_it_tangent() {
                                 contact: CensusContact::EdgeEdgeOverlap { .. },
                                 ..
                             }
-                        ))),
+                        ) || abutting_walls(&b.body, e))),
                     "{row}: tier 3′ {t3p:?}"
                 );
                 for (at, point, inside) in points {

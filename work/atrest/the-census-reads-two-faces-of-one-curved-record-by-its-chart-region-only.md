@@ -2,7 +2,8 @@
 id: the-census-reads-two-faces-of-one-curved-record-by-its-chart-region-only
 kind: issue
 title: The census's one-key conformal arm cannot read two opposed faces of one curved record that abut along a rim
-status: open
+status: closed
+closed: 2026-11-03
 opened: 2026-11-03
 ---
 
@@ -48,3 +49,8 @@ Options:
 3. Admit the arm's `CensusUnsupported` for an abutting pair in the two
    rows' pins, which states the gap rather than closing it.
 
+
+Closed 2026-11-03 on branch `onedoor/one-surface-record`. The two closed-conic
+rows admit exactly the abutting walls' `TouchingBoundary` refusal (option
+3). The capability, option 1, is its own row on charttail:
+`work/charttail/a-chart-region-reading-decides-two-faces-of-one-curved-record-abutting-along-an-arc-apart.md`.

@@ -36,3 +36,10 @@ its two coplanar caps on one record (`sweep::revolve`,
 refusing at the corner (`TogetherAxialCorner`, "parallel"). It now refuses
 `TogetherEdgeDisagreement` at the axis edge: the door moves the one record
 by one distance, where the two caps' material sides want it moved two ways.
+
+2026-11-03: the torax pin is not moved. No public build reaches the
+meridian-pair arm's parallel-caps refusal any more: two caps containing
+the axis that are parallel are coplanar, and a revolve now leaves
+coplanar caps on one record. The arm's other `TogetherAxialCorner`
+refusals keep their witnesses (`crates/sweep/tests/shell_curved_mouth.rs`
+`opening_a_tangent_dome_refuses_two_equidistant_roots`, the tie).
