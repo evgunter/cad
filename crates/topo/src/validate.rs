@@ -8240,6 +8240,18 @@ pub(crate) fn tier3_local_checks_marked<
             continue;
         };
         let every: Vec<usize> = (0..cycles.len()).collect();
+        // A sheet's apex no door places is read by the walk of each
+        // surface cycle's chart image through the sheet's chart.
+        let walked = || -> Option<Vec<Vec<geom_brep::LoopEdge<T>>>> {
+            cycles
+                .iter()
+                .map(|cycle| {
+                    let image = crate::surface_boundary::chart_image(body, cycle)?;
+                    crate::props::run_edges(body, &image.half_edges).ok()
+                })
+                .collect()
+        };
+        let sense = body.faces.get(face_key).is_some_and(|f| f.sense);
         for (point, x) in singular_points(&chart) {
             let face = face_key;
             let sheet_apex = matches!(
@@ -8278,7 +8290,34 @@ pub(crate) fn tier3_local_checks_marked<
                     // reachable only through the two readings' rounding,
                     // which the band's gap is far wider than.
                     Ok(None) if sheet_apex => {
-                        errors.push(ValidationError::SheetApexReached { face, point });
+                        use geom_brep::chart_singularity::{Unread, holds};
+                        let read = walked().map(|images| {
+                            let loops: Vec<&[_]> = images.iter().map(Vec::as_slice).collect();
+                            holds(surface, &loops, sense, point, band)
+                        });
+                        match read {
+                            Some(Ok(false)) => {}
+                            Some(Ok(true)) => {
+                                errors.push(ValidationError::ChartSingularityNotAVertex {
+                                    face,
+                                    point,
+                                    lies: SingularityLies::Interior,
+                                });
+                            }
+                            Some(Err(Unread::Side {
+                                why: SideUnread::Banded(diag),
+                                ..
+                            })) => {
+                                errors.push(ValidationError::ChartSingularityUndecided {
+                                    face,
+                                    point,
+                                    reading: Undecided::Side(SideUnread::Banded(diag)),
+                                });
+                            }
+                            Some(Err(_)) | None => {
+                                errors.push(ValidationError::SheetApexReached { face, point });
+                            }
+                        }
                     }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same
