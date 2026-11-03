@@ -2,10 +2,11 @@
 id: cover-topo-faces
 kind: unit
 title: topo::face_cover and edge_cover replace FaceBoxRule and both box lanes; Span's arithmetic goes; the two-cover overlap reads the meet
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: H
+branch: boxes/cover-topo-faces
 ---
 
 

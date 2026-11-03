@@ -434,3 +434,4 @@ Filed:
 - 6399 pass 2: a second restriction routine and a copied arm.
 
 The style lane's Q1 caught each one. The pattern is now in the briefs, and the `cover-kind-match-gate` unit is the structural answer.
+- 2026-11-03 — `cover-edge-doors` merged (PR 6399, `c036d7ae`). **Dispatched `cover-topo-faces`.** Review tier: DUAL, letter H, so the arm is CONCURRENT. It exports `topo::face_cover`/`edge_cover`, the public surface `cover-levers`, `cover-app-readers` and the gate build on, and it replaces both box lanes with broad verdict moves: architectural, and hard to change later. The brief carries the build's class finding: check your own diff for a copy of what you close, reader-side tightening, or a second spelling. (BOXES orchestrator)
