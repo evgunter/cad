@@ -1,0 +1,6 @@
+fork: a-torus-reaches-its-axis (SPIRICARM: horn-and-spindle-tori-have-no-representation — representing horn/spindle tori or their lemon/apple pieces; DESIGN D3 permanent sentence)
+drawn: 2026-11-03, head -c2 /dev/urandom | od -An -tu1
+bytes: 255 85
+arm: 2 designers
+mapping: A = Fable designer, B = Opus designer
+protocol: 8f2e1b9151
