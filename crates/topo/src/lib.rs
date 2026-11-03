@@ -135,35 +135,23 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
-pub mod clearance;
-pub mod construction;
-pub(crate) mod injective;
-// The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
-// section-chord geometry, a top-level sibling of `boolean/` and
-// `splitting/` for the reason its own docs give. Non-doc comment for
-// the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
+pub mod clearance;
 pub mod coherence;
 pub mod coincidence;
+pub mod construction;
 pub mod contact;
 pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
-pub(crate) mod fuse;
-// The one door for a planar face's outward normal — at the crate root
-// because its consumers now span both halves and the shared sector
-// walk; its own docs carry the argument. Non-doc comment for the same
-// rustdoc reason as the sector modules below.
 pub mod face_boxes;
 pub mod face_normal;
 #[cfg(test)]
 pub(crate) mod fixtures;
-// This crate's own sources, read as source. A sibling of `fixtures`
-// rather than a section of it: that module's subject is canonical
-// bodies, this one's is a Rust reader. Non-doc comment for the
-// same rustdoc reason as the sector modules below.
+pub(crate) mod fuse;
 pub mod geometry;
+pub(crate) mod injective;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
@@ -177,9 +165,6 @@ pub mod joint;
 pub(crate) mod lineage;
 pub mod link;
 pub(crate) mod live;
-// The one statement of a stored planar loop's signed winding, shared by
-// the merge's role assigner and tier 3's check 6. Non-doc comment for
-// the same rustdoc reason as the sector modules below.
 pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod mirror;
@@ -193,6 +178,7 @@ pub mod offset_general;
 pub mod offset_nappe;
 pub(crate) mod offset_restate;
 pub mod offset_together;
+pub(crate) mod one_region;
 pub mod pcurves;
 pub mod pieces;
 pub(crate) mod policy_lane;
@@ -226,14 +212,6 @@ pub(crate) mod review_m1_pr5_internal;
 pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
-// The shared vertex-neighborhood sector modules — top-level siblings
-// of `boolean/` and `splitting/` on purpose: both lanes ask these
-// questions, so neither hosts them. Each module's own docs carry
-// the placement argument. Non-doc comments deliberately: an outer
-// `///` here would merge into the module's own `//!` docs and make
-// rustdoc resolve their intra-doc links in THIS module's scope instead
-// of that one's.
-pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
