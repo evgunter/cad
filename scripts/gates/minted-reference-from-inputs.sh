@@ -22,6 +22,9 @@
 #                                 coordinates are the import's input;
 #   geom/src/cover.rs             `Frame::aimed`, a cover's box frame
 #                                 read only as a support along its aim;
+#   geom-brep/src/curve_face/conic_oracle.rs  the conic rows' torus
+#                                 fixture, built only for tests (its
+#                                 `test-support` reach is `topo`'s rows);
 #   topo/src/boolean/boxes.rs     `BoxFrame::aimed`, a box frame read
 #                                 only as a support along its aim;
 #   topo/src/side_reader.rs       a ray's aim, which no output keeps;
@@ -49,6 +52,7 @@ BASIS_HOMES=(
   crates/geom-core/src/linalg/unit_vec.rs
   crates/step-import/src/recognize.rs
   crates/geom/src/cover.rs
+  crates/geom-brep/src/curve_face/conic_oracle.rs
   crates/topo/src/boolean/boxes.rs
   crates/topo/src/side_reader.rs
   crates/topo/src/boolean/section_cert.rs

@@ -8,7 +8,7 @@ group: kernel/boolean/curved
 prefix: honeroot/
 tag: (HONEROOT orchestrator)
 ab_band: 9920-9939
-paths: [crates/topo/src/boolean/circle_roots.rs, crates/topo/src/boolean/circle_torus.rs, crates/topo/src/boolean/section_cert/*, crates/topo/src/boolean/rim_wedge.rs, crates/topo/src/boolean/sectors.rs, crates/topo/src/boolean/reduce.rs]
+paths: [crates/geom-brep/src/curve_face/circle_roots.rs, crates/geom-brep/src/curve_face/circle_torus.rs, crates/topo/src/boolean/section_cert/*, crates/topo/src/boolean/rim_wedge.rs, crates/topo/src/boolean/sectors.rs, crates/topo/src/boolean/reduce.rs]
 keep_out: [opened 2026-10-26 by HONE's priority-seam split per work/README.md Track size - HONE carried 118.5 budget points against 30 and was cut into HONE (its P2 rows) HONEROOT HONEJOIN HONEONE HONEWORD and HONESPLIT - every row moved by git mv with its id - all six share crates/topo/src/splitting/* and crates/topo/src/boolean/* with each other and with CLEAVE by design - shared ground is legitimate per the README's 2026-09-20 rule and what is owed is awareness while a lane is live]
 ---
 

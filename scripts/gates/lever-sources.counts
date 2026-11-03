@@ -10,6 +10,7 @@ crates/geom-brep/src/dihedral.rs 2
 crates/geom-brep/src/intersect.rs 5
 crates/geom-brep/src/pcurve_cache.rs 5
 crates/geom-brep/src/props/curved.rs 1
+crates/geom-brep/src/sector_shape.rs 1
 crates/geom-brep/src/ssi/boundary.rs 1
 crates/geom-brep/src/ssi/certify.rs 2
 crates/geom-brep/src/ssi/march.rs 2
@@ -25,7 +26,7 @@ crates/topo/src/boolean/overlap.rs 1
 crates/topo/src/boolean/recl.rs 1
 crates/topo/src/boolean/reduce.rs 1
 crates/topo/src/boolean/rim_wedge.rs 2
-crates/topo/src/boolean/sectors.rs 2
+crates/topo/src/boolean/sectors.rs 1
 crates/topo/src/boolean/solid_contain.rs 1
 crates/topo/src/boolean/trace.rs 2
 crates/topo/src/boolean/vtxfac.rs 2
