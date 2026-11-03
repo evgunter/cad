@@ -1034,6 +1034,10 @@ fn require_holes_wound_against(
 mod swap_rows;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod r1_probes;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;

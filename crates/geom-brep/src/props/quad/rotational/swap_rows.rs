@@ -589,3 +589,134 @@ fn a_projected_line_holds_the_closed_form() {
     encloses(got.flux, flux, "a projected line: flux");
     encloses(got.area, area, "a projected line: area");
 }
+
+// ---------------------------------------------------------------------
+// Reviewer R1's probes (PR 6478; not for merge)
+// ---------------------------------------------------------------------
+
+/// The plane section `v = c + k·r·cos u` of the chart from `ua` to `ub`
+/// as an exact rational quadratic (the rim's net, its level an affine
+/// function of the frame's `x`), one segment per `segments`.
+fn section_net(
+    chart: Chart,
+    (c, k): (f64, f64),
+    (ua, ub): (f64, f64),
+    segments: usize,
+) -> NurbsCurve3<f64> {
+    #[allow(clippy::cast_precision_loss)]
+    let n = segments as f64;
+    let half = (ub - ua) / (2.0 * n);
+    let lvl = |x_frame: f64| c + k * x_frame;
+    let mut control = vec![chart.at(ua, lvl(chart.r * ua.cos()))];
+    let mut weights = vec![1.0];
+    let mut knots = vec![0.0; 3];
+    for s in 0..segments {
+        #[allow(clippy::cast_precision_loss)]
+        let a = ua + (ub - ua) * (s as f64) / n;
+        let m = a + half;
+        let rr = chart.r / half.cos();
+        control.push(chart.o + chart.radial(m) * rr + chart.axis * lvl(rr * m.cos()));
+        weights.push(half.cos());
+        let e = a + 2.0 * half;
+        control.push(chart.at(e, lvl(chart.r * e.cos())));
+        weights.push(1.0);
+        if s + 1 < segments {
+            #[allow(clippy::cast_precision_loss)]
+            knots.extend([(s + 1) as f64 / n; 2]);
+        }
+    }
+    knots.extend([1.0; 3]);
+    net(knots, 2, control, weights)
+}
+
+/// **A swapped plane section, whose level and azimuth both move, holds
+/// the closed form** — no PR row has a projected edge along which both
+/// `v` and `u` vary, so `F(v)·u′` is otherwise only read as a product
+/// with one factor constant.
+#[test]
+fn r1_a_swapped_plane_section_holds_the_closed_form() {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    for (label, (u0, u1), (c, k), v0, segs) in [
+        ("short", (0.3, 1.4), (1.1, 0.6), 0.1, 1),
+        ("past a quarter turn", (0.2, 2.9), (1.4, 0.7), -0.2, 2),
+        ("across the seam", (-1.0, 0.8), (1.3, -0.5), 0.0, 2),
+        ("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0, 3),
+    ] {
+        let r = chart.r;
+        let v_at = |u: f64| c + k * r * u.cos();
+        let top_harmonic = TrimEdgeQ {
+            u: chan(0.0, 1.0),
+            v: HarmChan {
+                c0: pt(c),
+                ca: pt(k * r),
+                cb: Interval::zero(),
+                cl: Interval::zero(),
+            },
+            t0: pt(u0),
+            t1: pt(u1),
+            forward: false,
+            trig0: trig_at_limit(pt(u0)),
+            trig1: Some(trig_at_limit(pt(u1))),
+            env: Interval::zero(),
+        };
+        let edges = vec![
+            Edge {
+                harmonic: harmonic(chan(0.0, 1.0), chan(v0, 0.0), (u0, u1), true),
+                swap: None,
+            },
+            Edge {
+                harmonic: harmonic(chan(u1, 0.0), chan(0.0, 1.0), (v0, v_at(u1)), true),
+                swap: None,
+            },
+            Edge {
+                harmonic: top_harmonic,
+                swap: Some(section_net(chart, (c, k), (u0, u1), segs)),
+            },
+            Edge {
+                harmonic: harmonic(chan(u0, 0.0), chan(0.0, 1.0), (v0, v_at(u0)), false),
+                swap: None,
+            },
+        ];
+        let a = (c - v0) * (u1 - u0) + k * r * (u1.sin() - u0.sin());
+        holds(
+            label,
+            &face(chart, &[edges], Vec3::zero(), chart.o, Deck::AsMinted),
+            r * r * a,
+            r * a.abs(),
+        );
+    }
+}
+
+/// **A winding chord loop traversed against its carriers holds the
+/// band**: the band's top rim three projected arcs walked backwards, its
+/// bottom harmonic. Kills the mutant that adds a reversed edge's branch
+/// turns with the forward sign, which every PR row survives.
+#[test]
+fn r1_a_reversed_winding_chord_loop_holds_the_band() {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    let tau = core::f64::consts::TAU;
+    let (v0, v1) = (0.1, 0.9);
+    let third = tau / 3.0;
+    let bottom = vec![Edge {
+        harmonic: harmonic(chan(0.0, 1.0), chan(v0, 0.0), (0.0, tau), true),
+        swap: None,
+    }];
+    let top: Vec<Edge> = (0..3)
+        .rev()
+        .map(|k| {
+            let ua = third * f64::from(k);
+            Edge {
+                harmonic: harmonic(chan(0.0, 1.0), chan(v1, 0.0), (ua, ua + third), false),
+                swap: Some(rim_net(chart, v1, (ua, ua + third), 1)),
+            }
+        })
+        .collect();
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let a = tau * (v1 - v0);
+    holds(
+        "a reversed winding chord loop",
+        &face(chart, &[bottom, top], Vec3::zero(), about, Deck::AsMinted),
+        chart.r * chart.r * a,
+        chart.r * a,
+    );
+}
