@@ -27,3 +27,5 @@ The callers inside topo then read the doors from `geom-brep`. `topo::validate::d
 The guard's allowlist must shrink by exactly the lines this unit clears.
 
 Parked on the guard so the move list exists first. Review tier: dual, since it moves shared code several programs read and renames K populations.
+
+**Scope addition (from PR 6458's review, 2026-11-03):** `sector_shape.rs`'s Body-free functions also take no `Body`, so arm 1 sends them to `geom-brep`: `sector_shape`, `plane_offset`, `point_segment_distance`. Its deleted placement paragraph said they "would compile in geom-brep today". When `boxes` moves, `boolean/boxes.rs`'s `PINNED` per-file census of calls into `boxes` must move with the guard's allowlist.

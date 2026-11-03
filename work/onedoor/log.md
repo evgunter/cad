@@ -111,3 +111,11 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Scope:** callers outside `topo` are consumers of the door and stay out of scope.
   - **The move list before this ruling:** 386 + 104 outside→engine sites, 59 + 42 engine↔engine, 780 crate-visible items. The re-export count adds roughly 116.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6458](https://github.com/evgunter/cad/pull/6458)'s style review**: APPROVE-WITH-FIXES, with claim 1 false by execution. The path-based guard can be satisfied without a move: `use crate as c`, a private `pub use` hub in `lib.rs`, `super::`, an engine alias (132 → 1 for census.rs), `use crate::*`. It also over-counts root re-exports of non-engine types, and sitting in the slow set it reds main overnight instead of the PR.
+  - **Ruling:** the guard counts what `[topo.homes]` arm 3 says: by NAME, every top-level item declared under an engine, however it is reached. It is re-homed as a per-PR gate under `scripts/gates/`.
+  - **Class finding (the fifth this sitting):** a guard that blacklists spellings of a fact is defeated by the next spelling. The guard has to read the fact itself: here, the declaration, not the path.
+  - **Also from the review:**
+    - `sector_shape`'s Body-free functions (`sector_shape`, `plane_offset`, `point_segment_distance`) go into `crossing-doors-leave-topo-for-geom-brep`'s scope;
+    - `S173`'s quote of `face_normal`'s deleted placement argument is stale;
+    - `boolean/boxes.rs`'s `PINNED` census and this allowlist must move together when `boxes` leaves `boolean/`.
+  - (ONEDOOR orchestrator)
