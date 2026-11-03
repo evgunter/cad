@@ -896,7 +896,7 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
                 Vec3::unit_y(),
             ),
             (0.0, 1.0),
-            Some("Recourse: the edge's curve is not shown on the face it bounds"),
+            Some("Recourse: move the geometry so the boundary lies clearly on the face it bounds"),
         ),
         (
             "at a pose",

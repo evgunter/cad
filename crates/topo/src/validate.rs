@@ -13394,8 +13394,8 @@ mod tests {
                     vertex,
                     cause: in_band,
                 },
-                "Recourse: the edge's curve is not shown on the face it bounds at this \
-                 tolerance: move the geometry so it lies clearly on that face"
+                "Recourse: move the geometry so the boundary lies clearly on the face it \
+                 bounds at this tolerance"
                     .to_owned(),
             ),
             (
@@ -13410,8 +13410,8 @@ mod tests {
                     edge,
                     cause: in_band,
                 },
-                "Recourse: the edge's curve is not shown on the face it bounds at this \
-                 tolerance: move the geometry so it lies clearly on that face"
+                "Recourse: move the geometry so the boundary lies clearly on the face it \
+                 bounds at this tolerance"
                     .to_owned(),
             ),
             (
