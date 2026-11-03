@@ -445,7 +445,7 @@ fn cone_roots<T: Decide>(
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
     let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
     let noise = rounding_charge(h.terms) / h.per;
-    if let Some(found) =
+    if std::env::var("MUT").as_deref() != Ok("M3") && let Some(found) =
         through_the_apex(conic, (apex, axis, half_angle), &h, noise, (t0, t1), band)
     {
         return Ok(found);
@@ -549,6 +549,7 @@ fn through_the_apex<T: Decide>(
     );
     let spread_phi = (e1 + (e1.powi(2) + two * g0.abs() * e0).sqrt()) / g0.abs();
     let spread = spread_phi * conic.speed_hi();
+    let spread = if std::env::var("MUT").as_deref() == Ok("M5") { T::zero() } else { spread };
     match decide(CONE_APEX_SPREAD, Margin::of(spread), band) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) | Err(_) => return Some(Err(Unsettled::AtApex)),
@@ -556,6 +557,7 @@ fn through_the_apex<T: Decide>(
     // `G`'s own roots: none where `|k| − R` is definite, two where it is
     // definitely negative, a tangency between.
     let depth = k.abs() - r;
+    let depth = if std::env::var("MUT").as_deref() == Ok("M6") { T::one() } else { depth };
     match decide(CONE_DEFLATED_DEPTH, Margin::of(depth - noise), band) {
         Ok(Sign::Positive) => {
             return Some(Ok(Roots::<T, 2>::all([theta_a, theta_a]).widen()));
@@ -593,7 +595,7 @@ fn through_the_apex<T: Decide>(
     let mut found = [theta_a; 4];
     for (slot, phi) in [beta + spin, beta - spin].into_iter().enumerate() {
         let theta = near_mid(theta_a + phi);
-        let off = wrap(theta - theta_a).abs() - width - spread_phi;
+        let off = if std::env::var("MUT").as_deref() == Ok("M7") { T::one() } else { wrap(theta - theta_a).abs() - width - spread_phi };
         match decide(
             CONE_DEFLATED_CLEAR,
             Margin::of(off * conic.speed_lo()),
@@ -609,11 +611,13 @@ fn through_the_apex<T: Decide>(
         );
         match (side(lo), side(hi)) {
             (Some(a), Some(b)) if a != b => {}
+            _ if std::env::var("MUT").as_deref() == Ok("M8") => {}
             _ => return Some(Err(Unsettled::Tangency)),
         }
         let slope = (lo.value.abs() + hi.value.abs() - lo.error - hi.error) / (two * width);
         let slack = conic.speed_hi() * (at.value.abs() + at.error) / slope;
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
+            _ if std::env::var("MUT").as_deref() == Ok("M9") => found[2 + slot] = theta,
             Ok(Sign::Zero) => found[2 + slot] = theta,
             Ok(Sign::Positive | Sign::Negative) | Err(_) => return Some(Err(Unsettled::Meter)),
         }

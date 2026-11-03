@@ -666,3 +666,107 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
         println!("ε {eps}: {certified} certified, {misses} misses, {refused} refused");
     }
 }
+
+/// REVIEW PROBE: conics through / beside a cone's apex, three ε.
+#[test]
+fn review_probe_conic_through_apex() {
+    let mut rng = fuzz::Rng::from_seed(0xC0FFEE);
+    let mut tally: std::collections::BTreeMap<String, usize> = Default::default();
+    let mut bad: Vec<String> = Vec::new();
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for case in 0..3000 {
+            let apex = [rng.unit() * 4.0 - 2.0, rng.unit() * 4.0 - 2.0, rng.unit() * 4.0 - 2.0];
+            let ax = unit(&mut rng);
+            let alpha = 0.1 + 1.2 * rng.unit();
+            let s = cone(apex, [ax.x, ax.y, ax.z], alpha);
+            let tip = Point3::from_array(apex);
+            let deltas = [0.0, 0.0, 0.1, 0.9, 3.0, 30.0];
+            let delta = deltas[case % 6] * eps;
+            let w = unit(&mut rng);
+            let p = tip + w * delta;
+            let n = unit(&mut rng);
+            let u = {
+                let x = unit(&mut rng);
+                (x - n * x.dot(n)).normalize()
+            };
+            let v = n.cross(u);
+            let is_ellipse = case % 4 == 3;
+            let e = if is_ellipse {
+                let a = 0.3 + 1.5 * rng.unit();
+                let b = a * (0.3 + 0.6 * rng.unit());
+                let th = rng.unit() * TAU;
+                let c = p - u * (a * th.cos()) - v * (b * th.sin());
+                ellipse([c.x, c.y, c.z], [n.x, n.y, n.z], [u.x, u.y, u.z], a, b)
+            } else {
+                let rad = 0.2 + 1.8 * rng.unit();
+                let c = p + u * rad;
+                circle([c.x, c.y, c.z], [n.x, n.y, n.z], rad)
+            };
+            let t0 = rng.unit() * TAU - PI;
+            let t1 = t0 + TAU;
+            let got = conic_quadric_roots(&e, t0, t1, &s, band);
+            let label = format!(
+                "eps {eps:e} case {case} {} delta {delta:e} alpha {alpha:.3}",
+                if is_ellipse { "ellipse" } else { "circle" }
+            );
+            let key = match &got {
+                Ok(Ok(CircleRoots::Certified(found))) => {
+                    let roots = found.roots();
+                    let truth = crossings(|t| form(&s, e.eval(t)), t0, t1);
+                    let near = |t: f64, k: f64| (e.eval(t) - tip).norm() <= k * eps;
+                    let apex_roots = roots.iter().filter(|&&t| near(t, 11.0)).count();
+                    if apex_roots != 0 && apex_roots != 2 {
+                        bad.push(format!("{label}: {apex_roots} apex roots {roots:?}"));
+                    }
+                    for &r in roots.iter().filter(|&&t| near(t, 11.0)) {
+                        let d = (e.eval(r) - tip).norm();
+                        if d > 1.5 * eps {
+                            bad.push(format!("{label}: apex root {d:e} from the apex"));
+                        }
+                    }
+                    for &r in roots {
+                        let off = distance(&s, e.eval(r));
+                        if off > 2.0 * eps {
+                            bad.push(format!("{label}: root {r} {off:e} off the cone"));
+                        }
+                        if !near(r, 11.0)
+                            && !truth.iter().any(|&t| (e.eval(t) - e.eval(r)).norm() <= 4.0 * eps + 1e-9)
+                        {
+                            bad.push(format!("{label}: root {r} matches no oracle crossing {truth:?}"));
+                        }
+                    }
+                    for &t in &truth {
+                        if !near(t, 11.0)
+                            && !roots.iter().any(|&r| (e.eval(t) - e.eval(r)).norm() <= 4.0 * eps + 1e-9)
+                        {
+                            bad.push(format!("{label}: oracle crossing {t} not certified {roots:?}"));
+                        }
+                    }
+                    format!("certified {} (apex {apex_roots})", roots.len())
+                }
+                Ok(Ok(CircleRoots::Miss)) => {
+                    let truth = crossings(|t| form(&s, e.eval(t)), t0, t1);
+                    if truth.iter().any(|&t| (e.eval(t) - tip).norm() > 100.0 * eps) {
+                        bad.push(format!("{label}: Miss but {truth:?}"));
+                    }
+                    "miss".into()
+                }
+                Ok(Ok(CircleRoots::On(_))) => "on".into(),
+                Ok(Err(u)) => format!("{u:?}"),
+                Err(BooleanError::Escalated { diag, .. }) => format!("esc {:?}", diag.predicate),
+                Err(e) => format!("err {e:?}"),
+            };
+            *tally
+                .entry(format!("eps {eps:e} delta/eps {} {key}", deltas[case % 6]))
+                .or_default() += 1;
+        }
+    }
+    for (k, v) in &tally {
+        eprintln!("{k}: {v}");
+    }
+    for b in bad.iter().take(30) {
+        eprintln!("BAD {b}");
+    }
+    assert!(bad.is_empty(), "{} bad", bad.len());
+}
