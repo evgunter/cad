@@ -41,6 +41,9 @@ fn tol() -> Tol {
 /// Near the origin, and a kilometre off it.
 const OFFSETS: [Vec3<f64>; 2] = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -1000.0, 1000.0)];
 
+/// A profile's corners, each `(x, y, bulge)`.
+type Corners = &'static [(f64, f64, f64)];
+
 /// `tan(π/8)`: the bulge of a quarter turn.
 const QUARTER: f64 = 0.414_213_562_373_095_1;
 
@@ -102,7 +105,7 @@ fn c_block(o: Vec3<f64>) -> BooleanBody<f64> {
 /// tangent wall's bend is not read.
 #[test]
 fn a_ridge_on_a_cylinders_ruling_resting_on_its_floor_passes_tier_3_prime() {
-    let ridges: [(&str, &[(f64, f64, f64)]); 3] = [
+    let ridges: [(&str, Corners); 3] = [
         (
             "an arc wall bowed out",
             &[(1.5, 1.0, 0.2), (2.1, 3.0, 0.0), (0.9, 3.0, 0.0)],
