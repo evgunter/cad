@@ -118,6 +118,7 @@ use super::combine::{GraftMap, graft_solids_disjoint};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
+use super::holdings::Holdings;
 use super::join::bool_connect;
 use super::reduce::PendingRow;
 use super::section_cert::Refusal as SectionRefusal;
@@ -206,6 +207,11 @@ pub struct BooleanBody<T: Real> {
     /// The face pairs those coincidences glue, in their order
     /// ([`GlueVerdict`]).
     pub verdicts: Vec<GlueVerdict<T>>,
+    /// Per face of [`Self::body`], and per discard row of
+    /// [`Self::naming`], exactly the operand faces whose area it holds,
+    /// operand A at place 0 and B at place 1, read from the naming's
+    /// records ([`Holdings::of_records`]).
+    pub holdings: Holdings,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -747,30 +753,81 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
 /// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
 /// the operation's only coincidences, and it decides none of its own.
+/// The operation puts its operand clones as its cuts left them in
+/// `clones`, or in a slot of its own ([`Glue::clones`]), and reads its
+/// discarded fragments' regions there.
 pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
     inputs: &BooleanInputs,
-    given: Option<&[super::GluedPair<T>]>,
+    (given, clones): (Option<&[super::GluedPair<T>]>, Option<super::CloneSlot<T>>),
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
+    let clones = clones.unwrap_or_default();
+    let glue = Glue {
+        clones: Some(clones.clone()),
+        ..Glue::of(inputs, given)
+    };
+    let mut result = boolean_door(op, a, b, &glue, strategy, tol);
+    // The one place a result leaves the door: its naming is final here,
+    // past every rewrite (a sphere cut-in's, after its re-entry), so its
+    // holdings are read here and nowhere else.
+    if let Ok(BooleanResult::Body(out)) = &mut result {
+        let band = Band::linear(tol)?;
+        let held = clones
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        out.holdings = Holdings::of_records(
+            op,
+            &out.naming,
+            &out.body,
+            ([a, b], [held[0].as_ref(), held[1].as_ref()]),
+            band,
+        );
+        holdings_name_input_faces(&out.holdings, [a, b]);
+    }
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     if let Ok(BooleanResult::Body(out)) = &result {
         rows_name_input_cells(&out.coincidences, [a, b]);
     }
     result
+}
+
+/// **Every operand face a boolean's holdings name is a face of its
+/// operand**, and every finished face holds one.
+///
+/// # Panics
+///
+/// For a face that is not: the holdings are read from the naming's
+/// final rows, each read back to its operand ([`Holdings::of_records`]).
+fn holdings_name_input_faces<T: Real>(holdings: &Holdings, inputs: [&Body<T>; 2]) {
+    for (place, f) in holdings.named() {
+        if inputs[place].get_face(f).is_none() {
+            unreachable!(
+                "a boolean's holdings name operand {place}'s face {f:?}, which that operand does \
+                 not hold, though they are read from the naming's final rows"
+            );
+        }
+    }
+    for (f, held) in holdings.faces() {
+        if held.faces().is_some_and(BTreeSet::is_empty) {
+            unreachable!(
+                "finished face {f:?} holds no operand face, though every finished face is a \
+                 piece of one"
+            );
+        }
+    }
 }
 
 /// **Every input cell a row names is live in its input**, a meeting's
@@ -1192,7 +1249,10 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge_joins,
         killed_lineage,
     };
+    decls.keep_clone(Operand::A, || fin.clone_a);
+    decls.keep_clone(Operand::B, || fin.clone_b);
     Ok(BooleanResult::Body(BooleanBody {
+        holdings: Holdings::unread(),
         body,
         kind: BooleanResultKind::Seamed,
         contacts,
@@ -1858,14 +1918,10 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .collect()
 }
 
-/// The section certificate's [`Reach`](super::section_cert::Reach) of
+/// The section certificate's [`Reach`](geom_brep::Reach) of
 /// two overlapping face boxes ([`super::glue::overlap_ball`]).
-fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::section_cert::Reach<T> {
-    let ball = super::glue::overlap_ball(box_a, box_b);
-    super::section_cert::Reach {
-        centre: ball.center(),
-        radius: ball.radius(),
-    }
+fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
+    geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the
@@ -1916,7 +1972,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         None => classify_known(
             &fa.surface,
             &fb.surface,
-            overlap_reach(&fa.bbox, &fb.bbox),
+            &overlap_reach(&fa.bbox, &fb.bbox),
             sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
@@ -3150,8 +3206,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **A seam edge of the result, as its re-description reads it**: the
-/// dihedral of its two surfaces at `witness` over `reach`, its faces' extent, whose arm
-/// rung is the seam's own lever and whose reading is the seam's wedge.
+/// dihedral of its two surfaces at `witness` over the ball of radius
+/// `reach` about it, its faces' extent, whose arm rung is the seam's own
+/// lever and whose reading is the seam's wedge.
 #[cfg(test)]
 pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     surf1: &geom::Surface<T>,
@@ -3161,6 +3218,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
     let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
+    let reach = geom_core::test_support::fixture_lever(reach);
     seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
         geom_brep::SeamEscalation::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
@@ -3177,7 +3235,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
 fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
     faces: [geom_brep::SeamFace<'_, T>; 2],
     witness: Point3<T>,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<geom_brep::DihedralClass, geom_brep::SeamEscalation> {
     geom_brep::classify_seam(
@@ -3291,6 +3349,7 @@ pub(super) fn seam_must_carry<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
+    let reach = geom_core::test_support::fixture_lever(reach);
     must_carry_reading(surf1, surf2, carrier, t0, t1, reach, band)
 }
 
@@ -3319,7 +3378,7 @@ fn must_carry_reading<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
     t1: T,
-    reach: T,
+    reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
     use geom_brep::MustCarryVerdict;
@@ -6470,7 +6529,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
-                        Margin::levered(align.cross(n).norm(), radius),
+                        Margin::levered(
+                            align.cross(n).norm(),
+                            geom_core::Lever::curvature_radius(radius),
+                        ),
                         band,
                     )
                     .map_err(esc(SphereQuestion::EscapeParallel))?
@@ -6724,7 +6786,10 @@ pub(super) fn recut_lean<T: Decide>(
 ) -> Result<(), BooleanError> {
     crate::validate::decide_nonzero(
         "bool_sphere_recut_align",
-        Margin::levered(axis.cross(align).norm(), radius),
+        Margin::levered(
+            axis.cross(align).norm(),
+            geom_core::Lever::curvature_radius(radius),
+        ),
         band,
     )
     .map(|_| ())
@@ -6942,7 +7007,7 @@ impl Recharts {
     /// input shell wears that sphere: a closed sphere group
     /// ([`super::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
-    fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
+    pub(crate) fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
     }
 }
@@ -7195,14 +7260,19 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         ));
                     }
                 };
-                let rising =
-                    sign("bool_sphere_cut_span", Margin::levered(t1 - t0, cr))? == Sign::Positive;
+                let rising = sign(
+                    "bool_sphere_cut_span",
+                    Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
+                )? == Sign::Positive;
                 let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
                 for theta in thetas {
-                    let into = |end: T| Margin::levered(theta - end, cr);
+                    let into = |end: T| Margin::metered(theta - end, geom_core::InfSpeed::new(cr));
                     let (from_lo, to_hi) = (
                         sign("bool_sphere_cut_span", into(lo_t))?,
-                        sign("bool_sphere_cut_span", Margin::levered(hi_t - theta, cr))?,
+                        sign(
+                            "bool_sphere_cut_span",
+                            Margin::metered(hi_t - theta, geom_core::InfSpeed::new(cr)),
+                        )?,
                     );
                     if from_lo == Sign::Negative || to_hi == Sign::Negative {
                         continue;
@@ -7303,7 +7373,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let below_first = match (below_split, over_split) {
             (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
                 let along = if rising { lo - hi } else { hi - lo };
-                sign("bool_sphere_cut_span", Margin::levered(along, arm))? == Sign::Positive
+                sign(
+                    "bool_sphere_cut_span",
+                    Margin::metered(along, geom_core::InfSpeed::new(arm)),
+                )? == Sign::Positive
             }
             _ => true,
         };
@@ -7847,7 +7920,13 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 discards,
                 ..BooleanNaming::default()
             };
+            for (operand, clone) in [(Operand::A, &red.a), (Operand::B, &red.b)] {
+                if naming.discards.iter().any(|d| d.operand == operand) {
+                    decls.keep_clone(operand, || clone.clone());
+                }
+            }
             Ok(BooleanResult::Body(BooleanBody {
+                holdings: Holdings::unread(),
                 body,
                 kind,
                 contacts,
@@ -8186,7 +8265,13 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             ..BooleanNaming::default()
         },
     };
+    for (operand, clone) in [(Operand::A, &red.a), (Operand::B, &red.b)] {
+        if naming.discards.iter().any(|d| d.operand == operand) {
+            decls.keep_clone(operand, || clone.clone());
+        }
+    }
     Ok(BooleanResult::Body(BooleanBody {
+        holdings: Holdings::unread(),
         body,
         kind,
         contacts,
@@ -9962,7 +10047,15 @@ mod tests {
         );
         for (a, b) in [(&torus, &bitangent), (&bitangent, &torus)] {
             assert_eq!(
-                geom_brep::must_carry_over_edge(a, b, &arc, span.0, span.1, 1.0, band()),
+                geom_brep::must_carry_over_edge(
+                    a,
+                    b,
+                    &arc,
+                    span.0,
+                    span.1,
+                    geom_core::test_support::fixture_lever(1.0),
+                    band()
+                ),
                 geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
                     transverse: 3,
                     smooth: 4
@@ -9999,14 +10092,14 @@ mod tests {
     #[test]
     fn an_in_band_wedge_behind_a_corner_refuses_as_the_seam_wedge() {
         let (torus, bitangent, arc) = villarceau();
-        let extent = 1.0;
+        let extent = geom_core::test_support::fixture_lever(1.0);
         // The wedge's margin, `sin θ` levered over the folded arm, at
         // the arc's `t`: linear in `t` beside the tangency.
         let wedge = |t: f64| {
             let p = arc.eval(t);
             let n = |s: &geom::Surface<f64>| geom_brep::implicit_gradient(s, p).normalize();
             n(&torus).cross(n(&bitangent)).norm()
-                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent)
+                * geom_brep::folded_lever_arm(&torus, &bitangent, p, extent).length()
         };
         let slope = wedge(1e-4) / 1e-4;
         // The stations sit a quarter of the half-span apart: the inner
@@ -10041,7 +10134,7 @@ mod tests {
                 "an in-band wedge anywhere escalates, got {verdict:?}"
             );
         }
-        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent)
+        for (order, got) in both_orders(&torus, &bitangent, &arc, span, extent.length())
             .into_iter()
             .enumerate()
         {
@@ -10667,7 +10760,8 @@ mod from_computed_rows {
                 max_z: hi,
             };
             let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
-            vec![reach.centre.x, reach.radius]
+            let ball = reach.ball();
+            vec![ball.center().x, ball.radius()]
         });
         assert_eq!(found.laundered, 0, "{found:?}");
         assert_eq!(found.opaque, 2, "{found:?}");
@@ -11058,7 +11152,7 @@ mod spline_seam_rows {
         seam_reading(
             [face(sides.plus), face(sides.minus)],
             curve.mid_point(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         )
     }
@@ -11081,7 +11175,7 @@ mod spline_seam_rows {
             surface(sides.plus),
             surface(sides.minus),
             body.stored_curve(edge).unwrap().mid_point(),
-            1.0,
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         );
         assert!(

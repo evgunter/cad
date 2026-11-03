@@ -120,7 +120,7 @@ fn seam_delta(
         p0,
         p1,
         &lookup,
-        1.0,
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )

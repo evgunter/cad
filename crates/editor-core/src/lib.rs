@@ -176,8 +176,8 @@ pub use mc::{
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionRelation, AssertionVerdict, Claim, ClearanceBounds, ClearanceSeat,
-    MeasurePrimitive, MeasureVerb, UnevaluatedReason,
+    ASSERT_BOUND, AssertionRelation, AssertionVerdict, BoundEnd, Claim, ClearanceBounds,
+    ClearanceSeat, MeasurePrimitive, MeasureVerb, UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};

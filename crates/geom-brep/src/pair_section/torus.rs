@@ -95,8 +95,8 @@ pub enum AxisPose<T: Real> {
 /// The lever of a tilt read about the pivot `at` over `ball`: the
 /// ball's farthest distance from it, doubled (the section certificate's
 /// module docs, the lever and its pivot).
-pub fn lever<T: Real>(at: Point3<T>, ball: ExtentBall<T>) -> T {
-    ball.lever_from(at) * T::from_f64(2.0)
+pub fn lever<T: Real>(at: Point3<T>, ball: ExtentBall<T>) -> geom_core::Lever<T> {
+    ball.twice_lever_from(at)
 }
 
 /// Where the turn onto the torus axis is read: the pivot, the axes' tilt
@@ -143,7 +143,7 @@ pub fn axis_pose<T: Decide>(
         return AxisPose::Other;
     }
     let (perp, e) = square_part(at - c, a);
-    let swing = line_tilt(a, d) * ball.lever_from(at)
+    let swing = line_tilt(a, d) * ball.lever_from(at).length()
         + turn(&Turn {
             at,
             tilt,
@@ -668,7 +668,7 @@ impl<T: Decide> SphereTorusPose<T> {
 
     /// The sphere's own ball, which holds the section.
     pub fn ball(&self) -> ExtentBall<T> {
-        ExtentBall::new(self.center, self.radius)
+        ExtentBall::of_sphere(self.center, self.radius)
     }
 
     /// How the sphere stands.
@@ -776,7 +776,7 @@ pub(super) fn sphere_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: ring.r,
+        lever: geom_core::Lever::curvature_radius(ring.r),
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
@@ -1040,7 +1040,7 @@ pub(super) fn cylinder_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: ring.r,
+        lever: geom_core::Lever::curvature_radius(ring.r),
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
@@ -1283,7 +1283,8 @@ pub(super) fn torus_torus<T: Decide>(
     };
     decided.extend(pose.tangency());
     Ok(PairSection {
-        lever: r1.r.min(r2.r),
+        lever: geom_core::Lever::curvature_radius(r1.r)
+            .min(geom_core::Lever::curvature_radius(r2.r)),
         pose: PairPose::TorusTorus(pose),
         decided,
         components,

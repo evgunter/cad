@@ -1193,7 +1193,12 @@ the first order's own ladder: decided, it leaves the face; within the
 zero band, it rides it; in the gap between the zero band and the
 escalation band, or where no bend is certified (a spline face, a
 spiric or spline edge against a curved face), it falls back to its
-first-order tie until a witness reads it; a poisoned reading refuses.
+first-order tie; a poisoned reading refuses. A tied line or conic edge
+against a sphere or a cylinder is read on its witness as well, its own
+point at the arm the parting was read at, by the carrier's signed
+distance on the same reading (`topo::link::Round`): off the zero band
+the verdict stands only on that point's side; a point back within the
+zero band reads as the tie, and one on the other side refuses.
 Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not

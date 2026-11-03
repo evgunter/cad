@@ -120,7 +120,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             Formula::turn_over(4).expect("a quarter turn"),
         ),
         (Coord::Spin(Some(TargetAxis::Z)), ang(-a)),
-        (Coord::Slide(TargetAxis::Z), len(-y0)),
+        (Coord::slide(TargetAxis::Z), len(-y0)),
     ]);
     let space = doc
         .operand_space(&shaft.into())

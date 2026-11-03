@@ -85,14 +85,9 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {
-    /// The add-profile form's loop choice: the two templates, or a PATH
-    /// authored verb by verb.
-    ///
-    /// An enum for the reason [`PatternLayoutChoice`] is one — and the templates
-    /// stay in it rather than being folded into the path arm because each
-    /// is one complete-loop step authored by its own fields: a circle by
-    /// its centre and radius, a rectangle by its centre, width and
-    /// height.
+    /// The profile editor's add-loop choices: the templates a loop
+    /// starts as (`crate::drafts::template_steps`) — one complete-loop
+    /// step, a circle or a rectangle, or a chain of verbs to edit.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ShapeKind {
         /// A circle.
@@ -103,7 +98,7 @@ vocabulary! {
         Path = "path",
     }
 
-    /// Every shape with its radio label, in form order.
+    /// Every template with its label, in the add-loop row's order.
     pub(crate) const ALL;
 }
 

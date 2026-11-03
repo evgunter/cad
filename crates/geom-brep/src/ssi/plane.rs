@@ -70,7 +70,7 @@ struct Lane<'a> {
 
 impl Lane<'_> {
     /// The ends' reader over this lane.
-    fn ends(&self) -> Ends<'_> {
+    fn ends(&self) -> Ends<'_, ParametricPairR4<'_>, 3, 4> {
         Ends::of(&self.sys, self.ctx, self.plane, &self.wall_op, self.band)
     }
 

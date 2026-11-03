@@ -633,5 +633,5 @@ fn the_splitting_twin_reads_the_dipping_edge_at_its_far_vertex() {
 /// A ball of radius `arm` about the origin: the extent a bare arm
 /// names.
 fn metre_ball(arm: f64) -> topo::ConsumedExtent<f64> {
-    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::of_sphere(Point3::origin(), arm))
 }

@@ -69,9 +69,9 @@ pub fn document() -> CorpusDoc {
             placed,
             rest(base, top()),
             vec![
-                (Coord::Slide(TargetAxis::X), len(at)),
+                (Coord::slide(TargetAxis::X), len(at)),
                 (
-                    Coord::Slide(TargetAxis::Y),
+                    Coord::slide(TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
                 (Coord::SPIN, Formula::zero(Dimension::Angle)),

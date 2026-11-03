@@ -96,7 +96,7 @@ pub mod refuse;
 pub mod select;
 pub(crate) mod snap;
 
-pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
+pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec};
 pub use delete::DeleteAffordance;
 pub use op::{
     CancelDoor, ClearedSeat, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp,
@@ -196,7 +196,14 @@ impl GestureTarget {
     ) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot, unit } => props::slot_edit(doc, *node, *slot, value, *unit),
-            Self::Variable { var, .. } => Ok(props::variable_edit(*var, value)),
+            // A count dragged on an index is its count, as typed text is.
+            Self::Variable { var, .. } => Ok(match value {
+                SlotValue::Count(count) => {
+                    props::index_count_edit(doc, *var, Formula::count(count))
+                }
+                SlotValue::Continuous(_) => None,
+            }
+            .unwrap_or_else(|| props::variable_edit(*var, value))),
         }
     }
 }
@@ -3056,7 +3063,7 @@ impl DocSession {
                 return Err(Refusal::Edit(Box::new(refusal)));
             }
             let Some(dimension) = held.kind().dimension() else {
-                unreachable!("a free or defined variable is a scalar")
+                unreachable!("a free, defined or index variable reads at a dimension")
             };
             Ok(GestureTarget::Variable { var, dimension })
         })
@@ -3467,11 +3474,11 @@ impl DocSession {
     /// Insert one profile node ([`SessionOp::AddProfile`]), drawn on its
     /// own plane.
     ///
-    /// No loop-count or nesting judgment here: an empty list, a
-    /// degenerate loop and a non-nested pair all go to `commit`, where
-    /// the edit door's authoring-time check refuses them typed in the
-    /// profile layer's own words — the one rule authored and
-    /// hand-written programs share.
+    /// No loop-count or nesting judgment here: every list goes to
+    /// `commit`, where the edit door's authoring-time check refuses a
+    /// degenerate loop or a non-nested pair typed in the profile
+    /// layer's own words — the one rule authored and hand-written
+    /// programs share. An empty list is the empty region, and inserts.
     fn add_profile(&self, loops: Vec<LoopProgram<Formula>>) -> Result<Creating, Refusal> {
         Ok(creating(move |run| {
             run.insert(Node::Profile(ProfileProgram {
@@ -3610,10 +3617,10 @@ impl DocSession {
     /// the reshaping drops, or on a kept step's piece it stops drawing,
     /// stranded. Empty when the op would write nothing.
     ///
-    /// The profile editor reads it BEFORE its Apply, while the person
-    /// can still keep the step; the op's outcome carries the same rows
-    /// after, beside the anonymous variables the rewrite retires, which
-    /// this count leaves out unless one carried a tolerance
+    /// The profile editor asks it before a change lands, as the door's
+    /// verdict on the held draft; the op's outcome carries the same
+    /// rows after, beside the anonymous variables the rewrite retires,
+    /// which this count leaves out unless one carried a tolerance
     /// (`Maintenance::is_silent_retirement`).
     ///
     /// # Errors
@@ -3781,7 +3788,9 @@ impl DocSession {
     /// **Mirror a body across the plane of a picked face**
     /// ([`SessionOp::AddMirror`]): the image, and the symmetric part,
     /// the body and its image unioned, taking over what reads the body
-    /// along a seen path ([`Takeover`]).
+    /// along a seen path ([`Takeover`]). The made node is the mirror,
+    /// which the gesture's noun names: its label and the selection land
+    /// there, and its rows hold what the gesture read.
     fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
@@ -3797,7 +3806,12 @@ impl DocSession {
             // stays where it stood
             // (`takeovers::the_mirrors_merged_top_keeps_the_old_tops_frame`).
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
-            Ok(Wrote::one(part))
+            Ok(Wrote {
+                made: image,
+                replacement: part,
+                whole: None,
+                intact: Vec::new(),
+            })
         }))
     }
 
@@ -3920,29 +3934,40 @@ impl DocSession {
         let source = pncad::document::BodyRead::plain(input.clone());
         let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
-                combine::row_steps(&direction, &spacing).and_then(|steps| {
-                    pncad::pattern::linear_pattern(&index, source, Operand::Var(target), &steps)
-                })
+                let (along, across) = match direction {
+                    PatternDirection::Axis(axis) => {
+                        (pncad::pattern::RowDirection::Axis(axis), None)
+                    }
+                    picked => {
+                        let (read, heading) =
+                            self.picked_heading(&input, target, &picked, false)?;
+                        (
+                            pncad::pattern::RowDirection::Read(read),
+                            Some(pncad::document::slides_across(&[heading])),
+                        )
+                    }
+                };
+                pncad::pattern::linear_pattern(
+                    &index,
+                    source,
+                    Operand::Var(target),
+                    &[(along, spacing)],
+                    across,
+                )
             }
-            PatternRuleSpec::Circular {
-                through,
-                direction,
-                step,
-            } => {
-                let axis = axis_operand(self.read_off(
-                    &input,
-                    &through,
-                    &direction,
-                    "pattern axis",
-                    PoseRole::Z,
-                )?);
-                let along = combine::ring_slide_axis(&direction);
+            PatternRuleSpec::Circular { axis, step } => {
+                let axis = match axis {
+                    PatternDirection::Axis(axis) => pncad::pattern::RingAxis::Target(axis),
+                    picked => pncad::pattern::RingAxis::About(
+                        self.picked_heading(&input, target, &picked, true)?.0,
+                    ),
+                };
                 pncad::pattern::circular_pattern(
                     doc,
                     &index,
                     source,
                     Operand::Var(target),
-                    (axis.clone(), axis, along),
+                    axis,
                     pncad::pattern::RingStep::By(step),
                 )
             }
@@ -3989,6 +4014,93 @@ impl DocSession {
                 }
             }
         }))
+    }
+
+    /// **The read a pattern's picked geometry is, and the direction it
+    /// reads where the committed document stands**: an edge's line, a
+    /// flat face's normal or a round face's axis — for a ring (`axis`),
+    /// an edge's or a face's axis alone. Each is read as a value of a
+    /// placement of `input` into `target` reads it, and the first that
+    /// evaluates is the one written, so its direction is the one the
+    /// row's other slides are chosen across
+    /// ([`pncad::document::slides_across`]).
+    ///
+    /// # Errors
+    ///
+    /// [`GestureFrameFault::NoHeading`] where none evaluates.
+    fn picked_heading(
+        &self,
+        input: &Operand,
+        target: VarId,
+        picked: &PatternDirection,
+        axis: bool,
+    ) -> Result<(RoleRead<Operand>, pncad::geom_core::linalg::Vec3<f64>), Refusal> {
+        use pncad::document::pose::{PoseDef, PoseValue};
+        let doc = self.committed_doc();
+        let field = if axis {
+            "pattern axis"
+        } else {
+            "pattern direction"
+        };
+        let pose = |def: PoseDef<Operand, Formula>| Operand::Pose(Box::new(def));
+        let candidates: Vec<RoleRead<Operand>> = match picked {
+            PatternDirection::Axis(_) => Vec::new(),
+            PatternDirection::Edge(edge) => vec![RoleRead::plain(pose(PoseDef::Axis {
+                of: pick_read(doc, edge),
+            }))],
+            PatternDirection::Face(face) => {
+                let of = pick_read(doc, face);
+                let normal =
+                    RoleRead::through(pose(PoseDef::Plane { face: of.clone() }), PoseRole::Normal);
+                let carrier = RoleRead::plain(pose(PoseDef::Axis { of }));
+                if axis {
+                    vec![carrier]
+                } else {
+                    vec![normal, carrier]
+                }
+            }
+        };
+        let opts = self.eval_options();
+        let ev: Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &opts,
+            self.tol,
+        );
+        let read = |read: &RoleRead<Operand>| {
+            let coord = if axis {
+                pncad::document::Coord::SpinAbout(read.clone())
+            } else {
+                pncad::document::Coord::SlideAlong(read.clone())
+            };
+            let zero = Formula::zero(coord.dimension());
+            let mut run = Recording::start(doc, self.tol);
+            let probe = run
+                .insert(Node::place(
+                    pncad::document::BodyRead::plain(input.clone()),
+                    Operand::Var(target),
+                    pncad::document::Placed::unmated(vec![(coord, zero)]).bundle(),
+                ))
+                .ok()?;
+            let scratch = run.doc();
+            let Some(Node::Place { constraints, .. }) = scratch.node(probe) else {
+                return None;
+            };
+            let (id, coord) = constraints
+                .iter()
+                .find_map(|c| Some((c.id, c.value()?.coord)).filter(|(_, c)| c.read().is_some()))?;
+            let at = *coord.read()?;
+            match editor_core::eval::bound_pose(scratch, &ev, coord.seat(id), at, self.tol).ok()? {
+                PoseValue::Axis(line) => Some(line.dir().get()),
+                PoseValue::Direction { dir } if !axis => Some(dir.get()),
+                _ => None,
+            }
+        };
+        candidates
+            .into_iter()
+            .find_map(|candidate| read(&candidate).map(|heading| (candidate, heading)))
+            .ok_or_else(|| Refusal::Frame(Box::new(GestureFrameFault::NoHeading { field })))
     }
 
     /// Insert one read of a family's member ([`SessionOp::AddPart`]).
@@ -4672,7 +4784,7 @@ impl DocSession {
         &mut self,
         placement: RecipeNodeId,
         mate: &pncad::document::Mate<Formula>,
-        values: Vec<(pncad::document::Coord, Formula)>,
+        values: Vec<(pncad::document::Coord<Operand>, Formula)>,
         into_target_space: bool,
     ) -> OpOutcome {
         let doc = self.committed_doc();
@@ -5579,6 +5691,13 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
     }
 }
 
+/// **Whether a constraint reads a body of its placement's space**: a
+/// mate's `to`, or a value's direction or axis, which a re-target would
+/// strand.
+fn reads_its_space(c: &pncad::document::Constraint<Formula>) -> bool {
+    !c.target_reads().is_empty()
+}
+
 /// **A combine's operands, in the first one's space** (D10
 /// `[placement.spaces]`): each operand after the first that lives in
 /// another space is placed into the first's, at the identity of its
@@ -5590,8 +5709,9 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
 /// tool's on a body nothing placed) is re-targeted into the first's
 /// space with its values as written, so it stands on the first's axes
 /// as it stood on its body's and every variable keeps driving it. An
-/// operand in no space, or a copy whose bundle holds a mate (which
-/// reads its body's space), is read as it is: the combine then refuses
+/// operand in no space, or a copy whose bundle holds a mate or a value
+/// reading a direction or an axis (each reads its body's space,
+/// [`reads_its_space`]), is read as it is: the combine then refuses
 /// `SpaceMismatch` at the edit door, in the kernel's words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
@@ -5624,10 +5744,7 @@ fn in_one_space(
             _ => false,
         };
         if self_placed {
-            if held_bundle(run.doc(), node)
-                .iter()
-                .any(|c| c.mate().is_some())
-            {
+            if held_bundle(run.doc(), node).iter().any(reads_its_space) {
                 read.push(operand.clone());
                 continue;
             }
@@ -5706,10 +5823,10 @@ fn bundle_run(
     write_bundle(run, placement, constraints)
 }
 
-/// **`placement` moved into `space` by name**: a bundle holding a mate
-/// first stood by the identity bundle, which reads nothing, so the
-/// re-target strands no mate of the bundle's own, then its `target`
-/// re-pointed there.
+/// **`placement` moved into `space` by name**: a bundle reading its
+/// space ([`reads_its_space`]) first stood by the identity bundle,
+/// which reads nothing, so the re-target strands no read of the
+/// bundle's own, then its `target` re-pointed there.
 pub(crate) fn into_space(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
@@ -5717,7 +5834,7 @@ pub(crate) fn into_space(
 ) -> Result<(), EditError> {
     if held_bundle(run.doc(), placement)
         .iter()
-        .any(|c| c.mate().is_some())
+        .any(reads_its_space)
     {
         write_bundle(run, placement, editor_core::stand().bundle())?;
     }
@@ -5813,7 +5930,7 @@ fn frame_along(
 /// permutation of the space's, else the kernel's chain read of them
 /// (`editor_core::mate::chain_turns`) — and the slides its origin makes,
 /// each turn and slide that is not zero.
-fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
+fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord<Operand>, Formula)> {
     use pncad::document::{Coord, TargetAxis};
     let exact = (0..3).all(|j| {
         let column = at.columns[j];
@@ -5860,7 +5977,7 @@ fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
         .map(|(axis, by)| {
             let by = Formula::literal(by, Dimension::Length)
                 .unwrap_or_else(|_| unreachable!("a finite length is a literal"));
-            (Coord::Slide(axis), by)
+            (Coord::slide(axis), by)
         });
     spins.chain(slides).collect()
 }
@@ -6063,10 +6180,15 @@ fn frame_off(
         .into_iter()
         .map(|(coord, by)| match coord {
             pncad::document::Coord::Spin(Some(axis)) => FrameMove::Spin(axis, by),
-            pncad::document::Coord::Spin(None) => {
-                unreachable!("a frame's moves are a chain about its own axes")
+            pncad::document::Coord::Slide(Some(axis)) => FrameMove::Slide(axis, by),
+            pncad::document::Coord::Spin(None)
+            | pncad::document::Coord::Slide(None)
+            | pncad::document::Coord::SlideAlong(_)
+            | pncad::document::Coord::SpinAbout(_) => {
+                unreachable!(
+                    "a frame's moves are a chain about its own axes, and its slides along them"
+                )
             }
-            pncad::document::Coord::Slide(axis) => FrameMove::Slide(axis, by),
         })
         .collect::<Vec<_>>();
     Ok(pncad::document::moved_frame(base, &moves))
@@ -6271,20 +6393,6 @@ impl core::fmt::Debug for DocSession {
     }
 }
 
-/// **An axis read as a mate's operand**: a plain read as it is, and a
-/// read through a role (a frame's `z`) as the axis slid zero along
-/// itself, which is that axis.
-fn axis_operand(axis: RoleRead<Operand>) -> Operand {
-    match axis.role {
-        None => axis.read,
-        Some(_) => Operand::Pose(Box::new(pncad::document::pose::PoseDef::Slide {
-            pose: axis.clone(),
-            along: axis,
-            by: Formula::zero(Dimension::Length),
-        })),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
@@ -6296,8 +6404,8 @@ mod tests {
     use pncad::geom_core::Tol;
 
     /// **An action that swallows a refusal commits nothing.** The
-    /// action lands a square profile, has an empty one refused (an
-    /// empty loop list), ignores the refusal, lands a second square and
+    /// action lands a square profile, has a degenerate one refused (a
+    /// zero-radius circle), ignores the refusal, lands a second square and
     /// answers success; the door still refuses the whole action, so
     /// neither square is committed. This reds if the run goes on past a
     /// refusal, which would commit the two squares around it.
@@ -6309,8 +6417,17 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
+            let degenerate = crate::sketch::path_program(
+                &[pncad::profile::Step::Circle {
+                    centre: pncad::geom_core::Point2::origin(),
+                    radius: 0.0,
+                }],
+                crate::props::Notation::CANONICAL,
+                &|_, _| None,
+            )
+            .expect("a zero radius lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {
-                loops: Vec::new(),
+                loops: vec![degenerate],
                 ids: Vec::new(),
                 on: None,
             }));

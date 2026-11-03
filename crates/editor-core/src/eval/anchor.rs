@@ -443,6 +443,8 @@ pub(crate) struct ProfilePre {
 /// so the anchor is the reindexing itself rather than a match against
 /// its result.
 ///
+/// A record of no loops, the empty region's, anchors no loops.
+///
 /// # Errors
 ///
 /// How many loops the record calls outer, where that is not exactly
@@ -451,6 +453,9 @@ pub(crate) struct ProfilePre {
 pub(crate) fn derive_naming(
     canonical: &profile::CanonicalStructure,
 ) -> Result<ProfileNaming, usize> {
+    if canonical.loops.is_empty() {
+        return Ok(ProfileNaming { loops: Vec::new() });
+    }
     let is_outer = |l: &profile::LoopCanonical| l.role == profile::LoopRole::Outer;
     let outers = canonical.loops.iter().filter(|l| is_outer(l)).count();
     let Some(outer) = canonical
@@ -481,18 +486,17 @@ pub(crate) fn derive_naming(
 ///
 /// # Panics
 ///
-/// Where the record does not name exactly one outer loop, which only a
-/// kernel bug reaches: validation refuses an empty profile and a
-/// profile with several outer loops (`ProfileError::EmptyProfile`,
-/// `ProfileError::MultipleOuterLoops`) before it records anything, and
+/// Where [`derive_naming`] refuses, which only a kernel bug reaches:
+/// validation refuses a profile with several outer loops
+/// (`ProfileError::MultipleOuterLoops`) before it records anything, and
 /// records one role per loop.
 #[track_caller]
 pub(crate) fn validated_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
     match derive_naming(canonical) {
         Ok(naming) => naming,
         Err(outers) => unreachable!(
-            "a validation recorded {outers} outer loops over {} loops, though it refuses any \
-             profile without exactly one before recording",
+            "a validation recorded {outers} outer loops over {} loops, though it refuses \
+             several before recording",
             canonical.loops.len()
         ),
     }

@@ -390,7 +390,10 @@ pub(crate) fn sector_shape<T: Decide>(
     // (for unit bounds sin and cos cannot both vanish, so the second
     // margin is definite whenever the first is not).
     let n = normal.vec();
-    let reflex_margin = Margin::levered(unit_next.cross(unit_own).dot(n), arm);
+    let reflex_margin = Margin::levered(
+        unit_next.cross(unit_own).dot(n),
+        crate::boolean::sectors::metering_arm(arm),
+    );
     let bisector = match decide(SECTOR_REFLEX, reflex_margin, band) {
         Ok(Sign::Positive) => None,
         // Definite reflex, θ ∈ (π, 2π). `unit_own + unit_next` is the
@@ -407,7 +410,10 @@ pub(crate) fn sector_shape<T: Decide>(
             // `unit_next.dot(unit_own)`: componentwise products, same
             // summation order — bit-identical under the same scalar
             // scope as above, not for every `T: Real` unconditionally.
-            let straight_margin = Margin::levered(unit_own.dot(unit_next), arm);
+            let straight_margin = Margin::levered(
+                unit_own.dot(unit_next),
+                crate::boolean::sectors::metering_arm(arm),
+            );
             let rung = SectorRung::Straight { full_circle };
             if full_circle {
                 // A one-edge orbit admits every definite reading: θ ≈ π,
@@ -744,7 +750,7 @@ fn apex_shape<T: Decide>(
     let chord = |angle: T| {
         Margin::levered(
             (angle * T::from_f64(0.5)).sin() * sin_a * T::from_f64(2.0),
-            arm,
+            crate::boolean::sectors::metering_arm(arm),
         )
     };
     let window = if full_circle {
@@ -757,7 +763,10 @@ fn apex_shape<T: Decide>(
     let n_r = across - axis * across.dot(axis);
     if decide(
         SECTOR_APEX_TILT,
-        Margin::levered(n_r.norm() * sin_a, arm),
+        Margin::levered(
+            n_r.norm() * sin_a,
+            crate::boolean::sectors::metering_arm(arm),
+        ),
         band,
     )
     .map_err(rung)?

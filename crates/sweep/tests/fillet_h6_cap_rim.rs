@@ -53,7 +53,7 @@ struct RimInputs {
     t0: f64,
     t1: f64,
     witness: geom_core::Point3<f64>,
-    extent: f64,
+    extent: geom_core::Lever<f64>,
 }
 
 fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
