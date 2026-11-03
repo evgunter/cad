@@ -2634,11 +2634,7 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
                 let ending = err.ending(geom_brep::recourse::Reading::Build);
                 let edge = geom_brep::PlaneNurbsRefusal::ChartSpeed(got)
                     .ending(geom_brep::recourse::Reading::Build);
-                assert_eq!(
-                    Some(ending.as_str()),
-                    edge.as_deref(),
-                    "{name}: the two doors' endings"
-                );
+                assert_eq!(ending, edge, "{name}: the two doors' endings");
             }
             other => panic!("{name}: plane_nurbs_ssi expected {want:?}, got {other:?}"),
         }
