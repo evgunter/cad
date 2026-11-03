@@ -151,6 +151,13 @@ pub fn at_rest(at: Option<ReadAt>) -> Option<ReadAt> {
 /// type with `fn write(&self, f, at: Option<ReadAt>)` gets its payload
 /// `Display` (`at` = `None`), its inherent `render(at)` and its
 /// [`Ended`] impl from this.
+///
+/// It is a macro, not a blanket impl or a default method, because
+/// `Display` is a foreign trait: coherence refuses
+/// `impl<T: …> Display for T`, so every refusal must state its own
+/// `Display`. Without this, each of the some forty refusals written
+/// this way would repeat the same three items by hand, and its
+/// `Display` could drift from its `render`.
 #[macro_export]
 macro_rules! ended_by_write {
     ([$($gen:tt)*] $ty:ty) => {
