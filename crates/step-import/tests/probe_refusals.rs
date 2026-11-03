@@ -121,21 +121,26 @@ fn a_conic_self_loop_with_a_nonfinite_angle_refuses_typed() {
         }
         other => panic!("zero semi-axis must refuse at adoption, got {other:?}"),
     }
-    for (route, text) in [("overflowing centre", &overflowing_centre)] {
-        assert_ne!(text, &base, "{route}: the substitution must apply");
-        match import_step(text, &ImportOptions::default(), Tol::witness()) {
-            Err(StepImportError::Topology { id, what }) => {
-                println!("{route}: #{id}: {what}");
-                assert_eq!(id, 21, "{route}: the rim edge is the offender");
-                assert!(what.contains("not finite"), "{route}: {what}");
-            }
-            other => panic!("{route} must refuse Topology, got {other:?}"),
+    assert_ne!(
+        overflowing_centre, base,
+        "overflowing centre: the substitution must apply"
+    );
+    match import_step(
+        &overflowing_centre,
+        &ImportOptions::default(),
+        Tol::witness(),
+    ) {
+        Err(StepImportError::Topology { id, what }) => {
+            println!("overflowing centre: #{id}: {what}");
+            assert_eq!(id, 21, "overflowing centre: the rim edge is the offender");
+            assert!(what.contains("not finite"), "overflowing centre: {what}");
         }
+        other => panic!("overflowing centre must refuse Topology, got {other:?}"),
     }
 }
 
 /// The refusal above names non-finite data, and must not name the
-/// conic's centre: `atan2(0.0, 0.0)` is `0.0`, so a vertex exactly at
+/// conic's centre: a direction of no length reads the reference, so a vertex exactly at
 /// the centre yields a finite (and wrong) angle, and is declined by
 /// the adoption gate's endpoint residual instead.
 ///

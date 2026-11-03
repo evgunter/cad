@@ -777,7 +777,16 @@ BOUNDS_ALLOWLIST=(
   # it is a representation pick (DL5(b), as `seam_split_param`'s branch
   # shift); its other bracket read refuses a non-finite read, and
   # whether the window runs forward stays each caller's.
-  'crates/sweep/src/blend/surgery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 18 -> 22: `CircleFrame::past` reads a circle point's angle past `t`
+  # through `geom::Azimuth::near`, a `Decide` door (the window's cut
+  # side and the rename's half-period mark, both at the least band
+  # outside the log, audit row F31), where it rotated by hand through
+  # `atan2`. So its impl block and the three readers that reach it
+  # (`strip_reading`, `piece_distance`, `piece_along`) name `Decide`
+  # beside `Bounds`. No bracket read is added: the brackets read are
+  # `past_misses`' as before, and the decided rename picks between
+  # names of one angle.
+  'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -805,7 +814,11 @@ BOUNDS_ALLOWLIST=(
   # run-out), and `shared_rims_clear` meters two cut-offs' feet on one
   # rim, deciding only through `classify` over a span metered as the
   # split meters it; the two sliver constructors became one.
-  'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 7 -> 9: `CapSliver`'s impl block and `apart` reach
+  # `CircleFrame::past` through `piece_along`, so they name `Decide`
+  # beside `Bounds` for the same decided rename (surgery.rs' 18 -> 22);
+  # they read no bracket of their own.
+  'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +
   # Bounds + CertifiedEnclosure`, the bound its three siblings carry):
