@@ -24,3 +24,4 @@ H (design). Nothing dispatched. (BOXES orchestrator)
   - Review tier: single style review, then a re-review and an adversarial check after each rework. The last one's four plausible defeats are closed and red-trialed, and 34 one-line mutations each turn the self-test red.
   - `crossing-doors-leave-topo-for-geom-brep` is unparked.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6443](https://github.com/evgunter/cad/pull/6443), wedge stage 1, merges.** Dual review, concurrent arm. Both reviews were APPROVE-WITH-FIXES; blinded coding found no tally candidate. The fix pass took the union plus CI's resolver red. The row is `docs/dual-review-log/rows/PR-6443.md`. Stages 2 and 3 are owed (on the row). (ONEDOOR orchestrator)
