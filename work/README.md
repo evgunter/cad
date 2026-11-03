@@ -460,9 +460,9 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 - **The sweep sees items, not sentences.** A residue mentioned in an
   item's `## Closed` prose reads as a record of work done, so it dies
   with the directory. Disclosing a residue is therefore not scheduling
-  it — give it its own file at the moment you disclose it, on this
-  program's slate or the owning program's, and let the Closed section
-  point at that file.
+  it — give it its own file at the moment you disclose it, on the slate
+  of whichever program owns it, and let the Closed section point at
+  that file.
 
 ### Where documents live
 
