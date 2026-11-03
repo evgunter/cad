@@ -19399,16 +19399,17 @@ mod two_carrier_records {
             }
         }
 
-        /// Two spikes (slope 5) whose apexes stand 75ε above the line,
+        /// Two spikes (slope 5) whose apexes stand 35ε above the line,
         /// near its ends (x = 0.6 and x = 3.4), and a wide tab (2, 2.4):
-        /// each spike holds the line over two runs 15ε long, cut at its
-        /// apex, whose middles lie about 7ε from its sides, so the plate
-        /// reads them in band and they are held; the wide tab's run
-        /// answers, whichever way the line runs. Red when the first held
-        /// station's refusal is returned before a later station is read.
+        /// each spike holds the line over one run 14ε long, between its
+        /// sides' meetings with the line, whose middle lies about 7ε from
+        /// them, so the plate reads it in band and it is held; the wide
+        /// tab's run answers, whichever way the line runs. Red when the
+        /// first held station's refusal is returned before a later
+        /// station is read.
         #[test]
         fn a_held_station_does_not_stop_a_later_one_answering() {
-            let h = 75.0 * Tol::witness().eps();
+            let h = 35.0 * Tol::witness().eps();
             let outline = [
                 (0.0, -1.0),
                 (4.0, -1.0),
