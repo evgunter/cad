@@ -1946,11 +1946,15 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             }
             .into());
         };
-        let run = match (p0, p1) {
-            (Place::Along(h), _) => h,
-            (_, Place::Along(h)) => body
-                .mate(h)
-                .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+        // The half running from `w0` to `w1`, and the one back, where an
+        // edge of a piece already runs that way: either end's `Along`
+        // names a half of a piece of the dropped face, while its mate may
+        // lie in the null scaffolding the join set between two pieces, or
+        // across the face's own boundary.
+        let (fwd, back) = match (p0, p1) {
+            (Place::Along(f), Place::Along(b)) => (Some(f), Some(b)),
+            (Place::Along(f), _) => (Some(f), None),
+            (_, Place::Along(b)) => (None, Some(b)),
             _ if across => continue,
             _ => {
                 let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol)?;
@@ -1969,13 +1973,31 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     kept_ends: [x0, x1],
                 });
                 slits.push((dropped, c));
-                c
+                let mate = body
+                    .mate(c)
+                    .ok_or_else(|| desync("a fate cut's chord has no mate"))?;
+                (Some(c), Some(mate))
             }
         };
-        let mate = body
-            .mate(run)
-            .ok_or_else(|| desync("a fate cut's run has no mate"))?;
-        halves.push((dropped, if fe.aligned { run } else { mate }, kept_he));
+        // The dropped face's side of the kept edge that the kept face
+        // holds: the kept half's own side where the copies' normals
+        // agree, the other where they are opposed.
+        let (want, other) = if fe.aligned { (fwd, back) } else { (back, fwd) };
+        let half = match (want, other) {
+            (Some(h), _) => h,
+            (None, Some(o)) => body
+                .mate(o)
+                .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+            (None, None) => unreachable!("one end of a fate cut runs along an edge"),
+        };
+        let face = face_of_he(body, half)?;
+        if div_d.root(face) != root || body.null_face_pair(face).is_some() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the side of a fate edge the kept face holds lies in no piece of the dropped face",
+            }
+            .into());
+        }
+        halves.push((dropped, half, kept_he));
     }
     for (operand, c) in slits {
         let body = match operand {

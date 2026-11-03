@@ -842,17 +842,17 @@ fn a_covered_pair_is_named_alike_in_both_orders() {
     );
 }
 
-/// **A subtract names a face its tool only touches for the `from`
-/// face alone.**
+/// **A subtract names a face its tool only touches for the faces it
+/// holds** (N2: one rule for the union, the intersect and the
+/// subtract).
 ///
-/// A subtract tells its operands apart: the copy its classification
-/// keeps of a coincident pair is always `from`'s, and the face is
-/// named for that face, carried bare, with the tool cited nowhere —
-/// so a reference to it survives the tool moving off a face it took
-/// nothing from. Rows, each in both directions: `b` abutting `a`'s
-/// whole x-wall, abutting part of it, and resting on `a`'s top.
+/// The face the classification keeps of a coincident pair is `from`'s,
+/// and the tool's face, turned, lies over it there, so the kept face
+/// holds both: it is `Merged` of `from`'s face and the tool's. Rows,
+/// each in both directions: `b` abutting `a`'s whole x-wall, abutting
+/// part of it, and resting on `a`'s top.
 #[test]
-fn a_subtract_names_a_touched_face_for_from_alone() {
+fn a_subtract_names_a_touched_face_for_both_faces_it_holds() {
     let doc = ProfileDoc::empty_derived("emit_vertex_keys_abut", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
     let (doc, wall) = block_on(doc, a, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
@@ -884,10 +884,15 @@ fn a_subtract_names_a_touched_face_for_from_alone() {
     for ((what, tool, plane), (fwd, back)) in rows.into_iter().zip(ids) {
         for (dir, id, from) in [("a − b", fwd, a), ("b − a", back, tool)] {
             kind_of(&ev, id);
-            assert_eq!(
-                face_in(&ev, id, plane).path,
-                carried(&doc, &ev, from, plane),
-                "{what}, {dir}: the face in {plane:?} is not from's face alone"
+            let face = face_in(&ev, id, plane);
+            let [RoleSeg::Merged(set)] = face.path.as_slice() else {
+                panic!("{what}, {dir}: the face in {plane:?} is Merged: {face:?}");
+            };
+            assert_eq!(set.len(), 2, "{what}, {dir}: two faces held: {face:?}");
+            assert!(
+                set.iter()
+                    .any(|c| c.path == carried(&doc, &ev, from, plane)),
+                "{what}, {dir}: from's face is among them: {face:?}"
             );
         }
     }
