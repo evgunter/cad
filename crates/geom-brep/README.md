@@ -968,7 +968,17 @@ they differ only in that correction. At a tangency of two smooth
 surfaces `∇f` is normal to `S` and nonzero, and the Hessian is their
 relative second fundamental form. At a cone's apex lying on `S`,
 `∇f = 0`, the correction vanishes, and the Hessian is the cone's own
-form on `T`, its null lines the two rulings in `T`. A node is decided
+form on `T`, its null lines the two rulings in `T`. Among the analytic
+surfaces these are the only two: a plane, a sphere, a cylinder and a
+ring torus (`R > r`, the only torus admitted) are smooth everywhere,
+and a cone is singular only at its apex. A spline net can be singular
+at a collapsed side (a pole, `chart_singularity::spline_collapsed_row`)
+where its tangent vectors span no plane, a pointed tip; on another
+surface that is the same criterion with the tip's tangent cone in the
+cone's form's place, and it refuses by name until that tangent cone is
+read. Where neither surface is smooth at the point (two cones through
+one apex) the criterion does not apply: their section is the rulings
+they share. A node is decided
 on the pose (a Zero tangency whose section still has carriers, or the
 apex's closed-form margin), placed in closed form or enclosed alone in
 a certified box, and a site at it reads as the node. The value lists
