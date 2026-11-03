@@ -6,7 +6,7 @@
 //! incidence read. Every row holds at `f64` and at `Interval`, and at
 //! every ε of the run.
 //!
-//! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `line-cylinder-ends`
+//! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `segment-form-ends`
 //! (the segment's form read at its ends only), the chord row refuses.
 
 use geom_core::{Bounds, Interval};
@@ -188,7 +188,7 @@ fn a_line_definitely_off_the_cone_ends_as_its_incidence_read() {
 /// [`projected::line_off_cone_form`] covers the cone's form densely
 /// sampled along a segment, at `f64` and at `Interval`: a chord between
 /// two points of a rim (its middle inside the cone: red under
-/// `line-cylinder-ends`), a chord across the two nappes' gap outside, a
+/// `segment-form-ends`), a chord across the two nappes' gap outside, a
 /// ruling off the cone (tight there), and a segment crossing the cone.
 #[test]
 fn the_cone_form_sup_covers_the_segments_form() {

@@ -2208,6 +2208,18 @@ impl PcurveCertifyError {
                 chart.name(),
                 channel.describe()
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: LaneGap::Envelope,
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier is on the {} chart but is none of its own \
+                 curves, and its general (projected) image's certificate does not yet bound \
+                 this pose. Recourse: {ENVELOPE_LEVER}",
+                carrier.name(),
+                chart.name(),
+            ),
             // The payload says what was read; the ending says what to do,
             // and it is the read's at the door ([`IncidenceRead::ending`]),
             // so no recourse is written here.
@@ -2457,7 +2469,7 @@ impl PcurveCertifyError {
                 ..
             } => Decision::Check(PcurveCheck::ChartClass, definite),
             Self::NoGeneralLane {
-                gap: LaneGap::Pose { .. },
+                gap: LaneGap::Pose { .. } | LaneGap::Envelope,
                 ..
             } => Decision::Check(PcurveCheck::GeneralLane, definite),
             // A stored image's copied structure: its identity, its
@@ -9264,7 +9276,18 @@ pub enum LaneGap {
         /// The channel that failed.
         channel: projected::SectorChannel,
     },
+    /// The lane images this pose, but its certificate does not bound the
+    /// image's miss inside the band: check 4's envelope, an upper bound on
+    /// the miss, refused it ([`ENVELOPE_LEVER`]).
+    Envelope,
 }
+
+/// The lever of a [`LaneGap::Envelope`]: the one sentence both
+/// [`PcurveCertifyError::NoGeneralLane`]'s and
+/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
+pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds the carrier's \
+     miss from above, and over this edge that bound does not fit inside the band; a shorter \
+     edge, away from the chart's singular set, reads a tighter one";
 
 /// **The projected lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s

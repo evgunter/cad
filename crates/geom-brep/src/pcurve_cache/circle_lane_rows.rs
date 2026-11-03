@@ -2,14 +2,16 @@
 //! choice on a circle's class readings): a circle the incidence read
 //! does not show off the chart, that is none of the chart's own circles
 //! or whose class reading is in band, takes the projected image, whose
-//! check-4 incidence term is `circle_chart::form_sup` converted through
+//! check-4 incidence term is `implicit::conic_form_sup` converted through
 //! `projected::Meters`. A circle definitely off ends as its incidence
 //! read. Every row holds at `f64` and at `Interval`, and at every ε of
 //! the run.
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `circle-chart-incidence`
 //! (the incidence term dropped on these charts), the rows standing a
-//! measured distance off the chart refuse, and so does the search.
+//! measured distance off the chart refuse, and so does the search; naming
+//! `form-uncharged` (the form's coefficients' rounding uncharged), the
+//! thin-torus rows and the search refuse at `f64`.
 
 use core::f64::consts::TAU;
 
@@ -496,59 +498,261 @@ fn a_circle_definitely_off_ends_as_its_incidence_read() {
     }
 }
 
+/// A chart's form at a world point, its factors read apart so the
+/// near-zero one carries no cancellation of the other's size: at
+/// `Interval` it encloses the exact form at every point of the point's
+/// enclosure. The cylinder `(ρ − R)(ρ + R)`, the cone
+/// `(ρ cos α − h sin α)(ρ cos α + h sin α)`, the sphere
+/// `(|q| − R)(|q| + R)` and the torus
+/// `((ρ − R)² + h² − r²)((ρ + R)² + h² − r²)`.
+fn form_at<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
+    let split = |o: Point3<T>, axis: Vec3<T>| {
+        let q = p - o;
+        let h = q.dot(axis);
+        let rho = (q - axis * h).norm();
+        (q, rho, h)
+    };
+    match *surface {
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let (_, rho, _) = split(origin, axis);
+            (rho - radius) * (rho + radius)
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let (_, rho, h) = split(apex, axis);
+            let (sa, ca) = half_angle.sin_cos();
+            (rho * ca - h * sa) * (rho * ca + h * sa)
+        }
+        Surface::Sphere { center, radius, .. } => {
+            let q = (p - center).norm();
+            (q - radius) * (q + radius)
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let (_, rho, h) = split(center, axis);
+            let tube = |x: T| x.powi(2) + h.powi(2) - minor_radius.powi(2);
+            tube(rho - major_radius) * tube(rho + major_radius)
+        }
+        _ => unreachable!("the rows' charts are the four a circle's lane reads"),
+    }
+}
+
+/// The least magnitude an `Interval` encloses: `0` where it holds `0`.
+fn least_magnitude(x: Interval) -> f64 {
+    if x.lo() > 0.0 {
+        x.lo()
+    } else if x.hi() < 0.0 {
+        -x.hi()
+    } else {
+        0.0
+    }
+}
+
+/// `implicit::conic_form_sup`'s `f64` bound holds against the form
+/// enclosed at `Interval` at dense points of the carrier (the exact form
+/// of the carrier as stored is at least [`least_magnitude`] of each
+/// enclosure there): thin tori's crest circles (`R` from 1 to 50, `r/R`
+/// from `1e-2` to `1e-4`, standing `1e-12` to `1e-9` off, the reviewers'
+/// probes on PR 6485), near-horn tori, needle and flat cones near their
+/// apex, a sphere's tilted circle and a cylinder's tilted rim, each
+/// placed far from the origin too. Red under `form-uncharged`.
+#[test]
+fn the_form_bound_covers_the_form_enclosed_at_interval() {
+    let f = Interval::from_f64;
+    let mut rows: Vec<(String, Surface<f64>, Curve3<f64>)> = Vec::new();
+    for far in [0.0, 300.0] {
+        let at = Point3::new(0.3 + far, -0.7, 0.2 + 0.5 * far);
+        let axis = Vec3::new(0.2, -0.4, 1.0).normalize();
+        let u_ref = axis.cross(Vec3::unit_x()).normalize();
+        for (major, ratio) in [
+            (1.0, 1e-2),
+            (5.0, 1e-3),
+            (20.0, 1e-2),
+            (50.0, 1e-4),
+            (50.0, 1e-2),
+            (2.0, 1.0 - 1e-5),
+            (3.0, 0.5),
+        ] {
+            let surface = Surface::Torus {
+                center: at,
+                axis,
+                major_radius: major,
+                minor_radius: major * ratio,
+                u_ref,
+            };
+            for target in [1e-12, 2e-10, 1e-9] {
+                let delta = (2.0 * major * ratio * target).sqrt();
+                let c = Vec3::new(0.7 * delta, 0.714 * delta, major * ratio);
+                rows.push((
+                    format!("torus R {major}, r/R {ratio:e}, off {target:e}, far {far}"),
+                    surface.clone(),
+                    framed_circle(&surface, c, Vec3::unit_x(), Vec3::unit_y(), major),
+                ));
+            }
+        }
+        for (alpha, h) in [(0.003, 1e-4), (1.567, 1e-4), (0.6, 2.0)] {
+            let surface = Surface::Cone {
+                apex: at,
+                axis,
+                half_angle: alpha,
+                u_ref,
+            };
+            rows.push((
+                format!("cone α {alpha}, h {h:e}, far {far}"),
+                surface.clone(),
+                cone_section_circle(&surface, alpha, h, 1e-5),
+            ));
+        }
+        let sphere = Surface::Sphere {
+            center: at,
+            radius: 2.0,
+            axis,
+            u_ref,
+        };
+        let (st, ct) = 0.3_f64.sin_cos();
+        rows.push((
+            format!("sphere, far {far}"),
+            sphere.clone(),
+            framed_circle(
+                &sphere,
+                Vec3::new(0.0, -0.6 * st, 0.6 * ct),
+                Vec3::unit_x(),
+                Vec3::new(0.0, ct, st),
+                (4.0_f64 - 0.36).sqrt(),
+            ),
+        ));
+        let wall = Surface::Cylinder {
+            origin: at,
+            axis,
+            radius: 0.7,
+            u_ref,
+        };
+        rows.push((
+            format!("cylinder, far {far}"),
+            wall.clone(),
+            framed_circle(
+                &wall,
+                Vec3::new(0.0, 0.0, 0.4),
+                Vec3::unit_x(),
+                Vec3::new(0.0, ct, st),
+                0.7,
+            ),
+        ));
+    }
+    for (what, surface, carrier) in rows {
+        let Some(conic) = carrier.conic() else {
+            unreachable!("the rows are circles")
+        };
+        let Some(bound) = crate::implicit::conic_form_sup(&surface, conic) else {
+            unreachable!("the rows' charts have a form along a conic")
+        };
+        let bound =
+            super::mutants::form_uncharged(bound.harmonics).unwrap_or_else(|| bound.bound());
+        let (carrier_i, surface_i) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let exact = (0..2048)
+            .map(|i| {
+                let t = f(f64::from(i) * TAU / 2048.0);
+                least_magnitude(form_at(&surface_i, carrier_i.eval(t)))
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            bound >= exact,
+            "{what}: the f64 bound {bound:e} is under the form's enclosed magnitude {exact:e}"
+        );
+    }
+}
+
 /// **A circle's or a cone line's projected envelope covers its
 /// residual** (a counterexample search; the seed varies). Each draw
-/// places a cone, torus or cylinder at a random scale, axis and distance from the
-/// origin, and a circle near it that its class readings miss or read in
-/// band: on the cone a tilted section's nearest circle (its distance
-/// from the cone drawn up to `0.9·zero`, or its tilt drawn in band); on
-/// the torus a crest circle (top or bottom, its centre off the axis by
-/// up to the band's worth of distance) or a parallel at a random tube
-/// angle tilted in band; on the cylinder a circle of in-band radius on
-/// the wall; and a ruling of the cone anchored at the apex's height
-/// within the band, read over a segment clear of the apex. Each is then
-/// moved by an offset (and a circle by a radius change) inside the zero
-/// band, and a circle read over a random arc that may cross the azimuth
-/// window's cut or make a whole turn. Whatever takes the projected lane
-/// has check 4's envelopes, at `f64` and at `Interval`, over its densely
-/// sampled residual.
+/// places a chart at a random scale and axis, at the origin or up to
+/// `1e3` from it, and a carrier near it, and mints its projected image
+/// directly (`projected::project`, past the class readings, so a carrier
+/// at any distance is read):
+///
+/// - a cone of half-angle `0.003` to `1.567` and a tilted section's
+///   nearest circle at a height down to `1e-4` of the scale, standing up
+///   to `0.9·zero` off, or tilted in band, or far off;
+/// - a torus with `r/R` from `1e-3` to `1 − 1e-5`, and a crest circle (top
+///   or bottom) standing up to `0.9·zero` or far off, or a parallel at a
+///   random tube angle tilted in band or past it;
+/// - a cylinder and a circle of in-band radius on its wall, or a rim
+///   tilted and resized;
+/// - a ruling of the cone anchored at the apex's height within the band
+///   or past it, read over a segment starting as near the apex as `1e-6`
+///   of the scale.
+///
+/// Each carrier is moved by an offset inside the zero band, and a circle
+/// read over a random arc that may cross the azimuth window's cut or
+/// make a whole turn. Wherever check 4 reads the envelope, its `f64` and
+/// `Interval` envelopes cover the densely sampled residual. Red under
+/// `form-uncharged` and `circle-chart-incidence`.
 #[test]
 fn a_circles_projected_envelope_covers_its_residual() {
     let mut s = fuzz::start("pcurve_cache::circle_lane_rows::search");
     let b = band();
-    let mut tally = [[0usize; 4]; 4];
+    let f = Interval::from_f64;
+    let mut tally = [[0usize; 3]; 4];
+    let sign = |s: &mut fuzz::Rng| if s.below(2) == 0 { 1.0 } else { -1.0 };
+    // A distance off the chart: inside the zero band, or past it.
+    let off = |s: &mut fuzz::Rng| {
+        if s.below(3) == 0 {
+            s.log_uniform(b.escalate(), 1e-4)
+        } else {
+            b.zero() * s.range(0.01, 0.9)
+        }
+    };
     for trial in 0..fuzz::scaled(300) {
         let scale = s.log_uniform(0.05, 20.0);
         let far = if s.below(2) == 0 {
             0.0
         } else {
-            s.log_uniform(1.0, 100.0)
+            s.log_uniform(1.0, 1e3)
         };
         let place = Point3::new(far, -0.5 * far, 0.3 * far);
         let axis = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), 1.0).normalize();
         let u_ref = axis.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
-        let sign = |s: &mut fuzz::Rng| if s.below(2) == 0 { 1.0 } else { -1.0 };
         let chart = s.below(4);
         let (surface, carrier) = match chart {
             0 => {
-                let alpha = s.range(0.1, 1.3);
+                let alpha = s.log_uniform(0.003, 1.567);
                 let surface = Surface::Cone {
                     apex: place,
                     axis,
                     half_angle: alpha,
                     u_ref,
                 };
-                let h = s.range(0.3, 2.0) * scale * sign(&mut s);
+                let h = s.log_uniform(1e-4, 2.0) * scale * sign(&mut s);
                 let tau = if s.below(2) == 0 {
-                    cone_tilt_for(&surface, alpha, h, b.zero() * s.range(0.01, 0.9))
+                    cone_tilt_for(&surface, alpha, h, off(&mut s))
                 } else {
                     s.range(b.zero(), b.escalate()) / (h.abs() * alpha.tan())
                 };
-                let carrier = cone_section_circle(&surface, alpha, h, tau);
-                (surface, carrier)
+                (
+                    surface.clone(),
+                    cone_section_circle(&surface, alpha, h, tau),
+                )
             }
             1 => {
-                let (major, minor) = (scale, scale * s.range(0.1, 0.9));
+                let ratio = if s.below(2) == 0 {
+                    s.log_uniform(1e-3, 0.5)
+                } else {
+                    1.0 - s.log_uniform(1e-5, 0.5)
+                };
+                let (major, minor) = (scale, scale * ratio);
                 let surface = Surface::Torus {
                     center: place,
                     axis,
@@ -557,7 +761,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
                     u_ref,
                 };
                 let carrier = if s.below(2) == 0 {
-                    let delta = (2.0 * minor * b.zero() * s.range(0.01, 0.9)).sqrt();
+                    let delta = (2.0 * minor * off(&mut s)).sqrt();
                     let phi = s.range(-3.1, 3.1);
                     let centre = Vec3::new(phi.cos(), phi.sin(), 0.0) * delta
                         + Vec3::new(0.0, 0.0, minor * sign(&mut s));
@@ -565,7 +769,7 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     let theta = s.range(-3.1, 3.1);
                     let (z, rho) = (minor * theta.sin(), major + minor * theta.cos());
-                    let tau = (s.range(b.zero(), b.escalate()) / rho).asin();
+                    let tau = (off(&mut s) / rho).min(0.5).asin();
                     let (st, ct) = tau.sin_cos();
                     framed_circle(
                         &surface,
@@ -577,10 +781,41 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 };
                 (surface, carrier)
             }
-            3 => {
-                // A ruling of either nappe anchored at the apex's height
-                // within the band, read over a segment clear of the apex.
-                let alpha = s.range(0.1, 1.3);
+            2 => {
+                let radius = scale;
+                let surface = Surface::Cylinder {
+                    origin: place,
+                    axis,
+                    radius,
+                    u_ref,
+                };
+                let carrier = if s.below(2) == 0 {
+                    let phi = s.range(-3.1, 3.1);
+                    let (sp, cp) = phi.sin_cos();
+                    let psi = s.range(-1.5, 1.5);
+                    let tangent = Vec3::new(-sp, cp, 0.0);
+                    framed_circle(
+                        &surface,
+                        Vec3::new(cp * radius, sp * radius, s.range(-1.0, 1.0) * scale),
+                        tangent * psi.cos() + Vec3::unit_z() * psi.sin(),
+                        Vec3::unit_z() * psi.cos() - tangent * psi.sin(),
+                        s.range(b.zero(), b.escalate()),
+                    )
+                } else {
+                    let tau = (off(&mut s) / radius).min(0.5).asin();
+                    let (st, ct) = tau.sin_cos();
+                    framed_circle(
+                        &surface,
+                        Vec3::new(0.0, 0.0, s.range(-1.0, 1.0) * scale),
+                        Vec3::unit_x(),
+                        Vec3::new(0.0, ct, st),
+                        radius + sign(&mut s) * off(&mut s),
+                    )
+                };
+                (surface, carrier)
+            }
+            _ => {
+                let alpha = s.log_uniform(0.003, 1.567);
                 let surface = Surface::Cone {
                     apex: place,
                     axis,
@@ -589,37 +824,18 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 };
                 let (sa, ca) = alpha.sin_cos();
                 let phi = s.range(-3.1, 3.1);
-                let sigma = sign(&mut s);
-                let g = Vec3::new(sa * phi.cos(), sa * phi.sin(), ca) * sigma;
-                let h = s.range(b.zero(), b.escalate()) * sign(&mut s);
+                let g = Vec3::new(sa * phi.cos(), sa * phi.sin(), ca) * sign(&mut s);
+                let h = if s.below(2) == 0 {
+                    s.range(b.zero(), b.escalate())
+                } else {
+                    off(&mut s)
+                } * sign(&mut s);
                 let carrier = Curve3::line(world(&surface, g * (h / ca)), world_dir(&surface, g));
-                (surface, carrier)
-            }
-            _ => {
-                let radius = scale;
-                let surface = Surface::Cylinder {
-                    origin: place,
-                    axis,
-                    radius,
-                    u_ref,
-                };
-                let phi = s.range(-3.1, 3.1);
-                let (sp, cp) = phi.sin_cos();
-                let psi = s.range(-1.5, 1.5);
-                let tangent = Vec3::new(-sp, cp, 0.0);
-                let carrier = framed_circle(
-                    &surface,
-                    Vec3::new(cp * radius, sp * radius, s.range(-1.0, 1.0) * scale),
-                    tangent * psi.cos() + Vec3::unit_z() * psi.sin(),
-                    Vec3::unit_z() * psi.cos() - tangent * psi.sin(),
-                    s.range(b.zero(), b.escalate()),
-                );
                 (surface, carrier)
             }
         };
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
-        let dr = 0.3 * b.zero() * s.range(-1.0, 1.0) * f64::from(u8::from(s.below(2) == 0));
         let (carrier, t0, t1) = match carrier {
             Curve3::Circle(geom::Circle {
                 frame:
@@ -637,11 +853,10 @@ fn a_circles_projected_envelope_covers_its_residual() {
                     } else {
                         s.range(0.2, 6.0)
                     };
-                let carrier = Curve3::circle(center + offset, n, (radius + dr).abs(), x);
-                (carrier, t0, t1)
+                (Curve3::circle(center + offset, n, radius, x), t0, t1)
             }
             Curve3::Line(geom::Line { origin, dir }) => {
-                let t0 = s.log_uniform(1e-3, 1.0) * scale;
+                let t0 = s.log_uniform(1e-6, 1.0) * scale;
                 let t1 = t0 + s.log_uniform(1e-2, 3.0) * scale;
                 (Curve3::line(origin + offset, dir), t0, t1)
             }
@@ -649,19 +864,27 @@ fn a_circles_projected_envelope_covers_its_residual() {
         };
         let context = || {
             format!(
-                "trial {trial}, chart {chart}, scale {scale:e}, far {far:e}, offset {offset:?}, \
-                 dr {dr:e}, span ({t0}, {t1}), carrier {carrier:?} — {}",
+                "trial {trial}, chart {chart}, scale {scale:e}, far {far:e}, span ({t0}, {t1}), \
+                 carrier {carrier:?} on {surface:?} — {}",
                 fuzz::replay()
             )
         };
-        let (Ok(image), Ok(image_i)) = derived(&carrier, (t0, t1), &surface) else {
+        let (Ok(image), Ok(image_i)) = (
+            projected::project(&carrier, Some((t0, t1)), &surface, b),
+            projected::project(
+                &carrier.map_scalar(f),
+                Some((f(t0), f(t1))),
+                &surface.map_scalar(f),
+                b,
+            ),
+        ) else {
             tally[chart][0] += 1;
             continue;
         };
-        if image.projected().is_none() || image_i.projected().is_none() {
-            tally[chart][0] += 1;
-            continue;
-        }
+        let (image, image_i) = (
+            Pcurve::Projected(Box::new(image)),
+            Pcurve::Projected(Box::new(image_i)),
+        );
         let Ok((envelope, hi)) = check_4_terms(&image, &image_i, &carrier, (t0, t1), &surface)
         else {
             tally[chart][1] += 1;
@@ -669,21 +892,148 @@ fn a_circles_projected_envelope_covers_its_residual() {
         };
         tally[chart][2] += 1;
         let sup = sampled_residual(&image, (t0, t1), &carrier, &surface, 2048);
-        let noise = 64.0 * f64::EPSILON * (scale + far);
+        let noise = 16.0 * f64::EPSILON * (scale + far);
         assert!(
             envelope >= sup - noise && hi >= sup - noise,
             "{}: envelopes {envelope:e} / {hi:e} under the residual {sup:e}",
             context()
         );
-        if PcurveCache::certify(image, t0, t1, &carrier, &surface, b).is_ok() {
-            tally[chart][3] += 1;
-        }
     }
-    for (chart, [none, refused, read, certified]) in tally.iter().enumerate() {
+    for (chart, [none, refused, read]) in tally.iter().enumerate() {
         println!(
             "[fuzz] circle_lane_rows::search, chart {chart}: {none} took no projected image, \
-             {refused} refused at check 4, {read} read check 4's envelope, {certified} of them \
-             certified at f64"
+             {refused} refused at check 4, {read} read check 4's envelope"
+        );
+    }
+}
+
+/// The mint's image of `carrier` over `span`, certified, at `f64` and at
+/// `Interval`: the envelope's upper end, or the refusal.
+fn minted_and_certified(
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    surface: &Surface<f64>,
+) -> [Result<f64, PcurveCertifyError>; 2] {
+    let f = Interval::from_f64;
+    let (c, s) = (carrier.map_scalar(f), surface.map_scalar(f));
+    [
+        chart_pcurve_over(carrier, t0, t1, surface, band()).and_then(|image| {
+            PcurveCache::certify(image, t0, t1, carrier, surface, band())
+                .map(|cache| cache.certificate().envelope)
+        }),
+        chart_pcurve_over(&c, f(t0), f(t1), &s, band()).and_then(|image| {
+            PcurveCache::certify(image, f(t0), f(t1), &c, &s, band())
+                .map(|cache| cache.certificate().envelope.hi())
+        }),
+    ]
+}
+
+/// Whether a refusal ends lever-only "not yet", never a tolerance offer
+/// or a defect, at a build and at rest.
+fn ends_not_yet(e: &PcurveCertifyError) -> bool {
+    use crate::recourse::Reading;
+    [Reading::Build, Reading::AtRest].into_iter().all(|at| {
+        let ending = e.ending(at);
+        ending.starts_with(geom_core::NOT_YET_ENDING)
+            && !ending.contains(geom_core::KERNEL_LIMIT_RECOURSE)
+            && !ending.contains("tolerance")
+    })
+}
+
+/// **A lane choice's envelope refusal ends "not yet"** (D3: a lane choice
+/// refuses with its pose as its lever, never a tolerance offer), at
+/// `f64` and at `Interval`:
+///
+/// - the reviewers' cone ruling read from `9e-4` of the apex (half-angle
+///   `0.016`): its incidence is converted on parts halved where the
+///   cone's lever spreads, so it certifies at both scalars, its envelope
+///   over the residual;
+/// - a crest circle on a near-horn torus (`r = R − 1e-5`), whose fidelity
+///   reads the tube's core `1e-5` away: at `Interval` its envelope lands
+///   in band, the lane's escalation (`GeneralLane`);
+/// - a chord of a cylinder dipping `0.6·zero` inside the wall (a line
+///   shown off its rulings, so the general lane), whose Bernstein bound
+///   reads the dip twice over: its envelope refuses or lands in band at
+///   both scalars, ending as the lane's gap.
+#[test]
+fn a_lane_choices_envelope_refusal_ends_not_yet() {
+    let line = Curve3::line(
+        Point3::new(
+            1.239792126505943e-10,
+            -9.746673200094881e-10,
+            -1.939344479653521e-9,
+        ),
+        Vec3::new(
+            -0.031367901511575216,
+            0.38332687822435824,
+            0.9230799310923882,
+        ),
+    );
+    let apex = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::new(
+            0.036582851423955946,
+            -0.3691082383934535,
+            -0.9286661420186344,
+        ),
+        half_angle: 0.016142392389299435,
+        u_ref: Vec3::new(-0.7808453755737287, -0.590498825246728, 0.203940277599489),
+    };
+    let span = (0.0009067415940370447, 2.4187216369829954);
+    let image = chart_pcurve_over(&line, span.0, span.1, &apex, band())
+        .unwrap_or_else(|e| panic!("the apex ruling mints: {e:?}"));
+    let sup = sampled_residual(&image, span, &line, &apex, 4096);
+    for (scalar, got) in ["f64", "Interval"]
+        .into_iter()
+        .zip(minted_and_certified(&line, span, &apex))
+    {
+        let envelope = got.unwrap_or_else(|e| panic!("apex ruling, {scalar}: certifies: {e:?}"));
+        assert!(
+            envelope >= sup && envelope < zero(),
+            "apex ruling, {scalar}: the envelope {envelope:e} covers the residual {sup:e}"
+        );
+    }
+
+    let horn = torus(1.0, 1.0 - 1e-5);
+    let crest = crest_circle(&horn, (0.8 * (1.0 - 1e-5) * zero()).sqrt(), 0.3);
+    let [_, at_interval] = minted_and_certified(&crest, (0.0, TAU), &horn);
+    assert!(
+        at_interval.as_ref().err().is_some_and(|e| {
+            matches!(
+                e,
+                PcurveCertifyError::Escalated {
+                    check: PcurveCheck::GeneralLane,
+                    ..
+                }
+            ) && ends_not_yet(e)
+        }),
+        "near-horn crest circle, Interval: ends not yet: {at_interval:?}"
+    );
+
+    let wall = cylinder(1.0);
+    let a = (1.0 - 0.6 * zero()).acos();
+    let (sa, ca) = a.sin_cos();
+    let (q0, q1) = (Vec3::new(ca, -sa, 0.1), Vec3::new(ca, sa, 0.4));
+    let chord = Curve3::line(world(&wall, q0), world_dir(&wall, q1 - q0));
+    for (scalar, got) in
+        ["f64", "Interval"]
+            .into_iter()
+            .zip(minted_and_certified(&chord, (0.0, 1.0), &wall))
+    {
+        assert!(
+            got.as_ref().err().is_some_and(|e| {
+                matches!(
+                    e,
+                    PcurveCertifyError::Escalated {
+                        check: PcurveCheck::GeneralLane,
+                        ..
+                    } | PcurveCertifyError::NoGeneralLane {
+                        gap: LaneGap::Envelope,
+                        ..
+                    }
+                ) && ends_not_yet(e)
+            }),
+            "cylinder chord, {scalar}: ends not yet: {got:?}"
         );
     }
 }

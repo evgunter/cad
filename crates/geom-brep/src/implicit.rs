@@ -1240,6 +1240,119 @@ pub fn conic_cone_harmonics<T: Real>(
     }
 }
 
+/// **A bound on a conic's chart form `|f|` over its whole turn**, in the
+/// form's own units, which the projected row converts to metres
+/// (`pcurve_cache::projected::Meters`): on a sphere or a wall
+/// `|⊥(p − o)|² − r²` (m²), on a cone `cos²α·|⊥q|² − sin²α·(q·â)²` (m²),
+/// on a torus `F` (m⁴, [`ConicTorusHarmonics`]). It is the family's own
+/// harmonics ([`conic_sphere_harmonics`], [`conic_cylinder_harmonics`],
+/// [`conic_cone_harmonics`], [`conic_torus_harmonics`]), each pair read
+/// at its exact sup ([`FormSup::harmonics`]), plus the rounding their
+/// coefficients carry ([`FormSup::rounding`]: [`rounding_charge`] of
+/// their terms, charged twice on the quadrics, whose polynomial is
+/// stored divided by [`ConicHarmonics::per`] and is multiplied back
+/// here). The charge is what makes the bound hold at `f64`: the torus's
+/// degree-four form cancels to `R⁴·ε` of its terms, which is `R²·ε/r`
+/// in metres. `None` off those four kinds.
+#[must_use]
+pub(crate) fn conic_form_sup<T: Real>(
+    surface: &Surface<T>,
+    conic: &dyn Conic<T>,
+) -> Option<FormSup<T>> {
+    let quadric = |h: ConicHarmonics<T>| FormSup {
+        harmonics: (h.c0.abs() + harmonic_sup_scalar(h.c1, h.s1) + harmonic_sup_scalar(h.c2, h.s2))
+            * h.per,
+        rounding: T::from_f64(2.0) * rounding_charge(h.terms),
+    };
+    Some(match *surface {
+        Surface::Sphere { center, radius, .. } => {
+            quadric(conic_sphere_harmonics(conic, center, radius))
+        }
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => quadric(conic_cylinder_harmonics(conic, origin, axis, radius)),
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => quadric(conic_cone_harmonics(conic, apex, axis, half_angle)),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let h = conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
+            FormSup {
+                harmonics: (1..5).fold(h.cos[0].abs(), |sum, k| {
+                    sum + harmonic_sup_scalar(h.cos[k], h.sin[k])
+                }),
+                rounding: rounding_charge(h.terms),
+            }
+        }
+        Surface::Plane { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
+            return None;
+        }
+    })
+}
+
+/// [`conic_form_sup`]'s answer: `|f| ≤ harmonics + rounding` over the
+/// whole turn.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FormSup<T> {
+    /// The computed polynomial's bound, its harmonics at their sups.
+    pub(crate) harmonics: T,
+    /// The computed coefficients' distance from the exact ones, charged.
+    pub(crate) rounding: T,
+}
+
+impl<T: Real> FormSup<T> {
+    /// `harmonics + rounding`.
+    pub(crate) fn bound(self) -> T {
+        self.harmonics + self.rounding
+    }
+}
+
+/// **A floor on a conic's distance from the axis `(origin, axis)`** over
+/// its whole turn: `|⊥(C(θ) − o)|²` is a trigonometric polynomial of
+/// degree two, at least its constant less its two harmonics' sups and
+/// the rounding their coefficients carry, floored at `0` before the
+/// root. `axis` unit, unchecked.
+#[must_use]
+pub(crate) fn conic_axis_distance_floor<T: Real>(
+    conic: &dyn Conic<T>,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+) -> T {
+    let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
+    let (a, b) = conic.semi_axes();
+    let perp = |x: Vec3<T>| {
+        let along = axis.dot(x);
+        x - axis * along
+    };
+    let d = conic.frame().center - origin;
+    let (e, up, vp) = (
+        perp(d),
+        perp(conic.frame().u_ref),
+        perp(conic.frame().v_ref()),
+    );
+    let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    let terms = (d.norm() + conic.speed_hi()).powi(2);
+    let near_sq = e.norm_squared() + (aa + bb) * half
+        - harmonic_sup_scalar(two * a * e.dot(up), two * b * e.dot(vp))
+        - harmonic_sup_scalar((aa - bb) * half, a * b * up.dot(vp))
+        - rounding_charge(terms);
+    near_sq.max(T::zero()).sqrt()
+}
+
 /// The conic's running point at `theta` ([`Conic::running_point`]) less
 /// `origin`, taken as exact.
 fn running_offset<T: Real>(
