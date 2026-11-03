@@ -2869,8 +2869,8 @@ pub enum EnvelopeStatement {
     ///   **centre** `‖w_r‖` + **radius** `σ(k·a_r, β·e×a_r·(1 + k) −
     ///   b_r)` + **line** `‖l_r‖·T`. The axial channel is the carrier's
     ///   own and cancels.
-    /// - **Cylinder, meridian** (radial motion decided Zero — or
-    ///   undecided, the D9 tie-break): `(R·ŵ_r − w_r) − a_r·cos t −
+    /// - **Cylinder, meridian** (radial motion decided Zero):
+    ///   `(R·ŵ_r − w_r) − a_r·cos t −
     ///   b_r·sin t − l_r·t` ⇒ **radius** `|R − ‖w_r‖|` + **drift**
     ///   `σ(a_r, b_r)` + **line** `‖l_r‖·T`.
     /// - **Cone, rim** (slant `v = h·cos α + n·‖a_r‖·sin α`, the rim's
@@ -3231,8 +3231,8 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::ImageMismatch`] for a circle's image (it takes
-/// no door) or a net the composite refuses.
+/// [`PcurveCertifyError::ImageMismatch`] for a circle's or a line's image
+/// (it takes no door) or a net the composite refuses.
 pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     image: &ProjectedImage<T>,
     twin_net: &NurbsCurve3<T>,
@@ -3246,7 +3246,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         why,
     };
     let FramedCarrier::Net(net) = &image.carrier else {
-        return Err(refuse("a circle's projected row takes no door"));
+        return Err(refuse("a circle's or a line's projected row takes no door"));
     };
     // The stored net at the certification scalar: control points, held
     // knots and weights, each through the certified enclosure of its
@@ -9042,9 +9042,8 @@ impl<T: Decide> Placement<T> {
 
 /// A carrier's own parameter interval, for a derivation no edge spans:
 /// one turn `[0, τ]` of a periodic carrier, a spline's knot domain, and
-/// a unit `[0, 1]` of a line, whose image has no moving angular channel
-/// but whose placement reads its lever at the interval's points
-/// ([`Levers`]).
+/// a unit `[0, 1]` of a line, whose placement reads its lever at the
+/// interval's points ([`Levers`]).
 pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
     match carrier {
         Curve3::Line(_) => (T::zero(), T::one()),
@@ -9606,13 +9605,12 @@ fn derive_class<T: Decide>(
             // section/rim case — and β is its orientation against the
             // chart frame.
             let w_r = radial(w);
-            // The amplitude of the radial oscillation IS metres (the
-            // harmonic coefficients are displacement vectors) — it is
-            // compared against the band directly. Weighting it by the
-            // chart radius again (the pre-M6-3 form) squared the
-            // scale and misread a genuinely-moving rim on a
-            // near-band-radius cylinder as a meridian, which then
-            // failed the residual schedule loudly (the 100ε washer).
+            // The reading is `σ(a_r, b_r) + ‖l_r‖`, compared against
+            // the band directly. A conic's part is metres: the radial
+            // oscillation's amplitude. A line's `‖l_r‖` is metres per
+            // unit of its parameter, so it reads the line's radial
+            // speed, not how far it leaves a ruling over the edge
+            // (`work/pcert/the-ruling-question-is-read-in-two-units.md`).
             let moving = radial_amplitude(&form, axis);
             let reading = decide("pcurve_chart_radial_moving", Margin::of(moving), band);
             #[cfg(test)]
@@ -9650,10 +9648,8 @@ fn derive_class<T: Decide>(
                     Err(incidence::general_lane(shown, None))
                 }
                 Ok(Sign::Positive | Sign::Negative) => {
-                    // The moving case: radial(t) = a_r·cos t + b_r·sin t
-                    // (a linear radial part would not close a chart
-                    // circle; certification refuses it through the
-                    // residual). α is the azimuth of `a_r`; β is the
+                    // The moving case, a conic's: radial(t) = a_r·cos t +
+                    // b_r·sin t. α is the azimuth of `a_r`; β is the
                     // orientation of (a_r, b_r) against the chart's own
                     // frame, a named trilean metered at the radius.
                     let orient = a_r.cross(b_r).dot(axis);

@@ -84,9 +84,8 @@ fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -
 
 /// A size of move, from all three regimes the decisions read: inside
 /// the band's zero half (every class decision reads the exact class),
-/// inside `(ε, Kε)` where the D9 tie-breaks select (a radial amplitude
-/// or a winding in the band takes the static form, and the term it
-/// admits carries the whole residual), and up to a millimetre.
+/// inside `(ε, Kε)` (a class reading in band takes the general lane, so
+/// the draw is no closed-form row), and up to a millimetre.
 fn magnitude(s: &mut fuzz::Rng) -> f64 {
     let b = band();
     match s.below(3) {

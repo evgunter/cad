@@ -216,8 +216,8 @@ fn plane_a_skew_unequal_pair_reads_its_singular_value() {
 
 /// `vector`, the cylinder meridian's drift: an ellipse whose `a` runs
 /// up the wall and whose radial part is a circle of radius `δ` about a
-/// point of the wall. Its radial amplitude is in band, so it takes the
-/// meridian (the D9 tie-break), and the image stands `δ` off it at
+/// point of the wall. Its radial amplitude `δ = 0.75·zero` reads Zero,
+/// so it takes the meridian, and the image stands `δ` off it at
 /// every `t`. The parameter interval meters at the minor axis `δ`, so
 /// the span is long enough to clear the escalation band.
 #[test]
