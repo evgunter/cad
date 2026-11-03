@@ -61,9 +61,9 @@
 //! name, whatever piece holds its midpoint. Where the carrier's place on
 //! the face is not read, on a spline face, whose chart is not read here,
 //! or for a spline or spiric carrier not certified off the face's surface
-//! along its whole length, an edge a record names with the face, or both
-//! of whose ends lie on the face and whose midpoint the face holds, is
-//! taken to lie in it, and refuses where both its faces go into
+//! along its whole length, an edge anything relates to the face (an end
+//! on it, a crossing of its loops, a record of the pair) is taken to lie
+//! in it, and refuses where both its faces go into
 //! the face's material ([`EdgeInFaceGap::SplineFace`],
 //! [`EdgeInFaceGap::CarrierUnread`]). An edge it does not find, one
 //! touching the face where no record names it, stays
@@ -1008,9 +1008,10 @@ struct Names {
 ///
 /// Where the carrier's place on `f`'s surface is not read (a spline face;
 /// a spline or spiric carrier not certified off it, [`Placed::Unread`]),
-/// the edge is taken to lie in `f` where a record names the pair, or
-/// where both its ends lie on `f` and `f` holds its midpoint, and the
-/// faces are then read as for an in-band carrier: where both go into `f`'s material the edge
+/// the edge is taken to lie in `f` wherever anything relates the two (an
+/// end on `f`, a crossing of its loops, a record of the pair: every face
+/// [`riders`] asks about), never on a sampled point of it, and the faces
+/// are then read as for an in-band carrier: where both go into `f`'s material the edge
 /// refuses with the reading's gap ([`EdgeInFaceGap::SplineFace`],
 /// [`EdgeInFaceGap::CarrierUnread`]); otherwise it does not lie in `f`.
 ///
@@ -1020,9 +1021,7 @@ struct Names {
 /// `f` holds a piece's midpoint, is in band and something other than a
 /// crossing names the pair; or where whether the carrier lies on `f`'s
 /// surface is in band, both the edge's faces go into `f`'s material and
-/// something other than a crossing names the pair; or, for an unread
-/// carrier only its ends name, where whether `f` holds its midpoint is in
-/// band.
+/// something other than a crossing names the pair.
 /// [`BooleanError::EdgeInFace`] with [`EdgeInFaceGap::Unread`] where the
 /// containment door does not place a piece's midpoint and no piece reads
 /// in `f`, in the same cases as an in-band midpoint; with
@@ -1061,30 +1060,16 @@ fn holding<T: Decide>(
     let on = match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
         Ok(Placed::On) => Ok(true),
         Ok(Placed::Off) => Ok(false),
-        // Nothing says the edge lies along no piece of the face. A record
-        // naming the pair puts it on the face; its ends alone put it there
-        // where the face also holds its midpoint. Either is read as an
-        // in-band carrier is, and refuses where both its faces go into
-        // the face's material.
-        Ok(Placed::Unread(gap)) if names.record => Err(BooleanError::EdgeInFace {
+        // Nothing says the edge lies along no piece of the face, and
+        // something relates the two (an end on it, a crossing of its
+        // boundary, a record of the pair): it is read as an in-band
+        // carrier is, and refuses where both its faces go into the
+        // face's material. No point of it is sampled to say otherwise.
+        Ok(Placed::Unread(gap)) => Err(BooleanError::EdgeInFace {
             edge: e,
             face: f,
             gap,
         }),
-        Ok(Placed::Unread(gap)) if names.ends => {
-            let mid = carrier.eval(geom::mid_param(t0, t1));
-            match piece_reading(body, f, mid, band, DoorInBand::Containment) {
-                Ok(PieceRead::In) => Err(BooleanError::EdgeInFace {
-                    edge: e,
-                    face: f,
-                    gap,
-                }),
-                Ok(PieceRead::NotIn) => return Ok(None),
-                Ok(PieceRead::Unread(why)) => return Err(unread(why)),
-                Err(read) => return Err(read),
-            }
-        }
-        Ok(Placed::Unread(_)) => return Ok(None),
         Err(read) => Err(read),
     };
     match on {
@@ -2937,17 +2922,6 @@ mod spline_rider {
             .expect("the straight NURBS keel certifies on its two walls");
     }
 
-    /// The refusal `got` must be: the keel, in the wall, unread.
-    fn refuses_unread(got: &Result<(Vec<super::Parted>, ContactRecords), BooleanError>) -> bool {
-        matches!(
-            got,
-            Err(BooleanError::EdgeInFace {
-                gap: EdgeInFaceGap::CarrierUnread,
-                ..
-            })
-        )
-    }
-
     /// Both ends on the wall by vertex-on-face records: on its line the
     /// keel is the one rider, in the wall; as a spline it refuses
     /// `CarrierUnread` naming the keel and the wall. Red on a reading
@@ -2992,11 +2966,16 @@ mod spline_rider {
     /// top edge, so it lies in the wall along half its length; one end on
     /// the wall, an edge-on-face record naming the keel and the wall, an
     /// edge-edge record its crossing of the wall's top edge. On its line
-    /// it is a rider in the wall; as a spline the record carries it to the
-    /// refusal although only one end is on the face. Red on a reading
-    /// that asks both ends before a record (`Ok`, no parting).
+    /// it is a rider in the wall. As a spline it refuses, and first at the
+    /// box's top face, which the crossing record relates it to: the keel
+    /// only crosses that face's plane, but no certificate clears a carrier
+    /// that crosses it, so its place there is unread, and its walls, both
+    /// square to the top, read tangent to it (`EdgeInFace { keel, top,
+    /// Tangent }`). Red on a reading that asks both ends before a record,
+    /// or that reads a crossing-only face as holding nothing (`Ok`, no
+    /// parting).
     #[test]
-    fn a_spline_keel_past_a_plane_face_named_by_a_record_refuses_unread() {
+    fn a_spline_keel_past_a_plane_face_refuses_at_the_face_it_crosses() {
         let (mut body, wall, keel, [lo, _]) = box_and_keel((0.5, 1.5));
         let top = edge_between(
             &body,
@@ -3018,11 +2997,20 @@ mod spline_rider {
                 .any(|(e, lies)| *e == keel && lies.iter().any(|l| l.face == wall)),
             "on its line the keel is a rider in the wall"
         );
+        let (p, q) = crate::readback::edge_sides(&body, top).unwrap().faces();
+        let roof = if p == wall { q } else { p };
         as_spline(&mut body, keel);
         let got = part_riders(&mut body, &contacts, band(), Tol::witness());
         assert!(
-            refuses_unread(&got),
-            "the spline keel past the wall refuses unread, got {:?}",
+            matches!(
+                got,
+                Err(BooleanError::EdgeInFace {
+                    edge,
+                    face,
+                    gap: EdgeInFaceGap::Tangent,
+                }) if edge == keel && face == roof
+            ),
+            "the spline keel past the wall refuses at the box's top, got {:?}",
             got.map(|(parted, _)| parted.len())
         );
     }
@@ -3069,6 +3057,113 @@ mod spline_rider {
             let read = conic_or_line_on(&spiric, (0.0, 1.0), &surface, band());
             assert_eq!(read.ok(), Some(want), "{what}");
         }
+    }
+
+    /// A U-shaped block whose `x = 1` face is a U in `(y, z)`: arms
+    /// `y ∈ [0, 1]` and `y ∈ [2, 3]`, base `z ∈ [0, 1]`, the notch
+    /// `y ∈ (1, 2), z ∈ (1, 2)` open. In the same body, a triangular
+    /// prism whose keel runs along `y` at `(x, z) = (1, 1.5)` from
+    /// `y = ½` to `y = 5/2`, its walls going into `x < 1`, the U's
+    /// material side: the keel lies in the U face over `y ∈ [½, 1]` and
+    /// `[2, 5/2]`, and crosses the notch between. Records: both keel
+    /// ends on the face, the keel crossing the notch's two edges.
+    fn keel_across_a_notch() -> (Body<f64>, FaceKey, EdgeKey, ContactRecords) {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let u_profile = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        // (x, y, z) ↦ (z, x, y): the profile's top, z = 1, is x' = 1.
+        let u_ops = crate::test_support_fixtures::prism_ops(
+            &mut body,
+            &u_profile,
+            (0.0, 1.0),
+            |x, y, z| Point3::new(z, x, y),
+            crate::test_support_fixtures::FaceGeometry::Certified,
+            tol,
+        );
+        let face = u_ops.seed.face;
+        crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
+        let mut keel_body = Body::<f64>::new();
+        // (x, y, z) ↦ (y, z, x): the profile corner (1.5, 1) is the keel
+        // at x' = 1, z' = 1.5, running along y' = z.
+        crate::test_support_fixtures::prism_ops(
+            &mut keel_body,
+            &[(1.5, 1.0), (1.0, 0.0), (2.0, 0.0)],
+            (0.5, 2.5),
+            |x, y, z| Point3::new(y, z, x),
+            crate::test_support_fixtures::FaceGeometry::Certified,
+            tol,
+        );
+        crate::test_support_fixtures::describe_as_intersections(&mut keel_body, tol);
+        crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
+        let normal = body.proven_face_surface(face).clone();
+        assert!(
+            matches!(normal, geom::Surface::Plane { origin, normal, .. }
+                if (origin.x - 1.0).abs() < 1e-12 && normal.x.abs() > 0.99),
+            "the U face is the plane x = 1: {normal:?}"
+        );
+        let lo = vertex_at(&body, Point3::new(1.0, 0.5, 1.5));
+        let hi = vertex_at(&body, Point3::new(1.0, 2.5, 1.5));
+        let keel = edge_between(&body, lo, hi);
+        let notch = |y: f64| {
+            edge_between(
+                &body,
+                vertex_at(&body, Point3::new(1.0, y, 1.0)),
+                vertex_at(&body, Point3::new(1.0, y, 2.0)),
+            )
+        };
+        let contacts: ContactRecords = [
+            Contact::new(&body, Cell::Vertex(lo), Cell::Face(face)).unwrap(),
+            Contact::new(&body, Cell::Vertex(hi), Cell::Face(face)).unwrap(),
+            Contact::new(&body, Cell::Edge(keel), Cell::Edge(notch(1.0))).unwrap(),
+            Contact::new(&body, Cell::Edge(keel), Cell::Edge(notch(2.0))).unwrap(),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| Cited::new(c, Cites::decided(u32::try_from(i).unwrap())))
+        .collect();
+        (body, face, keel, contacts)
+    }
+
+    /// **A spline keel across a notch refuses.** The U face's keel lies
+    /// in it along two pieces, its ends on the face, its midpoint over the
+    /// notch, and records cross the notch's two edges. On its line it is
+    /// a rider in the face; as a straight NURBS through the same points
+    /// it refuses `CarrierUnread` naming the keel and the face. Red on a
+    /// reading that asks the unread carrier's midpoint (`Ok`, no parting:
+    /// the midpoint is over the notch).
+    #[test]
+    fn a_spline_keel_across_a_notch_refuses_unread() {
+        let (mut body, face, keel, contacts) = keel_across_a_notch();
+        let found = riders(&body, &contacts, band()).unwrap();
+        assert!(
+            found
+                .iter()
+                .any(|(e, lies)| *e == keel && lies.iter().any(|l| l.face == face)),
+            "on its line the keel is a rider in the U face"
+        );
+        as_spline(&mut body, keel);
+        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::EdgeInFace {
+                    edge,
+                    face: f,
+                    gap: EdgeInFaceGap::CarrierUnread,
+                }) if edge == keel && f == face
+            ),
+            "the spline keel across the notch refuses unread in the U face, got {:?}",
+            got.map(|(parted, _)| parted.len())
+        );
     }
 
     /// A C0 quadratic B-spline whose `x` vanishes at the nine parameters
