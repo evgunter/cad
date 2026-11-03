@@ -582,6 +582,107 @@ fn the_clearance_tool_writes_each_shape_of_bound() {
     }
 }
 
+/// **A clearance's bounds are its rows**: the tool inserts contact, and
+/// each end of the band is then a slot row of the requirement
+/// (`SlotId::ClearanceBound`), which takes a formula. A formula over a
+/// variable moves the verdict when the variable moves, and the edits
+/// that wrote it save and load back to the same document.
+///
+/// Red if a bound is no row, if a row refuses a formula or does not
+/// follow its variable, or if the slot address does not round-trip
+/// through the file's edit log.
+#[test]
+fn a_clearances_bounds_are_rows_that_take_a_formula_and_round_trip() {
+    use pncad::document::{BoundEnd, SlotId};
+    use viewer::combine::ClearanceBoundChoice;
+    let tol = Tol::witness();
+    let (mut session, left, right) = scene(tol, None);
+    let slots = |session: &DocSession, id| {
+        viewer::props::slot_rows(session.committed_doc(), id)
+            .into_iter()
+            .map(|row| row.slot)
+            .collect::<Vec<_>>()
+    };
+    let (low, high) = (
+        SlotId::ClearanceBound(BoundEnd::Low),
+        SlotId::ClearanceBound(BoundEnd::High),
+    );
+    for (choice, want) in [
+        (ClearanceBoundChoice::AtLeast, vec![low]),
+        (ClearanceBoundChoice::AtMost, vec![high]),
+        (ClearanceBoundChoice::Equal, vec![low]),
+        (ClearanceBoundChoice::Between, vec![low, high]),
+    ] {
+        let id = add(
+            &mut session,
+            requirement(left, right, choice.bounds(len(0.0))),
+        );
+        assert_eq!(slots(&session, id), want, "{choice:?}: one row per end");
+    }
+
+    let id = add(
+        &mut session,
+        requirement(left, right, ClearanceBoundChoice::AtLeast.bounds(len(0.0))),
+    );
+    session.pump();
+    assert_eq!(cleared(&session, id).state(), "Holds", "contact holds");
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::new("gap").expect("a name"),
+        value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Length, 0.005),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let written = session.perform(SessionOp::SetSlotExpression {
+        node: id,
+        slot: low,
+        text: "gap".to_owned(),
+    });
+    assert!(written.refusal.is_none(), "{:?}", written.refusal);
+    session.pump();
+    assert_eq!(
+        cleared(&session, id).state(),
+        "Holds",
+        "10 mm apart is at least 5 mm"
+    );
+    let gap = session.committed_doc().var_named("gap").expect("declared");
+    let moved = session.perform(SessionOp::SetVariableText {
+        var: gap,
+        text: "20 mm".to_owned(),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    session.pump();
+    assert_eq!(
+        cleared(&session, id).state(),
+        "Violated",
+        "10 mm apart is not at least 20 mm"
+    );
+
+    let history = session.history();
+    let edits: Vec<_> = history
+        .path()
+        .into_iter()
+        .flat_map(|step| history.entry(step).edits().to_vec())
+        .collect();
+    let text = pncad::document::save(history.entry(history.root()).doc(), &edits, tol)
+        .expect("a file carrying the log saves");
+    assert!(
+        text.contains("ClearanceBound"),
+        "the log carries the bound's slot address"
+    );
+    let loaded = pncad::document::load(&text, tol).expect("and loads, replaying the log");
+    assert!(
+        loaded.doc.bit_eq(session.committed_doc()),
+        "the log replays to the same document"
+    );
+    assert_eq!(
+        loaded
+            .doc
+            .slot_expansion(id, low)
+            .map(|formula| loaded.doc.unparse(&formula)),
+        Some("gap".to_owned()),
+        "the loaded bound reads the variable"
+    );
+}
+
 /// **A tree pick of a body the world draws twice is refused at the
 /// pick, in the tool's words**: it names no one part, so the tool seats
 /// nothing and asks for the copy in the picture — rather than seating

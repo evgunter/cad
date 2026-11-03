@@ -489,7 +489,6 @@ fn an_unplaced_body_becomes_its_symmetric_part() {
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let union = outcome.made.expect("the symmetric part");
     assert!(
         matches!(
             &outcome.committed[..],
@@ -500,9 +499,79 @@ fn an_unplaced_body_becomes_its_symmetric_part() {
         outcome.committed
     );
     let doc = session.committed_doc();
+    let union = *outcome
+        .minted
+        .iter()
+        .find(|&&n| matches!(doc.node(n), Some(Node::Union { .. })))
+        .expect("the symmetric part");
     assert!(viewer::world::is_drawn(doc, union), "the union is drawn");
     assert!(!viewer::world::is_drawn(doc, loose), "in the body's place");
     assert_eq!(common::world(doc), world, "the world stands");
+}
+
+/// **The mirror's label lands on the mirror, placed body or not**: the
+/// gesture's noun is the mirror, so its insert labels the mirror
+/// `Mirror N` and answers it as what it made, the node the chrome
+/// selects; the union of the symmetric part takes no label.
+///
+/// Red if the label, or the made node, is the union, for either body.
+#[test]
+fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
+    let tol = Tol::witness();
+    for (placed, (mut session, block)) in [(true, block(tol)), (false, unplaced_block(tol))] {
+        let plane = FaceSelection {
+            name: own_cap(block),
+            node: block,
+            body: 0,
+        };
+        let op = SessionOp::AddMirror {
+            body: block.into(),
+            plane,
+        };
+        assert!(op.selects_what_it_makes(), "placed {placed}");
+        let label =
+            viewer::tree::proposed_label(session.committed_doc(), "Mirror").expect("a proposal");
+        assert_eq!(label.as_str(), "Mirror 1", "placed {placed}");
+        let outcome = session.perform(SessionOp::CreateLabelled {
+            creation: viewer::session::Creation::of(op).expect("a creation"),
+            label,
+        });
+        assert!(
+            outcome.refusal.is_none(),
+            "placed {placed}: {:?}",
+            outcome.refusal
+        );
+        let doc = session.committed_doc();
+        let (image, part) = (
+            outcome
+                .minted
+                .iter()
+                .copied()
+                .find(|&n| matches!(doc.node(n), Some(Node::Mirror { .. })))
+                .expect("the mirror"),
+            outcome
+                .minted
+                .iter()
+                .copied()
+                .find(|&n| matches!(doc.node(n), Some(Node::Union { .. })))
+                .expect("the symmetric part"),
+        );
+        assert_eq!(
+            outcome.made,
+            Some(image),
+            "placed {placed}: the mirror is made"
+        );
+        assert_eq!(
+            doc.label(image).map(|l| l.as_str()),
+            Some("Mirror 1"),
+            "placed {placed}: the mirror carries the label"
+        );
+        assert_eq!(
+            doc.label(part),
+            None,
+            "placed {placed}: the union carries none"
+        );
+    }
 }
 
 /// **A body mirrored across a face of another body in its space**: the
