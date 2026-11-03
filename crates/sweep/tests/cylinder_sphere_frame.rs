@@ -299,8 +299,8 @@ pub(crate) enum Door {
     /// The result gate's volume on a sphere face holding a ring, which
     /// the sphere reads only where circles bound it (the same row).
     Ring,
-    /// The edge join on a spline carrier
-    /// (`work/splice/joining-a-spline-carrier-is-unbuilt.md`),
+    /// The edge join on a spline carrier beside another carrier
+    /// (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter.md`),
     /// which no pose here reaches.
     Join,
 }

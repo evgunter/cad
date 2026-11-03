@@ -4,6 +4,8 @@ kind: issue
 title: A Display still writes a constant ending (DEFECT, KERNEL_DEFECT_ENDING) or a helper's fixed-door ending, which answers one door at every door
 status: open
 opened: 2026-11-03
+priority: P3
+cost: M
 ---
 
 

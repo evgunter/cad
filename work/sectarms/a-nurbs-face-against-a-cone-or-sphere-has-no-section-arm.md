@@ -109,4 +109,4 @@ After that come the torus partner (lily wall 8,
 `the-cone-has-no-implicit-enclosure-or-metres-conversion`, and
 plane × NURBS folded in. That is at least three more hard units, so it
 is priced at 24 points. It is the row the curved demo joins lean on
-most (`work/issues/curved-demo-joins-build.md`).
+most (`work/splice/curved-demo-joins-build.md`).

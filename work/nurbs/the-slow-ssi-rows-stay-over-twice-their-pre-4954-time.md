@@ -86,7 +86,7 @@ Before #5391 (kept for the record):
   (`cheapen-the-restriction-cut-steps-2-to-4`): axis-lazy restriction,
   one window reading per window, batched channels.
 
-- **Exact scale** (#5114, `work/issues/interval-scale-by-an-exact-f64-pays-a-general-product`):
+- **Exact scale** (#5114, `work/scalar/interval-scale-by-an-exact-f64-pays-a-general-product`):
   a halving's one `2⁻ʳ` scale per output pays a general interval
   product. Estimated at most 25% of the face bound.
 - **The shared weight powers' halving**

@@ -59,6 +59,14 @@ impl TubeCell<4> for UvRect {
     }
 }
 
+/// The chart tube's cell on the 1×2 lane: the wall's coordinates, the
+/// whole state.
+impl TubeCell<2> for UvRect {
+    fn holds_state(&self, x: &[f64; 2]) -> bool {
+        self.holds((x[0], x[1]))
+    }
+}
+
 /// The foot of `seed` on a NURBS chart, `(u, v)`.
 ///
 /// # Errors

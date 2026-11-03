@@ -526,7 +526,7 @@ the image of.
 A seam vertex cites an input edge whole, `From(m, e)`, never a piece: the
 one it lies on. Where several of one input's edges lie flush on its line, a
 union and a pair boolean cite the `Merged` set of them, read along each
-(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+(`a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges` (closed with WIRE: `docs/doc-ledger/wire-leaves-the-tracker.md`)).
 A vertex at a member vertex is that vertex. At several members' vertices (a
 body glued to its copy) it is `Merged` of them, flat and in name order. A
 vertex where a single face crosses or touches a member edge, or a line of

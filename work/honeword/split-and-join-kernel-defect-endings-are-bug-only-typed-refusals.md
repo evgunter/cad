@@ -70,7 +70,7 @@ Doors: the Boolean doors, and the split doors through the finish and the join.
 - `crates/topo/src/splitting/finish.rs` `SplitFinishError` `Display`, `DegenerateSide` (~891), `TornComponent` (~896) and `Corrupt` (~903). **Class 2, likely**, each: the finish reads pieces it cut from a tier-1 body.
 - `crates/topo/src/chord_join.rs` `SplitJoinError` `Display`, `CutInvariant` (~659) and `Corrupt` (~662). **Class 2, likely**, each: as above.
 
-The prose arms are also listed by `kernel-bug-refusals-end-without-the-shared-ending` on this slate and by `work/issues/boolean-kernel-bug-refusals-end-without-the-shared-ending.md`. Those rows' repair, appending the constant, is the shape this row retires.
+The prose arms are also listed by `kernel-bug-refusals-end-without-the-shared-ending` on this slate and by `work/encl/boolean-kernel-bug-refusals-end-without-the-shared-ending.md`. Those rows' repair, appending the constant, is the shape this row retires.
 
 **Class 1** (`VolumeBackstop`): the volume decision's lever at the public door, shared with CLEAVE's repair of `ResultVolumeImplausible` (`classification-invariant-family-types-bug-only-states-against-d9-row-4`). The Boolean's own call panics.
 

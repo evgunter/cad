@@ -12,7 +12,7 @@
 //! Built, either form passes tiers 1, 2 and 3 at the closed-form volume,
 //! and tier 3′ refuses the two arcs, on two curve entries, as an
 //! `EdgeEdgeOverlap` no record backs, as it does the split's curved ring
-//! (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+//! (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
 //! So the Boolean refuses `EdgeInFace` (`Curved`), as the split refuses
 //! `CurvedSlitTrace`, rather than ship it or the one arc the floor
 //! passes through.

@@ -175,7 +175,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Blend/SurgeryInvariant", "at face FaceKey"),
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
         "Naming/SplitLineage",
         "split lineage of edge EdgeKey  cycles",
@@ -231,7 +231,7 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "AssertionDimension",
     "CurvedSolidFrontier",
     "DegenerateDirection",
@@ -248,7 +248,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    // work/wire/wire-refusals-short-of-the-shape-guard.md
+    // wire-refusals-short-of-the-shape-guard (closed with WIRE: docs/doc-ledger/wire-leaves-the-tracker.md)
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -323,7 +323,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
+    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
     "Check/ChartCoherenceUnexamined(corrupt)",
@@ -974,6 +974,7 @@ mod kernel {
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
             Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -2017,7 +2018,7 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2179,7 +2180,7 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
             "SmoothJoinRefuted",
             E::SmoothJoinRefuted {
                 edge: topo::EdgeKey::default(),
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -2627,7 +2628,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "TangentChordRefuted",
                 J::TangentChordRefuted {
                     face,
-                    mixed: Some(geom_brep::MixedStations {
+                    mixed: Some(geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     }),
@@ -2698,6 +2699,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::DescribeBendEscalated { edge, diag: diag() },
         ),
         (
+            "WholeBodySideEscalated",
+            F::WholeBodySideEscalated { edge, diag: diag() },
+        ),
+        (
             "EdgeOnFacesEscalated",
             F::EdgeOnFacesEscalated { edge, diag: diag() },
         ),
@@ -2705,7 +2710,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "SmoothJoinRefuted",
             F::SmoothJoinRefuted {
                 edge,
-                mixed: Some(geom_brep::MixedStations {
+                mixed: Some(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4,
                 }),
@@ -5601,7 +5606,7 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "RimSeamMixed",
                 S::RimSeamMixed {
                     edge: topo::EdgeKey::default(),
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },
@@ -5798,7 +5803,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 "MixedEdge",
                 R::MixedEdge {
                     edge,
-                    stations: geom_brep::MixedStations {
+                    stations: geom_brep::MixedStations::Class {
                         transverse: 3,
                         smooth: 4,
                     },

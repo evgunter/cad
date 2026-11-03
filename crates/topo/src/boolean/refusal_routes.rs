@@ -57,7 +57,7 @@ pub use geom_brep::{SectionRadius, TorusConvention};
 ///
 /// The façade's curated list carries neither this nor
 /// [`BooleanDecision`]; why, and what would change that, is
-/// `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`.
+/// `work/bind/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Contradiction {
     /// A tangency read between faces on ONE carrier: conformal contact,

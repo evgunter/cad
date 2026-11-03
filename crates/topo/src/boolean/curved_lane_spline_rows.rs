@@ -29,7 +29,7 @@ use geom_core::{Point3, Sign, Tol, Vec3};
 /// first. `normal` is the sheet's plane normal, chosen so the net bulges
 /// to `normal × (last − first)`'s side, the side the chord leaves the
 /// face on. The sheet, its face, and its spline edge.
-fn spline_sheet(
+pub(super) fn spline_sheet(
     control: [Point3<f64>; 3],
     weights: [f64; 3],
     normal: Vec3<f64>,

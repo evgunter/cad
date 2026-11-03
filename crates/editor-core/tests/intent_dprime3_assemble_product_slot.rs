@@ -572,7 +572,7 @@ fn a_meet_with_a_seat_meets_each_piece() {
 /// `t − (a ⊔ b)` is `(t − a) − b`, a fold of cuts rather than a cut per
 /// piece; it lands with the kernel reading a declared seat as one
 /// interface
-/// (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`),
+/// (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`),
 /// when this row builds.
 #[test]
 fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
@@ -603,7 +603,7 @@ fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
 /// foot and the plate's top apart: `VertexReadTwice`, a bead vertex
 /// piercing both. When the kernel reads a declared seat as one
 /// interface
-/// (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`)
+/// (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`)
 /// this row's bridged union is the typed self-touch refusal naming the
 /// seat's pair, and its assert says so.
 #[test]

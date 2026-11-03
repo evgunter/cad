@@ -84,6 +84,7 @@
 //! The rounding of its own later stages (the anchor rotation, the pole
 //! division, the rescale, the depression) is left to its band decisions.
 
+use crate::ladder::{Answering, Climb, Rung, climb, decided};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
@@ -95,10 +96,22 @@ use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 /// torus ([`crate::ConicTorusHarmonics`]).
 pub const MAX_DEGREE: usize = 4;
 
+/// **A carrier parameter as every conic root door reports it**: `theta`
+/// moved by whole turns to within `π` of `mid`, the midpoint of the arc
+/// `[t₀, t₁]` the caller passed, so the caller compares it with that arc
+/// directly, without wrapping. The one home of the convention: the
+/// subdivision's roots and touches, and the cone door's apex reading
+/// (`topo`'s `conic_quadric`), report through it.
+#[must_use]
+pub fn near_midpoint<T: geom_core::Real>(mid: T, theta: T) -> T {
+    mid + (theta - mid).reduce_periodic_centred(T::tau())
+}
+
 /// What [`certified_subdivision`] (and so [`half_angle_roots`]) answers
 /// about a residual round the whole turn: [`Roots::Miss`], or a
 /// certified count (even, at most twice the residual's degree) of
-/// carrier parameters `θ`, each within `π` of the arc's midpoint. A
+/// carrier parameters `θ`, each within `π` of the arc's midpoint
+/// ([`near_midpoint`]). A
 /// trigonometric residual is never read as a zero constant here, so it
 /// has no [`Roots::On`] arm.
 pub type TrigRoots<T> = Roots<T, { 2 * MAX_DEGREE }>;
@@ -399,11 +412,20 @@ fn ladder_roots<T: Decide>(
         [step * k, T::zero() - step * k]
     });
     // `k = 0` yields the zero shift twice; the second copy is dropped.
-    for shift in shifts.skip(1) {
+    // The search is the ladder ([`climb`]) whose answer is the first
+    // candidate whose pole reads apart from a root and well conditioned:
+    // which candidate answers chooses the quartic read, so a candidate in
+    // band ahead of it stays live ([`Answering::First`]). Where none
+    // answers, the ladder answers nothing and the subdivision answers
+    // alone, so a kept candidate is no refusal.
+    let climbed = climb(Answering::First, shifts.skip(1), |shift| {
         let anchor = mid + shift;
-        match decide(rows.pole, Margin::of(residual(anchor + T::pi())), band) {
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Ok(Sign::Zero) | Err(_) => continue,
+        // The pole decided apart from a root goes on; a root passes.
+        let pole = Margin::of(residual(anchor + T::pi()));
+        match decided(rows.pole, pole, band) {
+            Ok(d) if d.sign == Sign::Zero => return Rung::Passes,
+            Ok(_) => {}
+            Err(kept) => return kept.into(),
         }
         // The harmonics about the anchor: the first rotates by `θₐ`, the
         // second by `2θₐ`.
@@ -420,16 +442,16 @@ fn ladder_roots<T: Decide>(
             c0 - c1 + c2,
         ];
         let lead = a[4];
-        match decide(
-            rows.conditioning,
-            Margin::over_lever(
-                speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
-                amplitude,
-            ),
-            band,
-        ) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) | Err(_) => continue,
+        // A pole conditioned past the floor goes on; one at or under it
+        // passes.
+        let conditioning = Margin::over_lever(
+            speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
+            amplitude,
+        );
+        match decided(rows.conditioning, conditioning, band) {
+            Ok(d) if d.sign == Sign::Positive => {}
+            Ok(_) => return Rung::Passes,
+            Err(kept) => return kept.into(),
         }
         // Monic in `τ = 2ρ·t` (a length): `τ⁴ + B τ³ + C τ² + D τ + E`.
         let b3 = scale * a[3] / lead;
@@ -450,15 +472,20 @@ fn ladder_roots<T: Decide>(
         // through the anchor rotation, pole division and rescale, whose
         // rounding nothing meters (module docs), and the module docs
         // record it disagreeing across definite crossings.
-        return match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
-            Err(RootRefusal::Escalated(diag)) => Err(diag),
-            Ok(_)
-            | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
-                Ok(())
-            }
-        };
+        Rung::Answers(
+            match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
+                Err(RootRefusal::Escalated(diag)) => Err(diag),
+                Ok(_)
+                | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+                    Ok(())
+                }
+            },
+        )
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed | Climb::Undecided(_) => Ok(()),
     }
-    Ok(())
 }
 
 /// The pieces the whole turn is cut into before [`certified_subdivision`]
@@ -806,7 +833,7 @@ fn subdivision<T: Decide>(
     // wall crossing's `at_end`, and the ruling's fixed `(−π, π)` window,
     // which re-sorts its roots. None reads the root as an identity.
     let mid = (t0 + t1) / two;
-    let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
+    let reported = |t: T| near_midpoint(mid, t);
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<T> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {

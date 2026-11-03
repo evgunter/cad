@@ -70,6 +70,25 @@ pub(super) fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
     }
 }
 
+/// The sampled `max |S(P(t)) − C(t)|` of `stored` against `carrier`
+/// over `[t0, t1]`, at `samples + 1` evenly spaced parameters: the one
+/// residual sampler the pcurve rows and sweeps read.
+pub(super) fn sampled_residual(
+    stored: &Pcurve<f64>,
+    (t0, t1): (f64, f64),
+    carrier: &Curve3<f64>,
+    surface: &Surface<f64>,
+    samples: u32,
+) -> f64 {
+    (0..=samples)
+        .map(|i| {
+            let t = t0 + (t1 - t0) * f64::from(i) / f64::from(samples);
+            let q = stored.eval(t);
+            surface.eval(q.x, q.y).distance(carrier.eval(t))
+        })
+        .fold(0.0, f64::max)
+}
+
 /// `stored` certifies over `span` at `f64` and at `Interval`, its
 /// sampled residual is over half the band, and the `f64` envelope stays
 /// under the band and covers the residual up to the samples' own
@@ -117,13 +136,7 @@ pub(super) fn covers(
     envelope: f64,
     interval_hi: f64,
 ) {
-    let sup = (0..=4096)
-        .map(|i| {
-            let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
-            let q = stored.eval(t);
-            surface.eval(q.x, q.y).distance(carrier.eval(t))
-        })
-        .fold(0.0, f64::max);
+    let sup = sampled_residual(stored, (t0, t1), carrier, surface, 4096);
     assert!(
         sup > zero() / 2.0,
         "{what}: stands {sup:e} off, not past half the band"
@@ -216,8 +229,8 @@ fn plane_a_skew_unequal_pair_reads_its_singular_value() {
 
 /// `vector`, the cylinder meridian's drift: an ellipse whose `a` runs
 /// up the wall and whose radial part is a circle of radius `δ` about a
-/// point of the wall. Its radial amplitude is in band, so it takes the
-/// meridian (the D9 tie-break), and the image stands `δ` off it at
+/// point of the wall. Its radial amplitude `δ = 0.75·zero` reads Zero,
+/// so it takes the meridian, and the image stands `δ` off it at
 /// every `t`. The parameter interval meters at the minor axis `δ`, so
 /// the span is long enough to clear the escalation band.
 #[test]
@@ -841,7 +854,7 @@ fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet() {
                 lane_gaps += 1;
             }
             for reading in [Reading::Build, Reading::AtRest] {
-                let ending = e.ending(reading).unwrap_or_default();
+                let ending = e.ending(reading);
                 let not_yet = ending.starts_with(geom_core::NOT_YET_ENDING)
                     && !ending.contains("defect")
                     && !ending.contains("tolerance");
