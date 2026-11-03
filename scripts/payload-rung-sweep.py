@@ -386,6 +386,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                                "once, beside `Evaluation`; the general rule is at the "
                                "payload-rule header of crates/pncad/src/document.rs"),
+    # How a run a door ran stopped (canceled, or out of its member budget) is
+    # the same evaluation vocabulary, carried beside `Stop` and `Evaluation` on
+    # `document`; the analysis list's drive, Monte-Carlo and clearance refusals
+    # carry it as their `Stopped` arm's payload.
+    "Stopped": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
+                          "once, beside `Stop` and `Evaluation`; the general rule is at "
+                          "the payload-rule header of crates/pncad/src/document.rs"),
 }
 
 

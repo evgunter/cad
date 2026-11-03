@@ -600,6 +600,11 @@ BOUND_AS = {
     # The run's member budget's one default is what `evaluate`'s
     # `member_budget=None` runs under.
     "DEFAULT_MEMBER_BUDGET": "evaluate",
+    # How a run a door ran stopped: a Python evaluation records its own
+    # as `Evaluation.canceled` / `Evaluation.exhausted`, and a door that
+    # refuses as stopped crosses it as its refusal's `"stopped"` (or
+    # `"canceled"`) variant word, its budget in the message.
+    "Stopped": ("Evaluation.canceled", "Evaluation.exhausted"),
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
     # door's proof as `rung` (`None` unproven) beside `residual`.
@@ -3574,6 +3579,7 @@ MEMBERS_BOUND_AS = {
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
     "ChecksError::Product": "ChecksError.variant",
+    "ChecksError::Canceled": "ChecksError.variant",
     # What an accepted edit did that the caller did not ask for, read
     # off `Doc.last_maintenance`: the offset a placing mate cleared, and
     # the references a delete stranded — a payload name on its carrying
@@ -3861,6 +3867,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::SpaceStraddlesCut": "SplitError.variant",
     "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
+    "SplitError::Stopped": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
@@ -4060,6 +4067,7 @@ MEMBERS_BOUND_AS = {
     "McRefusal::BandHasNoMeasure": "McRefusal.variant",
     "McRefusal::NoSamples": "McRefusal.variant",
     "McRefusal::NominalDoesNotBuild": "McRefusal.variant",
+    "McRefusal::Stopped": "McRefusal.variant",
     # --- an arm or a field that crosses as a DOOR ------------------
     # An analyzed axis's DIMENSION, which is the parameter's own — the
     # field is `dim` in the kernel and the reader is `dimension`, the
