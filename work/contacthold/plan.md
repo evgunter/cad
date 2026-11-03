@@ -1,11 +1,11 @@
 # CONTACTHOLD — the plan
 
-CONTACT's parked rows: the D10 hold on declared contacts, the coincidence door and the declared-pair retirement.
+CONTACT's remaining rows: the coincidence door and the declared-pair retirement.
 
 Opened 2026-10-09 by CONTACT's closing cut on its priority seam
 (`work/README.md`, Track size), when CONTACT measured 99.5 budget
 points against 30 with its P0 units landed or parked (PRs 4363, 4368,
-4372; CONTACT-13 parked on the D10 hold).
+4372).
 
 ## The slate
 
@@ -29,17 +29,13 @@ row; this names the ones that set the order.
   and the at-rest κ_rel bridge row filed with PR 5395.
 - **Parked:** `a-rim-locus-tangency-through-two-faces-interiors-mints-no-face-face-row`
   behind TANG's `dev1-cylinder-sphere-circle-locus-arm` (no circle
-  witness locus exists). No row here waits on the D10 hold, which
-  lifted when INTENT closed (2026-10-30, #6103).
+  witness locus exists).
 
 ## Order
 
 When a trigger fires, the row goes to the live program whose charter
-it fits (most to RESTREAD, INSIDE or SECTOR, or to INTENT's own stage-4
-units where they absorb it), by `git mv`, and this track closes when it
-is empty. The two P0s that waited on `intent-stage4-is-built`
-(`CONTACT-13` and `declared-only-meetings-clear-at-the-census-gate-unread`)
-moved to ATREST on 2026-10-27 as one P2 re-read.
+it fits (most to RESTREAD, INSIDE or SECTOR), by `git mv`, and this
+track closes when it is empty.
 
 ## Ratified ground (cited, not re-litigated)
 
