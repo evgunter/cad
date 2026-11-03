@@ -145,8 +145,14 @@ fn line(name: &str, body: &Body<f64>) -> String {
         ),
         // The refusal's sentence leaves the face's key out; the walk's
         // choice of WHICH face refused is part of what is pinned.
-        Err(e @ topo::MassPropsError::Face { face, .. }) => format!("REFUSED at {face:?}: {e}"),
-        Err(e) => format!("REFUSED {e}"),
+        Err(e @ topo::MassPropsError::Face { face, .. }) => format!(
+            "REFUSED at {face:?}: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        ),
+        Err(e) => format!(
+            "REFUSED {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+        ),
     };
     format!("{name} {read} | {}", channels(&bracket.finish()))
 }

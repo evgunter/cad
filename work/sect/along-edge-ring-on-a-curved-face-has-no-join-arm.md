@@ -42,3 +42,10 @@ image rather than a section plane. Build it once a pose reaches it.
 From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.
 
 Moved from SECTTAIL to SECT on 2026-11-02, by `git mv`, when SECTTAIL merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## The D10 hold has lifted (2026-11-03)
+
+INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
+`docs/doc-ledger/intent-leaves-the-tracker.md`), so the hold named above
+no longer stands. What is left is the reach: no public pose reaches the
+case yet, as the row says.

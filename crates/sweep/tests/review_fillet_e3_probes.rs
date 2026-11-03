@@ -89,7 +89,7 @@ mod certified {
             "the margin itself is carried as the enclosure it is: {:?}",
             margin.reading
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains("0.1 m apart"),
             "the gap was [0.1, 0.2] m; the refusal states its lower end as the distance: {text}"
@@ -121,7 +121,7 @@ mod certified {
             "sin θ · arm over a wide arm is an enclosure: {:?}",
             margin.reading
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains("lever arm 0.5 m"),
             "the arm was [0.5, 1] m; the refusal states its lower end as the lever: {text}"

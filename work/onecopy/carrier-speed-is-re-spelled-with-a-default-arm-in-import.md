@@ -16,3 +16,7 @@ A carrier's speed is `geom::carrier_speed`'s reading (DESIGN's crate table: "a c
 - `crates/geom-brep/src/chart_singularity.rs` `nearest_on_edge`: `Line → |dir|`, `Circle → radius`, otherwise sampled; its sibling `speed_bound` in the same file already reads `geom::carrier_speed::speed_range`.
 
 Fix: read `carrier_speed` at both, and refuse typed (not `1.0`) where it has no answer.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

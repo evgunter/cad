@@ -21,3 +21,7 @@ A point's foot on a plane through `o` with normal `n` is written inline at:
 Some take `n` as unit and one normalizes first, so they agree only on a unit normal. It is a one-carrier-and-a-point reading (`[one-way.readings]`), so its home is `geom`: beside `geom::Line::foot`, a plane's foot (on `Surface::Plane`, or a small plane view as `geom::Line` is for lines), with these sites repointed.
 
 **FORMS, PR 6431 (2026-11-03).** `crates/viewer/src/splitplane.rs` is deleted with the split form's typed plane and its preview, so its `preview` is no longer a site of this row.
+
+## Slate triage (2026-11-03, ONEHOME cut)
+
+- Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.

@@ -534,7 +534,13 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
         ..DriveConfig::default()
     };
     let t0 = Instant::now();
-    match drive(&built.doc, &analyzed, &config, tol) {
+    match drive(
+        &built.doc,
+        &analyzed,
+        &config,
+        &pncad::document::Stop::default(),
+        tol,
+    ) {
         Ok(verdict) => {
             let (mut holds, mut violated, mut undecided) = (0usize, 0usize, 0usize);
             for leaf in verdict.certified() {
@@ -546,8 +552,10 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
                     built.assertion,
                     &leaf.box_,
                     verdict.symbolic(),
+                    &pncad::document::Stop::default(),
                     tol,
                 )
+                .expect("the replay runs to completion at the default member budget")
                 .and_then(|v| v.holds())
                 {
                     Some(true) => holds += 1,

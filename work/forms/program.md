@@ -2,7 +2,7 @@
 id: forms
 kind: program
 title: FORMS — one editor per node kind: creating a thing commits it and hands it to the edit surface
-status: active
+status: ready
 opened: 2026-09-22
 group: gui/author
 prefix: forms/

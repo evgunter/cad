@@ -115,8 +115,12 @@ fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
     let vol0 = volume(&body);
     for r in [0.05, 0.1] {
-        let out = fillet_edges(&body, &creases, r, tol())
-            .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+        let out = fillet_edges(&body, &creases, r, tol()).unwrap_or_else(|e| {
+            panic!(
+                "r {r}: both convex ring creases carve, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("r {r}: tier 3, {e:?}"));
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * keyhole_cut(r);
@@ -144,8 +148,12 @@ fn a_keyhole_crease_at_the_discs_radius_carves_at_the_closed_form() {
             foot < XS,
             "r {r}: the ball's foot {foot} lies on the slot wall"
         );
-        let out = fillet_edges(&body, &creases, r, tol())
-            .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+        let out = fillet_edges(&body, &creases, r, tol()).unwrap_or_else(|e| {
+            panic!(
+                "r {r}: both convex ring creases carve, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("r {r}: tier 3, {e:?}"));
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * keyhole_cut(r);
@@ -194,8 +202,12 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_goes_with_it_at_the_closed_form() 
         .map(|(k, _)| k)
         .collect();
     assert!(!walls.is_empty(), "the source carries the bore's walls");
-    let out = fillet_edges(&body, &creases, 0.1, tol())
-        .unwrap_or_else(|e| panic!("the bore goes with the sliver, got {e}"));
+    let out = fillet_edges(&body, &creases, 0.1, tol()).unwrap_or_else(|e| {
+        panic!(
+            "the bore goes with the sliver, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
     topo::validate_pseudomanifold(&out.body, &topo::ContactRecords::default(), tol())
         .unwrap_or_else(|e| panic!("tier 3′, {e:?}"));
@@ -226,7 +238,12 @@ fn a_bore_clear_of_a_keyhole_creases_sliver_carves_at_the_closed_form() {
         0.1,
         tol(),
     )
-    .unwrap_or_else(|e| panic!("a clear bore carves, got {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "a clear bore carves, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
     let dv = volume(&out.body) - vol0;
     let want = -2.0 * keyhole_cut(0.1);
@@ -246,8 +263,12 @@ fn past_the_discs_radius_a_keyhole_crease_first_meets_the_support_screen() {
     let creases = rod_creases(&body);
     let vol0 = volume(&body);
     let r = 0.5975;
-    let out = fillet_edges(&body, &creases, r, tol())
-        .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+    let out = fillet_edges(&body, &creases, r, tol()).unwrap_or_else(|e| {
+        panic!(
+            "r {r}: both convex ring creases carve, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     let dv = volume(&out.body) - vol0;
     let want = -2.0 * keyhole_cut(r);
     assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");

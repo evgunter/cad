@@ -126,14 +126,20 @@ pub enum PieceSortError {
 // so a shape no verb builds may have been read from a file.
 // Every arm is one sentence and then its one ending; an arm that
 // carries a refusal ends in that refusal's.
-impl core::fmt::Display for PieceSortError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PieceSortError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
         let (what, ending) = match self {
             Self::RoleUnread { source, .. } => {
                 return write!(
                     f,
                     "whether a shell of the body bounds material or a cavity could not be \
-                     decided, so the piece it belongs to is unknown: {source}"
+                     decided, so the piece it belongs to is unknown: {}",
+                    read_at(source, at)
                 );
             }
             Self::WitnessTouching { .. } => (
@@ -145,7 +151,8 @@ impl core::fmt::Display for PieceSortError {
             Self::Probe { source, .. } => {
                 return write!(
                     f,
-                    "the piece a shell of the body belongs to could not be read: {source}"
+                    "the piece a shell of the body belongs to could not be read: {}",
+                    read_at(source, at)
                 );
             }
             Self::Crossing { .. } => (
@@ -165,13 +172,18 @@ impl core::fmt::Display for PieceSortError {
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             Self::Move(e) => (
-                format!("moving a piece into its own solid failed: {e}"),
+                format!(
+                    "moving a piece into its own solid failed: {}",
+                    read_at(e, at)
+                ),
                 geom_core::KERNEL_DEFECT_ENDING,
             ),
         };
         write!(f, "{what}. {ending}")
     }
 }
+
+geom_brep::ended_by_write!(PieceSortError);
 
 impl std::error::Error for PieceSortError {}
 
@@ -530,7 +542,7 @@ mod tests {
             matches!(err, PieceSortError::RoleUnread { shell, .. } if shell == third),
             "{err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             text,
             format!(

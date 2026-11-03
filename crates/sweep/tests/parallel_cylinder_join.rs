@@ -624,13 +624,14 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     decision: topo::BooleanDecision::CylinderAxes,
                     diag,
                 }) if diag.predicate == Some("cc_axes_parallel")
-                    && e.to_string().ends_with(AXES_LEVER)
+                    && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
             );
             assert!(
                 axes_angle || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
         let turned = seams_on_the_walls(axis, 0.2);
@@ -640,7 +641,8 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
                     || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
                 "{} | {op}: want {frontier:?}, got {:?}",
                 turned.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }
@@ -726,11 +728,12 @@ fn one_face_walls_read_their_axes_as_an_angle() {
                         decision: topo::BooleanDecision::CylinderAxes,
                         diag,
                     }) if diag.predicate == Some("cc_axes_parallel")
-                        && e.to_string().ends_with(AXES_LEVER)
+                        && e.render(geom_brep::recourse::Reading::Build).ends_with(AXES_LEVER)
                 ),
                 "{} | {op}: {:?}",
                 tipped.label,
-                r.map(|_| "a body").map_err(|e| e.to_string())
+                r.map(|_| "a body")
+                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
             );
         }
     }

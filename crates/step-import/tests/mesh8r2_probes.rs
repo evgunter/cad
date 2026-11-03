@@ -33,7 +33,7 @@ fn r2r_the_halfcap_fixture_band_shape() {
         Ok(StepImport::Solid { body, .. }) => body,
         Ok(StepImport::Wireframe { .. }) => panic!("halfcap_eps7 is a solid"),
         Err(e) => {
-            println!("HALFCAP eps={eps:e} refused: {e}");
+            println!("HALFCAP eps={eps:e} refused: {e_at}", e_at = e.render());
             return;
         }
     };

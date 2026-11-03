@@ -1096,7 +1096,10 @@ fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
     match refusal {
         topo::HeldRefusal::Overlap { refusal, .. }
         | topo::HeldRefusal::Accumulation { refusal, .. } => {
-            format!("whether it meets a face it may hold in area: {refusal}")
+            format!(
+                "whether it meets a face it may hold in area: {}",
+                refusal.render(geom_brep::recourse::Reading::Build)
+            )
         }
         topo::HeldRefusal::UncutRemainder { .. } => {
             "a face the boolean kept only in part lost outside its kept faces a region no step \
