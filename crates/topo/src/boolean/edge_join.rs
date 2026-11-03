@@ -1359,6 +1359,63 @@ mod carry {
 }
 
 #[cfg(test)]
+mod carry_review {
+    //! **The carry reads every value that states a carrier** (review of
+    //! PR 6434): two nets of one control polygon and one weight row whose
+    //! knots differ are two curves, so a piece of one carries nothing to
+    //! the other; and a circle restated from another reference direction
+    //! is another parametrization of one locus, which carries nothing.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::sync::Arc;
+
+    use geom::Curve3;
+    use geom_core::{Point3, Vec3};
+
+    use super::carried_far;
+
+    fn net(knot: f64) -> Curve3<f64> {
+        let kv =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, knot, 1.0, 1.0, 1.0], 2)
+                .unwrap();
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(3.0, 1.0, 0.0),
+        ];
+        Curve3::Nurbs(Arc::new(
+            geom::NurbsCurve3::new(kv, pts, vec![1.0, 0.8, 1.0, 1.0]).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn a_net_with_other_knots_carries_nothing() {
+        let (kept, twin) = (net(0.5), net(f64::next_up(0.5)));
+        assert_eq!(
+            carried_far(&kept, 0.4, false, &kept.clone(), (0.4, 0.7)),
+            Some(0.7)
+        );
+        assert_eq!(carried_far(&kept, 0.4, false, &twin, (0.4, 0.7)), None);
+    }
+
+    #[test]
+    fn a_circle_from_another_reference_direction_carries_nothing() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let circle = |u: Vec3<f64>| {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame::new(o, z, u),
+                radius: 1.0,
+            })
+        };
+        let kept = circle(Vec3::new(1.0, 0.0, 0.0));
+        let turned = circle(Vec3::new(0.0, 1.0, 0.0));
+        assert_eq!(carried_far(&kept, 0.4, false, &turned, (0.4, 0.7)), None);
+    }
+}
+
+#[cfg(test)]
 mod conventional {
     //! **[`is_conventional_vertex`] is structural**: a vertex whose
     //! only edge is one closed edge, at both its ends. A self-loop's
