@@ -17,9 +17,11 @@ use super::{Cover, Covered, Entity, Lattice, ParamWindow, Uncovered, Unknown};
 use crate::{Curve3, Line, Surface};
 
 impl<T: Real> Surface<T> {
-    /// **The region the whole carrier occupies**: a sphere's or a torus's
-    /// tube (the sphere's with no spine; along a unit `e` in a unit
-    /// orthogonal frame the support is `c·e + R·|e⊥| + r`), a spline's
+    /// **The region the whole carrier occupies**: a sphere's, a torus's or
+    /// a spindle sheet's tube (the sphere's with no spine, the sheet's
+    /// about the spine `|R|`, which holds its whole revolved circle; along
+    /// a unit `e` in a unit orthogonal frame the support is
+    /// `c·e + R·|e⊥| + r`), a spline's
     /// control net (the fit's, for an approximating surface).
     ///
     /// # Errors

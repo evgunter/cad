@@ -189,8 +189,8 @@ pub use projection_policy::{
 };
 pub use surfaces::{
     AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,
-    PLACEHOLDER_SURFACE, SpindleEnd, SpindleMiss, Surface, SurfaceData, SurfaceDatum,
+    PLACEHOLDER_SURFACE, SheetApex, SpindleEnd, SpindleMiss, Surface, SurfaceData, SurfaceDatum,
     SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind, SurfacePairing, SurfaceProjection,
     SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, is_ring_torus, require_ring_torus,
-    ring_torus, spindle_sheet, torus_tube,
+    ring_torus, sheet_apex, spindle_sheet, torus_tube,
 };

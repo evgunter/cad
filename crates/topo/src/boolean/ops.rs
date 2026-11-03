@@ -5875,11 +5875,15 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::EdgeCertification { .. }
         | V::VolumeUncomputable { .. }
         | V::Pcurve { .. } => None,
+        // A lane not written yet, in both of its readings: a face at a
+        // sheet's apex (a vertex there is what a built sheet will have),
+        // and one no reader shows clear of it. A sheet apex inside an
+        // edge or the interior is `ChartSingularityNotAVertex`, above.
+        V::SheetApexReached { .. } => None,
         // Definite findings: a kernel defect.
         V::DanglingDescription { .. }
         | V::DegenerateTorus { .. }
         | V::DegenerateSpindle { .. }
-        | V::SheetApexReached { .. }
         | V::DescriptionNotAdjacent { .. }
         | V::PlanarFaceResidual { .. }
         | V::PlanarBoundaryResidual { .. }

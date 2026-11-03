@@ -129,15 +129,16 @@ pub enum Singularity {
 
 /// **A spindle sheet's two apexes**, the one along its axis first: its
 /// centre plus and minus its unit `axis` times `√(r² − R²)`, the height
-/// at which the meridian circle crosses the axis. On a horn (`R = r`)
-/// the two are its one cusp, the centre.
+/// at which the meridian circle crosses the axis ([`geom::sheet_apex`],
+/// its one home). On a horn (`R = r`, or a hair past it in band) the two
+/// are its one cusp, the centre.
 pub fn sheet_apexes<T: Real>(
     center: Point3<T>,
     axis: Vec3<T>,
     major: T,
     minor: T,
 ) -> [(Singularity, Point3<T>); 2] {
-    let height = (minor.powi(2) - major.powi(2)).sqrt();
+    let height = geom::sheet_apex(major, minor).height;
     [
         (Singularity::SheetApexUp, center + axis * height),
         (Singularity::SheetApexDown, center - axis * height),

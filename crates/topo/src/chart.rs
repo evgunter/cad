@@ -15,7 +15,8 @@
 //! [`Chart::u_of`], [`Chart::v_of`] and [`Chart::rim_v`] read it and
 //! spell no inversion of their own. So a point's angles are named in the
 //! windows every placed pcurve image is named in (C4): the azimuth and a
-//! torus's tube angle in `(−1, τ − 1]`, a sphere's latitude in its own.
+//! torus's tube angle in `(−1, τ − 1]`, a sphere's latitude and a
+//! spindle sheet's tube angle in the latitude's.
 //! They read it at [`Band::least`]: every decision the reading takes
 //! for them is a choice between names of one point — the side of a
 //! window's cut, which formula names the angle, and the nappe a point
@@ -206,11 +207,8 @@ impl Chart<f64> {
     /// otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         use geom_brep::chart_singularity::Singularity;
-        // `cos v* = −R/r`, `sin v* = √(r² − R²)/r`.
         let v_star = || match self.kind {
-            ChartKind::Spindle { major, minor } => {
-                (minor.powi(2) - major.powi(2)).sqrt().atan2(-major)
-            }
+            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).v,
             ChartKind::Cylinder { .. }
             | ChartKind::Cone { .. }
             | ChartKind::Sphere { .. }

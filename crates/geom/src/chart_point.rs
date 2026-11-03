@@ -123,7 +123,9 @@ pub enum ChartArm<T> {
         /// The minor radius r.
         minor: T,
     },
-    /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]`.
+    /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]` and read
+    /// in the latitude window, which holds that interval whole only for
+    /// `v* < π − 1` (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`).
     Spindle {
         /// The signed major radius R.
         major: T,
@@ -283,7 +285,8 @@ impl<T: Decide> ChartInverse<T> {
                 )
             }
             // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
-            // latitude's window, which holds it whole for `v* < π − 1`.
+            // latitude's window, which holds it whole only for `v* < π − 1`:
+            // a wider apple's far side reads a turn off (filed).
             ChartArm::Spindle { major, .. } => {
                 let tube = Azimuth::of(h, rho - major);
                 (
@@ -321,6 +324,9 @@ mod tests {
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
+
+    /// A lemon and an apple with `R < r·cos 1`, as `(R, r)`.
+    const SHEETS: [(f64, f64); 2] = [(-0.1, 0.9), (0.4, 1.0)];
 
     fn surfaces() -> Vec<Surface<f64>> {
         let axis = Vec3::new(0.0, 0.6, 0.8);
@@ -391,22 +397,32 @@ mod tests {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
-        // A lemon (`v* ≈ 1.459`) and an apple (`v* ≈ 2.16`), both
-        // windows holding the walk's `|v| ≤ 1.42`: the sheet's foot is
-        // read by the signed major radius.
-        for major_radius in [-0.1, 0.5] {
+        // A lemon (`v* ≈ 1.459`) and an apple narrow enough for the
+        // latitude window (`R < r·cos 1`, `v* ≈ 1.982`): the sheet's
+        // foot is read by the signed major radius. On a sheet the walk's
+        // `|v| ≤ 1.42` is stretched onto `0.97·v*`, so the apple's
+        // samples run past `π/2` to near its apexes.
+        for (major_radius, minor_radius) in SHEETS {
             all.push(Surface::Spindle {
                 center: Point3::new(0.2, -0.1, 0.3),
                 axis: Vec3::new(0.0, 0.6, 0.8),
                 major_radius,
-                minor_radius: 0.9,
+                minor_radius,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
         for surface in &all {
+            let stretch = match *surface {
+                Surface::Spindle {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => 0.97 * crate::sheet_apex(major_radius, minor_radius).v / 1.4,
+                _ => 1.0,
+            };
             for i in 0..48 {
                 let u = -3.1 + 0.13 * f64::from(i);
-                let v = -1.4 + 0.06 * f64::from(i);
+                let v = (-1.4 + 0.06 * f64::from(i)) * stretch;
                 let on = surface.eval(u, v);
                 let n = surface.normal(u, v);
                 for d in [0.0, 1e-6, -1e-6, 1e-3] {
@@ -457,15 +473,15 @@ mod tests {
         assert!(!sphere.chart_point(near, band()).unwrap().singular);
         // A spindle sheet's two apexes, at the ends `±v*` of its window
         // (`cos v* = −R/r`), lie on its axis.
-        for major_radius in [-0.1, 0.5] {
+        for (major_radius, minor_radius) in SHEETS {
             let sheet = Surface::Spindle {
                 center: Point3::new(0.2, -0.1, 0.3),
                 axis: Vec3::new(0.0, 0.6, 0.8),
                 major_radius,
-                minor_radius: 0.9,
+                minor_radius,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             };
-            let v_star = (-major_radius / 0.9_f64).acos();
+            let v_star = crate::sheet_apex(major_radius, minor_radius).v;
             for v in [v_star, -v_star] {
                 let apex = sheet.eval(0.3, v);
                 assert!(

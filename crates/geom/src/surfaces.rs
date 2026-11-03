@@ -281,7 +281,7 @@ pub enum Surface<T: Real> {
         /// half-plane at `u`; negative on the lemon.
         major_radius: T,
         /// The minor radius r in meters: the meridian circle's radius
-        /// (positive by convention, `r ≥ R`).
+        /// (positive by convention, `r ≥ |R|`).
         minor_radius: T,
         /// The unit reference direction ⊥ `axis` where u = 0 lives.
         u_ref: Vec3<T>,
@@ -603,6 +603,34 @@ pub fn spindle_sheet<T: geom_core::Decide>(
         SpindleEnd::Horn,
         &[Positive, Zero],
     )
+}
+
+/// A spindle sheet's apexes, as [`sheet_apex`] places them: their
+/// height `√(r² − R²)` above and below the centre along the axis, and
+/// the tube angle `v*` they lie at (`cos v* = −R/r`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SheetApex<T> {
+    /// The apexes' distance from the centre along the axis.
+    pub height: T,
+    /// The tube angle `v* ∈ (0, π]` of the upper apex; the lower is at
+    /// `−v*`.
+    pub v: T,
+}
+
+/// **A spindle sheet's apex, its one home.** The height reads the
+/// radicand as `(r − R)(r + R)`, clamped at zero, so a horn
+/// [`spindle_sheet`] accepts a hair past `R = r` (inside the band's
+/// zero) closes at its one cusp, height zero and `v* = π`, rather than
+/// at a root of a negative number. Total on every datum `spindle_sheet`
+/// accepts; past it the clamp still answers a cusp, which the range
+/// check has refused.
+pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
+    let radicand = ((minor_radius - major_radius) * (minor_radius + major_radius)).max(T::zero());
+    let height = radicand.sqrt();
+    SheetApex {
+        height,
+        v: height.atan2(-major_radius),
+    }
 }
 
 impl<T: Real> Surface<T> {
@@ -1461,9 +1489,12 @@ mod tests {
                     u_ref: t_uref(),
                 },
             ),
-            // Both sheets' windows hold the proptests' `|v| ≤ 1.4`:
-            // the lemon's `v* = acos(0.15) ≈ 1.42`, the apple's
-            // `acos(−0.6) ≈ 2.21`.
+            // A lemon (`v* = acos(0.15) ≈ 1.42`) and an apple narrow
+            // enough to read in the latitude window (`R < r·cos 1`,
+            // `v* = acos(−0.4) ≈ 1.98`). The proptests stretch their
+            // `|v| ≤ 1.4` onto `0.97·v*` on a sheet ([`sheet_v`]), so
+            // the apple's samples run past `π/2`, where it is no ring's
+            // outer half, to near its apexes.
             (
                 "lemon",
                 Surface::Spindle {
@@ -1479,12 +1510,26 @@ mod tests {
                 Surface::Spindle {
                     center: t_center(),
                     axis: t_axis(),
-                    major_radius: 1.2,
+                    major_radius: 0.8,
                     minor_radius: 2.0,
                     u_ref: t_uref(),
                 },
             ),
         ]
+    }
+
+    /// A proptest's `v`, drawn from `|v| ≤ 1.4`, stretched on a spindle
+    /// sheet onto `|v| ≤ 0.97·v*` so the samples reach near its apexes;
+    /// unchanged on every other kind.
+    fn sheet_v(s: &Surface<f64>, v: f64) -> f64 {
+        match *s {
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => v * 0.97 * sheet_apex(major_radius, minor_radius).v / 1.4,
+            _ => v,
+        }
     }
 
     fn close3(a: Vec3<f64>, b: Vec3<f64>, tol: f64) -> bool {
@@ -1625,6 +1670,7 @@ mod tests {
             let center = t_center();
             let axis = t_axis();
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let p = s.eval(u, v);
                 let d = p - center;
                 let along = d.dot(axis);
@@ -1662,6 +1708,7 @@ mod tests {
         ) {
             let v = if flip { -v } else { v };
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let n = s.normal(u, v);
                 prop_assert!((n.norm() - 1.0).abs() <= 1e-12, "{name}: |n|");
                 prop_assert!(n.dot(s.deriv_u(u, v)).abs() <= 1e-11, "{name}: n·∂u");
@@ -1677,6 +1724,7 @@ mod tests {
         #[test]
         fn first_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let sd = s.map_scalar(Dual::constant);
                 let pf = s.eval(u, v);
 
@@ -1703,6 +1751,7 @@ mod tests {
         #[test]
         fn second_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let sd = s.map_scalar(Dual::constant);
 
                 let duu = sd.deriv_u(Dual::variable(u), Dual::constant(v));
@@ -2266,13 +2315,6 @@ mod tests {
         }
     }
 
-    /// **A spindle a hair past the ring refuses without a false
-    /// tolerance offer.** `R − r ≈ −5e-10` decides zero on the negative
-    /// side of `ring_torus_convention`, which passes only a positive
-    /// margin: every smaller tolerance decides it negative, so the
-    /// refusal says so rather than offering one. A ring a hair inside
-    /// the convention, the same distance on the positive side, keeps
-    /// its offer, and the tolerance it names decides the convention.
     /// **The sheet's range at both ends and at the sphere between**:
     /// a lemon, an apple and a horn pass; `R = −r`, `R = 0` and a ring
     /// past `r` each refuse naming their end, decided; a margin inside
@@ -2302,6 +2344,41 @@ mod tests {
         assert!(in_band.verdict.is_err(), "a horn in band is undecided");
     }
 
+    /// **The apex's one home is total on the accepted range**: a lemon
+    /// and an apple read `cos v* = −R/r` and height `r·sin v*`; a horn,
+    /// and one a hair past `R = r` that `spindle_sheet` accepts in band,
+    /// both close at the centre with `v* = π`, finite.
+    #[test]
+    fn a_sheet_apex_is_finite_on_every_accepted_sheet() {
+        for (major, minor) in [(-0.3, 0.5), (0.4, 1.0)] {
+            let apex = sheet_apex(major, minor);
+            assert!((apex.v.cos() + major / minor).abs() <= 1e-15, "R = {major}");
+            assert!(
+                (apex.height - minor * apex.v.sin()).abs() <= 1e-15,
+                "R = {major}"
+            );
+        }
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for major in [1.0, 1.0 + 0.25 * band.zero()] {
+            assert_eq!(spindle_sheet(major, 1.0, band), Ok(()));
+            assert_eq!(
+                sheet_apex(major, 1.0),
+                SheetApex {
+                    height: 0.0,
+                    v: core::f64::consts::PI
+                },
+                "R = {major}"
+            );
+        }
+    }
+
+    /// **A spindle a hair past the ring refuses without a false
+    /// tolerance offer.** `R − r ≈ −5e-10` decides zero on the negative
+    /// side of `ring_torus_convention`, which passes only a positive
+    /// margin: every smaller tolerance decides it negative, so the
+    /// refusal says so rather than offering one. A ring a hair inside
+    /// the convention, the same distance on the positive side, keeps
+    /// its offer, and the tolerance it names decides the convention.
     #[test]
     fn a_ring_convention_zero_on_the_spindle_side_offers_no_tolerance() {
         let band = Band::new(1e-9, 1e-8).unwrap();
