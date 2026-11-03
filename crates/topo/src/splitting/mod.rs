@@ -794,11 +794,13 @@ impl SplitReduceError {
             // since a split takes no declaration.
             Self::CrossingEscalated { fault, .. } => {
                 let diag = fault.diag();
-                let ending = fault.decision().map_or_else(
-                    || geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None),
-                    |decision| decision.ending_of(&diag),
-                );
-                diag.undecided(fault.subject(), ending).fmt(f)
+                // The coincidence lever is the same at every door; a
+                // crossing decision's ending is read at this one.
+                let ending = match fault.decision() {
+                    None => Some(geom_core::lever_recourse(SPLIT_COINCIDENCE_RECOURSE, None)),
+                    Some(decision) => at.map(|at| decision.ending_of(&diag, at)),
+                };
+                geom_brep::recourse::undecided_at(&diag, fault.subject(), ending).fmt(f)
             }
             Self::TangencyUnsupported { .. } => write!(
                 f,

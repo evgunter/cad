@@ -4,7 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
-use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use geom_brep::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
@@ -351,12 +351,14 @@ impl CrossingDecision {
         }
     }
 
-    /// The one ending `diag`'s escalation carries, at the operation that
-    /// placed the crossing.
+    /// The one ending `diag`'s escalation carries, read at `at`.
     #[must_use]
-    pub(crate) fn ending_of(self, diag: &geom_core::Indeterminate) -> String {
-        self.sized()
-            .recourse(RefusedArm::Undecided(diag), Reading::Build)
+    pub(crate) fn ending_of(
+        self,
+        diag: &geom_core::Indeterminate,
+        at: impl Into<geom_brep::recourse::ReadAt>,
+    ) -> String {
+        self.sized().recourse(RefusedArm::Undecided(diag), at)
     }
 }
 

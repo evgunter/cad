@@ -1543,7 +1543,7 @@ impl EulerOpError {
             // crossing (the split, the blend, the Boolean) forwards them
             // whole.
             Self::SplitParamNotInterior { verdict, .. } => format!(
-                "{}. {}",
+                "{}{}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => format!(
                         "a crossing is not shown strictly inside its edge (margin {} m from an \
@@ -1554,16 +1554,23 @@ impl EulerOpError {
                         "a crossing lands outside its edge".to_owned()
                     }
                 },
-                crate::split::split_param_ending(verdict.arm())
+                at.map(|at| format!(
+                    ". {}",
+                    crate::split::split_param_ending(verdict.arm(), at)
+                ))
+                .unwrap_or_default()
             ),
-            Self::SplitParamEscalated { diag, .. } => diag
-                .undecided(
-                    crate::split::CROSSING_INTERIOR,
-                    crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(
-                        diag,
-                    )),
-                )
-                .to_string(),
+            Self::SplitParamEscalated { diag, .. } => geom_brep::recourse::undecided_at(
+                diag,
+                crate::split::CROSSING_INTERIOR,
+                at.map(|at| {
+                    crate::split::split_param_ending(
+                        geom_brep::recourse::RefusedArm::Undecided(diag),
+                        at,
+                    )
+                }),
+            )
+            .to_string(),
             Self::SplitSmoothEscalated { diag, .. } => diag
                 .undecided(
                     "whether a piece of a split smooth edge stays smooth along its span",
