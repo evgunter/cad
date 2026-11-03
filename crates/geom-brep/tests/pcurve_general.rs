@@ -627,3 +627,31 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
 }
+
+/// Review 6448 probes (not for merge).
+#[test]
+fn review_6448_probe_public_doors() {
+    // (a) A caller hands a General image to the public closed-form door.
+    let got = PcurveCache::certify(
+        Pcurve::General(image(0.0)),
+        0.0,
+        1.0,
+        &ruling(),
+        &quarter_cylinder_wall(),
+        band(),
+    )
+    .unwrap_err();
+    eprintln!("PROBE(a) build: {}", got.render(Reading::Build));
+    // (b) The public image producer on the placeholder wall.
+    let placeholder = NurbsSurface::<f64>::placeholder();
+    let got = FittedLane::certified().general_image(&ruling(), (0.0, 1.0), &placeholder);
+    match got {
+        Err(e) => eprintln!("PROBE(b) {e:?}\n  build: {}", e.render(Reading::Build)),
+        Ok(_) => eprintln!("PROBE(b) ok"),
+    }
+    let foot = FittedLane::certified().chart_foot(Point3::new(0.0, 0.0, 0.0), &placeholder);
+    match foot {
+        Err(e) => eprintln!("PROBE(c) {e:?}\n  build: {}", e.render(Reading::Build)),
+        Ok(_) => eprintln!("PROBE(c) ok"),
+    }
+}

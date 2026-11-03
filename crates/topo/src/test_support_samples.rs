@@ -2317,3 +2317,38 @@ mod tests {
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 }
+
+#[cfg(test)]
+mod review_6448_probes {
+    use geom_brep::recourse::{ReadAt, Reading};
+    use geom_core::FileCoincidence;
+
+    #[test]
+    fn probe_dump_every_arm_at_every_door() {
+        let file = FileCoincidence::new(1e-6);
+        let mut out = String::new();
+        let mut bad = Vec::new();
+        for e in super::pcurve_certify_errors() {
+            let finding = crate::PcurveMintError::Certify {
+                half_edge: crate::HalfEdgeKey::default(),
+                error: e.clone(),
+            };
+            let at_rest = crate::ValidationError::Pcurve { finding: finding.clone() }
+                .render(Reading::AtRest);
+            out.push_str(&format!("=== {e:?}\n  REST-VALIDATOR: {at_rest}\n"));
+            let n = test_utils::refusal::recourse_markers(&at_rest);
+            if n != 1 { bad.push(format!("validator markers={n}: {at_rest}")); }
+            for at in [ReadAt::from(Reading::Build), Reading::AtRest.into(), file.into()] {
+                let text = finding.render(at);
+                let n = test_utils::refusal::recourse_markers(&text);
+                let ending = e.ending(at);
+                let occ = text.matches(ending.as_str()).count();
+                out.push_str(&format!("  {at:?} [markers={n} occ={occ}]: {text}\n"));
+                if n != 1 || occ != 1 { bad.push(format!("{at:?} markers={n} occ={occ}: {text}")); }
+            }
+        }
+        let p = std::env::var("PROBE_OUT").unwrap_or("/tmp/probe6448.txt".into());
+        std::fs::write(&p, &out).unwrap();
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+    }
+}
