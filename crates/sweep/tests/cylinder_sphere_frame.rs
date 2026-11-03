@@ -568,3 +568,24 @@ fn a_rod_through_a_ball_pairs_both_loops_alike() {
         );
     }
 }
+
+/// SCRATCH probe (spiricarm decide): the faces of chosen cylinder × sphere runs at their stop.
+#[test]
+fn spiricarm_probe_cylsph() {
+    for (index, which) in [(0usize, [2usize, 3]), (5, [1, 5])] {
+        let pose = &poses()[index];
+        let (a, b) = pose.operands();
+        let (va, vb, vi) = pose.volumes();
+        let all = runs(va, vb, vi);
+        for w in which {
+            let (op_label, op, swapped, want) = all[w];
+            let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
+            eprintln!(
+                "PROBE === pose {index} {} {op_label} (oracle {want})",
+                pose.label
+            );
+            let got = run(op, x, y);
+            eprintln!("PROBE result: {:?}", got.as_ref().err().map(door));
+        }
+    }
+}

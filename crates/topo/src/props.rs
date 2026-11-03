@@ -5272,6 +5272,7 @@ fn face_flux_about<T: Decide>(
                 _ => false,
             };
             if loops.len() > 1 && !reads_rings {
+                probe_dump(body, face_key, &"RingOnCurvedFace");
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
             // The S10 sense bit does not enter the quadrature lane: its
@@ -5286,7 +5287,9 @@ fn face_flux_about<T: Decide>(
                     .flat_map(|(edges, _)| edges)
                     .map(|e| &e.carrier),
             ) {
-                quad(body, surface, &loops, band, tol, window, about, resolution).map_err(wrap)?
+                quad(body, surface, &loops, band, tol, window, about, resolution)
+                    .inspect_err(|e| probe_dump(body, face_key, e))
+                    .map_err(wrap)?
             } else {
                 None
             };
@@ -9077,6 +9080,43 @@ mod shell_reference_rows {
         assert!(
             volume.lo() <= 6.0 && 6.0 <= volume.hi(),
             "the carried sum encloses the prism's 6 m³: {volume:?}"
+        );
+    }
+}
+
+/// SCRATCH probe (spiricarm decide): every face of the body, its chart and its loops' carrier/pcurve kinds.
+fn probe_dump<T: Decide, E: core::fmt::Debug>(body: &Body<T>, at: FaceKey, why: &E) {
+    if std::env::var_os("SPIRICARM_PROBE").is_none() {
+        return;
+    }
+    eprintln!("PROBE refused face {at:?}: {why:?}");
+    for (fk, face) in body.faces() {
+        let (_, surface) = resolve_face(body, fk);
+        let Ok(loops) = flat_loops(body, face) else {
+            eprintln!("PROBE   {fk:?} loops unreadable");
+            continue;
+        };
+        let mut desc = Vec::new();
+        for (edges, hes) in &loops {
+            let kinds: Vec<String> = edges
+                .iter()
+                .zip(hes)
+                .map(|(e, he)| {
+                    let pk = body
+                        .pcurve(*he)
+                        .map(|c| format!("{:?}", geom_brep::PcurveKind::of(c.pcurve())))
+                        .unwrap_or_else(|| "none".into());
+                    format!("{:?}/{pk}", e.carrier.kind())
+                })
+                .collect();
+            desc.push(kinds.join(","));
+        }
+        let mark = if fk == at { "*" } else { " " };
+        eprintln!(
+            "PROBE  {mark}{fk:?} {:?} loops={} [{}]",
+            surface.kind(),
+            loops.len(),
+            desc.join(" | ")
         );
     }
 }

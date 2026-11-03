@@ -177,3 +177,28 @@ fn a_square_rod_on_the_outer_equator_stops_at_the_volume() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
     assert_eq!(stop(got), Stop::Projected);
 }
+
+/// SCRATCH probe (spiricarm decide): the faces of each donut × rod result at its stop.
+#[test]
+fn spiricarm_probe_donut_rods() {
+    for (label, got) in [
+        (
+            "donut ∩ rod_z(1.5, 0, 0.2)",
+            topo::intersect(&donut(), &rod_z(1.5, 0.0, 0.2), Tol::witness()),
+        ),
+        (
+            "donut ∩ rod_z(1.9, 0.5, 0.2)",
+            topo::intersect(&donut(), &rod_z(1.9, 0.5, 0.2), Tol::witness()),
+        ),
+        (
+            "donut ∖ rod_y(2.45, 0.1)",
+            topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness()),
+        ),
+    ] {
+        eprintln!("PROBE === {label}");
+        eprintln!(
+            "PROBE result: {:?}",
+            got.as_ref().map(|r| r.body().map(|b| b.kind)).err()
+        );
+    }
+}
