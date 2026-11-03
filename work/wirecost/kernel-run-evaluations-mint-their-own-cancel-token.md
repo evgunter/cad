@@ -44,3 +44,21 @@ The stop condition is one type, `editor_core::Stop { cancel, member_budget }` (`
 - Test-only (`test_support.rs`, `emit_topo.rs` and `stackup.rs` tests, `evaluate_running_pass_two`): not findings.
 
 Not done here: an edit whose inner run stopped still commits (`nearest_to_face` falls back to the identity, `rebundle_by_geometry` takes the structural bundle), which is the existing posture for a face that does not read.
+
+## Merged with the final member budget (2026-11-03, lane wire-stop)
+
+Re-grepped after merging main at `d1ac6881d4` (PR 6305's final `PartStore`: the charge walks the build's own descent, each part builds under exactly its charge). Pattern: non-test `CancelToken::new()` / `CancelToken::default()` / `Stop::default()`, and every `EvalOptions::default()` an evaluation entry fills its options from. How each resolves:
+- `coincide/replay.rs` (the replay's `symbols` options, `..EvalOptions::default()`): `stop.options(..)` with the caller's `&Stop` from `coincide::prove`; the replay runs on `cancel`. Threaded.
+- `refactor.rs` `split` (`..EvalOptions::default()`): `stop.options(..)`, `stop.cancel`; `SplitError::Stopped`. Threaded.
+- `stackup.rs` (`pass_opts`, `leaf_opts`, the record's own build): `stop.options(..)`. Threaded. Its unit tests' `Stop::default()` are test-only.
+- `drive.rs` `witness_options`, `mc.rs`, `report.rs`: `stop.options(EvalOptions::default())`. Threaded.
+- `clearance.rs` (main's `ClearanceQuery::at_dials`, the one constructor now): takes `&Stop` beside the bound; `strictly_positive` and `self_intersection` pass it.
+- `eval/parts.rs`: the one remaining `CancelToken::new()` is in its unit tests. A part's build runs on the host run's token and its charge.
+- `pncad::analysis::clearances_at_nominal`: took the caller's token but built its options at the default budget, and read an `Exhausted` run as answers. It now takes `&Stop` and refuses `Stopped` (canceled or exhausted); `pncad::analysis::Canceled` is gone. The viewer's certify seam passes `Stop::canceled_by` its seam token (the landing's own budget, which the viewer never changes).
+- pncad-py `Evaluation.coincidences` and `run_checks`: replay under the `Stop` the `Evaluation` ran under (`Evaluation::stop`). Threaded. `evaluate` is a door: `cancel=`, `member_budget=`.
+- Top-level doors, a default stop at the door (no caller holds a token): pncad-py `constrain`, `sketch_on_face`, `remove_mate`, `take_over`, `corner_frame`, `split`, `monte_carlo`, `solve_document`; the viewer's UI-thread gestures and reads (`session.rs` `sketch_on_face`, `add_drawn_profile`, `read_off`, `picked_heading`, `drafted`, `bundle_verdict` (new on main), `repoint`; `scene::product_body`; `evalseam::evaluate_beside`; the inline seams' `poll`); the demos.
+- Blind spot: an evaluation whose options come from a helper rather than `EvalOptions::default()` at the call (`lane_opts`, `pass_opts`, a struct field). Second pass: every `evaluate(` / `evaluate_at_descent(` call in editor-core's non-test source, its token argument read: each is the caller's `cancel` or `stop.cancel` except `evaluate_running_pass_two` (`test-support` only). `pncad-py`'s `surface_census` is test-only.
+
+`Stopped`'s Display states a recourse in both arms now ("ask again, and let it finish"; "raise the member budget, or lower a count"), so every refusal that wraps it (`SplitError`, `DriveRefusal`, `McRefusal`, `ClearanceRefusal`) states one.
+
+Finding, not fixed here: the viewer's `DocSession` settles a certify job only on `Ok`, so an `Exhausted` certify run leaves the landing's clearances `Certifying` with no job behind them (`session.rs`, `Owed::Certify`). It needs a landing whose `f64` run holds a clearance and whose interval run runs out; both share the default budget, so the `f64` landing runs out at the same node first.
