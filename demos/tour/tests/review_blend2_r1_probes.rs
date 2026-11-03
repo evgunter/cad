@@ -247,7 +247,10 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
         r += 0.005;
     }
     let (r, err) = found.expect("some radius refuses the one-call request");
-    println!("   [blend2-r1] one call refuses at r = {r}: {err}");
+    println!(
+        "   [blend2-r1] one call refuses at r = {r}: {err_at}",
+        err_at = err.render(pncad::geom_brep::recourse::Reading::Build)
+    );
     // The same radius, one rim at a time.
     let mut b = vase();
     let mut sequential_ok = true;
@@ -260,7 +263,10 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
         ) {
             Ok(out) => b = out.body,
             Err(e) => {
-                println!("   [blend2-r1] sequential also refuses at y = {y}: {e}");
+                println!(
+                    "   [blend2-r1] sequential also refuses at y = {y}: {e_at}",
+                    e_at = e.render(pncad::geom_brep::recourse::Reading::Build)
+                );
                 sequential_ok = false;
                 break;
             }
@@ -275,7 +281,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     );
     match &err.error {
         BlendError::FaceClearanceUncertified { cross_chain, .. } => {
-            let text = format!("{err}");
+            let text = err.render(pncad::geom_brep::recourse::Reading::Build);
             assert_eq!(
                 *cross_chain,
                 text.to_lowercase().contains("sequential"),
@@ -283,7 +289,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
             );
         }
         other => {
-            let text = format!("{other}");
+            let text = other.render(pncad::geom_brep::recourse::Reading::Build);
             assert!(
                 !text.to_lowercase().contains("sequential"),
                 "a non-splittable refusal must not borrow the split recourse: {text}"
