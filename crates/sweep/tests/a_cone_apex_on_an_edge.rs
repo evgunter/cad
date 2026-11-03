@@ -412,10 +412,12 @@ fn a_box_corner_a_fraction_of_the_band_off_the_apex_refuses_at_the_apex() {
 
 /// **The 80° cone's top against a box clear of its rim builds** (the
 /// direct witness the `x90` row's open-conic refusal leaves wanting):
-/// the box `[0, 6] × [0.55, 1] × [−6, 6.3]` across the apex, its top
+/// the box `[0, 3] × [0.55, 1] × [−3, 3.3]` across the apex, its top
 /// holding the apex and its side the axis, wider than the 80° cone's
 /// top above `y = 0.55` (radius `0.45·tan 80° ≈ 2.55`), so its far sides
-/// clear it. Every op either way round holds half the cone above
+/// clear it, and no wider: a box edge's reach enters the line lane's
+/// root slack squared, which at ε 1e-12 a 6 m box's floor edge, crossing
+/// the 80° cone's shallow rulings, does not fit. Every op either way round holds half the cone above
 /// `y = 0.55`, `V·0.45³/2`, but the named pinches of the across-the-apex
 /// row.
 #[test]
@@ -423,8 +425,9 @@ fn an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds() {
     against_a_box_at(
         "the 80° cone across the apex",
         &[80.0],
-        ((0.0, 6.0), (0.55, 1.0), (-6.0, 6.3)),
+        ((0.0, 3.0), (0.55, 1.0), (-3.0, 3.3)),
         |v| v * 0.45f64.powi(3) / 2.0,
         |_, turn, form, op| pinched(form == "tipped" && (turn == 2.0 || turn == PI), op),
     );
 }
+
