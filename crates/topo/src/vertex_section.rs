@@ -362,7 +362,7 @@ fn section_sine<T: Decide>(
     // charge over the same sine, this share decides nothing until the
     // sine is a few ulps, where the offset's has long been past `ε/K`.
     let g = geom_brep::implicit_gradient(&wall, at).normalize();
-    let charge = T::from_f64(4.0 * geom_core::UNIT_ROUNDOFF);
+    let charge = geom_core::running::direction_rounding(T::one());
     let g = [g.x, g.y, g.z].map(|c| Rounded {
         value: c,
         error: charge,

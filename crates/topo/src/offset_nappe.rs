@@ -26,7 +26,7 @@
 //! point), `geom-brep/src/props/curved.rs` (`props_cone_nappe`, over a
 //! window) and `topo/src/boolean/solid_contain.rs` (three predicates
 //! over a slant window). That class is filed as
-//! `work/issues/cone-nappe-is-decided-in-five-places.md`.
+//! `work/honeone/cone-nappe-is-decided-in-five-places.md`.
 //!
 //! # The premise, ENFORCED
 //!

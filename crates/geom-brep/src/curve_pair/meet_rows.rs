@@ -1,7 +1,7 @@
 //! [`meet`]'s rows: the table's totality, each pose on a pose built to
 //! reach it, the near-tangent and near-concentric circle pairs the
 //! boolean's crossing layer misplaced
-//! (`work/cleave/a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles.md`),
+//! (`a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)),
 //! and, in [`super::meet_oracle`], the walk as the closed forms' oracle.
 
 #![allow(clippy::unwrap_used, clippy::panic)]

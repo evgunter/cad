@@ -3040,12 +3040,15 @@ pub enum BooleanError {
         diag: Indeterminate,
     },
     /// An edge of `operand` meets a cone face of the other operand within
-    /// the band of the cone's APEX, where the surface has no tangent
-    /// plane and its quadric form's gradient vanishes: a root there has
-    /// no material side to read and no slope to place it by, so the
-    /// crossing layer refuses rather than answer. The definite half: an
-    /// in-band apex distance refuses the same way, with no tolerance
-    /// named.
+    /// the band of the cone's APEX, and the root doors cannot place its
+    /// roots there: where the cone has no tangent plane and its quadric
+    /// form's gradient vanishes, a carrier through the apex has its
+    /// double root at the apex, placed on the face's apex vertex (the
+    /// vertex pair reads it), but one whose roots spread along it past
+    /// the band, or into the band's gap, has neither that incidence nor a
+    /// crossing the band places (`Unsettled::AtApex`), so the crossing
+    /// layer refuses rather than answer. The definite half: an in-band
+    /// apex distance refuses the same way, with no tolerance named.
     CrossingAtConeApex {
         /// The operand whose edge met the cone face.
         operand: Operand,

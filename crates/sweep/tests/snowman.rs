@@ -1438,7 +1438,7 @@ fn carried_edges(
 /// The lens is a boolean's own result, and the seam meridian it took
 /// from its B ball carries a certificate a fresh run does not
 /// reproduce
-/// (`work/cleave/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
+/// (`work/cleavetail/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`):
 /// the assembly carries that one too.
 #[test]
 fn the_fallback_assembly_carries_the_kept_operands_certificates() {

@@ -2,7 +2,7 @@
 id: frame
 kind: program
 title: FRAME — who answers "give me a frame", and by what rule
-status: ready
+status: active
 opened: 2026-09-20
 group: kernel/geom/numeric
 prefix: frame/

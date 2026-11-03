@@ -34,7 +34,7 @@ and the split.
 
 **What closes it:** route each through the policy and `at_rest_refusal`, or
 say per door why its typing differs. The sweep doors' missing gate is
-`work/carve/the-sweep-doors-return-bodies-tier-3-refuses.md`.
+`work/lathe/the-sweep-doors-return-bodies-tier-3-refuses.md`.
 
 
 ## Duplication triage (INTENT, 2026-10-26)
@@ -56,7 +56,7 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 The design is in DESIGN `[topology.tiers]`, `[scalars]` and the at-rest places row. In short:
 - The scalar's `finish` is the one constructor of a finished body. Its refusal is the non-empty **list** of findings, none folded into another, each read through its **family's** one text and recourse. `at_rest_refusal`, `finding_arm` and the two-arm `AtRestRefusal` go, as does the "binding reading, counting the others" fold. Grouping `ValidationError`'s variants into families is the real work.
-- Every door that returns a body returns the scalar's finished type, and `editor-core`'s `Framed` stores it. Every consumer re-gate goes: `finished_operand`/`UnfinishedOperand`, the `wire.rs` member read, `distribute::gated`, the `checks.rs` placement gate, `product.rs` `attribute_at_rest`, export's re-gate, and `gate_unverdicted`. The sweep doors finish at their own end (closes `work/carve/the-sweep-doors-return-bodies-tier-3-refuses.md`). Import goes through the same gate, naming the file.
+- Every door that returns a body returns the scalar's finished type, and `editor-core`'s `Framed` stores it. Every consumer re-gate goes: `finished_operand`/`UnfinishedOperand`, the `wire.rs` member read, `distribute::gated`, the `checks.rs` placement gate, `product.rs` `attribute_at_rest`, export's re-gate, and `gate_unverdicted`. The sweep doors finish at their own end (closes `work/lathe/the-sweep-doors-return-bodies-tier-3-refuses.md`). Import goes through the same gate, naming the file.
 - A dual's finished type is a `Replay` that has passed tier 2 alone (`validate_closed`), carries no verdict, and is read by nothing that reads a verdict. `AtRestOutcome`, `NotRunAtThisScalar`, `not_run`, `structural_gate`, the at-rest check's `NotRun` and door_meter's "not-run" go. Dual-only test rows expecting an orientation or join refusal move to the base scalar.
 - The editor offers each finding's own lever, never one picked on the user's behalf.
 - Separately sequenced after this: `certified-body-is-a-second-finished-body-type`.

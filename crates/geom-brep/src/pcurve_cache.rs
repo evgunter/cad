@@ -4272,6 +4272,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::PairBoundaryUnresolved { .. }
         | E::PairRowTangent
         | E::SeedOutsideTube { .. }
+        | E::SeedOutsideChartTube { .. }
         | E::ShortBranchUncertified { .. }
         | E::MarchStepInBand { .. }
         | E::MarchShortOfFit { .. }

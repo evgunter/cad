@@ -16,7 +16,7 @@ Cut by the VSEAM orchestrator (2026-11-02) from
 That row's dated "ruled" section is the spec (Ev, `[ev]` PR 6298).
 
 Blocked on `work/doctail/a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face`
-and `work/lib/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
+and `work/pydoor/doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`.
 
 ## The build
 
