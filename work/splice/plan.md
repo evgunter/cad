@@ -39,8 +39,9 @@ The P0 and P1 rows, by thread:
 | pri | item | cost | thread |
 |---|---|---|---|
 | P0 | `joining-a-spline-carrier-is-unbuilt` | H | carrier: the join runs a kept edge on along a spline carrier |
-| P1 | `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter` | M | carrier: teapot wall 3's stop when the track was cut |
+| P0 | `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter` | M | carrier: teapot wall 3's stop (P0 since 2026-11-03) |
 | P0 | `a-spline-wall-cannot-say-whether-it-holds-a-pierce-point` | M | face on its own sheet |
+| P0 | `a-spline-face-has-no-subtract-or-intersect-lane` | H | the operand's path: ∖ and ∩ refuse a spline face at the revert roster (klein wall 4) |
 | P1 | `a-creased-spline-gets-no-second-order-clearing` | M | face on its own sheet |
 | P1 | `main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6` | M | seam and kind |
 | P1 | `a-spline-rider-reads-as-lying-in-no-plane-face` | E | seam and kind |
@@ -71,7 +72,8 @@ section object's rung-3 arm and SECTARMS' to build. Klein wall 3, teapot
 wall 3 and lily wall 8 each need both tracks; at the 2026-11-01
 hand-back lily wall 8 stops at SECT's
 `c5-plane-torus-cone-cylinder-arms` and klein wall 3 at CARVETAIL's
-`the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`.
+`the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`. Each join's current stop is kept in
+`work/issues/curved-demo-joins-build.md` (2026-11-03).
 
 Spiric operand edges are not on this slate: they stay deferred
 (`reachhold/spiric-operand-edges-reopen-with-their-first-producer`,

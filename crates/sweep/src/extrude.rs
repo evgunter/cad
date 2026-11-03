@@ -94,7 +94,6 @@
 //! per segment, bottom before top. Two calls with identical inputs
 //! replay byte-identically.
 
-use core::fmt;
 use topo::construction::Construct;
 
 use geom::Curve3;
@@ -502,8 +501,12 @@ pub enum ExtrudeError {
     Pcurve(topo::PcurveMintError),
 }
 
-impl fmt::Display for ExtrudeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ExtrudeError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
             Self::EmptyProfile => f.write_str(crate::EMPTY_PROFILE),
@@ -593,11 +596,19 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
-            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
-            Self::Pcurve(source) => write!(f, "{source}"),
+            Self::Op { source } => {
+                write!(
+                    f,
+                    "an Euler operation refused: {}",
+                    geom_brep::recourse::read_at(source, at)
+                )
+            }
+            Self::Pcurve(source) => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
         }
     }
 }
+
+geom_brep::ended_by_write!(ExtrudeError);
 
 impl std::error::Error for ExtrudeError {}
 
@@ -1681,7 +1692,8 @@ mod tests {
                 SIZED,
             )) {
                 assert_eq!(
-                    ExtrudeError::ExtrusionEscalated { source }.to_string(),
+                    ExtrudeError::ExtrusionEscalated { source }
+                        .render(geom_brep::recourse::Reading::Build),
                     text
                 );
             }
@@ -1695,7 +1707,7 @@ mod tests {
                 vertex_index: 4,
                 source,
             };
-            assert_eq!(err.to_string(), text);
+            assert_eq!(err.render(geom_brep::recourse::Reading::Build), text);
         }
     }
 
@@ -1717,14 +1729,14 @@ mod tests {
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
                 ExtrudeError::SliverRim {
                     loop_index: 0,
                     segment_index: 1,
                     reading,
                     source,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ] {
                 assert_eq!(
                     text.contains("curve apart there or share their curvature is undecided: "),
@@ -1746,7 +1758,7 @@ mod tests {
     /// the shared recourse fragment.
     #[test]
     fn extrusion_pair_carries_the_shared_recourse() {
-        let msg = ExtrudeError::DegenerateExtrusion.to_string();
+        let msg = ExtrudeError::DegenerateExtrusion.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             1,
@@ -1761,7 +1773,7 @@ mod tests {
                 terminal_sliver: false,
             },
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             1,

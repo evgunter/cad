@@ -220,7 +220,6 @@ use crate::splitting::containment::{
 };
 use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
-use geom_brep::recourse::Reading;
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::region::RegionRefusal;
@@ -571,8 +570,12 @@ impl From<PointInLoopError> for PointInSolidError {
     }
 }
 
-impl core::fmt::Display for PointInSolidError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PointInSolidError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             // The escalation names no decision, so it ends as the
             // containment door ends the same escalation
@@ -580,9 +583,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::Escalated { diag, .. } => write!(
                 f,
                 "cannot tell what is inside the solid: {}",
-                diag.undecided(
+                geom_brep::recourse::undecided_at(
+                    diag,
                     super::placement_subject(None),
-                    super::placement_ending(None, Escalation::Margin, diag, Reading::Build),
+                    at.map(|at| super::placement_ending(None, Escalation::Margin, diag, at)),
                 )
             ),
             Self::RayExhausted => write!(
@@ -590,7 +594,11 @@ impl core::fmt::Display for PointInSolidError {
                 "cannot tell what is inside the solid: {}",
                 ray_walk::NoRaySettled
             ),
-            Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
+            Self::Loop(e) => write!(
+                f,
+                "cannot tell what is inside the solid: {}",
+                geom_brep::recourse::read_at(e, at)
+            ),
             Self::ZeroVolumeBody => write!(
                 f,
                 "cannot tell what is inside the solid: it encloses no measurable volume"
@@ -682,6 +690,8 @@ impl core::fmt::Display for PointInSolidError {
         }
     }
 }
+
+geom_brep::ended_by_write!(PointInSolidError);
 
 impl std::error::Error for PointInSolidError {}
 
@@ -5868,7 +5878,7 @@ mod escalated_ending_rows {
                 escalation: Escalation::Margin,
                 diag,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let placement = contfp.strip_prefix("contfp: ").unwrap();
             for (label, e) in [
                 ("solid door", PointInSolidError::Escalated { face, diag }),
@@ -5877,7 +5887,7 @@ mod escalated_ending_rows {
                     RegionRefusal::Escalated(diag).of_face(face),
                 ),
             ] {
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.strip_prefix("cannot tell what is inside the solid: "),
                     Some(placement),

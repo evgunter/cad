@@ -1163,7 +1163,7 @@ fn every_corpus_import_passes_the_shared_gate() {
                 }
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
                 (Err(e), Refused(fragment)) => {
-                    let msg = e.to_string();
+                    let msg = e.render();
                     assert_adoption_reading(&who, &e, &mut exposure);
                     assert!(
                         msg.contains(fragment),
@@ -1172,7 +1172,7 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                 }
                 (Err(e), Escalated(fragment, predicate)) => {
-                    let msg = e.to_string();
+                    let msg = e.render();
                     assert_adoption_reading(&who, &e, &mut exposure);
                     assert!(
                         msg.contains(fragment),
@@ -1221,7 +1221,7 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
     else {
         return;
     };
-    let msg = e.to_string();
+    let msg = e.render();
     assert!(
         !msg.contains(geom_core::KERNEL_DEFECT_ENDING),
         "{who}: an adoption refusal ends as if read at a build: {msg}"
@@ -1374,7 +1374,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
         ),
         "the verdicts are the kernel's own, unfiltered and unrephrased: {errors:?}"
     );
-    let msg = e.to_string();
+    let msg = e.render();
     for want in [
         "shared at-rest validation gate",
         "NegativeVolume",

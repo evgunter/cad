@@ -276,6 +276,7 @@ fn r1_split_bore_disc_end_to_end() {
                     max_leaves: 32,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             );
             let dt = t.elapsed().as_secs_f64();
@@ -300,11 +301,19 @@ fn r1_split_bore_disc_end_to_end() {
                         None,
                         false,
                         None,
+                        &editor_core::Stop::default(),
                         tol,
                     );
                     println!("      stackup {stack:?}");
-                    let a =
-                        editor_core::drive::assertion_at(&doc, assertion, v.root(), dials(r), tol);
+                    let a = editor_core::drive::assertion_at(
+                        &doc,
+                        assertion,
+                        v.root(),
+                        dials(r),
+                        &editor_core::Stop::default(),
+                        tol,
+                    )
+                    .expect("the replay is not stopped");
                     println!("      assertion {a:?}");
                 }
             }
@@ -347,6 +356,7 @@ fn r1_the_door_moves_no_bit_on_r1s_document() {
                     symbolic: dials(r),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .map(|v| v.serialize())

@@ -986,7 +986,13 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize, tally: &mut Tally) -> Opti
         reach,
         band(),
     )
-    .unwrap_or_else(|e| panic!("{}: the envelope refused at f64: {e}", context()));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{}: the envelope refused at f64: {e_at}",
+            context(),
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     let envelope = terms.total();
     // A NaN envelope decides `Invalid`, which refuses (a circle past a
     // sphere's pole has no polar angle): sound, and no bound to compare.
@@ -1362,14 +1368,24 @@ fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
         super::Placement::own(&carrier, chart),
         band(),
     )
-    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{floors} floors: the rim derives: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     let (_, derivation) = derive_harmonic(
         &carrier,
         &orthonormal_chart(chart),
         super::Placement::own(&carrier, chart),
         band(),
     )
-    .unwrap_or_else(|e| panic!("{floors} floors: the rim derives: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{floors} floors: the rim derives: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     let noise = 64.0 * f64::EPSILON * scale(chart, &carrier, reach);
     let terms = periodic_envelope(
         channels_of(&stored),
@@ -1380,7 +1396,12 @@ fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
         reach,
         band(),
     )
-    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at f64: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{floors} floors: the envelope refused at f64: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     let sup = sampled_sup(&stored, chart, &carrier, 0.0, TAU);
     assert!(
         terms.total() >= sup - noise,
@@ -1398,7 +1419,12 @@ fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
         lift(reach),
         band(),
     )
-    .unwrap_or_else(|e| panic!("{floors} floors: the envelope refused at Interval: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "{floors} floors: the envelope refused at Interval: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     assert!(
         at_iv.total().hi() >= sup - noise,
         "{floors} floors: the Interval envelope {:e} under the sampled sup {sup:e}",
@@ -1461,7 +1487,12 @@ fn zero_winding_near_the_pole(
         super::Placement::own(carrier, chart),
         band(),
     )
-    .unwrap_or_else(|e| panic!("the parallel derives: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the parallel derives: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     assert!(
         matches!(derivation, Derivation::SphereParallel { beta: 0 }),
         "{derivation:?}"
@@ -1476,7 +1507,12 @@ fn zero_winding_near_the_pole(
         reach,
         band(),
     )
-    .unwrap_or_else(|e| panic!("the envelope refused at f64: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the envelope refused at f64: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     let lift = Interval::from_f64;
     let carrier_i = carrier.map_scalar(lift);
     let at_iv = periodic_envelope(
@@ -1488,7 +1524,12 @@ fn zero_winding_near_the_pole(
         lift(reach),
         band(),
     )
-    .unwrap_or_else(|e| panic!("the envelope refused at Interval: {e}"));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the envelope refused at Interval: {e_at}",
+            e_at = e.render(crate::recourse::Reading::Build)
+        )
+    });
     (
         terms.total(),
         at_iv.total().hi(),
@@ -1574,7 +1615,12 @@ fn a_lifted_copy_of_a_circle_whose_turn_is_within_the_band_never_reaches_check_4
             super::Placement::own(&carrier, &cone),
             band(),
         )
-        .unwrap_or_else(|e| panic!("ρ {rho:e}: the rim derives: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "ρ {rho:e}: the rim derives: {e_at}",
+                e_at = e.render(crate::recourse::Reading::Build)
+            )
+        });
         (cone, carrier, derived, derivation)
     };
     let certify = |image: &Pcurve<f64>, carrier: &Curve3<f64>, cone: &Surface<f64>| {
@@ -1692,7 +1738,12 @@ fn the_incidence_terms_read_the_carriers_departure() {
             super::Placement::over((t0, t1), &carrier, &cyl),
             band(),
         )
-        .unwrap_or_else(|e| panic!("{term:?}: the moved carrier images: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{term:?}: the moved carrier images: {e_at}",
+                e_at = e.render(crate::recourse::Reading::Build)
+            )
+        });
         let at_f64 = periodic_envelope(
             channels_of(&stored),
             &carrier,
@@ -2008,7 +2059,12 @@ fn the_closed_form_tables_compose_back_to_the_carrier() {
             super::Placement::own(&carrier, &surface),
             band(),
         )
-        .unwrap_or_else(|e| panic!("trial {trial} ({class:?}): an exact carrier refused: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "trial {trial} ({class:?}): an exact carrier refused: {e_at}",
+                e_at = e.render(crate::recourse::Reading::Build)
+            )
+        });
         let noise = 1e-12 * scale(&surface, &carrier, reach);
         let image = chart_image_harmonic(&derived, &surface)
             .unwrap_or_else(|| panic!("trial {trial} ({class:?}): no closed-form image"));
@@ -2406,9 +2462,10 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
             }) => answers[2] += 1,
             Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
             Err(other) => panic!(
-                "{}: refused untyped for this arm: {other} — {}",
+                "{}: refused untyped for this arm: {other_at} — {}",
                 context(),
-                fuzz::replay()
+                fuzz::replay(),
+                other_at = other.render(crate::recourse::Reading::Build)
             ),
         }
     }

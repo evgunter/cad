@@ -293,7 +293,7 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
             }
             Err(e) => {
                 // Typed is the whole demand; the sentence must render.
-                let text = e.error.to_string();
+                let text = e.error.render(geom_brep::recourse::Reading::Build);
                 assert!(!text.is_empty(), "a refusal renders at {deg}°");
             }
         }

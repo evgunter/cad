@@ -457,7 +457,7 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
                 }
                 Err(err) => {
                     refused += 1;
-                    let text = err.error.to_string();
+                    let text = err.error.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         !text.is_empty(),
                         "{pose}: a refusal names its door in words"

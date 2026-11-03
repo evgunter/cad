@@ -1258,7 +1258,8 @@ fn assert_torn_outcome<R>(
         Ok(Ok(_)) => assert!(may_succeed, "{label}: returned Ok on the torn chain"),
         Ok(Err(err)) => assert!(
             !matches!(err, EulerOpError::Argument(_)),
-            "{label}: refused a key read out of the body as an argument: {err}"
+            "{label}: refused a key read out of the body as an argument: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
         ),
         Err(report) => {
             assert!(

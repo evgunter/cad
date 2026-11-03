@@ -447,7 +447,12 @@ fn the_start_vertex_and_the_authored_winding_change_nothing() {
                 Revolution::Full,
                 Tol::witness(),
             )
-            .unwrap_or_else(|e| panic!("{what}: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             assert_all_tiers(&t.body);
             let low = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
             let high = t.cavity(CavityOrigin::Pocket { gap: 1 }).unwrap();
@@ -500,7 +505,12 @@ fn reflected_and_moved_frames_build_the_same_body() {
             Revolution::Full,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_all_tiers(&t.body);
         assert_eq!(t.cavities.len(), 2, "{what}");
         let g0 = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
@@ -687,11 +697,20 @@ fn a_kink_in_a_pocket_has_the_outer_loops_reading() {
             // The kink's collapsed run fails attachment at some ε, on a
             // single-run shell as well:
             // work/lathe/a-near-collinear-kink-on-a-full-revolve-refuses-as-a-kernel-defect.md.
-            Err(e) if e.to_string().contains("geometry attachment gate") => {
-                println!("SKIPPED at ε {eps:e}: {what}: the filed kink attachment defect: {e}");
+            Err(e)
+                if e.render(geom_brep::recourse::Reading::Build)
+                    .contains("geometry attachment gate") =>
+            {
+                println!(
+                    "SKIPPED at ε {eps:e}: {what}: the filed kink attachment defect: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                );
                 continue;
             }
-            Err(e) => panic!("{what}: {e}"),
+            Err(e) => panic!(
+                "{what}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         };
         built += 1;
         assert_all_tiers(&t.body);

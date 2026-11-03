@@ -146,7 +146,10 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
         panic!("a blend refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(
+        door.render(geom_brep::recourse::Reading::Build),
+        carried.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// The unit cube, finished — the boolean rows' first operand, and the
@@ -279,7 +282,10 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
         panic!("a boolean refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(
+        door.render(geom_brep::recourse::Reading::Build),
+        carried.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// Three members with ranks `ranks`, run through the n-ary dispatch and
@@ -505,7 +511,10 @@ fn a_split_refusal_crosses_the_dispatch_unaltered() {
         panic!("a split refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(
+        door.render(geom_brep::recourse::Reading::Build),
+        carried.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 #[test]
@@ -605,7 +614,10 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
         panic!("an extrude refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(
+        door.render(geom_brep::recourse::Reading::Build),
+        carried.render(geom_brep::recourse::Reading::Build)
+    );
 
     let off = offset_disc(0.25, 1.0);
     let door = sweep::revolve(&off, x_axis(), Revolution::Partial(0.0), tol()).unwrap_err();
@@ -619,7 +631,10 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
         panic!("a revolve refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(
+        door.render(geom_brep::recourse::Reading::Build),
+        carried.render(geom_brep::recourse::Reading::Build)
+    );
 }
 
 /// **The shell dispatch is the shell door**, in both of its spellings:
@@ -644,7 +659,12 @@ fn the_shell_dispatch_is_the_shell_door() {
                 tol(),
             )
         }
-        .unwrap_or_else(|e| panic!("the fixture is inside the door: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the fixture is inside the door: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let via = Shell {
             thickness: 0.1,
             open: open.clone(),
@@ -654,7 +674,12 @@ fn the_shell_dispatch_is_the_shell_door() {
             tol(),
             shell_door(),
         )
-        .unwrap_or_else(|e| panic!("the dispatch refused what the door accepted: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the dispatch refused what the door accepted: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
 
         assert_eq!(dump(&door.body), dump(&via.body));
         let VerbRecord::Shell(carried) = via.record else {
@@ -710,5 +735,8 @@ fn a_shell_refusal_crosses_the_dispatch_unaltered() {
         panic!("a shell refusal crossed as another family's: {via:?}");
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(
+        door.render(geom_brep::recourse::Reading::Build),
+        carried.render(geom_brep::recourse::Reading::Build)
+    );
 }

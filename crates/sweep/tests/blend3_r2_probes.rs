@@ -71,7 +71,12 @@ fn p1_a_square_vent_passes_the_ring_clearance_door_and_both_convexity_ones() {
         D,
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("the square vent's ring is clear of the carve: {}", e.error));
+    .unwrap_or_else(|e| {
+        panic!(
+            "the square vent's ring is clear of the carve: {}",
+            e.error.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         validate_closed(&out.body),
         Ok(()),
@@ -183,8 +188,12 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
-    let floor_only = chamfer_edges(&body, &floor, D, Tol::witness())
-        .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
+    let floor_only = chamfer_edges(&body, &floor, D, Tol::witness()).unwrap_or_else(|e| {
+        panic!(
+            "the floor alone mitres at its four corners, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    });
     assert_eq!(
         floor_only.naming.as_ref().expect("births").mitres.len(),
         4,

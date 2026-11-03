@@ -187,59 +187,73 @@ pub enum TransformError {
 }
 
 impl TransformError {
-    /// This refusal's text read at `at`: a nested certification or
-    /// pcurve refusal renders at that door, a defect ends in the door's
-    /// defect ending ([`geom_brep::recourse::defect_ending`]), and
-    /// scaffolding ends in its edit's lever at a build.
-    #[must_use]
-    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
-        let at = at.into();
-        let defect = geom_brep::recourse::defect_ending(at);
+    /// This refusal's text, ended at `at` where it is `Some`: a nested
+    /// certification or pcurve refusal reads at that door, a defect ends
+    /// in the door's defect ending ([`geom_brep::recourse::defect_ending`]),
+    /// and scaffolding ends in its edit's lever at a build. `None` writes
+    /// the payload alone, its `Display`.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::{ReadAt, read_at};
+        let defect = at.map(geom_brep::recourse::defect_ending);
+        let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
-            Self::Pcurve { source } => source.render(at),
-            Self::Band(e) => e.to_string(),
-            Self::Certify { source, .. } => format!(
+            Self::Pcurve { source } => write!(f, "{}", read_at(source, at)),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Certify { source, .. } => write!(
+                f,
                 "an edge the map moved failed re-certification: {}",
-                source.render(at)
+                read_at(source, at)
             ),
-            Self::NullScaffold { edge } => match at {
-                geom_brep::recourse::ReadAt::Run(geom_brep::recourse::Reading::Build) => {
-                    format!(
-                        "the body still carries what an edit left behind, which the map cannot \
-                         move. Recourse: {}",
-                        crate::Unfinished::SCAFFOLDING_RECOURSE
-                    )
-                }
-                _ => format!(
+            Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
+                f,
+                "the body still carries what an edit left behind, which the map cannot \
+                 move. Recourse: {}",
+                crate::Unfinished::SCAFFOLDING_RECOURSE
+            ),
+            Self::NullScaffold { edge } => match defect {
+                Some(defect) => write!(
+                    f,
                     "edge {edge:?} carries a transient null-scaffold curve, which a body at \
                      rest never does. {defect}"
                 ),
+                None => write!(
+                    f,
+                    "edge {edge:?} carries a transient null-scaffold curve, which the map \
+                     cannot move"
+                ),
             },
-            Self::ApproxLaneUnsupported { scalar } => format!(
+            Self::ApproxLaneUnsupported { scalar } => write!(
+                f,
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
                  offset-fit door in hand: its certificate is re-derived on the moved pair, and \
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
-            Self::ApproxRecertify { source } => format!(
-                "a moved approximating surface could not be re-certified or re-fitted: {source}"
+            // The fit door's meter ends at a build at every door that
+            // reads the map's refusal.
+            Self::ApproxRecertify { source } => write!(
+                f,
+                "a moved approximating surface could not be re-certified or re-fitted: {}",
+                read_at(source, geom_brep::recourse::at_build(at))
             ),
-            Self::NurbsPlaceholder => format!(
+            Self::NurbsPlaceholder => write!(
+                f,
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::Corrupt { found } => format!("the body is corrupt: {found}. {defect}"),
+            Self::Corrupt { found } => {
+                write!(f, "the body is corrupt: {found}{}", ended(defect))
+            }
         }
     }
 }
 
-/// Read at a build: the map is the operation that built what it moved.
-impl core::fmt::Display for TransformError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
-    }
-}
+geom_brep::ended_by_write!(TransformError);
 
 // No `source()`, matching every error type in this crate: each arm's
 // `Display` renders its nested payload's own `Display` in full, so the
@@ -1091,7 +1105,7 @@ mod tests {
         });
         let err = transform_rigid(&orphaned, &aside_motion(), Tol::witness())
             .expect_err("an orphan curve entry is corruption");
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.starts_with("the body is corrupt: a curve entry is referenced by no edge."),
             "{shown}"

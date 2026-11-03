@@ -452,7 +452,10 @@ fn the_clearance_gate_reads_across_shells() {
         needed,
     } = e
     else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!(
+            "expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!((gap - 0.25).abs() < 1e-12, "the wall is 0.25, got {gap}");
     assert!(
@@ -496,7 +499,10 @@ fn the_clearance_gate_reads_arc_bounded_footprints() {
         needed,
     } = e
     else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!(
+            "expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!((gap - 0.4).abs() < 1e-12, "the wall is 0.4, got {gap}");
     assert!(
@@ -551,7 +557,10 @@ fn assert_the_arm_walls_refuse(body: &Body<f64>, t: f64, why: &str) {
     )
     .expect_err(why);
     let ShellError::WallClearance { face, other, .. } = e else {
-        panic!("{why}: expected the wall-clearance gate, got {e}");
+        panic!(
+            "{why}: expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     let normal_x = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
         Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
@@ -627,7 +636,10 @@ fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64
         thickness,
     } = e
     else {
-        panic!("{why}: expected the moved walls to cross, got {e}");
+        panic!(
+            "{why}: expected the moved walls to cross, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert_eq!(thickness, t, "{why}: the refusal quotes the wall");
     let normal = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
@@ -713,7 +725,12 @@ fn a_thick_wedge_at_the_crossing_lean_shells_to_its_closed_form() {
     let t = 0.15;
     let body = arm_prism(0.5, 0.8, 0.5, 1.0);
     let hollow = topo::shell(&finished("the wedge", body, tol), t, tol)
-        .unwrap_or_else(|e| panic!("a 0.5 foot holds two 0.15 walls, got {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "a 0.5 foot holds two 0.15 walls, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
     let props = topo::mass_properties(
@@ -767,7 +784,10 @@ fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() 
         let outside = foot + nudge;
         let hollow = topo::shell(&finished("the arm", body(outside), tol), t, tol)
             .unwrap_or_else(|e| {
-                panic!("scale {s}: a foot just over the crossing one shells, got {e}")
+                panic!(
+                    "scale {s}: a foot just over the crossing one shells, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
             })
             .body;
         assert_eq!(
@@ -804,7 +824,12 @@ fn a_dome_sectors_arc_bounded_end_walls_clear() {
     let tol = Tol::witness();
     let body = crate::common::shell_operands::dome_sector(1.0, 120.0);
     let hollow = topo::shell(&finished("the sector", body, tol), 0.05, tol)
-        .unwrap_or_else(|e| panic!("the sector's end walls clear, got {e}"))
+        .unwrap_or_else(|e| {
+            panic!(
+                "the sector's end walls clear, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        })
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
@@ -834,7 +859,12 @@ fn a_bowl_sectors_spiric_bounded_end_walls_clear() {
         t,
         tol,
     )
-    .unwrap_or_else(|e| panic!("the end walls clear and the sector hollows, got {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "the end walls clear and the sector hollows, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
     .body;
     // The floor arc from `(0.3, 0)` to `(3, 0)`, sagging `s` below its
     // chord: radius `(c² + s²)/(2s)` over the half-chord `c`, centred
@@ -901,15 +931,23 @@ fn an_adjacent_pair_crossing_away_from_its_edge_refuses_at_the_offset_door() {
     )
     .expect_err("a lip 0.1 wide cannot hold two 0.1 walls");
     assert!(
-        matches!(e, ShellError::Face { .. }) && e.to_string().contains("runs backwards"),
-        "the moved lip inverts an edge at the offset door, got {e}"
+        matches!(e, ShellError::Face { .. })
+            && e.render(geom_brep::recourse::Reading::Build)
+                .contains("runs backwards"),
+        "the moved lip inverts an edge at the offset door, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     let hollow = topo::shell(
         &finished("the thick lip", lipped_block(0.5, 0.6, 0.1), tol),
         t,
         tol,
     )
-    .unwrap_or_else(|e| panic!("a lip 0.5 wide holds two 0.1 walls, got {e}"))
+    .unwrap_or_else(|e| {
+        panic!(
+            "a lip 0.5 wide holds two 0.1 walls, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        )
+    })
     .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
     let props = topo::mass_properties(
@@ -951,7 +989,10 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
         face, other, gap, ..
     } = e
     else {
-        panic!("expected the wall-clearance gate, got {e}");
+        panic!(
+            "expected the wall-clearance gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!((gap - g).abs() < 1e-12, "the gap is {g}, got {gap}");
     let shell_of = |f: FaceKey| body.get_face(f).expect("an operand face").shell;
@@ -1339,7 +1380,8 @@ fn a_nonpositive_thickness_refuses_typed() {
         .expect_err("a non-positive wall must not build");
         assert!(
             matches!(e, ShellError::Thickness { .. }),
-            "t = {t}: expected the thickness gate, got {e}"
+            "t = {t}: expected the thickness gate, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         );
     }
 }
@@ -1360,10 +1402,11 @@ fn an_infinite_thickness_refuses_at_the_gate() {
     .expect_err("an infinite wall must not build");
     assert!(
         matches!(e, ShellError::Thickness { thickness } if thickness == f64::INFINITY),
-        "expected the thickness gate, got {e}"
+        "expected the thickness gate, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
     assert_eq!(
-        e.to_string(),
+        e.render(geom_brep::recourse::Reading::Build),
         "the wall thickness (inf m) is not finite. Recourse: supply a finite thickness"
     );
 }
@@ -1397,7 +1440,8 @@ fn a_wall_past_the_reach_refuses_typed() {
                 }
             )
         ),
-        "expected the radius floor carried up through the face gate, got {e}"
+        "expected the radius floor carried up through the face gate, got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -1419,7 +1463,8 @@ fn the_open_face_designation_gates_refuse_typed() {
     .expect_err("a face designated twice");
     assert!(
         matches!(e, ShellError::OpenFaceRepeated { face } if face == top),
-        "got {e}"
+        "got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 
     let all: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
@@ -1432,7 +1477,8 @@ fn the_open_face_designation_gates_refuse_typed() {
     .expect_err("every face designated");
     assert!(
         matches!(e, ShellError::OpenFacesExhaustShell { .. }),
-        "got {e}"
+        "got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 
     // The four walls, leaving the two caps as the remainder: they touch
@@ -1451,7 +1497,8 @@ fn the_open_face_designation_gates_refuse_typed() {
     .expect_err("the remainder is disconnected");
     assert!(
         matches!(e, ShellError::OpenFacesDisconnect { components: 2, .. }),
-        "got {e}"
+        "got {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 }
 
@@ -1543,7 +1590,10 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
         ..
     } = e
     else {
-        panic!("expected the void refusal, got {e}");
+        panic!(
+            "expected the void refusal, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     assert!(
         volume_lo <= volume_hi && volume_hi < 0.0,
@@ -2416,7 +2466,12 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
     ] {
         let body = prism(corners(&pts), 0.25, tol);
         let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
-            .unwrap_or_else(|e| panic!("{what}: an oblique planar junction hollows now, got {e}"))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: an oblique planar junction hollows now, got {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            })
             .body;
         assert_eq!(
             topo::validate_geometric(&hollow, tol),
@@ -2499,7 +2554,10 @@ fn oblique_planar_prisms_open_at_their_cap() {
                     props.enclosure.volume
                 );
             }
-            Err(e) => panic!("{what}: an all-planar cap lifts through the general door, got {e}"),
+            Err(e) => panic!(
+                "{what}: an all-planar cap lifts through the general door, got {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }
@@ -2580,7 +2638,8 @@ fn the_simultaneous_door_names_its_scope() {
         .expect_err("a cylinder has no plane equation");
     assert!(
         matches!(e, topo::ReplaceFaceError::TogetherNonPlanar { .. }),
-        "the scope gate names the non-planar face: {e}"
+        "the scope gate names the non-planar face: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 
     // A face the door was not told about is a plane missing from every
@@ -2592,7 +2651,8 @@ fn the_simultaneous_door_names_its_scope() {
         .expect_err("a partial moving set has corners this door cannot solve");
     assert!(
         matches!(e, topo::ReplaceFaceError::TogetherPartialSet { .. }),
-        "the scope gate names the face nothing moved: {e}"
+        "the scope gate names the face nothing moved: {e_at}",
+        e_at = e.render(geom_brep::recourse::Reading::Build)
     );
 
     // **The third gate: a corner whose planes do not determine a
@@ -2631,7 +2691,10 @@ fn the_simultaneous_door_names_its_scope() {
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
         .expect_err("a coplanar-adjacent corner determines no point");
     let topo::ReplaceFaceError::TogetherCorner { planes, what, .. } = &e else {
-        panic!("the corner gate must name the shape, got {e}");
+        panic!(
+            "the corner gate must name the shape, got {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        );
     };
     println!("[scope] coplanar-adjacent corner: {planes} planes — {what}");
     assert_eq!(*planes, 2, "the cap and the run's one wall");
@@ -3613,7 +3676,12 @@ fn the_record_reads_against_the_body_on_every_arm() {
             &chart,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what} must shell: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what} must shell: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         audit_record(what, &source, &chart, &shelled);
     }
 }
@@ -3747,7 +3815,12 @@ fn a_designated_face_with_a_hole_records_its_promoted_rim() {
             &chart,
             tol,
         )
-        .unwrap_or_else(|e| panic!("{what} must open: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{what} must open: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let (body, record) = (&shelled.body, &shelled.naming);
         let rim = &record.rims[0];
         assert_eq!(rim.holes.len(), 1, "{what}: one hole to pair");
@@ -3797,7 +3870,12 @@ fn the_record_is_a_function_of_the_construction() {
                 &chart,
                 tol,
             )
-            .unwrap_or_else(|e| panic!("{what}: {e}"))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{what}: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            })
             .naming
         };
         assert_eq!(build(), build(), "{what}: the record is not deterministic");

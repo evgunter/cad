@@ -302,7 +302,7 @@ fn each_faces_message_names_its_lever() {
             grid: (33, 40),
         },
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(
         c.contains(&format!("limit of {OFFSET_FIT_SAMPLE_CAP} samples,")),
         "{c}"
@@ -322,7 +322,7 @@ fn each_faces_message_names_its_lever() {
         tolerance: 1e-3,
         best: None,
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     assert!(n.contains("offset distance of 0.0000001 m"), "{n}");
     assert!(
         n.contains("Recourse: use an offset distance of larger magnitude"),
@@ -344,7 +344,7 @@ fn each_faces_message_names_its_lever() {
             grid: (17, 17),
         }),
     }
-    .to_string();
+    .render(geom_brep::recourse::Reading::Build);
     let want = format!("loosen the tolerance to 0.00032 m or more, {KERNEL_LIMIT_LAST_RESORT}");
     assert_eq!(
         recourse(&l).as_deref(),

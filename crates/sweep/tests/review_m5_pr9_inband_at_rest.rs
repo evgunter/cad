@@ -56,7 +56,10 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
         Err(e) => {
             // Loud at construction: acceptable per F6. The error must
             // not be a panic and should speak.
-            eprintln!("IN-BAND-AT-REST: extrude escalated/refused typed: {e}");
+            eprintln!(
+                "IN-BAND-AT-REST: extrude escalated/refused typed: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
         }
         Ok(out) => {
             let body = out.body;

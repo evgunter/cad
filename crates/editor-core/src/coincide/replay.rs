@@ -127,8 +127,9 @@ pub(super) fn rungs(
     (left, axes_one): (&[Vec<bool>], &[Vec<bool>]),
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
-    cancel: &crate::CancelToken,
+    stop: &crate::Stop,
 ) -> Result<Vec<Vec<Option<Proved>>>, Canceled> {
+    let cancel = &stop.cancel;
     if cancel.is_canceled() {
         return Err(Canceled);
     }
@@ -170,11 +171,11 @@ pub(super) fn rungs(
             .zip(asks)
             .any(|(row, ask)| matches!(ask, Some(Ok(()))) && reads_copies(row))
     });
-    let symbols = EvalOptions {
+    let symbols = stop.options(EvalOptions {
         symbols: true,
         resolver: resolver.filter(|_| parts).cloned(),
         ..EvalOptions::default()
-    };
+    });
     let (out, _) = with_replay_session(symbols, |opts| {
         // Replayed at the first row that asks, and only then.
         let mut ev: Option<Evaluation<Lane>> = None;

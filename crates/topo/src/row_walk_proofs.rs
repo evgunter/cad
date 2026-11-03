@@ -167,7 +167,8 @@ fn unannounced(door: &str, outcome: &Outcome) -> Option<String> {
             Some(format!("{door} panicked with no row-4 premise: {report}"))
         }
         Outcome::Returned(Err(e @ EulerOpError::Argument(_))) => Some(format!(
-            "{door} refused a key it read out of the body as the caller's: {e}"
+            "{door} refused a key it read out of the body as the caller's: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
         )),
         _ => None,
     }
@@ -551,7 +552,11 @@ fn the_untorn_sheet_panics_on_no_walk() {
             match (call.run)(&mut trial) {
                 Ok(()) => *ok.entry(call.door).or_default() += 1,
                 Err(e @ EulerOpError::Argument(_)) => {
-                    panic!("{} refused a key read out of the body: {e}", call.door)
+                    panic!(
+                        "{} refused a key read out of the body: {e_at}",
+                        call.door,
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
                 }
                 Err(_) => {}
             }

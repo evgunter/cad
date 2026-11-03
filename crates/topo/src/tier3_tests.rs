@@ -2895,7 +2895,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         let ControlFlow::Break(stop) = stations.before_decision(&station(arm, 1.0)) else {
             panic!("{label}: the pairing stops the walk");
         };
-        let text = finding(stop).to_string();
+        let text = finding(stop).render(geom_brep::recourse::Reading::AtRest);
         assert!(text.starts_with(lead), "{label}: {text}");
         let quoted = offered_tolerance(&text);
         assert!(
@@ -2919,7 +2919,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
     // Its magnitude decided positive one decision before, so the Zero
     // contradicts it: the defect ending, as a split's.
     assert_eq!(
-        finding(stop).to_string(),
+        finding(stop).render(geom_brep::recourse::Reading::AtRest),
         format!(
             "which side of an edge the material of its two smoothly meeting faces lies on could \
              not be read consistently along it. {}",

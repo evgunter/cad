@@ -515,8 +515,11 @@ mod tests {
     #[test]
     fn the_fold_at_f64_is_the_identity_on_display() {
         let e: ShellError<f64> = ShellError::Thickness { thickness: -0.25 };
-        let text = e.to_string();
-        assert_eq!(fold_shell_error_at(e).to_string(), text);
+        let text = e.render(geom_brep::recourse::Reading::Build);
+        assert_eq!(
+            fold_shell_error_at(e).render(geom_brep::recourse::Reading::Build),
+            text
+        );
     }
 
     /// **Which end each field reports**, pinned on brackets whose two

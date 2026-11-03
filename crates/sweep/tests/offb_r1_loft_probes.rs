@@ -55,8 +55,12 @@ fn r1_skinned_loft_offset_certificate_contains_dense_sample() {
     // tolerance the cap can reach.
     let tol = 2e-3;
     for d in [0.06_f64, -0.05] {
-        let (fit, cert) = fit_offset_at(&base, d, tol, band())
-            .unwrap_or_else(|e| panic!("fit_offset refused the skinned loft at d = {d}: {e}"));
+        let (fit, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!(
+                "fit_offset refused the skinned loft at d = {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert!(cert.hull_sup <= tol);
         let (nu, nv) = (43usize, 41usize);
         let (ulo, uhi) = base.knots_u_f64_interim().domain();

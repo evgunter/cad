@@ -322,8 +322,15 @@ fn range_of(
     seed: RangeSeed,
     config: &DriveConfig,
 ) -> CertifiedRange {
-    certified_range(doc, &RangeField::Param(var(doc, p)), seed, config, tol())
-        .expect("the fixture has an axis and a witness that builds")
+    certified_range(
+        doc,
+        &RangeField::Param(var(doc, p)),
+        seed,
+        config,
+        &editor_core::Stop::default(),
+        tol(),
+    )
+    .expect("the fixture has an axis and a witness that builds")
 }
 
 // -------------------------------------------------- the certified arm
@@ -627,6 +634,7 @@ fn the_query_does_not_touch_the_input_document() {
         },
         RangeSeed::symmetric(0.25),
         &budget(24, 2048),
+        &editor_core::Stop::default(),
         tol(),
     )
     .expect("the slot widens");
@@ -1086,8 +1094,14 @@ fn the_one_axis_leaves_tile_the_seed() {
     let derived = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol())
         .expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
-    let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &budget(24, 512), tol())
-        .expect("the nominal builds");
+    let verdict = editor_core::drive::drive(
+        &derived.doc,
+        &analyzed,
+        &budget(24, 512),
+        &editor_core::Stop::default(),
+        tol(),
+    )
+    .expect("the nominal builds");
     let mut spans: Vec<(f64, f64)> = verdict
         .certified()
         .iter()

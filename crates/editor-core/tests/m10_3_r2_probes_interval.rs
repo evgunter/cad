@@ -152,6 +152,7 @@ fn the_accounting_columns_plus_the_tail_sum_to_one_under_a_normal() {
             max_leaves: 256,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the nominal builds");
@@ -212,6 +213,7 @@ fn the_unresolved_budget_is_refused_mass_plus_tail() {
             max_leaves: 4,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the nominal builds");
@@ -254,6 +256,7 @@ fn containment_fires_when_the_chamber_is_strictly_inside_the_box() {
             max_leaves: 8192,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the nominal builds");
@@ -355,7 +358,14 @@ fn the_receipt_identity_holds_on_every_edge_drive() {
         ),
     ];
     for (label, config) in cases {
-        let v = drive(&doc, &analyzed, &config, Tol::witness()).expect("the nominal builds");
+        let v = drive(
+            &doc,
+            &analyzed,
+            &config,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("the nominal builds");
         let r = v.receipt();
         assert_eq!(
             r.certified + r.refused,
@@ -551,6 +561,7 @@ fn the_certification_width_threshold_is_no_longer_a_fraction_of_epsilon() {
                 max_depth: 0,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         ) {
             Ok(v) => v.receipt().certified == 1,
@@ -642,6 +653,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 max_leaves: 1024,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the nominal builds");
@@ -695,6 +707,7 @@ fn the_leaf_budget_prices_the_whole_unexamined_frontier() {
             max_leaves: 3,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();

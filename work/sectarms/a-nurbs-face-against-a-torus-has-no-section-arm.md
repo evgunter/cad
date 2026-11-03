@@ -4,7 +4,7 @@ kind: issue
 title: A NURBS face against a torus face has no C5 section arm, so lily wall 8 (the leaf grown out of the stem) cannot join once its spline seams cross
 status: open
 opened: 2026-10-29
-priority: P1
+priority: P0
 cost: H
 refs: [a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite]
 ---
@@ -52,3 +52,7 @@ consumer pin, closed by the unit that builds the curved partners.
 ## Correction (2026-11-02, the NURBS arm's phase 0)
 
 On main `72c637c`, lily wall 8 no longer stops at SPLICE's spline-span dispatch. It now stops at `GermSectionSpiric`, a plane × torus frame (SECTSITE's `c5-plane-torus-cone-cylinder-arms`). That is the next gate before this row's arm is reached.
+
+## Re-banded P0 (2026-11-03)
+
+Lily wall 8's stop once `c5-plane-torus-cone-cylinder-arms` (re-banded P0 today) clears, and its arm is the torus partner of the P0 NURBS × implicit arm, which Ev's ruling on PR 6121 builds curved partners first. A blocker inherits the band of what waits on it (`work/README.md`, Priority); tracked in `work/issues/curved-demo-joins-build.md`.

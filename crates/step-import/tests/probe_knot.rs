@@ -84,8 +84,9 @@ fn hostile_knot_multiplicities_refuse_typed_instead_of_aborting() {
     // row pins is that any refusal there is not the knot budget.)
     if let Err(e) = run("well-formed bspline", &with_bspline("2,2", "0.,1.", 1)) {
         assert!(
-            !e.to_string().contains("knot multiplicities summing to"),
-            "a schema-valid knot vector must pass the budget: {e}"
+            !e.render().contains("knot multiplicities summing to"),
+            "a schema-valid knot vector must pass the budget: {e_at}",
+            e_at = e.render()
         );
     }
 
@@ -110,7 +111,10 @@ fn hostile_knot_multiplicities_refuse_typed_instead_of_aborting() {
                     "{tag}: and states the schema's count: {expected}"
                 );
             }
-            other => panic!("{tag}: expected MalformedRecord, got: {other}"),
+            other => panic!(
+                "{tag}: expected MalformedRecord, got: {other_at}",
+                other_at = other.render()
+            ),
         }
     }
 }

@@ -191,8 +191,14 @@ fn every_standing_renders_one_way_through_every_door() {
             NodeStanding::NotEvaluated { node: placement },
         ),
     ] {
-        let checks = run_checks(&placed, &eval, &ChecksConfig::default(), Tol::witness())
-            .expect_err("a placement with no value refuses the registry");
+        let checks = run_checks(
+            &placed,
+            &eval,
+            &ChecksConfig::default(),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect_err("a placement with no value refuses the registry");
         assert_eq!(checks, ChecksError::Placement(standing));
         speaks(
             "the checks registry",
@@ -296,8 +302,14 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     let s = Standings::new();
     let (placed, placement) = (s.doc.clone(), s.poisoned);
     let ev = run(&placed, &CancelToken::new());
-    let refusal = run_checks(&placed, &ev, &ChecksConfig::default(), Tol::witness())
-        .expect_err("a poisoned placement refuses the registry");
+    let refusal = run_checks(
+        &placed,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect_err("a poisoned placement refuses the registry");
     assert_eq!(
         refusal,
         ChecksError::Placement(NodeStanding::Poisoned {
@@ -324,8 +336,14 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     );
     let ev = run(&doc, &CancelToken::new());
     let standing = NodeStanding::Failed { node: placement };
-    let refusal = run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
-        .expect_err("a failed placement refuses the registry");
+    let refusal = run_checks(
+        &doc,
+        &ev,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect_err("a failed placement refuses the registry");
     assert_eq!(refusal, ChecksError::Placement(standing));
     speaks(
         "the checks registry",
