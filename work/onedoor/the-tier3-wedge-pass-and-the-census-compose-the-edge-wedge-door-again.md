@@ -28,3 +28,44 @@ What converging would take: the door taking the station's walk direction and a s
 ## Re-read (ONEDOOR, 2026-11-03)
 
 All three composition sites are confirmed at `d1ac6881`. There is a fourth, which the row does not list: `boolean/rim_wedge.rs`. It spells its own first-order `classify_dihedral` loop, then runs check 4's `MaterialStations` inside `second_order_walk`. A related half-composer is `splitting/rules.rs` `edge_wedge`: `classify_dihedral`, then the convex/concave sign via `enters_material`, with no pairing. The census's population is two planar faces at an edge–edge crossing point, not one edge's own pair. Banded P1 (one logic composed at several sites), priced M, with `design` set because the signed and unsigned first-order reads are a real choice.
+
+## Design (two designers, converged after three rounds, 2026-11-03)
+
+Weighed under the design-fork protocol. The designers converged, and nothing ratified changes, so the design is not put to Ev as a fork (log, 2026-11-03). The final state:
+
+- **One class decision.** `geom_brep::classify_dihedral(s₁, s₂, p, reach, band) -> Result<Dihedral<T>, WedgeEscalation>`, where `Dihedral = Corner(Corner<T>) | Tangent(Tangency<T>)`.
+  - The class is the UNSIGNED `sin θ · arm` under `dihedral_wedge`, behind `dihedral_arm`, as today. It reads no face sense and no edge direction.
+  - Each token holds the two unit normals and the folded arm.
+  - Certification and the face-pair readers ask it too.
+- **The sign, on the corner token.** `Corner::convexity(&Station, senses) -> Result<Convexity, WedgeEscalation>` decides `((n₊×n₋)·τ̂)·arm` by `decide_nonzero` under ONE predicate name for every reader (`dihedral_sign`). A wrong τ̂ can then only escalate, never return a wrong class. `Station<T> { p, tau }` is minted only by a carrier at a parameter. `Convexity` moves from the blend to `geom_brep`.
+- **The pairing, on the tangency token.** `Tangency::pairing(senses)` is today's `material_wedge_side`, with its re-quote at the wedge. `Tangency::pairing_as(name, senses)` serves the face-pair readers. The free `classify_material_pairing` retires, so a pairing can never be asked of a corner.
+- **One whole-edge fold in `geom_brep`**, beside the second-order walk: `edge_wedge_over(faces, stations, reach, band)`.
+  - It reads the class at every station and the convexity at every corner station. A sign flip, or a corner/tangent mix between adjacent stations, gives `Mixed(MixedStations)`.
+  - When every station is tangent, it runs the second-order walk over the `Tangency` tokens, reading side and end at each station.
+  - The verdict is one of `Crease(Convexity) | Seam { bend } | Cusp | Slit | Lamina | Split { rung } | Mixed | InBand(WedgeEscalation)`.
+  - It absorbs check 4's loop (`validate.rs`), `MaterialStations` and `material_arm_outcome`, `boolean/rim_wedge.rs`'s loop, and `must_carry_over_edge`'s first-order pass.
+  - Its readers: check 4, rim routing, the constructors (extrude, revolve, `edge_join`) and the split finish, whose knife refusal then agrees with tier 3 station by station.
+  - The point readers, the blend and `splitting/rules.rs` `edge_wedge`, call `classify_dihedral` and then the token methods.
+- **A crate-visibility fence.** `second_order_walk`, `StationHook`, `material_kappa_rel` and the fold's parts are `pub(crate)`. `interior_stations` stays public, because check 5 shares the schedule.
+- **One rung vocabulary.** `WedgeRung { Arm, Wedge, Sign, Pairing, Bend, End }` with one `WedgeEscalation { rung, diag, refused }`, carrying the arm's refused verdict whole.
+  - It retires `EdgeWedgeEscalation`, `MustCarryEscalation`, `DihedralReading`, `MaterialStop` and topo's `WedgeCheck` (or maps it one to one).
+  - `LeverRung`/`LeverEscalation` stay: `enters_material` raises them in non-wedge readings. `From<LeverEscalation>` builds the `Arm`/`Wedge` rungs.
+- **What retires:** `classify_edge_wedge`, `EdgeWedge`, `EdgeWedgeEscalation`, `PositiveArm`.
+- **What stays:** the two `KnifeEdge` refusals. They carry different facts and recourses, over one reading, and each carries the reading's margin.
+- **K names are per question, not per caller** (orchestrator, following #652: one computation of one quantity is one population). The blend's `fillet3_convexity_sign` and `fillet3_chain_arm` populations join `dihedral_sign` and `dihedral_arm`, and `BlendDecision` stays the blend's wording key.
+
+**Off this row.** The census's `ee_cross_backed` is a face-pair contact-pairing reader, not an edge-wedge reader; it moves to `face-pair-contact-pairing-has-four-spellings`.
+
+**Defects the unit closes**, found by the designers:
+- `rules::edge_wedge` levers by `departure_arm_lever(along)`, where tier 3 levers by `wedge_reach`;
+- at a cone apex, `rules::edge_wedge` reads class and sign at two different points;
+- `rim_wedge.rs` `classify_shared_rim` builds its own INVALID `Indeterminate` named `dihedral_wedge` for mixed and spline stations;
+- the finish reads the knife pairing at one witness, where tier 3 reads every station;
+- `boolean/edge_join.rs` reads a pair at a vertex with a neighbouring edge's tangent.
+
+Also `work/honeword/split-dihedral-readers-drop-the-arm-rung.md` closes with the one escalation type. Spline stations stay deferred (`work/splice/a-smooth-seam-between-spline-walls-has-no-second-order-reading.md`). Check 4's by-kind spline exemption stays a reader's policy.
+
+**Order:**
+1. The tokens, the rung type and the fold in `geom_brep`, with check 4 and `rim_wedge` as its first readers. Dual review.
+2. The constructors and the split.
+3. The blend's predicate populations.
