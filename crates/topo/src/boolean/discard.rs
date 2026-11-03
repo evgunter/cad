@@ -21,7 +21,7 @@
 //! read through substituted fragments alone.
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
+use crate::entity::{EdgeKey, Face, FaceKey, HalfEdgeKey, VertexKey};
 use crate::provenance::Provenance;
 
 use super::{BooleanError, Operand};
@@ -186,9 +186,16 @@ pub(super) fn own_in_result<T: geom_core::Real>(
 /// ends in result keys, given the half-edge across it. `chords` borders
 /// the row along the kept edges its one-sided chords run on; a path
 /// that cuts none passes `None`.
+///
+/// `data` is `face`'s record, which the caller resolved: out of the
+/// face arena, or as a link of the shell that lists it.
+///
+/// # Panics
+///
+/// As [`Body::face_edges_linked`], past the face.
 pub(super) fn discard_row<T: geom_core::Real>(
     body: &Body<T>,
-    face: FaceKey,
+    (face, data): (FaceKey, &Face),
     operand: Operand,
     kept_across: &dyn Fn(FaceKey) -> bool,
     kept_ends: &dyn Fn(
@@ -198,10 +205,6 @@ pub(super) fn discard_row<T: geom_core::Real>(
     ) -> Result<(VertexKey, VertexKey), BooleanError>,
     chords: Option<&ChordsAcross<'_>>,
 ) -> Result<DiscardRow, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
-    let fd = body
-        .get_face(face)
-        .ok_or_else(|| desync("a discarded face no longer resolves"))?;
     let mut row = DiscardRow {
         operand,
         face,
@@ -209,52 +212,32 @@ pub(super) fn discard_row<T: geom_core::Real>(
         bordered_through: Vec::new(),
         boundary_chains: Vec::new(),
     };
-    for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(l)
-            .ok_or_else(|| desync("a discarded face's loop no longer resolves"))?
-            .boundary
-        else {
-            continue;
+    for edge in body.face_edges_linked(face, data) {
+        let (ek, [start, end], mate, mate_face) = (edge.edge, edge.ends, edge.mate, edge.across);
+        let through = match chords {
+            Some(c) => match c.bordered(operand, ek, start, mate_face)? {
+                Some(stretch) => Some(stretch),
+                None => c.substituted(operand, (start, end), mate_face),
+            },
+            None => None,
         };
-        for he in body
-            .loop_cycle(first)
-            .ok_or_else(|| desync("a discarded face's loop is not walkable"))?
-        {
-            let h = body
-                .get_half_edge(he)
-                .ok_or_else(|| desync("a discarded face's half-edge no longer resolves"))?;
-            let across = || desync("a discarded face's edge has no face across it");
-            let mate = body.mate(he).ok_or_else(across)?;
-            let mate_face = body.face_of_half_edge(mate).ok_or_else(across)?;
-            let end = body
-                .half_edge_end(he)
-                .ok_or_else(|| desync("a discarded face's half-edge has no end"))?;
-            let through = match chords {
-                Some(c) => match c.bordered(operand, h.edge, h.start, mate_face)? {
-                    Some(stretch) => Some(stretch),
-                    None => c.substituted(operand, (h.start, end), mate_face),
-                },
-                None => None,
-            };
-            if let Some(stretch) = through {
-                row.bordered_through.push(stretch);
-            } else if kept_across(mate_face) {
-                row.bordered.push(kept_ends(mate, h.start, end)?);
-            } else {
-                let mut chain = vec![h.edge];
-                let mut at = h.edge;
-                while let Some(Provenance::SplitEdge { edge: up }) = body.edge_provenance_of(at) {
-                    if chain.contains(up) {
-                        return Err(BooleanError::SplitLineage(crate::SplitLineageCycle {
-                            edge: h.edge,
-                        }));
-                    }
-                    at = *up;
-                    chain.push(at);
+        if let Some(stretch) = through {
+            row.bordered_through.push(stretch);
+        } else if kept_across(mate_face) {
+            row.bordered.push(kept_ends(mate, start, end)?);
+        } else {
+            let mut chain = vec![ek];
+            let mut at = ek;
+            while let Some(Provenance::SplitEdge { edge: up }) = body.edge_provenance_of(at) {
+                if chain.contains(up) {
+                    return Err(BooleanError::SplitLineage(crate::SplitLineageCycle {
+                        edge: ek,
+                    }));
                 }
-                row.boundary_chains.push(chain);
+                at = *up;
+                chain.push(at);
             }
+            row.boundary_chains.push(chain);
         }
     }
     Ok(row)

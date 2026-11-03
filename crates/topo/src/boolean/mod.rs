@@ -176,7 +176,7 @@ use crate::coincidence::{Cited, Cites};
 use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
-use crate::live::Proven;
+use crate::live::{BoundaryMember, Proven};
 use crate::merge_faces::MergeCoplanarError;
 #[cfg(feature = "sweep-testing")]
 use crate::sweep_trace::SweepPairs;
@@ -7903,8 +7903,9 @@ fn witness_span<T: Decide>(
 
 /// The reach along `dir` (unit; `along` the parameter of a point) of
 /// each circle and ellipse edge of `f`'s boundary, its carrier's two
-/// extremes; `None` where an edge is neither one nor a line, or the
-/// boundary cannot be walked.
+/// extremes; `None` where an edge is neither one nor a line, or `f`
+/// does not resolve. Every hop past the face is a link
+/// ([`Body::face_boundary_by_loop`]).
 fn conic_reach<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -7913,13 +7914,12 @@ fn conic_reach<T: Decide>(
 ) -> Option<Vec<T>> {
     let face = body.get_face(f)?;
     let mut out = Vec::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first)? {
-            let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-            let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
+    for (_, members, _) in body.face_boundary_by_loop(f, face) {
+        for member in members {
+            let BoundaryMember::Edge { ek, edge, .. } = member else {
+                continue;
+            };
+            let (center, reach) = match *body.edge_curve_linked(ek, edge).certified()?.carrier() {
                 geom::Curve3::Line(_) => continue,
                 geom::Curve3::Circle(geom::Circle {
                     frame: geom::Frame { center, axis, .. },
@@ -8215,7 +8215,9 @@ fn boundary_cuts<T: Decide>(
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
 /// order; an empty loop contributes its lone vertex) — the witness-
-/// extent datum of `verify_tangent_declaration`.
+/// extent datum of `verify_tangent_declaration`. The face is the
+/// caller's declaration, so its miss is the operand's refusal; every hop
+/// past it is a link ([`Body::face_boundary_linked`]).
 fn face_boundary_points<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -8226,26 +8228,10 @@ fn face_boundary_points<T: Decide>(
         what: "declared face's boundary is unwalkable",
     };
     let f = body.get_face(face).ok_or_else(bad)?;
-    let mut out = Vec::new();
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let l = body.get_loop(lk).ok_or_else(bad)?;
-        let vertex_point = |vk| -> Result<Point3<T>, BooleanError> {
-            body.get_vertex(vk)
-                .and_then(|v| body.get_point(v.point))
-                .copied()
-                .ok_or_else(bad)
-        };
-        match l.boundary {
-            crate::entity::LoopBoundary::Empty { vertex } => out.push(vertex_point(vertex)?),
-            crate::entity::LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first).ok_or_else(bad)? {
-                    let start = body.get_half_edge(he).ok_or_else(bad)?.start;
-                    out.push(vertex_point(start)?);
-                }
-            }
-        }
-    }
-    Ok(out)
+    Ok(body
+        .face_boundary_linked(face, f)
+        .map(|member| body.member_point(&member))
+        .collect())
 }
 
 fn validate_declarations<T: Decide>(

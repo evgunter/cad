@@ -434,11 +434,13 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
     )
 }
 
-/// `face`'s outer loop and rings, the face the caller's key.
+/// `face`'s outer loop and rings ([`Body::face_loops_linked`]), the face
+/// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
     let face_data = body.get_face(face).ok_or(ContainError::StaleFace(face))?;
-    Ok(core::iter::once(face_data.outer)
-        .chain(face_data.rings.iter().copied())
+    Ok(body
+        .face_loops_linked(face, face_data)
+        .map(|(lk, _, _)| lk)
         .collect())
 }
 
@@ -1508,8 +1510,8 @@ mod tests {
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
         let mut loops = 0;
-        for (_, f) in body.faces() {
-            for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        for (fk, f) in body.faces() {
+            for (lk, ..) in body.face_loops_linked(fk, f) {
                 loops += 1;
                 assert!(
                     loop_circle(&body, lk, band)
