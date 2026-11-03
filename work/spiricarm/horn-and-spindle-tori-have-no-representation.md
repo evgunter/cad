@@ -5,6 +5,8 @@ title: Surface::Torus represents only ring tori (R > r > 0); horn and spindle to
 status: open
 opened: 2026-10-14
 priority: P0
+design: true
+branch: spiricarm/torus-axis-ev
 ---
 
 
@@ -41,3 +43,7 @@ The refusal reads the arc's whole CIRCLE, not the arc. So the football with coni
 The refusal's recourse, "keep the arc's circle clear of the axis", cannot be met by an arc revolved about its own chord. That wording should change with whatever this decides.
 
 Moved from `work/issues/` to `work/spiricarm/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Weighed (2026-11-03)
+
+Two designers weighed it (fork `a-torus-reaches-its-axis`, `docs/DESIGN-FORK-LOG.md` row 252) and agreed after four rounds: a separate analytic kind for one sheet of a spindle or horn torus, with a signed major radius, sharing a revolved-circle core with `Surface::Torus`, which stays the ring. The `[ev]` PR on `spiricarm/torus-axis-ev` carries the question; the row is priced once Ev rules.
