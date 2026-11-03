@@ -789,6 +789,38 @@ mod tests {
         Point3::new(p.x, p.y, 0.0)
     }
 
+    /// **A ray set aside ahead of the ray that decides leaves no live
+    /// escalation**: a point's side is one fact, so the walk's verdict
+    /// does not rest on the set-aside ray. Where no ray decides, the
+    /// kept one is the refusal, and its escalation stays.
+    #[test]
+    fn a_set_aside_ray_ahead_of_a_verdict_is_superseded() {
+        let in_band = 5e-9;
+        let run = |rays: &[Option<f64>]| {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = walk(
+                rays.iter().copied(),
+                |ray| match ray {
+                    Some(margin) => advance("test_ray_walk_advance", Margin::of(margin), band())
+                        .map_err(|fault| fault.map(|_| ())),
+                    None => Err(RayFault::Unread),
+                },
+                || (),
+            );
+            (got, bracket.finish().escalations.len())
+        };
+        assert_eq!(
+            run(&[Some(in_band), Some(1.0)]),
+            (Ok(Sign::Positive), 0),
+            "the later ray decides; the set-aside ray's escalation is superseded"
+        );
+        assert_eq!(
+            run(&[Some(in_band), None]),
+            (Err(()), 1),
+            "no ray decides: the kept ray refuses, its escalation live"
+        );
+    }
+
     /// A square carrying a **repeated vertex**, so one segment is
     /// zero-length. Neither consumer's fixtures build one, and it is
     /// the arm where the clamped foot would divide by `|e|² = 0` — the

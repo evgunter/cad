@@ -6094,6 +6094,41 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
+/// The side ladders' ranking ([`side_rung`], [`settled`]): where no
+/// reading decides, a reading whose margin cannot be read refuses ahead
+/// of an in-band one read before it — `ladder::Evidence`'s order, where
+/// the hand-rolled search these ladders replace kept the first
+/// escalation, whichever it was.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod side_ladder_rows {
+    use geom_brep::ladder::{Answering, climb};
+    use geom_core::{Band, Margin};
+
+    use super::{settled, side_rung};
+
+    #[test]
+    fn an_unreadable_side_refuses_ahead_of_an_earlier_in_band_one() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |m: f64| {
+            crate::validate::decide("test_side", Margin::of(m), band)
+                .map(|sign| (sign != geom_core::Sign::Zero).then_some(sign))
+        };
+        let got = settled(climb(Answering::Any, [5e-9, f64::NAN, 0.0], |m| {
+            side_rung(read(m))
+        }));
+        let cause = got.expect_err("no reading decides");
+        assert!(cause.margin.is_invalid(), "the unreadable one: {cause:?}");
+        let got = settled(climb(Answering::Any, [5e-9, 0.0, -1.0], |m| {
+            side_rung(read(m))
+        }));
+        assert_eq!(
+            got,
+            Ok(Some(geom_core::Sign::Negative)),
+            "a later decided side answers"
+        );
+    }
+}
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
