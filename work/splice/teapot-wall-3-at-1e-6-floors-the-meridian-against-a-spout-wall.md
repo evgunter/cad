@@ -4,7 +4,7 @@ kind: issue
 title: Teapot wall 3 at ε 1e-6 refuses SplineCrossingUnsettled { why: Floor }: the belly meridian's interior walk against a spout NURBS wall floors one wall before the held pierce
 status: open
 opened: 2026-11-03
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -46,3 +46,7 @@ clear a piece at 1e-6's coarser floor. The interior arm is
 `reduce::spline_interior` → `geom_brep::NurbsLane::chart_meetings`. The
 first measurement is the floored piece's parameter interval on the
 meridian and its distance from the fragment's ends.
+
+## Re-banded P0 (SPLICE, 2026-11-03)
+
+This is teapot wall 3's stop at ε 1e-6 since PR 6441, and `issues/curved-demo-joins-build` (P0) waits on it; a blocker inherits the band of what waits on it (`work/README.md`, Priority).
