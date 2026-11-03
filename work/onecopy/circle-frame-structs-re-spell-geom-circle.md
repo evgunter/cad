@@ -2,10 +2,12 @@
 id: circle-frame-structs-re-spell-geom-circle
 kind: issue
 title: Four topo and sweep structs re-spell geom::Circle's fields: rim_wedge::Rim, surgery::CircleFrame, ring_path::CircleArc, contain::LoopCircle
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
+branch: onecopy/frame-readings
+rides_with: the-frame-carries-every-placement-reading
 ---
 
 
@@ -41,3 +43,7 @@ a circle or a narrower reading.
 
 - Moved to ONECOPY (`work/onecopy/`) by `git mv`, id and body unchanged. ONEHOME measured 70 budget points against 35 when its orchestrator ran out of usage; the rows it had not started (no lane, no design fork, no in-flight PR riding them) were cut onto ONECOPY, and what is in flight or staged stayed on ONEHOME.
 - Band P1: two implementations of one reading, the class `work/README.md` Priority bands P1. Priced `M`: four structs and about 87 uses of `Rim` to repoint.
+
+## Dispatch (2026-11-03)
+
+- Rides `the-frame-carries-every-placement-reading` (stage 2 of the placement decision) for `CircleFrame`, `CircleArc` and `LoopCircle`. `rim_wedge::Rim` waits on PR 6443 and goes with stage 3 (`analytic-surfaces-spell-their-frame-field-by-field`); this row stays open for it if the unit lands first.
