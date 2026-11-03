@@ -2101,8 +2101,10 @@ of the node they insert.
   slots the requirement has. The insert writes every end at contact,
   `0`. Each end is then a slot row of the requirement,
   `SlotId::ClearanceBound` (`Low` or `High`; `= c` holds the low end),
-  taking a number or a formula. The evaluator reads a bound slot as it
-  reads an assertion's payload, with the measured values bound.
+  taking a number or a formula. The evaluator reads a bound slot with
+  the measured values bound, as it reads a value claim's payload, and a
+  bound that does not evaluate fails the requirement as a slot fault
+  naming its end (`NodeErrorKind::Expr` at `ClearanceBound`).
 - **The pattern count.** An index's count is one widget
   (`index_count_ui`), drawn on the index variable's own row and on the
   rows of every node that reads the index (`props::indices_read`),

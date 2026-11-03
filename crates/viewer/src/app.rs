@@ -12105,11 +12105,13 @@ mod properties_pane_tests {
         /// **The index's count is one row, reached from the index and from
         /// the pattern's placement**: the same widget on the index
         /// variable's own row and on the placement's rows, each writing
-        /// the count through `props::index_count_edit`, typed or dragged,
-        /// and the pattern follows.
+        /// the count through `props::index_count_edit`, and the pattern
+        /// follows. A count is typed in both places and dragged on the
+        /// index's own field.
         ///
-        /// Red if either place draws no count row, or a count typed or
-        /// dragged there does not reach the index or the family.
+        /// Red if either place draws no count row, a count typed there
+        /// does not reach the index or the family, or a drag on the
+        /// index does not.
         #[test]
         fn the_index_count_row_edits_the_count_from_the_index_and_from_the_placement() {
             let mut driven = Driven::with(vec![SessionOp::AddPattern {

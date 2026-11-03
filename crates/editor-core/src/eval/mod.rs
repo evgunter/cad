@@ -1981,12 +1981,13 @@ pub enum NodeErrorKind {
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
-    /// A node's PAYLOAD expression failed to evaluate — an assertion's
-    /// value or its bound.
+    /// A node's PAYLOAD expression failed to evaluate — a value
+    /// claim's value or its bound. A clearance's bound is a slot, and
+    /// fails as [`Self::Expr`] at it.
     ///
     /// The address is the expression's position in `payload_exprs`
-    /// order, because an assertion has no slot vocabulary to name. The
-    /// rendering says WHICH one it is.
+    /// order, because a value claim's two expressions have no slot
+    /// address. The rendering says WHICH one it is.
     PayloadExpr {
         /// Which node kind's payload this is, for the message.
         what: &'static str,

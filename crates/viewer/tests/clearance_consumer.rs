@@ -1035,3 +1035,96 @@ fn two_pattern_members_faces_are_witnessed_where_each_stands() {
         "the leg runs from the second member to the third: {leg:?}"
     );
 }
+
+/// **A variable a clearance bound reads focuses nothing**: an assertion
+/// moves no geometry, so selecting the variable its bound slot reads
+/// lights up no patch, not even through the assertion's seats
+/// (`marks::drives`).
+///
+/// Red if `drives` counts an assertion's bound slots: the seats'
+/// ancestry is then marked.
+#[test]
+fn a_variable_a_clearance_bound_reads_focuses_nothing() {
+    use pncad::document::{BoundEnd, SlotId};
+    use viewer::combine::ClearanceBoundChoice;
+    let tol = Tol::witness();
+    let (mut session, left, right) = scene(tol, None);
+    let id = add(
+        &mut session,
+        requirement(left, right, ClearanceBoundChoice::AtLeast.bounds(len(0.0))),
+    );
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: pncad::document::VarName::new("gap").expect("a name"),
+        value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Length, 0.005),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let written = session.perform(SessionOp::SetSlotExpression {
+        node: id,
+        slot: SlotId::ClearanceBound(BoundEnd::Low),
+        text: "gap".to_owned(),
+    });
+    assert!(written.refusal.is_none(), "{:?}", written.refusal);
+    session.pump();
+    let index = crate::common::index_of(
+        &session,
+        viewer::scene::DisplayTolerance::new(0.0005).expect("a tolerance"),
+    );
+    let gap = session.committed_doc().var_named("gap").expect("declared");
+    let focus = viewer::marks::focus(
+        &index,
+        session.doc(),
+        &viewer::session::Selection::Variable(gap),
+    );
+    assert!(
+        focus.is_empty(),
+        "the bound's variable moves nothing: {focus:?}"
+    );
+}
+
+/// **A bound that does not evaluate names its own slot**: each shape's
+/// each end, with `1 mm / z` at `z = 0` written there, fails the
+/// requirement with `NodeErrorKind::Expr` at that end's
+/// `SlotId::ClearanceBound`, a band's upper end at `High`.
+///
+/// Red if the fault names another end, or is no slot fault.
+#[test]
+fn a_bound_that_does_not_evaluate_names_its_own_end() {
+    use pncad::document::{BoundEnd, NodeErrorKind, SlotId};
+    use viewer::combine::ClearanceBoundChoice;
+    let tol = Tol::witness();
+    for (choice, end) in [
+        (ClearanceBoundChoice::AtLeast, BoundEnd::Low),
+        (ClearanceBoundChoice::AtMost, BoundEnd::High),
+        (ClearanceBoundChoice::Equal, BoundEnd::Low),
+        (ClearanceBoundChoice::Between, BoundEnd::Low),
+        (ClearanceBoundChoice::Between, BoundEnd::High),
+    ] {
+        let (mut session, left, right) = scene(tol, None);
+        let id = add(
+            &mut session,
+            requirement(left, right, choice.bounds(len(0.001))),
+        );
+        let declared = session.perform(SessionOp::DeclareVar {
+            name: pncad::document::VarName::new("z").expect("a name"),
+            value: pncad::document::FreeVar::continuous(pncad::document::Dimension::Scalar, 0.0),
+        });
+        assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+        let written = session.perform(SessionOp::SetSlotExpression {
+            node: id,
+            slot: SlotId::ClearanceBound(end),
+            text: "1 mm / z".to_owned(),
+        });
+        assert!(written.refusal.is_none(), "{:?}", written.refusal);
+        session.pump();
+        let eval = session.evaluation().expect("landed");
+        let error = eval
+            .result(id)
+            .and_then(pncad::document::NodeResult::error)
+            .expect("the bound fails");
+        assert!(
+            matches!(&error.kind, NodeErrorKind::Expr { slot, .. } if *slot == SlotId::ClearanceBound(end)),
+            "{choice:?} {end:?}: {:?}",
+            error.kind
+        );
+    }
+}
