@@ -296,6 +296,19 @@ pub(super) fn translated_surface<T: Decide>(
             minor_radius,
             u_ref,
         },
+        Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => Surface::Spindle {
+            center: shift(center),
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        },
         _ => return None,
     })
 }

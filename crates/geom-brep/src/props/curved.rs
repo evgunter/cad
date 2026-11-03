@@ -220,7 +220,16 @@ pub fn boundary_material_sign_holding<T: Decide>(
             axis,
             ..
         } => sphere_loop_side(center, radius, axis, loops, held, band),
+        // A spindle sheet is the torus's parametrisation with a signed
+        // major radius, so it reads the torus's closed forms.
         Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }
+        | Surface::Spindle {
             center,
             axis,
             major_radius,
@@ -229,9 +238,7 @@ pub fn boundary_material_sign_holding<T: Decide>(
         } => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
         // As `curved_face_loops`: no closed form for a spline or for an
         // offset description over one.
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err(PropsError::Unimplemented)
-        }
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
 
@@ -400,15 +407,20 @@ pub fn require_iso_rectangle<T: Decide>(
             major_radius,
             minor_radius,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
         } => {
             let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
             torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)
         }
         // As `curved_face`: no rim inventory for a spline or for an
         // offset description over one.
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err(PropsError::Unimplemented)
-        }
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
 
@@ -646,10 +658,10 @@ pub fn require_one_chart_branch<T: Decide>(
             }
             Ok(())
         }
-        Surface::Torus { .. } => Ok(()),
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err(PropsError::Unimplemented)
-        }
+        // A sheet's singular points end its `v` window, so no edge on
+        // the sheet holds one inside its span.
+        Surface::Torus { .. } | Surface::Spindle { .. } => Ok(()),
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
 
@@ -710,7 +722,8 @@ fn torus_parse<T: Decide>(
         });
     }
     let anchor = meridians.swap_remove(0);
-    let orient = torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, minor, band)?;
+    let orient =
+        torus_meridian_orient((anchor.n_c, anchor.c_c), center, axis, major, minor, band)?;
     Ok(TorusParse {
         rims,
         anchor,
@@ -1708,14 +1721,19 @@ pub fn curved_face_holding<T: Decide>(
             major_radius,
             minor_radius,
             ..
+        }
+        | Surface::Spindle {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
         } => torus_face(center, axis, major_radius, minor_radius, loops, band),
         // The volume/area inventory is closed-form per analytic kind;
         // a spline has no entry and neither does an offset description
         // over one. `Approx` refuses here rather than answer as its
         // fitted kind would.
-        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Err(PropsError::Unimplemented)
-        }
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
 }
 
@@ -5189,7 +5207,7 @@ fn torus_chart<T: Decide>(
                 }
                 TorusEdge::Arc(arc) => {
                     let orient =
-                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, minor, band)?;
+                        torus_meridian_orient((arc.n_c, arc.c_c), center, axis, major, minor, band)?;
                     let sign = t_sign::<T>(orient.flip())
                         * if arc.edge.forward {
                             T::one()
@@ -5362,7 +5380,7 @@ fn torus_chart_loop<T: Decide>(
     // to `u·|w|/ρ`, which the core circle would carry `major` times over.
     let about_core = |m: Vec3<T>, d: Vec3<T>, w: Vec3<T>| {
         let radial = m - axis * m.dot(axis);
-        let out = radial * (T::one() / radial.norm());
+        let out = radial * (T::one().copysign(major) / radial.norm());
         let (xd, yd) = (d.dot(out), d.dot(axis));
         let (xw, yw) = tube(w);
         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
@@ -5608,7 +5626,12 @@ fn torus_classify<'a, T: Decide>(
                 let rho = (w - axis * h).norm();
                 require_zero(
                     "props_meridian_fit",
-                    Margin::of((rho - major).abs().max(h.abs()).max((r_c - minor).abs())),
+                    Margin::of(
+                        (rho - major.abs())
+                            .abs()
+                            .max(h.abs())
+                            .max((r_c - minor).abs()),
+                    ),
                     band,
                     Premise::Inventory,
                 )?;
@@ -5809,11 +5832,14 @@ fn fold_chain<T: Decide>(
 /// reference, so both lengths are decided before the orientation is:
 /// the axis under `props_torus_axis`, the radial under
 /// `props_meridian_radial`. A meridian centred on the axis has no
-/// radial, and refuses as that.
+/// radial, and refuses as that. On a lemon (`R < 0`) the meridian's
+/// centre lies across the axis from its half-plane, so the reading is
+/// taken against `sgn R·ρ̂`.
 fn torus_meridian_orient<T: Decide>(
     (n_c, c_c): (Vec3<T>, Point3<T>),
     center: Point3<T>,
     axis: Vec3<T>,
+    major: T,
     minor: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
@@ -5850,7 +5876,7 @@ fn torus_meridian_orient<T: Decide>(
     let orient = classify(
         "props_meridian_orient",
         Margin::levered(
-            n_c.dot(tau),
+            n_c.dot(tau) * T::one().copysign(major),
             crate::ExtentBall::of_circle(c_c, minor).lever(),
         ),
         band,
