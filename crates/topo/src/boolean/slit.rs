@@ -1170,8 +1170,13 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
-/// The site [`clears_plane`] decides a spline's control point, or a
-/// spiric's ball, beyond a plane under.
+/// The site [`carrier_on_surface`] decides a spiric's plane against a
+/// plane face's under: their tilt over the spiric's reach, then the
+/// spiric's plane's height.
+const RIDER_SPIRIC_PLANE: &str = "bool_rider_spiric_plane";
+
+/// The site [`clears_plane`] decides a spline's control point beyond a
+/// plane under.
 const RIDER_HULL_OFF: &str = "bool_rider_hull_off_plane";
 
 /// How many points of an edge's carrier [`carrier_on_surface`] reads on a
@@ -1223,10 +1228,13 @@ pub(super) enum Placed {
 /// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
 /// every point before the answer, and one definitely off reads it off.
 ///
-/// A spline or spiric carrier can lie on a surface along part of its
-/// length only, so no point of it read off says it lies there along no
-/// piece. It reads off only where it is certified off over its whole
-/// length ([`clears_plane`], a plane's), and is otherwise unread
+/// A spiric lies in its own plane, so against a plane it reads as a conic
+/// does, by the two planes' tilt over its reach and then its plane's
+/// height ([`RIDER_SPIRIC_PLANE`]). A spline can lie on a surface along
+/// part of its length only, so no point of it read off says it lies there
+/// along no piece: it reads off only where it is certified off over its
+/// whole length ([`clears_plane`], a plane's). A spiric on any other
+/// analytic surface, and a spline not certified off, is unread
 /// ([`EdgeInFaceGap::CarrierUnread`]); nothing reads it on. A spline face
 /// is unread for every carrier ([`EdgeInFaceGap::SplineFace`]): its chart
 /// is not read here.
@@ -1340,6 +1348,40 @@ fn conic_or_line_on<T: Decide>(
         (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
             return Ok(Placed::Off);
         }
+        // A spiric lies in its own plane, so against a plane it reads as a
+        // conic does: in it where the two planes are one, and otherwise
+        // meeting it at four points at most.
+        (
+            &geom::Curve3::Spiric {
+                center,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            },
+            &geom::Surface::Plane { origin, normal, .. },
+        ) => {
+            let (n, u) = (normal / normal.norm(), u_ref / u_ref.norm());
+            let refused = |diag| {
+                BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
+            };
+            let tilt = n.cross(u).norm() * (major_radius + minor_radius);
+            return match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(tilt), band)
+                .map_err(refused)?
+            {
+                Sign::Zero => {
+                    let height = (center + u * offset - origin).dot(n);
+                    match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(height), band)
+                        .map_err(refused)?
+                    {
+                        Sign::Zero => Ok(Placed::On),
+                        Sign::Positive | Sign::Negative => Ok(Placed::Off),
+                    }
+                }
+                Sign::Positive | Sign::Negative => Ok(Placed::Off),
+            };
+        }
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
             if surface.spline_chart().is_none() =>
         {
@@ -1372,15 +1414,13 @@ fn conic_or_line_on<T: Decide>(
     }
 }
 
-/// **Whether a spline or spiric carrier is certified off a plane over its
-/// whole length**: every point of it lies strictly beyond the band on one
-/// side. A spline lies in the hull of its control net (its weights are
+/// **Whether a spline carrier is certified off a plane over its whole
+/// length**: every point of it lies strictly beyond the band on one side.
+/// A spline lies in the hull of its control net (its weights are
 /// positive), so the certificate is every control point decided beyond
-/// the band on one side; a spiric lies on its torus, inside the ball of
-/// radius `R + r` about the torus's centre, so the certificate is that
-/// ball beyond the band. `false` on any other surface, and wherever a
-/// decision is in band: not certified off, which is no reading that the
-/// carrier is on.
+/// the band on one side. `false` on any other surface or carrier, and
+/// wherever a decision is in band: not certified off, which is no reading
+/// that the carrier is on.
 fn clears_plane<T: Decide>(
     carrier: &geom::Curve3<T>,
     surface: &geom::Surface<T>,
@@ -1401,12 +1441,6 @@ fn clears_plane<T: Decide>(
                 _ => false,
             }
         }
-        &geom::Curve3::Spiric {
-            center,
-            major_radius,
-            minor_radius,
-            ..
-        } => side(height(center).abs() - (major_radius + minor_radius)) == Some(Sign::Positive),
         _ => false,
     }
 }

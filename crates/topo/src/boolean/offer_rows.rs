@@ -2981,7 +2981,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "slit.rs",
         "conic_or_line_on",
         "Coincide::EdgeOnCurvedFace",
-        3,
+        2,
     ),
     ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 3),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
