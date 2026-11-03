@@ -204,7 +204,8 @@ mod tests {
     /// a cone rim, a cylinder section).
     #[test]
     fn the_bound_covers_the_sampled_form() {
-        let rows: [(ChartForm<f64>, Vec3<f64>, Vec3<f64>, Vec3<f64>, bool); 6] = [
+        type Row = (ChartForm<f64>, Vec3<f64>, Vec3<f64>, Vec3<f64>, bool);
+        let rows: [Row; 6] = [
             (
                 ChartForm::Cylinder { radius: 1.5 },
                 Vec3::new(0.0, 0.0, 2.0),

@@ -2171,7 +2171,7 @@ pub(crate) fn line_off_cone_form<T: Real>(q0: Vec3<T>, q1: Vec3<T>, sin: T, cos:
 }
 
 /// The parts a line's edge is cut into for its incidence on a cone.
-const LINE_CUTS: usize = 32;
+const LINE_CUTS: u32 = 32;
 
 /// The stored carrier's radial floor and axial range over the pieces
 /// `met` of `[t0, t1]`, read off each piece's box, each piece's sector
@@ -2417,8 +2417,8 @@ pub(super) fn projected_envelope<T: Decide>(
                 Some(meters @ Meters::Cone { sin, cos, .. }) => {
                     let mut sup = T::zero();
                     for k in 0..LINE_CUTS {
-                        let at = |j: usize| {
-                            let s = T::from_f64(j as f64 / LINE_CUTS as f64);
+                        let at = |j: u32| {
+                            let s = T::from_f64(f64::from(j) / f64::from(LINE_CUTS));
                             p + l * (t0 + (t1 - t0) * s)
                         };
                         let (qa, qb) = (at(k), at(k + 1));

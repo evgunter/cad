@@ -54,6 +54,7 @@ crates/geom-brep/src/pcurve_cache.rs	4	constant	spans as f64	a span count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	0.5 * f64::from(m)	a quarter-turn count
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	a	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	b	a circle image's partition break on its unit piece parameter, a point the partition chose
+crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	f64::from(j) / f64::from(LINE_CUTS)	a cone line's incidence cut on its edge's unit parameter, a dyadic fraction the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	nappe_sign(*nappe)	a cone nappe's sign, ±1
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s0	a circle image's partition break on its unit piece parameter, a point the partition chose
 crates/geom-brep/src/pcurve_cache/projected.rs	1	constant	s1	a circle image's partition break on its unit piece parameter, a point the partition chose
