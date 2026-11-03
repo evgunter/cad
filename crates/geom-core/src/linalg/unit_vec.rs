@@ -47,7 +47,7 @@
 //! module's "Crossing scalars"), and never up (Ev on #5068,
 //! 2026-10-14).
 //!
-//! The deciding ladders in [`frame`](super::frame) mint through the
+//! The deciding doors in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
 //! theirs; nothing else in this crate can produce the type, because the
 //! field is private to this module and no other door here writes it.

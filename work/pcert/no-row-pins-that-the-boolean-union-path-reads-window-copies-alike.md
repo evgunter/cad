@@ -4,6 +4,8 @@ kind: issue
 title: No row pins that the boolean union path reads an image's window copies alike
 status: open
 opened: 2026-10-16
+priority: P3
+cost: E
 ---
 
 

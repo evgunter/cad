@@ -599,7 +599,8 @@ fn joinable<T: Decide>(
         return Ok(None);
     };
     let class = geom_brep::classify_dihedral(surf_f, surf_g, p, reach, band)
-        .map_err(|e| regularity(e.diag()))?;
+        .map_err(|e| regularity(e.diag()))?
+        .class();
     let regular = match (locus, class) {
         (Locus::Transverse, geom_brep::DihedralClass::Transverse) => true,
         (Locus::Tangent, geom_brep::DihedralClass::Smooth) => {

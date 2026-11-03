@@ -69,3 +69,24 @@ Also `work/honeword/split-dihedral-readers-drop-the-arm-rung.md` closes with the
 1. The tokens, the rung type and the fold in `geom_brep`, with check 4 and `rim_wedge` as its first readers. Dual review.
 2. The constructors and the split.
 3. The blend's predicate populations.
+
+## Stage 1 landed (PR 6443, 2026-11-03)
+
+What landed:
+- `classify_dihedral` returns `Corner | Tangent` tokens.
+- `Corner::convexity` signs a corner at a station under `dihedral_sign`. The convention: plus is the face of `he_plus`, and τ̂ is `he_plus`'s walk.
+- `Tangency::pairing` gives the material pairing.
+- One rung type, `WedgeRung`/`WedgeEscalation`.
+- The fold `edge_wedge_over(&WedgeWalk, …)`. `WedgeWalk` holds the faces and a non-empty, indexed schedule together, and is built in topo by `validate::edge_wedge_walk` and for rims by `around_circle`.
+- Check 4 and the rim routing read the fold. `MaterialStations`, `MaterialWedge` and the rim's minted INVALID margin are retired, and a split station is folded into `Mixed`.
+
+**Owed by stage 2:**
+- `dihedral_class`'s callers move onto the fold: sweep extrude ×2, the revolve upgrade, `merge_faces_kept_rows`, and `must_carry_over_edge`'s first-order pass.
+- `MustCarryEscalation`, `DihedralReading` and `SplitFinishError::DescribeEscalated` retire.
+- The split finish's knife check reads the fold.
+- `rules::edge_wedge`'s sign leaves `enters_material` and its `departure_arm_lever`.
+- `edge_join`'s vertex-tangent read.
+
+**Owed by stage 3:** the blend's `classify_edge_wedge`, `EdgeWedge` and `PositiveArm`, and the second `sweep::blend::Convexity`.
+
+The free `classify_material_pairing_as` stays for the face-pair readers (`face-pair-contact-pairing-has-four-spellings`). The resolver's pass-over of `DIHEDRAL_SIGN` is a stopgap; its class is filed on DOCTAIL as `verdict-log-tells-no-validation-reading-from-a-building-decision`.

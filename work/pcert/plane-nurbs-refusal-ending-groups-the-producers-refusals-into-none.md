@@ -4,6 +4,8 @@ kind: issue
 title: PlaneNurbsRefusal::ending ends the image producer's refusals in a grouped None
 status: open
 opened: 2026-11-03
+priority: P1
+cost: M
 ---
 
 

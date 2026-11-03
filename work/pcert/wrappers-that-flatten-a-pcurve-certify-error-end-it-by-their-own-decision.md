@@ -4,6 +4,8 @@ kind: issue
 title: Three wrappers flatten a PcurveCertifyError and end it by their own decision, not the arm's
 status: open
 opened: 2026-11-03
+priority: P3
+cost: M
 ---
 
 

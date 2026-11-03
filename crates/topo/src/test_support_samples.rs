@@ -1399,7 +1399,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::TransverseNotIntrinsic { edge },
         ValidationError::MixedDihedral {
             edge,
-            stations: geom_brep::MixedStations {
+            stations: geom_brep::MixedStations::Class {
                 transverse: 3,
                 smooth: 4,
             },
@@ -1639,6 +1639,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         for check in [
             WedgeCheck::Arm,
             WedgeCheck::Dihedral,
+            WedgeCheck::Sign,
             WedgeCheck::SecondOrder,
             WedgeCheck::MaterialPairing,
             WedgeCheck::MaterialSide,

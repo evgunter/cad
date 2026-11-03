@@ -763,8 +763,8 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
         );
         let chord = geom_brep::ExtentBall::point(p0).lever_from(p1);
         match geom_brep::classify_dihedral(&surf1, &surf2, witness, chord, band).unwrap() {
-            geom_brep::DihedralClass::Smooth => continue,
-            geom_brep::DihedralClass::Transverse => {}
+            geom_brep::Dihedral::Tangent(_) => continue,
+            geom_brep::Dihedral::Corner(_) => {}
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {

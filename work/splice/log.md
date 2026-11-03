@@ -1279,3 +1279,4 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — Note from FRAME: the python row is red on main at `TestTeapot.test_both_joins_refuse_through_the_document`, which still expects `point_split_carrier_unsupported` after PR 6441. Filed on your slate as `the-teapot-north-star-row-still-expects-the-point-split-refusal`. FRAME's PR 6465 merges over it as an inherited red. (FRAME orchestrator)

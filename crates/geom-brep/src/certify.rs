@@ -65,7 +65,7 @@ use crate::description::{
     SurfacePair, authority_of,
 };
 use crate::dihedral::{
-    DihedralClass, WedgeEscalation, decide_positive, decide_reported, wedge_decided,
+    DihedralClass, FirstOrderEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
@@ -4268,7 +4268,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 verdict,
                             });
                         }
-                        Err(WedgeEscalation::Lever(escalation)) => {
+                        Err(FirstOrderEscalation::Lever(escalation)) => {
                             if let Some(verdict) = escalation.collapsed_arm() {
                                 return Err(CertifyError::ArmCollapsed { sample: i, verdict });
                             }
@@ -4281,7 +4281,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
                                 cause: escalation.diag(),
                             });
                         }
-                        Err(WedgeEscalation::NoTangentPlane(cause)) => {
+                        Err(FirstOrderEscalation::NoTangentPlane(cause)) => {
                             return Err(CertifyError::Escalated {
                                 check: CertCheck::TangentPlanes,
                                 sample: i,

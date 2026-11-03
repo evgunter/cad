@@ -155,8 +155,8 @@
 //! opposite sides of the shared carrier is a legal overhang, one side
 //! is interpenetration — and it hands each face's `Face::sense` bit to
 //! the one sense algebra the kernel already carries
-//! (`geom_brep::classify_material_pairing`, the tier-3 wedge pass's
-//! family), never a hand-rolled sign. The second is pass 4's reading of
+//! (`geom_brep::Tangency::pairing`, the tier-3 wedge pass's family),
+//! never a hand-rolled sign. The second is pass 4's reading of
 //! an edge lying in a face of its own solid ([`edge_in_own_face`]): a
 //! backed overlap still refuses where the face passes through the
 //! edge's material wedge, read by the touch analysis's one test
@@ -5152,9 +5152,9 @@ enum CrossingBacking {
 ///    gate the tier-3 wedge pass and the rim-wedge screen run);
 /// 2. the side question is validly posed and answers
 ///    [`CrossingSideVerdict::OppositeSides`] — the Smooth-site
-///    precondition [`geom_brep::classify_material_pairing`]'s
-///    contract states is ESTABLISHED first (the dihedral of 1
-///    decided Smooth), then the material pairing decided by that one sense
+///    precondition is ESTABLISHED by type: the pairing is asked of
+///    the tangency token the dihedral of 1 returns
+///    ([`geom_brep::Tangency::pairing`]), decided by that one sense
 ///    algebra (which mints both outward normals itself from the
 ///    faces' `Face::sense` bits, levered by
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
@@ -5246,24 +5246,22 @@ fn ee_cross_backed<T: Decide>(
         // transverse planes where both hug the planes' common line, so a
         // definitely transverse pair passes the edge screen and still
         // does not hold the crossing: it answers for nothing.
-        match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
-            Ok(geom_brep::DihedralClass::Smooth) => {}
-            Ok(geom_brep::DihedralClass::Transverse) => continue,
+        let tangency = match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
+            Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
+            Ok(geom_brep::Dihedral::Corner(_)) => continue,
             Err(escalation) => {
                 undecided.push(escalation.diag());
                 continue;
             }
-        }
-        let arm = geom_brep::folded_lever_arm(sa, sb, q, arm_extent);
-        let side =
-            match geom_brep::classify_material_pairing(sa, da.sense, sb, db.sense, q, arm, band) {
-                Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-                Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-                Err(cause) => {
-                    undecided.push(cause);
-                    continue;
-                }
-            };
+        };
+        let side = match tangency.pairing([da.sense, db.sense], band) {
+            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
+            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
+            Err(escalation) => {
+                undecided.push(escalation.diag());
+                continue;
+            }
+        };
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
             // nothing; its own state is the confirm pass's report.

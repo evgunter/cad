@@ -900,14 +900,13 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     // The circular face claims the y = 0 plane — its boundary circle
     // reaches y = ±1, a meter off; and its wedge against z = 0 is a
     // true right angle. The wedge now classifies definitely Transverse
-    // through the honest carrier-diameter arm (no vacuous Smooth, no
-    // sliver report), and the containment breach is reported by name.
+    // through the honest carrier-diameter arm (no vacuous Smooth), and
+    // the containment breach is reported by name.
     // The prefer-intrinsic rule shows the transverse classification:
     // each of these edges is restated below as an image in the z0
-    // chart, a conventional form, on a definitely-transverse edge (the
-    // two A–B chords on the z0/y0 corner, the self-loop on its
-    // right-angle wedge), named in edge-arena order before the
-    // boundary report.
+    // chart, a conventional form, on a definitely-transverse edge, and
+    // the two A–B chords on the z0/y0 corner are named in edge-arena
+    // order before the boundary report.
     body.set_face_surface(
         circ.face,
         FaceSurface::New {
@@ -931,12 +930,31 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
             .unwrap();
     }
     assert_eq!(validate_closed(&body), Ok(()));
+    let mut errors = validate_geometric(&body, Tol::witness()).unwrap_err();
+    // The circle is no line of the two planes' crossing, so its direction
+    // is not the crease's: where it runs across the crease, at its
+    // halfway station, the crease's sign reads zero and the edge's wedge
+    // escalates there rather than reading a crease.
+    let sign = errors.remove(2);
+    assert!(
+        matches!(
+            sign,
+            ValidationError::SliverDihedral {
+                edge,
+                check: topo::WedgeCheck::Sign,
+                cause: geom_core::Indeterminate {
+                    predicate: Some("dihedral_sign"),
+                    ..
+                },
+            } if edge == circ.edge
+        ),
+        "the self-loop's sign is undecided where it crosses the crease: {sign:?}"
+    );
     assert_eq!(
-        validate_geometric(&body, Tol::witness()),
+        Err::<(), _>(errors),
         Err(vec![
             ValidationError::TransverseNotIntrinsic { edge: seg.edge },
             ValidationError::TransverseNotIntrinsic { edge: split.edge },
-            ValidationError::TransverseNotIntrinsic { edge: circ.edge },
             ValidationError::PlanarBoundaryResidual {
                 face: circ.face,
                 edge: circ.edge,

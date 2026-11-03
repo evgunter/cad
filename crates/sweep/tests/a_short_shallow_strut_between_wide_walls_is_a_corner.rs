@@ -91,12 +91,12 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
         reach.length()
     );
     assert_eq!(
-        geom_brep::classify_dihedral(&sf, &sg, mid, reach, band),
+        geom_brep::dihedral_class(&sf, &sg, mid, reach, band),
         Ok(DihedralClass::Transverse),
         "levered at the walls' extent the turn is a corner"
     );
     assert_eq!(
-        geom_brep::classify_dihedral(
+        geom_brep::dihedral_class(
             &sf,
             &sg,
             mid,
