@@ -16,3 +16,5 @@ Found by the sweep in PR 6240, which draws the split tool's plane while the tool
 - the sketch-on-face form's distance and spin (`sketch_face_rows`).
 
 Each is typed in the coordinates of a space the panel does not draw, which is the split's defect 1 (`work/chrome/the-split-tools-plane-is-typed-blind.md`). A preview for each can follow the split's shape: drawn under the copy the pick was made through (`Seats::through`, `PickIndex::drawn_map`), in the marks lane.
+
+**FORMS, PR 6431 (2026-11-03).** The split tool's plane preview this row cites as its precedent (`splitplane::push_split_plane`) is deleted: the split form holds no typed plane, and a split's own evaluation is its preview (`crates/viewer/README.md`, "A create gesture commits the node").
