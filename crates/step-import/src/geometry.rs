@@ -33,7 +33,7 @@ pub(crate) fn endpoint_params(
     self_loop: bool,
 ) -> Result<(f64, f64), StepImportError> {
     match carrier {
-        Curve3::Line(geom::Line { origin, dir }) => {
+        Curve3::Line(line) => {
             if self_loop {
                 return Err(StepImportError::Topology {
                     id,
@@ -47,7 +47,7 @@ pub(crate) fn endpoint_params(
             // projection that has run out of exponent passes the
             // comparison and escapes as a parameter.
             let project = |p: Point3<f64>| -> Result<f64, StepImportError> {
-                let t = (p - *origin).dot(*dir);
+                let t = line.param(p);
                 if t.is_finite() {
                     Ok(t)
                 } else {
