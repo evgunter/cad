@@ -188,7 +188,10 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
         u_ref: Vec3::unit_z(),
     };
     match tangent_locus(&plane, &big, metre_patch(), band()) {
-        Ok(TangentLocus::Line { origin, .. }) => {
+        Ok(TangentLocus::Line {
+            line: geom::Line { origin, .. },
+            ..
+        }) => {
             assert!(origin.z.abs() < 1e-9, "{origin:?}");
         }
         other => panic!("1000x tangency must mint: {other:?}"),

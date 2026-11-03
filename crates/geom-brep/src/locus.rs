@@ -31,13 +31,12 @@ pub enum TangentLocus<T: Real> {
     /// The tangent line: `origin + t·dir`, `dir` unit (both certified
     /// carriers are ruled along it).
     Line {
-        /// A point on the locus.
-        origin: Point3<T>,
+        /// The locus: a point on it and its direction (the shared
+        /// ruling / axis direction).
+        line: geom::Line<T>,
         /// The margin that decided the two surfaces tangent: the gap
         /// row's Zero.
         gap: MarginDiag,
-        /// The locus direction (the shared ruling / axis direction).
-        dir: Vec3<T>,
     },
 }
 
@@ -350,9 +349,7 @@ fn plane_cylinder_locus<T: Decide>(
         }
     };
     match ruled_section(pc, frame, parallel, band).map_err(TangentLocusError::Escalated)? {
-        Some(RuledSection::TangentLine { origin, dir, gap }) => {
-            Ok(TangentLocus::Line { origin, gap, dir })
-        }
+        Some(RuledSection::TangentLine { line, gap }) => Ok(TangentLocus::Line { line, gap }),
         Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
             apart: false,
             predicate: gap,
@@ -420,9 +417,11 @@ fn cylinders_locus<T: Decide>(
     } = axes;
     match parallel_cylinder_gaps((r1, r2), dist, swing, band).map_err(escalate)? {
         CylinderGap::External(gap) => Ok(TangentLocus::Line {
-            origin: foot1 + w.normalize() * r1,
+            line: geom::Line {
+                origin: foot1 + w.normalize() * r1,
+                dir: a1,
+            },
             gap: gap.jointly(parallel),
-            dir: a1,
         }),
         CylinderGap::NotTangent { apart, predicate } => {
             Err(TangentLocusError::NotTangent { apart, predicate })
@@ -460,9 +459,11 @@ fn cylinders_locus<T: Decide>(
                     }
                 };
             Ok(TangentLocus::Line {
-                origin: foot1 + w.normalize() * (sign * r1),
+                line: geom::Line {
+                    origin: foot1 + w.normalize() * (sign * r1),
+                    dir: a1,
+                },
                 gap: gap.jointly(parallel),
-                dir: a1,
             })
         }
     }
@@ -925,7 +926,10 @@ mod tests {
         let cyl = tilted_resting_cylinder(1000.0, band.zero());
         let metre = ExtentBall::of_sphere(Point3::origin(), 1.0);
         match tangent_locus(&plane, &cyl, metre, band) {
-            Ok(TangentLocus::Line { origin, .. }) => assert!(
+            Ok(TangentLocus::Line {
+                line: geom::Line { origin, .. },
+                ..
+            }) => assert!(
                 origin.x.abs() < 1.0 && origin.z.abs() < band.zero(),
                 "the ruling is read beside the extent, on the plane: {origin:?}"
             ),

@@ -978,8 +978,8 @@ pub fn plane_cylinder_section_read<T: Decide>(
                 RuledSection::ParallelLines { l1, l2 } => {
                     PlaneCylinderSection::ParallelLines { l1, l2 }
                 }
-                RuledSection::TangentLine { origin, dir, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line(geom::Line { origin, dir }))
+                RuledSection::TangentLine { line, .. } => {
+                    PlaneCylinderSection::TangentLine(Curve3::Line(line))
                 }
                 RuledSection::Empty => PlaneCylinderSection::Empty,
             },
@@ -1043,8 +1043,7 @@ pub(crate) enum RuledSection<T: Real> {
     /// `origin + t·dir`, `origin` the axis' foot on the plane, with the
     /// margin that decided the gap Zero.
     TangentLine {
-        origin: Point3<T>,
-        dir: Vec3<T>,
+        line: geom::Line<T>,
         gap: MarginDiag,
     },
     /// The gap is definitely over `r`.
@@ -1110,8 +1109,10 @@ pub(crate) fn ruled_section<T: Decide>(
             }
         }
         (Sign::Zero, gap) => RuledSection::TangentLine {
-            origin: o - n * gap_signed,
-            dir: a,
+            line: geom::Line {
+                origin: o - n * gap_signed,
+                dir: a,
+            },
             gap: gap.jointly(parallel.margin),
         },
         (Sign::Negative, _) => RuledSection::Empty,

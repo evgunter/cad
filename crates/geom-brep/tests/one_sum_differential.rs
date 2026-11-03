@@ -389,7 +389,10 @@ fn one_sum_differential() {
                 _ => "nan".into(),
             };
             let wtruth = match &w {
-                Ok(TangentLocus::Line { origin, dir, .. }) => {
+                Ok(TangentLocus::Line {
+                    line: geom::Line { origin, dir },
+                    ..
+                }) => {
                     let touch = if internal { (r2 - r1).abs() } else { r1 + r2 };
                     format!(
                         "{:.4} {:.4}",
