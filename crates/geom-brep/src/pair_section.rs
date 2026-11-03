@@ -2454,9 +2454,11 @@ impl<T: Decide> CarriedComponent<T> {
         if let (Some(n), _) = at_node(nodes, p, band)? {
             return self.end_at(n);
         }
-        self.reads(p, band)?.map(ArcPlace::At).ok_or(SiteRefusal::Desync(
-            "a site lies off the component it was read on",
-        ))
+        self.reads(p, band)?
+            .map(ArcPlace::At)
+            .ok_or(SiteRefusal::Desync(
+                "a site lies off the component it was read on",
+            ))
     }
 
     /// [`Self::reads`] as the carry reads it.
@@ -2594,15 +2596,14 @@ fn at_node<T: Decide>(
     let mut found = None;
     let mut apart = Vec::with_capacity(nodes.len());
     for (n, node) in nodes.iter().enumerate() {
-        let d = geom_core::k_stats::decide_reported(
-            SITE_AT_NODE,
-            Margin::norm3(p - node.point),
-            band,
-        )
-        .map_err(SiteRefusal::Escalated)?;
+        let d =
+            geom_core::k_stats::decide_reported(SITE_AT_NODE, Margin::norm3(p - node.point), band)
+                .map_err(SiteRefusal::Escalated)?;
         match d.sign {
             Sign::Zero if found.is_some() => {
-                return Err(SiteRefusal::Desync("a site stands at two nodes of its section"));
+                return Err(SiteRefusal::Desync(
+                    "a site stands at two nodes of its section",
+                ));
             }
             Sign::Zero => found = Some(n),
             Sign::Positive | Sign::Negative => {}
@@ -2675,11 +2676,9 @@ impl<T: Decide> CarriedSection<T> {
                 tangent: c.carrier.ders1(t).1,
             });
         }
-        found
-            .map(SiteReading::OnArc)
-            .ok_or(SiteRefusal::Desync(
-                "a site lies on no component of its section",
-            ))
+        found.map(SiteReading::OnArc).ok_or(SiteRefusal::Desync(
+            "a site lies on no component of its section",
+        ))
     }
 
     /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]).
@@ -2690,10 +2689,9 @@ impl<T: Decide> CarriedSection<T> {
     /// arc with both ends at one node is read at it by the end its germ
     /// leaves along, which no germ names yet.
     pub fn end_at(&self, k: usize, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
-        let c = self
-            .components
-            .get(k)
-            .ok_or(SiteRefusal::Desync("a site's component is not in its section"))?;
+        let c = self.components.get(k).ok_or(SiteRefusal::Desync(
+            "a site's component is not in its section",
+        ))?;
         c.end_at(n)
     }
 }

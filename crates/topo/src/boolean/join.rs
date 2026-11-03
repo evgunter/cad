@@ -4462,9 +4462,9 @@ fn along_facing<T: Decide>(
                         },
                         up,
                     }),
-                    geom_brep::ArcPlace::At(_) => {
-                        Err(FootRefusal::Desync("a site at a node read off its arc's end"))
-                    }
+                    geom_brep::ArcPlace::At(_) => Err(FootRefusal::Desync(
+                        "a site at a node read off its arc's end",
+                    )),
                 };
             }
         };

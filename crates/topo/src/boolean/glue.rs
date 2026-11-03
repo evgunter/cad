@@ -245,8 +245,8 @@ fn pairs_among(
 /// the coincidence's own site. A sphere's centre on a cylinder's or a
 /// torus's axis, and a cylinder or a torus coaxial with a torus, are one
 /// row each; two cylinders at their bisector pose are two, the radii
-/// decided equal and the axes decided meeting, the classification the
-/// join's bisector lane reads. The rows in A's face order and B's within
+/// decided equal and the axes decided meeting, the classification its
+/// listed nodes stand on. The rows in A's face order and B's within
 /// each, none where the operation's verdicts are given; the table is
 /// built either way, carrying through `lane`.
 ///

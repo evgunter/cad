@@ -309,7 +309,9 @@ impl ContactAcc {
     }
 
     /// The bisector planes the sweep recorded ([`Self::planes`]), taken out.
-    pub(super) fn take_planes(&mut self) -> std::collections::BTreeMap<(Operand, VertexKey), usize> {
+    pub(super) fn take_planes(
+        &mut self,
+    ) -> std::collections::BTreeMap<(Operand, VertexKey), usize> {
         core::mem::take(&mut self.planes)
     }
 

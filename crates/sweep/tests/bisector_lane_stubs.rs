@@ -1,10 +1,9 @@
-//! **The bisector lane on branch stubs**: two equal cylinders whose
+//! **The bisector pose on branch stubs**: two equal cylinders whose
 //! axes meet, posed so that neither node `p ± r·n̂` lies in both
 //! operands' faces. The walls then meet in two disjoint arcs, one of
 //! each bisector-plane ellipse, and every boolean of the pair builds
-//! through the join's bisector lane: each germ rides the ellipse its
-//! branch names, and each side's chord is its own wall cut by that
-//! branch's plane.
+//! through the join's carried lane: each germ rides the arc its site
+//! reads on the section value, and each side's chord is that arc.
 //!
 //! The stub is a cylinder whose end cap stands inside the other wall,
 //! clear of the axes' meeting point: the nodes sit at the stub's axial
@@ -86,7 +85,7 @@ fn four(a: &Body<f64>, b: &Body<f64>, what: &str) -> [Measured; 4] {
             assert_crossing_rows(&body.coincidences, operands, &format!("{what}, {op}"));
             volume(&body.body)
         }
-        other => panic!("{what}, {op}: the bisector lane builds, got {other:?}"),
+        other => panic!("{what}, {op}: the carried lane builds, got {other:?}"),
     };
     [
         built(topo::union(&a, &b, tol), (&a, &b), "∪"),

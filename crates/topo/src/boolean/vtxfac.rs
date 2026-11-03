@@ -1538,12 +1538,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         along(Operand::B, b, faces.1)?,
     );
     let normals_agree = a_along == b_along;
-    let rays = [
-        node.lines[0],
-        node.lines[1],
-        -node.lines[0],
-        -node.lines[1],
-    ];
+    let rays = [node.lines[0], node.lines[1], -node.lines[0], -node.lines[1]];
     let germ = |i: usize| -> Germ<T> {
         (
             cells,

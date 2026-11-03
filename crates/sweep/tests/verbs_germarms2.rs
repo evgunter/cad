@@ -26,9 +26,10 @@
 //!   layer's tangency door. Turning each operand about its OWN axis
 //!   moves the seams off the pinch without moving either SURFACE, and
 //!   that pose does reach the join.
-//! - **The nodes are built, not refused.** Each germ rides one
-//!   ellipse, its branch decided where it is minted, and the join's
-//!   bisector lane cuts each wall by that ellipse's plane. A node in
+//! - **The nodes are built, not refused.** Each germ rides one arc of
+//!   the section value, its component named where it is minted (a node's
+//!   germ from the arc end it leaves along), and the join's carried lane
+//!   chords each wall along that arc. A node in
 //!   both operands' faces is minted in the reduction as a ring in both
 //!   walls, four struts paired across the operands, so every arc of
 //!   the section runs node to node and every boolean of the pair builds

@@ -1005,7 +1005,8 @@ fn the_bisector_nodes_list_their_frame_off_the_relative_form() {
                 let ClassCarrier::Span { curve, span } = &c.carrier else {
                     panic!("{label}: {:?}", c.carrier);
                 };
-                for (end, t, sign) in [(at.nodes.start, span.0, 1.0), (at.nodes.end, span.1, -1.0)] {
+                for (end, t, sign) in [(at.nodes.start, span.0, 1.0), (at.nodes.end, span.1, -1.0)]
+                {
                     let end = end.expect("each arc end stands at a node");
                     let node = &section.nodes()[end.node];
                     let d = curve.deriv(t);
@@ -1037,7 +1038,10 @@ fn a_node_the_region_does_not_hold_is_not_listed() {
     let [node] = one.nodes() else {
         panic!("one node: {:?}", one.nodes());
     };
-    assert!((node.point - node0).norm() < 1e-12, "the node the region holds");
+    assert!(
+        (node.point - node0).norm() < 1e-12,
+        "the node the region holds"
+    );
     let arcs = listed(&one);
     assert_eq!(arcs.len(), 4, "every arc reaches the region");
     for c in arcs {
@@ -1089,7 +1093,11 @@ fn a_site_reads_as_a_node_or_as_one_arc() {
             match carried.site(c.carrier.eval(t), band()) {
                 Ok(SiteReading::OnArc(foot)) => {
                     assert_eq!(foot.component, k, "arc {k} at {f}: its own arc");
-                    assert!((foot.t - t).abs() < 1e-9, "arc {k} at {f}: {} for {t}", foot.t);
+                    assert!(
+                        (foot.t - t).abs() < 1e-9,
+                        "arc {k} at {f}: {} for {t}",
+                        foot.t
+                    );
                 }
                 other => panic!("arc {k} at {f}: {other:?}"),
             }
@@ -1106,7 +1114,10 @@ fn a_site_reads_as_a_node_or_as_one_arc() {
     let tight_carried = section.carry(None, tight).expect("closed forms carry");
     let near_node = |p: Point3<f64>| match tight_carried.site(p, tight) {
         Err(SiteRefusal::Escalated(d)) => {
-            matches!(d.predicate, Some("section_site_at_node" | "section_site_in_span"))
+            matches!(
+                d.predicate,
+                Some("section_site_at_node" | "section_site_in_span")
+            )
         }
         _ => false,
     };

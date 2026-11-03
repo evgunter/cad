@@ -517,12 +517,7 @@ mod tests {
                 assert_eq!(section.nodes().len(), 2, "{label}: two nodes");
                 for (n, node) in section.nodes().iter().enumerate() {
                     let arcs = super::node_arcs(listed, n).unwrap();
-                    let rays = [
-                        node.lines[0],
-                        node.lines[1],
-                        -node.lines[0],
-                        -node.lines[1],
-                    ];
+                    let rays = [node.lines[0], node.lines[1], -node.lines[0], -node.lines[1]];
                     for (i, &k) in arcs.iter().enumerate() {
                         let geom_brep::ClassCarrier::Span { curve, span } = &listed[k].carrier
                         else {
@@ -540,7 +535,9 @@ mod tests {
                         );
                     }
                     let (ax, ay) = (axis_of(x), axis_of(y));
-                    for (a_along, b_along) in [(true, true), (true, false), (false, true), (false, false)] {
+                    for (a_along, b_along) in
+                        [(true, true), (true, false), (false, true), (false, false)]
+                    {
                         let runs = super::super::vtxfac::node_runs(node, a_along, b_along);
                         assert_eq!(
                             (runs[1].0, runs[1].1),

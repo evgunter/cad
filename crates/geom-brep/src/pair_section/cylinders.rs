@@ -730,7 +730,10 @@ fn bisector_nodes<T: Decide>(
             pose.lines.iter().all(|&(origin, axis)| {
                 let w = point - origin;
                 let radial = (w - axis * w.dot(axis)) / r;
-                (radial - n_hat).norm().point_value().is_none_or(|d| d < 1e-6)
+                (radial - n_hat)
+                    .norm()
+                    .point_value()
+                    .is_none_or(|d| d < 1e-6)
             }),
             "both walls' outward radials at a bisector node are its common normal"
         );
@@ -749,9 +752,7 @@ fn bisector_nodes<T: Decide>(
             },
         });
     }
-    let end = |i: usize, line, sense| {
-        index[i].map(|node| NodeEnd { node, line, sense })
-    };
+    let end = |i: usize, line, sense| index[i].map(|node| NodeEnd { node, line, sense });
     let (along, against_) = (Sense::Along, Sense::Against);
     let (first, second) = (NodeLine::First, NodeLine::Second);
     let ends = [
