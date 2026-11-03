@@ -90,6 +90,60 @@ impl Reading {
     }
 }
 
+/// **A refusal whose ending is read at a door** (D4 ¶1): its `Display`
+/// is its payload alone, and its ending exists only through
+/// [`Ended::ended`] at the door that reads it, so no `Display` answers
+/// one door's question for another. Each implementor's inherent
+/// `render(at)` is the same text.
+pub trait Ended: core::fmt::Display {
+    /// This refusal's text ended at `at`.
+    fn ended(&self, at: ReadAt) -> String;
+}
+
+/// **A nested refusal as its holder writes it**: ended at `at`, or its
+/// payload alone where `at` is `None` (the holder's own `Display`).
+pub fn read_at<E: Ended + ?Sized>(
+    refusal: &E,
+    at: Option<ReadAt>,
+) -> impl core::fmt::Display + '_ {
+    core::fmt::from_fn(move |f| match at {
+        Some(at) => f.write_str(&refusal.ended(at)),
+        None => core::fmt::Display::fmt(refusal, f),
+    })
+}
+
+/// **The three items of a refusal written once for both readings**: a
+/// type with `fn write(&self, f, at: Option<ReadAt>)` gets its payload
+/// `Display` (`at` = `None`), its inherent `render(at)` and its
+/// [`Ended`] impl from this.
+#[macro_export]
+macro_rules! ended_by_write {
+    ($ty:ty) => {
+        impl $ty {
+            /// This refusal's text ended at the door `at` reads it
+            /// ([`$crate::recourse::Ended`]); its `Display` is the
+            /// payload alone.
+            #[must_use]
+            pub fn render(&self, at: impl Into<$crate::recourse::ReadAt>) -> String {
+                let at = at.into();
+                core::fmt::from_fn(|f| self.write(f, Some(at))).to_string()
+            }
+        }
+
+        impl core::fmt::Display for $ty {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                self.write(f, None)
+            }
+        }
+
+        impl $crate::recourse::Ended for $ty {
+            fn ended(&self, at: $crate::recourse::ReadAt) -> String {
+                self.render(at)
+            }
+        }
+    };
+}
+
 /// The defect ending at `at` ([`ReadAt::culprit`]).
 #[must_use]
 pub fn defect_ending(at: impl Into<ReadAt>) -> &'static str {

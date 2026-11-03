@@ -191,9 +191,11 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{
-    ReadAt, Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
+    ReadAt, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
     Unsized,
 };
+#[cfg(test)]
+use crate::recourse::Reading;
 use crate::ssi::{SsiDecision, SsiLimb};
 
 /// **One chart coordinate of a harmonic image** ([`Pcurve::Harmonic`]).
@@ -2251,9 +2253,24 @@ impl PcurveCertifyError {
                 "pcurve certification: the fitted lane's certificate refused at limb 2 — \
                  {refusal}"
             ),
-            Self::FittedEscalated { .. } | Self::Escalated { .. } => {
-                unreachable!("`render` writes an escalation")
-            }
+            Self::FittedEscalated { decision, cause } => write!(
+                f,
+                concat!(
+                    "pcurve certification: the fitted lane's certificate escalated — {}",
+                    geom_core::undecided!("", payload)
+                ),
+                decision,
+                cause.payload()
+            ),
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } => write!(
+                f,
+                "pcurve certification: {check:?} at sample {sample} escalated: {}",
+                cause.payload()
+            ),
             Self::IntervalNotForward => write!(
                 f,
                 "pcurve certification: the carrier-parameter interval is not forward — a \
@@ -2323,11 +2340,17 @@ impl PcurveCertifyError {
     }
 }
 
-/// Read at a build: the mint or certification a body's own operation
-/// runs.
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`PcurveCertifyError::render`]).
 impl core::fmt::Display for PcurveCertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(Reading::Build))
+        self.write_payload(f)
+    }
+}
+
+impl crate::recourse::Ended for PcurveCertifyError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 
@@ -2430,7 +2453,7 @@ impl PcurveCertifyError {
             Self::Escalated { check, cause, .. } => {
                 self.with_ending(&check.recourse(RefusedArm::Undecided(cause), at))
             }
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+            _ => self.to_string(),
         }
     }
 
@@ -2462,20 +2485,7 @@ impl PcurveCertifyError {
     /// The refusal's text followed by `ending`: the one spelling of an
     /// escalation's text and of a payload with its ending.
     fn with_ending(&self, ending: &str) -> String {
-        match self {
-            Self::Escalated {
-                check,
-                sample,
-                cause,
-            } => format!(
-                "pcurve certification: {check:?} at sample {sample} escalated: {}. {ending}",
-                cause.payload()
-            ),
-            _ => format!(
-                "{}. {ending}",
-                core::fmt::from_fn(|f| self.write_payload(f))
-            ),
-        }
+        format!("{self}. {ending}")
     }
 
     /// Whether this is a definite refusal on a certified upper bound on

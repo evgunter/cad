@@ -598,7 +598,7 @@ impl PcurveMintError {
                 "the pcurve of half-edge {half_edge:?} failed certification: {}",
                 error.render(at)
             ),
-            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+            _ => self.to_string(),
         }
     }
 
@@ -616,7 +616,10 @@ impl PcurveMintError {
                  so it has no chart image. Recourse: describe the edge \
                  (`Body::set_edge_curve`), then ask again"
             ),
-            Self::Certify { .. } => unreachable!("`render` writes a nested certification refusal"),
+            Self::Certify { half_edge, error } => write!(
+                f,
+                "the pcurve of half-edge {half_edge:?} failed certification: {error}"
+            ),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
                 "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \
@@ -679,10 +682,17 @@ impl PcurveMintError {
     }
 }
 
-/// Read at a build: the pcurve pass a body's own operation runs.
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`PcurveMintError::render`]).
 impl core::fmt::Display for PcurveMintError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
+        self.write_payload(f)
+    }
+}
+
+impl geom_brep::recourse::Ended for PcurveMintError {
+    fn ended(&self, at: geom_brep::recourse::ReadAt) -> String {
+        self.render(at)
     }
 }
 

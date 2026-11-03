@@ -1381,18 +1381,23 @@ impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at `at`
     /// ([`CertifyError::render`]): the door that reports the refusal
     /// decides where it is read, the STEP import door with the file's
-    /// ε_in. Every other arm ignores `at`. `Display`
-    /// reads it at [`Reading::Build`], the operation that built the edge.
+    /// ε_in. Every other arm ignores `at`. Its `Display` is the payload
+    /// alone.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
-        let at = at.into();
+        self.text(Some(at.into()))
+    }
+
+    /// The text ended at `at`, or the payload alone where it is `None`.
+    fn text(&self, at: Option<ReadAt>) -> String {
+        use geom_brep::recourse::read_at;
         match self {
             Self::Certification { error } => {
-                format!("geometry attachment gate: {}", error.render(at))
+                format!("geometry attachment gate: {}", read_at(error, at))
             }
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
-                error.render(at)
+                read_at(error, at)
             ),
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
@@ -1443,7 +1448,7 @@ impl EulerOpError {
                 "{}: edge {edge:?}'s re-description does not certify on the charts the move \
                  gives it: {}",
                 door.name(),
-                error.render(at)
+                read_at(error, at)
             ),
             Self::RechartOffBoundary { door, face, on } => format!(
                 "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \
@@ -1601,7 +1606,10 @@ impl EulerOpError {
             } => format!(
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {}",
-                error.render(geom_brep::recourse::Reading::Build)
+                // A stored row re-certified over a child is the
+                // split's own construction, ended at a build at every
+                // door that reports the split.
+                read_at(error, at.map(|_| Reading::Build.into()))
             ),
             Self::SplitJointUndecided {
                 edge,
@@ -1743,9 +1751,17 @@ impl EulerOpError {
     }
 }
 
+/// The payload alone: the ending is read at the door that reports the
+/// refusal ([`EulerOpError::render`]).
 impl fmt::Display for EulerOpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.render(Reading::Build))
+        f.write_str(&self.text(None))
+    }
+}
+
+impl geom_brep::recourse::Ended for EulerOpError {
+    fn ended(&self, at: ReadAt) -> String {
+        self.render(at)
     }
 }
 

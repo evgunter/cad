@@ -119,7 +119,7 @@ use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
 use crate::extent::{LeverBounds, Reach};
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
+use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 
@@ -742,8 +742,15 @@ impl From<EllipseInvalid> for SectionError {
     }
 }
 
-impl core::fmt::Display for SectionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends a sized escalation at the door that reads it; `None` writes
+/// its payload alone, as `Display` does. Every other arm carries its
+/// own recourse.
+impl SectionError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::WrongLane { expected } => write!(
                 f,
@@ -756,14 +763,21 @@ impl core::fmt::Display for SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RadiusEscalated { radius, diag } => diag
-                .undecided(
+            Self::RadiusEscalated { radius, diag } => match at {
+                Some(at) => core::fmt::Display::fmt(
+                    &diag.undecided(
+                        radius.subject(),
+                        radius.sized().recourse(RefusedArm::Undecided(diag), at),
+                    ),
+                    f,
+                ),
+                None => write!(
+                    f,
+                    concat!("{}", geom_core::undecided!("", payload)),
                     radius.subject(),
-                    radius
-                        .sized()
-                        .recourse(RefusedArm::Undecided(diag), Reading::Build),
-                )
-                .fmt(f),
+                    diag.payload()
+                ),
+            },
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::NoRegion { pair } => write!(
                 f,
@@ -791,7 +805,9 @@ impl core::fmt::Display for SectionError {
                  they share a surface rather than meet along a curve. Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::DegenerateTorus(refusal) => refusal.fmt(f),
+            Self::DegenerateTorus(refusal) => {
+                write!(f, "{}", crate::recourse::read_at(refusal, at))
+            }
             Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
             Self::Spiric(e) => write!(f, "the section's spiric refused: {e}"),
             Self::Pinched { predicate } => write!(
@@ -818,6 +834,8 @@ impl core::fmt::Display for SectionError {
         }
     }
 }
+
+crate::ended_by_write!(SectionError);
 
 impl std::error::Error for SectionError {}
 

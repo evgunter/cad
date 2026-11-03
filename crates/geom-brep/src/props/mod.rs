@@ -137,7 +137,7 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, SizedPass, Vec3};
 
-use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
+use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
     ClosedSurface, MaterialSign, SeamCover, SeamLoops, boundary_material_sign,
@@ -597,7 +597,8 @@ impl PropsCheck {
     /// **The one ending a refusal of this check carries** on `arm`, read
     /// at `reading` — [`crate::recourse`]'s table, one row per check.
     #[must_use]
-    pub fn ending(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    pub fn ending(self, arm: RefusedArm<'_>, reading: impl Into<crate::recourse::ReadAt>) -> String {
+        let reading = reading.into();
         match self {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
             Self::Inventory => crate::recourse::not_yet(arm, reading),
@@ -606,8 +607,15 @@ impl PropsCheck {
     }
 }
 
-impl core::fmt::Display for PropsError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+/// `at` ends a decision's refusal at the door that reads it; `None`
+/// writes the payload alone, as `Display` does. Every other arm carries
+/// its own recourse.
+impl PropsError {
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> core::fmt::Result {
         match self {
             Self::Unimplemented => f.write_str(
                 "no closed form here measures a NURBS or Approx carrier. Recourse: state the \
@@ -701,17 +709,26 @@ impl core::fmt::Display for PropsError {
             Self::DegenerateFace => write!(
                 f,
                 "this face's parameter extent is coincident with zero, so its area cannot be \
-                 certified positive. {}",
-                FACE_EXTENT.recourse(RefusedArm::SignCertain(None), Reading::AtRest)
+                 certified positive{}",
+                at.map(|at| format!(
+                    ". {}",
+                    FACE_EXTENT.recourse(RefusedArm::SignCertain(None), at)
+                ))
+                .unwrap_or_default()
             ),
-            Self::Escalated { cause, check } => write!(
-                f,
-                "{}",
-                cause.undecided(
+            Self::Escalated { cause, check } => match at {
+                Some(at) => write!(
+                    f,
+                    "{}",
+                    cause.undecided(check.subject(), check.ending(RefusedArm::Undecided(cause), at))
+                ),
+                None => write!(
+                    f,
+                    concat!("{}", geom_core::undecided!("", payload)),
                     check.subject(),
-                    check.ending(RefusedArm::Undecided(cause), Reading::AtRest)
-                )
-            ),
+                    cause.payload()
+                ),
+            },
             Self::QuadratureUnsupported { what } => write!(
                 f,
                 "a quadrature input is outside the certified inventory ({what}). Recourse: \
@@ -721,6 +738,8 @@ impl core::fmt::Display for PropsError {
         }
     }
 }
+
+crate::ended_by_write!(PropsError);
 
 impl std::error::Error for PropsError {}
 

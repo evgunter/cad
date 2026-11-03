@@ -751,15 +751,26 @@ impl From<FitError> for OffsetFitError {
 const METER_UNFITTED: &str = "the offset surface cannot be fitted";
 
 impl OffsetFitError {
-    /// This refusal as `Display` renders it, except that a meter's
-    /// refusal ends in [`MeterError::render_with_lever`]'s words: for a
-    /// door whose user sets the offset under another name.
+    /// This refusal's text read at `reading`: a meter's refusal ends in
+    /// its meter's ending there ([`MeterError::render`]); every other
+    /// arm is its `Display`, which carries its own recourse.
     #[must_use]
-    pub fn render_with_lever(&self, lever: &'static str) -> String {
+    pub fn render(&self, reading: Reading) -> String {
+        match self {
+            Self::Meter(e) => format!("{METER_UNFITTED}: {}", e.render(reading)),
+            other => other.to_string(),
+        }
+    }
+
+    /// [`Self::render`], except that a meter's refusal ends in
+    /// [`MeterError::render_with_lever`]'s words: for a door whose user
+    /// sets the offset under another name.
+    #[must_use]
+    pub fn render_with_lever(&self, lever: &'static str, reading: Reading) -> String {
         match self {
             Self::Meter(e) => format!(
                 "{METER_UNFITTED}: {}",
-                e.render_with_lever(lever, Reading::Build)
+                e.render_with_lever(lever, reading)
             ),
             other => other.to_string(),
         }
@@ -769,7 +780,7 @@ impl OffsetFitError {
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(f, "{METER_UNFITTED}: {}", e.render(Reading::Build)),
+            Self::Meter(e) => write!(f, "{METER_UNFITTED}: {e}"),
             Self::PatchBound(e) => write!(f, "{e}"),
             // The carriers' own prose is not rendered: their repairs
             // are addressed to a caller supplying samples or a spline,
