@@ -316,16 +316,12 @@ impl<'a> Writer<'a> {
     /// not repair.
     fn axis2_placement(
         &mut self,
-        origin: Point3<f64>,
-        axis: Vec3<f64>,
-        ref_dir: Vec3<f64>,
-        origin_context: &'static str,
-        axis_context: &'static str,
-        ref_context: &'static str,
+        frame: &geom::Frame<f64>,
+        [origin_context, axis_context, ref_context]: [&'static str; 3],
     ) -> Result<u64, StepExportError> {
-        let cp = self.cartesian_point(origin, origin_context)?;
-        let a = self.direction(axis, axis_context)?;
-        let r = self.direction(ref_dir, ref_context)?;
+        let cp = self.cartesian_point(frame.origin, origin_context)?;
+        let a = self.direction(frame.axis, axis_context)?;
+        let r = self.direction(frame.u_ref, ref_context)?;
         Ok(self.emit(&format!("AXIS2_PLACEMENT_3D('', #{cp}, #{a}, #{r})")))
     }
 
@@ -401,23 +397,9 @@ impl<'a> Writer<'a> {
             // for field, including the seam at `u_ref` (θ = 0) and the
             // right-hand winding about `axis`. Exact, native, no
             // parameter remapping.
-            Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
-                radius,
-            }) => {
-                let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "circle centre",
-                    "circle axis",
-                    "circle u_ref",
-                )?;
+            Curve3::Circle(geom::Circle { frame, radius }) => {
+                let placement =
+                    self.axis2_placement(&frame, ["circle centre", "circle axis", "circle u_ref"])?;
                 let r = fmt_real(radius, "circle radius")?;
                 self.emit(&format!("CIRCLE('', #{placement}, {r})"))
             }
@@ -432,24 +414,19 @@ impl<'a> Writer<'a> {
             // the axes every reader wants and reparameterizing the
             // curve for nothing.
             Curve3::Ellipse(geom::Ellipse {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        u_ref,
-                    },
+                frame,
                 semi_u,
                 semi_v,
             }) => {
                 // STEP's `semi_axis_1` lies along the placement's
                 // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "ellipse centre",
-                    "ellipse axis",
-                    "ellipse u_ref (seam direction)",
+                    &frame,
+                    [
+                        "ellipse centre",
+                        "ellipse axis",
+                        "ellipse u_ref (seam direction)",
+                    ],
                 )?;
                 let a = fmt_real(semi_u, "ellipse semi-axis along the seam")?;
                 let b = fmt_real(semi_v, "ellipse semi-axis across the seam")?;
@@ -817,12 +794,8 @@ impl<'a> Writer<'a> {
                 u_ref,
             } => {
                 let placement = self.axis2_placement(
-                    origin,
-                    normal,
-                    u_ref,
-                    "plane origin",
-                    "plane normal",
-                    "plane u_ref",
+                    &geom::Frame::new(origin, normal, u_ref),
+                    ["plane origin", "plane normal", "plane u_ref"],
                 )?;
                 self.emit(&format!("PLANE('', #{placement})"))
             }
@@ -838,12 +811,8 @@ impl<'a> Writer<'a> {
                 u_ref,
             } => {
                 let placement = self.axis2_placement(
-                    origin,
-                    axis,
-                    u_ref,
-                    "cylinder origin",
-                    "cylinder axis",
-                    "cylinder u_ref",
+                    &geom::Frame::new(origin, axis, u_ref),
+                    ["cylinder origin", "cylinder axis", "cylinder u_ref"],
                 )?;
                 let r = fmt_real(radius, "cylinder radius")?;
                 self.emit(&format!("CYLINDRICAL_SURFACE('', #{placement}, {r})"))
@@ -874,12 +843,8 @@ impl<'a> Writer<'a> {
                 u_ref,
             } => {
                 let placement = self.axis2_placement(
-                    apex,
-                    axis,
-                    u_ref,
-                    "cone apex",
-                    "cone axis",
-                    "cone u_ref",
+                    &geom::Frame::new(apex, axis, u_ref),
+                    ["cone apex", "cone axis", "cone u_ref"],
                 )?;
                 let angle = fmt_real(half_angle, "cone half-angle")?;
                 self.emit(&format!("CONICAL_SURFACE('', #{placement}, 0.0, {angle})"))
@@ -895,12 +860,8 @@ impl<'a> Writer<'a> {
                 u_ref,
             } => {
                 let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "sphere centre",
-                    "sphere axis",
-                    "sphere u_ref",
+                    &geom::Frame::new(center, axis, u_ref),
+                    ["sphere centre", "sphere axis", "sphere u_ref"],
                 )?;
                 let r = fmt_real(radius, "sphere radius")?;
                 self.emit(&format!("SPHERICAL_SURFACE('', #{placement}, {r})"))
@@ -918,12 +879,8 @@ impl<'a> Writer<'a> {
                 u_ref,
             } => {
                 let placement = self.axis2_placement(
-                    center,
-                    axis,
-                    u_ref,
-                    "torus centre",
-                    "torus axis",
-                    "torus u_ref",
+                    &geom::Frame::new(center, axis, u_ref),
+                    ["torus centre", "torus axis", "torus u_ref"],
                 )?;
                 let major = fmt_real(major_radius, "torus major radius")?;
                 let minor = fmt_real(minor_radius, "torus minor radius")?;

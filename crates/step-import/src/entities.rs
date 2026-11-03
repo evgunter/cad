@@ -30,10 +30,6 @@ use crate::signed_zero;
 use crate::units::{self, UnitKind};
 use crate::{CurvePromotion, FaceCensus, NormalizationKind, StructureNormalization};
 
-/// A resolved `AXIS2_PLACEMENT_3D`: `(origin, axis, u_ref)` — the
-/// kernel frame, field for field.
-type Frame = (Point3<f64>, Vec3<f64>, Vec3<f64>);
-
 /// A resolved model: the shape content plus the file's declared
 /// uncertainty (D7's ε_in default).
 #[derive(Debug)]
@@ -497,7 +493,7 @@ impl<'a> Resolver<'a> {
     /// the schema's `ref_direction` need not be perpendicular to the
     /// axis — but the ε_in window in [`Resolver::direction`] means an
     /// already-perpendicular unit pair comes through untouched.
-    fn placement(&self, from: u64, id: u64) -> Result<Frame, StepImportError> {
+    fn placement(&self, from: u64, id: u64) -> Result<geom::Frame<f64>, StepImportError> {
         let args = self.simple(from, id, "AXIS2_PLACEMENT_3D")?;
         let expected = "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction)";
         let [_, location, axis, ref_dir] = args else {
@@ -521,7 +517,7 @@ impl<'a> Resolver<'a> {
         if let Some(u_ref) = stated
             && axis.dot(u_ref).abs() <= self.eps_in
         {
-            return Ok((origin, axis, u_ref));
+            return Ok(geom::Frame::new(origin, axis, u_ref));
         }
         // `first_proj_axis`: the file's reference direction when it has
         // one, else the first coordinate axis the placement's own axis
@@ -555,7 +551,7 @@ impl<'a> Resolver<'a> {
         } else {
             perpendicular / norm
         };
-        Ok((origin, axis, u_ref))
+        Ok(geom::Frame::new(origin, axis, u_ref))
     }
 
     /// An `ADVANCED_FACE`'s surface reference → the kernel surface,
@@ -582,8 +578,11 @@ impl<'a> Resolver<'a> {
                 let [_, placement] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (origin, normal, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let geom::Frame {
+                    origin,
+                    axis: normal,
+                    u_ref,
+                } = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Plane {
                     origin,
                     normal,
@@ -595,7 +594,11 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (origin, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
+                let geom::Frame {
+                    origin,
+                    axis,
+                    u_ref,
+                } = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Cylinder {
                     origin,
                     axis,
@@ -649,8 +652,11 @@ impl<'a> Resolver<'a> {
                 {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 }
-                let (location, axis, u_ref) =
-                    self.placement(id, as_ref(id, placement, expected)?)?;
+                let geom::Frame {
+                    origin: location,
+                    axis,
+                    u_ref,
+                } = self.placement(id, as_ref(id, placement, expected)?)?;
                 let apex = if radius == 0.0 {
                     location
                 } else {
@@ -668,7 +674,11 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
+                let geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                } = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Sphere {
                     center,
                     radius: self.as_length(id, radius, expected)?,
@@ -689,7 +699,11 @@ impl<'a> Resolver<'a> {
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
+                let geom::Frame {
+                    origin: center,
+                    axis,
+                    u_ref,
+                } = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Surface::Torus {
                     center,
                     axis,
@@ -927,22 +941,20 @@ impl<'a> Resolver<'a> {
                 let [_, placement, radius] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
-                Ok(Curve3::circle(
-                    center,
-                    axis,
+                let frame = self.placement(id, as_ref(id, placement, expected)?)?;
+                Ok(Curve3::Circle(geom::Circle::new(
+                    frame,
                     self.as_length(id, radius, expected)?,
-                    u_ref,
-                ))
+                )))
             }
             "ELLIPSE" => {
                 let expected = "ELLIPSE(name, #placement, semi_axis_1, semi_axis_2)";
                 let [_, placement, major, minor] = args.as_slice() else {
                     return Err(StepImportError::MalformedRecord { id, expected });
                 };
-                let (center, axis, u_ref) = self.placement(id, as_ref(id, placement, expected)?)?;
+                let frame = self.placement(id, as_ref(id, placement, expected)?)?;
                 Ok(Curve3::Ellipse(geom::Ellipse::new(
-                    geom::Frame::new(center, axis, u_ref),
+                    frame,
                     self.as_length(id, major, expected)?,
                     self.as_length(id, minor, expected)?,
                 )))
@@ -2385,21 +2397,21 @@ impl Resolver<'_> {
         // tightly). Checked on the STATED fields, before any
         // orthonormalization, so an identity pair takes the same path
         // it took in M7-2 and moves nothing.
-        if (a.0 - b.0).norm() <= self.eps_in
-            && (a.1 - b.1).norm() <= self.eps_in
-            && (a.2 - b.2).norm() <= self.eps_in
+        if (a.origin - b.origin).norm() <= self.eps_in
+            && (a.axis - b.axis).norm() <= self.eps_in
+            && (a.u_ref - b.u_ref).norm() <= self.eps_in
         {
             return Ok(None);
         }
-        let basis = |f: Frame| -> Option<Mat3<f64>> {
-            let z = f.1;
+        let basis = |f: geom::Frame<f64>| -> Option<Mat3<f64>> {
+            let z = f.axis;
             // The reference direction's axial part, removed to leave
             // the frame's first column (named for the same two reasons
             // as in `Resolver::placement`: it reads as a projection,
             // and it is not the `v * v` text the interval-square
             // tripwire watches for — no square is taken here).
-            let along = z.dot(f.2);
-            let x = f.2 - z * along;
+            let along = z.dot(f.u_ref);
+            let x = f.u_ref - z * along;
             let n = x.norm();
             (n.is_finite() && n > 0.0).then(|| {
                 let x = x / n;
@@ -2424,7 +2436,7 @@ impl Resolver<'_> {
         // B ∘ A⁻¹, with A⁻¹ = Aᵀ (A is orthonormal by construction).
         let ai = ba.transpose();
         let linear = bb * ai;
-        let translation = (b.0 - Point3::origin()) - linear * (a.0 - Point3::origin());
+        let translation = (b.origin - Point3::origin()) - linear * (a.origin - Point3::origin());
         let map = Affine3::from_parts(linear, translation);
         // **On the determinant.** ISO 10303-42's `build_axes` makes an
         // `axis2_placement_3d` a RIGHT-HANDED frame whatever its fields
