@@ -305,7 +305,10 @@ impl<T: Real> Ring<T> {
     }
 
     fn core(self) -> Core<T> {
-        Core::of(self.center, self.axis, self.u_ref, self.big_r)
+        Core::of(
+            &geom::Frame::new(self.center, self.axis, self.u_ref),
+            self.big_r,
+        )
     }
 
     /// The ball holding the torus, and so every section of it: its
@@ -866,7 +869,7 @@ impl<T: Decide> CylinderTorusPose<T> {
             radius_guard("ct_cylinder_radius", SectionRadius::Cylinder, radius, band)?;
             let ring = ring?;
             let d = axis / axis.norm();
-            let line = Spine::Line { origin, axis: d };
+            let line = Spine::Line(geom::Line { origin, dir: d });
             let sweep = || swept(ring, line, [ring.r, radius], &CT_GAP, band);
             let (stance, gap) = match axis_pose(
                 (ring.center, ring.axis),
