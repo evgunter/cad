@@ -212,7 +212,7 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
         ("ef", &trace.ef),
         ("ee", &trace.ee),
     ] {
-        for &(a, b) in &pairs.accepted {
+        for &(a, b) in pairs.accepted() {
             out.push(format!(
                 "PAIR {{\"tag\":\"{tag}\",\"kind\":\"{kind}\",\"a\":{},\"b\":{}}}",
                 entity_geo(&body.body, a),
