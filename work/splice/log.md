@@ -1341,3 +1341,9 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Tally candidates:** none.
   - **Fix pass:** the union. The orchestrator reads it.
   - **Class (logged):** a census whose build branch never runs, and whose oracles cannot see orientation, guards only its refusals; "matches ∪'s refusal" was standing in for a soundness argument that the op-dependent tables make false.
+- 2026-11-03 22:50Z — **Same-operand rider, phase 0 ruled: PARKED on CLEAR.**
+  - The three lofted-cylinder stops are exactly the same-operand case. The tilted rod's is not (its edge is minted by the join), and it is filed apart as `a-section-spiric-on-a-cap-plane-reads-unread-against-the-wall-it-ends-on` (P1).
+  - The guarantee the exemption rests on is ratified in DESIGN [topology.tiers] (a finished body's boundary is embedded) but enforced by nothing yet. Its gate is `clear/the-at-rest-gate-certifies-embedding` (P0, H, parked). Check 9 would not give it, and `AtRestBody` promises tiers 1–3 only.
+  - Lineage is weaker than the brief assumed: `split_root` is edges only, and merges and joins can re-key geometry. So the unit resumes after CLEAR's gate, with lineage computed in `ops.rs`.
+  - **Ruled (a):** the exemption does not ship on an unenforced contract.
+  - **For Ev (at hand-back):** (b) would ship it now on the ratified clause and restore the three builds, the far union of a lofted cylinder with a disjoint brick among them. It is a soundness-posture choice, which is Ev's to make.
