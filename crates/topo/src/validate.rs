@@ -3322,9 +3322,21 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::CarrierOffChart { .. } => {
             unreachable!("a carrier off its chart carries its incidence read")
         }
-        CertifyError::NoGeneralLane { .. } => {
+        CertifyError::NoGeneralLane {
+            gap: geom_brep::LaneGap::Unwritten,
+            ..
+        } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
              write where such a curve sits on that face"
+        }
+        // The pose, not the pair: the lever that follows moves the edge
+        // or the chart's axis off it, so the reason names the pose.
+        CertifyError::NoGeneralLane {
+            gap: geom_brep::LaneGap::Pose { .. },
+            ..
+        } => {
+            "it passes through a pole or apex of its face's chart, where the kernel cannot yet \
+              write where it sits"
         }
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
