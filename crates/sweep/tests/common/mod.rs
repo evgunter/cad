@@ -296,6 +296,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// The volume of a boolean of two crossed finite cylinders, sliced
+/// parallel to both axes: a truth that reads no kernel code.
+pub mod crossed_cylinders;
+
 /// Whether a loft at `Interval` encloses one member of its family: a
 /// check of a body, so beside [`orient`].
 pub mod enclosure;

@@ -1569,7 +1569,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
                             ..
                         },
                         ..
-                    }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
                 )
             )
         },

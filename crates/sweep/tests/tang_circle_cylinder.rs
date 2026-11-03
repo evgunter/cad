@@ -25,6 +25,8 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
+use crate::common::differential::{VOLUME_CLAIM, judged_within};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
@@ -236,43 +238,101 @@ fn parallel_cylinders_that_pierce_build_at_the_closed_form() {
     }
 }
 
-/// **A tilted rod through a rim takes the half-angle arm and reaches the
-/// volume lane.** A thin rod tilted 30° off the cylinder's axis passes
-/// through its top rim: the rim circle against the rod's wall is a
-/// degree-2 residual the ladder certifies, the pierce's sector side
+/// **A tilted rod through a rim takes the half-angle arm and builds at
+/// its sliced volume.** A thin rod tilted 30° off the cylinder's axis
+/// passes through its top rim: the rim circle against the rod's wall is
+/// a degree-2 residual the ladder certifies, the pierce's sector side
 /// certifies, and the two walls' axes are skew, a pair the join reads on
-/// its section value and carries, marched; the result gate then refuses
-/// the body, whose spline-chorded walls have no volume lane.
+/// its section value and carries, marched; every operation builds, its
+/// spline-chorded walls measured by the rotational lane, at the crossed
+/// cylinders' sliced volume (`common::crossed_cylinders`). ∖ and ∩ are
+/// SOUND; ∪'s tier 3′ refuses at the census, whose edge-in-curved-face
+/// lane reads the rod's ruling inside a chorded cylinder face through a
+/// containment door that does not read its trim
+/// (`work/inside/the-census-reads-no-ruling-inside-a-chorded-cylinder-face.md`),
+/// and its volume is held to the oracle all the same.
+///
+/// The enclosure is read against [`PAD_BUDGET`]: each chorded wall's rule
+/// accepts its first round inside the pinned resolution (`1024·ε` of mean
+/// boundary displacement), so the body's half-width is of the
+/// resolution's order (`1.9e-7` at ε `1e-9`), past the shared budget.
 #[test]
-fn a_tilted_rod_through_a_rim_reaches_the_volume_lane() {
+fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
+    let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let turn = Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         PI / 6.0,
     );
+    let shift = Vec3::new(0.95, 0.1, 2.0);
     let rod = topo::transform_rigid(
         &cyl(0.0, 0.0, 0.3, -1.5, 1.5),
-        &geom_core::test_support::rigid(&turn, Tol::witness()),
-        Tol::witness(),
+        &geom_core::test_support::rigid(&turn, tol),
+        tol,
     )
     .unwrap();
     let rod = topo::transform_rigid(
         &rod,
-        &geom_core::RigidMotion::translation(Vec3::new(0.95, 0.1, 2.0)).unwrap(),
-        Tol::witness(),
+        &geom_core::RigidMotion::translation(shift).unwrap(),
+        tol,
     )
     .unwrap();
     let (ab, _) = circle_wall_events(&a, &rod);
     assert!(ab > 0, "the cylinder's rim circle meets the rod's wall");
-    for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
-        let err = run(op, &a, &rod).expect_err("no volume lane for a spline-chorded wall");
-        assert!(
-            at_the_volume_lane(&err),
-            "{op:?}: expected the volume lane's refusal, got {err:?}"
-        );
+    let truth = |op| {
+        crossed::volume(
+            Cylinder::upright(0.0, 0.0, 1.0, (0.0, 2.0)),
+            Cylinder::upright(0.0, 0.0, 0.3, (-1.5, 1.5))
+                .under(turn)
+                .under(Affine3::translation(shift)),
+            op,
+        )
+    };
+    let (a, rod) = (
+        finished("operand A", a, tol),
+        finished("operand B", rod, tol),
+    );
+    let budget = PAD_BUDGET * tol.eps();
+    for (label, op, r) in [
+        ("∖", Op::Subtract, topo::subtract(&a, &rod, tol)),
+        ("∩", Op::Intersect, topo::intersect(&a, &rod, tol)),
+    ] {
+        let line = judged_within(r, Some(truth(op)), tol, budget).line;
+        assert!(line.starts_with("OK SOUND"), "{label}: {line}");
     }
+    let union = topo::union(&a, &rod, tol);
+    let census = union.as_ref().ok().and_then(|r| r.body()).map(|bb| {
+        matches!(
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                .as_ref()
+                .map_err(Vec::as_slice),
+            Err([topo::ValidationError::CensusUnsupported {
+                cause: topo::CensusUnsupportedCause::ContactLane(
+                    topo::ContactRefusal::NotCertifiable { what }
+                ),
+                ..
+            }]) if what.starts_with("a line edge on a curved face's ruling")
+        )
+    });
+    let read = judged_within(union, Some(truth(Op::Union)), tol, budget);
+    let held = read.volume.zip(read.pad).is_some_and(|(v, pad)| {
+        (v - truth(Op::Union)).abs() <= VOLUME_CLAIM + pad && pad <= budget
+    });
+    assert!(
+        census == Some(true)
+            && held
+            && read
+                .line
+                .contains("t2=true t3p=false cert=true operand=true"),
+        "∪: tier 3′ refuses at the census and nothing else, the volume holds: {}",
+        read.line
+    );
 }
+
+/// The enclosure half-width a chorded body of [`a_tilted_rod_through_a_rim_builds_at_its_sliced_volume`]
+/// may carry, as a multiple of ε: the pinned resolution's own `1024`.
+const PAD_BUDGET: f64 = 1024.0;
 
 /// **A rim circle on a parallel wall tangent to its own, or crossing or
 /// clearing it by less than the zero band, is a tangency.**
@@ -309,13 +369,4 @@ fn a_rim_circle_within_the_band_of_a_parallel_wall_is_a_tangency() {
             }
         }
     }
-}
-
-/// **The result a carried cylinder pair reaches today**: the join cuts
-/// the marched section's chords and the result gate refuses the body,
-/// whose spline-chorded wall has no volume lane
-/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-fn at_the_volume_lane(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::ResultInvalid { errors }
-        if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
 }

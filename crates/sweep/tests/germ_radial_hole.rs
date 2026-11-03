@@ -233,9 +233,11 @@ fn a_rod_threading_the_hole_answers_every_op() {
 /// off the axis: the section pass's report holds no refusal (each torus ×
 /// wall pair was R-reach before the square-wall arm), each germ's
 /// component is its site's foot on the carried section, and ∖ builds
-/// past the join to the volume of a face its fitted chords bound, which
-/// props does not integrate
-/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
+/// past the join to the volume of a torus face its fitted chords bound,
+/// which the chart table has no lane for
+/// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`);
+/// the rod's chorded wall measures through the rotational lane, so the
+/// torus face is the one the gate reports in any face order.
 /// Mutant: drop the arm, and the report carries `Err(Reach)`.
 #[test]
 fn a_radial_hole_through_the_tube_stops_at_the_volume() {
@@ -262,9 +264,7 @@ fn a_radial_hole_through_the_tube_stops_at_the_volume() {
                             ..
                         },
                         ..
-                    }] if what.starts_with(
-                        "curved-cut face half-edge carries a pcurve with no harmonic form",
-                    )
+                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
                 ),
                 "{what}: {errors:?}"
             ),

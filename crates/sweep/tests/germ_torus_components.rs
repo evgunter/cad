@@ -84,16 +84,7 @@ fn stop(got: &Result<BooleanResult<f64>, BooleanError>) -> String {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },
                     ..
-                } if what.starts_with(
-                    "curved-cut face half-edge carries a pcurve with no harmonic form",
-                ) =>
-                {
-                    "projected".to_owned()
-                }
-                MassPropsError::Face {
-                    source: PropsError::QuadratureUnsupported { what },
-                    ..
-                } if what.starts_with("conic trim on a cone/sphere/torus chart") => {
+                } if what.starts_with("a trimmed face with no volume lane on its chart") => {
                     "conic trim".to_owned()
                 }
                 MassPropsError::RingOnCurvedFace { .. } => "ring on a curved face".to_owned(),
@@ -171,10 +162,11 @@ fn row(
 /// foot on the carried section, the general placements' (1, 2, 3, 5)
 /// listed by the march and the square walls' (0, 4) counted; every run
 /// stops past the mint at a door's own refusal: the result gate's volume
-/// on a face its fitted chords bound
-/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`)
-/// or a conic trim on the torus chart, or the cap plane's spiric
-/// (`GermSectionSpiric`). Placement 5 divides the drum's wall, holding a
+/// on a torus face, a trim the chart table has no lane for (the drum's
+/// chorded wall measures through the rotational lane, so the torus face
+/// is the one the gate reports in any face order;
+/// `work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`),
+/// or the cap plane's spiric (`GermSectionSpiric`). Placement 5 divides the drum's wall, holding a
 /// ring, by a spline chord, and re-homes the ring by the path.
 #[test]
 fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
@@ -182,12 +174,12 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
         drum,
         &[0, 1, 2, 3, 4, 5],
         &[
-            ["conic trim", "projected"],
-            ["projected", "projected"],
-            ["projected", "conic trim"],
+            ["conic trim", "conic trim"],
+            ["conic trim", "conic trim"],
+            ["conic trim", "conic trim"],
             ["spiric", "spiric"],
             ["conic trim", "conic trim"],
-            ["projected", "conic trim"],
+            ["conic trim", "conic trim"],
         ],
         &[
             (1e-6, 2, ["tube straddles"; 2]),

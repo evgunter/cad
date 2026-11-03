@@ -98,7 +98,7 @@ fn trim_refusal_on(e: &BooleanError, face: &str) -> bool {
                 },
                 ..
             }] if format!("{f:?}") == face
-                && what.starts_with("conic trim on a cone/sphere/torus chart")
+                && what.starts_with("a trimmed face with no volume lane on its chart")
         )
     )
 }
@@ -165,7 +165,7 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_stops_at_the_volume() {
                         ..
                     },
                     ..
-                }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                }] if what.starts_with("a trimmed face with no volume lane on its chart")
             )
         );
         assert!(trims, "about the axis, {order} ({kinds:?}): {e:?}");

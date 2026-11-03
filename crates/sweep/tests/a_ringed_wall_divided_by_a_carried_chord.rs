@@ -11,8 +11,8 @@
 //! orders) builds SOUND against the closed-form volume or refuses past
 //! the join at its pinned door
 //! (`crate::cylinder_sphere_frame::door`): every one reaches the result
-//! gate's volume, on a sphere face's conic trim or a cylinder face's
-//! projected boundary, doors the single-ball poses stop at.
+//! gate's volume on a sphere face, the door the single-ball poses stop
+//! at.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,7 +31,7 @@ use topo::BooleanOp;
 /// drum first and then the balls first.
 #[test]
 fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
-    use Door::{Projected, Sphere};
+    use Door::Sphere;
     let tol = Tol::witness();
     let (big, c) = (0.25, [0.5, 0.0, 0.4]);
     let drum = finished("the drum", cyl(0.5, 1.0), tol);
@@ -53,7 +53,7 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
         ("B ∪ A", BooleanOp::Union, true, va + vb - vi, Sphere),
         ("A ∩ B", BooleanOp::Intersect, false, vi, Sphere),
         ("B ∩ A", BooleanOp::Intersect, true, vi, Sphere),
-        ("A ∖ B", BooleanOp::Subtract, false, va - vi, Projected),
+        ("A ∖ B", BooleanOp::Subtract, false, va - vi, Sphere),
         ("B ∖ A", BooleanOp::Subtract, true, vb - vi, Sphere),
     ];
     let mut off = Vec::new();

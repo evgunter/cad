@@ -287,18 +287,15 @@ pub(crate) fn run(
 /// door is downstream of the chord lane, and none is this lane's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Door {
-    /// The result gate's volume on a cylinder face bounded by a chord:
-    /// its pcurve is a projected image with no harmonic form on the
-    /// analytic chart
-    /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-    Projected,
-    /// The result gate's volume on a sphere face bounded by a chord: the
-    /// curved-cut face lane's flux algebra is the cylinder's (the same
-    /// row).
+    /// The result gate's volume on a sphere face: a trim the chart table
+    /// has no lane for, its chord's projected image
+    /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`),
+    /// or a ring, which the sphere reads only where circles bound it. The
+    /// gate reports the first face it reads that refuses, and every face
+    /// that refuses here is a sphere face — a chorded cylinder face
+    /// measures through the rotational lane — so the one door reads
+    /// alike in every face order.
     Sphere,
-    /// The result gate's volume on a sphere face holding a ring, which
-    /// the sphere reads only where circles bound it (the same row).
-    Ring,
     /// The edge join on a spline carrier
     /// (`work/splice/joining-a-spline-carrier-is-unbuilt.md`),
     /// which no pose here reaches.
@@ -315,19 +312,10 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },
                     ..
-                } if what.starts_with(
-                    "curved-cut face half-edge carries a pcurve with no harmonic form",
-                ) =>
-                {
-                    Some(Door::Projected)
-                }
-                MassPropsError::Face {
-                    source: PropsError::QuadratureUnsupported { what },
-                    ..
-                } if what.starts_with("conic trim on a cone/sphere/torus chart") => {
+                } if what.starts_with("a trimmed face with no volume lane on its chart") => {
                     Some(Door::Sphere)
                 }
-                MassPropsError::RingOnCurvedFace { .. } => Some(Door::Ring),
+                MassPropsError::RingOnCurvedFace { .. } => Some(Door::Sphere),
                 _ => None,
             },
             _ => None,
@@ -341,22 +329,22 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     }
 }
 
-/// **Every run of pose `index` builds SOUND or refuses at its pinned
-/// door past the join**, `doors` in [`runs`]' order: never at the
-/// matcher or the chord lane, in the join's own kernel-bug words, or on
-/// a wrong body. Each run's `outcome` line is printed, so the rows
-/// double as a battery.
-fn builds_sound_or_refuses_past_the_join(index: usize, doors: [Door; 6]) {
+/// **Every run of pose `index` builds SOUND or refuses at the sphere
+/// face's door past the join** ([`Door::Sphere`]): never at the matcher
+/// or the chord lane, in the join's own kernel-bug words, or on a wrong
+/// body. Each run's `outcome` line is printed, so the rows double as a
+/// battery.
+fn builds_sound_or_refuses_past_the_join(index: usize) {
     let tol = Tol::witness();
     let pose = &poses()[index];
     let (a, b) = pose.operands();
     let (va, vb, vi) = pose.volumes();
-    for ((op_label, op, swapped, want), pinned) in runs(va, vb, vi).into_iter().zip(doors) {
+    for (op_label, op, swapped, want) in runs(va, vb, vi) {
         let label = format!("{}, {op_label}", pose.label);
         let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
         let got = run(op, x, y);
         if let Err(e) = &got {
-            assert_eq!(door(e), Some(pinned), "{label}: refused {e:?}");
+            assert_eq!(door(e), Some(Door::Sphere), "{label}: refused {e:?}");
         }
         let line = outcome(got, want, tol);
         println!("{label}: {line}");
@@ -369,39 +357,28 @@ fn builds_sound_or_refuses_past_the_join(index: usize, doors: [Door; 6]) {
 
 /// One test per pose, each its six runs, so the poses run side by side.
 macro_rules! pose_rows {
-    ($($name:ident: $index:expr => [$($door:ident),*];)*) => {$(
+    ($($name:ident: $index:expr;)*) => {$(
         #[test]
         fn $name() {
-            builds_sound_or_refuses_past_the_join($index, [$(Door::$door),*]);
+            builds_sound_or_refuses_past_the_join($index);
         }
     )*};
 }
 
-// Pinned red at the result gate's volume, every door here (`Projected`
-// the cylinder's arm, `Sphere` the sphere's conic trim, `Ring` the
-// sphere's ring gate):
-// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
-// When it lands, each run builds and is held SOUND against [`oracle`],
-// and these door arrays go with the pin.
+// Pinned red at the result gate's volume on a sphere face
+// (work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md).
+// When the sphere's lane lands, each run builds and is held SOUND against
+// [`oracle`].
 pose_rows! {
-    a_ball_across_a_cylinder_wall_centre_on_the_wall:
-        0 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];
-    a_ball_across_a_cylinder_wall_centre_inside:
-        1 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];
-    a_ball_across_a_cylinder_wall_centre_outside:
-        2 => [Projected, Projected, Projected, Sphere, Projected, Sphere];
-    a_ball_across_a_cylinder_wall_turned_chart:
-        3 => [Projected, Sphere, Sphere, Sphere, Projected, Sphere];
-    a_ball_across_a_cylinder_wall_wider_than_the_wall:
-        4 => [Projected, Sphere, Projected, Sphere, Projected, Sphere];
-    a_ball_across_a_cylinder_wall_in_two_loops:
-        5 => [Projected, Ring, Sphere, Projected, Projected, Ring];
-    a_ball_across_a_cylinder_wall_in_two_loops_turned:
-        6 => [Projected, Ring, Sphere, Projected, Projected, Ring];
-    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim:
-        7 => [Sphere, Sphere, Sphere, Sphere, Projected, Sphere];
-    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim:
-        8 => [Sphere, Sphere, Sphere, Sphere, Projected, Sphere];
+    a_ball_across_a_cylinder_wall_centre_on_the_wall: 0;
+    a_ball_across_a_cylinder_wall_centre_inside: 1;
+    a_ball_across_a_cylinder_wall_centre_outside: 2;
+    a_ball_across_a_cylinder_wall_turned_chart: 3;
+    a_ball_across_a_cylinder_wall_wider_than_the_wall: 4;
+    a_ball_across_a_cylinder_wall_in_two_loops: 5;
+    a_ball_across_a_cylinder_wall_in_two_loops_turned: 6;
+    a_ball_across_a_cylinder_wall_r_0_2_across_the_rim: 7;
+    a_ball_across_a_cylinder_wall_r_0_1_across_the_rim: 8;
 }
 
 /// A site's place on its loop of the analytic section, read off the

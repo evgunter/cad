@@ -634,8 +634,10 @@ fn projected_integrals(
 }
 
 /// Pieces per span or cut interval at which a projected edge's metric
-/// length and its turn are read once, before the rounds.
-const PROJECTED_ENTRY_PIECES: usize = 4 * EDGE_INIT_PIECES;
+/// length and its turn are read once, before the rounds: the length is
+/// an upper bound at any count, and the turn need only tell whole turns
+/// apart ([`loop_windings`]).
+const PROJECTED_ENTRY_PIECES: usize = 4;
 
 /// A certified upper bound on a projected edge's metric length (metres),
 /// `Σ h·(lever·sup|u′| + sup|z′|)` over its pieces; `NaN` where a piece
@@ -685,16 +687,8 @@ struct EdgeEntry {
     turn: Option<Interval>,
 }
 
-/// The finest resolution a projected edge's turn is read at, as a
-/// multiple of [`PROJECTED_ENTRY_PIECES`].
-const TURN_REFINE: usize = 1 << 6;
-
-/// What the lane reads of `e` before the rounds. A projected edge's
-/// turn is refined, doubling its pieces from [`PROJECTED_ENTRY_PIECES`]
-/// to [`TURN_REFINE`] times that, until its width, metered at the
-/// chart's lever, is a quarter of the band's zero: the closure reads it
-/// against the edge's own ends, at the vertex slack.
-fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ, band: Band) -> Result<EdgeEntry, PropsError> {
+/// What the lane reads of `e` before the rounds.
+fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, PropsError> {
     let lever = chart.azimuth_lever();
     Ok(match e {
         EdgeTermQ::Harmonic(h) => EdgeEntry {
@@ -703,17 +697,7 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ, band: Band) -> Result<Edge
         },
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, lever);
-            let mut pieces = PROJECTED_ENTRY_PIECES;
-            let turn = loop {
-                let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, pieces);
-                if pieces >= PROJECTED_ENTRY_PIECES * TURN_REFINE
-                    || !turn.is_certified()
-                    || (pt(turn.width()) * lever).mag() <= 0.25 * band.zero()
-                {
-                    break turn;
-                }
-                pieces *= 2;
-            };
+            let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, PROJECTED_ENTRY_PIECES);
             if !(length.is_finite() && turn.is_certified()) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a projected edge whose chart speed or turn reads no enclosure — its \
@@ -850,7 +834,7 @@ pub fn rotational_cut_face_rounds<T: Decide>(
     let entries: Vec<Vec<EdgeEntry>> = face
         .loops
         .iter()
-        .map(|edges| edges.iter().map(|e| edge_entry(e, chart, band)).collect())
+        .map(|edges| edges.iter().map(|e| edge_entry(e, chart)).collect())
         .collect::<Result<_, _>>()?;
     let winds = loop_windings::<T>(face, &entries, band)?;
     let anchor = level_anchor(&face.loops)?;
@@ -944,10 +928,10 @@ fn end_slack(e: &EdgeTermQ, entry: &EdgeEntry, end: bool) -> f64 {
 /// Each junction's gap is read off the two ends' chart images
 /// ([`chart_end`]): the azimuth metered at the chart's lever, the level
 /// bare, and the slack the two ends' [`end_slack`]
-/// ([`crate::props::closure::interval_loop_turns`]). A projected edge
-/// adds one junction of its own, its image's end less its start less its
-/// turn `Δu` (its ends are the image's evaluator's and its turn the
-/// rule's), so its whole turns count as the integral reads them.
+/// ([`crate::props::closure::interval_loop_turns`]). A projected edge's
+/// ends are its image's evaluator's and its turn `Δu` the rule's, so it
+/// adds the whole turns by which the two disagree ([`branch_turns`]), and
+/// the loop's turns count as the integral reads them.
 ///
 /// Returns, per loop, whether it winds.
 fn loop_windings<T: Decide>(
@@ -970,25 +954,45 @@ fn loop_windings<T: Decide>(
                     + end_slack(next, &entries[(i + 1) % n], false),
             }
         });
-        let internal = edges.iter().zip(entries).filter_map(|(e, entry)| {
-            let (EdgeTermQ::Projected(p), Some(turn)) = (e, entry.turn) else {
-                return None;
-            };
-            Some(crate::props::closure::IntervalJunction {
-                delta: [p.ends[1].0 - p.ends[0].0 - turn, Interval::zero()],
-                lever: [lever, pt(1.0)],
-                slack: 0.0,
-            })
-        });
-        let [k, _] = crate::props::closure::interval_loop_turns::<T, 2>(
-            junctions.chain(internal),
-            [true, false],
-            band,
-        )?;
+        let [k, _] =
+            crate::props::closure::interval_loop_turns::<T, 2>(junctions, [true, false], band)?;
+        let mut k = k;
+        for (e, entry) in edges.iter().zip(entries) {
+            if let (EdgeTermQ::Projected(p), Some(turn)) = (e, entry.turn) {
+                let turns = branch_turns(p, turn)?;
+                k = k.saturating_add(if p.forward { turns } else { -turns });
+            }
+        }
         windings.push([k]);
     }
     crate::props::closure::require_boundary_windings(&windings)?;
     Ok(windings.iter().map(|&[k]| k != 0).collect())
+}
+
+/// **The whole turns a projected edge's turn makes past its ends'
+/// difference**, in its carrier's order: `(Δu − (u₁ − u₀))/2π`, the ends
+/// read by the image's
+/// evaluator, which places each on its piece's branch, and the turn by
+/// the rule. The two differ by whole turns where the image's branches
+/// meet as its sectors say, so the enclosure must lie within a quarter
+/// turn of one whole number, which the rule's coarsest reading meets by
+/// far; anything else is an image whose evaluator and integral disagree,
+/// and refuses.
+fn branch_turns(p: &ProjectedEdgeQ, turn: Interval) -> Result<i64, PropsError> {
+    let tau = crate::props::bracket::tau_bracket();
+    let gap = (turn - (p.ends[1].0 - p.ends[0].0)) / tau;
+    let k = mid(gap).round();
+    let off = (gap - pt(k)).abs_enclosure();
+    if !(off.is_certified() && off.hi() < 0.25) {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a projected edge whose image's ends and turn disagree by no whole number \
+                   of turns",
+        });
+    }
+    // `k` is within a quarter of a finite enclosure here; the cast
+    // saturates.
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(k as i64)
 }
 
 /// The level the Green form is taken about: the middle of the levels
@@ -1306,7 +1310,7 @@ mod tests {
                 .collect();
             let anchor = level_anchor(&loops).unwrap();
             let a_s = loops.iter().flatten().fold(Interval::zero(), |a, e| {
-                let entry = edge_entry(e, chart, band).unwrap();
+                let entry = edge_entry(e, chart).unwrap();
                 a + edge_terms(e, &entry, chart, anchor, EDGE_INIT_PIECES).0[0]
             });
             let bounds = FaceCutBounds {

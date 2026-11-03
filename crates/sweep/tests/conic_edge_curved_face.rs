@@ -318,28 +318,19 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 fn a_rim_crossing_reaches_the_join() {
     use crate::cylinder_sphere_frame::{Door, door};
     let a = drum_lower();
-    // Each op's door, ∪ ∩ ∖ with the drum first: `cylinder_sphere_frame`'s
-    // pins for the same balls. Pinned red at the result gate's volume
-    // (`Sphere` the sphere's conic trim, `Projected` the cylinder's arm):
-    // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
-    // When it lands, `refusals` meets a body, and the balls move to
-    // `cylinder_sphere_frame`'s volume rows.
-    for (label, b, doors) in [
-        (
-            "ball r 0.2 at (0.5, 0, 0.35)",
-            ball(0.2, [0.5, 0.0, 0.35]),
-            [Door::Sphere, Door::Sphere, Door::Projected],
-        ),
-        (
-            "ball r 0.1 at (0.45, 0, 0.3)",
-            ball(0.1, [0.45, 0.0, 0.3]),
-            [Door::Sphere, Door::Sphere, Door::Projected],
-        ),
+    // Every op stops at the sphere face's door, as `cylinder_sphere_frame`
+    // pins the same balls: pinned red at the result gate's volume
+    // (work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md).
+    // When the sphere's lane lands, `refusals` meets a body, and the balls
+    // move to `cylinder_sphere_frame`'s volume rows.
+    for (label, b) in [
+        ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
+        ("ball r 0.1 at (0.45, 0, 0.3)", ball(0.1, [0.45, 0.0, 0.3])),
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
-        for (e, pinned) in refusals(&a, &b).into_iter().zip(doors) {
-            assert_eq!(door(&e), Some(pinned), "{label}: got {e:?}");
+        for e in refusals(&a, &b) {
+            assert_eq!(door(&e), Some(Door::Sphere), "{label}: got {e:?}");
         }
     }
     for (label, b) in [

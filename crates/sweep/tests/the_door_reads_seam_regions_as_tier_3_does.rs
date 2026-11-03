@@ -50,6 +50,14 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
     r.ok().and_then(|r| r.body().map(|b| b.body.clone()))
 }
 
+/// The result gate's volume on a sphere face: a trim the chart table has
+/// no lane for, or a ring, which the sphere reads only where circles
+/// bound it. The gate reports the first face it reads that refuses, and
+/// every face that refuses here is a sphere face (a chorded cylinder face
+/// measures through the rotational lane), so the one stop reads alike in
+/// every face order.
+const SPHERE_FACE: &str = "VolumeUncomputable on a sphere face";
+
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
 fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String {
@@ -61,12 +69,10 @@ fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String 
     let quadrature = e.contains("VolumeUncomputable") && e.contains("QuadratureUnsupported");
     if e.starts_with("CurvedBooleanUnsupported") {
         "CurvedBooleanUnsupported at the join's lane dispatch".into()
-    } else if e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace") {
-        "VolumeUncomputable: RingOnCurvedFace".into()
-    } else if quadrature && e.contains("no harmonic form") {
-        "VolumeUncomputable: QuadratureUnsupported, a projected image on an analytic chart".into()
-    } else if quadrature && e.contains("conic trim") {
-        "VolumeUncomputable: QuadratureUnsupported, a conic trim on the sphere's chart".into()
+    } else if (e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace"))
+        || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
+    {
+        SPHERE_FACE.into()
     } else {
         e.chars().take(160).collect()
     }
@@ -80,45 +86,41 @@ fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String 
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
 /// they stopped at the join's lane dispatch before.
 fn pinned(part: Part) -> Stops {
-    const PROJECTED: &str =
-        "VolumeUncomputable: QuadratureUnsupported, a projected image on an analytic chart";
-    const CONIC: &str =
-        "VolumeUncomputable: QuadratureUnsupported, a conic trim on the sphere's chart";
-    const RING: &str = "VolumeUncomputable: RingOnCurvedFace";
+    const SPHERE: &str = SPHERE_FACE;
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
         Part::Rest => &[],
         Part::Rod => &[
-            ("unit u rod", PROJECTED),
-            ("unit i rod", CONIC),
-            ("unit a-b rod", PROJECTED),
-            ("unit b-a rod", PROJECTED),
+            ("unit u rod", SPHERE),
+            ("unit i rod", SPHERE),
+            ("unit a-b rod", SPHERE),
+            ("unit b-a rod", SPHERE),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
             ("tilt b-a rod", BODY),
         ],
         Part::UnitTurnedRod => &[
-            ("unit u rodx", RING),
-            ("unit i rodx", PROJECTED),
-            ("unit a-b rodx", RING),
-            ("unit b-a rodx", PROJECTED),
+            ("unit u rodx", SPHERE),
+            ("unit i rodx", SPHERE),
+            ("unit a-b rodx", SPHERE),
+            ("unit b-a rodx", SPHERE),
         ],
         Part::TiltTurnedRod => &[
-            ("tilt u rodx", RING),
-            ("tilt i rodx", PROJECTED),
-            ("tilt a-b rodx", RING),
-            ("tilt b-a rodx", PROJECTED),
+            ("tilt u rodx", SPHERE),
+            ("tilt i rodx", SPHERE),
+            ("tilt a-b rodx", SPHERE),
+            ("tilt b-a rodx", SPHERE),
         ],
         Part::Stub => &[
-            ("unit u stub", CONIC),
-            ("unit i stub", PROJECTED),
-            ("unit a-b stub", CONIC),
-            ("unit b-a stub", CONIC),
-            ("tilt u stub", PROJECTED),
-            ("tilt i stub", CONIC),
-            ("tilt a-b stub", PROJECTED),
-            ("tilt b-a stub", CONIC),
+            ("unit u stub", SPHERE),
+            ("unit i stub", SPHERE),
+            ("unit a-b stub", SPHERE),
+            ("unit b-a stub", SPHERE),
+            ("tilt u stub", SPHERE),
+            ("tilt i stub", SPHERE),
+            ("tilt a-b stub", SPHERE),
+            ("tilt b-a stub", SPHERE),
         ],
     };
     table

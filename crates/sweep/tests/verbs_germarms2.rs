@@ -48,8 +48,10 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
+use crate::common::differential::outcome;
 use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -253,8 +255,8 @@ fn every_pose_of_the_family_builds_at_its_closed_form() {
 /// - Unequal radii: the axes still intersect, but the radii decide
 ///   unequal, so the locus is a space quartic, the skew pair's class:
 ///   the join reads it on the section value and carries it, marched,
-///   and the result gate refuses the body, whose spline-chorded walls
-///   have no volume lane.
+///   and the union builds at the crossed cylinders' sliced volume
+///   (`common::crossed_cylinders`), in both poses.
 /// - Skew axes: the same, the locus a space quartic.
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
 ///   a wall, certified by the circle × cylinder root lane; at one height
@@ -263,40 +265,41 @@ fn every_pose_of_the_family_builds_at_its_closed_form() {
 ///   closed form, in both poses.
 #[test]
 fn the_fenced_poses_keep_their_own_outcomes() {
+    let tol = Tol::witness();
     let a = cyl(1.0, 2.0);
+    let quarter = Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        PI / 2.0,
+    );
+    let upright = |r: f64| Cylinder::upright(0.0, 0.0, r, (-2.0, 2.0));
 
     let unequal = spin(&cyl(0.6, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
-    let e = union_err(&a, &unequal);
-    assert!(
-        at_the_volume_lane(&e),
-        "unequal radii: the space quartic is carried to the volume lane, got {e:?}"
-    );
-    assert_same_door(
-        &e,
-        &union_err(&repose(&a), &repose(&unequal)),
-        "unequal radii",
-    );
+    let want = crossed::volume(upright(1.0), upright(0.6).under(quarter), Op::Union);
+    union_sound(&a, &unequal, want, "unequal radii");
 
     // Displaced along the common perpendicular `â₁ × â₂ = x̂`: that is
     // the ONE direction that separates the two axes. Sliding the
     // partner along either axis leaves the lines meeting, which is what
     // the frame dispatch's margin measures.
+    let shift = Vec3::new(0.35, 0.0, 0.0);
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
-        &geom_core::RigidMotion::translation(Vec3::new(0.35, 0.0, 0.0)).unwrap(),
-        Tol::witness(),
+        &geom_core::RigidMotion::translation(shift).unwrap(),
+        tol,
     )
     .unwrap();
-    let e = union_err(&a, &skew);
-    assert!(
-        at_the_volume_lane(&e),
-        "skew axes: carried to the volume lane, got {e:?}"
+    let want = crossed::volume(
+        upright(1.0),
+        upright(1.0)
+            .under(quarter)
+            .under(Affine3::translation(shift)),
+        Op::Union,
     );
-    assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
+    union_sound(&a, &skew, want, "skew axes");
 
     // Parallel axes, walls definitely crossing: the rim circle row,
     // whose cap discs are coplanar and glue.
-    let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
     let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
     let parallel = extrude(
@@ -365,10 +368,11 @@ fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
 /// off it, cuts the wall in two loops round the rod, each meeting the
 /// rod's wrap edge at one site. The join reads the pair on the section
 /// table's value, its two loops marched and carried, so every operation
-/// reaches the result gate, which refuses the body whose spline-chorded
-/// walls have no volume lane, and never the one-site loop's refusal.
+/// builds, its spline-chorded walls measured by the rotational lane, at
+/// the crossed cylinders' sliced volume (`common::crossed_cylinders`),
+/// and never at the one-site loop's refusal.
 #[test]
-fn a_rod_through_a_drum_wall_reaches_the_volume_lane() {
+fn a_rod_through_a_drum_wall_builds_at_its_sliced_volume() {
     let tol = Tol::witness();
     let drum = finished("the drum", cyl(0.5, 1.0), tol);
     let rod = spin(
@@ -376,34 +380,64 @@ fn a_rod_through_a_drum_wall_reaches_the_volume_lane() {
         Vec3::new(0.0, 1.0, 0.0),
         core::f64::consts::FRAC_PI_2,
     );
+    let shift = Vec3::new(0.0, 0.2, 0.3);
     let rod = topo::transform_rigid(
         &rod,
-        &geom_core::test_support::rigid(
-            &geom_core::Affine3::translation(Vec3::new(0.0, 0.2, 0.3)),
-            tol,
-        ),
+        &geom_core::test_support::rigid(&Affine3::translation(shift), tol),
         tol,
     )
     .unwrap();
     let rod = finished("the rod", rod, tol);
-    for (op, r) in [
-        ("drum ∪ rod", topo::union(&drum, &rod, tol)),
-        ("rod ∪ drum", topo::union(&rod, &drum, tol)),
-        ("drum ∖ rod", topo::subtract(&drum, &rod, tol)),
-        ("drum ∩ rod", topo::intersect(&drum, &rod, tol)),
+    let truth = |op| {
+        crossed::volume(
+            Cylinder::upright(0.0, 0.0, 0.5, (-1.0, 1.0)),
+            Cylinder::upright(0.0, 0.0, 0.1, (-2.0, 2.0))
+                .under(Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 1.0, 0.0),
+                    core::f64::consts::FRAC_PI_2,
+                ))
+                .under(Affine3::translation(shift)),
+            op,
+        )
+    };
+    for (label, r, want) in [
+        (
+            "drum ∪ rod",
+            topo::union(&drum, &rod, tol),
+            truth(Op::Union),
+        ),
+        (
+            "rod ∪ drum",
+            topo::union(&rod, &drum, tol),
+            truth(Op::Union),
+        ),
+        (
+            "drum ∖ rod",
+            topo::subtract(&drum, &rod, tol),
+            truth(Op::Subtract),
+        ),
+        (
+            "drum ∩ rod",
+            topo::intersect(&drum, &rod, tol),
+            truth(Op::Intersect),
+        ),
     ] {
-        assert!(
-            r.as_ref().is_err_and(at_the_volume_lane),
-            "{op}: the carried skew pair at the volume lane, got {r:?}"
-        );
+        let line = outcome(r, want, tol);
+        assert!(line.starts_with("OK SOUND"), "{label}: {line}");
     }
 }
 
-/// **The result a carried cylinder pair reaches today**: the join cuts
-/// the marched section's chords and the result gate refuses the body,
-/// whose spline-chorded wall has no volume lane
-/// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-fn at_the_volume_lane(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::ResultInvalid { errors }
-        if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. })))
+/// The union of `a` and `b`, direct and re-posed, is SOUND at `want`
+/// (`differential::outcome`).
+fn union_sound(a: &Body<f64>, b: &Body<f64>, want: f64, what: &str) {
+    let tol = Tol::witness();
+    for (pose, a, b) in [
+        ("direct", a.clone(), b.clone()),
+        ("re-posed", repose(a), repose(b)),
+    ] {
+        let (a, b) = (finished("operand A", a, tol), finished("operand B", b, tol));
+        let line = outcome(topo::union(&a, &b, tol), want, tol);
+        assert!(line.starts_with("OK SOUND"), "{what}, {pose}: {line}");
+    }
 }

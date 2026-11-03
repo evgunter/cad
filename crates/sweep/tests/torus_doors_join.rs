@@ -68,12 +68,11 @@ fn rod_y(x: f64, rc: f64) -> AtRestBody<f64> {
 /// **Where a run stops past the join**, by variant.
 #[derive(Debug, PartialEq, Eq)]
 enum Stop {
-    /// The result gate's volume on a face whose fitted boundary has no
-    /// harmonic form on the analytic chart
-    /// (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-    Projected,
-    /// The result gate's volume on a torus face trimmed by a conic
+    /// The result gate's volume on a torus face whose trim the chart
+    /// table has no lane for
     /// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`).
+    /// A rod's chorded wall measures through the rotational lane, so the
+    /// torus face is the one the gate reports in any face order.
     ConicTrim,
     /// The edge join on a spline carrier, open or closed
     /// (`work/splice/joining-a-spline-carrier-is-unbuilt.md`),
@@ -95,22 +94,9 @@ fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
                         },
                     ..
                 },
-            ] if what.starts_with(
-                "curved-cut face half-edge carries a pcurve with no harmonic form",
-            ) =>
-            {
-                Stop::Projected
+            ] if what.starts_with("a trimmed face with no volume lane on its chart") => {
+                Stop::ConicTrim
             }
-            [
-                ValidationError::VolumeUncomputable {
-                    source:
-                        MassPropsError::Face {
-                            source: PropsError::QuadratureUnsupported { what },
-                            ..
-                        },
-                    ..
-                },
-            ] if what.starts_with("conic trim on a cone/sphere/torus chart") => Stop::ConicTrim,
             other => panic!("an unpinned result gate: {other:?}"),
         },
         Err(BooleanError::JoinCarrierUnsupported {
@@ -127,19 +113,18 @@ fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
 
 /// **A rod round the core, inside the tube's shadow**: the two loops
 /// round the rod, told apart by the torus's plane, carry; ∪ stops at the
-/// result gate's volume.
+/// result gate's volume on the torus face its chords trim.
 #[test]
 fn a_rod_inside_the_tubes_shadow_stops_at_the_volume() {
     let got = topo::union(&donut(), &rod_z(2.0, 0.0, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::Projected);
+    assert_eq!(stop(got), Stop::ConicTrim);
 }
 
 /// **The same rod off the axis line**: ∩ stops at the result gate's
 /// volume on the torus face its chords trim.
 // Pinned red at every ε row, on the torus face's conic trim:
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
-// When it lands, `stop` meets a body (or the rod wall's `Projected`)
-// and the row is re-pinned there.
+// When it lands, `stop` meets a body and the row is re-pinned there.
 #[test]
 fn a_rod_off_the_axis_line_stops_at_the_conic_trim() {
     let got = topo::intersect(&donut(), &rod_z(1.9, 0.5, 0.2), Tol::witness());
@@ -155,25 +140,21 @@ fn a_rod_across_the_tube_stops_at_the_conic_trim() {
 }
 
 /// **A rod across the inner bound**: its one null loop carries; ∩ stops
-/// at the result gate's volume on the rod's wall.
-// Pinned red at every ε row, on the rod wall's projected chord:
-// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
-// When it lands, `stop` meets the next door or a body, and the row is
-// re-pinned there.
+/// at the result gate's volume on the torus face its chord trims.
+// Pinned red at every ε row, on the torus face's trim:
+// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
 #[test]
 fn a_rod_across_the_inner_bound_stops_at_the_volume() {
     let got = topo::intersect(&donut(), &rod_z(1.5, 0.0, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::Projected);
+    assert_eq!(stop(got), Stop::ConicTrim);
 }
 
 /// **A square rod straddling the outer equator**: its one loop carries;
-/// ∖ stops at the result gate's volume on the rod's wall.
-// Pinned red at every ε row, on the rod wall's projected chord:
-// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
-// When it lands, `stop` meets the next door or a body, and the row is
-// re-pinned there.
+/// ∖ stops at the result gate's volume on the torus face its chord trims.
+// Pinned red at every ε row, on the torus face's trim:
+// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
 #[test]
 fn a_square_rod_on_the_outer_equator_stops_at_the_volume() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
-    assert_eq!(stop(got), Stop::Projected);
+    assert_eq!(stop(got), Stop::ConicTrim);
 }
