@@ -8047,7 +8047,8 @@ pub(crate) enum FaceUnread {
     /// The placement's own refusal.
     Placement(contain::PlacementError),
     /// The boundary pass's refusal of the locus against the face's
-    /// boundary ([`boundary_cuts`]): its meetings, so the runs, are
+    /// boundary ([`boundary_cuts`]): over a member's window, or over the
+    /// whole face where the pass faults, its meetings, so the runs, are
     /// unknown.
     Boundary(geom_brep::curve_face::BoundaryRefusal),
     /// An edge of the face's boundary holds no certified curve, which the
@@ -8065,10 +8066,11 @@ pub(crate) enum FaceUnread {
 /// The overlap is cut wherever either face's boundary meets the locus
 /// ([`boundary_cuts`]), so no boundary crosses the open run between two
 /// cuts and one station, its middle, answers for each run. A station
-/// both faces read in answers `true` whatever the cuts. Where the
-/// boundary pass does not give a face's meetings, that face's out
-/// settles no run: a run only it reads out leaves the line unread, and
-/// its refusal is pushed.
+/// both faces read in answers `true` whatever the cuts. A member of a
+/// face's boundary the pass cannot read is undecided over a window of
+/// the locus, whose ends are cuts; there, and over the whole locus where
+/// the face's cuts are unknown, that face's out settles no run: a run
+/// only it reads out leaves the line unread, and its refusal is pushed.
 /// A run inside the zero band is one cut met twice and is not read; a
 /// run in band is read, and may hold.
 ///
@@ -8085,8 +8087,9 @@ pub(crate) enum FaceUnread {
 /// # Errors
 ///
 /// Where no station answers `true`: the boundary refusals of the faces
-/// whose cuts are unknown, where a run only such a face read out; else
-/// the first held station's refusals.
+/// whose cuts are unknown and of the first window of each face that held
+/// a run only it read out, where there was such a run; else the first
+/// held station's refusals.
 pub(crate) fn line_through_both_faces<T: Decide, E>(
     faces: [(&Body<T>, FaceKey); 2],
     locus: &geom::Curve3<T>,
@@ -8207,10 +8210,10 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     held.map_or(Ok(false), Err)
 }
 
-/// **Where `face`'s boundary meets `locus` over `span`**
-/// ([`boundary_cuts`]): the parameters of the meetings the boundary pass
-/// read, and of each undecided window's two ends; and the windows, over
-/// which no run between two cuts is known clear of the boundary.
+/// **A face's cuts of a locus** ([`boundary_cuts`]): the parameters of
+/// the meetings the boundary pass read and of each undecided window's
+/// two ends; and the windows, over which no run is known clear of the
+/// boundary.
 struct Cuts<T: Real> {
     at: Vec<T>,
     undecided: Vec<geom_brep::curve_face::Undecided<T>>,
@@ -8264,7 +8267,10 @@ fn boundary_cuts<T: Decide>(
         return Err(FaceUnread::Boundary(fault.why));
     }
     let meetings = located.reading.meetings.iter().map(|m| swept.at(m.on_span));
-    let ends = located.undecided.iter().flat_map(|u| [u.window.0, u.window.1]);
+    let ends = located
+        .undecided
+        .iter()
+        .flat_map(|u| [u.window.0, u.window.1]);
     Ok(Cuts {
         at: meetings.chain(ends).collect(),
         undecided: located.undecided,

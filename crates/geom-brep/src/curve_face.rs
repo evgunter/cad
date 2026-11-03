@@ -289,19 +289,19 @@ fn pass<T: Decide>(
         undecided: Vec::new(),
     };
     let window = |cover: Option<geom::cover::Cover<T>>| span.window_near(cover.as_ref(), band);
-    let vertex = |pass: &mut Located<T>, point: Point3<T>, on_boundary| {
-        match span.contact(point, mid, band) {
-            Ok(Some(on_span)) => pass.reading.meetings.push(BoundaryMeeting {
-                point,
-                on_span,
-                on_boundary,
-            }),
-            Ok(None) => {}
-            Err(refusal) => pass.undecided.push(Undecided {
-                window: window(geom::cover::Cover::points(vec![point])),
-                why: carrier(refusal),
-            }),
-        }
+    let vertex = |pass: &mut Located<T>, point: Point3<T>, on_boundary| match span
+        .contact(point, mid, band)
+    {
+        Ok(Some(on_span)) => pass.reading.meetings.push(BoundaryMeeting {
+            point,
+            on_span,
+            on_boundary,
+        }),
+        Ok(None) => {}
+        Err(refusal) => pass.undecided.push(Undecided {
+            window: window(geom::cover::Cover::points(vec![point])),
+            why: carrier(refusal),
+        }),
     };
     let mut met_edges = Vec::with_capacity(edges.len());
     let members = lone
@@ -327,7 +327,9 @@ fn pass<T: Decide>(
             Ok(met) => met_edges.push((i, met)),
             Err(refusal) => {
                 let (e0, e1) = edge.params();
-                let cover = edge.carrier().cover_over(geom::cover::ParamWindow::new(e0, e1));
+                let cover = edge
+                    .carrier()
+                    .cover_over(geom::cover::ParamWindow::new(e0, e1));
                 pass.undecided.push(Undecided {
                     window: window(cover.ok()),
                     why: BoundaryRefusal::of(refusal.fault),

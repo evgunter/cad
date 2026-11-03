@@ -19529,15 +19529,8 @@ mod two_carrier_records {
                 let b = Band::linear(Tol::witness()).unwrap();
                 let origin = geom_core::Point3::new(0.0, y, z);
                 let dir = geom_core::Vec3::unit_x();
-                let carrier = geom::Curve3::Line(geom::Line { origin, dir });
-                let read = crate::boolean::line_through_both_faces(
-                    [(body, face), (body, face)],
-                    &carrier,
-                    overlap,
-                    b,
-                    |_, _, out: &mut Vec<()>| out.push(()),
-                )
-                .map_err(|h| h.len());
+                let read =
+                    read_pair([(body, face), (body, face)], y, z, overlap).map_err(|h| h.len());
                 let n = 20000;
                 let oracle = (0..=n).any(|i| {
                     let t = overlap.0 + (overlap.1 - overlap.0) * f64::from(i) / f64::from(n);
@@ -19555,6 +19548,28 @@ mod two_carrier_records {
                     )
                 });
                 (read, oracle)
+            }
+
+            /// The shared reading over `overlap` of the line through
+            /// `(0, y, z)` along +x: the faces it names refused at, in
+            /// order, where it refuses.
+            fn read_pair(
+                faces: [(&Body<f64>, FaceKey); 2],
+                y: f64,
+                z: f64,
+                overlap: (f64, f64),
+            ) -> Result<bool, Vec<usize>> {
+                let carrier = geom::Curve3::Line(geom::Line {
+                    origin: geom_core::Point3::new(0.0, y, z),
+                    dir: geom_core::Vec3::unit_x(),
+                });
+                crate::boolean::line_through_both_faces(
+                    faces,
+                    &carrier,
+                    overlap,
+                    Band::linear(Tol::witness()).unwrap(),
+                    |i, _, out: &mut Vec<usize>| out.push(i),
+                )
             }
 
             fn top_of(outline: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
@@ -19783,26 +19798,15 @@ mod two_carrier_records {
             /// there is the ledge's, or a station held in its band.
             #[test]
             fn a_refused_ledge_leaves_the_spike_beside_it_read() {
-                let b = Band::linear(Tol::witness()).unwrap();
                 let (wide, wide_top) =
                     top_of(&[(-1.0, -1.0), (5.0, -1.0), (5.0, 1.0), (-1.0, 1.0)]);
-                let line = geom::Curve3::Line(geom::Line {
-                    origin: geom_core::Point3::new(0.0, 0.0, 1.0),
-                    dir: geom_core::Vec3::unit_x(),
-                });
                 let read = |plate: &Body<f64>, top, plate_first: bool| {
                     let faces = if plate_first {
                         [(plate, top), (&wide, wide_top)]
                     } else {
                         [(&wide, wide_top), (plate, top)]
                     };
-                    crate::boolean::line_through_both_faces(
-                        faces,
-                        &line,
-                        (0.0, 4.0),
-                        b,
-                        |i, _, out: &mut Vec<usize>| out.push(i),
-                    )
+                    read_pair(faces, 0.0, 1.0, (0.0, 4.0))
                 };
                 for k in [0.2, 0.5, 1.0] {
                     let a = k * esc();
