@@ -778,7 +778,11 @@ impl ViewerBehavior<'_> {
         });
         let doc = self.session.committed_doc();
         let coords: Vec<_> = match &proposal {
-            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            Some(Ok(proposal)) => proposal
+                .values
+                .iter()
+                .map(|row| row.coord.clone())
+                .collect(),
             _ => Vec::new(),
         };
         self.drafts.sync_mate_edits(tool.door(), &coords);
@@ -806,16 +810,17 @@ impl ViewerBehavior<'_> {
                         if field.changed() {
                             match held {
                                 Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
-                                None => {
-                                    self.drafts.mate_value_edits.push((row.coord, text.clone()))
-                                }
+                                None => self
+                                    .drafts
+                                    .mate_value_edits
+                                    .push((row.coord.clone(), text.clone())),
                             }
                         }
                         if field.lost_focus()
                             && let Some(at) = held
                         {
                             let (coord, typed) = self.drafts.mate_value_edits.remove(at);
-                            match crate::matetool::typed_value(doc, coord, &typed) {
+                            match crate::matetool::typed_value(doc, coord.clone(), &typed) {
                                 Ok(by) => edited.type_value(coord, by),
                                 Err(error) => self
                                     .notices
@@ -1483,7 +1488,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Pattern
-                .says(&"pick the body; a circular rule's axis is in its own coordinates"),
+                .says(&"pick the body, then an edge or a face for the direction or the axis"),
         );
         if let Some((seat, half)) = seats_row(
             ui,
@@ -1512,14 +1517,30 @@ impl ViewerBehavior<'_> {
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });
+        let picked = tool.picked().cloned();
+        let picked_said = match &picked {
+            Some(crate::combine::DirectionPick::Edge(_)) => "the picked edge",
+            Some(crate::combine::DirectionPick::Face(_)) => "the picked face",
+            None => "a picked edge or face",
+        };
+        let along_row =
+            |ui: &mut egui::Ui, label: &str, along: &mut Option<pncad::document::TargetAxis>| {
+                ui.horizontal(|ui| {
+                    ui.label(label);
+                    for axis in pncad::document::TargetAxis::ALL {
+                        let word = match axis {
+                            pncad::document::TargetAxis::X => "x",
+                            pncad::document::TargetAxis::Y => "y",
+                            pncad::document::TargetAxis::Z => "z",
+                        };
+                        ui.radio_value(along, Some(axis), word);
+                    }
+                    ui.radio_value(along, None, picked_said);
+                });
+            };
         match self.drafts.pattern_kind {
             PatternLayoutChoice::Linear => {
-                vec3_row(
-                    ui,
-                    "direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_direction,
-                );
+                along_row(ui, "direction", &mut self.drafts.pattern_along);
                 ui.horizontal(|ui| {
                     ui.label("spacing");
                     unit_field(
@@ -1532,22 +1553,7 @@ impl ViewerBehavior<'_> {
                 });
             }
             PatternLayoutChoice::Circular => {
-                ui.horizontal(|ui| {
-                    unit_vec3_row(
-                        ui,
-                        "axis through",
-                        self.notation.length.def(),
-                        FIELD_DRAG_SPEED,
-                        &mut self.drafts.pattern_through,
-                    );
-                    length_picker(ui, "pattern_through", &mut self.notation.length);
-                });
-                vec3_row(
-                    ui,
-                    "axis direction",
-                    UNIT_DRAG_SPEED,
-                    &mut self.drafts.pattern_axis,
-                );
+                along_row(ui, "axis", &mut self.drafts.pattern_about);
                 ui.horizontal(|ui| {
                     ui.label("step");
                     unit_field(
@@ -1560,19 +1566,25 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
+        let direction = |along: Option<pncad::document::TargetAxis>| match along {
+            Some(axis) => Ok(crate::session::PatternDirection::Axis(axis)),
+            None => picked
+                .as_ref()
+                .map(crate::combine::DirectionPick::direction)
+                .ok_or(CommitFault::NoDirection),
+        };
         self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
             match drafts.pattern_kind {
                 PatternLayoutChoice::Linear => Ok(tool.linear_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
+                    direction(drafts.pattern_along)?,
                     notation.length_literal(drafts.pattern_spacing)?,
                 )?),
                 PatternLayoutChoice::Circular => Ok(tool.circular_op(
                     drafts.pattern_output,
                     drafts.pattern_count,
-                    notation.length_literals(drafts.pattern_through)?,
-                    scalars(drafts.pattern_axis)?,
+                    direction(drafts.pattern_about)?,
                     notation.angle_literal(drafts.pattern_step)?,
                 )?),
             }
@@ -2043,7 +2055,9 @@ mod tests {
                 let mut session = DocSession::inline(doc.clone(), tol);
                 session.pump();
                 let rule = PatternRuleSpec::Linear {
-                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                    direction: crate::session::PatternDirection::Axis(
+                        pncad::document::TargetAxis::X,
+                    ),
                     spacing: crate::test_support::len(0.05),
                 };
                 let op = if fused {

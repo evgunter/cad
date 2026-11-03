@@ -336,7 +336,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(composed);
 
-    let bump = value_bump(&r.doc, pip, Coord::Slide(TargetAxis::Z), 0.015625);
+    let bump = value_bump(&r.doc, pip, Coord::slide(TargetAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \
