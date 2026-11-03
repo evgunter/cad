@@ -20,6 +20,7 @@ crates/profile/src/sugar.rs 1
 crates/sweep/src/blend/open/planar.rs 1
 crates/topo/src/boolean/fate.rs 1
 crates/topo/src/boolean/join.rs 1
+crates/topo/src/boolean/overlap.rs 1
 crates/topo/src/boolean/recl.rs 1
 crates/topo/src/boolean/reduce.rs 1
 crates/topo/src/boolean/rim_wedge.rs 2
@@ -33,5 +34,4 @@ crates/topo/src/chord_join.rs 1
 crates/topo/src/offset_axial.rs 2
 crates/topo/src/pcurves.rs 1
 crates/topo/src/ring_path.rs 2
-crates/topo/src/splitting/containment.rs 1
 crates/topo/src/validate.rs 1
