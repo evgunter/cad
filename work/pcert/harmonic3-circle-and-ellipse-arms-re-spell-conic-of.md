@@ -2,8 +2,10 @@
 id: harmonic3-circle-and-ellipse-arms-re-spell-conic-of
 kind: issue
 title: pcurve_cache's Harmonic3 Circle and Ellipse arms re-spell geom_brep::Conic::of
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-11-03
+pr: 6468
 priority: P1
 cost: E
 ---
