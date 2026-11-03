@@ -33,3 +33,13 @@ not this row.
 `sphere_chart_trim`'s outer-loop `CorruptFace` is TOPO's
 (`work/topo/torn-body-refusal-families-beyond-the-six-doors.md`), not this
 row.
+
+**The same shape in the split, found by the second pass** (an outer key
+read off a face record by `get_face(…)?.outer`, which neither the
+`.outer`/`.rings` chain pin nor the `loop_keys` pin reads):
+`splitting/join.rs` `SectionJoiner::cut` reads the `Completed` face's
+outer loop as `get_face(face).ok_or_else(|| corrupt_face(face))?.outer`,
+though the face is one `cut_core` just returned (a proven key, so a miss
+is a kernel bug, not `Corrupt`); `splitting/finish.rs` (the slit homing
+beside `ring_representative`) reads `get_face(slit).ok_or_else(corrupt)?.outer`
+the same way. Both would read `body.proven_face(face).outer()`.
