@@ -2354,7 +2354,7 @@ fn boundary_segments<T: Decide + Bounds>(
 ) -> Option<Vec<NominalSeg>> {
     let mut out = Vec::new();
     for uv in [uv_a, uv_b] {
-        for poly in core::iter::once(&uv.outer).chain(uv.rings.iter()) {
+        for poly in uv.polygons() {
             if poly.len() < 3 {
                 continue;
             }
@@ -2481,6 +2481,13 @@ pub(crate) fn surface_bits_equal<T: Decide + Bounds>(a: &Surface<T>, b: &Surface
 struct FaceUv<T: Decide> {
     outer: Vec<Point2<T>>,
     rings: Vec<Vec<Point2<T>>>,
+}
+
+impl<T: Decide> FaceUv<T> {
+    /// The polygons, the outer first, in the face's loop order.
+    fn polygons(&self) -> impl Iterator<Item = &Vec<Point2<T>>> {
+        core::iter::once(&self.outer).chain(&self.rings)
+    }
 }
 
 /// Exact-`f64`-structure read of a `T` scalar being EXACTLY zero: a
@@ -2907,7 +2914,7 @@ fn arm_values<T: geom_core::Real, E>(
 fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> {
     let mut reach: Option<(T, T)> = None;
     for face in [a, b] {
-        for poly in core::iter::once(&face.outer).chain(&face.rings) {
+        for poly in face.polygons() {
             for p in poly {
                 reach = Some(match reach {
                     None => (p.y, p.y),
@@ -2933,9 +2940,7 @@ fn seam_gate<T: Decide + Bounds>(
     let Surface::Cylinder { radius, .. } = *surface else {
         return Ok(()); // plane charts do not wrap; other kinds refused at the arm gate
     };
-    let loops = [a, b]
-        .into_iter()
-        .flat_map(|uv| core::iter::once(&uv.outer).chain(&uv.rings));
+    let loops = [a, b].into_iter().flat_map(FaceUv::polygons);
     let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };

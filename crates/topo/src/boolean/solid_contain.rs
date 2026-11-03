@@ -1151,16 +1151,17 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a missing face, and
 /// [`loop_extent_from`]'s refusal of a loop that does not walk.
+///
+/// # Panics
+///
+/// Where `face`, a face of the selection, does not resolve.
 fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
 ) -> Result<Lever<T>, PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let f = proven(&body.faces, face, EntityId::Face);
     let mut reach = geom_brep::ExtentBall::point(anchor).lever();
     for (lk, _) in body.face_loops_linked(face, f) {
         reach = reach.max(loop_extent_from(body, lk, anchor)?);
@@ -1873,6 +1874,14 @@ pub fn point_in_solid_of<T: Decide + crate::props::AtRestPolicy>(
 /// SELECTION's faces by key and act for a representative among them: a
 /// chart is body-wide, and a wearer outside the selection bounds
 /// material the query is not about.
+///
+/// # Panics
+///
+/// A selection is of the body it was made from: [`point_in_solid_faces`]
+/// reads its faces as keys that body enumerated, so a selection made from
+/// another body panics there at a face key that does not resolve in the
+/// body probed — a misuse of the API's keys, not a refusal of either
+/// body.
 #[derive(Clone, Debug)]
 pub struct SolidFaces {
     faces: Vec<FaceKey>,
@@ -1998,6 +2007,11 @@ impl SolidFaces {
 ///
 /// The core's ([`point_in_solid`]'s), plus
 /// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
+///
+/// # Panics
+///
+/// Where `sel` was made from another body and one of its faces does not
+/// resolve in `body` ([`SolidFaces`]).
 pub fn point_in_solid_faces<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     sel: &SolidFaces,
@@ -2363,9 +2377,7 @@ pub(crate) fn selection_reach<T: Decide>(
 ) -> Result<Lever<T>, PointInSolidError> {
     let mut reach = geom_brep::ExtentBall::point(q).lever();
     for &face in faces {
-        let f = body
-            .get_face(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
+        let f = proven(&body.faces, face, EntityId::Face);
         for (l, _) in body.face_loops_linked(face, f) {
             reach = reach.max(loop_extent_from(body, l, q)?);
         }

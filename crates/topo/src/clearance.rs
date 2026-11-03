@@ -3760,45 +3760,43 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     cycle = true;
                 }
             }
-            if cycle {
-                if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
-                    if lk == f.outer {
-                        let surface = body.face_surface_linked(face, f);
-                        let periodic =
-                            [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
-                        out.extent = extent_of(
-                            periodic,
-                            rows.iter().map(|row| {
-                                let (t0, t1) = row.row.params();
-                                let end = |t: T| {
-                                    let q = row.pcurve.eval(t);
-                                    [lift.of(q.x), lift.of(q.y)]
-                                };
-                                row_of(
-                                    &row.pcurve,
-                                    (lift.of(t0), lift.of(t1)),
-                                    [end(t0), end(t1)],
-                                    lift,
-                                )
-                            }),
-                        );
-                    }
-                    for row in rows {
-                        let (t0, t1) = row.row.params();
-                        let end = |t: T| {
-                            let q = row.pcurve.eval(t);
-                            Point2::new(lift.of(q.x), lift.of(q.y))
-                        };
-                        images.insert(
-                            row.half_edge,
-                            (
+            if cycle && let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+                if lk == f.outer {
+                    let surface = body.face_surface_linked(face, f);
+                    let periodic =
+                        [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
+                    out.extent = extent_of(
+                        periodic,
+                        rows.iter().map(|row| {
+                            let (t0, t1) = row.row.params();
+                            let end = |t: T| {
+                                let q = row.pcurve.eval(t);
+                                [lift.of(q.x), lift.of(q.y)]
+                            };
+                            row_of(
+                                &row.pcurve,
+                                (lift.of(t0), lift.of(t1)),
                                 [end(t0), end(t1)],
-                                iso_of(&row.pcurve, lift),
-                                harmonic_of(&row.pcurve, lift),
-                                wall_of(&row.pcurve, lift),
-                            ),
-                        );
-                    }
+                                lift,
+                            )
+                        }),
+                    );
+                }
+                for row in rows {
+                    let (t0, t1) = row.row.params();
+                    let end = |t: T| {
+                        let q = row.pcurve.eval(t);
+                        Point2::new(lift.of(q.x), lift.of(q.y))
+                    };
+                    images.insert(
+                        row.half_edge,
+                        (
+                            [end(t0), end(t1)],
+                            iso_of(&row.pcurve, lift),
+                            harmonic_of(&row.pcurve, lift),
+                            wall_of(&row.pcurve, lift),
+                        ),
+                    );
                 }
             }
         }

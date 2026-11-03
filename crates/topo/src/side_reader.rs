@@ -411,9 +411,13 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a face that does not resolve,
-/// and for one whose carrier's region cannot be bounded (a poisoned net,
-/// data that is not a finite number), which no start is shown beyond.
+/// [`PointInSolidError::CorruptFace`] for a face whose carrier's region
+/// cannot be bounded (a poisoned net, data that is not a finite number),
+/// which no start is shown beyond.
+///
+/// # Panics
+///
+/// Where a face of the selection does not resolve ([`SolidFaces`]).
 fn beyond<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -421,10 +425,7 @@ fn beyond<T: Decide>(
 ) -> Result<T, PointInSolidError> {
     let mut reach = selection_reach(body, faces, aim)?.length();
     for &face in faces {
-        let surface = body
-            .face_surface(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        match surface.cover() {
+        match body.proven_face_surface(face).cover() {
             Ok(cover) => {
                 reach = reach.max(cover.distance_range(&geom::cover::Site::Point(aim)).1);
             }

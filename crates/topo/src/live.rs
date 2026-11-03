@@ -1404,6 +1404,57 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
+    /// **A face's loops are spelled in one order, in one place**
+    /// ([`crate::entity::Face::loop_keys`]): no statement in this crate
+    /// chains a record's `outer` loop onto its `rings` but a type's own
+    /// method over its own fields (`self.outer`). That chain is the shape
+    /// every inline walk of a face's loops took; a walk of a body's face
+    /// reads [`Body::face_loops_linked`] or a walk over it, and a reader
+    /// that reports a miss itself reads `Face::loop_keys`.
+    ///
+    /// Blind to a walk that reads `outer` and `rings` in separate
+    /// statements, which no shape of text tells from a read of the outer
+    /// loop alone and then of the rings alone.
+    #[test]
+    fn a_faces_loops_are_walked_in_one_place() {
+        let mut copies = Vec::new();
+        for file in crate_sources() {
+            let code = CodeOnly::of(&std::fs::read_to_string(&file).expect("a readable source"));
+            for statement in code.as_str().split([';', '{', '}']) {
+                let flat: String = statement.split_whitespace().collect();
+                let holders = |field: &str| -> Vec<String> {
+                    flat.match_indices(field)
+                        .map(|(at, _)| at)
+                        .filter(|&at| {
+                            flat[at + field.len()..]
+                                .chars()
+                                .next()
+                                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                        })
+                        .map(|at| {
+                            let head = &flat[..at];
+                            let start = head
+                                .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
+                                .map_or(0, |i| i + 1);
+                            head[start..].to_owned()
+                        })
+                        .collect()
+                };
+                let (outer, rings) = (holders(".outer"), holders(".rings"));
+                let chained = flat.contains("chain(")
+                    && outer.iter().any(|h| h != "self" && rings.contains(h));
+                if chained {
+                    copies.push(format!("{}: {}", file.display(), statement.trim()));
+                }
+            }
+        }
+        assert!(
+            copies.is_empty(),
+            "a face's loops walked beside `Face::loop_keys` / `Body::face_loops_linked`: \
+             {copies:#?}"
+        );
+    }
+
     /// A declined cube and its first face, to tear.
     fn torn_cube() -> (Body<f64>, FaceKey) {
         let body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
@@ -1443,12 +1494,64 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     }
 
     #[test]
-    #[should_panic(expected = "which does not resolve")]
     fn proven_face_edges_panics_on_a_torn_mate() {
         let (mut body, face) = torn_cube();
         let edge = body.proven_face_edges(face)[0];
-        let mate = body.mate(edge.half).unwrap();
-        body.half_edges.remove(mate);
-        let _ = body.proven_face_edges(face);
+        let claim = body.get_edge(edge.edge).unwrap().claim(edge.half).unwrap();
+        assert_eq!(
+            claim.mate, edge.mate,
+            "fixture: the walk's mate is the edge's"
+        );
+        body.half_edges.remove(edge.mate);
+        let named = format!(
+            "{}'s {} names {}, which does not resolve",
+            EntityId::Edge(edge.edge),
+            claim.mate_field(),
+            EntityId::HalfEdge(edge.mate)
+        );
+        crate::review_d18::assert_torn_op_panics(
+            "proven_face_edges, a dead mate",
+            &mut body,
+            &[&named, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
+            |b| b.proven_face_edges(face).len(),
+        );
+    }
+
+    /// **A stale face key reaching [`super::proven`] panics naming the
+    /// key and the premise it breaks**, through each face door that
+    /// proves its key: the conversion behind every enumerated face key.
+    #[test]
+    fn a_stale_face_key_panics_through_each_proven_face_door() {
+        let (body, face) = torn_cube();
+        let named = format!(
+            "{}, which this call minted and kept, resolved, or read out of a record, does not \
+             resolve",
+            EntityId::Face(face)
+        );
+        type Read = fn(&Body<f64>, FaceKey);
+        let doors: [(&str, Read); 4] = [
+            ("proven_face_surface", |b, f| {
+                let _ = b.proven_face_surface(f);
+            }),
+            ("proven_face_edges", |b, f| {
+                let _ = b.proven_face_edges(f);
+            }),
+            ("proven_face_boundary", |b, f| {
+                let _ = b.proven_face_boundary(f).count();
+            }),
+            ("proven_face_cycles", |b, f| {
+                let _ = b.proven_face_cycles(f);
+            }),
+        ];
+        for (door, read) in doors {
+            let mut torn = body.clone();
+            torn.faces.remove(face);
+            crate::review_d18::assert_torn_op_panics(
+                door,
+                &mut torn,
+                &[&named, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
+                |b| read(b, face),
+            );
+        }
     }
 }
