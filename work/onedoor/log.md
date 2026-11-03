@@ -20,3 +20,7 @@ H (design). Nothing dispatched. (BOXES orchestrator)
   - CI gate green at `71646a4`.
   - The lane's local slow-set run went red on `boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`. It is inherited: red on main's nightly 81 at all three eps rows with the same lists, and filed by BOXES (`main-red-the-box-door-inventory-misses-three-edge-cover-readers`). Main's nightly has failed three nights running; the hand-written-impl census reds are CENSUS's (`work/census/`). None of it is this PR's, and none of it is ONEDOOR ground.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6458](https://github.com/evgunter/cad/pull/6458) closes `engine-directories-are-leaves-guard`.** The `[topo.homes]` gate runs per PR.
+  - Review tier: single style review, then a re-review and an adversarial check after each rework. The last one's four plausible defeats are closed and red-trialed, and 34 one-line mutations each turn the self-test red.
+  - `crossing-doors-leave-topo-for-geom-brep` is unparked.
+  - (ONEDOOR orchestrator)
