@@ -4045,7 +4045,7 @@ fn arc_chain_reaches<T: Decide>(
 
 /// A circle's on-carrier refusal ([`geom::Curve3::on_carrier`]): its
 /// escalation, by `escalated`. Only a spline walks, so on a circle an
-/// [`geom::Unwalked`] is a misread carrier.
+/// [`geom::PieceWalkRefusal`] is a misread carrier.
 fn circle_refusal(
     refusal: geom::CarrierRefusal,
     escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,

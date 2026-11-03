@@ -11328,13 +11328,19 @@ enum InteriorsUnread {
     Unbuilt,
 }
 
-/// A point-on-span refusal as [`InteriorsUnread`]: an escalation
-/// undecided, a spline's walk that could not run unbuilt, as a meeting's
-/// unsettled walk is.
-fn contact_unread(refusal: geom::CarrierRefusal) -> InteriorsUnread {
-    refusal
-        .escalation()
-        .map_or(InteriorsUnread::Unbuilt, |_| InteriorsUnread::Undecided)
+impl InteriorsUnread {
+    /// A meeting reading's refusal: an escalation or a touch undecided,
+    /// every other refusal unbuilt. A fault folds in with the limits
+    /// (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
+    fn of(fault: MeetFault) -> Self {
+        match fault {
+            MeetFault::Escalated(_) | MeetFault::Touch(_) => Self::Undecided,
+            MeetFault::Unsettled(_)
+            | MeetFault::Unsupported { .. }
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => Self::Unbuilt,
+        }
+    }
 }
 
 /// **Whether two planar faces on one plane, facing the same way, share
@@ -11609,24 +11615,15 @@ fn arc_interiors_meet<T: Decide>(
                                 match on.contact(end, near, band) {
                                     Ok(Some(hit)) => cuts.push(on.at(hit)),
                                     Ok(None) => {}
-                                    Err(refusal) => note(contact_unread(refusal), &mut unread),
+                                    Err(refusal) => {
+                                        note(InteriorsUnread::of(refusal.into()), &mut unread)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                Err(refusal) => note(
-                    match refusal.fault {
-                        MeetFault::Escalated(_) | MeetFault::Touch(_) => InteriorsUnread::Undecided,
-                        // A fault folds in with the limits
-                        // (`work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`).
-                        MeetFault::Unsettled(_)
-                        | MeetFault::Unsupported { .. }
-                        | MeetFault::Desync
-                        | MeetFault::Contradiction { .. } => InteriorsUnread::Unbuilt,
-                    },
-                    &mut unread,
-                ),
+                Err(refusal) => note(InteriorsUnread::of(refusal.fault), &mut unread),
             }
         }
     }
@@ -11641,7 +11638,7 @@ fn arc_interiors_meet<T: Decide>(
                 match span.contact(q, s.middle(), band) {
                     Ok(Some(hit)) => cut.push(span.at(hit)),
                     Ok(None) => {}
-                    Err(refusal) => note(contact_unread(refusal), &mut unread),
+                    Err(refusal) => note(InteriorsUnread::of(refusal.into()), &mut unread),
                 }
             }
         }

@@ -59,8 +59,8 @@
 //!   and stops once its reach is within the band
 //!   (`curve_carrier_piece`). The point is off only where every piece
 //!   clears. A walk past [`geom_core::bisect::PIECE_BUDGET`] refuses
-//!   ([`Unwalked::Exhausted`]), and a speed bound that is zero or
-//!   poison refuses on kind ([`Unwalked::Unbounded`]). A rational
+//!   ([`PieceWalkRefusal::Exhausted`]), and a speed bound that is zero or
+//!   poison refuses on kind ([`PieceWalkRefusal::Unbounded`]). A rational
 //!   spline's speed bound is certified at `Interval`; at `f64` and
 //!   extreme weights it is the same expression in round-to-nearest, not
 //!   a bound.
@@ -201,7 +201,7 @@ pub enum CarrierRefusal {
     Escalated(CarrierEscalation),
     /// A spline's piece walk could not run: no closed-form carrier
     /// walks.
-    Unwalked(Unwalked),
+    Unwalked(PieceWalkRefusal),
 }
 
 /// How the band escalated a carrier reading ([`CarrierRefusal::Escalated`]).
@@ -227,7 +227,7 @@ impl CarrierEscalation {
 
 /// Why a spline's piece walk could not run ([`CarrierRefusal::Unwalked`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Unwalked {
+pub enum PieceWalkRefusal {
     /// The walk ran past its budget.
     Exhausted,
     /// The spline's greatest speed is zero or poison: its pieces have no
@@ -242,8 +242,8 @@ impl CarrierRefusal {
     ///
     /// # Errors
     ///
-    /// [`Unwalked`]: the refusal is no escalation.
-    pub fn escalation(self) -> Result<Indeterminate, Unwalked> {
+    /// [`PieceWalkRefusal`]: the refusal is no escalation.
+    pub fn escalation(self) -> Result<Indeterminate, PieceWalkRefusal> {
         match self {
             Self::Escalated(how) => Ok(how.diag()),
             Self::Unwalked(why) => Err(why),
@@ -257,8 +257,8 @@ impl From<Indeterminate> for CarrierRefusal {
     }
 }
 
-impl From<Unwalked> for CarrierRefusal {
-    fn from(why: Unwalked) -> Self {
+impl From<PieceWalkRefusal> for CarrierRefusal {
+    fn from(why: PieceWalkRefusal) -> Self {
         Self::Unwalked(why)
     }
 }
@@ -490,8 +490,8 @@ impl<T: Decide> Curve3<T> {
     ///
     /// # Errors
     ///
-    /// [`Unwalked::Exhausted`] past the piece budget;
-    /// [`Unwalked::Unbounded`] where the carrier's greatest speed is
+    /// [`PieceWalkRefusal::Exhausted`] past the piece budget;
+    /// [`PieceWalkRefusal::Unbounded`] where the carrier's greatest speed is
     /// zero or poison.
     pub fn clear_of(
         &self,
@@ -504,7 +504,7 @@ impl<T: Decide> Curve3<T> {
             || decide("curve_carrier_speed", Margin::of(hi.get()), Band::least())
                 != Ok(Sign::Positive)
         {
-            return Err(Unwalked::Unbounded.into());
+            return Err(PieceWalkRefusal::Unbounded.into());
         }
         let mut kept: Option<Result<Decided, Indeterminate>> = None;
         self.point_walk(
@@ -536,7 +536,7 @@ impl<T: Decide> Curve3<T> {
                 PieceStep::Halve
             },
         )
-        .map_err(|_| CarrierRefusal::from(Unwalked::Exhausted))?;
+        .map_err(|_| CarrierRefusal::from(PieceWalkRefusal::Exhausted))?;
         Ok(kept.map_or(Clearance::Clear, Clearance::Near))
     }
 }

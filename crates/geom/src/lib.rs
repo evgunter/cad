@@ -173,10 +173,10 @@ pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Frame, Line, MajorFrame, NurbsCurve2,
-    NurbsCurve3, OnCarrier, PieceRead, PieceStep, Projection2, Projection3, ProjectionInconclusive,
-    RefitSkip, SeamSide, SpiricInvalid, Unwalked, compose_chain, ellipse_level_clearance,
-    on_span_branch, spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds, spiric_radial,
-    spiric_rate_bounds, spiric_window_rate_bounds,
+    NurbsCurve3, OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
+    ellipse_level_clearance, on_span_branch, spiric_curvature_sup, spiric_f_range,
+    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use param::mid_param;

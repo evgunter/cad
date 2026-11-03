@@ -229,10 +229,10 @@ fn on_interior_at<T: Decide>(
                 Err(why) => refuse(
                     r.edge,
                     match why {
-                        geom::Unwalked::Exhausted => {
+                        geom::PieceWalkRefusal::Exhausted => {
                             "the census's reading of a point on a spline edge ran past its budget"
                         }
-                        geom::Unwalked::Unbounded => {
+                        geom::PieceWalkRefusal::Unbounded => {
                             "a spline edge whose speed bound is zero or poison"
                         }
                     },
@@ -284,6 +284,19 @@ impl<T: Decide> EdgeSpan<T> {
     pub(crate) fn span(&self) -> Span<'_, T> {
         let span = Span::new(&self.read.curve, self.read.span);
         if self.endless { span.endless() } else { span }
+    }
+
+    /// A span of `curve` with its ends, owned by no edge.
+    #[cfg(test)]
+    pub(crate) fn of(curve: Curve3<T>, span: (T, T)) -> Self {
+        Self {
+            read: Read {
+                edge: EdgeKey::default(),
+                curve,
+                span,
+            },
+            endless: false,
+        }
     }
 }
 

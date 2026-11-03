@@ -179,13 +179,13 @@ impl From<RootRefusal> for MeetFault {
     }
 }
 
-impl From<geom::Unwalked> for MeetFault {
+impl From<geom::PieceWalkRefusal> for MeetFault {
     /// A spline's walk past its budget as unsettled, and a spline with no
     /// speed bound as a pose the reader does not serve.
-    fn from(why: geom::Unwalked) -> Self {
+    fn from(why: geom::PieceWalkRefusal) -> Self {
         match why {
-            geom::Unwalked::Exhausted => Self::Unsettled(Unsettled::Exhausted),
-            geom::Unwalked::Unbounded => Self::Unsupported {
+            geom::PieceWalkRefusal::Exhausted => Self::Unsettled(Unsettled::Exhausted),
+            geom::PieceWalkRefusal::Unbounded => Self::Unsupported {
                 pose: "a spline whose speed bound is zero or poison",
             },
         }
@@ -388,7 +388,7 @@ impl<T: Decide> Found<T> {
             .held
             .iter()
             .find(|(q, _)| !ringed(&self.points, *q, band))
-            .map(|&(_, diag)| carrier_fault(diag));
+            .map(|&(_, diag)| MeetFault::from(diag));
         let fault = match (held, shared) {
             (Some(fault), _) => Some(fault),
             (None, Some(_)) => None,
@@ -480,7 +480,7 @@ fn stretches<T: Decide>(
                     Err(diag) => return Err(MeetFault::Escalated(diag)),
                 }
             }
-            Err(refusal) => return Err(carrier_fault(refusal)),
+            Err(refusal) => return Err(refusal.into()),
         };
         let apart = geom_core::k_stats::decide_reported(
             "curve_pair_meet_same",
@@ -518,12 +518,14 @@ pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_c
     geom_core::k_stats::decide(row, geom_core::Margin::of(s - t), Band::least()).ok()
 }
 
-/// A point-on-span refusal as the meeting's: an escalation as itself, a
-/// walk that could not run as its [`From`].
-pub(crate) fn carrier_fault(refusal: geom::CarrierRefusal) -> MeetFault {
-    refusal
-        .escalation()
-        .map_or_else(MeetFault::from, MeetFault::Escalated)
+impl From<geom::CarrierRefusal> for MeetFault {
+    /// A point-on-span refusal as the meeting's: an escalation as itself,
+    /// a walk that could not run as its own [`From`].
+    fn from(refusal: geom::CarrierRefusal) -> Self {
+        refusal
+            .escalation()
+            .map_or_else(Self::from, Self::Escalated)
+    }
 }
 
 #[cfg(test)]
