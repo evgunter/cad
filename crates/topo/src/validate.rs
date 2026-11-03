@@ -11982,7 +11982,7 @@ mod tests {
                 limit,
                 volume: Some((-1.0, 1.0)),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 !text.contains(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
                     && !text.contains(geom_core::KERNEL_DEFECT_ENDING)
@@ -12822,14 +12822,17 @@ mod tests {
                 },
             };
             assert!(
-                error.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING),
-                "the shell door reads at a build: {error}"
+                error
+                    .render(geom_brep::recourse::Reading::Build)
+                    .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "the shell door reads at a build: {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
             );
             let at_rest = ValidationError::ShellRoleUndecided {
                 solid: SolidKey::default(),
                 error,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(at_rest.ends_with(DEFECT), "{at_rest}");
             assert!(
                 !at_rest.contains("tolerance"),
@@ -13095,7 +13098,7 @@ mod tests {
             ),
         ];
         for (label, e) in rows {
-            let text = e.to_string();
+            let text = e.render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 text.ends_with(&format!(". {DEFECT}")),
                 "{label}: the defect ending, alone: {text}"
@@ -13112,7 +13115,7 @@ mod tests {
     fn no_validate_ending_says_lower_the_tolerance() {
         let problems: Vec<_> = crate::test_support_samples::validation_error_samples()
             .iter()
-            .map(|(label, e)| (label, e.to_string()))
+            .map(|(label, e)| (label, e.render(geom_brep::recourse::Reading::AtRest)))
             .filter(|(_, text)| text.contains("lower the tolerance"))
             .map(|(label, text)| format!("{label}: {text}"))
             .collect();
@@ -13176,7 +13179,7 @@ mod tests {
             };
             let (why, ending) = classify_pcurve(&finding);
             assert_eq!(why, reason, "{error:?}");
-            let built = finding.to_string();
+            let built = finding.render(geom_brep::recourse::Reading::Build);
             match lever {
                 None => {
                     assert_eq!(ending, DEFECT, "{error:?}: a definite miss at rest");
@@ -13588,7 +13591,7 @@ mod tests {
             ),
         ];
         for (row, error, ending) in rows {
-            let text = error.to_string();
+            let text = error.render(geom_brep::recourse::Reading::AtRest);
             assert!(text.ends_with(&ending), "{row}: {text}");
         }
     }
@@ -13643,7 +13646,7 @@ mod tests {
             let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
-            let text = finding.to_string();
+            let text = finding.render(geom_brep::recourse::Reading::AtRest);
             let got = match finding {
                 ValidationError::SliverDihedral {
                     check: WedgeCheck::Arm,
@@ -13736,12 +13739,18 @@ mod tests {
             ),
             ("certify, definite", collapsed.to_string()),
             ("check 4, undecided", WedgeCheck::Arm.lead().to_owned()),
-            ("check 4, definite", no_arm.to_string()),
+            (
+                "check 4, definite",
+                no_arm.render(geom_brep::recourse::Reading::AtRest),
+            ),
             (
                 "boolean seam",
                 crate::boolean::LeverArm::Seam.subject().to_owned(),
             ),
-            ("merge, kept boundary", merge.to_string()),
+            (
+                "merge, kept boundary",
+                merge.render(geom_brep::recourse::Reading::Build),
+            ),
         ];
         for (door, text) in &tellings {
             assert!(text.contains(SHAPE), "{door}: {text}");
@@ -13751,13 +13760,14 @@ mod tests {
             assert!(!lead.contains("tolerance"), "{door}: {text}");
         }
         assert!(
-            merge
-                .to_string()
-                .ends_with(&geom_brep::DIHEDRAL_ARM.recourse(
+            merge.render(geom_brep::recourse::Reading::Build).ends_with(
+                &geom_brep::DIHEDRAL_ARM.recourse(
                     geom_brep::recourse::RefusedArm::Undecided(&in_band),
                     geom_brep::recourse::Reading::Build,
-                )),
-            "the merge door ends the arm as the dihedral's: {merge}"
+                )
+            ),
+            "the merge door ends the arm as the dihedral's: {merge_at}",
+            merge_at = merge.render(geom_brep::recourse::Reading::Build)
         );
         assert_eq!(
             CertCheck::TransversalityArm.to_string(),
@@ -13826,7 +13836,7 @@ mod tests {
         let mut covered = [false; ValidationErrorKind::COUNT];
         for (_, err) in &all {
             // Display and Error are wired up; content is human-oriented.
-            assert!(!err.to_string().is_empty());
+            assert!(!err.render(geom_brep::recourse::Reading::AtRest).is_empty());
             let _: &dyn std::error::Error = err;
             covered[ValidationErrorKind::from(err) as usize] = true;
         }
@@ -17694,7 +17704,7 @@ mod tests {
                 subject,
                 cause: cause.clone(),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             // The lane's reason reaches the reader as the classifier
             // words it, with the one recourse that fits it — never the
             // cause's `Debug`, which is the S6 bug one variant over,
@@ -17756,7 +17766,7 @@ mod tests {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             unboundable.contains("a face has no corner to bound it by"),
             "{unboundable}"
@@ -17793,7 +17803,7 @@ mod tests {
             subject: CensusSubject::FacePair(FaceKey::default(), FaceKey::default()),
             cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             chart.ends_with("Recourse: move the edges clearly apart or clearly across each other"),
             "{chart}"
@@ -17802,7 +17812,7 @@ mod tests {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             unboundable.ends_with("this is a kernel defect or a damaged file; report it"),
             "{unboundable}"
@@ -17811,7 +17821,7 @@ mod tests {
             subject: CensusSubject::Entity(EntityId::Edge(EdgeKey::default())),
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable { what }),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         assert!(
             contact.ends_with("There is no way through yet"),
             "{contact}"
@@ -17840,7 +17850,7 @@ mod tests {
             witness: "(0e0, 0e0, 0e0)".to_string(),
             margin: Some(geom_core::MarginDiag::value(0.0)),
         };
-        let msg = contact.to_string();
+        let msg = contact.render(geom_brep::recourse::Reading::AtRest);
         // The CONTACT tier carries the two-arm menu (SELECT-DESIGN
         // §3d, ratified): declare the named class / move the geometry.
         // The three-arm decidability sentence must not leak in — its
@@ -17860,7 +17870,7 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        let msg = escalated.to_string();
+        let msg = escalated.render(geom_brep::recourse::Reading::AtRest);
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             1,
@@ -18121,7 +18131,7 @@ mod offset_fit_door_rows {
                 face: FaceKey::default(),
                 error: OffsetFitError::Meter(error),
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
         };
         let escalated = |meter: Meter, margin| MeterError::Escalated {
             meter,
@@ -18220,7 +18230,7 @@ mod offset_fit_door_rows {
                 face: FaceKey::default(),
                 error,
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::AtRest)
         };
         let split = [
             says(OffsetFitError::WallReached {
@@ -18301,7 +18311,7 @@ mod certify_escalation_rows {
             edge: EdgeKey::default(),
             error,
         }
-        .to_string()
+        .render(geom_brep::recourse::Reading::AtRest)
     }
 
     /// A fixed band, so the quoted `m/K` is the same at every eps row.

@@ -82,7 +82,10 @@ fn the_shipped_fillet_single_render_guard_is_blind_to_the_prefix_family() {
                      edges are not all requested",
         },
     };
-    let text = format!("{regressed}");
+    let text = format!(
+        "{regressed_at}",
+        regressed_at = regressed.render(geom_brep::recourse::Reading::Build)
+    );
 
     // The verb is plainly rendered twice.
     assert!(text.starts_with("fillet: fillet assembly: "), "{text}");
@@ -105,7 +108,10 @@ fn the_shipped_fillet_single_render_guard_is_blind_to_the_prefix_family() {
 #[test]
 fn no_inner_error_opens_with_a_verb_word_on_either_door() {
     let inner_opens_with_a_verb = |error: &BlendError| -> bool {
-        let inner = format!("{error}");
+        let inner = format!(
+            "{error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
+        );
         inner.starts_with("fillet") || inner.starts_with("chamfer")
     };
 
@@ -113,7 +119,8 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
         assert!(
             !inner_opens_with_a_verb(&error),
             "the {label} arm's inner Display opens with a verb word; the wrapper is \
-             the one place the verb crosses: {error}"
+             the one place the verb crosses: {error_at}",
+            error_at = error.render(geom_brep::recourse::Reading::Build)
         );
     }
 
@@ -162,7 +169,10 @@ fn the_closed_chamfer_arm_would_speak_the_other_verb_if_it_ever_fired() {
                      trivalent corners are implemented",
         },
     };
-    let text = format!("{refusal}");
+    let text = format!(
+        "{refusal_at}",
+        refusal_at = refusal.render(geom_brep::recourse::Reading::Build)
+    );
     let without_rosters = text.replace("fillet3_", "");
     assert!(
         without_rosters.contains("fillet"),

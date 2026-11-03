@@ -3615,7 +3615,12 @@ mod tests {
             ),
             "{err:?}"
         );
-        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+        assert!(
+            err.render(geom_brep::recourse::Reading::Build)
+                .ends_with(KERNEL_DEFECT_ENDING),
+            "{err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// The strut order ranks two germs by their angle from the arrival

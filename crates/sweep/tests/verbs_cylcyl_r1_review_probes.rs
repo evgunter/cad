@@ -165,8 +165,9 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                             | BooleanErrorKind::FallbackExtentUnsupported
                     ) || matches!(&e, BooleanError::ResultInvalid { errors }
                         if errors.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
-                    "{name}/{op_name}: refused {:?}, not a frontier refusal: {e}",
-                    e.kind()
+                    "{name}/{op_name}: refused {:?}, not a frontier refusal: {e_at}",
+                    e.kind(),
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),
                 Ok(topo::BooleanResult::Body(body)) => {
                     let v = topo::test_support::pinned_volume("the measured body", &body.body, tol)

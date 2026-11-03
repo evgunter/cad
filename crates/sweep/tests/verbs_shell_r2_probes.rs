@@ -131,7 +131,10 @@ fn report(what: &str, opened: &Result<Body<f64>, ShellError<f64>>) {
                 mesh_ok.join(" ")
             );
         }
-        Err(e) => println!("  [{what}] REFUSED: {e}"),
+        Err(e) => println!(
+            "  [{what}] REFUSED: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 
@@ -415,7 +418,10 @@ fn r2_two_holed_designation_refuses_typed() {
         // tangent-adjacent third door the spec puts OUT of PR-1's
         // scope.
         Err(ShellError::Face { error, .. }) => {
-            println!("  refused earlier, typed, at the offset door: {error}");
+            println!(
+                "  refused earlier, typed, at the offset door: {error_at}",
+                error_at = error.render(geom_brep::recourse::Reading::Build)
+            );
         }
         other => panic!("a two-holed designation must refuse typed; got {other:?}"),
     }
@@ -485,7 +491,12 @@ fn r2_check9_gap_ladder_on_a_near_ring() {
                 let hits: Vec<String> = es
                     .iter()
                     .filter(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. }))
-                    .map(|e| format!("{e}"))
+                    .map(|e| {
+                        format!(
+                            "{e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                        )
+                    })
                     .collect();
                 if hits.is_empty() {
                     format!("none (other errors: {} of them)", es.len())
@@ -661,7 +672,10 @@ fn r2_box_control_fingerprint() {
                     topo::validate_geometric(&cup, tol).is_ok()
                 );
             }
-            Err(e) => println!("FINGERPRINT {name}: REFUSED {e}"),
+            Err(e) => println!(
+                "FINGERPRINT {name}: REFUSED {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }

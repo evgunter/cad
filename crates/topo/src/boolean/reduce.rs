@@ -6421,7 +6421,7 @@ mod declaration_order_rows {
                 ),
                 "{class:?}"
             );
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with(&format!("{subject} is undecided: ")) && !text.contains("declare"),
                 "{class:?}: no declaration settles the question, so none is offered: {text}"
@@ -6432,7 +6432,7 @@ mod declaration_order_rows {
                     .1
                     .as_ref()
                     .expect_err("the undeclared run refuses")
-                    .to_string(),
+                    .render(geom_brep::recourse::Reading::Build),
                 "{class:?}: a declaration changes nothing here"
             );
         }
@@ -6615,7 +6615,10 @@ mod declaration_order_rows {
                     ),
                     "{label}"
                 );
-                let text = got.as_ref().expect_err("it refuses").to_string();
+                let text = got
+                    .as_ref()
+                    .expect_err("it refuses")
+                    .render(geom_brep::recourse::Reading::Build);
                 assert!(!text.contains("declare"), "{label}: {text}");
             }
         }
@@ -6800,7 +6803,7 @@ mod declaration_order_rows {
             "the lane's own decision"
         );
         assert_eq!(diag.predicate, Some("bool_circle_torus_plane_height"));
-        let text = got.to_string();
+        let text = got.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with(
                 "at an edge of the first operand against a curved face of the other, how \
@@ -6881,7 +6884,9 @@ mod declaration_order_rows {
                 .value()
                 .expect("a point margin");
             let offers = band.offer_deciding(m).is_some();
-            let text = got.expect_err("it refuses").to_string();
+            let text = got
+                .expect_err("it refuses")
+                .render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with("how two corners of the two solids overlap where they meet is ")
                     && text.contains(
@@ -6937,7 +6942,8 @@ mod wall_root_tests {
         };
         assert_eq!(decision, BooleanDecision::WallRoots(WallRung::Discriminant));
         assert_eq!(diag.predicate, Some("bool_ray_cylinder_disc"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
         assert_eq!(
             text,

@@ -75,7 +75,7 @@ fn outcome(got: Result<(), BooleanError>) -> Outcome {
             Outcome::Refused {
                 key,
                 defect,
-                text: err.to_string(),
+                text: err.render(geom_brep::recourse::Reading::Build),
             }
         }
     }
@@ -2153,7 +2153,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             reading: crate::JoinReading::Regularity(diag),
         })]
         .into_iter()
-        .filter(|e| quoted_margin(&e.to_string()).is_some_and(|m| m >= 0.0))
+        .filter(|e| quoted_margin(&e.render(geom_brep::recourse::Reading::Build)).is_some_and(|m| m >= 0.0))
         .collect(),
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
@@ -2272,7 +2272,11 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
                 terminal_sliver: false,
             };
             for err in quoting(kind, diag) {
-                if test_utils::offer::offered_below(&err.to_string()).is_some() {
+                if test_utils::offer::offered_below(
+                    &err.render(geom_brep::recourse::Reading::Build),
+                )
+                .is_some()
+                {
                     out.insert((crate::test_support::offer_key(&err).0, m > 0.0));
                 }
             }

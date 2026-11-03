@@ -12,7 +12,7 @@
 //! over the measures' outputs: there is one arithmetic language, the
 //! formula's.
 
-use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision};
+use geom_brep::recourse::{RefusedArm, RefusedSide, SizedDecision};
 use geom_core::{Decide, SizedPass};
 
 use crate::expr::Dimension;

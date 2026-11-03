@@ -8755,7 +8755,7 @@ mod tests {
         assert_eq!(
             gate(described, band, tol)
                 .map(|_| ())
-                .map_err(|e| e.to_string()),
+                .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
             Ok(()),
             "the described box passes"
         );
@@ -9203,7 +9203,7 @@ mod tests {
         // The refusal names the face kind that stopped it and ends on
         // what the person can do; the lift blocker is the variant's
         // rustdoc, not the sentence.
-        let msg = err.to_string();
+        let msg = err.render(geom_brep::recourse::Reading::Build);
         assert!(msg.contains("spline (NURBS) face"), "{msg}");
         assert!(msg.contains("Recourse: "), "{msg}");
     }
@@ -10264,7 +10264,7 @@ mod tests {
             &[(kept, strut)],
             DescribeRefusal::undecided(strut, DihedralReading::Bend, diag),
         ))
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("seam") && !text.contains("kept face"),
             "the boolean words it as its own seam's: {text}"
@@ -10391,7 +10391,7 @@ mod tests {
                 format!("{own:?}"),
                 "the merge door's refusal comes back as the boolean's own"
             );
-            (merged.to_string(), own)
+            (merged.render(geom_brep::recourse::Reading::Build), own)
         };
         let lever = "Recourse: move the geometry so each edge and vertex that meets a face lies \
                      clearly on it or clearly off it, and an edge that ends on it leaves it at a \
@@ -10409,7 +10409,7 @@ mod tests {
             "a line chord read in band of its face is the edge's reading: {err:?}"
         );
         assert_eq!(
-            err.to_string(),
+            err.render(geom_brep::recourse::Reading::Build),
             format!(
                 "whether an edge of the result lies on both faces it bounds is undecided: {}. \
                  {lever}",

@@ -60,7 +60,10 @@ mod certified {
                     "and the accessor answers for the shape, not for the width"
                 );
             }
-            other => panic!("expected RingClearance, got {other}"),
+            other => panic!(
+                "expected RingClearance, got {other_at}",
+                other_at = other.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 
@@ -97,7 +100,10 @@ mod certified {
                     "the rendering names the bracket: {text}"
                 );
             }
-            other => panic!("expected RingClearance, got {other}"),
+            other => panic!(
+                "expected RingClearance, got {other_at}",
+                other_at = other.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 
@@ -128,7 +134,10 @@ mod certified {
                 // says nothing about the radius field's own projection.
                 assert!((radius - 0.5).abs() < 1e-15);
             }
-            other => panic!("expected SpineIrregular, got {other}"),
+            other => panic!(
+                "expected SpineIrregular, got {other_at}",
+                other_at = other.render(geom_brep::recourse::Reading::Build)
+            ),
         }
     }
 }

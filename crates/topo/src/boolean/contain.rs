@@ -1368,7 +1368,7 @@ mod tests {
                 diag: cause,
             };
             assert_eq!(
-                refusal.to_string(),
+                refusal.render(geom_brep::recourse::Reading::Build),
                 format!(
                     "contfp: {} is undecided: {}. {ending}",
                     placement_subject(decision),
@@ -1383,7 +1383,7 @@ mod tests {
                     escalation,
                     diag: cause,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(walk.ends_with(&format!(". {ending}")), "{row}: {walk}");
             }
             let at_rest = crate::ValidationError::RingNestingUndecided {
@@ -1391,7 +1391,7 @@ mod tests {
                 ring: LoopKey::default(),
                 source: refusal,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::AtRest);
             assert!(
                 at_rest.ends_with(&format!(
                     "{} is undecided at this tolerance. {stored}",
@@ -1579,14 +1579,17 @@ mod tests {
                 4,
                 "{what}: each end decided once against each corner"
             );
-            let built = got.as_ref().unwrap_err().to_string();
+            let built = got
+                .as_ref()
+                .unwrap_err()
+                .render(geom_brep::recourse::Reading::Build);
             assert!(built.ends_with(lever), "{what}: {built}");
             let boolean = BooleanError::PointInFaceRefused {
                 operand: Operand::A,
                 face,
                 refusal: got.as_ref().unwrap_err().clone(),
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(boolean.ends_with(lever), "{what}: {boolean}");
             **gaps
         };

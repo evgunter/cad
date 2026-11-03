@@ -2568,7 +2568,7 @@ mod smooth_arm_rows {
             };
             let refusal = super::describe_section_boundary(&mut body, face, band, tol())
                 .expect_err("a refused pairing refuses the split");
-            let text = refusal.to_string();
+            let text = refusal.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with(concat!(
                     geom_brep::material_pairing_clause!(),
@@ -2608,7 +2608,10 @@ mod smooth_arm_rows {
             };
             let tighter = Band::new(below, k * below).unwrap();
             if let Err(other) = super::describe_section_boundary(&mut body, face, tighter, tol()) {
-                panic!("{label}: refuses again below the offer: {other}");
+                panic!(
+                    "{label}: refuses again below the offer: {other_at}",
+                    other_at = other.render(geom_brep::recourse::Reading::Build)
+                );
             }
         }
     }
@@ -2724,7 +2727,7 @@ mod escalation_endings {
                     diag: Some(diag),
                 },
             ] {
-                let text = refusal.to_string();
+                let text = refusal.render(geom_brep::recourse::Reading::Build);
                 assert!(
                     text.contains(" is undecided: ") && text.ends_with(tail),
                     "the lever alone, got {text}"
@@ -2735,7 +2738,7 @@ mod escalation_endings {
             edge: EdgeKey::default(),
             diag: poisoned,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(&format!("{tail}; ")),
             "a poisoned margin: the lever and the note, got {text}"
@@ -2807,7 +2810,7 @@ mod edge_on_faces_rows {
                     "{check:?} in band on a line, {refusal:?}: {got:?}"
                 );
                 assert_eq!(
-                    got.to_string(),
+                    got.render(geom_brep::recourse::Reading::Build),
                     format!(
                         "whether an edge along the cut lies on both faces it bounds is \
                          undecided: {}. Recourse: move the split plane or the geometry so each \
@@ -2958,7 +2961,7 @@ mod at_rest_rows {
             ),
             "an in-band pair alone escalates on it: {refusal:?}"
         );
-        let msg = refusal.to_string();
+        let msg = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
             msg.starts_with("the piece on the below side of the plane: ")
                 && msg.contains("whether a shell of the result bounds material or a cavity")

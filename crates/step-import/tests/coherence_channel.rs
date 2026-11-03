@@ -466,7 +466,12 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
             Ok(StepImport::Solid { body, .. }) => {
                 let enclosure = body
                     .measure(topo::test_support::pinned_resolution(tol))
-                    .unwrap_or_else(|e| panic!("{name}: the certificate measures: {e}"))
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{name}: the certificate measures: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                        )
+                    })
                     .met()
                     .expect("the pinned resolution is met");
                 (

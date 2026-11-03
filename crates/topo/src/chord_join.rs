@@ -6514,12 +6514,12 @@ mod tests {
                     // straddle's enclosure reads as subdividable is open on the
                     // cleave row `split-escalations-end-a-poisoned-margin-in-the-plane-lever`.)
                     assert!(
-                        err.to_string().contains(&format!(
+                        err.render(geom_brep::recourse::Reading::Build).contains(&format!(
                             "{}. Recourse: subdivide the parameter box for a tighter enclosure, or \
                          move the geometry",
                             diag.payload()
                         )),
-                        "k = {k}: {err}"
+                        "k = {k}: {err_at}", err_at = err.render(geom_brep::recourse::Reading::Build)
                     );
                 }
             },
@@ -6798,7 +6798,7 @@ mod tests {
                     escalation,
                     diag,
                 })
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text,
                     format!(
@@ -6940,7 +6940,8 @@ mod tests {
     #[test]
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
-        let msg = SplitJoinError::DegenerateSection { face }.to_string();
+        let msg =
+            SplitJoinError::DegenerateSection { face }.render(geom_brep::recourse::Reading::Build);
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
 
@@ -6953,7 +6954,7 @@ mod tests {
                 terminal_sliver: false,
             },
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
     }
@@ -8403,7 +8404,7 @@ mod pole_branch_rows {
         let Err(e @ SplitJoinError::PoleEdgesCoincide { .. }) = got else {
             panic!("an exact overlap at the pole: {got:?}");
         };
-        let said = e.to_string();
+        let said = e.render(geom_brep::recourse::Reading::Build);
         assert!(
             said.contains("overlap") && said.contains("cusp"),
             "the refusal names both readings: {said}"
@@ -8589,7 +8590,7 @@ mod run_image_incidence {
                 matches!(mapped, SplitJoinError::RunImageIncidence { .. }),
                 "{refusal:?}: {mapped:?}"
             );
-            let text = mapped.to_string();
+            let text = mapped.render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(ending), "{refusal:?}: {text}");
             assert_eq!(
                 text.matches("Recourse").count() + text.matches("defect").count(),

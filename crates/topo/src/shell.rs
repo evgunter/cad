@@ -3511,7 +3511,7 @@ mod rim_seam_rows {
             panic!("a mixed re-ask is the rim seam's refusal, got {refusal:?}");
         };
         assert_eq!(got, stations);
-        let text = refusal.to_string();
+        let text = refusal.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.starts_with("a wall seam the rim shortens, ")
                 && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
@@ -3559,7 +3559,7 @@ mod mint_endings {
                 }),
             };
             for refusal in [shell, face] {
-                let text = refusal.to_string();
+                let text = refusal.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.matches(KERNEL_DEFECT_ENDING).count(),
                     usize::from(defect),
@@ -3595,7 +3595,8 @@ mod mint_endings {
                 true,
             ),
         ] {
-            let text = ShellError::<f64>::Pcurve { source }.to_string();
+            let text =
+                ShellError::<f64>::Pcurve { source }.render(geom_brep::recourse::Reading::Build);
             assert_eq!(
                 text.matches(KERNEL_DEFECT_ENDING).count(),
                 usize::from(defect),

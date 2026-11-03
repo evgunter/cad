@@ -3394,7 +3394,12 @@ mod tests {
         let unit = quarter_cylinder();
         let (_, cert) = super::fit_offset_at(&unit, d, tol, band).unwrap();
         let (_, scaled) = super::fit_offset_at(&weights_times_pow2(&unit, -300), d, tol, band)
-            .unwrap_or_else(|e| panic!("the 2^-300 face refused: {e}"));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "the 2^-300 face refused: {e_at}",
+                    e_at = e.render(crate::recourse::Reading::Build)
+                )
+            });
         assert_eq!(scaled.rounds, 3, "the 2^-300 face's rounds");
         assert_eq!(
             scaled.hull_sup.to_bits(),
@@ -3634,7 +3639,7 @@ mod recourse_tests {
         // return.
         assert_eq!(arms.len(), 22, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(crate::recourse::Reading::Build);
             let delegated = match arm {
                 OffsetFitError::Meter(_) => Some(meter.render(Reading::Build)),
                 OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
@@ -3813,7 +3818,7 @@ mod scripted_rounds {
                 },
             ) => {
                 assert_eq!((rounds, achieved, best.bound), (4, 4.0, 4.0));
-                let msg = e.to_string();
+                let msg = e.render(crate::recourse::Reading::Build);
                 assert!(
                     msg.contains("stopped improving") && msg.contains("both directions"),
                     "the message says what was tried: {msg}"
@@ -3964,9 +3969,10 @@ mod scripted_rounds {
                     "under the cap: {grid:?}"
                 );
                 assert!(
-                    e.to_string()
+                    e.render(crate::recourse::Reading::Build)
                         .contains(&format!("limit of {budget} samples fitted in total,")),
-                    "the message names the budget: {e}"
+                    "the message names the budget: {e_at}",
+                    e_at = e.render(crate::recourse::Reading::Build)
                 );
             }
             other => panic!("the work budget's face: {other:?}"),

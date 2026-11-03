@@ -3806,7 +3806,7 @@ mod tests {
             terminal_sliver: false,
         };
         let poisoned = ChartRegionError::Escalated(diag(geom_core::MarginDiag::INVALID));
-        let text = poisoned.to_string();
+        let text = poisoned.render(geom_brep::recourse::Reading::AtRest);
         assert!(
             text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
             "{text}"
@@ -3815,9 +3815,10 @@ mod tests {
         let in_band = ChartRegionError::Escalated(diag(geom_core::MarginDiag::value(5e-9)));
         assert!(
             in_band
-                .to_string()
+                .render(geom_brep::recourse::Reading::AtRest)
                 .contains(geom_core::COINCIDENCE_RECOURSE),
-            "{in_band}"
+            "{in_band_at}",
+            in_band_at = in_band.render(geom_brep::recourse::Reading::AtRest)
         );
     }
 
@@ -3947,7 +3948,7 @@ mod tests {
             .map(sample)
             .collect();
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::AtRest);
             // `Escalated` delegates to `Indeterminate`, whose Display
             // ends in the shared coincidence recourse — it is covered
             // by the carrier and not by a clause of its own.
@@ -3973,12 +3974,12 @@ mod tests {
         let segment = ChartRegionError::WitnessSegmentCapExceeded {
             segments: WITNESS_SEGMENT_CAP + 1,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         let cell = ChartRegionError::WitnessCellCapExceeded {
             segments: WITNESS_SEGMENT_CAP,
             cells: WITNESS_CELL_CAP,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::AtRest);
         let names = |msg: &str, cap: &str, n: usize| msg.contains(&format!("{cap} cap of {n}"));
         assert!(
             names(&segment, "segment", WITNESS_SEGMENT_CAP)

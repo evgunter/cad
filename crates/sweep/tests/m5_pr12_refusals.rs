@@ -309,7 +309,10 @@ fn spine_unsupported_names_the_canal_surface_unit() {
     };
     match run_battery(&req, band()) {
         Err(e @ BlendError::SpineUnsupported { .. }) => {
-            let text = format!("{e}");
+            let text = format!(
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             assert!(
                 text.contains("canal-surface"),
                 "the refusal must name the missing front door: {text}"
@@ -326,8 +329,14 @@ fn spine_unsupported_names_the_canal_surface_unit() {
 // ---------------------------------------------------------------------
 
 fn assert_same_recourse(definite: &BlendError, escalated: &BlendError, fragment: &str) {
-    let d = format!("{definite}");
-    let e = format!("{escalated}");
+    let d = format!(
+        "{definite_at}",
+        definite_at = definite.render(geom_brep::recourse::Reading::Build)
+    );
+    let e = format!(
+        "{escalated_at}",
+        escalated_at = escalated.render(geom_brep::recourse::Reading::Build)
+    );
     assert!(d.contains(fragment), "definite arm lost its recourse: {d}");
     assert!(e.contains(fragment), "escalated arm lost its recourse: {e}");
     assert!(
@@ -387,7 +396,8 @@ fn trio_hostless_annulus_ring_containment() {
             if margin.predicate == "fillet3_ring_clearance"
                 && margin.sign == Sign::Negative
                 && margin.reading.diagnostic_f64_for_error_text().value().is_some_and(|m| (m - -0.01).abs() < 1e-12)),
-        "the definite arm classifies at the exact containment margin: {definite}"
+        "the definite arm classifies at the exact containment margin: {definite_at}",
+        definite_at = definite.render(geom_brep::recourse::Reading::Build)
     );
     // Exactly on: the bore reaches the trim circle - a refusal, not a
     // pass, which is the polarity a clearance predicate has.
@@ -395,14 +405,16 @@ fn trio_hostless_annulus_ring_containment() {
     assert!(
         matches!(&exact, BlendError::RingClearance { margin, .. }
             if margin.predicate == "fillet3_ring_clearance" && margin.sign == Sign::Zero),
-        "a ring exactly on the trim circle refuses: {exact}"
+        "a ring exactly on the trim circle refuses: {exact_at}",
+        exact_at = exact.render(geom_brep::recourse::Reading::Build)
     );
     // In band: `5 eps` past it.
     let escalated = refuse(0.9 - 0.16 + in_band());
     assert!(
         matches!(&escalated, BlendError::Escalated { source, .. }
             if source.predicate == Some("fillet3_ring_clearance")),
-        "the in-band arm escalates under the ring predicate: {escalated}"
+        "the in-band arm escalates under the ring predicate: {escalated_at}",
+        escalated_at = escalated.render(geom_brep::recourse::Reading::Build)
     );
     assert_same_recourse(&definite, &escalated, "reduce the blend size");
 }
@@ -443,13 +455,15 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
                 && margin
                     .reading.diagnostic_f64_for_error_text().value()
                     .is_some_and(|m| m.to_bits() == ((1.0 - 0.1) - 0.92f64).to_bits())),
-        "the screen answers first, at the derived containment double: {definite}"
+        "the screen answers first, at the derived containment double: {definite_at}",
+        definite_at = definite.render(geom_brep::recourse::Reading::Build)
     );
     let exact = refuse(0.9);
     assert!(
         matches!(&exact, BlendError::FaceClearanceUncertified { margin, .. }
             if margin.sign == Sign::Zero),
-        "a ring exactly on the trim circle refuses: {exact}"
+        "a ring exactly on the trim circle refuses: {exact_at}",
+        exact_at = exact.render(geom_brep::recourse::Reading::Build)
     );
     let escalated = refuse(0.9 + in_band());
     assert_same_recourse(&definite, &escalated, "enlarge the band's support faces,");
@@ -562,7 +576,15 @@ fn trio_convexity_sign() {
     // tangent plane — a cusp or slit, refused definitely.
     let knife = plane_wedge(x, -x, e).unwrap_err();
     assert!(matches!(knife, BlendError::KnifeEdge { .. }), "{knife:?}");
-    assert!(format!("{knife}").contains("cusp or slit"), "{knife}");
+    assert!(
+        format!(
+            "{knife_at}",
+            knife_at = knife.render(geom_brep::recourse::Reading::Build)
+        )
+        .contains("cusp or slit"),
+        "{knife_at}",
+        knife_at = knife.render(geom_brep::recourse::Reading::Build)
+    );
     // In band: the same site, one wedge too small to call. It carries
     // the knife's sentence — a chain flip is a different refusal at a
     // different site and nothing here decided one. (The perturbation

@@ -7034,7 +7034,10 @@ mod tests {
     #[test]
     fn every_error_displays() {
         for error in every_euler_op_error_once() {
-            assert!(!error.to_string().is_empty(), "{error:?}");
+            assert!(
+                !error.render(geom_brep::recourse::Reading::Build).is_empty(),
+                "{error:?}"
+            );
         }
     }
 
@@ -7065,7 +7068,7 @@ mod tests {
                 he2: HalfEdgeKey::default(),
             }),
         ]) {
-            let text = error.to_string();
+            let text = error.render(geom_brep::recourse::Reading::Build);
             assert!(
                 !text.contains("kernel defect") && !text.contains("malformed"),
                 "{text}"
@@ -7091,7 +7094,13 @@ mod tests {
                 margin: None,
             },
         };
-        assert!(split.to_string().contains("kernel defect"), "{split}");
+        assert!(
+            split
+                .render(geom_brep::recourse::Reading::Build)
+                .contains("kernel defect"),
+            "{split_at}",
+            split_at = split.render(geom_brep::recourse::Reading::Build)
+        );
     }
 
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
@@ -7147,7 +7156,7 @@ mod tests {
             ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
-        let zero_text = zero.to_string();
+        let zero_text = zero.render(geom_brep::recourse::Reading::Build);
         let printed = zero_text
             .split_once("not shown strictly inside its edge (margin ")
             .and_then(|(_, rest)| rest.split_once(" m from an end)"))
@@ -7161,7 +7170,7 @@ mod tests {
             "the zero arm states its margin and claims no size: {zero_text}"
         );
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"

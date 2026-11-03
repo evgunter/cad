@@ -246,7 +246,10 @@ fn n2r2_class1_step_export() {
             d.len(),
             d.contains("NaN")
         ),
-        Err(e) => eprintln!("[class 1 x-poison] step_string -> Err: {e}"),
+        Err(e) => eprintln!(
+            "[class 1 x-poison] step_string -> Err: {e_at}",
+            e_at = e.render(geom_brep::recourse::Reading::Build)
+        ),
     }
 }
 

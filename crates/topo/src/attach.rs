@@ -2803,7 +2803,7 @@ mod tests {
                 )
                 .unwrap_err()
             });
-            let text = describing.to_string();
+            let text = describing.render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.starts_with("set_face_surfaces_describing: ")
                     && text.ends_with("or move the face onto a chart they name"),
@@ -2969,7 +2969,7 @@ mod tests {
                  re-description it is handed against that chart)",
             ),
         ] {
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(text.ends_with(lever), "{text}");
         }
     }
@@ -3609,7 +3609,12 @@ mod tests {
                     "the certified chord it mints does not name".to_string(),
                 )
             };
-            assert!(err.to_string().contains(&named), "{label}: {err}");
+            assert!(
+                err.render(geom_brep::recourse::Reading::Build)
+                    .contains(&named),
+                "{label}: {err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::Build)
+            );
             assert_err_deep_unchanged(&mut body, &err, |b| {
                 b.mef(site, chord.clone(), far.clone(), tol()).unwrap_err()
             });
@@ -4187,7 +4192,7 @@ mod tests {
                 _ => panic!("{label}: a re-chart refusal, got {err:?}"),
             };
             assert_eq!(raised, (door, strands), "{label}: {err:?}");
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             assert!(text.starts_with(&format!("{label}: ")), "{label}: {text}");
             assert!(text.ends_with(lever), "{label}: {text}");
         }
@@ -4525,14 +4530,14 @@ mod tests {
                 door,
                 edges: vec![EdgeKey::default()],
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let unvouched = EulerOpError::RechartUnvouched {
                 door,
                 face: FaceKey::default(),
                 edges: vec![EdgeKey::default()],
                 chord: false,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             for text in [&strands, &unvouched] {
                 assert!(
                     text.starts_with(&format!("{}: ", door.name())) && text.contains("Recourse: "),
@@ -4552,7 +4557,7 @@ mod tests {
                 door,
                 edges: vec![EdgeKey::default()],
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(&format!("({restater} states")),
                 "{door:?}: {text}"

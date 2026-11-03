@@ -5879,7 +5879,7 @@ mod escalated_ending_rows {
                 escalation: Escalation::Margin,
                 diag,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let placement = contfp.strip_prefix("contfp: ").unwrap();
             for (label, e) in [
                 ("solid door", PointInSolidError::Escalated { face, diag }),
@@ -5888,7 +5888,7 @@ mod escalated_ending_rows {
                     RegionRefusal::Escalated(diag).of_face(face),
                 ),
             ] {
-                let text = e.to_string();
+                let text = e.render(geom_brep::recourse::Reading::Build);
                 assert_eq!(
                     text.strip_prefix("cannot tell what is inside the solid: "),
                     Some(placement),

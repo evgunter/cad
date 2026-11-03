@@ -357,7 +357,12 @@ fn foreign_corpus() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap_or_else(|err| panic!("{name}: {err}"));
+        .unwrap_or_else(|err| {
+            panic!(
+                "{name}: {err_at}",
+                err_at = err.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
         // mm³ → m³ (the generator's unit is FreeCAD's mm).
         let expected_m3 = e.volume_mm3 * 1e-9;
         // Roundoff: the volume is a fixed-order sum of per-face
@@ -483,7 +488,12 @@ fn cross_dialect_fixed_point() {
         let (body1, _, _) = freecad_body(name);
         let export1 =
             step_export::step_string(&crate::common::at_rest(&body1), &options, Tol::witness())
-                .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{name}: re-export 1: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
         let reimport = import_step(&export1, &ImportOptions::default(), Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-import of our own dialect: {e}"));
         let StepImport::Solid { body: body2, .. } = reimport else {
@@ -499,7 +509,12 @@ fn cross_dialect_fixed_point() {
             &options,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: re-export 2: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_eq!(
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
@@ -1508,7 +1523,12 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
             },
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("{name}: re-export: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: re-export: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         let path = dir.join(format!("{name}.step"));
         std::fs::write(&path, &text).expect("writing the re-export");
         let e = expect(name);

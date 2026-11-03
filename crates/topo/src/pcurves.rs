@@ -6807,7 +6807,7 @@ mod recourse_tests {
         ];
         assert_eq!(arms.len(), 12, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::Build);
             match arm {
                 // A caller's own key states the fact: no recourse, and
                 // no defect claim.
@@ -6822,7 +6822,10 @@ mod recourse_tests {
                     assert!(msg.contains(&band_error.to_string()), "{msg}");
                 }
                 PcurveMintError::Certify { .. } => {
-                    assert!(msg.contains(&certify_error.to_string()), "{msg}");
+                    assert!(
+                        msg.contains(&certify_error.render(geom_brep::recourse::Reading::Build)),
+                        "{msg}"
+                    );
                 }
                 _ => {
                     let lower = msg.to_lowercase();
@@ -6853,7 +6856,7 @@ mod recourse_tests {
             },
         };
         assert_eq!(
-            finding.to_string(),
+            finding.render(geom_brep::recourse::Reading::Build),
             "the pcurve of half-edge HalfEdgeKey(null) failed certification: pcurve \
              certification: the fitted lane's certificate escalated — whether the fitted carrier \
              passes limb 2 (control-hull sup-norm bound through its pcurve) is undecided: \
@@ -6909,7 +6912,7 @@ mod derive_without_a_door {
         let PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" } = err else {
             panic!("a dual derives no general image, and says so by name: {err:?}");
         };
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains("dual scalar")
                 && text.contains("certification rights")

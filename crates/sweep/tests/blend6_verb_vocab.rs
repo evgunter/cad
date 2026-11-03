@@ -46,7 +46,10 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
 /// carriers shared by both verbs deliberately (they meter the same
 /// margins) and are therefore stripped before the check.
 fn assert_speaks_as_the_chamfer(refusal: &BlendRefusal, label: &str) {
-    let text = format!("{refusal}");
+    let text = format!(
+        "{refusal_at}",
+        refusal_at = refusal.render(geom_brep::recourse::Reading::Build)
+    );
     assert!(
         text.starts_with("chamfer: "),
         "the {label} refusal must open with the chamfer's verb: {text}"
@@ -66,7 +69,10 @@ fn assert_speaks_as_the_chamfer(refusal: &BlendRefusal, label: &str) {
 /// The fillet-side single-prefix claim: the verb opens the text and
 /// is not rendered twice by the door-plus-inner composition.
 fn assert_speaks_once_as_the_fillet(refusal: &BlendRefusal, label: &str) {
-    let text = format!("{refusal}");
+    let text = format!(
+        "{refusal_at}",
+        refusal_at = refusal.render(geom_brep::recourse::Reading::Build)
+    );
     assert!(
         text.starts_with("fillet: "),
         "the {label} refusal must open with the fillet's verb: {text}"
@@ -103,7 +109,10 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
         "the shared run-out arm is what refused: {err:?}"
     );
     assert_speaks_as_the_chamfer(&err, "run-out");
-    let text = format!("{err}");
+    let text = format!(
+        "{err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
+    );
     assert!(
         text.contains("end the blend at a flat-faced corner"),
         "the recourse speaks of the band, not the other verb: {text}"

@@ -332,7 +332,12 @@ fn wild_files_import_and_agree_with_the_oracle() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap_or_else(|e| panic!("{name}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "{name}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::AtRest)
+            )
+        });
         let volume_mm3 = props.enclosure.volume * 1e9;
         let tolerance = 1e-11 * e.volume_mm3.abs() + props.enclosure.volume_pad * 1e9;
         assert!(
@@ -447,7 +452,12 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         };
         let first =
             step_export::step_string(&crate::common::at_rest(&body), &options, Tol::witness())
-                .unwrap_or_else(|e| panic!("{name}: {e}"));
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{name}: {e_at}",
+                        e_at = e.render(geom_brep::recourse::Reading::Build)
+                    )
+                });
         let Ok(StepImport::Solid { body: again, .. }) =
             import_step(&first, &ImportOptions::default(), Tol::witness())
         else {

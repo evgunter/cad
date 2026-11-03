@@ -543,7 +543,7 @@ mod tests {
             matches!(err, PieceSortError::RoleUnread { shell, .. } if shell == third),
             "{err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             text,
             format!(

@@ -572,8 +572,10 @@ fn every_registered_assertion_holds_over_the_certified_leaves_within_budget() {
                         entry.name, node.0
                     ),
                     AssertionVerdict::Unevaluated { reason } => panic!(
-                        "{}: assertion node {} has no verdict over a certified leaf: {reason}",
-                        entry.name, node.0
+                        "{}: assertion node {} has no verdict over a certified leaf: {reason_at}",
+                        entry.name,
+                        node.0,
+                        reason_at = reason.render(geom_brep::recourse::Reading::AtRest)
                     ),
                     AssertionVerdict::Clearance(report) => assert_eq!(
                         report.verdict().holds(),

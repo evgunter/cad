@@ -322,7 +322,10 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     };
     match topo::mass_properties_structural(above, Tol::witness()) {
         Err(topo::MassPropsError::Face { source, .. }) => {
-            let msg = format!("{source}");
+            let msg = format!(
+                "{source_at}",
+                source_at = source.render(geom_brep::recourse::Reading::AtRest)
+            );
             assert!(msg.contains("ellipse arc"), "{msg}");
         }
         other => panic!("the dual lane keeps the typed closed-form refusal, got {other:?}"),

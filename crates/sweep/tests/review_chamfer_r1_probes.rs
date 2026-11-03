@@ -156,7 +156,12 @@ fn a_general_box_matches_an_independent_closed_form() {
             d,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("a {a}×{b}×{c} box chamfers at {d}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "a {a}×{b}×{c} box chamfers at {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_chamfer_shape(&out.body, (24, 48, 26));
         assert_every_face_outward(&out.body);
         // Deliberately NOT `common::oracles::chamfered_cube_volume`:
@@ -231,7 +236,12 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
             d,
             Tol::witness(),
         )
-        .unwrap_or_else(|e| panic!("the wedge chamfers at {d}: {e}"));
+        .unwrap_or_else(|e| {
+            panic!(
+                "the wedge chamfers at {d}: {e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            )
+        });
         assert_chamfer_shape(&out.body, (18, 36, 20));
         assert_every_face_outward(&out.body);
         let props = topo::mass_properties(
@@ -470,7 +480,10 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
         Err(e) => {
             // Typed refusal is an honest answer; assert it is one of
             // the verb's own documented arms, not a panic elsewhere.
-            let text = format!("{e}");
+            let text = format!(
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             assert!(!text.is_empty(), "a refusal names itself: {e:?}");
         }
         Ok(out) => {
@@ -535,7 +548,10 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
             matches!(err.error, BlendError::NonpositiveSize { .. }),
             "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"
         );
-        let text = format!("{err}");
+        let text = format!(
+            "{err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::Build)
+        );
         assert!(
             !text.contains("dependent support normals"),
             "the refusal must not assert a false fact about the body: {text}"

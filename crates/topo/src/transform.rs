@@ -1113,7 +1113,7 @@ mod tests {
         });
         let err = transform_rigid(&orphaned, &aside_motion(), Tol::witness())
             .expect_err("an orphan curve entry is corruption");
-        let shown = err.to_string();
+        let shown = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.starts_with("the body is corrupt: a curve entry is referenced by no edge."),
             "{shown}"

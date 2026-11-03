@@ -1210,7 +1210,7 @@ mod tests {
                     edge: crate::EdgeKey::default(),
                     fault,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     split.contains("within the zero band")
                         && split.ends_with(&format!(
@@ -1223,13 +1223,14 @@ mod tests {
                     decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
                     diag,
                 }
-                .to_string();
+                .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     boolean.contains("if this gap is intended, tighten the tolerance below")
                         && !boolean.contains("unreadable"),
                     "{label}: the Boolean's sized ending: {boolean}"
                 );
-                let census = crate::ValidationError::CensusEscalated { cause: diag }.to_string();
+                let census = crate::ValidationError::CensusEscalated { cause: diag }
+                    .render(geom_brep::recourse::Reading::AtRest);
                 assert!(
                     census.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE))
                         && !census.contains("defect"),

@@ -11633,7 +11633,13 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        assert!(error.to_string().ends_with(KERNEL_DEFECT_ENDING), "{error}");
+        assert!(
+            error
+                .render(crate::recourse::Reading::Build)
+                .ends_with(KERNEL_DEFECT_ENDING),
+            "{error_at}",
+            error_at = error.render(crate::recourse::Reading::Build)
+        );
         for (at, want) in [
             (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
             (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
@@ -12006,7 +12012,7 @@ mod tests {
             sample: 0,
             cause,
         }
-        .to_string();
+        .render(crate::recourse::Reading::Build);
         assert!(
             escalated.contains(&format!("escalated: {told}Recourse:")),
             "`Escalated`: {escalated}"
@@ -12015,7 +12021,7 @@ mod tests {
             decision: SsiDecision::Trace(TraceDecision::ClosureReturn),
             cause,
         }
-        .to_string();
+        .render(crate::recourse::Reading::Build);
         assert!(
             fitted.contains(&format!(" is undecided: {told}")),
             "`FittedEscalated`: {fitted}"
@@ -12560,8 +12566,11 @@ mod tests {
             "a loose envelope contradicts nothing stored"
         );
         assert!(
-            loose.to_string().contains("the certificate cannot show"),
-            "{loose}"
+            loose
+                .render(crate::recourse::Reading::Build)
+                .contains("the certificate cannot show"),
+            "{loose_at}",
+            loose_at = loose.render(crate::recourse::Reading::Build)
         );
         // The rim moved off the axis by 100·ε: the mint reads it off the
         // cylinder (D3), and so does the row stored for the rim,
@@ -12882,7 +12891,7 @@ mod tests {
                 ),
                 "{lane}: {err:?}"
             );
-            let shown = err.to_string();
+            let shown = err.render(crate::recourse::Reading::Build);
             assert!(
                 !shown.contains("not on its face") && shown.contains("within the band"),
                 "{lane}: {shown}"
@@ -13109,7 +13118,7 @@ mod tests {
             ),
         ];
         for (err, payload) in rows {
-            let msg = err.to_string();
+            let msg = err.render(crate::recourse::Reading::Build);
             for word in payload {
                 assert!(msg.contains(word), "{word} missing from: {msg}");
             }
@@ -13389,7 +13398,7 @@ mod tests {
             },
         };
         assert_eq!(
-            escalated.to_string(),
+            escalated.render(crate::recourse::Reading::Build),
             "pcurve certification: AzimuthPeriod at sample 3 escalated: margin 5e-9 lies inside \
              the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so this arc stays \
              clearly short of a full turn, or, if this arc is intended, tighten the tolerance \
@@ -13428,7 +13437,8 @@ mod tests {
             assert_eq!(
                 pcurve.ending(Reading::AtRest).as_deref(),
                 Some(want.as_str()),
-                "the pcurve door ends as the SSI door: {pcurve}"
+                "the pcurve door ends as the SSI door: {pcurve_at}",
+                pcurve_at = pcurve.render(crate::recourse::Reading::Build)
             );
         }
     }
@@ -13864,8 +13874,12 @@ mod fitted_lane_tests {
     fn a_line_carrier_is_bounded_against_its_chart_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (wall, image) = (flat_wall(), image());
-        let sup = fitted_lane(&line(0.0), &image, &wall, (0.0, 1.0), band)
-            .unwrap_or_else(|e| panic!("the line on its image certifies: {e}"));
+        let sup = fitted_lane(&line(0.0), &image, &wall, (0.0, 1.0), band).unwrap_or_else(|e| {
+            panic!(
+                "the line on its image certifies: {e_at}",
+                e_at = e.render(crate::recourse::Reading::Build)
+            )
+        });
         assert!(sup <= 1e-12, "the bound is the composite's rounding: {sup}");
         assert!(
             matches!(
@@ -14009,7 +14023,7 @@ mod iso_family {
             terminal_sliver: false,
         });
         assert_eq!(
-            refusal.to_string(),
+            refusal.render(crate::recourse::Reading::Build),
             "whether the edge runs along a cylinder's ruling or around it is undecided: margin \
              5e-8 lies inside the ambiguity band (1e-9, 1e-6)"
         );

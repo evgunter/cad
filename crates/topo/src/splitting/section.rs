@@ -536,7 +536,7 @@ mod winding_ending {
             corner: Point3::origin(),
             diag: Some(read),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(
             text,
             format!(
@@ -553,7 +553,7 @@ mod winding_ending {
             corner: Point3::origin(),
             diag: Some(poisoned),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(". Recourse: move the section plane; "),
             "the lever and the note, got {text}"

@@ -128,7 +128,12 @@ fn every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell() {
                         "subtract" => subtract(&a, &b, tol),
                         _ => intersect(&a, &b, tol),
                     }
-                    .unwrap_or_else(|e| panic!("{who}: {e}"));
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{who}: {e_at}",
+                            e_at = e.render(geom_brep::recourse::Reading::Build)
+                        )
+                    });
                     let at = output_stage_points(&who);
                     let BooleanResult::Body(out) = result else {
                         continue;

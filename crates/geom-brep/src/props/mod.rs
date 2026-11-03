@@ -865,7 +865,7 @@ mod tests {
     /// gives. One decision, one lever, the value where there is one.
     #[test]
     fn face_extent_pair_ends_in_one_levers_table() {
-        let definite = PropsError::DegenerateFace.to_string();
+        let definite = PropsError::DegenerateFace.render(crate::recourse::Reading::AtRest);
         assert!(
             definite.ends_with("Recourse: widen the face well past the tolerance"),
             "{definite}"
@@ -879,7 +879,7 @@ mod tests {
             },
             check: PropsCheck::Extent,
         }
-        .to_string();
+        .render(crate::recourse::Reading::AtRest);
         assert!(
             in_band.ends_with(
                 "Recourse: widen the face well past the tolerance, or, if this width is \
@@ -910,7 +910,7 @@ mod tests {
                 },
                 check,
             }
-            .to_string()
+            .render(crate::recourse::Reading::AtRest)
         };
         // A premise no valid body violates is a defect however it is
         // refused, and no tolerance is offered for one.
@@ -1009,7 +1009,7 @@ mod tests {
         let arms = props_error_arms();
         assert_eq!(arms.len(), 16, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(crate::recourse::Reading::AtRest);
             assert_eq!(
                 test_utils::refusal::recourse_markers(&msg),
                 1,
@@ -1030,7 +1030,7 @@ mod tests {
     #[test]
     fn every_props_error_arm_fits_where_it_is_shown() {
         for arm in props_error_arms() {
-            let msg = arm.to_string();
+            let msg = arm.render(crate::recourse::Reading::AtRest);
             assert_eq!(
                 test_utils::refusal::stage_prefixes(&msg, &[]),
                 Vec::<String>::new(),

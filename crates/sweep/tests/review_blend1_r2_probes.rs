@@ -564,7 +564,10 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
     match refused {
         Err(e @ BlendError::UnsupportedCorner { .. }) => {
-            let msg = format!("{e}");
+            let msg = format!(
+                "{e_at}",
+                e_at = e.render(geom_brep::recourse::Reading::Build)
+            );
             println!("recourse: {msg}");
             assert!(
                 msg.contains("rim whole"),
@@ -656,7 +659,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             ),
             "{name}: the incidence-only tag fires on both material sides, got {one:?}"
         );
-        let shown = one.to_string();
+        let shown = one.render(geom_brep::recourse::Reading::Build);
         assert!(
             shown.contains(FILLET3_SEAM_VERTEX_RECOURSE),
             "{name}: the seam recourse is the one appended: {shown}"

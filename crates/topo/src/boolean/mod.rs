@@ -8955,8 +8955,8 @@ mod tests {
                 Some(PlaneRelation::SameOpposite),
             );
         for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
-            let msg =
-                BooleanError::plane_identity(PlaneRung::Parallel, door, diag(margin)).to_string();
+            let msg = BooleanError::plane_identity(PlaneRung::Parallel, door, diag(margin))
+                .render(geom_brep::recourse::Reading::Build);
             assert_eq!(msg.matches("Recourse:").count(), 1, "{msg}");
             assert!(!msg.contains("declare"), "{msg}");
         }
@@ -8983,7 +8983,7 @@ mod tests {
             pair,
             read,
         )
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("exactly zero"), "{msg}");
         let poisoned = undecided_coincidence(
@@ -9017,7 +9017,7 @@ mod tests {
             vertex: VertexKey::default(),
             face: FaceKey::default(),
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(msg.contains("has no finite length"), "{msg}");
         assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
@@ -9590,7 +9590,7 @@ mod tests {
     #[test]
     fn no_sample_message_renders_a_run_of_spaces() {
         for err in sample_errors() {
-            let message = err.to_string();
+            let message = err.render(geom_brep::recourse::Reading::Build);
             assert!(!message.contains("  "), "{message:?}");
         }
     }

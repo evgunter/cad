@@ -1431,7 +1431,7 @@ mod undecided_text {
             reading: JoinReading::Regularity(diag),
         });
         assert_eq!(
-            refusal.to_string(),
+            refusal.render(geom_brep::recourse::Reading::Build),
             format!(
                 "{JOIN_SUBJECT} is undecided ({}). Recourse: subdivide the parameter box for \
                  a tighter enclosure, or {JOIN_LEVER}",
@@ -1572,7 +1572,7 @@ mod undecided_text {
             vertex: crate::VertexKey::default(),
             reading,
         }
-        .to_string()
+        .render(geom_brep::recourse::Reading::Build)
     }
 
     /// **The Boolean's join refusal asks the question its reading answers
@@ -1687,7 +1687,7 @@ mod kernel_text {
         let rows = [
             (
                 "a build",
-                refusal.to_string(),
+                refusal.render(geom_brep::recourse::Reading::Build),
                 "Recourse: loosen the tolerance, as a last resort; this refusal may indicate \
                  a kernel bug worth reporting",
             ),

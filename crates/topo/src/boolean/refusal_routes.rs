@@ -1822,7 +1822,9 @@ pub(in crate::boolean) mod tests {
             margin: MarginDiag::INVALID,
             ..straddle
         };
-        let said = |site, read, diag| BooleanError::coincidence(site, read, diag).to_string();
+        let said = |site, read, diag| {
+            BooleanError::coincidence(site, read, diag).render(geom_brep::recourse::Reading::Build)
+        };
         let tangent = DeclarationRead::Spent(GlueClass::Tangent);
         for site in [Coincide::Rim, Coincide::TangentLocus] {
             let (after, before) = (said(site, tangent, straddle), said(site, tangent, poisoned));
@@ -1943,7 +1945,10 @@ pub(in crate::boolean) mod tests {
         let (operator, margin) = raise();
         assert!(margin > 0.0, "the midpoint margin is positive: {margin:e}");
         let rendered = [
-            ("the operator", operator.to_string()),
+            (
+                "the operator",
+                operator.render(geom_brep::recourse::Reading::Build),
+            ),
             (
                 "the split",
                 SplitReduceError::CrossingInsertion {
@@ -1951,7 +1956,7 @@ pub(in crate::boolean) mod tests {
                     endpoints: (VertexKey::default(), VertexKey::default()),
                     source: Box::new(raise().0),
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ),
             (
                 "the Boolean",
@@ -1960,7 +1965,7 @@ pub(in crate::boolean) mod tests {
                     edge,
                     source: raise().0,
                 }
-                .to_string(),
+                .render(geom_brep::recourse::Reading::Build),
             ),
         ];
         for (door, text) in rendered {
@@ -2702,7 +2707,8 @@ pub(in crate::boolean) mod tests {
                 MarginDiag::INVALID,
             ] {
                 let diag = diag_of(margin);
-                let text = BooleanError::Escalated { decision, diag }.to_string();
+                let text = BooleanError::Escalated { decision, diag }
+                    .render(geom_brep::recourse::Reading::Build);
                 let label = format!("{decision:?} at {margin}");
                 let problems = short_of_the_guard(&text, &[]);
                 assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
@@ -2812,7 +2818,11 @@ pub(in crate::boolean) mod tests {
                     predicate: Some("side_of_plane"),
                     terminal_sliver: false,
                 };
-                let text = format!("{WRAPPER} {}", BooleanError::Escalated { decision, diag });
+                let text = format!(
+                    "{WRAPPER} {}",
+                    BooleanError::Escalated { decision, diag }
+                        .render(geom_brep::recourse::Reading::Build)
+                );
                 let words = text.split_whitespace().count();
                 if words >= 75 {
                     over.push(format!("{decision:?} at {margin}: {words} words: {text}"));
@@ -2962,7 +2972,7 @@ pub(in crate::boolean) mod tests {
             },
             diag,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(
                 "Recourse: move the point exactly onto the face's surface or clearly off it"
@@ -2992,8 +3002,8 @@ pub(in crate::boolean) mod tests {
                 face: crate::entity::FaceKey::default(),
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
             };
-            let split = crate::SplitError::Join(join()).to_string();
-            let boolean = BooleanError::from(join()).to_string();
+            let split = crate::SplitError::Join(join()).render(geom_brep::recourse::Reading::Build);
+            let boolean = BooleanError::from(join()).render(geom_brep::recourse::Reading::Build);
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");
@@ -3052,12 +3062,12 @@ pub(in crate::boolean) mod tests {
                 edge: EdgeKey::default(),
                 fault,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             let boolean = BooleanError::Escalated {
                 decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
                 diag,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             for text in [&split, &boolean] {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{fault:?}: {problems:?}: {text}");
@@ -3155,7 +3165,7 @@ pub(in crate::boolean) mod tests {
                 }
                 _ => panic!("{label}: the arm's own refusal: {err:?}"),
             }
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
             let lever = match half {
@@ -3234,7 +3244,7 @@ pub(in crate::boolean) mod tests {
                         PlaneDoor::OnPair(DeclarationRead::Moot),
                         diag,
                     )
-                    .to_string();
+                    .render(geom_brep::recourse::Reading::Build);
                     let problems = short_of_the_guard(&text, &[]);
                     assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
                     assert!(
@@ -3307,7 +3317,8 @@ pub(in crate::boolean) mod tests {
             panic!("the gate escalates: {err:?}");
         };
         assert_eq!(decision, BooleanDecision::Neighbours(PlaneRung::Parallel));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let text =
+            BooleanError::Escalated { decision, diag }.render(geom_brep::recourse::Reading::Build);
         let problems = short_of_the_guard(&text, &[]);
         assert!(problems.is_empty(), "{problems:?}: {text}");
         assert!(
@@ -3521,7 +3532,7 @@ pub(in crate::boolean) mod tests {
             panic!("the gate's own refusal: {err:?}");
         };
         assert_eq!(operand, Operand::A);
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         let problems = short_of_the_guard(&text, &[]);
         assert!(problems.is_empty(), "{problems:?}: {text}");
         assert!(
@@ -3591,7 +3602,7 @@ pub(in crate::boolean) mod tests {
             ),
         ];
         for (name, err, offer) in rows {
-            let text = err.to_string();
+            let text = err.render(geom_brep::recourse::Reading::Build);
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{name}: {problems:?}: {text}");
             assert!(!text.contains("declare"), "{name}: {text}");
@@ -3603,7 +3614,7 @@ pub(in crate::boolean) mod tests {
             edge: EdgeKey::default(),
             band: b,
         }
-        .to_string();
+        .render(geom_brep::recourse::Reading::Build);
         assert!(
             pierce.ends_with("Recourse: move the geometry"),
             "the frontier's definite half keeps its in-band sibling's levers, less the \
@@ -3618,7 +3629,8 @@ pub(in crate::boolean) mod tests {
                 margin: MarginDiag::value(-1e-3),
             },
         ] {
-            let text = BooleanError::CurvedSectorSideUnsupported { verdict }.to_string();
+            let text = BooleanError::CurvedSectorSideUnsupported { verdict }
+                .render(geom_brep::recourse::Reading::Build);
             assert!(
                 text.contains(PIERCE_LEVER),
                 "the definite pierce curvature tells its in-band sibling's story: {text}"
@@ -3668,8 +3680,10 @@ pub(in crate::boolean) mod tests {
             PlaneDoor::Screen(DeclarationRead::Spent(GlueClass::Tangent)),
             PlaneDoor::Neighbours,
         ];
-        let texts =
-            doors.map(|door| BooleanError::plane_identity(PlaneRung::Norm, door, diag).to_string());
+        let texts = doors.map(|door| {
+            BooleanError::plane_identity(PlaneRung::Norm, door, diag)
+                .render(geom_brep::recourse::Reading::Build)
+        });
         for text in &texts {
             let problems = short_of_the_guard(text, &[]);
             assert!(problems.is_empty(), "{problems:?}: {text}");
@@ -3701,7 +3715,8 @@ pub(in crate::boolean) mod tests {
                 panic!("{rung:?}: an escalation: {err:?}");
             };
             assert_eq!(got, rung);
-            let text = BooleanError::plane_identity(rung, PlaneDoor::Neighbours, diag).to_string();
+            let text = BooleanError::plane_identity(rung, PlaneDoor::Neighbours, diag)
+                .render(geom_brep::recourse::Reading::Build);
             let problems = short_of_the_guard(&text, &[]);
             assert!(problems.is_empty(), "{rung:?}: {problems:?}: {text}");
             assert!(

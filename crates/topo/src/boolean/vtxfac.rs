@@ -3333,7 +3333,7 @@ mod tests {
             ),
             "{err:?}"
         );
-        let text = err.to_string();
+        let text = err.render(geom_brep::recourse::Reading::Build);
         assert!(
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
@@ -3784,7 +3784,10 @@ mod tests {
                     ),
                     "lifted {lift}"
                 ),
-                (got, _) => panic!("lifted {lift}: {:?}", got.map_err(|e| e.to_string())),
+                (got, _) => panic!(
+                    "lifted {lift}: {:?}",
+                    got.map_err(|e| e.render(geom_brep::recourse::Reading::Build))
+                ),
             }
         }
         // A bound rising at a slope whose side a unit radius of curvature

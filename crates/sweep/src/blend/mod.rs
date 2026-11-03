@@ -2357,7 +2357,7 @@ mod recourse_tests {
                 decision,
                 source,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(want.lever()), "{want:?}: {text}");
             assert!(text.contains(want.subject()), "{want:?}: {text}");
             assert_eq!(
@@ -2712,7 +2712,7 @@ mod recourse_tests {
                 breach,
                 detail: "a support",
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
         };
         let none = "There is no way through".to_owned();
         let finish = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
@@ -2750,7 +2750,7 @@ mod recourse_tests {
     #[test]
     fn a_recourse_is_appended_only_where_the_table_allows_it() {
         for seed in seeds() {
-            let text = seed.to_string();
+            let text = seed.render(geom_brep::recourse::Reading::Build);
             let found = recourses_in(&text);
             match contract(&seed) {
                 Recourse::Exactly(one) => assert!(
@@ -2781,7 +2781,7 @@ mod recourse_tests {
     fn every_recourse_sentence_is_rendered_by_some_variant() {
         let rendered: Vec<&'static str> = seeds()
             .iter()
-            .flat_map(|seed| recourses_in(&seed.to_string()))
+            .flat_map(|seed| recourses_in(&seed.render(geom_brep::recourse::Reading::Build)))
             .collect();
         for (_, sentence) in super::ALL_RECOURSES {
             assert!(
@@ -2822,7 +2822,7 @@ mod recourse_tests {
                 },
                 bounded: false,
             }
-            .to_string();
+            .render(geom_brep::recourse::Reading::Build);
             assert!(text.contains(says), "{chain}: {text}");
             assert!(!text.contains(never), "{chain}: {text}");
         }
@@ -2845,7 +2845,7 @@ mod recourse_tests {
                 },
                 bounded,
             }
-            .to_string()
+            .render(geom_brep::recourse::Reading::Build)
         };
         let (bound, measured) = (render(true), render(false));
         assert!(
@@ -2875,7 +2875,7 @@ mod recourse_tests {
     #[test]
     fn no_refusal_renders_a_field_brace_dump() {
         for seed in seeds() {
-            let text = seed.to_string();
+            let text = seed.render(geom_brep::recourse::Reading::Build);
             assert!(
                 !text.contains(" { "),
                 "{seed:?} renders a payload through `Debug`, which panics the \

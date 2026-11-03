@@ -59,7 +59,7 @@ fn cylinder(phi: f64) -> AtRestBody<f64> {
 pub(crate) fn carrier_resolution(e: &ValidationError) -> bool {
     use geom_brep::props::{PropsCheck, PropsError};
     use topo::MassPropsError;
-    let msg = e.to_string();
+    let msg = e.render(geom_brep::recourse::Reading::AtRest);
     let ending = match e {
         ValidationError::VolumeUncomputable {
             source:
@@ -120,7 +120,12 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                                     tol(),
                                     topo::test_support::pinned_resolution(tol()),
                                 )
-                                .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
+                                .unwrap_or_else(|e| {
+                                    panic!(
+                                        "{pose}: {word} measures: {e_at}",
+                                        e_at = e.render(geom_brep::recourse::Reading::AtRest)
+                                    )
+                                })
                                 .met()
                                 .expect("the pinned resolution is met")
                                 .volume;
@@ -139,10 +144,12 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                                 "{pose}: every finding is the ellipse's own rounding, ending \
                                  with no lever: {errors:?}"
                             );
-                            let msg = err.to_string();
+                            let msg = err.render(geom_brep::recourse::Reading::Build);
                             assert!(
                                 msg.contains("did not pass the at-rest gate")
-                                    && msg.ends_with(&errors[0].to_string()),
+                                    && msg.ends_with(
+                                        &errors[0].render(geom_brep::recourse::Reading::AtRest)
+                                    ),
                                 "{pose}: the refusal renders its first finding whole: {msg}"
                             );
                         }

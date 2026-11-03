@@ -2861,7 +2861,8 @@ mod face_walk_composition_tests {
         let log = bracket.finish();
         assert!(
             matches!(err, MassPropsError::Corrupt { what } if what == "the injected refusal"),
-            "the fold reported another face's refusal: {err}"
+            "the fold reported another face's refusal: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::AtRest)
         );
         assert_eq!(
             log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
@@ -3260,7 +3261,8 @@ mod continuation_refusal_order_tests {
         let err = refusal_at(1);
         assert!(
             !matches!(err, MassPropsError::Face { face, .. } if face == FaceKey::null()),
-            "the continuation refused on the face short of the resolution: {err}"
+            "the continuation refused on the face short of the resolution: {err_at}",
+            err_at = err.render(geom_brep::recourse::Reading::AtRest)
         );
     }
 
@@ -3278,7 +3280,10 @@ mod continuation_refusal_order_tests {
         let measured = certificate(&body, vec![run_of(skeletal, LaneStop::Wall)])
             .measure(crate::test_support::pinned_resolution(Tol::witness()))
             .unwrap_or_else(|err| {
-                panic!("the continuation resumed a face its lane had stopped: {err}")
+                panic!(
+                    "the continuation resumed a face its lane had stopped: {err_at}",
+                    err_at = err.render(geom_brep::recourse::Reading::AtRest)
+                )
             });
         assert_eq!(measured.stop, Stop::Wall, "the bracket, at the wall");
     }
@@ -3286,8 +3291,14 @@ mod continuation_refusal_order_tests {
     #[test]
     fn the_reported_refusal_is_the_same_at_four_threads() {
         assert_eq!(
-            format!("{}", refusal_at(4)),
-            format!("{}", refusal_at(1)),
+            format!(
+                "{}",
+                refusal_at(4).render(geom_brep::recourse::Reading::AtRest)
+            ),
+            format!(
+                "{}",
+                refusal_at(1).render(geom_brep::recourse::Reading::AtRest)
+            ),
             "the refusal the continuation names moved with the pool width"
         );
     }
@@ -8194,7 +8205,7 @@ mod recourse_tests {
         ];
         assert_eq!(arms.len(), 5, "an arm was added without a row here");
         for arm in &arms {
-            let msg = arm.to_string();
+            let msg = arm.render(geom_brep::recourse::Reading::AtRest);
             let lower = msg.to_lowercase();
             // Where there is no way through, the sentence says so.
             assert!(

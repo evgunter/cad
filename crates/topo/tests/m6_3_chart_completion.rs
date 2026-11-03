@@ -245,8 +245,10 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
         "the refusal is the arc fence's, typed: {err:?}"
     );
     assert!(
-        err.to_string().contains("Recourse:"),
-        "the refusal carries a recourse: {err}"
+        err.render(geom_brep::recourse::Reading::Build)
+            .contains("Recourse:"),
+        "the refusal carries a recourse: {err_at}",
+        err_at = err.render(geom_brep::recourse::Reading::Build)
     );
     let (mut clear, he_plus, _) = spur_body(&circle, plane, (0.2, 1.2));
     topo::mint_pcurves(&mut clear, Tol::witness())
