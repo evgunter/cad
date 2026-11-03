@@ -161,7 +161,7 @@ fn describe_edges_panics_on_a_torn_curve() {
 fn point_in_face_panics_on_a_torn_outer_loop() {
     let mut body = cube();
     let face = first_face(&body);
-    let plane = super::reduce::face_plane(&body, face).expect("a cube face is planar");
+    let (_, normal) = crate::face_normal::face_plane(&body, face).expect("a cube face is planar");
     let members = outer_members(&body, face);
     let corner = |he| {
         let v = body.get_half_edge(he).unwrap().start;
@@ -169,7 +169,7 @@ fn point_in_face_panics_on_a_torn_outer_loop() {
     };
     let p = corner(members[0]).lerp(corner(members[2]), 0.5);
     assert_eq!(
-        super::solid_contain::point_in_face(&body, face, plane.normal, p, band()).unwrap(),
+        super::solid_contain::point_in_face(&body, face, normal, p, band()).unwrap(),
         Some(true),
         "the face's centre is in it"
     );
@@ -179,14 +179,14 @@ fn point_in_face_panics_on_a_torn_outer_loop() {
         "point_in_face",
         &mut torn,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::solid_contain::point_in_face(b, face, plane.normal, p, band()),
+        |b| super::solid_contain::point_in_face(b, face, normal, p, band()),
     );
     let named = tear_ring(&mut body, face);
     assert_torn_op_panics(
         "point_in_face (ring)",
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::solid_contain::point_in_face(b, face, plane.normal, p, band()),
+        |b| super::solid_contain::point_in_face(b, face, normal, p, band()),
     );
 }
 
@@ -340,18 +340,21 @@ fn the_wrap_scan_panics_on_a_torn_curve() {
     );
 }
 
-/// `reduce.rs` `face_plane`: a stale face reads `None` (the caller's
+/// `face_normal.rs` `face_plane`: a stale face reads `None` (the caller's
 /// key); a torn surface panics, where it read as a face that is not a
 /// plane.
 #[test]
 fn face_plane_answers_a_stale_face_none_and_panics_on_a_torn_surface() {
     let mut body = cube();
     let face = first_face(&body);
-    assert!(super::reduce::face_plane(&body, face).is_some(), "a plane");
+    assert!(
+        crate::face_normal::face_plane(&body, face).is_some(),
+        "a plane"
+    );
     let mut stale = body.clone();
     stale.faces.remove(face);
     assert!(
-        super::reduce::face_plane(&stale, face).is_none(),
+        crate::face_normal::face_plane(&stale, face).is_none(),
         "a face the caller passed that does not resolve reads None"
     );
     let named = drop_surface(&mut body, face);
@@ -359,7 +362,7 @@ fn face_plane_answers_a_stale_face_none_and_panics_on_a_torn_surface() {
         "face_plane",
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::reduce::face_plane(b, face).is_some(),
+        |b| crate::face_normal::face_plane(b, face).is_some(),
     );
 }
 
@@ -428,8 +431,8 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
         .faces()
         .map(|(k, _)| k)
         .find(|&f| {
-            super::reduce::face_plane(&pierced, f)
-                .is_some_and(|p| p.normal.z > 0.5 && (p.origin.z - 1.0).abs() < 1e-12)
+            crate::face_normal::face_plane(&pierced, f)
+                .is_some_and(|(o, n)| n.z > 0.5 && (o.z - 1.0).abs() < 1e-12)
         })
         .unwrap();
     let contact = VfContact { vertex, face };

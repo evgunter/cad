@@ -138,6 +138,7 @@ pub mod chart;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
+pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
 pub mod coherence;
@@ -721,11 +722,11 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let line = geom::Line { origin, dir };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
-            let t = (p - origin).dot(dir);
-            let off = (p - origin - dir * t).norm();
-            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+            let off = (p - line.foot(p)).norm();
+            (off < 1e-9).then_some((line.param(p) * 1e6).round() / 1e6)
         };
         let mut spans: Vec<(f64, f64)> = body
             .edges()
@@ -1274,7 +1275,13 @@ pub mod test_support {
         p: geom_core::Point3<T>,
         band: geom_core::Band,
     ) -> Result<Option<bool>, crate::PointInSolidError> {
-        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        let Some((_, normal)) = crate::face_normal::face_plane(body, face) else {
+            let f = body.proven_face(face);
+            return Err(crate::PointInSolidError::KindUnsupported {
+                face,
+                kind: f.surface().kind(),
+            });
+        };
         crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
     }
 }
@@ -1330,7 +1337,7 @@ pub use boolean::{
     take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
-pub use chord_join::face_azimuth_window_traces;
+pub use chart_window::face_azimuth_window_traces;
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
 pub use census::{

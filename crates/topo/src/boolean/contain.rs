@@ -976,7 +976,9 @@ fn curved_interior_placement<T: Decide>(
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return super::spline_region::spline_face_placement(body, face, q, band);
         }
-        geom::Surface::Plane { .. } => Ok(CurvedPlacement::Trim(None)),
+        geom::Surface::Plane { .. } | geom::Surface::Spindle { .. } => {
+            Ok(CurvedPlacement::Trim(None))
+        }
     };
     analytic.map(|at| (at, None))
 }

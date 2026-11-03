@@ -60,6 +60,7 @@ pub(super) fn carrier_gate<T: Decide>(
             geom::SurfaceKind::Plane | geom::SurfaceKind::Cylinder | geom::SurfaceKind::Cone => {}
             geom::SurfaceKind::Sphere
             | geom::SurfaceKind::Torus
+            | geom::SurfaceKind::Spindle
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
                 if !reach_clears(

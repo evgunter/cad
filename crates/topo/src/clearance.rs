@@ -3446,6 +3446,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
+        Surface::Spindle { .. } => return unsupported("a spindle sheet's face"),
         Surface::Nurbs(net) => match iso_bounded_domain(body, f.record(), net) {
             Ok((u, v)) => (u, v, Region::Whole),
             Err(carrier) => return unsupported(carrier),

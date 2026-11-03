@@ -690,51 +690,11 @@ pub(super) fn certified<T: geom_core::Real>(
         })
 }
 
-/// The face's plane description (post-gate: always a `Plane`), with
-/// the **face's outward normal** — not the chart's.
-///
-/// [`PlaneDesc::normal`] is contractually the unit OUTWARD normal —
-/// the surface's chart normal with [`crate::entity::Face::sense`]
-/// folded in: the chart is the only place orientation is encoded, so
-/// on a `sense: false` face the stored normal points INTO the
-/// material, and every consumer reading a material direction off it
-/// would answer backwards. The flip itself lives in
-/// [`crate::face_normal`], which this function is defined in terms of
-/// — one door for the planar consumers (`plane_of`, this sweep, the
-/// pierce lane, and the SHARED [`crate::sector_face`]
-/// walk, which is why the door sits at the crate root rather than
-/// here), one flip, so those consumers stay orientation-blind.
-///
-/// Outside this crate the same fold is spelled through
-/// [`geom_brep::OutwardNormal::from_chart`], the type's only
-/// constructor, which takes the bit; there is no scalar sign on a face
-/// for a reader anywhere to multiply by.
-///
-/// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
-/// Zero, or that hand the normal to a ray-parity test, are unaffected
-/// either way (a residual's sign flip decides Zero the same, and
-/// crossing parity is blind to frame handedness). The consumers that
-/// read a MATERIAL side off the sign — `side_code`, the containment
-/// ray's `d·n̂` — are exactly the ones this fixes.
-///
-/// `None` for a face that is not a plane, and for a `face` that does
-/// not resolve: the key is the caller's ([`super::carrier_pair::flush_pair_relation`]
-/// passes a public door's).
-///
-/// # Panics
-///
-/// Where `face` resolves and its surface does not (D2 row 4): a torn
-/// surface is not a non-planar one. On the reduction's working copies
-/// the link holds by [`crate::live::OPERATORS_KEEP_LINKS`].
-pub(super) fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
-    let f = body.passed_face(face)?;
-    match f.surface() {
-        geom::Surface::Plane { origin, normal, .. } => Some(PlaneDesc {
-            origin: *origin,
-            normal: crate::face_normal::plane_outward_normal(f.record(), *normal).vec(),
-        }),
-        _ => None,
-    }
+/// [`crate::face_normal::face_plane`] as the plane ladder's
+/// description: the same point and OUTWARD normal, `None` where that
+/// door answers `None`.
+pub(super) fn plane_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
+    crate::face_normal::face_plane(body, face).map(|(origin, normal)| PlaneDesc { origin, normal })
 }
 
 /// A vertex of the swept solid `x`, whose slit tips at rest are `tips`,
@@ -868,7 +828,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             }
             continue;
         }
-        let (Some(p1), Some(p2)) = (face_plane(body, f1), face_plane(body, f2)) else {
+        let (Some(p1), Some(p2)) = (plane_desc(body, f1), plane_desc(body, f2)) else {
             continue;
         };
         let at = body.resolve_vertex_point(
@@ -1077,7 +1037,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // the M3 lane below (bit-identically for line edges, plus
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
-            let Some(plane) = face_plane(y, face) else {
+            let Some(plane) = plane_desc(y, face) else {
                 // The tree's overlap is a world-axis one: a curved face
                 // the edge, or either face the edge lies on, is apart
                 // from along a direction that turns with the operands
@@ -1850,7 +1810,7 @@ fn settle_in_plane<T: Decide>(
         // and panics on a stale one; the plane's `None` is then a face
         // that is not planar.
         let bounding = face_vertices(y, lie.face);
-        let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
+        let plane = plane_desc(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
         let pieces = contacts
@@ -5029,7 +4989,10 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
         // No root lane: the caller reads the span against the face as it
         // reads a door's refusal.
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => {
             return Ok(None);
         }
     })))
@@ -5117,7 +5080,8 @@ fn line_cone_roots<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = ((T::zero() - w0.dot(dir)) / dd)
+    let foot = geom::Line { origin, dir }
+        .param(apex)
         .max(t0.min(t1))
         .min(t0.max(t1));
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
@@ -6070,7 +6034,7 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
     for &lies in lying_in {
         match lies {
             LyingIn::Plane(face) => {
-                let plane = face_plane(y, face).ok_or(BooleanError::ClassificationInvariant {
+                let plane = plane_desc(y, face).ok_or(BooleanError::ClassificationInvariant {
                     what: "a face an edge lies in lost its plane",
                 })?;
                 let read = |which| edge_face_read(x, x_is, edge, face, declared, which);

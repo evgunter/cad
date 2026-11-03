@@ -203,7 +203,7 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
         match kind {
             SurfaceKind::Plane | SurfaceKind::Cylinder | SurfaceKind::Sphere => (true, true),
             SurfaceKind::Cone | SurfaceKind::Torus => (false, true),
-            SurfaceKind::Nurbs | SurfaceKind::Approx => (false, false),
+            SurfaceKind::Spindle | SurfaceKind::Nurbs | SurfaceKind::Approx => (false, false),
         }
     }
     let p = Point3::new(0.0, 0.0, 0.0);
@@ -243,6 +243,13 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
             axis,
             major_radius: 2.0,
             minor_radius: 0.5,
+            u_ref,
+        },
+        Surface::Spindle {
+            center: p,
+            axis,
+            major_radius: -0.5,
+            minor_radius: 1.0,
             u_ref,
         },
     ];

@@ -129,6 +129,7 @@ impl Curved {
             }
             Surface::Plane { .. }
             | Surface::Cone { .. }
+            | Surface::Spindle { .. }
             | Surface::Nurbs(_)
             | Surface::Approx(_) => {
                 return Err("only a cylinder, a sphere or a torus is a curved implicit partner");

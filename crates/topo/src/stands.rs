@@ -61,8 +61,9 @@ use slotmap::SecondaryMap;
 use crate::body::Body;
 use crate::boolean::PointInSolidError;
 use crate::boolean::SolidContainment;
-use crate::boolean::solid_contain::{SolidFaces, face_plane, point_in_face, point_in_solid_faces};
+use crate::boolean::solid_contain::{SolidFaces, point_in_face, point_in_solid_faces};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
+use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
 use geom_brep::ladder::{Answering, Ranked, Rung, climb_evidence};
@@ -256,17 +257,15 @@ pub(crate) fn ladder<T: Decide, S, E: From<LadderRefusal>>(
 ///
 /// # Errors
 ///
-/// [`LadderRefusal`] where the face does not walk or its plane or
-/// in-face walk refuses other than in band.
+/// [`LadderRefusal`] where the face does not walk or its in-face walk
+/// refuses other than in band.
 pub(crate) fn planar_interior_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Point3<T>>, LadderRefusal> {
-    let normal = match face_plane(body, face) {
-        Ok((_, normal)) => normal,
-        Err(PointInSolidError::KindUnsupported { .. }) => return Ok(None),
-        Err(e) => return Err(LadderRefusal::Containment(e)),
+    let Some((_, normal)) = face_plane(body, face) else {
+        return Ok(None);
     };
     face_interior_point(body, face, normal, band)
 }

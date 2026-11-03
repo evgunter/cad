@@ -489,6 +489,19 @@ impl<'a, T: Real> FaceView<'a, T> {
         (lk, l)
     }
 
+    /// The half-edges of the face's outer loop in cycle order; `None`
+    /// for an outer loop that is not a cycle. The loop is a link of the
+    /// face, and its walk closes on the half-edges that claim it (tier 1
+    /// at rest, [`OPERATORS_KEEP_LINKS`] mid-operation): a miss panics.
+    #[track_caller]
+    pub(crate) fn outer_cycle(self) -> Option<Vec<HalfEdgeKey>> {
+        let (lk, l) = self.outer();
+        let LoopBoundary::Cycle { first } = l.boundary else {
+            return None;
+        };
+        Some(self.body.loop_walk_of(first, lk).closed_in(lk, first))
+    }
+
     /// [`FaceView::boundary`] a loop at a time: each loop's key, its
     /// members and its role, so a reader that needs a loop whole has it.
     pub(crate) fn boundary_by_loop(

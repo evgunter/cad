@@ -135,7 +135,12 @@ pub(super) fn reach<T: Real>(surface: &geom::Surface<T>) -> Option<MedialDistanc
             minor_radius.min(major_radius - minor_radius),
         )),
         geom::Surface::Plane { .. } => Some(MedialDistance::Unbounded),
-        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        // A sheet's medial axis reaches its apexes, and no distance to
+        // it is written yet.
+        geom::Surface::Cone { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -192,7 +197,10 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             let d = (q - origin).dot(n);
             Some((d, q - n * d, n))
         }
-        geom::Surface::Cone { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Cone { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => None,
     }
 }
 

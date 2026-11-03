@@ -58,12 +58,15 @@
 //! a line on a plane, cylinder or cone and a circle or an ellipse on a
 //! plane, a quadric or a torus, where an edge-on-face record names the
 //! pair or the face holds a piece of it between the crossings its records
-//! name, whatever piece holds its midpoint. On a spline face the carrier
-//! is not read on the chart: an edge both of whose ends lie on the face
-//! and whose midpoint the face holds is taken to lie in it, and refuses
-//! ([`EdgeInFaceGap::SplineFace`]) where both its faces go into the
-//! face's material. An edge it does not find, a spline carrier on any
-//! other face or one touching the face where no record names it, stays
+//! name, whatever piece holds its midpoint. Where the carrier's place on
+//! the face is not read, on a spline face, whose chart is not read here,
+//! or for a spline or spiric carrier not certified off the face's surface
+//! along its whole length, an edge anything relates to the face (an end
+//! on it, a crossing of its loops, a record of the pair) is taken to lie
+//! in it, and refuses where both its faces go into
+//! the face's material ([`EdgeInFaceGap::SplineFace`],
+//! [`EdgeInFaceGap::CarrierUnread`]). An edge it does not find, one
+//! touching the face where no record names it, stays
 //! one edge: the result gate's line reading
 //! ([`crate::census::line_wedges`]) refuses it where its wedges overlap
 //! another edge's on the line, and it ships otherwise.
@@ -177,6 +180,11 @@ pub enum EdgeInFaceGap {
     /// reading goes: whether the chart holds the edge's carrier is not
     /// read.
     SplineFace,
+    /// The edge's carrier, a spline or a spiric, or a conic on a fat
+    /// torus, is not certified off the face's surface over its whole
+    /// length, and nothing reads it on: whether it lies in the face along
+    /// some piece is not read ([`carrier_on_surface`]).
+    CarrierUnread,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
     /// the copies.
@@ -277,6 +285,9 @@ impl EdgeInFaceGap {
             Self::SplineFace => {
                 "the face is a spline, which holds the edge's ends and its midpoint, and whether \
                  it holds the edge's carrier is not read"
+            }
+            Self::CarrierUnread => {
+                "the edge's carrier is not read on or off the face's surface along its length"
             }
             Self::DividedEndTouched => {
                 "an end the parting would divide touches an edge, which the census does not read \
@@ -996,11 +1007,14 @@ struct Names {
 /// be the kernel defect [`EdgeInFaceGap::Crossed`], so it does not lie
 /// there.
 ///
-/// On a spline face, whose chart is not read for the carrier, the edge
-/// is taken to lie in `f` where both its ends lie on it and `f` holds its
-/// midpoint, and the faces are then read as for an in-band carrier: where
-/// both go into `f`'s material the edge refuses
-/// ([`EdgeInFaceGap::SplineFace`]); otherwise it does not lie in `f`.
+/// Where the carrier's place on `f`'s surface is not read (a spline face;
+/// a spline or spiric carrier not certified off it, [`Placed::Unread`]),
+/// the edge is taken to lie in `f` wherever anything relates the two (an
+/// end on `f`, a crossing of its loops, a record of the pair: every face
+/// [`riders`] asks about), never on a sampled point of it, and the faces
+/// are then read as for an in-band carrier: where both go into `f`'s material the edge
+/// refuses with the reading's gap ([`EdgeInFaceGap::SplineFace`],
+/// [`EdgeInFaceGap::CarrierUnread`]); otherwise it does not lie in `f`.
 ///
 /// # Errors
 ///
@@ -1008,14 +1022,13 @@ struct Names {
 /// `f` holds a piece's midpoint, is in band and something other than a
 /// crossing names the pair; or where whether the carrier lies on `f`'s
 /// surface is in band, both the edge's faces go into `f`'s material and
-/// something other than a crossing names the pair; or, on a spline face,
-/// where whether `f` holds the midpoint is in band.
+/// something other than a crossing names the pair.
 /// [`BooleanError::EdgeInFace`] with [`EdgeInFaceGap::Unread`] where the
 /// containment door does not place a piece's midpoint and no piece reads
 /// in `f`, in the same cases as an in-band midpoint; with
-/// [`EdgeInFaceGap::SplineFace`] where
-/// an edge read as lying in a spline face has both its faces going into
-/// `f`'s material. [`walls_inside`]'s refusals but `Crossed`, where it
+/// [`EdgeInFaceGap::SplineFace`] or [`EdgeInFaceGap::CarrierUnread`]
+/// where an unread carrier's edge has both its faces going into `f`'s
+/// material. [`walls_inside`]'s refusals but `Crossed`, where it
 /// reads the faces.
 fn holding<T: Decide>(
     body: &Body<T>,
@@ -1046,26 +1059,18 @@ fn holding<T: Decide>(
         gap: EdgeInFaceGap::Unread(why),
     };
     let on = match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
-        Ok(Some(on)) => Ok(on),
-        // A spline face, read by its ends and midpoint; any other pair
-        // read here lies on nothing.
-        Ok(None) => {
-            let spline = body.proven_face(f).surface().spline_chart().is_some();
-            if !spline || !names.ends {
-                return Ok(None);
-            }
-            let mid = carrier.eval(geom::mid_param(t0, t1));
-            match piece_reading(body, f, mid, band, DoorInBand::Containment) {
-                Ok(PieceRead::In) => Err(BooleanError::EdgeInFace {
-                    edge: e,
-                    face: f,
-                    gap: EdgeInFaceGap::SplineFace,
-                }),
-                Ok(PieceRead::NotIn) => return Ok(None),
-                Ok(PieceRead::Unread(why)) => return Err(unread(why)),
-                Err(read) => return Err(read),
-            }
-        }
+        Ok(Placed::On) => Ok(true),
+        Ok(Placed::Off) => Ok(false),
+        // Nothing says the edge lies along no piece of the face, and
+        // something relates the two (an end on it, a crossing of its
+        // boundary, a record of the pair): it is read as an in-band
+        // carrier is, and refuses where both its faces go into the
+        // face's material. No point of it is sampled to say otherwise.
+        Ok(Placed::Unread(gap)) => Err(BooleanError::EdgeInFace {
+            edge: e,
+            face: f,
+            gap,
+        }),
         Err(read) => Err(read),
     };
     match on {
@@ -1075,6 +1080,16 @@ fn holding<T: Decide>(
         // its faces go into the face's material: where they do not, the
         // parting is not asked whatever the answer.
         Err(read) => {
+            // The walls' own refusals (a wall tangent to the face, a wall
+            // with no normal) presuppose the edge lies in the face; where
+            // that is what is unread, the refusal is the unread one.
+            let unread_place = matches!(
+                read,
+                BooleanError::EdgeInFace {
+                    gap: EdgeInFaceGap::CarrierUnread | EdgeInFaceGap::SplineFace,
+                    ..
+                }
+            );
             return match walls_inside(body, e, f, band) {
                 Ok(Some(_)) => unplaced(read),
                 // A definite `Crossed` cannot hold of an edge lying in
@@ -1087,6 +1102,7 @@ fn holding<T: Decide>(
                     gap: EdgeInFaceGap::Crossed,
                     ..
                 }) => Ok(None),
+                Err(_) if unread_place => Err(read),
                 Err(other) => Err(other),
             };
         }
@@ -1169,6 +1185,15 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
+/// The site [`carrier_on_surface`] decides a spiric's plane against a
+/// plane face's under: their tilt over the spiric's reach, then the
+/// spiric's plane's height.
+const RIDER_SPIRIC_PLANE: &str = "bool_rider_spiric_plane";
+
+/// The site [`clears_plane`] decides a spline's control point beyond a
+/// plane under.
+const RIDER_HULL_OFF: &str = "bool_rider_hull_off_plane";
+
 /// How many points of an edge's carrier [`carrier_on_surface`] reads on a
 /// face's surface: more than the carrier and the surface can share
 /// without the one lying on the other.
@@ -1190,23 +1215,44 @@ enum Samples {
 /// its largest value at the nine points anywhere on the turn.
 const LEBESGUE_NINE: f64 = 2.37;
 
-/// **Whether edge carrier `carrier`, over `(t0, t1)`, lies on face `f`'s
-/// surface**: a line on a plane at both its ends, and on a cylinder or
-/// cone by [`crate::census::line_on_quadric_carrier`]
-/// (`bool_line_face_carrier_offset`); a conic in a plane by its own
-/// plane's offset from it (`bool_conic_face_plane_offset`), and on a
-/// sphere, cylinder, cone or torus at points equispaced over its
-/// carrier's whole turn from `t0`, five and nine ([`Samples`],
-/// [`even_points`]). A conic
-/// arc lies on such a surface exactly where its whole carrier does (the
-/// surface's equation along it is a trigonometric polynomial, zero on an
-/// interval only where zero everywhere), so the edge's own span does not
-/// matter. Each point's offset from the surface is decided on the band
-/// ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]), every point before the
-/// answer: one point definitely off decides that the carrier is not on
-/// the surface, whatever the others read. `None` for any other pair,
-/// which nothing here reads: a spline on either side, a line on a sphere
-/// or a torus.
+/// **Where an edge's carrier lies against a face's surface**
+/// ([`carrier_on_surface`]).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Placed {
+    /// On the surface over the whole span.
+    On,
+    /// Off it along every piece of the span.
+    Off,
+    /// Not read: the gap a reader that needs the answer refuses with.
+    Unread(EdgeInFaceGap),
+}
+
+/// **Where edge carrier `carrier`, over `(t0, t1)`, lies against face
+/// `f`'s surface** ([`Placed`]): on it, off it along every piece, or
+/// unread. A line on a plane is read at both its ends, and on a cylinder
+/// or cone by [`crate::census::line_on_quadric_carrier`]
+/// (`bool_line_face_carrier_offset`); no line lies along a piece of a
+/// sphere or a ring torus. A conic in a plane is read by its own plane's
+/// offset from it (`bool_conic_face_plane_offset`), and on a sphere,
+/// cylinder, cone or torus at points equispaced over its carrier's whole
+/// turn from `t0`, five and nine ([`Samples`], [`even_points`]). A line
+/// or a conic lies on such a surface along a piece exactly where its
+/// whole carrier does (the surface's equation along it is a polynomial,
+/// or a trigonometric one, zero on an interval only where zero
+/// everywhere), so the edge's own span does not matter: each point's
+/// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
+/// every point before the answer, and one definitely off reads it off.
+///
+/// A spiric lies in its own plane, so against a plane it reads as a conic
+/// does, by the two planes' tilt over its reach and then its plane's
+/// height ([`RIDER_SPIRIC_PLANE`]). A spline can lie on a surface along
+/// part of its length only, so no point of it read off says it lies there
+/// along no piece: it reads off only where it is certified off over its
+/// whole length ([`clears_plane`], a plane's). A spiric on any other
+/// analytic surface, and a spline not certified off, is unread
+/// ([`EdgeInFaceGap::CarrierUnread`]); nothing reads it on. A spline face
+/// is unread for every carrier ([`EdgeInFaceGap::SplineFace`]): its chart
+/// is not read here.
 ///
 /// **Between the samples.** On a sphere or a cylinder the offset along a
 /// conic is itself a trigonometric polynomial of degree 2, which at five
@@ -1219,8 +1265,8 @@ const LEBESGUE_NINE: f64 = 2.37;
 /// anywhere on the turn is at most `Λ · max(|offset| · G) / (R² − r²)`
 /// over the nine samples ([`LEBESGUE_NINE`]). That bound is decided after
 /// the samples read zero: zero reads the conic on the torus, beyond the
-/// band reads nothing (`None`, the samples cannot certify a fat torus's
-/// conic), in band escalates; D3's torus is a ring, `R > r`. On a cone
+/// band leaves it unread (the samples cannot certify a fat torus's conic),
+/// in band escalates; D3's torus is a ring, `R > r`. On a cone
 /// the offset is not a polynomial along a conic and the samples are not
 /// bounded between
 /// (`work/parting/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
@@ -1237,7 +1283,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
     (t0, t1): (T, T),
     f: FaceKey,
     band: Band,
-) -> Result<Option<bool>, BooleanError> {
+) -> Result<Placed, BooleanError> {
     let surface = body.proven_face(f).surface();
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
@@ -1248,7 +1294,7 @@ fn conic_or_line_on<T: Decide>(
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Option<bool>, BooleanError> {
+) -> Result<Placed, BooleanError> {
     let (samples, site, coincide) = match (carrier, surface) {
         (geom::Curve3::Line(_), geom::Surface::Plane { .. }) => {
             (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
@@ -1267,15 +1313,16 @@ fn conic_or_line_on<T: Decide>(
                     Margin::of(offset),
                     band,
                 ) {
-                    Ok(Sign::Zero) => Ok(Some(true)),
-                    Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
+                    Ok(Sign::Zero) => Ok(Placed::On),
+                    Ok(Sign::Positive | Sign::Negative) => Ok(Placed::Off),
                     Err(diag) => Err(BooleanError::coincidence(
                         Coincide::EdgeOnPlane,
                         DeclarationRead::Moot,
                         diag,
                     )),
                 },
-                _ => Ok(Some(false)),
+                // A conic out of the plane meets it at two points at most.
+                _ => Ok(Placed::Off),
             };
         }
         // A line on a cylinder or a cone: the one reading of it
@@ -1288,8 +1335,8 @@ fn conic_or_line_on<T: Decide>(
                 "bool_line_face_carrier_offset",
                 band,
             ) {
-                Some(Ok(on)) => Ok(Some(on)),
-                None => Ok(Some(false)),
+                Some(Ok(true)) => Ok(Placed::On),
+                Some(Ok(false)) | None => Ok(Placed::Off),
                 Some(Err(diag)) => Err(BooleanError::coincidence(
                     Coincide::EdgeOnCurvedFace,
                     DeclarationRead::Moot,
@@ -1312,7 +1359,54 @@ fn conic_or_line_on<T: Decide>(
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
-        _ => return Ok(None),
+        // No line lies along any piece of a sphere or a ring torus.
+        (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
+            return Ok(Placed::Off);
+        }
+        // A spiric lies in its own plane, so against a plane it reads as a
+        // conic does: in it where the two planes are one, and otherwise
+        // meeting it at four points at most.
+        (
+            &geom::Curve3::Spiric {
+                center,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+                ..
+            },
+            &geom::Surface::Plane { origin, normal, .. },
+        ) => {
+            let (n, u) = (normal / normal.norm(), u_ref / u_ref.norm());
+            let refused = |diag| {
+                BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
+            };
+            let tilt = n.cross(u).norm() * (major_radius + minor_radius);
+            return match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(tilt), band)
+                .map_err(refused)?
+            {
+                Sign::Zero => {
+                    let height = (center + u * offset - origin).dot(n);
+                    match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(height), band)
+                        .map_err(refused)?
+                    {
+                        Sign::Zero => Ok(Placed::On),
+                        Sign::Positive | Sign::Negative => Ok(Placed::Off),
+                    }
+                }
+                Sign::Positive | Sign::Negative => Ok(Placed::Off),
+            };
+        }
+        (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
+            if surface.spline_chart().is_none() =>
+        {
+            return Ok(if clears_plane(carrier, surface, band) {
+                Placed::Off
+            } else {
+                Placed::Unread(EdgeInFaceGap::CarrierUnread)
+            });
+        }
+        _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
     };
     let points = match samples {
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
@@ -1320,7 +1414,7 @@ fn conic_or_line_on<T: Decide>(
     };
     let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
     if !crate::census::points_on_surface(surface, &points, site, band).map_err(refused)? {
-        return Ok(Some(false));
+        return Ok(Placed::Off);
     }
     match *surface {
         geom::Surface::Torus {
@@ -1331,7 +1425,38 @@ fn conic_or_line_on<T: Decide>(
             ..
         } => torus_between(&points, (center, axis), (major_radius, minor_radius), band)
             .map_err(refused),
-        _ => Ok(Some(true)),
+        _ => Ok(Placed::On),
+    }
+}
+
+/// **Whether a spline carrier is certified off a plane over its whole
+/// length**: every point of it lies strictly beyond the band on one side.
+/// A spline lies in the hull of its control net (its weights are
+/// positive), so the certificate is every control point decided beyond
+/// the band on one side. `false` on any other surface or carrier, and
+/// wherever a decision is in band: not certified off, which is no reading
+/// that the carrier is on.
+fn clears_plane<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    let &geom::Surface::Plane { origin, normal, .. } = surface else {
+        return false;
+    };
+    let height = |p: Point3<T>| (p - origin).dot(normal) / normal.norm();
+    let side = |m: T| crate::validate::decide(RIDER_HULL_OFF, Margin::of(m), band).ok();
+    match carrier {
+        geom::Curve3::Nurbs(net) => {
+            let mut signs = net.control().iter().map(|&p| side(height(p)));
+            match signs.next() {
+                Some(Some(first @ (Sign::Positive | Sign::Negative))) => {
+                    signs.all(|s| s == Some(first))
+                }
+                _ => false,
+            }
+        }
+        _ => false,
     }
 }
 
@@ -1351,7 +1476,7 @@ fn torus_between<T: Decide>(
     (center, axis): (Point3<T>, Vec3<T>),
     (big, small): (T, T),
     band: Band,
-) -> Result<Option<bool>, geom_core::Indeterminate> {
+) -> Result<Placed, geom_core::Indeterminate> {
     let mut worst = T::zero();
     for &p in points {
         let w = p - center;
@@ -1365,8 +1490,8 @@ fn torus_between<T: Decide>(
     let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
     Ok(
         match crate::validate::decide(RIDER_ON_CURVED, Margin::of(bound), band)? {
-            Sign::Zero => Some(true),
-            Sign::Positive | Sign::Negative => None,
+            Sign::Zero => Placed::On,
+            Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
         },
     )
 }
@@ -1481,7 +1606,12 @@ mod torus_rows {
         for (what, carrier, on) in rows {
             let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), face, band)
                 .unwrap_or_else(|e| panic!("{what}: {e:?}"));
-            assert_eq!(read, Some(on), "{what}");
+            let want = if on {
+                super::Placed::On
+            } else {
+                super::Placed::Off
+            };
+            assert_eq!(read, want, "{what}");
         }
     }
 
@@ -1546,7 +1676,7 @@ mod torus_rows {
         );
         assert!(matches!(
             super::conic_or_line_on(&villarceau, (0.0, TAU), &fat_torus(), band()),
-            Ok(Some(true))
+            Ok(super::Placed::On)
         ));
     }
 
@@ -1588,7 +1718,13 @@ mod torus_rows {
             "it misses between them: {between:e}"
         );
         let read = super::conic_or_line_on(&near, (0.0, TAU), &fat_torus(), band());
-        assert!(!matches!(read, Ok(Some(true))), "{read:?}");
+        assert!(
+            matches!(
+                read,
+                Ok(super::Placed::Unread(super::EdgeInFaceGap::CarrierUnread))
+            ),
+            "a conic the samples read on a fat torus, missing it between, is unread: {read:?}"
+        );
     }
 }
 
@@ -2674,6 +2810,443 @@ mod unread_piece {
         assert!(
             matches!(crossed, Ok(None)),
             "a crossing-only pair: the face is not asked, got {crossed:?}"
+        );
+    }
+}
+
+/// **A spline or spiric carrier's place on an analytic face is read off
+/// only where it is certified off along its whole length, and an unread
+/// one refuses as a rider wherever its ends or a record put it on the
+/// face.** A 2×1×1 box and, in the same body, a triangular prism whose
+/// keel, the vertical edge at `(0, ½)`, lies in the box's `x = 0` wall,
+/// both its walls going into the box's material; the keel re-carried by a
+/// straight NURBS through its own ends.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_rider {
+    use super::{EdgeInFaceGap, LiesIn, Placed, conic_or_line_on, part_riders, riders};
+    use crate::Body;
+    use crate::boolean::{BooleanError, Cell, Contact, ContactRecords};
+    use crate::coincidence::{Cited, Cites};
+    use crate::entity::{EdgeKey, FaceKey};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The plane `x = 0`.
+    fn wall_plane() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        }
+    }
+
+    /// A NURBS of degree `p` on clamped `knots`, unit weights.
+    fn nurbs(knots: Vec<f64>, p: usize, ctrl: Vec<Point3<f64>>) -> geom::Curve3<f64> {
+        let n = ctrl.len();
+        geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(knots, p).unwrap(),
+                ctrl,
+                vec![1.0; n],
+            )
+            .unwrap(),
+        ))
+    }
+
+    /// The degree-one NURBS from `a` to `b` over `[0, 1]`.
+    fn straight(a: Point3<f64>, b: Point3<f64>) -> geom::Curve3<f64> {
+        nurbs(vec![0.0, 0.0, 1.0, 1.0], 1, vec![a, b])
+    }
+
+    /// The box, its `x = 0` wall, and the prism standing from `z0` to
+    /// `z1` with its keel at `(0, ½)`, in one body; the keel's ends.
+    fn box_and_keel((z0, z1): (f64, f64)) -> (Body<f64>, FaceKey, EdgeKey, [crate::VertexKey; 2]) {
+        let tol = Tol::witness();
+        let boxed = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let wall = boxed.side_faces[3];
+        let mut body = boxed.body;
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.5), (1.0, 0.0), (1.0, 1.0)],
+            z0,
+            z1,
+            tol,
+        );
+        crate::instance::graft_disjoint(&mut body, &prism.body).unwrap();
+        let (lo, hi) = (
+            vertex_at(&body, Point3::new(0.0, 0.5, z0)),
+            vertex_at(&body, Point3::new(0.0, 0.5, z1)),
+        );
+        let keel = edge_between(&body, lo, hi);
+        (body, wall, keel, [lo, hi])
+    }
+
+    fn vertex_at(body: &Body<f64>, p: Point3<f64>) -> crate::VertexKey {
+        body.vertices()
+            .find(|(_, v)| (*body.get_point(v.point).unwrap() - p).norm() < 1e-12)
+            .map(|(k, _)| k)
+            .unwrap()
+    }
+
+    fn edge_between(body: &Body<f64>, a: crate::VertexKey, b: crate::VertexKey) -> EdgeKey {
+        body.edges()
+            .find(|&(e, _)| {
+                let (x, y) = crate::query::edge_ends(body, e);
+                [x, y] == [a, b] || [x, y] == [b, a]
+            })
+            .map(|(e, _)| e)
+            .unwrap()
+    }
+
+    fn records(body: &Body<f64>, pairs: &[(Cell, Cell)]) -> ContactRecords {
+        pairs
+            .iter()
+            .enumerate()
+            .map(|(i, &(x, y))| {
+                Cited::new(
+                    Contact::new(body, x, y).unwrap(),
+                    Cites::decided(u32::try_from(i).unwrap()),
+                )
+            })
+            .collect()
+    }
+
+    /// The keel re-carried by a straight NURBS through its own two ends.
+    fn as_spline(body: &mut Body<f64>, keel: EdgeKey) {
+        let curve = body
+            .get_curve_geom(body.get_edge(keel).unwrap().curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap()
+            .clone();
+        let (t0, t1) = curve.params();
+        let mut spec = curve.restated_spec();
+        spec.carrier = straight(curve.carrier().eval(t0), curve.carrier().eval(t1));
+        (spec.param_start, spec.param_end) = (0.0, 1.0);
+        body.set_edge_curve(keel, spec, Tol::witness())
+            .expect("the straight NURBS keel certifies on its two walls");
+    }
+
+    /// Both ends on the wall by vertex-on-face records: on its line the
+    /// keel is the one rider, in the wall; as a spline it refuses
+    /// `CarrierUnread` naming the keel and the wall. Red on a reading
+    /// that takes an unread spline as lying in no face (`Ok`, no parting).
+    #[test]
+    fn a_spline_keel_with_both_ends_on_a_plane_face_refuses_unread() {
+        let (mut body, wall, keel, [lo, hi]) = box_and_keel((0.25, 0.75));
+        let contacts = records(
+            &body,
+            &[
+                (Cell::Vertex(lo), Cell::Face(wall)),
+                (Cell::Vertex(hi), Cell::Face(wall)),
+            ],
+        );
+        let found = riders(&body, &contacts, band()).unwrap();
+        assert!(
+            matches!(
+                &found[..],
+                [(e, lies)] if *e == keel
+                    && matches!(lies[..], [LiesIn { face, .. }] if face == wall)
+            ),
+            "on its line the keel is the one rider, in the wall: {:?}",
+            found.iter().map(|(e, _)| e).collect::<Vec<_>>()
+        );
+        as_spline(&mut body, keel);
+        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::EdgeInFace {
+                    edge,
+                    face,
+                    gap: EdgeInFaceGap::CarrierUnread,
+                }) if edge == keel && face == wall
+            ),
+            "the spline keel refuses unread in the wall, got {:?}",
+            got.map(|(parted, _)| parted.len())
+        );
+    }
+
+    /// The keel runs from `z = ½`, on the wall, to `z = 3/2`, past its
+    /// top edge, so it lies in the wall along half its length; one end on
+    /// the wall, an edge-on-face record naming the keel and the wall, an
+    /// edge-edge record its crossing of the wall's top edge. On its line
+    /// it is a rider in the wall. As a spline it refuses, and first at the
+    /// box's top face, which the crossing record relates it to: the keel
+    /// only crosses that face's plane, but no certificate clears a carrier
+    /// that crosses it, so its place there is unread
+    /// (`EdgeInFace { keel, top, CarrierUnread }`); the walls' own reading,
+    /// which presupposes the keel lies in the face, does not name it. Red
+    /// on a reading that asks both ends before a record, or that reads a
+    /// crossing-only face as holding nothing (`Ok`, no parting).
+    #[test]
+    fn a_spline_keel_past_a_plane_face_refuses_at_the_face_it_crosses() {
+        let (mut body, wall, keel, [lo, _]) = box_and_keel((0.5, 1.5));
+        let top = edge_between(
+            &body,
+            vertex_at(&body, Point3::new(0.0, 0.0, 1.0)),
+            vertex_at(&body, Point3::new(0.0, 1.0, 1.0)),
+        );
+        let contacts = records(
+            &body,
+            &[
+                (Cell::Vertex(lo), Cell::Face(wall)),
+                (Cell::Edge(keel), Cell::Face(wall)),
+                (Cell::Edge(keel), Cell::Edge(top)),
+            ],
+        );
+        let found = riders(&body, &contacts, band()).unwrap();
+        assert!(
+            found
+                .iter()
+                .any(|(e, lies)| *e == keel && lies.iter().any(|l| l.face == wall)),
+            "on its line the keel is a rider in the wall"
+        );
+        let (p, q) = crate::readback::edge_sides(&body, top).unwrap().faces();
+        let roof = if p == wall { q } else { p };
+        as_spline(&mut body, keel);
+        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::EdgeInFace {
+                    edge,
+                    face,
+                    gap: EdgeInFaceGap::CarrierUnread,
+                }) if edge == keel && face == roof
+            ),
+            "the spline keel past the wall refuses at the box's top, got {:?}",
+            got.map(|(parted, _)| parted.len())
+        );
+    }
+
+    /// **A spiric reads against a plane as a conic does**: on where the
+    /// plane is its own (`x = ½`), off where it is parallel and a
+    /// hundredth away, and off where it is tilted (`y = 0`, meeting the
+    /// oval at points only). Red on a reading that leaves a spiric in its
+    /// own plane unread (its rider would refuse where it lies in the
+    /// face's plane as a section edge does).
+    #[test]
+    fn a_spiric_reads_on_its_own_plane_and_off_any_other() {
+        let spiric = geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            offset: 0.5,
+        };
+        let plane =
+            |origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>| geom::Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            };
+        for (what, surface, want) in [
+            (
+                "its own plane",
+                plane(Point3::new(0.5, 3.0, -1.0), Vec3::unit_x(), Vec3::unit_y()),
+                Placed::On,
+            ),
+            (
+                "a parallel plane a hundredth away",
+                plane(Point3::new(0.51, 0.0, 0.0), -Vec3::unit_x(), Vec3::unit_y()),
+                Placed::Off,
+            ),
+            (
+                "a tilted plane",
+                plane(Point3::origin(), Vec3::unit_y(), Vec3::unit_x()),
+                Placed::Off,
+            ),
+        ] {
+            let read = conic_or_line_on(&spiric, (0.0, 1.0), &surface, band());
+            assert_eq!(read.ok(), Some(want), "{what}");
+        }
+    }
+
+    /// A U-shaped block whose `x = 1` face is a U in `(y, z)`: arms
+    /// `y ∈ [0, 1]` and `y ∈ [2, 3]`, base `z ∈ [0, 1]`, the notch
+    /// `y ∈ (1, 2), z ∈ (1, 2)` open. In the same body, a triangular
+    /// prism whose keel runs along `y` at `(x, z) = (1, 1.5)` from
+    /// `y = ½` to `y = 5/2`, its walls going into `x < 1`, the U's
+    /// material side: the keel lies in the U face over `y ∈ [½, 1]` and
+    /// `[2, 5/2]`, and crosses the notch between. Records: both keel
+    /// ends on the face, the keel crossing the notch's two edges.
+    fn keel_across_a_notch() -> (Body<f64>, FaceKey, EdgeKey, ContactRecords) {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let u_profile = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ];
+        // (x, y, z) ↦ (z, x, y): the profile's top, z = 1, is x' = 1.
+        let u_ops = crate::test_support_fixtures::prism_ops(
+            &mut body,
+            &u_profile,
+            (0.0, 1.0),
+            |x, y, z| Point3::new(z, x, y),
+            crate::test_support_fixtures::FaceGeometry::Certified,
+            tol,
+        );
+        let face = u_ops.seed.face;
+        crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
+        let mut keel_body = Body::<f64>::new();
+        // (x, y, z) ↦ (y, z, x): the profile corner (1.5, 1) is the keel
+        // at x' = 1, z' = 1.5, running along y' = z.
+        crate::test_support_fixtures::prism_ops(
+            &mut keel_body,
+            &[(1.5, 1.0), (1.0, 0.0), (2.0, 0.0)],
+            (0.5, 2.5),
+            |x, y, z| Point3::new(y, z, x),
+            crate::test_support_fixtures::FaceGeometry::Certified,
+            tol,
+        );
+        crate::test_support_fixtures::describe_as_intersections(&mut keel_body, tol);
+        crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
+        let normal = body.proven_face(face).surface().clone();
+        assert!(
+            matches!(normal, geom::Surface::Plane { origin, normal, .. }
+                if (origin.x - 1.0).abs() < 1e-12 && normal.x.abs() > 0.99),
+            "the U face is the plane x = 1: {normal:?}"
+        );
+        let lo = vertex_at(&body, Point3::new(1.0, 0.5, 1.5));
+        let hi = vertex_at(&body, Point3::new(1.0, 2.5, 1.5));
+        let keel = edge_between(&body, lo, hi);
+        let notch = |y: f64| {
+            edge_between(
+                &body,
+                vertex_at(&body, Point3::new(1.0, y, 1.0)),
+                vertex_at(&body, Point3::new(1.0, y, 2.0)),
+            )
+        };
+        let contacts: ContactRecords = [
+            Contact::new(&body, Cell::Vertex(lo), Cell::Face(face)).unwrap(),
+            Contact::new(&body, Cell::Vertex(hi), Cell::Face(face)).unwrap(),
+            Contact::new(&body, Cell::Edge(keel), Cell::Edge(notch(1.0))).unwrap(),
+            Contact::new(&body, Cell::Edge(keel), Cell::Edge(notch(2.0))).unwrap(),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| Cited::new(c, Cites::decided(u32::try_from(i).unwrap())))
+        .collect();
+        (body, face, keel, contacts)
+    }
+
+    /// **A spline keel across a notch refuses.** The U face's keel lies
+    /// in it along two pieces, its ends on the face, its midpoint over the
+    /// notch, and records cross the notch's two edges. On its line it is
+    /// a rider in the face; as a straight NURBS through the same points
+    /// it refuses `CarrierUnread` naming the keel and the face. Red on a
+    /// reading that asks the unread carrier's midpoint (`Ok`, no parting:
+    /// the midpoint is over the notch).
+    #[test]
+    fn a_spline_keel_across_a_notch_refuses_unread() {
+        let (mut body, face, keel, contacts) = keel_across_a_notch();
+        let found = riders(&body, &contacts, band()).unwrap();
+        assert!(
+            found
+                .iter()
+                .any(|(e, lies)| *e == keel && lies.iter().any(|l| l.face == face)),
+            "on its line the keel is a rider in the U face"
+        );
+        as_spline(&mut body, keel);
+        let got = part_riders(&mut body, &contacts, band(), Tol::witness());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::EdgeInFace {
+                    edge,
+                    face: f,
+                    gap: EdgeInFaceGap::CarrierUnread,
+                }) if edge == keel && f == face
+            ),
+            "the spline keel across the notch refuses unread in the U face, got {:?}",
+            got.map(|(parted, _)| parted.len())
+        );
+    }
+
+    /// A C0 quadratic B-spline whose `x` vanishes at the nine parameters
+    /// `k / 8` and bows ±0.05 off `x = 0` between each pair.
+    fn wiggle() -> geom::Curve3<f64> {
+        let mut knots = vec![0.0; 3];
+        for k in 1..8 {
+            let t = f64::from(k) / 8.0;
+            knots.extend([t, t]);
+        }
+        knots.extend([1.0; 3]);
+        let ctrl: Vec<Point3<f64>> = (0..17)
+            .map(|i| {
+                let z = 0.25 + 0.5 * f64::from(i) / 16.0;
+                let x = if i % 2 == 0 {
+                    0.0
+                } else if (i / 2) % 2 == 0 {
+                    0.1
+                } else {
+                    -0.1
+                };
+                Point3::new(x, 0.5, z)
+            })
+            .collect();
+        nurbs(knots, 2, ctrl)
+    }
+
+    /// **Nothing short of a whole-length certificate reads a spline off a
+    /// plane, and nothing reads it on.** Unread: one lying in the plane;
+    /// one lying in it over half its span and leaving it over the other
+    /// (a spline can lie on a surface along part of its length, so a
+    /// point of it off says nothing of the rest); one touching it at nine
+    /// equispaced points and bowing ±0.05 off between; one bowed off
+    /// between its two ends on it. Off: one whose control net stands
+    /// beyond the band on one side. Red on any sampled refutation (the
+    /// half-span one reads off at a sample) and on any sampled "on".
+    #[test]
+    fn a_spline_reads_off_a_plane_only_where_its_net_clears_it() {
+        let plane = wall_plane();
+        let (lo, hi) = (Point3::new(0.0, 0.5, 0.25), Point3::new(0.0, 0.5, 0.75));
+        let half = nurbs(
+            vec![0.0, 0.0, 0.5, 1.0, 1.0],
+            1,
+            vec![lo, Point3::new(0.0, 0.5, 0.5), Point3::new(0.2, 0.5, 0.75)],
+        );
+        let w = wiggle();
+        assert!(w.eval(1.0 / 16.0).x.abs() > 0.04, "the wiggle bows off");
+        for (what, carrier) in [
+            ("in the plane", straight(lo, hi)),
+            ("in the plane over half its span", half),
+            ("touching it at nine points", w),
+            (
+                "bowed off between its ends on it",
+                nurbs(
+                    vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                    2,
+                    vec![lo, Point3::new(0.1, 0.5, 0.5), hi],
+                ),
+            ),
+        ] {
+            let read = conic_or_line_on(&carrier, (0.0, 1.0), &plane, band());
+            assert!(
+                matches!(read, Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread))),
+                "{what}: unread, got {read:?}"
+            );
+        }
+        let clear = straight(Point3::new(0.1, 0.5, 0.25), Point3::new(0.2, 0.5, 0.75));
+        assert_eq!(
+            conic_or_line_on(&clear, (0.0, 1.0), &plane, band()).unwrap(),
+            Placed::Off,
+            "a net beyond the band on one side reads off"
         );
     }
 }

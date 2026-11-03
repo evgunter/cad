@@ -2771,6 +2771,24 @@ fn certified_arms<T: Decide + Bounds>(
             gate(major_radius - minor_radius, "torus")?,
             gate(minor_radius, "torus")?,
         ),
+        // `R + r·cos v` at the window's largest `|v|`, as the sphere's
+        // latitude arm, on the range `[0, π]` where `cos` is monotone;
+        // a window reaching an apex reads zero there and the gate
+        // refuses it.
+        Surface::Spindle {
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let v_abs = v_lo.abs().max(v_hi.abs());
+            if v_abs.hi() > core::f64::consts::PI || v_abs.hi().is_nan() {
+                return Err(ChartRegionError::ArmUnbounded { chart: "spindle" });
+            }
+            (
+                gate(major_radius + minor_radius * v_abs.cos(), "spindle")?,
+                gate(minor_radius, "spindle")?,
+            )
+        }
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.

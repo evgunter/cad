@@ -837,7 +837,7 @@ pub(crate) fn cone_axial_window<T: Decide>(
     let quarters = T::from_f64(1.5 * core::f64::consts::PI);
     // Every loop, not the outer alone: a file's designated outer bound
     // can be a hole, and the loop enclosing the apex then a ring.
-    let wide = match crate::chord_join::face_loop_azimuth_windows(body, own, face, band) {
+    let wide = match crate::chart_window::face_loop_azimuth_windows(body, own, face, band) {
         Ok(windows) => windows
             .into_iter()
             .try_fold(T::zero() - quarters, |wide, w| {

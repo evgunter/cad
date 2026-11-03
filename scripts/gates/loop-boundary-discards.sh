@@ -178,7 +178,7 @@ REGISTER=(
   "crates/topo/src/live.rs|half_edge||1|audited: a lone-vertex loop holds no half-edge and no edge, so it bounds no area and a reader of half-edges has nothing to walk; its vertex is still yielded by the walk (BoundaryMember::vertex, Body::member_point) to every reader of points"
   "crates/topo/src/live.rs|edges||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
-  "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
+  "crates/topo/src/live.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
   "crates/topo/src/euler.rs|find_half_edge||1|unaudited"
   "crates/topo/src/euler.rs|mef_lone||1|unaudited"

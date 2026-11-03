@@ -227,6 +227,10 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     use topo::{MassPropsError, ValidationError};
     match r {
         Err(BooleanError::GermFrameUnsupported { .. }) => "frame".to_owned(),
+        Err(BooleanError::EdgeInFace {
+            gap: topo::EdgeInFaceGap::CarrierUnread,
+            ..
+        }) => "unread rider".to_owned(),
         Err(BooleanError::CurvedBooleanUnsupported {
             kind: SurfaceKind::Torus,
             ..
@@ -273,7 +277,8 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
 /// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by pose
 /// and op ([`every_op`]'s order),
 /// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
-/// gate's volume, by the refusal's cause.
+/// gate's volume, by the refusal's cause, but the steeper tilt's union,
+/// at the slit pass's rider reading.
 // Pinned red at every ε row, each word on its owner's row:
 // "projected volume" (a cylinder wall the chords bound) on
 // work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md;
@@ -282,6 +287,9 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
 // work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
 // "spiric wall volume" (a torus wall holding a spiric beside a chord) on
 // work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
+// "unread rider" (the steeper tilt's union, an unread carrier refused at
+// the slit pass's rider reading) on
+// work/splice/an-unread-rider-related-only-by-its-own-vertices-refuses.md.
 // As each lands, its words move on to the run's next stop or to a body
 // held to its volume, and the table is re-pinned there.
 const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
@@ -328,14 +336,14 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
         "projected volume",
     ],
     [
-        "spiric wall volume",
+        "unread rider",
         "projected volume",
         "projected volume",
         "spiric wall volume",
         "projected volume",
     ],
     [
-        "spiric wall volume",
+        "unread rider",
         "projected volume",
         "spiric wall volume",
         "spiric wall volume",

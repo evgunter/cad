@@ -1506,7 +1506,9 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         let anchor = match *surface {
             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
             Surface::Cone { apex, .. } => Some(apex),
-            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => Some(center),
+            Surface::Sphere { center, .. }
+            | Surface::Torus { center, .. }
+            | Surface::Spindle { center, .. } => Some(center),
             Surface::Nurbs(_) | Surface::Approx(_) => None,
         };
         // One plus the face's edge count, kept in `T`.
