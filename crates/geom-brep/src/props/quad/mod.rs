@@ -75,7 +75,7 @@ pub use net::{PatchNet, RVec3};
 pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
 pub use rotational::{
     ChartTermQ, EdgeTermQ, FramedQ, HarmChan, ProjectedEdgeQ, RotationalChartQ, RotationalFaceQ,
-    TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds, rotational_cut_face_rounds,
+    TrimEdgeQ, rotational_cut_face_rounds,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use run::rounds_run_by;

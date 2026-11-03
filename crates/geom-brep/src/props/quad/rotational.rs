@@ -758,12 +758,10 @@ fn chart_term_at(term: &ChartTermQ, pieces: usize) -> (Interval, f64) {
 
 /// The flux and area enclosures of a **cylinder** face whose loops are
 /// all harmonic: [`rotational_cut_face_rounds`] on the cylinder chart,
-/// with `o_dot_va` its whole chart term, over the full schedule.
-///
-/// # Errors
-///
-/// As [`rotational_cut_face_rounds`].
-pub fn cylinder_cut_face<T: Decide>(
+/// with `o_dot_va` its whole chart term, over the full schedule — the
+/// harmonic rows' spelling.
+#[cfg(test)]
+fn cylinder_cut_face<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
     loops: &[&[TrimEdgeQ]],
@@ -774,11 +772,8 @@ pub fn cylinder_cut_face<T: Decide>(
 }
 
 /// [`cylinder_cut_face`] over a [`RoundWindow`].
-///
-/// # Errors
-///
-/// As [`rotational_cut_face_rounds`].
-pub fn cylinder_cut_face_rounds<T: Decide>(
+#[cfg(test)]
+fn cylinder_cut_face_rounds<T: Decide>(
     radius: Interval,
     o_dot_va: Interval,
     loops: &[&[TrimEdgeQ]],

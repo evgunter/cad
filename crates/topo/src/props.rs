@@ -246,7 +246,7 @@ pub enum MassPropsError {
     /// A curved face carries interior rings and is neither a cone wall,
     /// a cylinder wall (its closed form and its quadrature both read
     /// every loop: `geom_brep::props::curved_face_loops`,
-    /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
+    /// `geom_brep::props::quad::rotational_cut_face_rounds`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
     /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face

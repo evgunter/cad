@@ -168,7 +168,7 @@ pub fn nurbs_patch_face<T: Decide>(
 /// its floor ([`LaneStop::Floor`]), and a window can neither start
 /// after it nor ask it for a tighter enclosure.
 ///
-/// `pub` for the same reason [`cylinder_cut_face_rounds`](super::rotational::cylinder_cut_face_rounds) is: its
+/// `pub` for the same reason [`rotational_cut_face_rounds`](super::rotational::rotational_cut_face_rounds) is: its
 /// consumer is `topo`'s `props::quad_lane`, across the crate
 /// boundary.
 ///

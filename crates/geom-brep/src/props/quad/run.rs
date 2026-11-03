@@ -457,7 +457,7 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// by round, as an O(h²) rule must. The payload lied, and the
 /// convergence predicate was decided by a division artifact instead of
 /// by the enclosure. When the flux width is also
-/// zero — [`cylinder_cut_face`](super::rotational::cylinder_cut_face)'s `area = [0, 0]` for a zero-UV-area
+/// zero — [`rotational_cut_face_rounds`](super::rotational::rotational_cut_face_rounds)'s `area = [0, 0]` for a zero-UV-area
 /// trim loop — the same division is `0/0 = NaN`, which the funnel
 /// turns into `Indeterminate{margin: Invalid}`: a MIS-TYPED refusal,
 /// since [`PropsError::Escalated`] means an *in-band* margin, not a

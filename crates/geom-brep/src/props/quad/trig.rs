@@ -1,4 +1,4 @@
-//! **Transcendental-free trig enclosures** (module docs of [`super::cylinder`]):
+//! **Transcendental-free trig enclosures** (module docs of [`super::rotational`]):
 //! `(cos, sin)` brackets advanced by exact rotation, with polynomial
 //! alternating-series bounds on each step — the cylinder lane's and the
 //! spiric lane's harmonic channels read them.
