@@ -9722,7 +9722,10 @@ fn ring_outer_meeting<T: Decide>(
         crate::boolean::loop_circle(body, outer, band),
         crate::boolean::loop_circle(body, ring, band),
     ) {
-        return match circle_pair(circles_of(o.center, o.radius, r.center, r.radius), band) {
+        return match circle_pair(
+            circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
+            band,
+        ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
             Ok(
                 CirclePair::ExternallyTangent

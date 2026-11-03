@@ -502,30 +502,16 @@ pub(crate) fn contfp_decided<T: Decide>(
     Ok((FaceContainment::In, None))
 }
 
-/// The circle a disc-class loop bounds — its own type, because three
-/// components of one datum read better named than positional.
-///
-/// Its centre and radius are readable crate-wide: tier 3's check 9
-/// decides two disc-class loops against each other from them (the
-/// centre distance against the radii's sum and difference), a question
-/// about a PAIR of loops that no one point's walk can ask.
-#[derive(Clone, Copy)]
-pub(crate) struct LoopCircle<T: geom_core::Real> {
-    /// The circle's centre.
-    pub(crate) center: Point3<T>,
-    /// Its plane normal (sign-free: only `cross` reads it).
-    axis: Vec3<T>,
-    /// Its radius, in metres.
-    pub(crate) radius: T,
-}
-
 /// **The circle this loop bounds, if it bounds one**: `Some` when every
 /// edge is an arc of ONE circle, so the loop's region is that circle's
 /// disc exactly — the planar analog of the curved door's iso-bounded
 /// class ([`curved_face_containment`]) — and `None` for a loop with a
 /// line, a non-circular conic, a null edge, or arcs of two circles.
 ///
-/// The circle is read from the first edge; every later edge must agree
+/// The circle is the first edge's carrier, its seam unread: tier 3's
+/// check 9 decides two disc-class loops against each other from their
+/// centres and radii, a question about a PAIR of loops that no one
+/// point's walk can ask. Every later edge must agree
 /// with it on one metre-valued row folding centre offset, radius
 /// difference and axis tilt (levered at the radius). The axis enters
 /// only through `cross`, which is blind to its sign — two arcs of one
@@ -547,10 +533,10 @@ pub(crate) fn loop_circle<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
-) -> Result<Option<LoopCircle<T>>, ContainError> {
+) -> Result<Option<geom::Circle<T>>, ContainError> {
     // The WHOLE cycle is walked: an escalation on a later edge pair
     // escalates even after an earlier edge has ruled the class out.
-    let mut circle: Option<LoopCircle<T>> = None;
+    let mut circle: Option<geom::Circle<T>> = None;
     let mut one_circle = true;
     for (_, he, _) in loop_cycle_points(body, r#loop)? {
         let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
@@ -566,25 +552,13 @@ pub(crate) fn loop_circle<T: Decide>(
             .certified()
             .map(|c| c.carrier().clone());
         match carrier {
-            Some(geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                radius,
-            })) => match circle {
-                None => {
-                    circle = Some(LoopCircle {
-                        center,
-                        axis,
-                        radius,
-                    });
-                }
+            Some(geom::Curve3::Circle(arc)) => match circle {
+                None => circle = Some(arc),
                 Some(c) => {
-                    let (c0, a0, r0) = (c.center, c.axis, c.radius);
-                    let d = (center - c0).norm() + (radius - r0).abs() + axis.cross(a0).norm() * r0;
+                    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
+                    let d = (arc.frame.origin - c0).norm()
+                        + (arc.radius - r0).abs()
+                        + arc.frame.axis.cross(a0).norm() * r0;
                     match decide("bool_face_disc_carrier", Margin::of(d), band) {
                         Ok(Sign::Zero) => {}
                         Ok(Sign::Positive | Sign::Negative) => one_circle = false,
