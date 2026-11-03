@@ -11,7 +11,7 @@
 //! typed [`NamingError`], surfacing kernel-emission holes loudly),
 //! and injectivity is enforced by [`NameTable`] at insertion.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
@@ -40,7 +40,7 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::UnsupportedSeamVertex`],
 ///    [`Self::UnsupportedCrossingSenses`], [`Self::UnsupportedSeamSides`],
 ///    [`Self::UnsupportedJoin`], [`Self::UnsupportedUnionName`],
-///    [`Self::UnsupportedUnjudgedGlue`], [`Self::UnsupportedTurnedCell`],
+///    [`Self::HoldingsUnread`], [`Self::UnsupportedTurnedCell`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
@@ -347,22 +347,16 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
-    /// A union's face whose descent, as the fold's lineage cites it,
-    /// spans member faces no pairwise judgement links
-    /// (`names/README.md`, N2). Only N2's third clause, the finished
-    /// body holding area of both in one face, could link them, and that
-    /// clause reads the area each holds exactly; the fold's lineage can
-    /// cite a member face the face holds no area of, so the union does
-    /// not read the clause from it, and refuses.
-    UnsupportedUnjudgedGlue {
-        /// The finished face, a key of the union's body.
-        face: FaceKey,
-        /// The member faces the fold's lineage cites for the face, which
-        /// can include one it holds no area of, each by the read its
-        /// member came in through and its name in that member's table,
-        /// sorted by read and then name, so the list is the same in
-        /// every member order.
-        faces: Vec<(crate::VarId, StableName)>,
+    /// A boolean's face, or a region one of its steps discarded, whose
+    /// member faces the kernel could not read (`topo::Held::Refused`):
+    /// a face is named for exactly the member faces whose area it holds
+    /// (`names/README.md`, N2), so with that unread no name is minted.
+    HoldingsUnread {
+        /// The finished face, a key of the boolean's body; `None` for a
+        /// discarded region, which a `Borders` qualifier reads.
+        face: Option<FaceKey>,
+        /// The kernel's reason.
+        refusal: topo::HeldRefusal,
     },
     /// A boolean crossing whose senses no rule reads: the edge piece
     /// classes at the vertex fit no one sense per edge name
@@ -599,11 +593,10 @@ shapes! {
         /// merged: along an operand rim beside one merged face.
         WithinOneOperand => "is a zipped seam between faces of one operand that are not both \
                              merged",
-        /// A union seam whose two faces descend from one parent: member
-        /// faces a judgement linked (N2) that the fold holds as two
-        /// faces meeting along an edge off every member edge, which no
-        /// rule names.
-        InsideOneParent => "is a union seam whose two faces descend from one parent",
+        /// A union seam whose two faces hold exactly the same member
+        /// faces (N2): one parent the fold holds as two faces meeting
+        /// along an edge off every member edge, which no rule names.
+        InsideOneParent => "is a union seam whose two faces hold the same member faces",
     }
 }
 
@@ -628,8 +621,8 @@ shapes! {
     /// What a name a union publishes met
     /// ([`NamingError::UnsupportedUnionName`]).
     UnionNameShape {
-        /// It cites member faces of several parents: a tied member face
-        /// is keyed to each candidate's parent, and those can differ.
+        /// It cites member faces several parents hold (a tied member
+        /// face is keyed to each candidate's parent too).
         SeveralParents => "cites faces of several parents, so it names no one face",
         /// Two lines of a seam junction, met at different steps, collapse
         /// to one member-space line.
@@ -952,20 +945,15 @@ impl crate::spoken::Say for NamingError {
                 by.read(*member),
                 by.name(edge)
             ),
-            Self::UnsupportedUnjudgedGlue { faces, .. } => write!(
+            Self::HoldingsUnread { face, refusal } => write!(
                 f,
-                "{UNRULED_FRAMING}: a face of the union descends, by the fold's lineage, from \
-                 member faces ({}) that no two members glued together, and which of them it \
-                 holds area of is not read exactly yet",
-                faces
-                    .iter()
-                    .map(|(read, name)| format!(
-                        "member {}'s face ({})",
-                        by.read(*read),
-                        by.name(name)
-                    ))
-                    .collect::<Vec<_>>()
-                    .join("; ")
+                "{UNRULED_FRAMING}: which member faces {} holds area of could not be read \
+                 ({})",
+                match face {
+                    Some(_) => "a face of the boolean",
+                    None => "a region the boolean discarded",
+                },
+                held_refusal_text(refusal)
             ),
             Self::Band(error) => write!(
                 f,
@@ -1047,7 +1035,7 @@ impl NamingError {
             | Self::UnsupportedSeamSides { .. }
             | Self::UnsupportedJoin { .. }
             | Self::UnsupportedUnionName { .. }
-            | Self::UnsupportedUnjudgedGlue { .. }
+            | Self::HoldingsUnread { .. }
             | Self::UnsupportedTurnedCell { .. } => Some(Category::Unruled),
             Self::WayInZeroBand { .. }
             | Self::JoinedPieceOffRoot { .. }
@@ -1080,6 +1068,54 @@ impl NamingError {
                 "{other:?} has no lever: `NamingError::category` puts exactly the four \
                  precision-limit variants in `Category::Limit`, and only those ask for one"
             ),
+        }
+    }
+}
+
+/// **What a boolean's face, or a region a step discarded, holds**, as
+/// the naming reads it: the member faces, or the kernel's refusal as
+/// [`NamingError::HoldingsUnread`] (`face` the finished face, `None` for
+/// a discarded region). `None` where the kernel published no holdings
+/// for it, which each caller rules out by its door's own guarantee.
+pub(crate) fn read_held(
+    held: Option<&topo::Held>,
+    face: Option<FaceKey>,
+) -> Result<Option<&BTreeSet<topo::MemberFace>>, NamingError> {
+    match held {
+        Some(topo::Held::Faces(fs)) => Ok(Some(fs)),
+        Some(topo::Held::Refused(refusal)) => Err(NamingError::HoldingsUnread {
+            face,
+            refusal: refusal.clone(),
+        }),
+        None => Ok(None),
+    }
+}
+
+/// The kernel's reason a face's holdings went unread, in words.
+fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
+    match refusal {
+        topo::HeldRefusal::Overlap { refusal, .. }
+        | topo::HeldRefusal::Accumulation { refusal, .. } => {
+            format!("whether it meets a face it may hold in area: {refusal}")
+        }
+        topo::HeldRefusal::UncutRemainder { .. } => {
+            "a face the boolean kept only in part lost outside its kept faces a region no step \
+             cut, so which of its member faces that region held is not read"
+                .to_owned()
+        }
+        topo::HeldRefusal::Recharted { .. } => {
+            "a sphere shell's face was turned before the boolean, over the input shell's faces"
+                .to_owned()
+        }
+        topo::HeldRefusal::NotUnder { .. } => {
+            "the boolean's records say it holds a face lying on another surface, or apart from \
+             it, which is a kernel defect"
+                .to_owned()
+        }
+        topo::HeldRefusal::CarrierUnread { .. } => {
+            "whether a face the boolean's records say it holds lies on its surface could not \
+             be decided"
+                .to_owned()
         }
     }
 }
@@ -1947,7 +1983,7 @@ mod display_tests {
                     edge: edges.0,
                     shape: SeamSidesShape::InsideOneParent,
                 },
-                vec![edge0.as_str(), "descend from one parent"],
+                vec![edge0.as_str(), "hold the same member faces"],
             ),
             (
                 NamingError::UnsupportedJoin {
@@ -2158,33 +2194,14 @@ mod display_tests {
                 vec!["loop 9 does not fit", "Recourse: draw the loops"],
             ),
             (
-                NamingError::UnsupportedUnjudgedGlue {
-                    face: pair.0,
-                    faces: vec![
-                        (
-                            crate::VarId::new(0, test_utils::refusal::tagged(41)),
-                            StableName {
-                                kind: EntityKind::Face,
-                                node: RecipeNodeId::new(0, test_utils::refusal::tagged(41)),
-                                path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
-                            },
-                        ),
-                        (
-                            crate::VarId::new(0, test_utils::refusal::tagged(43)),
-                            StableName {
-                                kind: EntityKind::Face,
-                                node: RecipeNodeId::new(0, test_utils::refusal::tagged(43)),
-                                path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
-                            },
-                        ),
-                    ],
+                NamingError::HoldingsUnread {
+                    face: Some(pair.0),
+                    refusal: topo::HeldRefusal::UncutRemainder { face: pair.0 },
                 },
                 vec![
-                    "by the fold's lineage",
-                    "no two members glued together",
-                    "the start cap",
-                    "the end cap",
-                    "not read exactly yet",
+                    "which member faces a face of the boolean holds area of",
+                    "could not be read",
+                    "lost outside its kept faces",
                 ],
             ),
         ];
@@ -2230,7 +2247,7 @@ mod display_tests {
                 NamingError::JoinedPieceOffRoot { .. } => 26,
                 NamingError::UnsupportedTurnedCell { .. } => 27,
                 NamingError::PastWidth { .. } => 28,
-                NamingError::UnsupportedUnjudgedGlue { .. } => 29,
+                NamingError::HoldingsUnread { .. } => 29,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
