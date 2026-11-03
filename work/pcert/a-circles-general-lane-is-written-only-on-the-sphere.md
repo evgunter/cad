@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-20
 priority: P1
 cost: H
+pr: 6485
 closed: 2026-11-03
 ---
 
@@ -92,7 +93,7 @@ the sampled residual, at `f64` and at `Interval`.
 
 ## Closed
 
-Unit E4 (`pcert/circle-general-lane`): `projected::has_lane` admits a
+Unit E4 (PR 6485, `pcert/circle-general-lane`): `projected::has_lane` admits a
 circle on the cylinder, cone and torus, and a line on the cone. Check
 4's incidence term for the circle is the chart's canonical form along
 it, a trigonometric polynomial, bounded by its harmonics' sups
