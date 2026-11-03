@@ -3216,6 +3216,12 @@ impl<T: Real> SegmentCurve<T> {
 }
 
 impl<T: Real> SegmentCurve<T> {
+    /// The curve from the site of `halves.0`, or `None` for the straight
+    /// chord.
+    pub(crate) fn spec(&self) -> Option<&EdgeCurveSpec<T>> {
+        self.spec.as_ref()
+    }
+
     /// The carried chord's arc with its evidence of lying on the face,
     /// where the curve is one.
     pub(crate) fn carried_arc(&self) -> Option<&SplineArc<T>> {

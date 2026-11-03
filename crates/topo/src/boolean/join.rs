@@ -7565,6 +7565,7 @@ mod rulings_lane_rows {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
