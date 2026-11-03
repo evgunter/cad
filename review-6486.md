@@ -1,7 +1,6 @@
 # R1 review: PR 6486 (`spiricarm/spindle-football`), frozen head `49d88cc0f11bc1cce1ef9ef4e8a479263af7fd92`
 
 **Verdict: APPROVE-WITH-FIXES** (0 MAJOR, 2 MINOR, 2 NOTE; style below).
-
 Probes: `spiricarm-rev6486-r1/probes` (`crates/sweep/tests/review_6486_r1.rs`, the
 `r1_spindle_meters_probe` module in `projected.rs`, and `review-6486-r1-mutants.patch`, the
 env-gated `R1_MUT=<name>` mutants cited below; all default off).
@@ -144,8 +143,7 @@ end (705 lines), not the largest touched file (`pcurve_cache.rs`, ~15k lines).
   share of δ shrinks: sound, needlessly fine, unpriced. **unsure**
 
 ## Disclosures
-- I did not fetch, check out or read any other `spiricarm-rev6486-*` branch, or the PR's
-  comments or reviews. I read the PR body via `pull_request_read get` only. I had no glimpses.
+- No other `spiricarm-rev6486-*` branch, PR comment or review read; body via `get` only; no glimpses.
 - I did not run the workspace suite, admesh or `export_acceptance`; I rely on the PR's CI run
   41733776655 for those. I ran:
   the sweep rows named above, geom-brep's whole lib suite under the panic mutant (1052 passed;
