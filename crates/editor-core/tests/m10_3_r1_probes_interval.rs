@@ -169,7 +169,14 @@ fn a_normal_axis_drive_totals_one_including_its_tail() {
         1.0,
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(v.receipt().holds());
     assert!(!v.certified().is_empty(), "the tiny box must certify");
     let unanalyzed = v.accounting().unanalyzed.clone().unwrap();
@@ -231,7 +238,14 @@ fn total_composes_inside_mass_and_tail_additively() {
 fn a_zero_leaf_budget_refuses_the_root_and_the_receipt_holds() {
     let doc = slab_with(Distribution::Uniform { lo: -1.0, hi: 1.0 }, 20.0 * eps());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(0), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(0),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(v.receipt().holds(), "receipt: {:?}", v.receipt());
     assert_eq!(v.receipt().certified + v.receipt().refused, 1);
     assert!(matches!(
@@ -252,7 +266,14 @@ fn a_one_leaf_budget_still_covers_the_box_exactly() {
         20.0 * eps(),
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(1), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(1),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(v.receipt().holds(), "receipt: {:?}", v.receipt());
     let budget_mass = v.accounting().refused[&ReasonClass::Budget]
         .clone()
@@ -274,7 +295,14 @@ fn an_unsplittable_box_refuses_resolution_or_certifies_and_the_receipt_holds() {
     let w = f64::EPSILON * 4.0;
     let doc = slab_with(Distribution::Uniform { lo: -w, hi: w }, 1.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(GRID_FLOOR_LEAVES), Tol::witness()).unwrap();
+    let v = drive(
+        &doc,
+        &analyzed,
+        &config(GRID_FLOOR_LEAVES),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(v.receipt().holds(), "receipt: {:?}", v.receipt());
     for leaf in v.refused() {
         assert!(
@@ -351,6 +379,7 @@ fn a_wrapped_escalation_never_certifies_inside_the_band() {
         &doc,
         &analyzed,
         &config(FULL_PARTITION_LEAVES),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap();
@@ -463,7 +492,14 @@ fn evidence_only_e2e_consumer_walk() {
     ] {
         let doc = mk(half_r, half_d);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let v = drive(&doc, &analyzed, &config(512), Tol::witness()).unwrap();
+        let v = drive(
+            &doc,
+            &analyzed,
+            &config(512),
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .unwrap();
         println!("== {label}: receipt {:?}", v.receipt());
         println!("   containment {}", v.accounting().containment);
         println!(

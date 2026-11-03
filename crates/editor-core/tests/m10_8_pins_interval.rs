@@ -60,6 +60,7 @@ fn m10_8_the_a0_set_is_a0_alone() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the plate builds")
@@ -155,6 +156,7 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         )
         .expect("the slab builds")
