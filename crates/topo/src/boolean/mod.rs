@@ -4495,9 +4495,11 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
-    /// A conic root door's refusal ([`geom_brep::curve_face::circle_roots::DoorRefusal`]),
-    /// its in-band sign an escalation as `decision`.
-    pub(in crate::boolean) fn of_conic_door(
+    /// A curve × face root door's refusal
+    /// ([`geom_brep::curve_face::circle_roots::DoorRefusal`], which the
+    /// conic doors and the line × torus door refuse in), its in-band sign
+    /// an escalation as `decision`.
+    pub(in crate::boolean) fn of_door_refusal(
         decision: BooleanDecision,
     ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
         use geom_brep::curve_face::circle_roots::DoorRefusal;

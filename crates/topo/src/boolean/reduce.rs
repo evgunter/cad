@@ -4668,13 +4668,17 @@ fn wall_crossing<T: Decide + Bounds>(
                     geom_brep::curve_face::circle_torus::circle_torus_roots(
                         carrier, t0, t1, surface, band,
                     )
-                    .map_err(BooleanError::of_conic_door(BooleanDecision::ArcTorusRoots)),
+                    .map_err(BooleanError::of_door_refusal(
+                        BooleanDecision::ArcTorusRoots,
+                    )),
                 ),
                 (_, geom::Surface::Torus { .. }) => Some(
                     geom_brep::curve_face::ellipse_torus::ellipse_torus_roots(
                         carrier, t0, t1, surface, band,
                     )
-                    .map_err(BooleanError::of_conic_door(BooleanDecision::ArcTorusRoots)),
+                    .map_err(BooleanError::of_door_refusal(
+                        BooleanDecision::ArcTorusRoots,
+                    )),
                 ),
                 _ => None,
             };
@@ -4962,7 +4966,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             minor_radius,
             band,
         ))
-        .map_err(BooleanError::of_conic_door(BooleanDecision::TorusRoots))?
+        .map_err(BooleanError::of_door_refusal(BooleanDecision::TorusRoots))?
         .map(Roots::widen),
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.

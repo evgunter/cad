@@ -633,10 +633,12 @@ fn parallel_axes_roots<T: Decide>(
         }
         // Each root on the branch of the span's middle: sound at every
         // scalar by `geom::on_span_branch`'s window re-centring argument.
-        // The one reader, `boolean::reduce`'s wall crossing, decides a
-        // root at either end of a closed edge's whole-turn span alike
-        // (`at_end`), and reads it only against the span's ends, never as
-        // an identity.
+        // What a caller may assume: the root is a crossing's angle on
+        // that branch, as an enclosure. On a whole-turn span a root at
+        // one end is the same crossing as a root at the other, and which
+        // end it lands at is not decided here, so a caller reads a root
+        // against the span's ends (or as the point it names), never as an
+        // identity between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
             thetas[count] = geom::on_span_branch(theta, (t0, t1));
             count += 1;

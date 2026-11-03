@@ -7193,9 +7193,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     &ROWS,
                     band,
                 )
-                .map_err(BooleanError::of_conic_door(BooleanDecision::Sphere(
-                    SphereQuestion::CutIn,
-                )))?;
+                .map_err(BooleanError::of_door_refusal(
+                    BooleanDecision::Sphere(SphereQuestion::CutIn),
+                ))?;
                 let thetas = match roots {
                     Ok(geom_brep::roots::Roots::Miss) => continue,
                     Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),

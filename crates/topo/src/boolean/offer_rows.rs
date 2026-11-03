@@ -2993,12 +2993,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
-        "trace.rs",
-        "circle_crossings",
-        "BooleanDecision::ArcTorusRoots",
-        1,
-    ),
-    (
         "vtxfac.rs",
         "classify_vertex_on_face",
         "BooleanDecision::ConicBend",

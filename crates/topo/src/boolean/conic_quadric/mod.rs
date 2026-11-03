@@ -294,7 +294,9 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                 &FIRST_ROWS,
                 band,
             )
-            .map_err(BooleanError::of_conic_door(BooleanDecision::ArcSphereRoots))
+            .map_err(BooleanError::of_door_refusal(
+                BooleanDecision::ArcSphereRoots,
+            ))
             .map(|found| found.map(Roots::widen));
         }
         (
@@ -318,7 +320,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
     } = quadric_ladder(&conic, surface, (t0, t1)).ok_or_else(desync)?;
     if let Some(first) = first_harmonic_arm(&h, frame.walk.noise, band) {
         return first_harmonic_roots(&first, conic.speed_hi(), t0, t1, &FIRST_ROWS, band)
-            .map_err(BooleanError::of_conic_door(decision))
+            .map_err(BooleanError::of_door_refusal(decision))
             .map(|found| found.map(Roots::widen));
     }
     door_half_angle_roots(
@@ -333,7 +335,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         },
         band,
     )
-    .map_err(BooleanError::of_conic_door(decision))
+    .map_err(BooleanError::of_door_refusal(decision))
 }
 
 /// A conic against a sphere or a wall, read for the door's two arms: its
@@ -465,7 +467,7 @@ fn cone_roots<T: Decide>(
     }
     let found = if let Some(first) = first_harmonic_arm(&h, noise, band) {
         let found = first_harmonic_roots(&first, conic.speed_hi(), t0, t1, &FIRST_ROWS, band)
-            .map_err(BooleanError::of_conic_door(BooleanDecision::ArcConeRoots))?
+            .map_err(BooleanError::of_door_refusal(BooleanDecision::ArcConeRoots))?
             .map(Roots::widen);
         if let Ok(Roots::On(OnCarrier)) = found {
             // `|res| ≤ |F| / floor`: a constant `F` in the band certifies
@@ -494,7 +496,7 @@ fn cone_roots<T: Decide>(
             &meter,
             band,
         )
-        .map_err(BooleanError::of_conic_door(BooleanDecision::ArcConeRoots))?
+        .map_err(BooleanError::of_door_refusal(BooleanDecision::ArcConeRoots))?
     };
     Ok(found.and_then(|roots| off_the_apex(conic, apex, roots, band)))
 }

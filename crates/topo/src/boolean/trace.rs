@@ -21,7 +21,7 @@ use geom::{Curve3, Surface, SurfaceKind};
 use geom_brep::roots::{Roots, Unsettled};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3};
 
-use super::{BooleanDecision, BooleanError};
+use super::BooleanError;
 use crate::validate::decide;
 use geom_brep::curve_face::circle_roots::CircleRoots;
 
@@ -158,6 +158,16 @@ fn door(error: BooleanError) -> TraceFault {
     match error {
         BooleanError::Escalated { diag, .. } => TraceFault::Escalated(diag),
         other => unreachable!("the trace dispatches each root door on its own kinds: {other:?}"),
+    }
+}
+
+/// A curve × face door's refusal, as the trace's: its escalation is the
+/// trace's own, carrying no decision of the Boolean's.
+fn door_refusal(refusal: geom_brep::curve_face::circle_roots::DoorRefusal) -> TraceFault {
+    use geom_brep::curve_face::circle_roots::DoorRefusal;
+    match refusal {
+        DoorRefusal::Escalated(diag) => TraceFault::Escalated(diag),
+        DoorRefusal::Invariant(what) => unreachable!("a root door's invariant: {what}"),
     }
 }
 
@@ -316,16 +326,16 @@ pub fn circle_crossings<T: Decide>(
                     surface,
                     band,
                 )
-                .map_err(BooleanError::of_conic_door(BooleanDecision::ArcTorusRoots)),
+                .map_err(door_refusal)?,
                 _ => super::conic_quadric::conic_quadric_roots(
                     &circle,
                     T::zero(),
                     tau,
                     surface,
                     band,
-                ),
-            }
-            .map_err(door)?;
+                )
+                .map_err(door)?,
+            };
             roots_of(found)?
                 .into_iter()
                 .map(|theta| {
