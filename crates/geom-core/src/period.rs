@@ -289,6 +289,40 @@ impl<T: Decide> Period<T> {
         across(stop.0, up, stop.1)
     }
 
+    /// **`t` renamed by whole periods to within half a period of
+    /// `reference`**: `t + k·length` with `|t + k·length − reference| ≤
+    /// length/2`, the one whole-period rename of a channel. `k` is decided
+    /// as [`Period::decide`] decides a branch, through the half-period
+    /// marks about `reference` at [`Band::least`], never by a floor or a
+    /// rounding of the gap: a floor of an enclosure about the reference's
+    /// antipode is a whole period wide, a mark decision there is not.
+    ///
+    /// **A tie takes the upper copy**, `reference + length/2`: where a
+    /// mark decides zero or is undecided, `k` is the branch above it. That
+    /// is the side `geom::Window`'s `(a, a + τ]` closes and `atan2(0, −1)
+    /// = π` reads, stated here once. Either copy names the same point, so
+    /// no outcome of a mark is a reading, and the marks are decided
+    /// outside the log (`docs/predicate-dimension-audit.md` row F31, a
+    /// renaming between copies equal modulo a period).
+    ///
+    /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
+    /// is not finite, or a gap no `i32` of periods names, has no copy, and
+    /// reads NaN.
+    #[must_use]
+    pub fn near(self, t: T, reference: T) -> T {
+        let k = crate::k_stats::unlogged("F31", || {
+            match self.decide("period_near_mark", reference - t, Margin::of, Band::least()) {
+                Ok(k) => Some(k),
+                Err(WalkStop { astride, .. }) => astride.map(|[_, upper]| upper),
+            }
+        });
+        match k {
+            Some(0) => t,
+            Some(k) => t + self.times(k),
+            None => T::from_f64(f64::NAN),
+        }
+    }
+
     /// **The turn rule** (module docs): `extent` against one period, at
     /// `rate`, under the caller's `rows`.
     ///
@@ -786,6 +820,81 @@ mod period_rows {
             half.decide("t", 3.5 * tau, Margin::of, band()),
             Ok(7)
         ));
+    }
+
+    /// **`near` lands within half a period of its reference, and a copy
+    /// already there comes back bit for bit.** Far references, both signs.
+    #[test]
+    fn near_lands_within_half_a_period_and_keeps_k_zero_bits() {
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        for (t, r) in [
+            (0.3, 0.1),
+            (0.3, 40.0),
+            (-7.0, 25.0),
+            (100.0, -3.0),
+            (2.9, -2.9),
+        ] {
+            let n = period.near(t, r);
+            assert!((n - r).abs() <= tau / 2.0, "near({t}, {r}) = {n}");
+            let k = ((n - t) / tau).round();
+            assert!(
+                (n - t - k * tau).abs() < 1e-12,
+                "near({t}, {r}) is t by whole turns"
+            );
+        }
+        assert_eq!(
+            period.near(0.3, 0.1).to_bits(),
+            0.3f64.to_bits(),
+            "k = 0 is t"
+        );
+    }
+
+    /// **A tie takes the upper copy.** A `t` exactly half a period from
+    /// the reference, below or above, lands on `reference + length/2`.
+    #[test]
+    fn near_takes_the_upper_copy_at_a_tie() {
+        let period = Period::new(4.0_f64);
+        assert_eq!(period.near(-1.0, 1.0), 3.0, "from below");
+        assert_eq!(period.near(3.0, 1.0), 3.0, "from above");
+        assert_eq!(period.near(-5.0, 1.0), 3.0, "a turn below the lower tie");
+    }
+
+    /// **A `t` that has no copy reads NaN**, rather than answering.
+    #[test]
+    fn near_reads_nan_where_there_is_no_copy() {
+        let period = Period::new(f64::tau());
+        assert!(period.near(f64::NAN, 0.0).is_nan());
+        assert!(period.near(0.0, f64::INFINITY).is_nan());
+    }
+
+    /// **`near` does not widen an enclosure at the reference's antipode.**
+    /// `t − reference` straddles half a turn: a floor of the gap there is a
+    /// whole turn wide, the mark is undecided and takes the upper copy,
+    /// and the answer is `t` moved by one turn, as narrow as `t` to the
+    /// rounding of that turn.
+    #[test]
+    fn near_keeps_an_enclosure_narrow_across_the_antipode() {
+        use crate::Bounds;
+        let tau = Interval::tau();
+        let period = Period::new(tau);
+        let r = Interval::from_f64(0.4);
+        let w = 1e-9;
+        let t = (r - Interval::pi()) + Interval::from_bounds(-w, w);
+        let n = period.near(t, r);
+        let width = |x: Interval| x.hi() - x.lo();
+        assert!(
+            width(n) <= width(t) + 1e-14,
+            "width {} from {}",
+            width(n),
+            width(t)
+        );
+        assert!(n.lo() <= 0.4 + core::f64::consts::PI && 0.4 + core::f64::consts::PI <= n.hi());
+        let floored = t + (r - t).periodic_branch(tau) * tau;
+        assert!(
+            width(floored) > 6.0,
+            "the floor it replaces reads a turn wide"
+        );
     }
 
     /// **A far gap on a mark names the branches astride it.** A bracket

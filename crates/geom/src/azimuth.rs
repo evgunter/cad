@@ -39,7 +39,8 @@
 //! below are its evidence. `.0` unwraps the vector where an arm's
 //! arithmetic needs it.
 
-use geom_core::k_stats::decide;
+use geom_core::k_stats::{decide, unlogged};
+use geom_core::period::Period;
 use geom_core::predicate::Band;
 use geom_core::{Decide, Margin, Real, Sign, Vec3};
 
@@ -166,20 +167,19 @@ pub const LATITUDE_WINDOW_START: f64 = 1.0 - core::f64::consts::PI;
 
 /// **An angle read off the geometry**: the two frame components of a
 /// direction, as `atan2` would read them, with no arithmetic of its own.
-/// It leaves as an angle one way: read in a window
-/// ([`Azimuth::principal`] in the angle window, `principal_in` in any),
-/// the stable `atan2` read whose one jump is that window's cut, and whose
-/// copy a derivation then decides through the window's marks
-/// (`geom_brep`'s `Placement::phase`, a `Period::decide` about the
-/// window's centre).
-/// No whole-period integer is read off a value.
+/// It leaves as an angle two ways, neither rotating the direction:
+/// - read in a window ([`Azimuth::principal`] in the angle window,
+///   `principal_in` in any), the stable `atan2` read whose one jump is
+///   that window's cut, and whose copy a derivation then decides through
+///   the window's marks (`geom_brep`'s `Placement::phase`, a
+///   `Period::decide` about the window's centre);
+/// - near a stated reference ([`Azimuth::near`]): the same read, renamed
+///   by whole turns to within half a turn of the reference.
 ///
-/// An anchored `atan2` (the direction rotated back by a reference and
-/// read there) would name the copy with no decision, but it rotates
-/// every read, so a symbolic scalar no longer folds the read onto the
-/// carrier's own form: on the M10-10 plate the map-residual reads went
-/// from 36 theorems to 36 numeric decisions and the plate left the band
-/// below its ceiling. The principal read keeps `k = 0` bit-identical.
+/// No whole-period integer is read off a value. Neither exit rotates the
+/// direction by the reference, so a symbolic scalar still folds the read
+/// onto the carrier's own form, and `k = 0` is the window's read bit for
+/// bit.
 #[derive(Clone, Copy, Debug)]
 pub struct Azimuth<T> {
     y: T,
@@ -235,6 +235,29 @@ impl<T: Decide> Azimuth<T> {
     /// the reader's own predicate.
     pub fn principal_as(self, row: &'static str, band: Band) -> T {
         self.read_in(Window::Angle, row, band)
+    }
+
+    /// **The angle's copy within half a turn of `reference`**: the
+    /// angle window's read, renamed by whole turns
+    /// ([`Period::near`]). The read is not rotated by `reference`, so
+    /// `reference` enters the answer only through the whole number of
+    /// turns, and a read already within half a turn of it is
+    /// [`Azimuth::principal`]'s bit for bit. A tie, half a turn from
+    /// `reference`, takes `reference + π`. Narrow at both of its jumps:
+    /// across the window's cut the read's two formulas are equal modulo
+    /// a turn and neither has its own cut there, and across `reference`'s
+    /// antipode the rename decides a mark rather than flooring the gap.
+    ///
+    /// Neither decision is a reading, since each picks between names of
+    /// one angle, so both are taken at [`Band::least`] outside the log
+    /// (`docs/predicate-dimension-audit.md` row F31). A direction of no
+    /// length reads `0` before the rename, as [`Azimuth::principal`]
+    /// does.
+    pub fn near(self, reference: T) -> T {
+        let read = unlogged("F31", || {
+            self.read_in(Window::Angle, "azimuth_near_cut_side", Band::least())
+        });
+        Period::new(T::tau()).near(read, reference)
     }
 
     fn read_in(self, window: Window, row: &'static str, band: Band) -> T {
@@ -380,6 +403,64 @@ mod tests {
                 bits(f.tangential.0),
                 bits(u_ref * (-s) + v_ref * c),
                 "tangential at {u}"
+            );
+        }
+    }
+
+    /// **`near` is the window's read renamed, and narrow at both of its
+    /// jumps.** At `f64` a read within half a turn of the reference is
+    /// [`Azimuth::principal`]'s bit for bit, and a tie takes the upper
+    /// copy. At `Interval` a direction astride the window's cut (angle
+    /// `−1`), and one astride the reference's antipode, each read as
+    /// narrow as the direction's own angle, where `atan2` across its cut
+    /// or a floor of the gap reads a turn wide.
+    #[test]
+    fn near_is_the_windowed_read_renamed_and_narrow_at_both_jumps() {
+        use geom_core::{Bounds, Interval};
+        let band = Band::least();
+        for k in -40i32..40 {
+            let a = f64::from(k) * 0.157 + 0.01;
+            let az = Azimuth::of(a.sin(), a.cos());
+            let read = az.principal(band);
+            let r = read + 0.3;
+            assert_eq!(
+                az.near(r).to_bits(),
+                read.to_bits(),
+                "k = 0 keeps the read at {a}"
+            );
+            let n = az.near(r + 4.0 * core::f64::consts::PI);
+            assert!(
+                (n - read - 4.0 * core::f64::consts::PI).abs() < 1e-12,
+                "two turns up at {a}"
+            );
+        }
+        assert_eq!(
+            Azimuth::of(0.0, -1.0).near(0.0_f64),
+            core::f64::consts::PI,
+            "half a turn from 0 reads π, not −π"
+        );
+
+        let width = |x: Interval| x.hi() - x.lo();
+        let hair = Interval::from_bounds(-1e-9, 1e-9);
+        let direction = |a: Interval| Azimuth::of(a.sin(), a.cos());
+        for (angle, reference) in [
+            (-1.0, -1.0),
+            (-1.0, 2.0),
+            (2.0, 2.0 - core::f64::consts::PI),
+        ] {
+            let a = Interval::from_f64(angle) + hair;
+            let n = direction(a).near(Interval::from_f64(reference));
+            assert!(
+                width(n) < 1e-8,
+                "angle {angle} about {reference}: width {}",
+                width(n)
+            );
+            let want = angle
+                + ((reference - angle) / core::f64::consts::TAU + 0.5).floor()
+                    * core::f64::consts::TAU;
+            assert!(
+                n.lo() - 1e-8 <= want && want <= n.hi() + 1e-8,
+                "angle {angle} about {reference}: {n:?} misses {want}"
             );
         }
     }

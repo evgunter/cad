@@ -1556,25 +1556,27 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
-- **F31** (added by ONECOPY's foot-and-angle unit) `curve_foot_branch`
-  — `geom/src/curves/on_carrier.rs` `angle_near`, the angle of a point
-  about a closed carrier's centre read relative to the foot's seed:
-  `along`, the point's in-plane component along the seed's direction
-  (metres on a circle, unit coordinates on an ellipse, the tube's
-  section on a spiric). It picks between `near + atan2(across, along)`
-  and its half-turn twin, two formulas equal modulo a turn. What keeps
-  it off the logged doors is that no outcome of it is a reading: where
-  `along` is undecided the point lies a quarter turn from the seed,
-  clear of both formulas' cuts (or at the centre, where `across` is
-  undecided too and both formulas read an enclosure equally wide), and
-  a foot's parameter is not reduced to any branch
-  (`Foot::t`). Logged, an undecided flip at `Interval` would hand the
-  driver an escalation no box answers, on every closed-form circle foot
-  a quarter turn from its seed.
+- **F31** (added by ONECOPY's foot-and-angle unit, widened by its
+  angle-reads unit) — **a renaming between copies equal modulo a
+  period.** Two sites, each choosing between names of one value:
+  - `geom_core::Period::near` (`period_near_mark`): the half-period
+    marks about a reference that pick which copy `t + k·P` of a value
+    lies within half a period of it. A tie, a mark decided zero or
+    undecided, takes the upper copy.
+  - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
+    window's two `atan2` formulas, equal modulo a turn, reads the
+    direction, before `Period::near` renames the read.
 
-  **Carried as `k_stats::check_unlogged(.., "F31")`**. Its K samples
-  still reach the sink under `curve_foot_branch`. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  What keeps them off the logged doors is that no outcome is a reading:
+  both copies name the same point, and an undecided decision picks a
+  formula or copy that is continuous over the enclosure, so it reads as
+  narrow either way. Logged, an undecided mark at `Interval` would hand
+  the driver an escalation no box answers, on every angle read half a
+  turn from its reference.
+
+  **Carried as `k_stats::unlogged("F31", ..)`**, both at `Band::least()`.
+  Their K samples still reach the sink under the two names above. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
