@@ -923,7 +923,7 @@ impl MateToolError {
 
 /// **The sentence a dropped pick is said in**: its role, and the pick
 /// as its panel line said it ([`HeldPick`]) — the editor's drop and the
-/// mirror tool's (`crate::combine::MirrorEvent`).
+/// mirror tool's (`crate::combine::PlaneEvent`).
 pub(crate) fn pick_lost<P: PickedEntity>(
     f: &mut core::fmt::Formatter<'_>,
     role: impl core::fmt::Display,

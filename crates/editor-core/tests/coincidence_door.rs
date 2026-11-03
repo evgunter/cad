@@ -3053,22 +3053,17 @@ fn a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency() {
 ///   reading that comes before it, at the edge and the face where the
 ///   door reads the touch in the band's gap (at `1e-9`,
 ///   `bool_conic_quadric_sub_side`; at `1e-12`, `bool_conic_quadric_disc`).
-/// - `shaft_and_bearing_rounded`: a shaft crossing the torus of a bore's
-///   rounded mouth, coaxial with it; `CurvedBooleanUnsupported` on the
-///   torus.
-/// - `shaft_and_bearing_ball`: a sphere on the shaft, its centre on the
-///   axis; `CurvedBooleanUnsupported` on the shaft's cylinder.
 ///
-/// So no document reaches the sites `CoaxialCylinderTorus` or
-/// `CoaxialSphere`
-/// (`work/germ/coaxial-unions-with-a-torus-or-a-sphere-and-a-tangent-cone-refuse.md`).
+/// `shaft_and_bearing_ball` and `shaft_and_bearing_rounded` left this
+/// row when the join's carried lane came to chord a coaxial pair's
+/// circles
+/// ([`the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows`]).
 ///
 /// Red once a union passes: that scene then joins the registry and its
 /// rows are pinned like the others.
 #[test]
 fn the_curved_stage6_scenes_refuse_at_their_unions() {
     use editor_core::NodeErrorKind::Boolean;
-    use geom::SurfaceKind;
     use topo::BooleanError as B;
     let refused = |cd: crate::corpus::CorpusDoc, kind: &dyn Fn(&B) -> bool| {
         let ev = run(&cd.doc);
@@ -3083,24 +3078,110 @@ fn the_curved_stage6_scenes_refuse_at_their_unions() {
             || matches!(e, B::Escalated { diag, .. } | B::CurvedPierceEscalated { diag, .. }
                 if diag.predicate.is_some_and(|p| p.starts_with("bool_conic_quadric")))
     });
-    refused(crate::corpus::shaft_and_bearing::rounded_mouth(), &|e| {
-        matches!(
-            e,
-            B::CurvedBooleanUnsupported {
-                kind: SurfaceKind::Torus,
-                ..
+}
+
+/// **The rounded mouth's union volume**: the housing ring `ρ ∈ [1/2, 1]`,
+/// `y ∈ [0, 1]`, less its mouth's fillet (radius `r = 1/8`, centre
+/// `(5/8, 7/8)`, the spandrel's area `r²(1 − π/4)` turned about the axis
+/// at its centroid, `r(10 − 3π)/(12 − 3π)` off the bore), the shaft of
+/// radius `9/16` over `y ∈ [−2, 3/2]`, the collar `ρ ∈ [9/16, 3/4]` over
+/// `y ∈ [−1, −1/2]`, less what the shaft shares with the housing: the
+/// ring `ρ ∈ [1/2, 9/16]` below the fillet and, beside it, the shaft's
+/// slices beyond the fillet's arc, exact through
+/// `∫√(r² − u²) du = (u√(r² − u²) + r² asin(u/r))/2`.
+fn rounded_mouth_volume() -> f64 {
+    use std::f64::consts::PI;
+    let (r, c, rs) = (0.125_f64, 0.625_f64, 0.5625_f64);
+    let spandrel = r * r * (1.0 - PI / 4.0);
+    let centroid = 0.5 + r * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI);
+    let housing = PI * 0.75 - 2.0 * PI * centroid * spandrel;
+    let shaft = PI * rs * rs * 3.5;
+    let collar = PI * (0.75 * 0.75 - rs * rs) * 0.5;
+    let u0 = (r * r - (c - rs).powi(2)).sqrt();
+    let beside = PI
+        * ((rs * rs - c * c - r * r) * u0
+            + u0.powi(3) / 3.0
+            + c * (u0 * (r * r - u0 * u0).sqrt() + r * r * (u0 / r).asin()));
+    housing + shaft + collar - PI * (rs * rs - 0.25) * 0.875 - beside
+}
+
+/// **The coaxial stage-6 scenes union green at `f64`, on the door's
+/// coaxial rows** (INTENT stage 6):
+/// - `shaft_and_bearing_ball`, a sphere on the shaft, its centre on the
+///   axis: four `OnCarrier` rows at `CoaxialSphere`, one for each of the
+///   ball's two faces against each of the shaft's two wall faces;
+/// - `shaft_and_bearing_rounded`, a shaft crossing the torus of the
+///   bore's rounded mouth, coaxial with it: two `Coaxial` rows at
+///   `CoaxialCylinderTorus`, proven by one construction.
+///
+/// Each refused at the join, `CurvedBooleanUnsupported` on the shaft's
+/// cylinder or on the torus, until the carried lane chorded the pair's
+/// circles as the closed forms they are (SECTARMS stage 3b-i). Each
+/// union builds at its exact volume: the ball's
+/// `0.75π + 0.875π + 0.5625π`, less the lens, and the rounded mouth's
+/// ([`rounded_mouth_volume`]). At `Interval` each escalates, so both stay
+/// beside the registry, which requires every lane green.
+///
+/// Red if a union stops building at `f64`, if its volume moves, if its
+/// coaxial rows change in number or kind, or once it passes at
+/// `Interval` (then it joins the registry).
+#[test]
+fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
+    for (cd, row, count, want) in [
+        (
+            crate::corpus::shaft_and_bearing::with_a_ball(),
+            "OnCarrier CoaxialSphere unproven/Numeric/OneConstruction",
+            4,
+            5.836_839_596_566_8,
+        ),
+        (
+            crate::corpus::shaft_and_bearing::rounded_mouth(),
+            "Coaxial CoaxialCylinderTorus SameConstruction",
+            2,
+            rounded_mouth_volume(),
+        ),
+    ] {
+        let name = cd.name;
+        let union = cd.result.expect("a scene's head is its union");
+        let ev = run(&cd.doc);
+        let got = match ev.nodes.get(&union) {
+            Some(editor_core::NodeResult::Ok(v)) => {
+                let b = v.payload.output_body(0).expect("one body").body();
+                let measured = topo::test_support::finished(name, b.clone(), Tol::witness());
+                topo::test_support::pinned_volume(name, &measured, Tol::witness()).volume
             }
-        )
-    });
-    refused(crate::corpus::shaft_and_bearing::with_a_ball(), &|e| {
-        matches!(
-            e,
-            B::CurvedBooleanUnsupported {
-                kind: SurfaceKind::Cylinder,
-                ..
-            }
-        )
-    });
+            other => panic!("{name}: the union builds at f64: {other:?}"),
+        };
+        assert!(
+            (got - want).abs() <= 1e-9 * want,
+            "{name}: the union's volume {got} against {want}"
+        );
+        let (_, lines) = door_lines(&cd);
+        let coaxial: Vec<&String> = lines
+            .iter()
+            .filter(|l| l.contains(row.split(' ').nth(1).expect("a site")))
+            .collect();
+        assert_eq!(
+            coaxial,
+            vec![row; count],
+            "{name}: the door's coaxial rows: {lines:?}"
+        );
+        let ev = crate::corpus::eval::<geom_core::Interval>(&cd.doc);
+        assert!(
+            matches!(
+                ev.nodes.get(&union),
+                Some(editor_core::NodeResult::Failed(editor_core::NodeError {
+                    kind: editor_core::NodeErrorKind::Boolean(e),
+                    ..
+                // An escalation, at whichever door reads it first: the
+                // ball's at the containment or a curved pierce, the
+                // rounded mouth's in the join.
+                })) if format!("{e:?}").contains("Escalated")
+            ),
+            "{name}: the union escalates at Interval: {:?}",
+            ev.nodes.get(&union)
+        );
+    }
 }
 
 /// **Two blocks resting on one floor are one plane at their bases**

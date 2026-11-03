@@ -45,21 +45,25 @@ history, and undo reaches it. The full statement is in
 4. **The seated tools**, cut per tool from the census once the profile
    unit has set the pattern.
 
-**Where it stands (2026-11-03, hand-back).** Steps 1-3 are done (#6388,
-#6393, #6401, #6403). Step 4's agreed half landed as #6414: blend size,
-mirror label, clearance bounds as slots, and the count row. The rest of
-step 4 is parked on `[ev]` PR 6406 (fork row 247):
-- When Ev answers, the next orchestrator does three things:
-  - fills row 247's Ev, match, token and mapping columns (bytes 24 and
-    227: C = Fable, A and B = Opus; tokens A 154081/177453,
-    B 126435/147961, C 205783/230679);
-  - makes 6406's README text match the answers;
-  - takes `[ev]` off the title and merges it.
-- The next units are then:
-  - the split unit: face pick, offset row, `SlotId::PoseScalar`,
-    discovery;
-  - the pattern-fields unit, after PLACING's build of #6369, with
-    `the-pattern-gesture-names-its-index` riding along.
+**Where it stands (2026-11-03, second hand-back).** All four steps are
+done:
+- steps 1–3: #6388, #6393, #6401, #6403;
+- step 4: #6414 and, after Ev's answers on `[ev]` 6406, #6431, which
+  covered split and pattern.
+
+The census row is closed: every create form on this track's ground
+asks only for the kind and the reads. What is left is all P2 or P3:
+- P2: `a-clearance-bound-shape-is-a-row`;
+- P2: `a-plane-other-than-a-face-cannot-be-authored-in-the-viewer`;
+- P2: `no-viewer-row-re-points-a-live-nodes-read`, which re-picks a
+  live node's read, such as a split's plane;
+- P2: `an-anonymous-index-cannot-be-written-into-a-value-row`, which
+  blocks VR2's anonymous index;
+- P3: `the-profile-editors-naming-and-offer-doors-wait-on-held-edits`.
+
+The next sitting can take the P2s as small units. The plane-authoring
+and live-read rows may want a designer pass first, since both add a
+viewer door.
 - **Never merge an `[ev]` branch into forms/orchestrator.** Units are
   cut from that branch, so they would carry the unratified text (#6414
   did, and its review caught it).

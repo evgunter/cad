@@ -196,12 +196,18 @@ impl KeySource for Link {
 
     #[track_caller]
     fn answer<V>(self, found: Option<V>, key: EntityId) -> V {
-        found.unwrap_or_else(|| dangling_link(self.holder, self.link, key))
+        let Some(found) = found else {
+            dangling_link(self.holder, self.link, key)
+        };
+        found
     }
 
     #[track_caller]
     fn answer_geometry<V>(self, found: Option<V>, key: GeomRef) -> V {
-        found.unwrap_or_else(|| dangling_link(self.holder, self.link, key))
+        let Some(found) = found else {
+            dangling_link(self.holder, self.link, key)
+        };
+        found
     }
 
     fn map<V, W>(answer: V, f: impl FnOnce(V) -> W) -> W {
@@ -220,12 +226,14 @@ impl KeySource for Proven {
 
     #[track_caller]
     fn answer<V>(self, found: Option<V>, key: EntityId) -> V {
-        found.unwrap_or_else(|| unproven(key))
+        let Some(found) = found else { unproven(key) };
+        found
     }
 
     #[track_caller]
     fn answer_geometry<V>(self, found: Option<V>, key: GeomRef) -> V {
-        found.unwrap_or_else(|| unproven(key))
+        let Some(found) = found else { unproven(key) };
+        found
     }
 
     fn map<V, W>(answer: V, f: impl FnOnce(V) -> W) -> W {
@@ -237,8 +245,9 @@ impl KeySource for Proven {
 #[track_caller]
 fn unproven(key: impl core::fmt::Display) -> ! {
     unreachable!(
-        "{key}, which this call resolved or read out of a record, does not resolve: \
-         nothing removes a record during a plan, and {NAMES_ONLY_LIVE}; {OPERATORS_KEEP_LINKS}"
+        "{key}, which this call minted and kept, resolved, or read out of a record, does not \
+         resolve: nothing removes a record during a plan, a call keeps every record it mints \
+         and still reads, and {NAMES_ONLY_LIVE}; {OPERATORS_KEEP_LINKS}"
     )
 }
 
@@ -297,7 +306,23 @@ pub(crate) fn proven<K: slotmap::Key, V, I: core::fmt::Display>(
     key: K,
     id: fn(K) -> I,
 ) -> &V {
-    arena.get(key).unwrap_or_else(|| unproven(id(key)))
+    let Some(record) = arena.get(key) else {
+        unproven(id(key))
+    };
+    record
+}
+
+/// [`proven`], for a record this call writes.
+#[track_caller]
+pub(crate) fn proven_mut<K: slotmap::Key, V, I: core::fmt::Display>(
+    arena: &mut slotmap::SlotMap<K, V>,
+    key: K,
+    id: fn(K) -> I,
+) -> &mut V {
+    let Some(record) = arena.get_mut(key) else {
+        unproven(id(key))
+    };
+    record
 }
 
 /// Requires a key to be live in its arena, answering a miss as `from`

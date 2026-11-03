@@ -13,21 +13,18 @@
 //! candidates. Two of them are reachable for this pair, one is not, and
 //! WHICH one a pose takes turns on whether the walls cross:
 //!
-//! - **The crossing coaxial pose gets through the crossing layer and
-//!   the matcher, and refuses at the join, `CurvedBooleanUnsupported`
-//!   naming the cylinder.** The cylinder's SEAM LINE crossing the ball's
-//!   SPHERE face used to be the door (a line × sphere pair with no root
-//!   lane); the crossing layer has that lane now, so the pose reaches
-//!   the join, whose section table decides the pair coaxial by margin
-//!   (the section's two circles) and matches its germs on them; the join
-//!   has no wired arm for the coaxial cylinder × sphere germ pair.
+//! - **The crossing coaxial pose builds through the carried lane.** The
+//!   crossing layer roots the cylinder's seam line on the ball's sphere
+//!   face, the section table decides the pair coaxial by margin (its two
+//!   circles, a closed form) and matches its germs on them, and the
+//!   join cuts both sides' chords from the circle a germ's branch names,
+//!   the circle itself over the two sites' angles
+//!   (`chord_join::carried_chord_spec`'s closed-form arm). It refused at
+//!   the join, `CurvedBooleanUnsupported` naming the cylinder, while the
+//!   carried lane chorded only fitted splines.
 //! - **A non-crossing pose — a ball wholly inside a wider cylinder —
 //!   builds**: no crossing is found, the containment fallback runs, and
 //!   the section pass certifies the sphere × wall pair apart.
-//!
-//! The crossing rows pin the refusal as a MEASUREMENT rather than as a
-//! target. What would move them is the join's coaxial cylinder × sphere
-//! arm.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -101,107 +98,87 @@ fn posed(b: &Body<f64>) -> Body<f64> {
     .unwrap()
 }
 
-/// The coaxial fixture, direct and re-posed: `r = 1`, `R = 1.5`, the
-/// sphere centred on the axis at the cylinder's mid-height.
-fn fixture() -> [(&'static str, AtRestBody<f64>, AtRestBody<f64>); 2] {
-    let c = cyl(1.0, -2.0, 2.0);
-    let s = ball_at(1.5, Vec3::new(0.0, 0.0, 0.0));
-    [
-        ("direct", c.clone(), s.clone()),
-        ("re-posed twin", posed(&c), posed(&s)),
-    ]
-    .map(|(pose, c, s)| {
-        (
-            pose,
-            finished(pose, c, Tol::witness()),
-            finished(pose, s, Tol::witness()),
-        )
-    })
-}
-
-/// **THE OPENING MEASUREMENT.** The crossing coaxial union gets past
-/// the CROSSING layer and the MATCHER in both poses and dies at the
-/// join, with the same typed variant, naming the cylinder's wall.
-///
-/// The crossing layer used to stop it: operand A's seam LINE crossing
-/// the ball's SPHERE face had no root lane. With the line × sphere
-/// roots the seam pierces, and the germ pair this crossing mints is a
-/// cylinder×sphere pair whose section the section table decides coaxial
-/// by margin; the join has no arm for that pair.
-#[test]
-fn the_coaxial_union_refuses_at_the_join() {
-    for (label, c, s) in fixture() {
-        let err = topo::union(&c, &s, Tol::witness())
-            .expect_err("a coaxial cyl×sphere pair has no join arm");
-        let BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        } = err
-        else {
-            panic!("{label}: expected the join's missing arm, got {err:?}");
-        };
-        assert_eq!(
-            (operand, kind),
-            (topo::Operand::A, geom::SurfaceKind::Cylinder),
-            "{label}: the cylinder's kind is the missing arm"
-        );
-        assert!(
-            matches!(
-                c.get_face(face).and_then(|f| c.get_surface(f.surface)),
-                Some(geom::Surface::Cylinder { .. })
-            ),
-            "{label}: the named face is the cylinder's wall"
-        );
+/// **The volume of the coaxial ball inside the cylinder**: the ball of
+/// radius `big` centred on the axis at height `zs`, cut by the cylinder
+/// of radius `r` between heights `z0` and `z1`. Each slice is a disc of
+/// radius `min(r, √(big² − u²))`, `u` the height off the ball's centre,
+/// so the integral is exact piecewise: `π r²` where the slice is the
+/// cylinder's, `π (big² − u²)` where it is the ball's.
+fn coaxial_lens(r: f64, (z0, z1): (f64, f64), big: f64, zs: f64) -> f64 {
+    use core::f64::consts::PI;
+    let (a, b) = (z0.max(zs - big), z1.min(zs + big));
+    if a >= b {
+        return 0.0;
     }
-}
-
-/// **Both poses take the same door**: a row that greened only on the
-/// direct pose would be hiding a pose-dependent answer, so the twin is
-/// asserted to the same variant.
-#[test]
-fn both_poses_take_the_same_door() {
-    let doors: Vec<String> = fixture()
-        .into_iter()
-        .map(|(_, c, s)| {
-            let err = topo::union(&c, &s, Tol::witness()).expect_err("still refused");
-            format!("{err:?}")
-                .split(|ch: char| !ch.is_alphanumeric())
-                .next()
-                .unwrap_or("")
-                .to_string()
+    let h = if big > r {
+        (big * big - r * r).sqrt()
+    } else {
+        0.0
+    };
+    // The dome's antiderivative in `u`.
+    let dome = |u: f64| PI * (big * big * u - u.powi(3) / 3.0);
+    let mut cuts = vec![a, b];
+    for k in [zs - h, zs + h] {
+        if a < k && k < b {
+            cuts.push(k);
+        }
+    }
+    cuts.sort_by(f64::total_cmp);
+    cuts.windows(2)
+        .map(|w| {
+            let mid = 0.5 * (w[0] + w[1]) - zs;
+            if mid.abs() < h {
+                PI * r * r * (w[1] - w[0])
+            } else {
+                dome(w[1] - zs) - dome(w[0] - zs)
+            }
         })
-        .collect();
-    assert_eq!(doors[0], doors[1], "the two poses take different doors");
-    assert_eq!(doors[0], "CurvedBooleanUnsupported", "{doors:?}");
+        .sum()
 }
 
-/// **No coaxial pose builds, in either operand order, any op, either
-/// pose**: the section door decides the circles a coincidence, which the
-/// join does not build until the door records it, so every op refuses
-/// at the join's lane dispatch.
+/// **THE OPENING MEASUREMENT, moved: the crossing coaxial pair builds
+/// every op through the carried lane.** The ball of radius `R` centred
+/// on the axis of the radius-1 cylinder `z ∈ [−2, 2]` crosses its wall
+/// in two circles (the ball inside the caps, one cap cut, the ball just
+/// wider than the wall); the join cuts both sides' chords from those
+/// circles, each a closed form, so every op in both operand orders and
+/// both poses builds, tiers 1 to 3, at the volume the slices integrate
+/// to ([`coaxial_lens`]). This pair refused at the join,
+/// `CurvedBooleanUnsupported` naming the cylinder, until the carried lane
+/// took closed forms.
 #[test]
-fn coaxial_poses_build_nothing() {
-    let c = cyl(1.0, -2.0, 2.0);
-    for (r, z) in [(1.5, 0.0), (1.2, 0.3), (1.05, -0.5), (1.8, 1.0)] {
-        let s = ball_at(r, Vec3::new(0., 0., z));
-        for (c, s) in [(c.clone(), s.clone()), (posed(&c), posed(&s))] {
+fn coaxial_poses_build_every_op_at_their_volumes() {
+    use core::f64::consts::PI;
+    use topo::BooleanOp::{Intersect, Subtract, Union};
+    let (r, zc) = (1.0_f64, (-2.0, 2.0));
+    let vc = PI * r * r * (zc.1 - zc.0);
+    let c = cyl(r, zc.0, zc.1);
+    for (big, z) in [(1.5_f64, 0.0), (1.2, 0.3), (1.05, -0.5), (1.8, 1.0)] {
+        let vs = 4.0 / 3.0 * PI * big.powi(3);
+        let vi = coaxial_lens(r, zc, big, z);
+        let s = ball_at(big, Vec3::new(0., 0., z));
+        for (pose, c, s) in [
+            ("direct", c.clone(), s.clone()),
+            ("re-posed twin", posed(&c), posed(&s)),
+        ] {
             let (c, s) = (
-                finished("c", c, Tol::witness()),
-                finished("s", s, Tol::witness()),
+                finished(pose, c, Tol::witness()),
+                finished(pose, s, Tol::witness()),
             );
-            for (x, y) in [(&c, &s), (&s, &c)] {
-                for got in [
-                    topo::union(x, y, Tol::witness()),
-                    topo::intersect(x, y, Tol::witness()),
-                    topo::subtract(x, y, Tol::witness()),
-                ] {
-                    assert!(
-                        matches!(got, Err(BooleanError::CurvedBooleanUnsupported { .. })),
-                        "R {r} z {z}: {:?}",
-                        got.err()
-                    );
-                }
+            for (op, x, y, want) in [
+                (Union, &c, &s, vc + vs - vi),
+                (Union, &s, &c, vc + vs - vi),
+                (Intersect, &c, &s, vi),
+                (Intersect, &s, &c, vi),
+                (Subtract, &c, &s, vc - vi),
+                (Subtract, &s, &c, vs - vi),
+            ] {
+                let label = format!("R {big} z {z}, {pose}, {op:?}");
+                let got = built_volume(&label, op, x, y).expect("a body");
+                assert!(
+                    (got - want).abs() <= 1e-9 * want,
+                    "{label}: {got} against {want}"
+                );
             }
         }
     }
@@ -403,7 +380,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the sweep refused: {e:?}"));
-    let torus_circle_on_wall = ba.accepted.iter().any(|(e, f)| {
+    let torus_circle_on_wall = ba.accepted().iter().any(|(e, f)| {
         let circle = torus
             .get_edge(*e)
             .and_then(|e| torus.get_curve_geom(e.curve))
