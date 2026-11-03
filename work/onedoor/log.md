@@ -65,3 +65,7 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The same `remapped(.., |k| Some(..)) else` shape in `replace_face.rs` is SHELL's, and is noted there.
   - (ONEDOOR orchestrator)
 - 2026-11-03 — **Dispatched `stored-description-adjacent-is-the-gates-reading-not-tier-3s`** on `onedoor/at-rest-adjacency`. The unit gives tier 3, `stored_description_adjacent` and `merge_faces`' postcondition one at-rest adjacency reading; the write gate keeps its transient reading, named as such. Review tier: single style review, since it moves tier 3's reader. It is independent of SELECT, and of PR 6427's ruling, which only extends the same reading. (ONEDOOR orchestrator)
+- 2026-11-03 — **PR [#6440](https://github.com/evgunter/cad/pull/6440)'s style review**: APPROVE-WITH-FIXES, all claims hold. Every finding is taken except `edge_join.rs`'s surface-distinctness sites, which state a different rule.
+  - **A class finding, the third this sitting.** Giving a reading one home leaves its partial copies alive unless the fix sweeps for partial copies, not just whole ones: `tangent_struts` and `rest_parted_wrap_edges` each restated half of the at-rest reading.
+  - **A naming rule from it.** Name a reading by what it reads (`adjacent_by_surfaces`), not by when it is used. The "in construction" name read wrong at the re-chart doors on resting bodies.
+  - (ONEDOOR orchestrator)
