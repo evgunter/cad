@@ -401,7 +401,7 @@ fn measurement_err(py: Python<'_>, err: &topo::MassPropsError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Validation(ValidationRefusal::MassProperties),
-        err.to_string(),
+        err.render(pncad::geom_brep::recourse::Reading::AtRest),
         &fields,
     )
 }
@@ -824,7 +824,7 @@ impl Body {
                 failures.len(),
                 failures
                     .iter()
-                    .map(ToString::to_string)
+                    .map(|e| e.render(pncad::geom_brep::recourse::Reading::AtRest))
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
@@ -2059,7 +2059,10 @@ pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformErr
     typed_err(
         py,
         ErrorClass::Export,
-        format!("the body could not be composed into its space: {err}"),
+        format!(
+            "the body could not be composed into its space: {}",
+            err.render(pncad::geom_brep::recourse::Reading::Build)
+        ),
         &fields,
     )
 }
