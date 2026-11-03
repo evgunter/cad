@@ -40,6 +40,11 @@ carrier of other values
 `a_spline_beside_a_piece_of_another_carrier_refuses_typed`, and
 `join_door_is_whole.rs`).
 
+A closed spline's seam vertex is not this row's either: both ends of
+the carrier are its clamped domain ends, so both edges crease there and
+the vertex stands (`crease_at`). No row reaches that vertex as
+joinable.
+
 ## What it would need
 
 A parameter on the kept spline for the killed piece's far end: a

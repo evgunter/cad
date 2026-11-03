@@ -60,11 +60,8 @@
 //! (Ev's PR 5913 ruling), so it is the vertex the knot structure puts
 //! there.
 //!
-//! The joined edge's far parameter is the killed edge's own where that
-//! edge lies on the kept edge's very carrier (a split's two children
-//! always do), so a spline, which has no parameter inverse, joins back
-//! there like any carrier; between two carriers of one locus it is read
-//! off the kept carrier, which a spline cannot answer ([`joined_spec`]).
+//! Where the joined edge's far parameter comes from, rung by rung, is
+//! [`joined_spec`]'s.
 //!
 //! Distinct components of one locus never share a point, and one iso
 //! family has one member through a regular point, so the vertex decides
@@ -993,23 +990,15 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// **`gone`'s far parameter, carried**: where `gone` (its carrier, and
-/// its parameters at the vertex and at its far end) lies on `kept`'s
-/// very carrier and both edges stand at one parameter `tw` at the
-/// vertex, `gone`'s certified interval is an interval of that carrier
-/// with `tw` at one end, so its other end is the joined edge's far
-/// parameter, read with no inverse and no period. `None` where the
-/// carriers differ, the parameters at the vertex differ, or the far end
-/// does not lie past `tw` away from `kept`; the carrier's own readings
-/// then take it ([`joined_spec`]).
-///
-/// The comparison is exact on content, not margined: a split restates
-/// its parent's carrier verbatim on both children, each certified at
-/// the one split parameter, so the two pieces of one edge are equal
-/// value for value, and two carriers that differ in any value are two
-/// statements of the locus, between which only a reading off the
-/// carrier relates parameters. The joined spec is certified at its
-/// merged ends either way (`kev_describing`).
+/// **`gone`'s far parameter, carried**: where `gone` is `kept`'s carrier
+/// by content ([`geom::Curve3::same_content`]) and stands at `kept`'s
+/// parameter `tw` at the vertex, its interval is one of that carrier with
+/// `tw` at one end, so its far end `gx` is the joined edge's far
+/// parameter. `None` otherwise, or where `gx` does not lie past `tw` away
+/// from `kept`. Exact, since a split restates its parent's carrier
+/// verbatim on both children; at a scalar whose values are not plain
+/// constants (an interval wider than a point, a derivative, a symbol)
+/// nothing carries.
 fn carried_far<T: Decide>(
     carrier: &geom::Curve3<T>,
     tw: T,
@@ -1017,68 +1006,17 @@ fn carried_far<T: Decide>(
     gone: &geom::Curve3<T>,
     (gw, gx): (T, T),
 ) -> Option<T> {
-    if !(same_carrier(carrier, gone) && same_value(gw, tw)) {
+    let at_tw = matches!(
+        (gw.plain_constant(), tw.plain_constant()),
+        (Some(x), Some(y)) if x == y
+    );
+    if !(at_tw && carrier.same_content(gone)) {
         return None;
     }
     let past = if backward { tw - gx } else { gx - tw };
     past.sign_within(Band::least())
         .is_ok_and(|d| d.sign == Sign::Positive)
         .then_some(gx)
-}
-
-/// Whether `a` and `b` are one value: both plain constants
-/// ([`geom_core::spline::SpanLocate::plain_constant`]) and equal. A
-/// value that carries anything beyond its constant is no answer, so
-/// not the same.
-fn same_value<T: Decide>(a: T, b: T) -> bool {
-    matches!((a.plain_constant(), b.plain_constant()), (Some(x), Some(y)) if x == y)
-}
-
-/// Whether two carriers are one curve by content: one kind, and every
-/// value that states it equal ([`same_value`]).
-fn same_carrier<T: Decide>(a: &geom::Curve3<T>, b: &geom::Curve3<T>) -> bool {
-    use geom::Curve3;
-    let p = |p: geom_core::Point3<T>| [p.x, p.y, p.z];
-    let v = |v: geom_core::Vec3<T>| [v.x, v.y, v.z];
-    let frame = |f: &geom::Frame<T>| [p(f.center), v(f.axis), v(f.u_ref)].concat();
-    let values = |c: &Curve3<T>| -> Vec<T> {
-        match c {
-            Curve3::Line(l) => [p(l.origin), v(l.dir)].concat(),
-            Curve3::Circle(c) => [frame(&c.frame), vec![c.radius]].concat(),
-            Curve3::Ellipse(e) => [frame(&e.frame), vec![e.semi_u, e.semi_v]].concat(),
-            Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            } => [
-                p(*center),
-                v(*axis),
-                v(*u_ref),
-                [*major_radius, *minor_radius, *offset],
-            ]
-            .concat(),
-            Curve3::Nurbs(n) => n
-                .knot_values()
-                .values()
-                .iter()
-                .copied()
-                .chain(n.control().iter().flat_map(|&q| p(q)))
-                .chain(n.weights().iter().copied())
-                .collect(),
-        }
-    };
-    let degree = |c: &Curve3<T>| match c {
-        Curve3::Nurbs(n) => Some(n.degree()),
-        _ => None,
-    };
-    let (va, vb) = (values(a), values(b));
-    a.kind() == b.kind()
-        && degree(a) == degree(b)
-        && va.len() == vb.len()
-        && va.into_iter().zip(vb).all(|(x, y)| same_value(x, y))
 }
 
 /// The joined edge's spec: `kept`'s carrier over its interval run on
@@ -1259,12 +1197,14 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
 
 #[cfg(test)]
 mod carry {
-    //! **The carry rung reads one carrier by content** ([`carried_far`]):
-    //! for every carrier kind, a piece on the kept edge's very carrier,
-    //! standing at the kept edge's parameter at the vertex, hands over its
-    //! own far parameter, on either side; a carrier that differs in any
+    //! **The carry rung** ([`carried_far`]): on one carrier of each kind,
+    //! a piece standing at the kept edge's parameter at the vertex hands
+    //! over its own far parameter, on either side; a twin one ulp off in
     //! one value, a piece standing at another parameter, or a far end on
-    //! the kept edge's own side carries nothing.
+    //! the kept edge's own side carries nothing. That every stated value
+    //! is read is `geom`'s row (`curves/same_content.rs`); the two rows
+    //! after the first pin the rung on the values a parametrization hangs
+    //! on, a net's knots and a circle's reference direction.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use std::sync::Arc;
@@ -1339,7 +1279,7 @@ mod carry {
     }
 
     #[test]
-    fn a_piece_of_the_kept_carrier_carries_its_far_parameter() {
+    fn a_piece_carries_on_its_own_carrier_and_not_on_a_twin_or_past_the_vertex() {
         for (kind, kept, twin) in carriers() {
             // Kept over [0.2, 0.4], forward to w at 0.4; gone [0.4, 0.7].
             assert_eq!(
@@ -1369,6 +1309,62 @@ mod carry {
                 "{kind}: a far end on the kept edge's side carries nothing"
             );
         }
+    }
+
+    fn net(knot: f64) -> Curve3<f64> {
+        let kv =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, knot, 1.0, 1.0, 1.0], 2)
+                .unwrap();
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(3.0, 1.0, 0.0),
+        ];
+        Curve3::Nurbs(Arc::new(
+            geom::NurbsCurve3::new(kv, pts, vec![1.0, 0.8, 1.0, 1.0]).unwrap(),
+        ))
+    }
+
+    #[test]
+    fn a_piece_of_a_net_with_its_interior_knot_moved_carries_nothing() {
+        let (kept, twin) = (net(0.5), net(f64::next_up(0.5)));
+        assert_eq!(
+            carried_far(&kept, 0.4, false, &kept.clone(), (0.4, 0.7)),
+            Some(0.7),
+            "the net itself carries"
+        );
+        assert_eq!(
+            carried_far(&kept, 0.4, false, &twin, (0.4, 0.7)),
+            None,
+            "one control polygon and weight row on other knots is another curve"
+        );
+    }
+
+    #[test]
+    fn a_piece_of_a_circle_turned_in_its_reference_direction_carries_nothing() {
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let circle = |u: Vec3<f64>| {
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame::new(o, z, u),
+                radius: 1.0,
+            })
+        };
+        let (kept, turned) = (
+            circle(Vec3::new(1.0, 0.0, 0.0)),
+            circle(Vec3::new(0.0, 1.0, 0.0)),
+        );
+        assert_eq!(
+            carried_far(&kept, 0.4, false, &kept.clone(), (0.4, 0.7)),
+            Some(0.7),
+            "the circle itself carries"
+        );
+        assert_eq!(
+            carried_far(&kept, 0.4, false, &turned, (0.4, 0.7)),
+            None,
+            "one locus from another reference direction is another parametrization"
+        );
     }
 }
 

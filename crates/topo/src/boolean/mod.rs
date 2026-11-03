@@ -3977,14 +3977,12 @@ pub enum BooleanError {
     /// the margin band (D4 ¶3).
     JoinUndecided(edge_join::JoinUndecided),
     /// **A curved join on a carrier the stage cannot run on.** The join
-    /// restates the kept edge over both edges' span on its own carrier,
-    /// through the killed edge's far end: that edge's own far parameter
-    /// where it lies on the kept edge's very carrier, and otherwise one
-    /// read off the carrier, a whole period where the join closes or
-    /// the far end's parameter (`Curve3::param_near`) where it does
-    /// not. A carrier with no period, or no parameter inverse there (a
-    /// spline), cannot be run on beside a piece of another carrier, and
-    /// the join refuses rather than leave the vertex standing
+    /// restates the kept edge over both edges' span on its own carrier
+    /// (`edge_join::joined_spec` says where the far parameter comes
+    /// from). Every rung missed: the killed edge is on another carrier,
+    /// and this one has no period, or no parameter inverse there (a
+    /// spline), so the join refuses rather than leave the vertex
+    /// standing
     /// (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter`).
     JoinCarrierUnsupported {
         /// The edge the join keeps.

@@ -583,6 +583,33 @@ macro_rules! nurbs_curve {
                 self.knots.degree()
             }
 
+            /// **Whether `other` is this curve by content**: one knot
+            /// structure (degree and runs), and every knot value, control
+            /// coordinate and weight one value by `same`. Every field that
+            /// states the curve is read; the memos are not part of it.
+            pub fn same_content(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
+                let Self { knots, control, weights, speed: _, speed_sup: _, $($spans: _,)? } = self;
+                let Self {
+                    knots: other_knots,
+                    control: other_control,
+                    weights: other_weights,
+                    speed: _,
+                    speed_sup: _,
+                    $($spans: _,)?
+                } = other;
+                let all = |a: &[T], b: &[T]| {
+                    a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| same(x, y))
+                };
+                knots.structure() == other_knots.structure()
+                    && all(knots.values(), other_knots.values())
+                    && control.len() == other_control.len()
+                    && control
+                        .iter()
+                        .zip(other_control)
+                        .all(|(p, q)| true $(&& same(p.$c, q.$c))+)
+                    && all(weights.values(), other_weights.values())
+            }
+
             /// The parameter domain (first knot at multiplicity
             /// `p + 1` to last), on the value channel.
             pub fn domain(&self) -> (f64, f64) {
