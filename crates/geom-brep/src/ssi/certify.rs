@@ -527,11 +527,13 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, ToMeter
                 },
             ))
         }
-        Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Err(
-            "no meters composite for this surface kind (the cone's composite has no \
+        Surface::Cone { .. } | Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            Err(
+                "no meters composite for this surface kind (the cone's composite has no \
              meters conversion; a spline stand-in and its offset description have no \
              implicit form to build one from)",
-        ),
+            )
+        }
     }
 }
 

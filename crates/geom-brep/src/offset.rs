@@ -268,6 +268,8 @@ pub enum OffsetError<T: geom_core::Real> {
     /// for a nested offset today; when one arrives it brings the
     /// composition rule with it, rather than this door inventing one.
     ApproxNesting,
+    /// The operand is a spindle sheet, whose offset has no lane yet.
+    SpindleSheet,
     /// A refusal predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
     Escalated {
@@ -300,6 +302,10 @@ impl<T: geom_core::Real> core::fmt::Display for OffsetError<T> {
                 f,
                 "the surface is already a fitted offset, and offsetting one again is not \
                  built. {NOT_YET_ENDING}"
+            ),
+            Self::SpindleSheet => write!(
+                f,
+                "the surface is a spindle sheet, whose offset is not built. {NOT_YET_ENDING}"
             ),
             Self::Escalated { source } => source
                 .undecided(
@@ -423,6 +429,7 @@ pub fn offset_surface<T: geom_core::Decide>(
                 u_ref: *u_ref,
             })
         }
+        Surface::Spindle { .. } => Err(OffsetError::SpindleSheet),
         Surface::Nurbs(_) => Err(OffsetError::NotClosedUnderOffset),
         Surface::Approx(_) => Err(OffsetError::ApproxNesting),
     }
@@ -453,8 +460,9 @@ pub fn offset_surface<T: geom_core::Decide>(
 /// [`OffsetDistanceError::Offset`] carrying [`offset_surface`]'s own
 /// refusal of `from`'s kind, where it has one independent of `d`:
 /// [`OffsetError::NotClosedUnderOffset`] for a NURBS,
-/// [`OffsetError::ApproxNesting`] for an approximating surface. No `d`
-/// mints anything from either, so there is none to answer.
+/// [`OffsetError::ApproxNesting`] for an approximating surface,
+/// [`OffsetError::SpindleSheet`] for a spindle sheet. No `d` mints
+/// anything from any of them, so there is none to answer.
 /// [`OffsetDistanceError::KindsDiffer`] when `onto` is an analytic kind
 /// other than `from`'s: the mint never changes kind, so the two are not
 /// an offset pair.
@@ -506,6 +514,7 @@ pub fn offset_distance<T: geom_core::Real>(
             OffsetError::NotClosedUnderOffset,
         )),
         (Surface::Approx(_), _) => Err(OffsetDistanceError::Offset(OffsetError::ApproxNesting)),
+        (Surface::Spindle { .. }, _) => Err(OffsetDistanceError::Offset(OffsetError::SpindleSheet)),
         (from, onto) => Err(OffsetDistanceError::KindsDiffer {
             from: from.kind(),
             onto: onto.kind(),

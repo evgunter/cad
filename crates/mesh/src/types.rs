@@ -794,7 +794,7 @@ impl TessellateError {
                         "a cylinder face with a single rim is unbounded, so there is \
                          nothing to restate — the face needs its other rim"
                     }
-                    K::Plane | K::Torus | K::Nurbs | K::Approx => {
+                    K::Plane | K::Torus | K::Spindle | K::Nurbs | K::Approx => {
                         "restate the face so that its loop carries a meridian edge"
                     }
                 };
@@ -820,7 +820,7 @@ impl TessellateError {
                         "this chart has no pole or apex for a meridian to end on, so no \
                          pair of meridians bounds anything on it — the face needs a rim"
                     }
-                    K::Plane | K::Nurbs | K::Approx => {
+                    K::Plane | K::Spindle | K::Nurbs | K::Approx => {
                         "restate the face so that its loop carries a rim, or two \
                          meridians on different columns"
                     }
