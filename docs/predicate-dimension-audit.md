@@ -1576,6 +1576,39 @@ Flagged, NOT fixed here (dispositions):
   still reach the sink under `curve_foot_branch`. Not a `decide_flagged`
   site; `LEDGER_FLAGGED_SITES` does not move.
 
+- **F32** (added by ONECOPY's small-reads unit) `curve_foot_polish` —
+  `geom/src/curves/on_carrier.rs` `smaller`, the polish's tie-break
+  between two candidate feet on an ellipse, a spiric oval or a spline:
+  `b − a`, the difference of two gaps (metres). It keeps the best of a
+  spline's seeds and of its polished ends, and it keeps or stops each
+  Gauss–Newton step. What keeps it off the logged doors is that no
+  verdict rests on which candidate it keeps.
+  - An undecided pick keeps the candidate already held, at `f64` and at
+    `Interval` alike. That candidate's gap is still an upper bound on
+    the point's distance from the carrier.
+  - Every verdict a foot gives is read on that gap or on a bound of its
+    own (`Foot::on_carrier`), and is logged there: `On` on the gap
+    (`curve_carrier_gap`); `Off` on the closed-form clearance or the
+    spline's piece walk (`curve_carrier_clear`,
+    `curve_carrier_piece_clear`), which do not read the foot; and the
+    straddle between them (`curve_carrier_straddle`). So a poorer pick
+    costs at most the foot's own logged escalation, never a wrong
+    verdict. That escalation is the driver's cue when a narrower box
+    would help, and it lands on the reading that needs it.
+  - The pick does move the foot's parameter (`Foot::t`): two tied
+    candidates can lie on different branches of a spline. A foot's
+    parameter is not a nearest point unless `Foot::is_nearest` says so,
+    and a reader that needs one reads a certificate (`Curve3::clear_of`).
+  - Logged, an undecided pick at `Interval` would hand the driver an
+    escalation ahead of the foot's own, on every polish that converges
+    to within its enclosure's width. `editor-core`'s `drive::log_read`
+    reads a node's first escalation as the leaf's verdict, so the leaf
+    would refuse or bisect on a choice no answer depends on.
+
+  **Carried as `k_stats::check_unlogged(.., "F32")`**. Its K samples
+  still reach the sink under `curve_foot_polish`. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
