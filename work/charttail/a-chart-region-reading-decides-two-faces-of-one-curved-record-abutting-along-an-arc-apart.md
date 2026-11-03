@@ -13,7 +13,8 @@ the census's one-key conformal arm (`census.rs` `sweep_conformal_patches`,
 through `one_record_overlap`) reads two opposed faces of one cylinder
 record that abut along their rim: a boss's wall and its hole's wall. The
 region door (`chart_region.rs`, `chart_overlap`) refuses the pair
-`TouchingBoundary`. The faces' own fallback reading
+`TouchingBoundary`, or `SeamBranch` where the record's seam crosses the
+rim (which one depends on the pose). The faces' own fallback reading
 (`census.rs` `face_interiors_meet`) answers `true` for it, which is not a
 certificate (it reads two crossings' cones as shared interior). So the
 pair is `CensusUnsupported`, and no lane decides it apart.

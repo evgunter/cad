@@ -760,13 +760,13 @@ pub fn rest_locus<T: Decide>(
 /// # Panics
 ///
 /// As [`rest_locus`].
-pub(crate) fn one_carrier_at_rest<T: Decide>(
+pub fn one_carrier_at_rest<T: Decide>(
     body: &Body<T>,
     sides: [(crate::SurfaceKey, Option<FaceKey>); 2],
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     band: Band,
-) -> Option<super::carrier_eq::CarrierReading> {
+) -> Option<(CarrierRelation, Option<geom_core::MarginDiag>)> {
     let [(ka, fa), (kb, fb)] = sides;
     let surface = |k: crate::SurfaceKey| {
         body.get_surface(k)
@@ -796,6 +796,134 @@ pub(crate) fn one_carrier_at_rest<T: Decide>(
             Some(reading)
         }
         Ok((CarrierRelation::Distinct, _)) | Err(_) => None,
+    }
+}
+
+/// **No edge of an operation's result lies between two records of one
+/// carrier** (DESIGN `[coincidence.door]`): the act that decided two
+/// surface records one leaves their faces on one record, so an edge
+/// whose two faces wear distinct records that its rest reads one chart
+/// ([`crate::rest_locus`]) is a producer that decided a coincidence and
+/// kept both records. Read only where the edge is stored in a chart
+/// across two records, the shape such an edge rests in. A body built by
+/// hand may hold one (a non-maximal operand), so this is asked of the
+/// deciding operations' results (the boolean's, under debug; a suite's
+/// of an operation outside this crate), not at the at-rest gate.
+///
+/// # Panics
+///
+/// On such an edge: a kernel defect.
+pub fn assert_one_record_per_carrier<T: Decide>(body: &Body<T>, tol: geom_core::Tol) {
+    let Ok(band) = geom_core::Band::linear(tol) else {
+        return;
+    };
+    for (edge, data) in body.edges() {
+        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+            continue;
+        };
+        if !matches!(curve.description(), geom_brep::EdgeDescription::Chart(c) if !c.wrap) {
+            continue;
+        }
+        let sides = crate::readback::edge_sides_of(body, edge, data);
+        let (ka, kb) = sides.surfaces();
+        if ka == kb {
+            continue;
+        }
+        let rest = rest_locus(
+            body,
+            [(ka, Some(sides.plus.face)), (kb, Some(sides.minus.face))],
+            curve.carrier(),
+            curve.params(),
+            band,
+        );
+        assert!(
+            !matches!(rest, geom_brep::RestLocus::Chart(_)),
+            "{edge:?} lies at rest between {ka:?} and {kb:?}, two records of one carrier: \
+             the act that decided them one left both. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        );
+    }
+}
+
+impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
+    /// **The records `edge` lies between, left one where they are one
+    /// carrier**: a door that read a smooth join of two surface records
+    /// its rest reads one chart ([`crate::rest_locus`]) decided them one
+    /// carrier, and leaves their faces on the first of the pair
+    /// ([`Body::unify_surfaces`]), the record the edge rests in. The
+    /// row ([`crate::Coincidence`]) is the door's to record: the two
+    /// faces as cells of the body decided on, the relation of their
+    /// charts, and the margin that decided it. `None`, and nothing
+    /// written, where the edge lies on one record or on two carriers.
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) where
+    /// `edge` does not resolve, [`EulerOpError::NullScaffoldCurve`] on
+    /// an edge that carries no certified curve, and the re-chart's
+    /// ([`Body::unify_surfaces`]).
+    pub fn unify_across(
+        &mut self,
+        edge: crate::entity::EdgeKey,
+        tol: geom_core::Tol,
+    ) -> Result<Option<crate::Coincidence>, crate::euler::EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let data =
+            crate::live::lookup(&self.edges, edge, EntityId::Edge, crate::live::Arg("edge"))?;
+        let Some(curve) = self.edge_curve_linked(edge, data).certified() else {
+            return Err(crate::euler::EulerOpError::NullScaffoldCurve { curve: data.curve });
+        };
+        let sides = crate::readback::edge_sides_of(self, edge, data);
+        let (ka, kb) = sides.surfaces();
+        if ka == kb {
+            return Ok(None);
+        }
+        let band = Band::linear(tol).map_err(|e| crate::euler::EulerOpError::Certification {
+            error: geom_brep::CertifyError::Band(e),
+        })?;
+        let Some((relation, margin)) = one_carrier_at_rest(
+            self,
+            [(ka, Some(sides.plus.face)), (kb, Some(sides.minus.face))],
+            curve.carrier(),
+            curve.params(),
+            band,
+        ) else {
+            return Ok(None);
+        };
+        let charts_agree = relation == CarrierRelation::SameOriented;
+        let planes = [ka, kb]
+            .iter()
+            .all(|&k| matches!(self.get_surface(k), Some(geom::Surface::Plane { .. })));
+        let Some(margin) = margin else {
+            unreachable!("{edge:?}: the ladder decided its records one carrier and read no margin")
+        };
+        let [kept, other] = geom_brep::SurfacePair::new(ka, kb).keys();
+        self.unify_surfaces(
+            crate::policy_lane::KernelSite::OneRecord,
+            (kept, other),
+            charts_agree,
+            tol,
+        )?;
+        Ok(Some(crate::Coincidence {
+            cells: [sides.plus.face, sides.minus.face].map(|face| crate::RowCell::Result {
+                cell: crate::Cell::Face(face),
+            }),
+            more: [None; 3],
+            relation: if charts_agree {
+                crate::Relation::SameOriented
+            } else {
+                crate::Relation::SameOpposite
+            },
+            site: if planes {
+                crate::DecisionSite::PlaneLadder
+            } else {
+                crate::DecisionSite::CarrierLadder
+            },
+            margin,
+            discharge: crate::Discharge::of(margin),
+        }))
     }
 }
 

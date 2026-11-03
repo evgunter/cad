@@ -234,10 +234,9 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // arm in one function, shared by verify-at-use and the detector's
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
-pub(crate) use carrier_pair::one_carrier_at_rest;
 pub use carrier_pair::{
-    PairFace, PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
-    flush_pair_relation, rest_locus,
+    PairFace, PairUnread, assert_one_record_per_carrier, carrier_pair_decided,
+    carrier_pair_relation, face_carrier, flush_pair_relation, one_carrier_at_rest, rest_locus,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{

@@ -609,7 +609,7 @@ const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 /// scenes declared a rim, so a describer that stamps a declaration on
 /// one, or leaves it citing a surface it no longer bounds, reds here.
 fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<(CurveKind, Point3<f64>)> {
-    topo::test_support::assert_one_record_per_carrier(body, Tol::witness());
+    topo::assert_one_record_per_carrier(body, Tol::witness());
     let mut kinds = Vec::new();
     for (key, edge) in body.edges() {
         let face = |he| body.face_of_half_edge(he).unwrap();

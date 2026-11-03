@@ -58,9 +58,9 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             178  boolean/mod.rs
+crate-visible             177  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
-crate-visible              31  boolean/ops.rs
+crate-visible              28  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
 crate-visible               2  boolean/planar_lane_carrier_rows.rs
 crate-visible               2  boolean/plane_eq.rs
@@ -127,12 +127,12 @@ names-boolean               1  fuse.rs
 names-boolean               4  injective.rs
 names-boolean              14  instance.rs
 names-boolean               1  joint.rs
-names-boolean              77  lib.rs
+names-boolean              76  lib.rs
 names-boolean              99  lineage.rs
 names-boolean               3  link.rs
 names-boolean              88  link/cone_fuzz.rs
 names-boolean               4  live.rs
-names-boolean              43  merge_faces.rs
+names-boolean              34  merge_faces.rs
 names-boolean               1  merge_faces_kept_rows.rs
 names-boolean               3  offset_axial.rs
 names-boolean               3  offset_derive.rs

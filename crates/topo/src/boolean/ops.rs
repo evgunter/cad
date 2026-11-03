@@ -1209,7 +1209,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
     #[cfg(debug_assertions)]
-    crate::validate::assert_one_record_per_carrier(&finished, tol);
+    super::carrier_pair::assert_one_record_per_carrier(&finished, tol);
     let body = gate(finished, band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
@@ -7892,7 +7892,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
             #[cfg(debug_assertions)]
-            crate::validate::assert_one_record_per_carrier(&body, tol);
+            super::carrier_pair::assert_one_record_per_carrier(&body, tol);
             let body = gate(body, band, tol)?;
             let FallbackFates {
                 substituted,
@@ -8241,7 +8241,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         band,
     )?;
     #[cfg(debug_assertions)]
-    crate::validate::assert_one_record_per_carrier(&body, tol);
+    super::carrier_pair::assert_one_record_per_carrier(&body, tol);
     let body = gate(body, band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;

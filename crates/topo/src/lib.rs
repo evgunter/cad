@@ -386,17 +386,6 @@ pub mod test_support {
         1024.0 * tol.eps()
     }
 
-    /// Panics where an edge of `body` lies between two surface records
-    /// its rest reads one carrier: the act that decided them one left
-    /// both (DESIGN `[coincidence.door]`). For a suite's results of an
-    /// operation outside this crate.
-    pub fn assert_one_record_per_carrier<T: geom_core::Decide>(
-        body: &crate::Body<T>,
-        tol: geom_core::Tol,
-    ) {
-        crate::validate::assert_one_record_per_carrier(body, tol);
-    }
-
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
@@ -1320,11 +1309,12 @@ pub use boolean::{
     Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment,
     SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, TorusConvention,
     UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
-    joined_edge, nary_boolean, nary_boolean_apart, oriented_plane_eq, overlap, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    VoidInserted, VvContact, WallRung, assert_one_record_per_carrier, boolean_op_with,
+    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
+    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_cell, joined_edge, nary_boolean, nary_boolean_apart,
+    one_carrier_at_rest, oriented_plane_eq, overlap, point_in_solid, point_in_solid_faces,
+    point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{

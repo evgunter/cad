@@ -454,12 +454,16 @@ fn a_plug_in_an_annulus_bore() {
 
 /// Whether `e` is the census's refusal of two opposed faces of one
 /// cylinder record abutting along their rim: the region door's
-/// `TouchingBoundary`, which no lane yet decides
+/// `TouchingBoundary`, or `SeamBranch` where the record's seam crosses
+/// the rim, which no lane yet decides
 /// (`work/charttail/a-chart-region-reading-decides-two-faces-of-one-curved-record-abutting-along-an-arc-apart.md`).
 fn abutting_walls(body: &Body<f64>, e: &ValidationError) -> bool {
     let ValidationError::CensusUnsupported {
         subject: topo::CensusSubject::FacePair(a, b),
-        cause: topo::CensusUnsupportedCause::ChartRegion(topo::ChartRegionError::TouchingBoundary),
+        cause:
+            topo::CensusUnsupportedCause::ChartRegion(
+                topo::ChartRegionError::TouchingBoundary | topo::ChartRegionError::SeamBranch,
+            ),
     } = e
     else {
         return false;
