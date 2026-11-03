@@ -9034,7 +9034,9 @@ impl<T: Decide> Link<T> {
                 continue;
             }
             let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-            // The face's other edges, which end on the edge's ends too.
+            // The face's other edges, which end on the edge's ends too, but
+            // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
+            // there the lever stays under `ρ/2`, short of the apex.
             let mut clear: Option<T> = None;
             for cycle in face_cycles(body, face) {
                 for other in cycle.map_err(|_| TouchUnread::Corrupt)? {

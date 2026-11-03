@@ -261,6 +261,36 @@ fn a_tangent_tilted_under_the_band_reads_by_its_bend() {
     }
 }
 
+/// **A tangent on the face with the arc's point in band refuses in
+/// band.** A cylinder or cone tangent to the face `y = 0`, so wide across
+/// the edge that the arc's point at the lever `½` rises the band's
+/// geometric middle off it: `InBand`. Red if the tangent's Zero is taken
+/// to decide with its point unread.
+#[test]
+fn a_tangent_with_its_arcs_point_in_band_refuses_in_band() {
+    let band = band();
+    let lever = 0.5;
+    let rho = lever * lever / (2.0 * (band.zero() * band.escalate()).sqrt());
+    for p in AT {
+        for (what, carrier) in CARRIERS {
+            assert_eq!(
+                judged(
+                    p,
+                    (0.0, FRAC_PI_2),
+                    carrier,
+                    true,
+                    rho,
+                    v(0.0, 1.0, 0.0),
+                    1.0,
+                    [p - Z * 2.0, p + Z * 2.0]
+                ),
+                TouchVerdict::Unread(TouchUnread::InBand),
+                "{what} at {p:?}"
+            );
+        }
+    }
+}
+
 /// **An arc lying in the face to its chord refuses as two sheets on
 /// each other.** A cylinder or cone tangent to the face `y = 0`, so wide
 /// across the edge that the arc's point at the lever rises half the
@@ -471,24 +501,32 @@ fn a_cones_apex_inside_the_edge_refuses() {
     let alpha = 0.4;
     let rho = 3.0 * f64::sin(alpha);
     for p in AT {
-        let read = |below: f64| {
-            judged(
-                p,
-                (FRAC_PI_3, 2.0 * FRAC_PI_3),
-                Carrier::Cone(alpha),
-                true,
-                rho,
-                v(0.0, 1.0, 0.0),
-                1.0,
-                [p - Z * below, p + Z * 2.0],
-            )
-        };
-        assert_eq!(
-            read(4.0),
-            TouchVerdict::Unread(TouchUnread::Unreadable),
-            "at {p:?}: the edge through the apex"
-        );
-        assert!(rests(&read(3.0)), "at {p:?}: the edge ending at the apex");
+        // The edge's ends either way round, so the apex is read past
+        // each of them.
+        for flip in [false, true] {
+            let read = |below: f64| {
+                let (lo, hi) = (p - Z * below, p + Z * 2.0);
+                judged(
+                    p,
+                    (FRAC_PI_3, 2.0 * FRAC_PI_3),
+                    Carrier::Cone(alpha),
+                    true,
+                    rho,
+                    v(0.0, 1.0, 0.0),
+                    1.0,
+                    if flip { [hi, lo] } else { [lo, hi] },
+                )
+            };
+            assert_eq!(
+                read(4.0),
+                TouchVerdict::Unread(TouchUnread::Unreadable),
+                "at {p:?}, ends flipped {flip}: the edge through the apex"
+            );
+            assert!(
+                rests(&read(3.0)),
+                "at {p:?}, ends flipped {flip}: the edge ending at the apex"
+            );
+        }
     }
 }
 
