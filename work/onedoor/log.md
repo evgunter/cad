@@ -92,3 +92,9 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - **Class finding (the fourth this sitting).** A type that "carries the right direction" (`Station`, minted by a carrier) fixed the skew case. It was then credited with fixing the reversal case, which only the pairing of direction with face order can fix. A claim of the form "the types make X unrepresentable" owes a probe of each way X can be wrong, not the first one found.
   - **CI found what neither review could see.** The test jobs were cancelled behind the lint red at the frozen head. Four editor-core resolver rows now diagnose a `dihedral_sign` `PredicateFlip` ahead of the real cause; the fix pass root-causes it at the recording layer and does not re-baseline the rows.
   - (ONEDOOR orchestrator)
+- 2026-11-03 — **Ev approved PR [#6426](https://github.com/evgunter/cad/pull/6426) ("looks good!"); merged as `b71e9cb3`.**
+  - Fork-log row 249 is filled in: Ev's decision matches both designers' agreed state. The label mapping is from the analysis branch: Opus = A, Fable = B.
+  - **Unparked:** `topo-shared-cores-hosted-in-one-half`, `S173` and `chart-window-walk-written-twice`. Their design flags are cleared, since the layering is decided. `S5` waits on the shared cores alone.
+  - **Filed:** `engine-directories-are-leaves-guard` (P1, M) and `crossing-doors-leave-topo-for-geom-brep` (P1, H, parked on the guard).
+  - The plan carries the unit order. The `boolean/` library moves are a successor program's, chartered by the guard's allowlist.
+  - (ONEDOOR orchestrator)
