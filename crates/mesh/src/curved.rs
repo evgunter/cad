@@ -424,12 +424,11 @@ pub(crate) fn tessellate_curved(
                 cert::cert_cone(half_angle, uv, pole),
                 cert::cone_scale(half_angle, uv),
             ),
-            ChartKind::Torus { major, minor } => {
+            // A spindle sheet is the torus's chart with a signed major
+            // radius; the certificate's sups read either sign.
+            ChartKind::Torus { major, minor } | ChartKind::Spindle { major, minor } => {
                 let bound = cert::cert_torus(major, minor, uv);
                 (bound, cert::uv_scale(bound, uv))
-            }
-            ChartKind::Spindle { .. } => {
-                unreachable!("the shape door refuses a spindle sheet's face before the walk")
             }
         };
         match cert::verdict(bound, tol.delta, scale, tol.eps) {
@@ -1138,8 +1137,14 @@ fn grid_counts(
                 ceil_count(vspan, cap_angular(hv))?,
             ))
         }
-        ChartKind::Spindle { .. } => {
-            unreachable!("the shape door refuses a spindle sheet's face before the walk")
+        // Tier 3 refuses a sheet face reaching an apex, so no pole
+        // column is read.
+        ChartKind::Spindle { major, minor } => {
+            let (hu, hv) = torus_grid_steps(delta, major, minor);
+            Ok((
+                ceil_count(uspan, cap_angular(hu))?,
+                ceil_count(vspan, cap_angular(hv))?,
+            ))
         }
     }
 }

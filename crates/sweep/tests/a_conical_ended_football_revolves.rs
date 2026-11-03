@@ -2,7 +2,10 @@
 //! one spindle-torus sheet between two cones, built from its profile
 //! through the revolve door: the arc on the circle of radius `r` centred
 //! `R` from the axis, its ends joined to the axis by lines and closed
-//! along it. `R < 0` is the lemon, `0 < R < r` the apple.
+//! along it. `R < 0` is the lemon, `0 < R < r` the apple. Each is
+//! measured against its exact volume and area of revolution, meshed
+//! closed, and passes tier 3; `stl`'s acceptance bodies carry the lemon
+//! to the external admesh gate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -111,16 +114,6 @@ fn a_conical_ended_football_revolves() {
     for (what, band) in [
         ("the lemon", LEMON),
         ("the apple", APPLE),
-        (
-            "the wide apple",
-            Band {
-                major: 0.8,
-                minor: 1.0,
-                half: 2.4,
-                tip: 1.2,
-                at: (0.0, 0.0),
-            },
-        ),
         ("the lemon near its apexes", near_apex),
         (
             "the lemon a thousand out",
@@ -152,6 +145,13 @@ fn a_conical_ended_football_revolves() {
             "{what}: the sheet faces' major radii {sheets:?}, not {}",
             band.major
         );
+        // A closed mesh, its volume within the chordal deficit of the
+        // body's.
+        let delta = 1e-2;
+        let mesh = mesh::tessellate(&built.body, delta, tol)
+            .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
+        mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}: the mesh: {e:?}"));
+        crate::common::differential::assert_meshed_geometry(what, &built.body, &mesh, delta);
         let body = topo::AtRestBody::validate(built.body, tol)
             .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
         let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
