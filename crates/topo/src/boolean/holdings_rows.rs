@@ -536,3 +536,100 @@ fn a_unions_holdings_read_alike_in_every_member_order() {
         "the same member faces lose area in every member order"
     );
 }
+
+/// The plane `face` of `body` lies on: a point of it and its unit normal.
+fn plane_of(body: &Body<f64>, face: FaceKey) -> ([f64; 3], [f64; 3]) {
+    let f = body.get_face(face).expect("the face resolves");
+    match body.get_surface(f.surface) {
+        Some(crate::Surface::Plane { origin, normal, .. }) => {
+            let n = normal.normalize();
+            ([origin.x, origin.y, origin.z], [n.x, n.y, n.z])
+        }
+        other => panic!("a brick's face lies on a plane, not {other:?}"),
+    }
+}
+
+/// Whether member face `m` of `member` lies on the plane of finished face
+/// `f` of `body`, in either sense: read off the planes' data, not the
+/// carrier ladder the door reads them through.
+fn coplanar((body, f): (&Body<f64>, FaceKey), (member, m): (&Body<f64>, FaceKey)) -> bool {
+    let ((o, n), (p, k)) = (plane_of(body, f), plane_of(member, m));
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let off = [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
+    (dot(n, k).abs() - 1.0).abs() < 1e-9 && dot(off, n).abs() < 1e-9
+}
+
+/// **Every face a boolean of bricks finishes holds only member faces on
+/// its own plane**, and every holding reads: a plate, the plate less a
+/// slot, and each of those subtracted from, joined to and met with a
+/// grid of brick tools. A substitution row naming a face across a
+/// corner (a fate edge's half read through the null scaffolding the
+/// join sets between two pieces of the dropped face) made the cut slot's
+/// floor hold a tool's side wall; the door now reads every row against
+/// the geometry, so such a record refuses rather than names.
+#[test]
+fn every_brick_booleans_face_holds_only_member_faces_on_its_plane() {
+    let t = tol();
+    let plate = finished("plate", brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), t), t);
+    let slot = finished("slot", brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), t), t);
+    let Ok(BooleanResult::Body(cut)) = super::subtract(&plate, &slot, t) else {
+        panic!("the slot cuts the plate");
+    };
+    let cut = finished("cut", cut.body.clone().into_body(), t);
+    let xs = [-1.0, 0.0, 1.0, 2.0, 3.0];
+    let ys = [-1.0, 0.0, 1.0, 2.0];
+    let spans = |at: &[f64]| -> Vec<(f64, f64)> {
+        let mut out = Vec::new();
+        for (i, &lo) in at.iter().enumerate() {
+            for &hi in &at[i + 1..] {
+                out.push((lo, hi));
+            }
+        }
+        out
+    };
+    let ops: [(&str, BoolFn); 3] = [
+        ("subtract", super::subtract),
+        ("union", super::union),
+        ("intersect", super::intersect),
+    ];
+    let (mut read, mut wrong) = (0, Vec::new());
+    for (base_name, base) in [("plate", &plate), ("plate less slot", &cut)] {
+        for x in spans(&xs) {
+            for y in spans(&ys) {
+                for z in [(0.5, 1.5), (0.25, 1.5)] {
+                    let tool = finished("tool", brick::<f64>(x, y, z, t), t);
+                    for (op_name, op) in ops {
+                        let Ok(BooleanResult::Body(out)) = op(base, &tool, t) else {
+                            continue;
+                        };
+                        let at = format!("{base_name} {op_name} brick {x:?}x{y:?}x{z:?}");
+                        for (f, held) in out.holdings.faces() {
+                            let Held::Faces(members) = held else {
+                                wrong.push(format!("{at}: face {f:?} refuses: {held:?}"));
+                                continue;
+                            };
+                            read += 1;
+                            for &(place, m) in members {
+                                let member = if place == 0 { base } else { &tool };
+                                if !coplanar((&out.body, f), (member, m)) {
+                                    wrong.push(format!(
+                                        "{at}: face {f:?} holds member face {:?} off its plane",
+                                        (place, m)
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{} faces misread:\n{}", wrong.len(), wrong.join("\n"));
+    assert!(read > 6_000, "the sweep reads the holdings of {read} faces");
+}
+
+type BoolFn = fn(
+    &crate::validate::AtRestBody<f64>,
+    &crate::validate::AtRestBody<f64>,
+    Tol,
+) -> Result<BooleanResult<f64>, super::BooleanError>;

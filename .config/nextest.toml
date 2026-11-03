@@ -40,6 +40,7 @@ not (
   (binary_id(editor-core) & (test(=names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op_at_every_pose) | test(=names::emit_topo::wavy_loft::a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce))) |
   (binary_id(topo) & test(=boolean::sphere_region::tests::every_two_leg_path_that_decides_agrees_with_the_face)) |
   (binary_id(topo) & test(=boolean::holdings_rows::a_unions_holdings_read_alike_in_every_member_order)) |
+  (binary_id(topo) & test(=boolean::holdings_rows::every_brick_booleans_face_holds_only_member_faces_on_its_plane)) |
   (binary_id(geom) & (test(=curves::fit::tests::the_banded_fit_reproduces_the_dense_solve_at_four_thousand_samples))) |
   (binary_id(geom-core::all) & (test(=d8_knot_queries_adversarial::the_decomposition_contains_every_pieces_exact_blossom) | test(=between_exact_fuzz::between_encloses_every_exact_combination))) |
   (binary_id(geom-core) & (test(=spline::compose::tests::cutting_extras_from_their_segment_encloses_the_exact_rows) | test(=spline::compose::tests::the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row))) |

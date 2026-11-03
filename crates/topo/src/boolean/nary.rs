@@ -789,6 +789,32 @@ fn lift<T: Decide>(
                 what: "a lost region of a face a sphere's re-chart turned",
             },
         },
+        HeldRefusal::NotUnder {
+            member_face: (1, f),
+        } => HeldRefusal::NotUnder {
+            member_face: (member, *f),
+        },
+        HeldRefusal::CarrierUnread {
+            member_face: (1, f),
+        } => HeldRefusal::CarrierUnread {
+            member_face: (member, *f),
+        },
+        HeldRefusal::NotUnder {
+            member_face: (_, f),
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "a row says the face holds an accumulation face lying elsewhere",
+            },
+        },
+        HeldRefusal::CarrierUnread {
+            member_face: (_, f),
+        } => HeldRefusal::Accumulation {
+            face: *f,
+            refusal: super::overlap::OverlapRefusal::Unread {
+                what: "an accumulation face a row says the face holds, on a carrier not read",
+            },
+        },
         HeldRefusal::Accumulation { .. } | HeldRefusal::UncutRemainder { .. } => r.clone(),
     };
     let result: &Body<T> = &step.body;
