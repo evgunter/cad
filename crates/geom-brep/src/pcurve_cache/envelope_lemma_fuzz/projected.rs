@@ -211,7 +211,9 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                 arc(center + r * major_radius, r, axis, minor_radius, a, span)
             }
         }
-        Surface::Nurbs(_) | Surface::Approx(_) => unreachable!("analytic charts only"),
+        Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("the projected lane's charts only")
+        }
     }
 }
 

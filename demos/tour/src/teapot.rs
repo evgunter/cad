@@ -155,12 +155,13 @@
 //!    boundary, since the meridian and the spout's seams lie in the
 //!    pot's one plane of symmetry. A meeting on a boundary edge splits
 //!    both edges, the spout's spline seam at the parameter the meeting
-//!    read it at. The join then asks which of the spout's walls holds
-//!    the pierce point of the belly's sphere, and a spline wall cannot
-//!    yet say: `HeldPierceUnbuilt { operand: B, kind: Nurbs,
-//!    pierced_kind: Sphere, placed: false }` (at ε = 1e-6 the meridian's
-//!    interior walk against one of the spout's bore walls floors first:
-//!    `SplineCrossingUnsettled { why: Floor }`). That is the pierce the join
+//!    read it at. The spout's walls read the belly's pierce point off
+//!    their trims, and the join then finds no frame for the section of
+//!    the belly's sphere and the spout's outer wall:
+//!    `GermFrameUnsupported { a_kind: Sphere, b_kind: Nurbs }` (at
+//!    ε = 1e-6 the meridian's interior walk against one of the spout's
+//!    bore walls floors first: `SplineCrossingUnsettled { why: Floor }`).
+//!    That is the pierce the join
 //!    actually needs, the spout's walls entering the belly, and it is the
 //!    NURBS face against a curved face that the section object's rung 3
 //!    builds. Making the spout the shape a potter draws did not make it
@@ -1593,10 +1594,10 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // spout's seams lie in the pot's one plane of symmetry, so where
     // the meridian pierces the wall it crosses a seam. A meeting on a
     // boundary edge splits both edges, the spline seam at the parameter
-    // the meeting read it at. The join then asks the spout's walls
-    // whether they hold the pierce point of the belly's sphere, and a
-    // spline wall's trim cannot say
-    // (`work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`).
+    // the meeting read it at. The spout's walls read the belly's pierce
+    // point off their trims, and the join then has no frame for the
+    // section of the belly's sphere and the spout's outer wall
+    // (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
     // At ε = 1e-6 the meridian stops one wall earlier, where its interior
     // walk against one of the spout's bore walls floors.
     //
@@ -1633,11 +1634,13 @@ const SPOUT_BORE_TIP: [f64; 3] = [-0.084_611_661_5, 0.152_934_007_7, 0.0];
 /// [`SPOUT_ROOT`], to [`SPOUT_BORE_TIP`], and the interior walk floors
 /// there
 /// (`work/splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
-/// At the other rows the join asks the outer wall, from `SPOUT_R0` above
-/// the root to [`SPOUT_OUTER_TIP`], whether it holds a pierce point of
-/// the belly's sphere (centre `Y_BELLY_C` on the axis, radius `R_BELLY`),
-/// unplaced. Every face and edge is resolved in the operand's own body
-/// and matched by its geometry.
+/// At the other rows the join finds no frame for the germ pair of the
+/// belly's sphere (centre `Y_BELLY_C` on the axis, radius `R_BELLY`), the
+/// A face, against the spout's outer wall, from `SPOUT_R0` above the
+/// root to [`SPOUT_OUTER_TIP`], the B face
+/// (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
+/// Every face and edge is resolved in the operand's own body and matched
+/// by its geometry.
 ///
 /// The match is absolute, at a nanometre: the corners are the authored
 /// stations and the loft's own evaluation of them, not readings of the
@@ -1683,19 +1686,17 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: T
         });
         return the_meridian && wall(*face, root(-SPOUT_BORE * SPOUT_R0), SPOUT_BORE_TIP);
     }
-    let BooleanError::HeldPierceUnbuilt {
-        operand: Operand::B,
-        face,
-        pierced,
-        kind: SurfaceKind::Nurbs,
-        pierced_kind: SurfaceKind::Sphere,
-        placed: false,
+    let BooleanError::GermFrameUnsupported {
+        a_face: belly,
+        a_kind: SurfaceKind::Sphere,
+        b_face: face,
+        b_kind: SurfaceKind::Nurbs,
     } = e
     else {
         return false;
     };
     let the_belly = pot
-        .get_face(*pierced)
+        .get_face(*belly)
         .and_then(|f| pot.get_surface(f.surface))
         .is_some_and(|s| {
             matches!(s, Surface::Sphere { center, radius, .. }

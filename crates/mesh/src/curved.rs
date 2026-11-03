@@ -428,6 +428,9 @@ pub(crate) fn tessellate_curved(
                 let bound = cert::cert_torus(major, minor, uv);
                 (bound, cert::uv_scale(bound, uv))
             }
+            ChartKind::Spindle { .. } => {
+                unreachable!("the shape door refuses a spindle sheet's face before the walk")
+            }
         };
         match cert::verdict(bound, tol.delta, scale, tol.eps) {
             cert::Verdict::Certified => {}
@@ -1134,6 +1137,9 @@ fn grid_counts(
                 ceil_count(uspan, cap_angular(hu))?,
                 ceil_count(vspan, cap_angular(hv))?,
             ))
+        }
+        ChartKind::Spindle { .. } => {
+            unreachable!("the shape door refuses a spindle sheet's face before the walk")
         }
     }
 }

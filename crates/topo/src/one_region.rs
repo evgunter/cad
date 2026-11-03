@@ -71,7 +71,8 @@ pub(crate) fn region_errors<T: Decide>(
         let torus = match surface {
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. } => false,
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Spindle { .. } => false,
             geom::Surface::Torus { .. } => true,
             geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
                 continue;

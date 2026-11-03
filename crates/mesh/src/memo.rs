@@ -1040,6 +1040,7 @@ impl KeyWriter {
             Surface::Torus { .. } => 4,
             Surface::Nurbs(_) => 5,
             Surface::Approx(_) => 6,
+            Surface::Spindle { .. } => 7,
         });
     }
 

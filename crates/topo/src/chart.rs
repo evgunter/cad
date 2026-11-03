@@ -15,7 +15,8 @@
 //! [`Chart::u_of`], [`Chart::v_of`] and [`Chart::rim_v`] read it and
 //! spell no inversion of their own. So a point's angles are named in the
 //! windows every placed pcurve image is named in (C4): the azimuth and a
-//! torus's tube angle in `(−1, τ − 1]`, a sphere's latitude in its own.
+//! torus's tube angle in `(−1, τ − 1]`, a sphere's latitude and a
+//! spindle sheet's tube angle in the latitude's.
 //! They read it at [`Band::least`]: every decision the reading takes
 //! for them is a choice between names of one point — the side of a
 //! window's cut, which formula names the angle, and the nappe a point
@@ -69,6 +70,14 @@ pub enum ChartKind<T: Real = f64> {
         /// The minor radius r.
         minor: T,
     },
+    /// Spindle sheet; v = minor angle, closed on `[−v*, v*]` between
+    /// its apexes.
+    Spindle {
+        /// The signed major radius R.
+        major: T,
+        /// The minor radius r.
+        minor: T,
+    },
 }
 
 impl<T: Real> Chart<T> {
@@ -84,6 +93,7 @@ impl<T: Real> Chart<T> {
             ChartArm::Cone { half_angle } => ChartKind::Cone { half_angle },
             ChartArm::Sphere { radius } => ChartKind::Sphere { r: radius },
             ChartArm::Torus { major, minor } => ChartKind::Torus { major, minor },
+            ChartArm::Spindle { major, minor } => ChartKind::Spindle { major, minor },
         };
         Some(Self { kind, inverse })
     }
@@ -128,7 +138,7 @@ impl<T: Real> Chart<T> {
     /// Constant per kind because v is either already a length
     /// (cylinder — axial metres; cone — slant metres, both
     /// `|∂S/∂v| = 1`) or an angle turning on a fixed radius (sphere —
-    /// latitude on `r`; torus — minor angle on `r`). u needs the point
+    /// latitude on `r`; torus, spindle — minor angle on `r`). u needs the point
     /// because its lever arm is the *distance from the axis*, which
     /// varies over a cone and a sphere; v's does not, so this takes
     /// none.
@@ -139,13 +149,20 @@ impl<T: Real> Chart<T> {
         match self.kind {
             ChartKind::Cylinder { .. } | ChartKind::Cone { .. } => T::one(),
             ChartKind::Sphere { r } => r,
-            ChartKind::Torus { minor, .. } => minor,
+            ChartKind::Torus { minor, .. } | ChartKind::Spindle { minor, .. } => minor,
         }
     }
 
-    /// Whether v is a periodic coordinate (torus minor angle).
+    /// Whether v is a periodic coordinate (torus minor angle; a spindle
+    /// sheet's is closed between its apexes).
     pub fn v_periodic(&self) -> bool {
-        matches!(self.kind, ChartKind::Torus { .. })
+        match self.kind {
+            ChartKind::Torus { .. } => true,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Spindle { .. } => false,
+        }
     }
 }
 
@@ -186,9 +203,19 @@ impl<T: Decide> Chart<T> {
 impl Chart<f64> {
     /// The chart's singular points with their v values: the list
     /// [`geom_brep::chart_singularity::singular_points`] states (sphere
-    /// poles, cone apex; empty otherwise).
+    /// poles, cone apex, a spindle sheet's apexes at `v = ±v*`; empty
+    /// otherwise).
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         use geom_brep::chart_singularity::Singularity;
+        let v_star = || match self.kind {
+            ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).v,
+            ChartKind::Cylinder { .. }
+            | ChartKind::Cone { .. }
+            | ChartKind::Sphere { .. }
+            | ChartKind::Torus { .. } => {
+                unreachable!("Chart::poles: only a spindle sheet has sheet apexes")
+            }
+        };
         geom_brep::chart_singularity::singular_points(&self.inverse)
             .into_iter()
             .map(|(which, p)| {
@@ -196,6 +223,8 @@ impl Chart<f64> {
                     Singularity::North => core::f64::consts::FRAC_PI_2,
                     Singularity::South => -core::f64::consts::FRAC_PI_2,
                     Singularity::Apex => 0.0,
+                    Singularity::SheetApexUp => v_star(),
+                    Singularity::SheetApexDown => -v_star(),
                 };
                 (p, v)
             })

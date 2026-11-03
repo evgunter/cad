@@ -129,11 +129,12 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::region::{
     self, End, Fault, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Scaffolding, circle_edge_hit, targets,
+    circle_edge_hit, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
+use crate::null::Scaffolding;
 use crate::ray_walk::{self, RayFault};
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;

@@ -60,3 +60,22 @@ arm is check 4's sector condition on a stored piece, ending in the
 door's defect, which the walk reads as `Torn` for the other
 stored-contradiction arms (`ImageMismatch`, `WindingMismatch`). Decide
 which one it is.
+
+## `of_offset`'s lever arms, measured (PR 6474)
+
+PR 6474 left `of_offset`'s `_ => NoOffsetBound` as it was. Two of the
+arms it folds carry their own lever at the pcurve door, and through the
+fold both end "not yet". Measured at rest on a cone, from
+`AnalyticRung3Refusal::of_offset(Cone, e).render(Reading::AtRest)`:
+
+- `e = PcurveCertifyError::PlaceholderChart` (pcurve door:
+  `PLACEHOLDER_RECOURSE`) and
+- `e = PcurveCertifyError::CarrierDomain(..)` (pcurve door:
+  `CARRIER_DOMAIN_RECOURSE`)
+
+both read: "the carrier's distance from the cone has no certified bound:
+the operand's canonical implicit form composed along the carrier has no
+certified bound. There is no way through yet". The rung-3 offset read
+(`pcurve_cache::projected::offset_rounds`) takes analytic operands, so
+neither arm is shown to reach it; that is not proved, which is why the
+fold is recorded here rather than made `unreachable!`.

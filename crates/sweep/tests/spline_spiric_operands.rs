@@ -29,7 +29,10 @@
 //! - the lofted cylinder (`lofted_cylinder`): rational NURBS walls and
 //!   seams, `V = π·h`.
 //!
-//!   Each builds every op against a brick far off and a brick around it.
+//!   The loft prism builds every op against a brick far off and a brick
+//!   around it; the lofted cylinder builds them but for the far brick's
+//!   union and the brick around it less the cylinder, which refuse at its
+//!   own rims (`the_lofted_cylinders_unions_refuse_at_its_own_rims`).
 //!   Its spline edges are boxed by their control nets and cross no face
 //!   of the brick, its NURBS faces' boxes meet none of the brick's, and
 //!   each vertex of the brick stands past every face of it, so the
@@ -418,8 +421,11 @@ fn lofted_cylinder_census() -> Vec<String> {
         &cylinder,
         Some(v),
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), true),
-            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), true),
+            // Its union refuses at its own rims
+            // (`the_lofted_cylinders_unions_refuse_at_its_own_rims`).
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), false),
+            // Its `B ∖ O` refuses at its own rims too.
+            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), false),
             inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), false),
             cut(
                 "slab through the wall",
@@ -513,6 +519,85 @@ fn a_poke_into_the_cavitys_torus_band_refuses_typed() {
             kinds,
             [SurfaceKind::Plane, SurfaceKind::Torus],
             "{op}: the pair"
+        );
+    }
+}
+
+/// **The lofted cylinder's union with a far brick, in both orders, and a
+/// brick around it less the cylinder, refuse at the rider reading**
+/// (`splice/an-unread-rider-related-only-by-its-own-vertices-refuses`).
+/// The slit pass asks each circle rim arc against the lofted cylinder's
+/// OTHER spline wall, which shares the arc's two vertices in the
+/// cylinder's own topology and nothing else: the arc's place on a spline
+/// face is not read, so nothing says it lies along no piece of that wall
+/// (`EdgeInFace { SplineFace }`). Pinned in the far `O ∪ B` by identity: the edge is
+/// a circle arc of the cylinder bounding a plane cap and a spline wall,
+/// the face a spline wall of the cylinder that is not one of the arc's
+/// faces and holds both its vertices. In the far `B ∪ O` and the around
+/// `B ∖ O` the keys are the result's, so the variant and gap are pinned.
+/// The other ops build (the census row above).
+#[test]
+fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
+    let tol = Tol::witness();
+    let cyl = finished("the lofted cylinder", lofted_cylinder(2.0, tol), tol);
+    let brick = finished(
+        "the far brick",
+        brick_with_fresh_keys::<f64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol),
+        tol,
+    );
+    let gap = topo::EdgeInFaceGap::SplineFace;
+    match topo::union(&cyl, &brick, tol) {
+        Err(BooleanError::EdgeInFace { edge, face, gap: g }) if g == gap => {
+            let kind = |f: topo::FaceKey| {
+                cyl.get_face(f)
+                    .and_then(|d| cyl.get_surface(d.surface))
+                    .map(geom::Surface::kind)
+            };
+            let sides = topo::readback::edge_sides(&cyl, edge).expect("the edge is the cylinder's");
+            let (fa, fb) = sides.faces();
+            let mut own = [kind(fa), kind(fb)];
+            own.sort_by_key(|k| format!("{k:?}"));
+            assert_eq!(
+                topo::query::edge_carrier_kind(&cyl, edge),
+                Some(topo::query::CurveKind::Circle),
+                "the edge is a rim arc"
+            );
+            assert_eq!(
+                own,
+                [Some(SurfaceKind::Nurbs), Some(SurfaceKind::Plane)],
+                "the arc bounds a spline wall and a cap"
+            );
+            assert!(
+                kind(face) == Some(SurfaceKind::Nurbs) && face != fa && face != fb,
+                "the face is the cylinder's other spline wall"
+            );
+            let e = cyl.get_edge(edge).expect("the arc");
+            let start = |h| cyl.get_half_edge(h).expect("its half-edge").start;
+            let (a, b) = (start(e.he_plus), start(e.he_minus));
+            let of = |v| cyl.faces_of_vertex(v).unwrap_or_default();
+            assert!(
+                of(a).contains(&face) && of(b).contains(&face),
+                "the wall holds both the arc's vertices"
+            );
+        }
+        other => panic!(
+            "O ∪ B: the rim arc against the other wall, got {:?}",
+            other.err()
+        ),
+    }
+    let around = finished(
+        "the brick around it",
+        brick_with_fresh_keys::<f64>((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0), tol),
+        tol,
+    );
+    for (what, got) in [
+        ("far B ∪ O", topo::union(&brick, &cyl, tol)),
+        ("around B ∖ O", topo::subtract(&around, &cyl, tol)),
+    ] {
+        assert!(
+            matches!(&got, Err(BooleanError::EdgeInFace { gap: g, .. }) if *g == gap),
+            "{what}: {:?}",
+            got.err()
         );
     }
 }

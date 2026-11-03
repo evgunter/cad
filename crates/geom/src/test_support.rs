@@ -93,6 +93,16 @@ pub fn analytic_surfaces() -> Vec<AnalyticKind<Surface<f64>>> {
                     },
                     scalars: 11,
                 },
+                SurfaceKind::Spindle => AnalyticKind {
+                    build: |x| Surface::Spindle {
+                        center: pt(&x[0..3]),
+                        axis: dir(&x[3..6]),
+                        major_radius: x[6],
+                        minor_radius: x[7],
+                        u_ref: dir(&x[8..11]),
+                    },
+                    scalars: 11,
+                },
                 SurfaceKind::Nurbs | SurfaceKind::Approx => return None,
             })
         })
