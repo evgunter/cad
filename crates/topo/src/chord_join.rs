@@ -136,6 +136,7 @@
 //! ruling, which refuses.
 
 use geom::Conic;
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
@@ -4418,11 +4419,7 @@ pub(crate) fn path_island_winding_closed_by<T: Decide>(
         Ok(island) => island,
         Err(diag) => return Ok(Err(diag)),
     };
-    let readings = island
-        .paths(body, face, band)?
-        .into_iter()
-        .map(|path| Ok::<_, SplitJoinError>(path.and_then(|path| island.read(path, band))));
-    match first_decided(readings)? {
+    match island.winding(body, face, band)? {
         Ok(Some(sign)) => Ok(Ok(sign)),
         Err(diag) => Ok(Err(diag)),
         Ok(None) => Err(SplitJoinError::SectionInvariant {
@@ -4529,18 +4526,24 @@ impl<T: Decide> IslandReading<T> {
         }))
     }
 
-    /// The paths to `q` from every outer-loop point of `face`
-    /// ([`outer_references`]), in the order they are asked.
-    pub(crate) fn paths(
+    /// The winding read off the paths to `q` from every outer-loop point
+    /// of `face` ([`outer_references`]), in the order they are asked:
+    /// the first path that decides ([`paths_rung`]). Every path reads the
+    /// one winding, so a path set aside ahead of one that decides is
+    /// superseded ([`Answering::Any`]); `Ok(None)` where every path says
+    /// nothing.
+    pub(crate) fn winding(
         &self,
         body: &Body<T>,
         face: FaceKey,
         band: Band,
-    ) -> Result<Vec<Result<Path<T>, Indeterminate>>, SplitJoinError> {
-        Ok(outer_references(body, face, &[])?
-            .into_iter()
-            .flat_map(|w| quadric_paths(&self.quadric, (w, self.q), band))
-            .collect())
+    ) -> Result<Result<Option<Sign>, Indeterminate>, SplitJoinError> {
+        let references = outer_references(body, face, &[])?;
+        Ok(settled(climb(Answering::Any, references, |w| {
+            paths_rung(&self.quadric, (w, self.q), band, |path| {
+                self.read(path, band)
+            })
+        })))
     }
 
     /// The winding `path` reads: its lean against the left normal
@@ -4572,50 +4575,59 @@ impl<T: Decide> IslandReading<T> {
     }
 }
 
-/// **The first decided reading** of `readings`, asked in order and
-/// lazily. Every reading answers one question — which side of a curve a
-/// point lies on, the same whatever path or point reads it — so one that
-/// says nothing (`Ok(None)`: the zero band) or escalates moves to the
-/// next. The first escalation escalates only where no reading decides; a
-/// hard error stops the walk.
+/// **One reading of a side as a rung** of the ladder ([`climb`]) whose
+/// answer is a decided side: `Ok(None)` (the zero band) says nothing and
+/// passes; an escalation is kept ([`Rung::kept`]).
 ///
-/// **The premise**: the decided readings agree. For the winding's
-/// references and a ring's paths it holds by construction (each reads one
-/// point's side). For a ring's vertices it holds because the ring does
-/// not cross the curve it is read against: a ring crossing it would have
-/// decided vertices on both sides, and the walk would answer with the
-/// first. That is the premise `validate::ring_nesting` rests on, checked
-/// by check 9's contact arms on `Line` and `Circle` edges and assumed on
-/// `Ellipse`, `Spiric` and NURBS ones
+/// **The premise**, which makes every such ladder [`Answering::Any`]:
+/// the decided readings agree. Every reading answers one question —
+/// which side of a curve a point lies on, the same whatever path or
+/// point reads it. For the winding's references and a ring's paths it
+/// holds by construction (each reads one point's side). For a ring's
+/// vertices it holds because the ring does not cross the curve it is
+/// read against: a ring crossing it would have decided vertices on both
+/// sides, and the walk would answer with the first. That is the premise
+/// `validate::ring_nesting` rests on, checked by check 9's contact arms
+/// on `Line` and `Circle` edges and assumed on `Ellipse`, `Spiric` and
+/// NURBS ones
 /// (`work/restfront/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
 /// Under it, which decided reading is taken changes nothing.
-fn first_decided<R, D, E>(
-    readings: impl IntoIterator<Item = Result<Result<Option<R>, D>, E>>,
-) -> Result<Result<Option<R>, D>, E> {
-    let mut escalated = None;
-    for reading in readings {
-        match reading? {
-            Ok(Some(r)) => return Ok(Ok(Some(r))),
-            Ok(None) => {}
-            Err(diag) => {
-                escalated.get_or_insert(diag);
-            }
-        }
+fn side_rung<R>(reading: Result<Option<R>, Indeterminate>) -> Rung<R, Indeterminate> {
+    match reading {
+        Ok(Some(r)) => Rung::Answers(r),
+        Ok(None) => Rung::Passes,
+        Err(diag) => Rung::kept(diag),
     }
-    Ok(escalated.map_or(Ok(None), Err))
 }
 
-/// The paths [`Quadric::paths`] offers between two points, each as a
-/// reading of [`first_decided`]'s: an escalation choosing them is one
-/// escalated reading.
-fn quadric_paths<T: Decide>(
+/// A side ladder's outcome as one reading: the answer, `None` where every
+/// reading passed, and the ranked escalation ([`ladder::Evidence`])
+/// where none answered and one was kept.
+///
+/// [`ladder::Evidence`]: geom_brep::ladder::Evidence
+fn settled<R>(climbed: Climb<R, Indeterminate>) -> Result<Option<R>, Indeterminate> {
+    match climbed {
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Passed => Ok(None),
+        Climb::Undecided(diag) => Err(diag),
+    }
+}
+
+/// The paths [`Quadric::paths`] offers between two points, read by
+/// `read` as one rung of a side ladder ([`side_rung`]'s premise): the
+/// first path that decides answers. An escalation choosing the paths
+/// is the rung's kept reading.
+fn paths_rung<T: Decide, R>(
     quadric: &Quadric<T>,
     ends: (Point3<T>, Point3<T>),
     band: Band,
-) -> Vec<Result<Path<T>, Indeterminate>> {
+    mut read: impl FnMut(Path<T>) -> Result<Option<R>, Indeterminate>,
+) -> Rung<R, Indeterminate> {
     match quadric.paths(ends, band) {
-        Ok(paths) => paths.into_iter().map(Ok).collect(),
-        Err(diag) => vec![Err(diag)],
+        Ok(paths) => side_rung(settled(climb(Answering::Any, paths, |path| {
+            side_rung(read(path))
+        }))),
+        Err(diag) => Rung::kept(diag),
     }
 }
 
@@ -4631,7 +4643,7 @@ fn quadric_paths<T: Decide>(
 /// decides. One with a reading in the escalation band says nothing
 /// either; the first escalation escalates only where no pair decides.
 /// The decided pairs agree because the ring does not cross the run
-/// ([`first_decided`]'s premise). A ring no pair decides otherwise is
+/// ([`side_rung`]'s premise). A ring no pair decides otherwise is
 /// [`RingSide::Undecided`]. The parity does not depend on the path on any
 /// of these kinds (`crate::ring_path`'s module docs: on a cylinder, an
 /// annulus, two closed curves cross an even number of times), so a run
@@ -4654,15 +4666,14 @@ fn path_ring_side<T: Decide>(
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
         .collect::<Result<Vec<_>, SplitJoinError>>()?;
     let outside = outer_references(body, oldf, &run_edges)?;
-    let paths = loop_points(body, ring)?.into_iter().flat_map(|p| {
-        outside
-            .iter()
-            .flat_map(move |&w| quadric_paths(quadric, (p, w), band))
-    });
-    let read = |path: Result<Path<T>, Indeterminate>| {
-        Ok::<_, SplitJoinError>(path.and_then(|path| path_parity(&path, &arcs, None, band)))
-    };
-    match first_decided(paths.map(read))? {
+    let pairs = loop_points(body, ring)?
+        .into_iter()
+        .flat_map(|p| outside.iter().map(move |&w| (p, w)));
+    match settled(climb(Answering::Any, pairs, |ends| {
+        paths_rung(quadric, ends, band, |path| {
+            path_parity(&path, &arcs, None, band)
+        })
+    })) {
         Ok(Some(odd)) => Ok(if odd { RingSide::In } else { RingSide::Out }),
         Ok(None) => Ok(RingSide::Undecided),
         Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
@@ -6007,8 +6018,8 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
 /// every vertex does: each such verdict is decided, so the ring is on
 /// the run. A vertex whose reading escalates says nothing either, and
 /// the next is asked; the first escalation escalates only where no
-/// vertex decides ([`first_decided`]). The vertices agree because the
-/// ring does not cross the run ([`first_decided`]'s premise).
+/// vertex decides ([`climb`]). The vertices agree because the
+/// ring does not cross the run ([`side_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
@@ -6017,16 +6028,16 @@ fn ring_side<T: Decide>(
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
     let read = |v: VertexKey| match point_in_loop(body, run, normal, vertex_point(body, v), band) {
-        Ok(LoopContainment::In) => Ok(Ok(Some(RingSide::In))),
-        Ok(LoopContainment::Out) => Ok(Ok(Some(RingSide::Out))),
-        Ok(LoopContainment::OnBoundary) => Ok(Ok(None)),
-        Err(e @ PointInLoopError::Escalated { .. }) => Ok(Err(e)),
-        Err(e) => Err(SplitJoinError::from(e)),
+        Ok(LoopContainment::In) => Rung::Answers(Ok(RingSide::In)),
+        Ok(LoopContainment::Out) => Rung::Answers(Ok(RingSide::Out)),
+        Ok(LoopContainment::OnBoundary) => Rung::Passes,
+        Err(e @ PointInLoopError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| e),
+        Err(e) => Rung::Answers(Err(SplitJoinError::from(e))),
     };
-    match first_decided(ring_vertices(body, ring)?.into_iter().map(read))? {
-        Ok(Some(side)) => Ok(side),
-        Ok(None) => Ok(RingSide::OnRun),
-        Err(e) => Err(SplitJoinError::RingHoming(e)),
+    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed => Ok(RingSide::OnRun),
+        Climb::Undecided(e) => Err(SplitJoinError::RingHoming(e)),
     }
 }
 

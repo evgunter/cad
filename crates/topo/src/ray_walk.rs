@@ -13,7 +13,7 @@
 //! a member that gave no ray to read, which keep nothing; a reading set
 //! aside for this ray alone — an in-band margin, or a limit it definitely
 //! met — which is kept as the walk's refusal should no ray decide
-//! ([`Evidence`], the ladder's one ranking); or a refusal of the whole query, which ends the walk
+//! ([`Evidence`](geom_brep::ladder::Evidence), the ladder's one ranking); or a refusal of the whole query, which ends the walk
 //! at once. No direction is ever picked
 //! by coordinate comparison — a comparison-picked basis could diverge
 //! between the f64 and interval lanes; a fixed schedule whose degenerate
@@ -70,7 +70,7 @@
 //! exhaustion. [`walk`]'s exhaustion argument receives nothing to
 //! relabel.
 
-use geom_brep::ladder::{Evidence, Ranked};
+use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
     Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3,
 };
@@ -130,7 +130,7 @@ impl<E> RayFault<E> {
     /// **The fault's rank among faults one ray raised at several faces**
     /// at once, highest first: a refusal of the whole query, then a limit
     /// no tolerance moves, then an in-band margin, then a graze or no
-    /// reading (the order [`Evidence`] ranks a run's readings by). The
+    /// reading (the order [`Evidence`](geom_brep::ladder::Evidence) ranks a run's readings by). The
     /// highest is the ray's, whatever order its faces were read in.
     pub(crate) const fn rank(&self) -> u8 {
         match self {
@@ -153,11 +153,15 @@ impl<E> RayFault<E> {
     }
 }
 
-/// **The walk**: `read` each ray of `rays` in order until one decides.
-/// When none does, the refusal is [`Evidence`]'s ranking of what the
-/// rays kept, and `exhausted()` where they kept nothing — every ray
-/// grazed or gave nothing to read ([`NoRaySettled`]). A
-/// [`RayFault::Fatal`] ends the walk with its error at once.
+/// **The walk**: `read` each ray of `rays` in order until one decides:
+/// the ladder ([`climb`]) whose answer is a verdict, or a
+/// [`RayFault::Fatal`], which ends the walk with its error at once. A
+/// point's side is one fact, so every ray that decides gives the same
+/// verdict ([`Answering::Any`]): a ray set aside ahead of the one that
+/// decides is superseded in the record. When none decides, the refusal is
+/// [`Evidence`](geom_brep::ladder::Evidence)'s ranking of what the rays kept, and `exhausted()` where
+/// they kept nothing — every ray grazed or gave nothing to read
+/// ([`NoRaySettled`]).
 ///
 /// # Errors
 ///
@@ -167,20 +171,17 @@ pub(crate) fn walk<R, V, E>(
     mut read: impl FnMut(R) -> Result<V, RayFault<E>>,
     exhausted: impl FnOnce() -> E,
 ) -> Result<V, E> {
-    let mut kept = Evidence::default();
-    for ray in rays {
-        match read(ray) {
-            Ok(verdict) => return Ok(verdict),
-            Err(RayFault::Graze | RayFault::Unread) => {}
-            Err(RayFault::InBand(e)) => kept.in_band(e),
-            Err(RayFault::Blocked(e)) => kept.blocked(e),
-            Err(RayFault::Fatal(e)) => return Err(e),
-        }
+    match climb(Answering::Any, rays, |ray| match read(ray) {
+        Ok(verdict) => Rung::Answers(Ok(verdict)),
+        Err(RayFault::Graze | RayFault::Unread) => Rung::Passes,
+        Err(RayFault::InBand(e)) => Rung::InBand(e),
+        Err(RayFault::Blocked(e)) => Rung::Blocked(e),
+        Err(RayFault::Fatal(e)) => Rung::Answers(Err(e)),
+    }) {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Undecided(e) => Err(e),
+        Climb::Passed => Err(exhausted()),
     }
-    Err(match kept.ranked() {
-        Ranked::Blocked(e) | Ranked::InBand(e) => e,
-        Ranked::Neither => exhausted(),
-    })
 }
 
 /// **The one sentence for a walk none of whose rays kept anything**, and

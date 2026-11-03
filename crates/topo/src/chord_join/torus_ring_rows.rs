@@ -285,13 +285,15 @@ fn winds_as_the_oracle(islands: fn(Frame) -> Vec<(&'static str, Island)>) {
                             let reading = IslandReading::new(&body, face, run, Some(&spec), band())
                                 .unwrap()
                                 .unwrap();
-                            for (k, path) in reading
-                                .paths(&body, face, band())
+                            let paths_of = |w| reading.quadric.paths((w, reading.q), band());
+                            for (k, path) in super::outer_references(&body, face, &[])
                                 .unwrap()
                                 .into_iter()
+                                .filter_map(|w| paths_of(w).ok())
+                                .flatten()
                                 .enumerate()
                             {
-                                if let Ok(Some(sign)) = path.and_then(|p| reading.read(p, band())) {
+                                if let Ok(Some(sign)) = reading.read(path, band()) {
                                     assert_eq!(
                                         sign, want,
                                         "{name}, mirror {mirror}, sense {sense}, back {back}, \

@@ -84,6 +84,7 @@
 //! The rounding of its own later stages (the anchor rotation, the pole
 //! division, the rescale, the depression) is left to its band decisions.
 
+use crate::ladder::{Answering, Climb, Rung, climb};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
@@ -399,11 +400,22 @@ fn ladder_roots<T: Decide>(
         [step * k, T::zero() - step * k]
     });
     // `k = 0` yields the zero shift twice; the second copy is dropped.
-    for shift in shifts.skip(1) {
+    // The search is the ladder ([`climb`]) whose answer is the first
+    // candidate whose pole reads apart from a root and well conditioned:
+    // which candidate answers chooses the quartic read, so a candidate in
+    // band ahead of it stays live ([`Answering::First`]). Where none
+    // answers, the ladder answers nothing and the subdivision answers
+    // alone, so a kept candidate is no refusal.
+    let climbed = climb(Answering::First, shifts.skip(1), |shift| {
         let anchor = mid + shift;
-        match decide(rows.pole, Margin::of(residual(anchor + T::pi())), band) {
-            Ok(Sign::Positive | Sign::Negative) => {}
-            Ok(Sign::Zero) | Err(_) => continue,
+        // The pole decided apart from a root goes on; a root passes.
+        let pole = Margin::of(residual(anchor + T::pi()));
+        if let Err(stop) = Rung::decide(rows.pole, pole, band, |d| {
+            (d.sign != Sign::Zero).then_some(())
+        })
+        .into_answer()
+        {
+            return stop;
         }
         // The harmonics about the anchor: the first rotates by `θₐ`, the
         // second by `2θₐ`.
@@ -420,16 +432,18 @@ fn ladder_roots<T: Decide>(
             c0 - c1 + c2,
         ];
         let lead = a[4];
-        match decide(
-            rows.conditioning,
-            Margin::over_lever(
-                speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
-                amplitude,
-            ),
-            band,
-        ) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) | Err(_) => continue,
+        // A pole conditioned past the floor goes on; one at or under it
+        // passes.
+        let conditioning = Margin::over_lever(
+            speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
+            amplitude,
+        );
+        if let Err(stop) = Rung::decide(rows.conditioning, conditioning, band, |d| {
+            (d.sign == Sign::Positive).then_some(())
+        })
+        .into_answer()
+        {
+            return stop;
         }
         // Monic in `τ = 2ρ·t` (a length): `τ⁴ + B τ³ + C τ² + D τ + E`.
         let b3 = scale * a[3] / lead;
@@ -450,15 +464,20 @@ fn ladder_roots<T: Decide>(
         // through the anchor rotation, pole division and rescale, whose
         // rounding nothing meters (module docs), and the module docs
         // record it disagreeing across definite crossings.
-        return match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
-            Err(RootRefusal::Escalated(diag)) => Err(diag),
-            Ok(_)
-            | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
-                Ok(())
-            }
-        };
+        Rung::Answers(
+            match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
+                Err(RootRefusal::Escalated(diag)) => Err(diag),
+                Ok(_)
+                | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
+                    Ok(())
+                }
+            },
+        )
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer,
+        Climb::Passed | Climb::Undecided(_) => Ok(()),
     }
-    Ok(())
 }
 
 /// The pieces the whole turn is cut into before [`certified_subdivision`]

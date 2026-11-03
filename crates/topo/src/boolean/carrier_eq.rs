@@ -61,7 +61,7 @@
 //! document's coincidence door's question, never the kernel's. A datum
 //! in band is a sliver and refuses ([`CarrierEqError::Undecided`]).
 
-use geom_brep::ladder::IdentityLadder;
+use geom_brep::ladder::{IdentityLadder, Rung};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::validate::decide_reported;
@@ -138,35 +138,37 @@ impl CoincidenceMeasure {
         }
     }
 
-    /// One coincidence datum decided: its sign and the margin the band
-    /// decided, or the measure it leaves where it decides nothing. A
-    /// datum that is not finite (NaN or ±∞) is unreadable whatever sign
-    /// it reads: an infinite offset is no more a locus than a NaN one.
+    /// One coincidence datum decided ([`Rung::decide`]): its sign and
+    /// the margin the band decided, or the measure it leaves where it
+    /// decides nothing. A datum that is not finite (NaN or ±∞) is
+    /// unreadable whatever sign it reads: an infinite offset is no more a
+    /// locus than a NaN one.
     pub(crate) fn decide<T: Decide>(
         name: &'static str,
         margin: Margin<T>,
         band: Band,
     ) -> Result<Decided, Self> {
-        let finite = geom_core::is_finite_length(margin.value());
-        match decide_reported(name, margin, band) {
-            Ok(decided) if finite => Ok(decided),
-            Ok(_) => Err(Self::Unreadable(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some(name),
-                terminal_sliver: false,
-            })),
-            Err(diag) => Err(Self::not_zero(diag)),
-        }
+        Self::of_rung(Rung::decide(name, margin, band, Some))
     }
 
     /// A measure that did not decide zero, as what it is: unreadable
-    /// where its margin is poisoned, undecided otherwise.
+    /// where its margin is poisoned, undecided otherwise
+    /// ([`Rung::kept`]).
     pub(crate) fn not_zero(diag: Indeterminate) -> Self {
-        if diag.margin.is_invalid() {
-            Self::Unreadable(diag)
-        } else {
-            Self::Undecided(diag)
+        match Self::of_rung(Rung::<Decided, _>::kept(diag)) {
+            Ok(_) => unreachable!("a kept reading is no answer"),
+            Err(measure) => measure,
+        }
+    }
+
+    /// The measure a reading's rung leaves: a limit is unreadable, an
+    /// in-band reading undecided.
+    fn of_rung(rung: Rung<Decided, Indeterminate>) -> Result<Decided, Self> {
+        match rung {
+            Rung::Answers(decided) => Ok(decided),
+            Rung::Passes => unreachable!("every decided datum answers"),
+            Rung::InBand(diag) => Err(Self::Undecided(diag)),
+            Rung::Blocked(diag) => Err(Self::Unreadable(diag)),
         }
     }
 }
@@ -1016,6 +1018,27 @@ mod tests {
                 }
                 other => panic!("a radius of {radius} is unreadable: {other:?}"),
             }
+        }
+    }
+
+    /// **An infinite coincidence datum is a limit, recorded as an
+    /// escalation and never as a verdict**: the ladder's one non-finite
+    /// rule ([`geom_brep::ladder::Rung::decide`]), read here too.
+    #[test]
+    fn an_infinite_datum_is_unreadable_and_recorded_as_an_escalation() {
+        for poison in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = CoincidenceMeasure::decide("datum", Margin::of(poison), band());
+            let recorded = bracket.finish();
+            let Err(CoincidenceMeasure::Unreadable(diag)) = got else {
+                panic!("{poison}: unreadable: {got:?}")
+            };
+            assert!(diag.margin.is_invalid(), "{poison}: {diag:?}");
+            assert!(
+                recorded.verdicts.is_empty(),
+                "{poison}: no verdict recorded"
+            );
+            assert_eq!(recorded.escalations.len(), 1, "{poison}: one escalation");
         }
     }
 

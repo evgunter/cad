@@ -2036,24 +2036,32 @@ fn whole_body_side<T: Decide>(
             .is_curved()
             .then(|| Reading::Edge(key, curve.carrier().clone(), curve.params()))
     });
-    let side = match climb(Answering::Any, vertices.chain(edges), |reading| match reading {
-        Reading::Vertex(v) => match sides.get(v) {
-            Some(&side @ (PlaneSide::Above | PlaneSide::Below)) => Rung::Answers(side),
-            Some(PlaneSide::On) | None => Rung::Passes,
+    let side = match climb(
+        Answering::Any,
+        vertices.chain(edges),
+        |reading| match reading {
+            Reading::Vertex(v) => match sides.get(v) {
+                Some(&side @ (PlaneSide::Above | PlaneSide::Below)) => Rung::Answers(side),
+                Some(PlaneSide::On) | None => Rung::Passes,
+            },
+            Reading::Edge(edge, carrier, (t0, t1)) => {
+                let mid = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+                let offset =
+                    crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
+                Rung::decide(
+                    "split_edge_side",
+                    geom_core::Margin::of(offset),
+                    band,
+                    |d| match d.sign {
+                        geom_core::Sign::Positive => Some(PlaneSide::Above),
+                        geom_core::Sign::Negative => Some(PlaneSide::Below),
+                        geom_core::Sign::Zero => None,
+                    },
+                )
+                .map_kept(|diag| (edge, diag))
+            }
         },
-        Reading::Edge(edge, carrier, (t0, t1)) => {
-            let mid = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
-            let offset = crate::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
-            Rung::decide("split_edge_side", geom_core::Margin::of(offset), band, |d| {
-                match d.sign {
-                    geom_core::Sign::Positive => Some(PlaneSide::Above),
-                    geom_core::Sign::Negative => Some(PlaneSide::Below),
-                    geom_core::Sign::Zero => None,
-                }
-            })
-            .map_kept(|diag| (edge, diag))
-        }
-    }) {
+    ) {
         Climb::Answered { answer, .. } => Some(answer),
         Climb::Passed => None,
         Climb::Undecided((edge, diag)) => {

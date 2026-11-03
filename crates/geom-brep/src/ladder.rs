@@ -28,9 +28,23 @@
 //! answer, it stays live, since a kept rung ahead may truly have answered
 //! first. Every run is spliced in rung order.
 
-use geom_core::k_stats::{Detached, decide_reported, detached, splice, splice_superseded};
+use geom_core::k_stats::{
+    Detached, Magnitude, decide_magnitude_reported, decide_reported, detached, splice,
+    splice_superseded,
+};
 use geom_core::predicate::{Decided, Indeterminate};
 use geom_core::{Band, Decide, Margin, MarginDiag, Sign};
+
+/// The margin a rung reads: `margin` where it is finite, else its
+/// residual `x − x`, which is poison, so ±∞ is kept as a limit rather
+/// than read as a maximally definite answer.
+fn readable<T: Decide>(margin: Margin<T>) -> Margin<T> {
+    if geom_core::is_finite_length(margin.value()) {
+        margin
+    } else {
+        Margin::of(margin.value() - margin.value())
+    }
+}
 
 /// What one rung of a ladder read ([`climb`]).
 #[derive(Clone, Debug, PartialEq)]
@@ -52,22 +66,31 @@ impl<A> Rung<A, Indeterminate> {
     /// **One banded reading as a rung**: `margin` decided on `band` under
     /// `name`, answering where `answer` returns one and passing where it
     /// returns `None`; kept ([`Self::kept`]) where the band decides
-    /// nothing. A margin that is not finite reads no sign: it is decided
-    /// as its residual `x − x`, which is poison, so ±∞ is kept as a limit
-    /// rather than read as a maximally definite answer.
+    /// nothing. A margin that is not finite reads no sign ([`readable`]).
     pub fn decide<T: Decide>(
         name: &'static str,
         margin: Margin<T>,
         band: Band,
         answer: impl FnOnce(Decided) -> Option<A>,
     ) -> Self {
-        let read_on = if geom_core::is_finite_length(margin.value()) {
-            margin
-        } else {
-            Margin::of(margin.value() - margin.value())
-        };
-        match decide_reported(name, read_on, band) {
+        match decide_reported(name, readable(margin), band) {
             Ok(decided) => answer(decided).map_or(Self::Passes, Self::Answers),
+            Err(cause) => Self::kept(cause),
+        }
+    }
+
+    /// [`Self::decide`] for a quantity nonnegative by construction (a
+    /// norm, a fraction of one): its reading is a [`Magnitude`], and a
+    /// definite `Negative` panics in the one place
+    /// ([`decide_magnitude_reported`]) that states the precondition.
+    pub fn decide_magnitude<T: Decide>(
+        name: &'static str,
+        margin: Margin<T>,
+        band: Band,
+        answer: impl FnOnce(Magnitude, MarginDiag) -> Option<A>,
+    ) -> Self {
+        match decide_magnitude_reported(name, readable(margin), band) {
+            Ok((magnitude, at)) => answer(magnitude, at).map_or(Self::Passes, Self::Answers),
             Err(cause) => Self::kept(cause),
         }
     }
@@ -85,6 +108,22 @@ impl<A> Rung<A, Indeterminate> {
 }
 
 impl<A, E> Rung<A, E> {
+    /// The answer of a rung read as a gate on a longer reading: `Ok`
+    /// where it answers, so the reading goes on; else the rung it ends
+    /// as, unchanged, for a ladder whose answers are of another type.
+    ///
+    /// # Errors
+    ///
+    /// The rung, where it did not answer.
+    pub fn into_answer<B>(self) -> Result<A, Rung<B, E>> {
+        match self {
+            Self::Answers(a) => Ok(a),
+            Self::Passes => Err(Rung::Passes),
+            Self::InBand(e) => Err(Rung::InBand(e)),
+            Self::Blocked(e) => Err(Rung::Blocked(e)),
+        }
+    }
+
     /// The rung with its kept reading mapped by `f`, for a reader whose
     /// refusal carries more than the reading's own cause (the entity it
     /// was read at). An answer and a pass are unchanged.
