@@ -599,16 +599,15 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
 /// `(0, ±1)` (`π/2`, `3π/2`), near them, and away from them.
 const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 
-/// The carrier kind and middle point of each edge of `body` lying
-/// across a wall: both its faces on one cylinder record, two faces of
-/// it (a union leaves two members' walls one carrier on one record,
-/// DESIGN `[coincidence.door]`), so a member's own seam ruling between
-/// two of its wall's faces is among them. Each such edge, and every
-/// edge between two cylinder records, is first checked to rest where it
-/// lies — in its one record's chart, and no edge lies between two
-/// records of one carrier — and to be derived: nothing in these scenes
-/// declared a rim or a ruling, so a describer that stamps a declaration
-/// on one, or leaves it citing a surface it no longer bounds, reds here.
+/// The carrier kind and middle point of each derived edge of `body`
+/// lying across a wall: between two faces of one cylinder record (a
+/// union leaves two members' walls one carrier on one record, DESIGN
+/// `[coincidence.door]`). Each edge between cylinder faces is first
+/// checked to rest where it lies, in its one record's chart, with no
+/// edge between two records of one carrier; a declared one must be a
+/// member's own seam ruling, its extrusion's line: nothing in these
+/// scenes declared a rim, so a describer that stamps a declaration on
+/// one, or leaves it citing a surface it no longer bounds, reds here.
 fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<(CurveKind, Point3<f64>)> {
     topo::test_support::assert_one_record_per_carrier(body, Tol::witness());
     let mut kinds = Vec::new();
@@ -632,16 +631,22 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<(CurveKind, Point3<
             ),
             other => panic!("{label}: {key:?} rests where it lies, got {other:?}"),
         }
-        if fp != fm {
-            assert!(
-                !c.authority().is_declared(),
-                "{label}: {key:?} ({:?}) is derived, not declared: {:?}",
+        if fp == fm {
+            continue;
+        }
+        // A member's seam ruling is its extrusion's declared line;
+        // anything else declared was stamped on an edge lying across.
+        if c.authority().is_declared() {
+            assert_eq!(
                 c.carrier().kind(),
+                CurveKind::Line,
+                "{label}: {key:?} is derived, not declared: {:?}",
                 c.authority()
             );
-            let (t0, t1) = c.params();
-            kinds.push((c.carrier().kind(), c.carrier().mid_point(t0, t1)));
+            continue;
         }
+        let (t0, t1) = c.params();
+        kinds.push((c.carrier().kind(), c.carrier().mid_point(t0, t1)));
     }
     kinds
 }

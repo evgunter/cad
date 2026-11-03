@@ -150,8 +150,9 @@ impl<T: Decide> Body<T> {
     /// ([`Body::carried_redescriptions`]), and one naming the pair
     /// `{kept, other}` lies between two faces of one record now and
     /// rests in its chart. Every listed edge is certified on `kept` as
-    /// `site`'s. The caller decided the coincidence and records its
-    /// row; this reads no value.
+    /// `site`'s; no other boundary is asked to lie on `kept`, since it
+    /// lay on `other`, decided the same carrier. The caller decided the
+    /// coincidence and records its row; this reads no value.
     ///
     /// # Errors
     ///
@@ -198,6 +199,7 @@ impl<T: Decide> Body<T> {
             crate::policy_lane::Origin::Kernels(site),
             charts,
             &specs,
+            Vouch::OneCarrier,
             tol,
         )
         .map(drop)
@@ -309,6 +311,7 @@ impl<T: Decide> Body<T> {
             crate::policy_lane::Origin::Callers,
             charts,
             redescriptions,
+            Vouch::Asked,
             tol,
         )
     }
@@ -348,6 +351,7 @@ impl<T: Decide> Body<T> {
             crate::policy_lane::Origin::Kernels(site),
             charts,
             &specs,
+            Vouch::Asked,
             tol,
         )
     }
@@ -359,6 +363,7 @@ impl<T: Decide> Body<T> {
         origin: crate::policy_lane::Origin,
         charts: Vec<Rechart<T>>,
         redescriptions: &[(EdgeKey, EdgeCurveSpec<T>)],
+        vouch: Vouch,
         tol: Tol,
     ) -> Result<Vec<SurfaceKey>, EulerOpError>
     where
@@ -441,7 +446,10 @@ impl<T: Decide> Body<T> {
             charts: &charts,
             written: &written,
         };
-        for m in faces.iter().filter(|m| !m.on_parent_chart) {
+        for m in faces
+            .iter()
+            .filter(|m| !m.on_parent_chart && vouch == Vouch::Asked)
+        {
             let edges = self.run_edges(&self.face_cycles_linked(m.face));
             let unvouched = self.unvouched(edges, moved, |f| f == m.face, &reading)?;
             if !unvouched.is_empty() && !refusals_lifted() {
@@ -1890,6 +1898,18 @@ impl<T: Real> Written<T> {
         self.at.insert(row.0, self.rows.len());
         self.rows.push(row);
     }
+}
+
+/// Whether a describing re-chart asks that each moved face's boundary
+/// lies on its new chart ([`Body::unvouched`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Vouch {
+    /// Asked, of every face that leaves its chart.
+    Asked,
+    /// Not asked: the faces leave a record for one decided the same
+    /// carrier ([`Body::unify_surfaces`]), so a boundary that lay on
+    /// the one lies on the other.
+    OneCarrier,
 }
 
 /// A [`Rechart`]'s chart: [`FaceSurface`]'s `New` and `Shared`, the

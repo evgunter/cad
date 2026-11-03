@@ -42,11 +42,20 @@ fn check_wedge(theta: f64) {
         end_cap,
         start_meridians,
         end_meridians,
+        coplanar_caps,
     } = &t.kind
     else {
         panic!("partial revolve");
     };
     assert_ne!(start_cap, end_cap);
+    // A quarter turn's caps are two carriers: two records, no row.
+    let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
+    assert_ne!(
+        key(start_cap),
+        key(end_cap),
+        "the wedge's caps are two surfaces"
+    );
+    assert_eq!(*coplanar_caps, None, "no coincidence is decided");
     // The axis segment (canonical 3) has no wall and ONE shared edge.
     assert_eq!(t.walls()[0][3], None);
     assert_eq!(start_meridians[0][3], end_meridians[0][3]);
@@ -139,36 +148,6 @@ fn half_revolve_axis_edge_stays_conventional() {
     caps.sort();
     assert_eq!(cells, caps, "the row names the two caps: {row:?}");
     assert!(signed_volume(&t.body) > 0.0);
-}
-
-#[test]
-fn a_wedge_keeps_its_caps_on_two_records() {
-    // θ = π/2: the caps meet at a corner along the axis, two carriers,
-    // so nothing is decided one and no row is recorded.
-    let vp = validated(vec![square()]);
-    let t = revolve(
-        &vp,
-        axis_y(),
-        Revolution::Partial(FRAC_PI_2),
-        Tol::witness(),
-    )
-    .unwrap();
-    let RevolvedKind::Partial {
-        start_cap,
-        end_cap,
-        coplanar_caps,
-        ..
-    } = &t.kind
-    else {
-        panic!("partial revolve");
-    };
-    let key = |f: &topo::FaceKey| t.body.get_face(*f).unwrap().surface;
-    assert_ne!(
-        key(start_cap),
-        key(end_cap),
-        "the wedge's caps are two surfaces"
-    );
-    assert_eq!(*coplanar_caps, None, "no coincidence is decided");
 }
 
 #[test]
