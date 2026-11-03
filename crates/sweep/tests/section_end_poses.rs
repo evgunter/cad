@@ -187,7 +187,7 @@ enum Against {
 /// `(ε, pose, t)`: each refuses at its row in every op and order. At
 /// ε = 1e-12 none reaches the join in band: the square box builds at
 /// `t = ε`, and the slab refuses downstream
-/// (`work/cleave/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`).
+/// (`work/honepose/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md`).
 const BOOLEANS: [(f64, Against, f64); 6] = [
     (1e-9, Against::SquareBox, 1e-9),
     (1e-9, Against::WallTilt { dd: -5e-8 }, 1e-9),
@@ -217,7 +217,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_l
         println!(
             "SKIPPED at this ε: no Boolean pose reaches the join in band at 1e-12; the square \
              box builds and the slab refuses downstream \
-             (work/cleave/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md)"
+             (work/honepose/a-section-read-square-at-its-band-edge-refuses-downstream-at-1e-12.md)"
         );
         return;
     }

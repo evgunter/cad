@@ -333,9 +333,12 @@ impl Curved {
 
 /// **A wall read against a curved partner before any march**: its
 /// chart speeds, its accounting floor over its knot rectangle and the
-/// settling tolerance of its boundary pass, minted once, as the plane ×
-/// NURBS lane mints them ([`super::PlaneSection`]), with no plane chart
-/// and no ℝ⁴ system: a crossing is settled on the wall alone.
+/// settling tolerance of its boundary pass and march, minted once, as
+/// the plane × NURBS lane mints them ([`super::PlaneSection`]), with no
+/// plane chart and no ℝ⁴ system: a crossing is settled on the wall
+/// alone. The residual a state settles to is read at the wall's point
+/// written about the partner's centre or axis, so the tolerance reads
+/// the louder of the wall's coordinates and those.
 pub(crate) struct ImplicitWall<'a> {
     charted: super::ChartedNurbs<'a, f64>,
     floor: super::exhaust::SweepFloor<super::exhaust::UvRect>,
@@ -352,8 +355,8 @@ impl<'a> ImplicitWall<'a> {
     /// [`super::SsiError::OperandNotFinite`] for a wall that is not
     /// finite, [`super::SsiError::DomainUnusable`],
     /// [`super::SsiError::ChartSpeed`], the floor's refusal
-    /// ([`super::SsiError::FloorUnresolvable`]) and the march
-    /// tolerance's.
+    /// ([`super::SsiError::FloorUnresolvable`]) and the boundary pass's
+    /// settling tolerance's.
     pub(crate) fn of(
         wall: &'a geom::NurbsSurface<f64>,
         domain: super::SsiDomain,
@@ -371,18 +374,7 @@ impl<'a> ImplicitWall<'a> {
             speed,
             super::exhaust::FloorKind::Accounting,
         )?;
-        let hull = wall
-            .control()
-            .iter()
-            .map(|&p| Box3::between(p, p))
-            .reduce(Box3::hull)
-            .ok_or(super::SsiError::UnsupportedCertificate {
-                what: "a NURBS wall with no control point",
-            })?;
-        let tol = super::march::MarchTol::from_band(
-            band,
-            super::spline_readout(hull, wall, root, speed),
-        )?;
+        let tol = super::march::MarchTol::from_band(band, Self::readout(wall, root, speed)?)?;
         Ok(Self {
             charted,
             floor,
@@ -390,6 +382,55 @@ impl<'a> ImplicitWall<'a> {
             domain,
             band,
         })
+    }
+
+    /// The wall's control hull, which holds every point of it.
+    fn hull(wall: &geom::NurbsSurface<f64>) -> Result<Box3, super::SsiError> {
+        wall.control()
+            .iter()
+            .map(|&p| Box3::between(p, p))
+            .reduce(Box3::hull)
+            .ok_or(super::SsiError::UnsupportedCertificate {
+                what: "a NURBS wall with no control point",
+            })
+    }
+
+    /// The wall's own readout: its coordinates and its chart's.
+    fn readout(
+        wall: &geom::NurbsSurface<f64>,
+        root: super::exhaust::UvRect,
+        speed: geom_core::SupSpeed<f64>,
+    ) -> Result<super::march::Readout, super::SsiError> {
+        Ok(super::spline_readout(Self::hull(wall)?, wall, root, speed))
+    }
+
+    /// **The tolerance a march against `curved` settles to**: the louder
+    /// of the wall's own readout and the wall written about the partner's
+    /// centre or axis, where the residual a state settles to is read.
+    /// Minted only where a march runs, so a pose the classification
+    /// decides without one never meets it.
+    ///
+    /// # Errors
+    ///
+    /// The tolerance's refusal ([`super::SsiError::SettlingUnresolvable`],
+    /// naming the partner's reach where that binds).
+    pub(crate) fn march_tol(
+        &self,
+        curved: &Curved,
+    ) -> Result<super::march::MarchTol, super::SsiError> {
+        let wall = self.charted.surface();
+        let root = self.floor.root();
+        let framed = curved.framed(Self::hull(wall)?);
+        let about = super::march::Readout::about_partner(
+            Box3 {
+                x: framed.x,
+                y: framed.y,
+                z: framed.z,
+            },
+            super::SSI_QUADRIC_NOISE_ULPS,
+        );
+        let readout = Self::readout(wall, root, self.charted.speeds().max())?.louder(about);
+        super::march::MarchTol::from_band(self.band, readout)
     }
 
     /// The wall's chart enclosures over its own cells.
@@ -400,6 +441,21 @@ impl<'a> ImplicitWall<'a> {
     /// The accounting floor over the wall's rectangle.
     pub(crate) fn account_floor(&self) -> super::exhaust::SweepFloor<super::exhaust::UvRect> {
         self.floor
+    }
+
+    /// The wall's chart, its speeds minted.
+    pub(crate) fn charted(&self) -> &super::ChartedNurbs<'a, f64> {
+        &self.charted
+    }
+
+    /// The domain the wall is read over.
+    pub(crate) fn domain(&self) -> super::SsiDomain {
+        self.domain
+    }
+
+    /// The run band.
+    pub(crate) fn band(&self) -> geom_core::Band {
+        self.band
     }
 
     /// **The boundary pass against `curved`** (C3; [`super::boundary`]),

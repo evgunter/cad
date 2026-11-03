@@ -41,7 +41,7 @@ const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-
 /// sliver. No pose here keeps one: each sliver lies beside the wall face
 /// across a seam, and the split merges the two.
 const SLIVER_RESIDUE: &str =
-    "work/cleave/a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest.md";
+    "work/honepose/a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest.md";
 
 /// The unit cylinder about `z`, `0 ≤ z ≤ 1`, its seam vertices at
 /// `(±1, 0, 0)` and `(±1, 0, 1)`.

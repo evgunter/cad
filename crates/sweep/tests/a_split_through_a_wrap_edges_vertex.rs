@@ -44,7 +44,7 @@
 //! from the vertex, and refuses typed with the margin it read in the
 //! band (D4); the two-arc form refuses those poses alike, but for one
 //! class that reads a sector's subdivision ray rather than the geometry
-//! (`work/cleave/a-wide-sectors-subdivision-ray-along-the-planes-trace-reads-in-the-band.md`).
+//! (`work/honepose/a-wide-sectors-subdivision-ray-along-the-planes-trace-reads-in-the-band.md`).
 //! A near pose is held to the closed form wherever it builds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

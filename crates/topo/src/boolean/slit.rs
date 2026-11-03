@@ -1272,7 +1272,7 @@ pub(super) enum Placed {
 /// in band escalates; D3's torus is a ring, `R > r`. On a cone
 /// the offset is not a polynomial along a conic and the samples are not
 /// bounded between
-/// (`work/cleave/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
+/// (`work/parting/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
 /// The rider reading and the germ's closed-edge reading
 /// (`sectors::closed_reach`) both ask here.
 ///

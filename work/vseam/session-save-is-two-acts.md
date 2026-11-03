@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-08
 closed: 2026-10-31
 pr: 6135
-refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
+refs: [1117, 2016]
 priority: P0
 cost: M
 ---
@@ -118,7 +118,7 @@ row 223 records the decision. What the build is:
 Out of this row: dropping `edits` from the format
 (`work/doctail/the-save-format-drops-its-edit-log`), and the store's
 overwrite of a different document's file
-(`work/lib/save-at-overwrites-a-file-holding-another-document`).
+(`work/pydoor/save-at-overwrites-a-file-holding-another-document`).
 Neither blocks the build, because `docio::save_path` overwrites any
 target today.
 
@@ -141,7 +141,7 @@ Save, and the save dialog appends `.pncad` to a typed name that lacks
 it. The fork is refused while a value gesture is open, and is allowed
 during a free move. The doors are measured in `crates/viewer/tests/doc_io.rs`.
 
-Filed from the sweep: `work/issues/the-tour-gallery-writes-its-documents-around-the-store`,
+Filed from the sweep: `work/vseam/the-tour-gallery-writes-its-documents-around-the-store`,
 plus a dated note on `work/doctail/the-save-format-drops-its-edit-log`
 (the die corpus still writes a non-empty log).
 

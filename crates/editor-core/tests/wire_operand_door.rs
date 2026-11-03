@@ -419,9 +419,9 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 /// row that asked for it closed with DOOR),
 /// a phrase reached through a helper that takes it as an argument from
 /// elsewhere, the other kind-mismatch vocabularies in this crate
-/// (`work/wire/the-entity-kind-door-has-six-spellings.md` enumerates
+/// (`the-entity-kind-door-has-six-spellings` (closed with WIRE: `docs/doc-ledger/wire-leaves-the-tracker.md`) enumerates
 /// them, so this doc does not), and the direction-role words
-/// (`work/wire/direction-role-words-respell-the-operand-phrases.md`).
+/// (`work/wirehold/direction-role-words-respell-the-operand-phrases.md`).
 /// Those files are the lists; a copy here would be a second one.
 mod source_rules {
     use test_utils::source;

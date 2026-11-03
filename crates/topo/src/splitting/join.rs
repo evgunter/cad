@@ -1009,7 +1009,7 @@ impl<T: Decide> Sweep<T> {
     /// A tree with an edge that is not a line refuses: its slit would be
     /// two coincident curved edges, which no contact record backs and
     /// tier 3′ refuses
-    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     ///
     /// # Errors
     ///
