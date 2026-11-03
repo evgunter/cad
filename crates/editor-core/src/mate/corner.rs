@@ -258,11 +258,12 @@ pub fn corner_frame_in(
 }
 
 /// [`corner_frame_in`], over an evaluation of `doc` under `opts` made
-/// here.
+/// here, which `cancel` cancels.
 ///
 /// # Errors
 ///
 /// As [`corner_frame_in`]'s.
+#[allow(clippy::too_many_arguments)] // the gesture's picks, then the run it reads
 pub fn corner_frame(
     doc: &crate::ProfileDoc,
     body: &Operand,
@@ -270,8 +271,9 @@ pub fn corner_frame(
     up: [f64; 3],
     toward: [f64; 3],
     opts: &EvalOptions,
+    cancel: &CancelToken,
     tol: Tol,
 ) -> Result<Operand, PinRefusal> {
-    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, cancel, opts, tol);
     corner_frame_in(doc, &ev, body, corner, up, toward)
 }

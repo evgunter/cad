@@ -17,7 +17,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pncad::analysis::{ClearanceOutcome, clearances_at_nominal};
-use pncad::document::{CancelToken, ClearanceBounds, Formula, Node, RecipeNodeId};
+use pncad::document::{ClearanceBounds, Formula, Node, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::evalseam::{CertifyDone, CertifyRequest, CertifyService};
@@ -129,7 +129,7 @@ impl Recording {
             answers: clearances_at_nominal(
                 &request.doc,
                 request.resolver,
-                &CancelToken::new(),
+                &pncad::document::Stop::default(),
                 request.tol,
             ),
         }
@@ -784,8 +784,9 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
     );
     // The certify door answers it the same way, in words, rather than
     // reading the family as a verdict.
-    let answers = clearances_at_nominal(session.doc(), None, &CancelToken::new(), tol)
-        .expect("an uncancelled run answers");
+    let answers =
+        clearances_at_nominal(session.doc(), None, &pncad::document::Stop::default(), tol)
+            .expect("an uncancelled run answers");
     let door = answers
         .iter()
         .find(|answer| answer.assertion == by_body)

@@ -287,6 +287,7 @@ fn r2_end_to_end_rounded_pad_study() {
                     symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             );
             match verdict {
@@ -379,6 +380,7 @@ fn r2_the_ceiling_with_the_bounded_early_reduction() {
                     symbolic: SymbolicDials::default(),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .is_ok_and(|v| v.receipt().certified == 1)

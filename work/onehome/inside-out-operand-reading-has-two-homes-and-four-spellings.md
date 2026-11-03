@@ -40,4 +40,4 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 ## Closed (ONEHOME, 2026-11-02, PR 6365)
 
-The recourse has one home on the decision, `PointInSolidError::INSIDE_OUT_RECOURSE` (with the `inside_out_recourse!` literal for `concat!` consts, after `scaffolding_recourse!`), and all four sites read it. `shell_witness::inside_out_operand`'s silent skip is gone; its arm panics with values, since it is bug-only. The rest of the row is stale or filed: `work/cleave/the-inside-out-reading-rests-on-two-unenforced-promises.md`.
+The recourse has one home on the decision, `PointInSolidError::INSIDE_OUT_RECOURSE` (with the `inside_out_recourse!` literal for `concat!` consts, after `scaffolding_recourse!`), and all four sites read it. `shell_witness::inside_out_operand`'s silent skip is gone; its arm panics with values, since it is bug-only. The rest of the row is stale or filed: `work/cleavetail/the-inside-out-reading-rests-on-two-unenforced-promises.md`.

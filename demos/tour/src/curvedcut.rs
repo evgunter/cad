@@ -369,7 +369,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
     // pocket is held to the scene's own oracle: it removes the glyph's
     // area × DEPTH from its half, inside the certified bracket, at tier 3.
     // The scene still engraves the whole cylinder before it cuts
-    // (`work/cleave/tilted-cut-scene-can-engrave-after-the-cut.md`).
+    // (`work/cleavetail/tilted-cut-scene-can-engrave-after-the-cut.md`).
     let engrave = |at: &str, half: &AtRestBody<f64>, plane: SketchPlane<f64>, glyph: Glyph<f64>| {
         let removed = glyph.area * DEPTH;
         let engraved = try_subtract(half, &tool(plane, glyph.outline, tol), tol)

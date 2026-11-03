@@ -272,7 +272,7 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 /// the enum and a word that appears the day the door does is better
 /// than a build break then; they become live the day a Python path
 /// builder threads a notation, which is
-/// `work/lib/path-legs-erase-the-authored-notation-one-layer-down`'s
+/// `work/pydoor/path-legs-erase-the-authored-notation-one-layer-down`'s
 /// work and not this crate's.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
@@ -783,6 +783,7 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
         McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
         McRefusal::NoSamples => "no_samples",
         McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
+        McRefusal::Stopped(_) => "stopped",
     }
 }
 
@@ -2547,6 +2548,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
+        SplitError::Stopped(_) => "stopped",
     }
 }
 
@@ -2923,6 +2925,7 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
         // registry's refusal of a foreign evaluation or subject.
         ChecksError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         ChecksError::Product { .. } => "product_unavailable",
+        ChecksError::Canceled(_) => "canceled",
     }
 }
 

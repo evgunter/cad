@@ -496,7 +496,12 @@ fn a_rest_on_a_wall_refuses_at_the_raw_door_and_places_through_the_gesture() {
     }
     let mut action = editor_core::Recording::start(&doc, Tol::witness());
     action
-        .constrain(placement, mate, &EvalOptions::default())
+        .constrain(
+            placement,
+            mate,
+            &EvalOptions::default(),
+            &editor_core::CancelToken::new(),
+        )
         .expect("the gesture lands");
     let doc = action.finish().expect("one action").doc;
     let placed = standing(&doc, placement).unwrap_or_else(|f| panic!("the gesture places: {f}"));
@@ -545,7 +550,12 @@ fn taking_a_slide_out_as_a_gesture_writes_the_slides_the_bundle_leaves() {
     );
     let mut action = editor_core::Recording::start(&doc, Tol::witness());
     action
-        .remove_mate(placement, slide_x, &EvalOptions::default())
+        .remove_mate(
+            placement,
+            slide_x,
+            &EvalOptions::default(),
+            &editor_core::CancelToken::new(),
+        )
         .expect("the gesture lands");
     let done = action.finish().expect("one action");
     let slides: Vec<Coord> = fixture::bundle(&done.doc, placement)

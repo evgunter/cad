@@ -31,4 +31,4 @@ Opened 2026-10-17 by WIRE's priority-seam cut as a parked track. Re-read on 2026
 
 ## Review posture
 
-Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews.
+Inherits WIRE's (WIRE's plan, recoverable by `docs/doc-ledger/wire-leaves-the-tracker.md`): protocol v7, single reviews.

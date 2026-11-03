@@ -53,3 +53,14 @@ OPEN, for this program's first dispatch. LIB inherits protocol v7
 only, opus/opus outside it. Nobody has re-asked the triage question for
 this slate, so the first orchestrator answers it here rather than
 inheriting an answer.
+
+## LIB's housekeeping rows, moved in 2026-11-03
+
+LIB closed (`docs/doc-ledger/lib-leaves-the-tracker.md`). Its library
+doors went to PYDOOR, and the 24 rows that are this track's kind of
+work came here by `git mv`, ids and bodies unchanged: tag words that
+name two facts or one fact twice, payload rungs and projections that
+stop short, the prose census's soundness gaps, stubs and guides that
+lag their enums, and Python test rows that pass vacuously or race. All
+are P2 to P4, so none adds to the load. Thirteen were unbanded or
+priced `D` and were banded and re-priced in the move; each row says so.

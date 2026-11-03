@@ -716,6 +716,8 @@ mod m10_9_pins_interval;
 #[path = "m10_9_r2_probes_interval.rs"]
 mod m10_9_r2_probes_interval;
 
+#[path = "kernel_runs_take_the_callers_stop.rs"]
+mod kernel_runs_take_the_callers_stop;
 #[path = "kstats_bracket_rows.rs"]
 mod kstats_bracket_rows;
 

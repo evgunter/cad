@@ -1381,7 +1381,7 @@ fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
 /// prism holds, which runs along the notch's reflex edge: four sheets
 /// meet there, and the prism's 240° less the brick's 90° is two wedges
 /// of 40° and 110°, which the result's edges do not pair as
-/// (`work/cleave/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
+/// (`work/cleavetail/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
 /// What it pins is the direction of the tie's reading: red if
 /// `insert::beside_order` reads the two sides the other way round where
 /// a run's held cuts and a held strut are read (`pinch ∪ prism`
@@ -2295,7 +2295,7 @@ fn every_tied_strut_witness_holds_with_its_vertex_pairs_reversed() {
 }
 
 /// **A corner crossing the cube's corner four times builds every op**
-/// (`work/cleave/a-corner-crossing-another-four-times-refuses-pairing-mismatch.md`):
+/// (`a-corner-crossing-another-four-times-refuses-pairing-mismatch` (closed with CLEAVE: `docs/doc-ledger/cleave-leaves-the-tracker.md`)):
 /// a thin trihedral corner at the origin whose cone holds the cube's
 /// z-edge and crosses its bottom face, so the two corners' boundaries
 /// cross four times, in two section-polygon edges. Each solid orders
@@ -2360,7 +2360,7 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
 }
 
 /// **Three corners alternating round the cube's corner refuse three
-/// ops** (`work/cleave/three-corners-alternating-round-a-corner-refuse-at-the-join.md`):
+/// ops** (`work/cleavetail/three-corners-alternating-round-a-corner-refuse-at-the-join.md`):
 /// three trihedral corners touching only at the origin, one a band
 /// that meets the cube's corner's boundary in two dangling segments
 /// and the other two in the gaps between, so the pieces' cuts

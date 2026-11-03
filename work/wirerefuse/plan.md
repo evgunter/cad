@@ -6,7 +6,7 @@ Opened 2026-10-28 by splitting WIREREST and WIRETAIL. On 2026-11-02, PRs 6291, 6
 
 ## The slate
 
-**18 budget points** against 30.
+**17 budget points** against 30.
 
 | pri | item | cost |
 |---|---|---|
@@ -17,7 +17,6 @@ Opened 2026-10-28 by splitting WIREREST and WIRETAIL. On 2026-11-02, PRs 6291, 6
 | P4 | `a-bad-label-in-a-file-refuses-with-the-regenerate-recourse` | M |
 | P4 | `node-error-kind-has-no-fieldless-projection` | M |
 | P4 | `an-empty-pick-path-refuses-at-evaluation-though-both-doors-hold-it` | E |
-| P4 | `an-indexed-reads-index-position-is-clamped-to-u8` (its u8 half fixed by PR 6297) | E |
 
 ## Order
 
@@ -27,4 +26,4 @@ Opened 2026-10-28 by splitting WIREREST and WIRETAIL. On 2026-11-02, PRs 6291, 6
 
 ## Review posture
 
-Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews.
+Inherits WIRE's (WIRE's plan, recoverable by `docs/doc-ledger/wire-leaves-the-tracker.md`): protocol v7, single reviews.

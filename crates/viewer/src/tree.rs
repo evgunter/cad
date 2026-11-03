@@ -517,6 +517,12 @@ pub enum Certified {
     /// nothing certifies this landing: it is certified again when a
     /// landing answers, which a cancelled request never does.
     Stopped,
+    /// The certify job ran out of its member budget before it answered:
+    /// `sentence` says so, with the recourse.
+    OutOfBudget {
+        /// What the row says under it.
+        sentence: String,
+    },
     /// The answer, in plain numbers. At `f64` it is the third state,
     /// naming the lane that certifies.
     Answered(pncad::analysis::ClearanceOutcome),
@@ -563,7 +569,7 @@ impl Cleared {
         use pncad::analysis::ClearanceOutcome as O;
         match &self.answer {
             Certified::Certifying => CERTIFYING,
-            Certified::Stopped => "not certified",
+            Certified::Stopped | Certified::OutOfBudget { .. } => "not certified",
             Certified::Answered(answer) => match answer {
                 O::Holds => "Holds",
                 O::Within(_) => "Within",
@@ -601,6 +607,7 @@ impl Cleared {
             }
             Certified::Certifying
             | Certified::Stopped
+            | Certified::OutOfBudget { .. }
             | Certified::Answered(
                 O::Holds | O::Refused { .. } | O::OverMembers { .. } | O::Unanswered { .. },
             ) => None,
@@ -619,6 +626,7 @@ impl Cleared {
                 | O::Unanswered { sentence },
             ) => Some(sentence),
             Certified::Stopped => Some(CERTIFY_STOPPED),
+            Certified::OutOfBudget { sentence } => Some(sentence),
             Certified::Certifying
             | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
         }
@@ -629,7 +637,7 @@ impl Cleared {
     pub fn pair(&self) -> Option<&pncad::analysis::PairOfPoints> {
         match &self.answer {
             Certified::Answered(answer) => witness_pair(answer),
-            Certified::Certifying | Certified::Stopped => None,
+            Certified::Certifying | Certified::Stopped | Certified::OutOfBudget { .. } => None,
         }
     }
 
@@ -642,6 +650,7 @@ impl Cleared {
             Certified::Answered(O::Violated(_) | O::Exceeded) => Tone::Actionable,
             Certified::Certifying
             | Certified::Stopped
+            | Certified::OutOfBudget { .. }
             | Certified::Answered(
                 O::Holds
                 | O::Within(_)

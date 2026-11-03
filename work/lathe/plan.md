@@ -69,14 +69,15 @@ Opened 2026-10-06 by CARVE's second priority-seam cut
 | P2 | `carve-refusals-short-of-the-shape-guard` | M | refusals the viewer draws that state no recourse, by the shape guard's census |
 | P2 | `copysign-stands-in-for-a-nappe-and-a-max-fold-and-hulls` | E | the nappe selector and the revolve max-fold spell a two-way choice with copysign |
 | P2 | `loft-arc-columns-end-on-the-carrier-not-the-vertex` | M | an arc's NURBS column starts and ends on the carrier, not on the stored vertices |
-| P1 | `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint` | H | the skin cuts a spline wall at each sub-arc joint, so a lofted arc wall carries a C⁰ knot inside it |
+| P0 | `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint` | H | the skin cuts a spline wall at each sub-arc joint, so a lofted arc wall carries a C⁰ knot inside it |
 | P3 | `revolve-angle-is-a-signed-size-beside-a-directed-axis` | E | the revolve's signed angle stays (Ev, PR 3941); its zero and full-turn refusals state no recourse |
 | P4 | `tube-escalated-runs-past-the-word-budget` | E | TubeError::Escalated renders 52 words |
 
-Parked on `d10-one-way-to-say-intent-is-unbuilt`:
-`half-revolve-caps-are-never-an-operand`,
-`loft-walls-keyed-per-segment-on-a-declared-carrier`,
-`loft-between-opposite-turning-joints-reverses-a-seam-between-stations`.
+Once parked on the D10 hold, which lifted when INTENT closed
+(2026-10-30, #6103): `half-revolve-caps-are-never-an-operand` and
+`loft-walls-keyed-per-segment-on-a-declared-carrier` are open, and
+`loft-between-opposite-turning-joints-reverses-a-seam-between-stations`
+is parked on `self-overlapping-spines-build-and-validate`.
 
 ### Order
 
@@ -90,3 +91,26 @@ recourse, the tube's word budget) can run together.
 
 OPEN, for this program's first dispatch, under
 `docs/DUAL-REVIEW-PROTOCOL.md` as CARVE's is.
+
+## CARVE's two parked rows, moved in 2026-11-03
+
+CARVE closed with nothing dispatchable
+(`docs/doc-ledger/carve-leaves-the-tracker.md`). Its two parked rows
+moved here by `git mv`, ids and bodies unchanged:
+
+| pri | item | cost | waits on |
+|---|---|---|---|
+| P0 | `self-overlapping-spines-build-and-validate` | H | CLEAR's `the-at-rest-gate-certifies-embedding` |
+| P3 | `the-sweep-doors-return-bodies-tier-3-refuses` | M | ONEHOME's `the-at-rest-result-gate-and-its-typing-live-in-five-homes` |
+
+**When they release.** The certificate's door shape is in the spine
+row's "Measured" section: one helper after `assemble`,
+`SelfIntersecting` for a verified violation and `EmbeddingUncertified`
+for an engine refusal, the fold's Zero arm kept before the skin, and
+inside derived from slab 0's sign. It also inherits what PR 6141's
+clearance leaves to it: arc pairs the curve-pair reader cannot settle,
+and caps that cross while the rims stay apart (the row's evidence
+sections). The pinned-corner door (`crates/sweep/src/loft/stacking.rs`,
+added to this track's `paths`) is where the fold's retiring arms go.
+The tier-3 row builds the sweep doors' instance of whatever gate home
+ONEHOME rules.
