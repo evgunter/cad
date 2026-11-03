@@ -10696,6 +10696,8 @@ impl<T: Real> AtRestBody<T> {
         T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
     {
         validate_geometric_certificate(&body, tol)?;
+        #[cfg(debug_assertions)]
+        assert_one_record_per_carrier(&body, tol);
         Ok(Self {
             body,
             outcome: AtRestOutcome::Validated,
@@ -18817,5 +18819,49 @@ mod door_roster {
                 assert!(roster.contains(&twin), "{door} has no {twin}");
             }
         }
+    }
+}
+
+/// **No edge at rest lies between two records of one carrier**
+/// (DESIGN `[coincidence.door]`): the act that decided two surface
+/// records one leaves their faces on one record, so an edge whose two
+/// faces wear distinct records that its rest reads one chart
+/// ([`crate::rest_locus`]) is a producer that decided a coincidence
+/// and kept both records. Read only where the edge is stored in a
+/// chart across two records, the shape such an edge rests in.
+///
+/// # Panics
+///
+/// On such an edge: a kernel defect.
+#[cfg(debug_assertions)]
+fn assert_one_record_per_carrier<T: geom_core::Decide>(body: &Body<T>, tol: Tol) {
+    let Ok(band) = geom_core::Band::linear(tol) else {
+        return;
+    };
+    for (edge, data) in body.edges() {
+        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+            continue;
+        };
+        if !matches!(curve.description(), geom_brep::EdgeDescription::Chart(c) if !c.wrap) {
+            continue;
+        }
+        let sides = crate::readback::edge_sides_of(body, edge, data);
+        let (ka, kb) = sides.surfaces();
+        if ka == kb {
+            continue;
+        }
+        let rest = crate::rest_locus(
+            body,
+            [(ka, Some(sides.plus.face)), (kb, Some(sides.minus.face))],
+            curve.carrier(),
+            curve.params(),
+            band,
+        );
+        assert!(
+            !matches!(rest, geom_brep::RestLocus::Chart(_)),
+            "{edge:?} lies at rest between {ka:?} and {kb:?}, two records of one carrier: \
+             the act that decided them one left both. {}",
+            geom_core::KERNEL_DEFECT_ENDING
+        );
     }
 }

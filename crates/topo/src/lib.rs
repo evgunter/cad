@@ -698,7 +698,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
+        body.merge_coplanar_faces_unjoined(tol)
     }
 
     /// `body` finished for a door that takes finished bodies (the

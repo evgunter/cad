@@ -115,7 +115,6 @@ mod node;
 mod ops;
 mod overlap;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
-pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
 mod spline_known;

@@ -19,14 +19,11 @@
 //! every other kind the carrier ladder holds by that ladder, and a pair
 //! whose margin lies in band refuses (the boolean's maximal-faces gate
 //! reads an operand the same way, so the ladder is consistent end to
-//! end). A pair a Boolean glued one carrier is read through its record
-//! ([`GluedSurfaces`], which only the Boolean builds): one carrier, and
-//! no ladder measures it again; only which way its faces face is read.
-//! Where two faces on distinct keys glue, the merged face keeps one
-//! member's description: in a Boolean's result the first-written
-//! operand's, A's, as the glue decides and records each pair kept side
-//! first (`docs/DESIGN.md` [coincidence.booleans]); where no glued pair
-//! orders a group, its arena-first member's, a fixed rule that reads no
+//! end). A pair a Boolean glued one carrier reaches the merge on one
+//! surface record already: the glue left its faces there
+//! ([`Body::unify_surfaces`]), so the one-key rung reads it. Where two
+//! faces on distinct keys glue on their margins, the merged face keeps
+//! its arena-first member's description, a fixed rule that reads no
 //! values. Which face survives the surgery does not enter: a plug in
 //! another member's hole is read like any other member
 //! ([`MergedGroup::kept`]). A face on the `mvfs` seed's placeholder
@@ -47,7 +44,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::{
-    Cell, GluedSurfacePair, GluedSurfaces, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
+    Cell, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
     oriented_plane_eq,
 };
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
@@ -458,24 +455,6 @@ pub enum MergeCoplanarError {
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
-    },
-    /// A face pair a Boolean glued one carrier meets with OPPOSITE
-    /// orientations at a shared edge — no valid closed solid merges
-    /// such a pair.
-    GluedOppositeOrientation {
-        /// The pair's first face (arena order at the meeting edge).
-        f1: FaceKey,
-        /// The second face.
-        f2: FaceKey,
-    },
-    /// The Boolean's glue record, broken at the merge: a pair it glued
-    /// one carrier on two surface kinds, or glued pairs whose charts'
-    /// facing disagrees around a cycle. The glue door glues a pair one
-    /// carrier only on one kind and one relation, so this is a kernel
-    /// defect, never the input's.
-    GlueRecordBroken {
-        /// The two surfaces where the break was met.
-        surfaces: (SurfaceKey, SurfaceKey),
     },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline, so the outer/ring roles cannot be
@@ -1048,20 +1027,6 @@ impl MergeDecision {
     }
 }
 
-/// The recourse of a glued pair whose two faces face opposite ways
-/// across the edge they share
-/// ([`MergeCoplanarError::GluedOppositeOrientation`]): the glue's record
-/// and the faces' senses say so, and only a pair that faces the same
-/// way glues, so the pass is the positive arm alone.
-const GLUED_ORIENTATION: SizedDecision = SizedDecision {
-    lever: "turn one of the two faces so both clearly face the same way, on faces that clearly \
-            span a length",
-    size: "span of the two faces",
-    passes: SizedPass::Positive,
-    side: RefusedSide::Lever,
-    no_size: None,
-};
-
 /// The winding decision: its margin is the loop's signed area over its
 /// length. A positive loop is an outline, a negative one a hole, and a
 /// zero one neither, so it passes on either nonzero sign. Its zero arm
@@ -1144,22 +1109,6 @@ impl MergeCoplanarError {
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {}", read_at(error, at)),
-            Self::GluedOppositeOrientation { .. } => write!(
-                f,
-                "the two glued faces face opposite ways across the edge they share{}",
-                at.map(|at| format!(
-                    ". {}",
-                    GLUED_ORIENTATION.recourse(RefusedArm::SignCertain(None), at)
-                ))
-                .unwrap_or_default()
-            ),
-            Self::GlueRecordBroken { surfaces: (a, b) } => write!(
-                f,
-                "the Boolean's glue record for surfaces {a:?} and {b:?} does not hold at the \
-                 merge: two surface kinds, or glued pairs whose charts' facing disagrees \
-                 around a cycle. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
             Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
                 OutlineVerdict::SeveralPositive { loops } => write!(
                     f,
@@ -1679,71 +1628,14 @@ impl MergeCoplanarError {
     fn is_arena_fault(&self) -> bool {
         match self {
             Self::Op { error } => matches!(OpPlacement::of(error), OpPlacement::Contradicts(_)),
-            Self::GlueRecordBroken { .. } => true,
             _ => false,
         }
     }
 }
 
-/// The scan's context: the glued surface equivalence plus the band its
-/// decisions run in.
+/// The scan's context: the band its decisions run in.
 struct MergeCtx {
-    eq: GluedSurfaceEq,
     band: Band,
-}
-
-/// The glued surface-key equivalence: union-find classes over the
-/// surface keys of the face pairs a Boolean glued one carrier, each key
-/// held with whether its chart faces as its class root's does.
-/// Fragments of a face inherit its surface key (`FaceSurface::Inherit`),
-/// so surface-level equivalence covers every fragment of a glued pair
-/// without key-chasing.
-#[derive(Debug, Default)]
-struct GluedSurfaceEq {
-    parent: BTreeMap<SurfaceKey, (SurfaceKey, bool)>,
-}
-
-impl GluedSurfaceEq {
-    /// `k`'s class root, and whether `k`'s chart faces as the root's.
-    fn find(&self, mut k: SurfaceKey) -> (SurfaceKey, bool) {
-        let mut agree = true;
-        while let Some(&(p, with_parent)) = self.parent.get(&k) {
-            if p == k {
-                break;
-            }
-            agree = agree == with_parent;
-            k = p;
-        }
-        (k, agree)
-    }
-
-    /// Joins the classes of the glued pair `p`, or refuses it where the
-    /// two already share a class whose charts it reads facing otherwise.
-    fn union(&mut self, p: GluedSurfacePair) -> Result<(), MergeCoplanarError> {
-        let ((ra, xa), (rb, xb)) = (self.find(p.kept), self.find(p.other));
-        if ra == rb {
-            return if (xa == xb) == p.charts_agree {
-                Ok(())
-            } else {
-                Err(MergeCoplanarError::GlueRecordBroken {
-                    surfaces: (p.kept, p.other),
-                })
-            };
-        }
-        self.parent.entry(ra).or_insert((ra, true));
-        self.parent.insert(rb, (ra, (xb == p.charts_agree) == xa));
-        Ok(())
-    }
-
-    /// Whether `a` and `b` are glued, and if so whether their charts
-    /// face the same way.
-    fn same(&self, a: SurfaceKey, b: SurfaceKey) -> Option<bool> {
-        if self.parent.is_empty() {
-            return None;
-        }
-        let ((ra, xa), (rb, xb)) = (self.find(a), self.find(b));
-        (ra == rb).then_some(xa == xb)
-    }
 }
 
 impl<T: crate::props::AtRestPolicy> Body<T> {
@@ -1775,8 +1667,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// the survivor, which `mekr` then `kev` delete.
     ///
     /// **The merged face keeps one member's description**: its
-    /// arena-first member's, a fixed rule that reads no values, where no
-    /// glued pair orders the group ([`Body::merge_coplanar_faces_unjoined`]).
+    /// arena-first member's, a fixed rule that reads no values.
     /// The face arena reuses freed slots, so arena-first is not
     /// first-written. The survivor wears the description from before the
     /// surgery, whether or not it is that member's face.
@@ -1810,8 +1701,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// conserved at every step.
     ///
     /// No caller states a coincidence to this door: two faces on two
-    /// keys glue on their margins, and a pair a Boolean glued on its
-    /// record, which only the Boolean hands the merge.
+    /// keys glue on their margins, and a pair a Boolean glued reaches
+    /// it on one key.
     ///
     /// ```compile_fail,E0599
     /// let mut body = topo::Body::<f64>::new();
@@ -1923,67 +1814,61 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        self.merge_coplanar_faces_staged(&GluedSurfaces::none(), tol, true)
+        self.merge_coplanar_faces_staged(tol, true)
     }
 
-    /// [`Body::merge_coplanar_faces`] over a Boolean's result, with the
-    /// surface pairs it glued one carrier, and without the join: the
-    /// boolean's merge, whose output stage re-describes what it minted
-    /// and joins after (`boolean::ops::finish_output`). Its result is
-    /// construction state a later step must join.
-    ///
-    /// A glued pair's surfaces are equivalent for the adjacency test
-    /// (fragments inherit surface keys, so every fragment of a glued
-    /// face is covered), and each meeting edge between them reads the
-    /// glue's record: one carrier, glued where the two faces face the
-    /// same way. Every other pair is read by its margins exactly as
-    /// [`Body::merge_coplanar_faces`] reads it (`Body::faces_continue`).
-    /// A glued pair whose surfaces never meet at an edge is a no-op.
-    ///
-    /// **A glued pair is recorded kept side first**: a group holding
-    /// faces on both its surfaces keeps the first's description
-    /// (`docs/DESIGN.md` [coincidence.booleans]; the glue decides it,
-    /// operand A's). The group keeps its first member in face-arena
-    /// order that no glued pair names second against another member's
-    /// surface.
+    /// [`Body::merge_coplanar_faces`] over a Boolean's result, without
+    /// the join: the boolean's merge, whose output stage re-describes
+    /// what it minted and joins after (`boolean::ops::finish_output`).
+    /// Its result is construction state a later step must join. A pair
+    /// the Boolean glued one carrier reaches it on one surface record
+    /// ([`Body::unify_surfaces`]).
     pub(crate) fn merge_coplanar_faces_unjoined(
         &mut self,
-        glued: &GluedSurfaces,
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
         T: crate::props::AtRestPolicy,
     {
-        self.merge_coplanar_faces_staged(glued, tol, false)
+        self.merge_coplanar_faces_staged(tol, false)
     }
 
-    /// [`Body::merge_coplanar_faces`] with `glued` read as a Boolean's
-    /// glue ([`GluedSurfaces::of_pairs`]): the merge rows' door onto the
-    /// glued path.
+    /// [`Body::merge_coplanar_faces`] after each of `glued` is left on
+    /// one record, the first's ([`Body::unify_surfaces`]), its two
+    /// surfaces' faces facing the same way: the merge rows' stand-in for
+    /// a Boolean's glue. A body that is not tier-2 valid goes to the
+    /// door as it is, whose entry gate refuses it.
     #[cfg(test)]
     pub(crate) fn merge_coplanar_faces_glued(
         &mut self,
         glued: &[(SurfaceKey, SurfaceKey)],
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
-        let sense = |k: SurfaceKey| {
-            self.faces()
-                .find(|(_, face)| face.surface == k)
-                .is_some_and(|(_, face)| face.sense)
-        };
-        let pairs: Vec<_> = glued
-            .iter()
-            .map(|&(a, b)| ((a, sense(a)), (b, sense(b))))
-            .collect();
-        self.merge_coplanar_faces_staged(&GluedSurfaces::of_pairs(&pairs), tol, true)
+        if validate_closed(self).is_ok() {
+            let sense = |body: &Self, k: SurfaceKey| {
+                body.faces()
+                    .find(|(_, face)| face.surface == k)
+                    .is_some_and(|(_, face)| face.sense)
+            };
+            for &(kept, other) in glued {
+                let agree = sense(self, kept) == sense(self, other);
+                self.unify_surfaces(
+                    crate::policy_lane::KernelSite::OneRecord,
+                    (kept, other),
+                    agree,
+                    tol,
+                )
+                .map_err(|error| MergeCoplanarError::Op { error })?;
+            }
+        }
+        self.merge_coplanar_faces(tol)
     }
 
-    /// [`Body::merge_coplanar_faces`]'s body over `glued`, ending with
+    /// [`Body::merge_coplanar_faces`]'s body, ending with
     /// the join where `join` is set: on the staged result before it is
     /// adopted, so a refusal of either leaves the body untouched.
     fn merge_coplanar_faces_staged(
         &mut self,
-        glued: &GluedSurfaces,
         tol: Tol,
         join: bool,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
@@ -2005,13 +1890,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
-        // ---- Glued pairs: the equivalence. ----
-        let mut eq = GluedSurfaceEq::default();
-        for &pair in glued.pairs() {
-            eq.union(pair)?;
-        }
         let ctx = MergeCtx {
-            eq,
             band: Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?,
         };
         // ---- The kind census (read-only, face-arena order). ----
@@ -2115,7 +1994,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
             };
-            let description = surgery.kept_description(&group, glued);
+            let description = surgery.kept_description(&group);
             match regime {
                 GroupRegime::RefusesTheCall => {
                     surgery.rechart_survivor(rep, description);
@@ -2408,33 +2287,15 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     }
 
     /// **The description a group's merged face keeps**, `(surface,
-    /// sense)`: the first member in face-arena order whose surface no
-    /// glued pair names second against another member's surface
-    /// ([`Body::merge_coplanar_faces_unjoined`]: a pair is recorded kept
-    /// side first). Where the glue orders nothing, the arena-first
-    /// member's: a fixed rule that reads no values.
+    /// sense)`: its arena-first member's, a fixed rule that reads no
+    /// values.
     ///
     /// # Panics
     ///
     /// Where no member is live: every member is, on the staged body
     /// the earlier groups left tier-1-valid.
-    fn kept_description(
-        &self,
-        group: &BTreeSet<FaceKey>,
-        glued: &GluedSurfaces,
-    ) -> (SurfaceKey, bool) {
-        let surface = |f: FaceKey| proven(&self.faces, f, EntityId::Face).surface;
-        let held: BTreeSet<SurfaceKey> = group.iter().map(|&f| surface(f)).collect();
-        let second: BTreeSet<SurfaceKey> = glued
-            .pairs()
-            .iter()
-            .filter(|p| p.kept != p.other && held.contains(&p.kept))
-            .map(|p| p.other)
-            .collect();
-        let Some(face) = self
-            .first_in_arena(group, |f| !second.contains(&surface(f)))
-            .or_else(|| self.first_in_arena(group, |_| true))
-        else {
+    fn kept_description(&self, group: &BTreeSet<FaceKey>) -> (SurfaceKey, bool) {
+        let Some(face) = self.first_in_arena(group, |_| true) else {
             unreachable!("kept_description: the group {group:?} holds a live face")
         };
         let face = proven(&self.faces, face, EntityId::Face);
@@ -2595,9 +2456,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     }
 
     /// **The merge test** (the coincidence ladder, D10): the two faces
-    /// share a `sense` and one surface key, or a Boolean glued their
-    /// surfaces one carrier and they face the same way across the edge
-    /// ([`Body::glued_continue`]), or their carriers' margins decide
+    /// share a `sense` and one surface key, or their carriers' margins decide
     /// them one carrier facing the same way across it — a continuation.
     /// A pair whose margin lies in band refuses, since two faces whose
     /// carriers decide neither one nor two may not stand either side of
@@ -2611,8 +2470,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// faces on one surface whose `sense` bits differ have OPPOSITE
     /// outward normals: they are the two sides of a slit, not one
     /// region cut in two, and gluing them would mint a face that is
-    /// its own reverse. The ladder reads such a pair `SameOpposite`,
-    /// which no rung glues: a slit is legal geometry, and not a merge
+    /// its own reverse: a slit is legal geometry, and not a merge
     /// candidate.
     ///
     /// `plus` and `minus` are the shared edge's two halves as the
@@ -2624,8 +2482,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # Errors
     ///
-    /// A glued pair's orientation refusals ([`Body::glued_continue`]); an
-    /// unglued pair's in-band reading
+    /// A pair's in-band reading
     /// ([`MergeDecision::Neighbours`], [`MergeDecision::NeighbourCoincidence`]);
     /// a pair whose extent does not read ([`MergeDecision::PairReach`]).
     ///
@@ -2652,19 +2509,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         };
         let ((face1, s1), (face2, s2)) = (resolved(f1), resolved(f2));
         let (k1, k2) = (face1.surface, face2.surface);
-        // The one-key rung: one surface, one sense, kind-agnostic.
-        if face1.sense == face2.sense && k1 == k2 {
-            return Ok(true);
+        // The one-key rung, kind-agnostic: one surface continues where
+        // its two faces share a sense, and is a slit where they do not.
+        if k1 == k2 {
+            return Ok(face1.sense == face2.sense);
         }
         let band = ctx.band;
-        if let Some(charts_agree) = ctx.eq.same(k1, k2) {
-            return self.glued_continue(
-                (f1, face1.sense),
-                (f2, face2.sense),
-                charts_agree,
-                (k1, k2),
-            );
-        }
         let (
             Surface::Plane {
                 origin: o1,
@@ -2718,34 +2568,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                     terminal_sliver: false,
                 },
             })
-    }
-
-    /// **A pair a Boolean glued one carrier, read through its record**:
-    /// the glue says one carrier, so no ladder measures the pair again,
-    /// and which way the two faces face across the edge is the record's
-    /// too: their surfaces' charts face the same way or not
-    /// (`charts_agree`, [`crate::boolean::GluedSurfacePair`]), and each
-    /// face's sense turns its chart to its material side. Facing the same
-    /// way glues; opposite refuses
-    /// ([`MergeCoplanarError::GluedOppositeOrientation`]). A pair on two
-    /// surface kinds breaks the record
-    /// ([`MergeCoplanarError::GlueRecordBroken`]).
-    fn glued_continue(
-        &self,
-        (f1, s1): (FaceKey, bool),
-        (f2, s2): (FaceKey, bool),
-        charts_agree: bool,
-        surfaces: (SurfaceKey, SurfaceKey),
-    ) -> Result<bool, MergeCoplanarError> {
-        let kind = |k| self.get_surface(k).map(Surface::kind);
-        if kind(surfaces.0) != kind(surfaces.1) {
-            return Err(MergeCoplanarError::GlueRecordBroken { surfaces });
-        }
-        if charts_agree == (s1 == s2) {
-            Ok(true)
-        } else {
-            Err(MergeCoplanarError::GluedOppositeOrientation { f1, f2 })
-        }
     }
 
     /// [`Body::faces_continue`] for an unglued pair that is not two
@@ -3641,7 +3463,6 @@ mod tests {
         for (what, tear) in rows {
             let (mut body, _) = declared_planar_cube(tol);
             let ctx = MergeCtx {
-                eq: GluedSurfaceEq::default(),
                 band: Band::linear(tol).expect("the witness tolerance forms a band"),
             };
             let (edge_key, edge) = body.edges().next().expect("an edge");

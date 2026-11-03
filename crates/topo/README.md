@@ -1038,9 +1038,11 @@ the witness lane's tangency along a locus (`Tangent`). The declaration
 door records the decision once (`crate::coincidence`), a one-carrier
 pair on the margin the glue door decided it on. The pair's class is
 its record (`GlueClass::relation`): every consuming site — the corner
-sites (`recl`, `vtxfac`), the result's merge (`GluedSurfaces`, which
-only the Boolean builds) and a fold step — reads the glued relation
-from it and measures the pair nowhere again (`[coincidence.booleans]`).
+sites (`recl`, `vtxfac`) and a fold step — reads the glued relation
+from it and measures the pair nowhere again (`[coincidence.booleans]`),
+and a one-carrier pair's faces are left on one surface record before
+the result's merge (`Body::unify_surfaces`, `[coincidence.door]`), which
+reads them by key.
 An unglued pair is read at a corner by the ladder over the corner's own
 arm, where every verdict but `Distinct` refuses.
 
