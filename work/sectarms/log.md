@@ -456,3 +456,14 @@ and bodies unchanged. No orchestrator yet.
   - **6466:** blind-coded at tally 0 (byte 114, A = R1), and its row is drafted.
 
 - 2026-11-03 22:20 — **Second container restart.** It stopped the 3b-ii fix pass, which had already pushed `b55c17d` and a main merge (`2df83ba`). The lane was resumed to finish its slow-set rerun and report. The PR 6479 reviews run in the cloud and were unaffected.
+
+- 2026-11-03 22:45 — **PR 6479 dual review is in:** R1 and R2 both returned APPROVE-WITH-FIXES, no MAJOR. Fix pass sent, sessions archived, blind coding running.
+  - **Claim 1 held.** Each reviewer ran its own differential on 16 and 14 new fixtures at three ε, with these exceptions:
+    - R2's 54-pose sweep about 2 km out at 1e-6 moves 5 poses decided→refused and 5 refused→decided, via `FootPointInconclusive`. Ruled to be the known noisy limb-1 foot frontier, which the plane now reaches. The issue's false premise is to be corrected, the issue raised to P2, rows pinned on both sides, and the move disclosed.
+  - **One-home violation (both reviewers):** the plane is still read in five or six spellings. Limb 3's `ChartPhi::Plane` reads the stored, unnormalised normal, while the exclusion reads `Form::Plane`, normalised. Limb 3 must read the one form.
+  - **Other must-fix:**
+    - a short branch is labelled `Slab` for the 1×2 lane;
+    - R1's row to kill the pivot-padding mutant;
+    - rows that got weaker;
+    - rustdoc links to removed items.
+  - **File:** the pre-existing erratic stored-origin hull verdict.
