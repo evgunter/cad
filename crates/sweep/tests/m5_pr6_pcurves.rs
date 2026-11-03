@@ -205,9 +205,7 @@ fn a_seam_edge_carries_one_image_and_two_joint_elements_on_one_surface() {
             body.joint(edge.he_minus),
             "the two halves' joints carry the image onto different branches"
         );
-        let lift = body
-            .loop_lift(lp, topo::null::Scaffolding::Refused)
-            .unwrap();
+        let lift = body.loop_lift(lp, topo::Scaffolding::Refused).unwrap();
         let x = |he| {
             let Some((p0, _, _, _)) =
                 (lift.iter().find(|r| r.half_edge == he).unwrap().pcurve).harmonic_form()

@@ -1381,6 +1381,9 @@ pub use props::{
     SignNames, Stop, Unmet, VolumeEnclosure, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
 };
+// A loop lift's reading of a placeholder ([`Body::loop_lift`]): a
+// policy of a read door, not the construction tier `null` is.
+pub use null::Scaffolding;
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module

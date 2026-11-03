@@ -279,7 +279,7 @@ fn walk_loop(body: &Body<f64>, lk: LoopKey, band: Band) -> Result<Vec<Traversal>
     // The stored rows where the loop's lift places them; a loop with no
     // lift draws every half-edge from the derive.
     let lifted: Vec<Option<Pcurve<f64>>> =
-        match body.loop_lift(lk, topo::null::Scaffolding::Refused) {
+        match body.loop_lift(lk, pncad::topo::Scaffolding::Refused) {
             Ok(rows) => rows.into_iter().map(|row| Some(row.pcurve)).collect(),
             Err(_) => vec![None; cycle.len()],
         };
