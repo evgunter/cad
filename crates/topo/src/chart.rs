@@ -34,7 +34,7 @@
 
 use geom::{ChartArm, ChartInverse, Surface};
 use geom_core::predicate::Band;
-use geom_core::{Decide, Point2, Point3, Real, Vec3};
+use geom_core::{Decide, Point2, Point3, Real};
 
 /// A curved surface's chart (everything but the plane, which takes the
 /// planar path): geom's inversion, and the kind data its levers and
@@ -88,24 +88,10 @@ impl<T: Real> Chart<T> {
         Some(Self { kind, inverse })
     }
 
-    /// The revolution/extrusion axis.
-    pub fn axis(&self) -> Vec3<T> {
-        self.inverse.axis()
-    }
-
-    /// The seam direction (u = 0).
-    pub fn u_ref(&self) -> Vec3<T> {
-        self.inverse.u_ref()
-    }
-
-    /// `axis × u_ref` (the frame convention).
-    pub fn v_ref(&self) -> Vec3<T> {
-        self.inverse.v_ref()
-    }
-
-    /// A point on the axis (apex/center/origin).
-    pub fn anchor(&self) -> Point3<T> {
-        self.inverse.anchor()
+    /// The surface's placement: its axis point (apex, centre or
+    /// origin), axis and seam ([`geom::Surface::frame`]).
+    pub fn frame(&self) -> &geom::Frame<T> {
+        self.inverse.frame()
     }
 
     /// Distance of a point from the chart axis — the lever arm that
@@ -118,8 +104,8 @@ impl<T: Real> Chart<T> {
     /// `v·sin α` rather than sitting in `ChartKind` — needs no special
     /// case, and a point on the axis correctly reports 0.
     pub fn radial(&self, p: Point3<T>) -> T {
-        let w = p - self.anchor();
-        (w.dot(self.u_ref()).powi(2) + w.dot(self.v_ref()).powi(2)).sqrt()
+        let (x, y) = self.frame().in_plane(p);
+        (x.powi(2) + y.powi(2)).sqrt()
     }
 
     /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
@@ -178,8 +164,9 @@ impl<T: Decide> Chart<T> {
     /// [`crate::coherence`] measures the value that discards, and
     /// `mesh`'s walk is what discards it.
     pub fn rim_v(&self, center: Point3<T>, radius: T) -> T {
-        let h = (center - self.anchor()).dot(self.axis());
-        self.v_of(self.anchor() + self.axis() * h + self.u_ref() * radius)
+        let f = self.frame();
+        let h = f.height(center);
+        self.v_of(f.origin + f.axis * h + f.u_ref * radius)
     }
 }
 
@@ -207,6 +194,7 @@ impl Chart<f64> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Vec3;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(surface: impl FnOnce(Point3<f64>, Vec3<f64>, Vec3<f64>) -> Surface<f64>) -> Chart {

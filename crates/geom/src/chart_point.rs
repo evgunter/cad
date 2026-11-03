@@ -42,8 +42,9 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
-use geom_core::{Decide, Margin, Point2, Point3, Real, Sign, Vec3};
+use geom_core::{Decide, Margin, Point2, Point3, Real, Sign};
 
+use crate::Frame;
 use crate::azimuth::{Azimuth, Window};
 use crate::surfaces::{Surface, SurfaceKind};
 
@@ -86,10 +87,7 @@ pub struct ChartPoint<T: Real> {
 /// [`Surface::chart_point`] (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct ChartInverse<T: Real> {
-    anchor: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    v_ref: Vec3<T>,
+    frame: Frame<T>,
     arm: ChartArm<T>,
 }
 
@@ -131,58 +129,29 @@ impl<T: Real> ChartInverse<T> {
     ///
     /// [`NoClosedInverse`] for a spline net or a fitted stand-in.
     pub fn of(surface: &Surface<T>) -> Result<Self, NoClosedInverse> {
-        let (anchor, axis, u_ref, arm) = match *surface {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => (origin, normal, u_ref, ChartArm::Plane),
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => (origin, axis, u_ref, ChartArm::Cylinder { radius }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => (apex, axis, u_ref, ChartArm::Cone { half_angle }),
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => (center, axis, u_ref, ChartArm::Sphere { radius }),
+        let arm = match *surface {
+            Surface::Plane { .. } => ChartArm::Plane,
+            Surface::Cylinder { radius, .. } => ChartArm::Cylinder { radius },
+            Surface::Cone { half_angle, .. } => ChartArm::Cone { half_angle },
+            Surface::Sphere { radius, .. } => ChartArm::Sphere { radius },
             Surface::Torus {
-                center,
-                axis,
                 major_radius,
                 minor_radius,
-                u_ref,
-            } => (
-                center,
-                axis,
-                u_ref,
-                ChartArm::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-            ),
+                ..
+            } => ChartArm::Torus {
+                major: major_radius,
+                minor: minor_radius,
+            },
             Surface::Nurbs(_) | Surface::Approx(_) => {
                 return Err(NoClosedInverse {
                     kind: surface.kind(),
                 });
             }
         };
-        Ok(Self {
-            anchor,
-            axis,
-            u_ref,
-            v_ref: axis.cross(u_ref),
-            arm,
-        })
+        let frame = surface.frame().ok_or(NoClosedInverse {
+            kind: surface.kind(),
+        })?;
+        Ok(Self { frame, arm })
     }
 
     /// The arm, with its kind's data.
@@ -190,24 +159,9 @@ impl<T: Real> ChartInverse<T> {
         self.arm
     }
 
-    /// The point the frame is anchored at (origin, apex or center).
-    pub fn anchor(&self) -> Point3<T> {
-        self.anchor
-    }
-
-    /// The axis (the plane's normal).
-    pub fn axis(&self) -> Vec3<T> {
-        self.axis
-    }
-
-    /// The seam direction, `u = 0`.
-    pub fn u_ref(&self) -> Vec3<T> {
-        self.u_ref
-    }
-
-    /// `axis × u_ref`, the frame convention.
-    pub fn v_ref(&self) -> Vec3<T> {
-        self.v_ref
+    /// The surface's placement ([`Surface::frame`]).
+    pub fn frame(&self) -> &Frame<T> {
+        &self.frame
     }
 }
 
@@ -215,8 +169,7 @@ impl<T: Decide> ChartInverse<T> {
     /// The chart coordinates of `p`, its angles read at `band` (module
     /// docs).
     pub fn point(&self, p: Point3<T>, band: Band) -> ChartPoint<T> {
-        let w = p - self.anchor;
-        let (x, y, h) = (w.dot(self.u_ref), w.dot(self.v_ref), w.dot(self.axis));
+        let (x, y, h) = self.frame.local(p);
         let rho = Azimuth::of(y, x).length();
         let off =
             |name, length: T| !matches!(decide(name, Margin::of(length), band), Ok(Sign::Positive));
@@ -283,6 +236,7 @@ impl<T: Decide> Surface<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Vec3;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()

@@ -413,12 +413,12 @@ pub(crate) fn tessellate_curved(
         let pole = [m[0].3, m[1].3, m[2].3];
         let (bound, scale) = match chart.kind {
             ChartKind::Cylinder { r } => (
-                cert::cert_cylinder(chart.anchor(), chart.axis(), r, tri),
-                cert::position_scale(chart.anchor(), tri),
+                cert::cert_cylinder(chart.frame().origin, chart.frame().axis, r, tri),
+                cert::position_scale(chart.frame().origin, tri),
             ),
             ChartKind::Sphere { r } => (
-                cert::cert_sphere(chart.anchor(), r, tri),
-                cert::position_scale(chart.anchor(), tri),
+                cert::cert_sphere(chart.frame().origin, r, tri),
+                cert::position_scale(chart.frame().origin, tri),
             ),
             ChartKind::Cone { half_angle } => (
                 cert::cert_cone(half_angle, uv, pole),
