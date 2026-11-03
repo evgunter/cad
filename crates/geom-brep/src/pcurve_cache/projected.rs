@@ -2785,3 +2785,112 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
+
+/// Review probe (R1, PR 6486): `Meters::Spindle::over` fuzzed against
+/// the true distance from THIS sheet's meridian arc, at point boxes and
+/// at small boxes (`f` sampled on a grid), near the other sheet, the
+/// apexes and the axis.
+#[cfg(test)]
+mod r1_spindle_meters_probe {
+    use super::Meters;
+
+    fn f_of(big: f64, r: f64, rho: f64, z: f64) -> f64 {
+        ((rho - big).powi(2) + z * z - r * r) * ((rho + big).powi(2) + z * z - r * r)
+    }
+
+    /// The distance in the meridian half-plane from `(rho, z)` to the
+    /// sheet's arc `(R + r cos v, r sin v)`, `|v| ≤ v*`.
+    fn sheet_distance(big: f64, r: f64, rho: f64, z: f64) -> f64 {
+        let v_star = (-big / r).acos();
+        let theta = z.atan2(rho - big);
+        let m = ((rho - big).powi(2) + z * z).sqrt();
+        let apex = (r * r - big * big).sqrt();
+        let to_apex = (rho.powi(2) + (z - apex).powi(2))
+            .sqrt()
+            .min((rho.powi(2) + (z + apex).powi(2)).sqrt());
+        if theta.abs() <= v_star {
+            (m - r).abs().min(to_apex)
+        } else {
+            to_apex
+        }
+    }
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+    }
+
+    #[test]
+    fn r1_spindle_meters_never_under_reads_the_sheet_distance() {
+        let mut g = Lcg(6486);
+        let (mut certified, mut refused, mut worst) = (0usize, 0usize, f64::INFINITY);
+        let mut bad = Vec::new();
+        for i in 0..400_000 {
+            let r = 1.0;
+            let big = loop {
+                let b = -1.0 + 2.0 * g.next();
+                if b.abs() > 1e-3 && b.abs() < 0.999 {
+                    break b;
+                }
+            };
+            // Point boxes for most draws, small boxes for a quarter.
+            let boxed = i % 4 == 0;
+            let (w, h) = if boxed {
+                (0.05 * g.next(), 0.05 * g.next())
+            } else {
+                (0.0, 0.0)
+            };
+            let rho0 = 2.2 * g.next() * g.next();
+            let z0 = -1.6 + 3.2 * g.next();
+            let n = if boxed { 24 } else { 0 };
+            let mut f_sup = 0.0_f64;
+            let mut d_true = 0.0_f64;
+            for a in 0..=n {
+                for b in 0..=n {
+                    let (s, t) = if n == 0 {
+                        (0.0, 0.0)
+                    } else {
+                        (a as f64 / n as f64, b as f64 / n as f64)
+                    };
+                    let (rho, z) = (rho0 + s * w, z0 + t * h);
+                    f_sup = f_sup.max(f_of(big, r, rho, z).abs());
+                    d_true = d_true.max(sheet_distance(big, r, rho, z));
+                }
+            }
+            let f_sup = f_sup * (1.0 + 1e-9) + 1e-300;
+            let meters = Meters::Spindle {
+                major: big,
+                minor: r,
+            };
+            let got = meters.over(f_sup, (rho0, rho0 + w), (z0, z0 + h), |lever: f64| {
+                if lever > 0.0 { Ok(lever) } else { Err(()) }
+            });
+            match got {
+                Ok(d) => {
+                    certified += 1;
+                    // Box draws sample f on a grid: allow its slack.
+                    let slack = if boxed { 1e-3 * d_true + 1e-9 } else { 1e-12 + 1e-9 * d_true };
+                    if d + slack < d_true {
+                        bad.push((big, rho0, z0, w, h, d, d_true));
+                    }
+                    if d_true > 0.0 {
+                        worst = worst.min(d / d_true);
+                    }
+                }
+                Err(()) => refused += 1,
+            }
+        }
+        eprintln!(
+            "r1 spindle meters: certified {certified}, refused {refused}, least d/d_true {worst}, \
+             violations {}",
+            bad.len()
+        );
+        for b in bad.iter().take(10) {
+            eprintln!("  violation (R, rho, z, w, h, d, d_true) = {b:?}");
+        }
+        assert!(bad.is_empty(), "{} under-reads", bad.len());
+    }
+}

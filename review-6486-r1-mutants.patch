@@ -1,0 +1,246 @@
+diff --git a/crates/geom-brep/src/pcurve_cache.rs b/crates/geom-brep/src/pcurve_cache.rs
+index a6b33baa..6d8906e3 100644
+--- a/crates/geom-brep/src/pcurve_cache.rs
++++ b/crates/geom-brep/src/pcurve_cache.rs
+@@ -6414,7 +6414,7 @@ fn incidence<T: Decide>(
+                     let n_sq = aw.powi(2) / wr_sq + aa.powi(2);
+                     // `|R|·ŵ_r − w`: its radial and axial parts, one
+                     // vector (a lemon's centre sits `|R|` across the axis).
+-                    let spine = norm_gap(major_radius.abs(), major_radius.powi(2), w_r);
++                    let spine = norm_gap(if std::env::var("R1_MUT").is_ok_and(|v| v == "spine") { major_radius } else { major_radius.abs() }, major_radius.powi(2), w_r);
+                     let centre = harmonic_sup_scalar(spine, h);
+                     #[cfg(test)]
+                     let centre = mutants::torus_meridian_centre(spine, h).unwrap_or(centre);
+@@ -6430,7 +6430,7 @@ fn incidence<T: Decide>(
+                     // `b*` turns `a*` in the meridian's half-plane, the
+                     // centre's or, on a lemon, the opposite one.
+                     let (aw_side, side) = if matches!(surface, Surface::Spindle { .. }) {
+-                        let sign = T::one().copysign(major_radius);
++                        let sign = if std::env::var("R1_MUT").is_ok_and(|v| v == "bstar") { T::one() } else { T::one().copysign(major_radius) };
+                         (aw * sign, w_r * sign)
+                     } else {
+                         (aw, w_r)
+@@ -10507,7 +10507,7 @@ fn derive_class<T: Decide>(
+                     // The meridian's half-plane: its centre's, or on a
+                     // lemon the opposite one, where `R < 0` lies.
+                     let side = if sheet {
+-                        w_r * T::one().copysign(major_radius)
++                        w_r * if std::env::var("R1_MUT").is_ok_and(|v| v == "alpha") { T::one() } else { T::one().copysign(major_radius) }
+                     } else {
+                         w_r
+                     };
+@@ -11516,7 +11516,7 @@ mod incidence {
+         };
+         // A sheet's meridian circle leaves the sheet past its apexes, so
+         // a sheet reads only the edge's span.
+-        let turn = if place.edge_only || matches!(surface, Surface::Spindle { .. }) {
++        let turn = if place.edge_only || (matches!(surface, Surface::Spindle { .. }) && !std::env::var("R1_MUT").is_ok_and(|v| v == "turn")) {
+             place.span
+         } else {
+             (T::zero(), T::tau())
+diff --git a/crates/geom-brep/src/pcurve_cache/projected.rs b/crates/geom-brep/src/pcurve_cache/projected.rs
+index 3b2f8bc4..7a4fef18 100644
+--- a/crates/geom-brep/src/pcurve_cache/projected.rs
++++ b/crates/geom-brep/src/pcurve_cache/projected.rs
+@@ -1716,6 +1716,9 @@ impl<S: Real> Meters<S> {
+                 torus(positive((rho + major).powi(2) - minor.powi(2))?, minor)
+             }
+             Self::Spindle { major, minor } => {
++                if std::env::var("R1_MUT").is_ok_and(|v| v == "spindlepanic") {
++                    panic!("R1: Meters::Spindle::over reached");
++                }
+                 // `M² − r²` over the box: its least value where `ρ + R`
+                 // keeps one sign (every apple), its greatest everywhere,
+                 // weighted by the sheet's sign `σ = sgn R` (±1, exact).
+@@ -1732,7 +1735,7 @@ impl<S: Real> Meters<S> {
+                 let half = S::from_f64(0.5);
+                 let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
+                 let d = torus(positive(outer)?, minor);
+-                positive(minor * rho - d * major.abs())?;
++                if !std::env::var("R1_MUT").is_ok_and(|v| v == "lever2") { positive(minor * rho - d * major.abs())?; }
+                 d
+             }
+         })
+@@ -2785,3 +2788,112 @@ mod tests {
+ #[cfg(test)]
+ #[allow(clippy::expect_used, clippy::panic)]
+ mod turn_rows;
++
++/// Review probe (R1, PR 6486): `Meters::Spindle::over` fuzzed against
++/// the true distance from THIS sheet's meridian arc, at point boxes and
++/// at small boxes (`f` sampled on a grid), near the other sheet, the
++/// apexes and the axis.
++#[cfg(test)]
++mod r1_spindle_meters_probe {
++    use super::Meters;
++
++    fn f_of(big: f64, r: f64, rho: f64, z: f64) -> f64 {
++        ((rho - big).powi(2) + z * z - r * r) * ((rho + big).powi(2) + z * z - r * r)
++    }
++
++    /// The distance in the meridian half-plane from `(rho, z)` to the
++    /// sheet's arc `(R + r cos v, r sin v)`, `|v| ≤ v*`.
++    fn sheet_distance(big: f64, r: f64, rho: f64, z: f64) -> f64 {
++        let v_star = (-big / r).acos();
++        let theta = z.atan2(rho - big);
++        let m = ((rho - big).powi(2) + z * z).sqrt();
++        let apex = (r * r - big * big).sqrt();
++        let to_apex = (rho.powi(2) + (z - apex).powi(2))
++            .sqrt()
++            .min((rho.powi(2) + (z + apex).powi(2)).sqrt());
++        if theta.abs() <= v_star {
++            (m - r).abs().min(to_apex)
++        } else {
++            to_apex
++        }
++    }
++
++    struct Lcg(u64);
++    impl Lcg {
++        fn next(&mut self) -> f64 {
++            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
++            (self.0 >> 11) as f64 / (1u64 << 53) as f64
++        }
++    }
++
++    #[test]
++    fn r1_spindle_meters_never_under_reads_the_sheet_distance() {
++        let mut g = Lcg(6486);
++        let (mut certified, mut refused, mut worst) = (0usize, 0usize, f64::INFINITY);
++        let mut bad = Vec::new();
++        for i in 0..400_000 {
++            let r = 1.0;
++            let big = loop {
++                let b = -1.0 + 2.0 * g.next();
++                if b.abs() > 1e-3 && b.abs() < 0.999 {
++                    break b;
++                }
++            };
++            // Point boxes for most draws, small boxes for a quarter.
++            let boxed = i % 4 == 0;
++            let (w, h) = if boxed {
++                (0.05 * g.next(), 0.05 * g.next())
++            } else {
++                (0.0, 0.0)
++            };
++            let rho0 = 2.2 * g.next() * g.next();
++            let z0 = -1.6 + 3.2 * g.next();
++            let n = if boxed { 24 } else { 0 };
++            let mut f_sup = 0.0_f64;
++            let mut d_true = 0.0_f64;
++            for a in 0..=n {
++                for b in 0..=n {
++                    let (s, t) = if n == 0 {
++                        (0.0, 0.0)
++                    } else {
++                        (a as f64 / n as f64, b as f64 / n as f64)
++                    };
++                    let (rho, z) = (rho0 + s * w, z0 + t * h);
++                    f_sup = f_sup.max(f_of(big, r, rho, z).abs());
++                    d_true = d_true.max(sheet_distance(big, r, rho, z));
++                }
++            }
++            let f_sup = f_sup * (1.0 + 1e-9) + 1e-300;
++            let meters = Meters::Spindle {
++                major: big,
++                minor: r,
++            };
++            let got = meters.over(f_sup, (rho0, rho0 + w), (z0, z0 + h), |lever: f64| {
++                if lever > 0.0 { Ok(lever) } else { Err(()) }
++            });
++            match got {
++                Ok(d) => {
++                    certified += 1;
++                    // Box draws sample f on a grid: allow its slack.
++                    let slack = if boxed { 1e-3 * d_true + 1e-9 } else { 1e-12 + 1e-9 * d_true };
++                    if d + slack < d_true {
++                        bad.push((big, rho0, z0, w, h, d, d_true));
++                    }
++                    if d_true > 0.0 {
++                        worst = worst.min(d / d_true);
++                    }
++                }
++                Err(()) => refused += 1,
++            }
++        }
++        eprintln!(
++            "r1 spindle meters: certified {certified}, refused {refused}, least d/d_true {worst}, \
++             violations {}",
++            bad.len()
++        );
++        for b in bad.iter().take(10) {
++            eprintln!("  violation (R, rho, z, w, h, d, d_true) = {b:?}");
++        }
++        assert!(bad.is_empty(), "{} under-reads", bad.len());
++    }
++}
+diff --git a/crates/geom-brep/src/props/curved.rs b/crates/geom-brep/src/props/curved.rs
+index d690670e..5a43cab0 100644
+--- a/crates/geom-brep/src/props/curved.rs
++++ b/crates/geom-brep/src/props/curved.rs
+@@ -5385,7 +5385,7 @@ fn torus_chart_loop<T: Decide>(
+     // to `u·|w|/ρ`, which the core circle would carry `major` times over.
+     let about_core = |m: Vec3<T>, d: Vec3<T>, w: Vec3<T>| {
+         let radial = m - axis * m.dot(axis);
+-        let out = radial * (T::one().copysign(major) / radial.norm());
++        let out = radial * (if std::env::var("R1_MUT").is_ok_and(|v| v == "core") { T::one() } else { T::one().copysign(major) } / radial.norm());
+         let (xd, yd) = (d.dot(out), d.dot(axis));
+         let (xw, yw) = tube(w);
+         (xd * yw - yd * xw).atan2(xd * xw + yd * yw)
+@@ -5632,7 +5632,7 @@ fn torus_classify<'a, T: Decide>(
+                 require_zero(
+                     "props_meridian_fit",
+                     Margin::of(
+-                        (rho - major.abs())
++                        (rho - if std::env::var("R1_MUT").is_ok_and(|v| v == "fit") { major } else { major.abs() })
+                             .abs()
+                             .max(h.abs())
+                             .max((r_c - minor).abs()),
+@@ -5881,7 +5881,7 @@ fn torus_meridian_orient<T: Decide>(
+     let orient = classify(
+         "props_meridian_orient",
+         Margin::levered(
+-            n_c.dot(tau) * T::one().copysign(major),
++            n_c.dot(tau) * if std::env::var("R1_MUT").is_ok_and(|v| v == "orient") { T::one() } else { T::one().copysign(major) },
+             crate::ExtentBall::of_circle(c_c, minor).lever(),
+         ),
+         band,
+diff --git a/crates/sweep/src/revolve/axis.rs b/crates/sweep/src/revolve/axis.rs
+index 5503c161..e7161195 100644
+--- a/crates/sweep/src/revolve/axis.rs
++++ b/crates/sweep/src/revolve/axis.rs
+@@ -578,7 +578,7 @@ pub(super) fn classify_segment<T: Decide>(
+             Ok(WallClass::Wall {
+                 kind: WallKind::Spindle {
+                     center_sk: centre,
+-                    major: rc,
++                    major: if std::env::var("R1_MUT").is_ok_and(|v| v == "wrongsheet") { T::zero() - rc } else { rc },
+                     minor: radius,
+                 },
+                 sense,
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index 6d695d6a..eec9a5a9 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -803,6 +803,8 @@ mod revolve_ball;
+ mod revolve_cone;
+ #[path = "revolve_determinism.rs"]
+ mod revolve_determinism;
++#[path = "review_6486_r1.rs"]
++mod review_6486_r1;
+ #[path = "revolve_errors.rs"]
+ mod revolve_errors;
+ #[path = "revolve_interval.rs"]
+diff --git a/crates/topo/src/validate.rs b/crates/topo/src/validate.rs
+index 98e393a2..60a9c9ed 100644
+--- a/crates/topo/src/validate.rs
++++ b/crates/topo/src/validate.rs
+@@ -8294,7 +8294,7 @@ pub(crate) fn tier3_local_checks_marked<
+                     // which the band's gap is far wider than.
+                     Ok(None) if sheet_apex => {
+                         use geom_brep::chart_singularity::{Unread, holds};
+-                        let read = walked().map(|images| {
++                        let read = (if std::env::var("R1_MUT").is_ok_and(|v| v == "walk") { None } else { walked() }).map(|images| {
+                             let loops: Vec<&[_]> = images.iter().map(Vec::as_slice).collect();
+                             holds(surface, &loops, sense, point, band)
+                         });
