@@ -85,7 +85,7 @@ pub(in crate::boolean) fn brick_under(top: f64) -> (Body<f64>, FaceKey) {
         .faces()
         .map(|(k, _)| k)
         .find(|&f| {
-            super::face_plane(&b, f)
+            super::plane_desc(&b, f)
                 .is_some_and(|p| p.normal.z > 0.5 && (p.origin.z - top).abs() < 1e-12)
         })
         .expect("the brick has a top face");

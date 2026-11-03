@@ -74,7 +74,7 @@ crate-visible              12  boolean/section_cert.rs
 crate-visible              20  boolean/section_table.rs
 crate-visible              13  boolean/sectors.rs
 crate-visible              22  boolean/separating.rs
-crate-visible              53  boolean/solid_contain.rs
+crate-visible              52  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
 crate-visible               1  boolean/spline_known.rs
 crate-visible              11  boolean/spline_region.rs
@@ -155,10 +155,10 @@ names-boolean              13  separation.rs
 names-boolean               2  seqgen.rs
 names-boolean              46  shell.rs
 names-boolean               1  shell/tests/footprint_fuzz.rs
-names-boolean              82  side_reader.rs
+names-boolean              79  side_reader.rs
 names-boolean               1  source_walk.rs
 names-boolean               1  split.rs
-names-boolean              26  stands.rs
+names-boolean              22  stands.rs
 names-boolean               1  star.rs
 names-boolean               2  surgery.rs
 names-boolean               2  test_support_fixtures.rs

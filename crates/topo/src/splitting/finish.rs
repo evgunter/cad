@@ -779,6 +779,17 @@ pub enum SplitFinishError {
         /// The deciding reading's diagnostic.
         diag: geom_core::Indeterminate,
     },
+    /// A section-boundary edge's dihedral has no reading at a spline face
+    /// it bounds: the face has no image of the edge in its chart, or no
+    /// one normal at the edge's witness, as the boolean's seam describer
+    /// refuses it ([`crate::EdgeDescribeFailure::Unplaced`],
+    /// [`crate::EdgeDescribeFailure::Crease`]).
+    Undescribed {
+        /// The section-boundary edge.
+        edge: EdgeKey,
+        /// Why.
+        failure: crate::EdgeDescribeFailure,
+    },
     /// Whether a section corner at a pinch holds another side of its
     /// loop, read to fuse the pinch's cones on a side
     /// ([`super::section_cones`]), escalated. No input is known to reach
@@ -1085,6 +1096,13 @@ impl SplitFinishError {
                     diag.lever_ending(super::SPLIT_COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
+            Self::Undescribed { failure, .. } => write!(
+                f,
+                "an edge of the cut cannot be described against the two faces it lies \
+                 between: {}. {}",
+                failure.clause(),
+                crate::merge_faces::undescribed_ending(None, false)
+            ),
             Self::ConeCornerEscalated { source, .. } => source
                 .undecided(
                     "whether a corner of the cut, where pieces of the solid touch, overlaps \
@@ -1790,7 +1808,12 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// which every section-boundary edge lies in to within the band. Either
 /// description's residual read in band, an edge at the zero band's
 /// edge of the plane, refuses as the edge's own reading
-/// ([`SplitFinishError::EdgeOnFacesEscalated`]).
+/// ([`SplitFinishError::EdgeOnFacesEscalated`]). The dihedral at the
+/// witness is the boolean seam describer's reading
+/// ([`crate::pcurves::seam_reading`]), each face read by its kind, a
+/// spline face at the edge's image on its own chart: one with no image
+/// there or no one normal at the witness refuses
+/// ([`SplitFinishError::Undescribed`]).
 /// That covers the citation this split itself made stale: on a
 /// face-coplanar cut an operand edge lands on the section boundary
 /// with its transverse partner reassigned to the OTHER product, so the
@@ -1845,8 +1868,14 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
         let (carrier, interval) = draft.span();
         let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
         let witness = draft.witness;
-        match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
-            Ok(geom_brep::Dihedral::Corner(_)) => {
+        let undescribed = |failure| SplitFinishError::Undescribed { edge, failure };
+        let seam_face = |h, surface| {
+            crate::pcurves::seam_face(body, h, surface, existing.as_ref(), band)
+                .ok_or(undescribed(crate::EdgeDescribeFailure::Unplaced))
+        };
+        let faces = [seam_face(he, surf_self)?, seam_face(mate, surf_other)?];
+        match crate::pcurves::seam_reading(faces, witness, reach, band) {
+            Ok(geom_brep::DihedralClass::Transverse) => {
                 let carrier = draft.span().0.kind();
                 let drafted = crate::pcurves::seam_intersection(
                     body,
@@ -1867,9 +1896,30 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             // pairing tells them apart — tier 3's own reading
             // (D1). The wedge end is a knife edge no input
             // declared: this op's refusal.
-            Ok(geom_brep::Dihedral::Tangent(tangency)) => {
+            Ok(geom_brep::DihedralClass::Smooth) => {
                 if !matches!(surf_other, Surface::Plane { .. }) {
                     let sense_of = |f| proven(&body.faces, f, EntityId::Face).sense;
+                    // The pairing reads the faces' implicit normals off the
+                    // dihedral's own token: on two analytic faces the seam
+                    // reading above is this reading bit for bit, so it reads
+                    // the tangency again; a spline face's implicit form is
+                    // poison, and escalates.
+                    let tangency = match geom_brep::classify_dihedral(
+                        surf_self, surf_other, witness, reach, band,
+                    ) {
+                        Ok(geom_brep::Dihedral::Tangent(tangency)) => tangency,
+                        Ok(geom_brep::Dihedral::Corner(_)) => unreachable!(
+                            "{edge:?}: classify_seam reads two analytic faces as \
+                                 classify_dihedral does, and a spline face's implicit form \
+                                 escalates rather than read a corner"
+                        ),
+                        Err(e) => {
+                            return Err(SplitFinishError::DescribeSideEscalated {
+                                edge,
+                                diag: e.diag(),
+                            });
+                        }
+                    };
                     let pairing = tangency
                         .pairing([sense_of(face), sense_of(other_face)], band)
                         .map_err(|e| SplitFinishError::DescribeSideEscalated {
@@ -1959,11 +2009,14 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                     .map_err(|e| of_attachment(edge, carrier, e))?;
                 }
             }
-            Err(escalation) => {
+            Err(crate::pcurves::SeamUnread::Lever(escalation)) => {
                 return Err(SplitFinishError::DescribeEscalated {
                     edge,
                     diag: escalation.diag(),
                 });
+            }
+            Err(crate::pcurves::SeamUnread::Crease(_)) => {
+                return Err(undescribed(crate::EdgeDescribeFailure::Crease));
             }
         }
     }
