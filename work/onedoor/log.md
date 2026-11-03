@@ -99,3 +99,9 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The plan carries the unit order. The `boolean/` library moves are a successor program's, chartered by the guard's allowlist.
   - (ONEDOOR orchestrator)
 - 2026-11-03 — **Dispatched `engine-directories-are-leaves-guard`** on `onedoor/engine-leaves-guard`. Review tier: single style review. It moves no code, and the allowlist it commits is the move list. (ONEDOOR orchestrator)
+- 2026-11-03 — **Ev approved PR [#6427](https://github.com/evgunter/cad/pull/6427) ("looks good!"); merged as `c89d725d`.**
+  - Fork-log row 250 is filled in: Ev's decision matches both designers' agreed state after round 3. Mapping: Opus = A, Fable = B.
+  - **Moved to SELECT** by `git mv`: `description-staleness-ladder-three-spellings`, as `open`. The build lands after SELECT's selector and in-band units; the note is on SELECT's log.
+  - **Filed:** `coincidence-leaves-one-surface-record` (P1, H). The act deciding a coincidence leaves one surface record. It is independent of SELECT, and SELECT's form reading needs it first.
+  - **Own slip:** the merge of main into `onedoor/ev-one-surface-record` conflicted, and a chained `git add && git commit` committed and pushed the fork log with its markers. I fixed it forward with a union resolution (`cc08cf2a`) before merge, and main never saw the markers. The rule I was already under: check `--diff-filter=U` before committing a merge, never in the same chained command.
+  - (ONEDOOR orchestrator)
