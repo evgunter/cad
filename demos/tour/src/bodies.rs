@@ -106,46 +106,13 @@ pub fn vase<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     .body
 }
 
-/// The football with conical ends: a belly arc whose carrier centre sits
-/// across the axis from it, between two cones running to points on the
-/// axis, fully revolved about the y axis. The arc's circle reaches the
-/// axis, so its wall is one sheet of a spindle torus — the lemon.
-pub fn football<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
-    let lp = Open
-        .at(p2(0.0, -1.4))
-        .line_to(p2(0.3, -0.8), tol)
-        .expect("football lower cone")
-        .arc_to(
-            Via {
-                q: p2(0.6, 0.0),
-                p: p2(0.3, 0.8),
-            },
-            tol,
-        )
-        .expect("football belly arc")
-        .line_to(p2(0.0, 1.4), tol)
-        .expect("football upper cone")
-        .line_to(Start, tol)
-        .expect("football axis seam")
-        .into();
-    revolve(
-        &validated(SketchPlane::xy(), vec![lp], tol).expect("profile validation"),
-        axis_y(),
-        Revolution::Full,
-        tol,
-    )
-    .expect("revolve football")
-    .body
-}
-
 /// Rope-groove sheave (the donut's AND the pulley's successor): full
 /// revolve of a polyline + arc profile — stepped hub, recessed web,
 /// rim with TAPERED (conical) shoulders flanking a SEMICIRCULAR rope
 /// groove. The groove arc's carrier center sits OFF the revolve axis,
 /// so its wall is a ring-torus zone (an arc whose circle reaches the
-/// axis sweeps a spindle sheet instead — see the football); the
-/// shoulders are cone zones. One
-/// stop carries all four analytic surface kinds (plane, cylinder,
+/// axis sweeps a spindle sheet instead); the shoulders are cone zones.
+/// One stop carries all four analytic surface kinds (plane, cylinder,
 /// cone, torus), which is why the pulley (plane/cylinder/cone only)
 /// retired into it at the #91 revision pass. Center bore → genus 1.
 pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
@@ -463,22 +430,6 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             },
             [0.42, 0.72, 0.50],
             vase(tol),
-            None,
-        )),
-        off_sheet(stop(
-            "football",
-            "football with conical ends — a lemon-shaped spindle-torus belly between two \
-             cones",
-            "PATHS algebra (line_to/arc_to Via) -> revolve(axis y, Full); spindle sheet + cone \
-             faces",
-            2e-2,
-            View {
-                elev: 16.0,
-                azim: -55.0,
-                up: 'y',
-            },
-            [0.62, 0.38, 0.24],
-            football(tol),
             None,
         )),
         stop(

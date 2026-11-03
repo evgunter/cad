@@ -1719,7 +1719,7 @@ impl<S: Real> Meters<S> {
                 // `M² − r²` over the box: its least value where `ρ + R`
                 // keeps one sign (every apple), its greatest everywhere,
                 // weighted by the sheet's sign `σ = sgn R` (±1, exact).
-                let z2 = |at: f64| S::from_f64(at).powi(2);
+                let z2 = |at: f64| S::from_computed(at).powi(2);
                 let z_min = if z.0 <= 0.0 && 0.0 <= z.1 {
                     S::zero()
                 } else {
