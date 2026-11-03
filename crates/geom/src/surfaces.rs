@@ -245,6 +245,48 @@ pub enum Surface<T: Real> {
         u_ref: Vec3<T>,
     },
 
+    /// One **sheet** of a spindle or horn torus: the revolved circle
+    /// `S(u, v) = center + radial(u)·(R + r·cos v) + axis·(r·sin v)`
+    /// restricted to the points where `ρ = R + r·cos v ≥ 0`, with `R` =
+    /// `major_radius` **signed** and `r` = `minor_radius`.
+    ///
+    /// - `u` in radians, 2π-periodic (the azimuth; seam at `u_ref`), as
+    ///   on the [`Surface::Torus`]. `v` in radians, **closed** on
+    ///   `[−v*, v*]` with `cos v* = −R/r`: the sheet's two ends are its
+    ///   **apexes** `center ± axis·(r·sin v*)` on the axis, where
+    ///   `∂S/∂u = 0` and the surface itself is singular (a conical
+    ///   point of half-angle `atan(√(r² − R²)/|R|)`, like a cone's
+    ///   apex). The horn (`R = r`) closes at one cusp, `v* = π`.
+    /// - `R < 0` is the **lemon** (the minor arc of the meridian circle,
+    ///   between the apexes: a football's wall); `0 < R < r` the
+    ///   **apple** (the major arc); `R = r` the horn. `R = 0` is the
+    ///   sphere, its own kind, and `R > r` the ring, [`Surface::Torus`].
+    /// - Convention `r > 0`, `R ≠ 0`, `−r < R ≤ r`, decided at rest by
+    ///   [`Surface::representability_margins`] and tier 3.
+    /// - The formula, its jet and its implicit residual are the
+    ///   torus's: with `R` signed, the residual
+    ///   `((ρ − R)² + h² − r²)/2r` vanishes on exactly this sheet, so
+    ///   chart, residual and normal agree at every point of it.
+    /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the
+    ///   tube — since `∂u × ∂v = (that)·(r·ρ)` and `ρ ≥ 0` on the
+    ///   sheet.
+    Spindle {
+        /// The centre of the meridian circles' revolution (on the axis,
+        /// in the tube's midplane).
+        center: Point3<T>,
+        /// The unit axis of revolution.
+        axis: Vec3<T>,
+        /// The signed major radius R in meters: the signed distance of
+        /// the meridian circle's centre from the axis, in the sketch
+        /// half-plane at `u`; negative on the lemon.
+        major_radius: T,
+        /// The minor radius r in meters: the meridian circle's radius
+        /// (positive by convention, `r ≥ |R|`).
+        minor_radius: T,
+        /// The unit reference direction ⊥ `axis` where u = 0 lives.
+        u_ref: Vec3<T>,
+    },
+
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsSurface`] behind an [`Arc`] (immutable, cheap to clone —
@@ -299,6 +341,8 @@ pub enum SurfaceKind {
     Sphere,
     /// A [`Surface::Torus`].
     Torus,
+    /// A [`Surface::Spindle`].
+    Spindle,
     /// A [`Surface::Nurbs`], described or the placeholder.
     Nurbs,
     /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`]. A
@@ -320,6 +364,7 @@ impl<T: Real> Surface<T> {
             Self::Cone { .. } => SurfaceKind::Cone,
             Self::Sphere { .. } => SurfaceKind::Sphere,
             Self::Torus { .. } => SurfaceKind::Torus,
+            Self::Spindle { .. } => SurfaceKind::Spindle,
             Self::Nurbs(_) => SurfaceKind::Nurbs,
             Self::Approx(_) => SurfaceKind::Approx,
         }
@@ -349,6 +394,7 @@ impl SurfaceKind {
             Self::Cone => "cone",
             Self::Sphere => "sphere",
             Self::Torus => "torus",
+            Self::Spindle => "spindle",
             Self::Nurbs => "nurbs",
             Self::Approx => "approx",
         }
@@ -364,6 +410,7 @@ impl SurfaceKind {
             Self::Cone => "conical",
             Self::Sphere => "spherical",
             Self::Torus => "toroidal",
+            Self::Spindle => "spindle",
             Self::Nurbs => "spline",
             Self::Approx => "fitted",
         }
@@ -478,6 +525,114 @@ pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, ban
 pub const PLACEHOLDER_SURFACE: &str =
     "the surface has no description yet: it is only the placeholder a construction starts from";
 
+/// An end of [`Surface::Spindle`]'s datum range `−r < R ≤ r`, `R ≠ 0`
+/// ([`spindle_sheet`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpindleEnd {
+    /// `R + r > 0`: at `R = −r` the lemon closes to a point on its axis.
+    Far,
+    /// `R ≠ 0`: at `R = 0` the sheet is a sphere, its own kind.
+    Sphere,
+    /// `r − R ≥ 0`: the horn closes the range, and past it the circle
+    /// sweeps a ring torus, its own kind.
+    Horn,
+}
+
+impl SpindleEnd {
+    /// What the end decides, as a clause.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Far => "whether a spindle sheet's major radius lies above minus its minor radius",
+            Self::Sphere => "whether a spindle sheet's major radius is nonzero",
+            Self::Horn => "whether a spindle sheet's major radius is at most its minor radius",
+        }
+    }
+}
+
+/// A spindle sheet's datums outside its range ([`spindle_sheet`]): the
+/// end missed, and its margin's verdict — decided with a sign that
+/// refuses, or undecided.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpindleMiss {
+    /// The end of the range missed.
+    pub end: SpindleEnd,
+    /// The end's margin, decided or not.
+    pub verdict: Result<geom_core::Decided, geom_core::Indeterminate>,
+}
+
+/// **The spindle sheet's datum range, decided: its one home.** With
+/// `r > 0` asked first (the margin's own, as a torus's tube is), the
+/// two datums relate by `−r < R ≤ r` and `R ≠ 0`, each a length on the
+/// band: `R + r` decided positive (`spindle_far_end`), `R` decided
+/// nonzero (`spindle_not_sphere`), and `r − R` decided positive or zero
+/// (`spindle_horn_end`), its zero the horn.
+///
+/// # Errors
+///
+/// [`SpindleMiss`] naming the first end missed, in that order.
+pub fn spindle_sheet<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(), SpindleMiss> {
+    use geom_core::Sign::{Negative, Positive, Zero};
+    let read = |name, margin: T, end, passes: &[geom_core::Sign]| {
+        let verdict =
+            geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band);
+        match verdict {
+            Ok(d) if passes.contains(&d.sign) => Ok(()),
+            _ => Err(SpindleMiss { end, verdict }),
+        }
+    };
+    read(
+        "spindle_far_end",
+        major_radius + minor_radius,
+        SpindleEnd::Far,
+        &[Positive],
+    )?;
+    read(
+        "spindle_not_sphere",
+        major_radius,
+        SpindleEnd::Sphere,
+        &[Positive, Negative],
+    )?;
+    read(
+        "spindle_horn_end",
+        minor_radius - major_radius,
+        SpindleEnd::Horn,
+        &[Positive, Zero],
+    )
+}
+
+/// A spindle sheet's apexes, as [`sheet_apex`] places them: their
+/// height `√(r² − R²)` above and below the centre along the axis, and
+/// the tube angle `v*` they lie at (`cos v* = −R/r`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SheetApex<T> {
+    /// The apexes' distance from the centre along the axis.
+    pub height: T,
+    /// The tube angle `v* ∈ (0, π]` of the upper apex; the lower is at
+    /// `−v*`.
+    pub v: T,
+}
+
+/// **A spindle sheet's apex, its one home.** The height reads the
+/// radicand as `(r − R)(r + R)`, clamped at zero, so a horn
+/// [`spindle_sheet`] accepts a hair past `R = r` (inside the band's
+/// zero) closes at its one cusp, height zero and `v* = π`, rather than
+/// at a root of a negative number. Total on every datum `spindle_sheet`
+/// accepts; past it the clamp still answers a cusp, which the range
+/// check has refused.
+pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
+    let radicand = ((minor_radius - major_radius) * (minor_radius + major_radius)).max(T::zero());
+    let height = radicand.sqrt();
+    SheetApex {
+        height,
+        v: height.atan2(-major_radius),
+    }
+}
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -506,7 +661,8 @@ impl<T: Real> Surface<T> {
             | Surface::Cylinder { .. }
             | Surface::Cone { .. }
             | Surface::Sphere { .. }
-            | Surface::Torus { .. } => None,
+            | Surface::Torus { .. }
+            | Surface::Spindle { .. } => None,
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
         }
@@ -537,7 +693,10 @@ impl<T: Real> Surface<T> {
     /// - `Torus`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention `R > r > 0`). The other half, `R > r`, relates
     ///   two datums rather than bounding one, and is not a margin here;
-    /// - **the frame**, for `Cylinder`, `Sphere` and `Torus`, after the
+    /// - `Spindle`: `minor_radius`, lower end, likewise; the sheet's
+    ///   range `−r < R ≤ r`, `R ≠ 0` relates the two datums and is
+    ///   [`spindle_sheet`]'s;
+    /// - **the frame**, for `Cylinder`, `Sphere`, `Torus` and `Spindle`, after the
     ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
     ///   each within `band`'s coincidence threshold ε at the kind's
     ///   radius (`convention::frame_margins`, which says what each frame
@@ -622,6 +781,15 @@ impl<T: Real> Surface<T> {
             } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
                 .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
                 .collect(),
+            Surface::Spindle {
+                center: _,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, major_radius.abs() + *minor_radius))
+                .collect(),
             Surface::Plane {
                 origin: _,
                 normal: _,
@@ -648,7 +816,7 @@ pub enum SurfaceDatum {
     Normal,
     /// The seam direction `u_ref` of any analytic kind.
     URef,
-    /// The `axis` of a cylinder, cone, sphere or torus.
+    /// The `axis` of a cylinder, cone, sphere, torus or spindle.
     Axis,
     /// A cylinder's or sphere's `radius`.
     Radius,
@@ -656,11 +824,11 @@ pub enum SurfaceDatum {
     Apex,
     /// A cone's `half_angle`.
     HalfAngle,
-    /// A sphere's or torus's `center`.
+    /// A sphere's, torus's or spindle's `center`.
     Center,
-    /// A torus's `major_radius`.
+    /// A torus's or spindle's `major_radius` (signed on a spindle).
     MajorRadius,
-    /// A torus's `minor_radius`.
+    /// A torus's or spindle's `minor_radius`.
     MinorRadius,
 }
 
@@ -801,6 +969,19 @@ impl<T: Real> Surface<T> {
                 (D::MinorRadius, Scalar(minor_radius)),
                 (D::URef, Direction(u_ref)),
             ]),
+            Surface::Spindle {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
             Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
             Surface::Approx(ref a) => return SurfaceData::Approx(a),
         })
@@ -887,6 +1068,13 @@ impl<T: SpanLocate> Surface<T> {
                 center + (radial * c_v + axis * s_v) * radius
             }
             &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+            | &Surface::Spindle {
                 center,
                 axis,
                 major_radius,
@@ -1068,6 +1256,13 @@ impl<T: SpanLocate> Surface<T> {
                 }
             }
             &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+            | &Surface::Spindle {
                 center,
                 axis,
                 major_radius,
@@ -1294,7 +1489,47 @@ mod tests {
                     u_ref: t_uref(),
                 },
             ),
+            // A lemon (`v* = acos(0.15) ≈ 1.42`) and an apple narrow
+            // enough to read in the latitude window (`R < r·cos 1`,
+            // `v* = acos(−0.4) ≈ 1.98`). The proptests stretch their
+            // `|v| ≤ 1.4` onto `0.97·v*` on a sheet ([`sheet_v`]), so
+            // the apple's samples run past `π/2`, where it is no ring's
+            // outer half, to near its apexes.
+            (
+                "lemon",
+                Surface::Spindle {
+                    center: t_center(),
+                    axis: t_axis(),
+                    major_radius: -0.3,
+                    minor_radius: 2.0,
+                    u_ref: t_uref(),
+                },
+            ),
+            (
+                "apple",
+                Surface::Spindle {
+                    center: t_center(),
+                    axis: t_axis(),
+                    major_radius: 0.8,
+                    minor_radius: 2.0,
+                    u_ref: t_uref(),
+                },
+            ),
         ]
+    }
+
+    /// A proptest's `v`, drawn from `|v| ≤ 1.4`, stretched on a spindle
+    /// sheet onto `|v| ≤ 0.97·v*` so the samples reach near its apexes;
+    /// unchanged on every other kind.
+    fn sheet_v(s: &Surface<f64>, v: f64) -> f64 {
+        match *s {
+            Surface::Spindle {
+                major_radius,
+                minor_radius,
+                ..
+            } => v * 0.97 * sheet_apex(major_radius, minor_radius).v / 1.4,
+            _ => v,
+        }
     }
 
     fn close3(a: Vec3<f64>, b: Vec3<f64>, tol: f64) -> bool {
@@ -1435,6 +1670,7 @@ mod tests {
             let center = t_center();
             let axis = t_axis();
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let p = s.eval(u, v);
                 let d = p - center;
                 let along = d.dot(axis);
@@ -1447,7 +1683,8 @@ mod tests {
                         // slant |v|: axis component v·cosα, radial |v|·sinα
                         rho - d.norm() * half_angle.sin(),
                     Surface::Sphere { radius, .. } => d.norm() - radius,
-                    Surface::Torus { major_radius, minor_radius, .. } => {
+                    Surface::Torus { major_radius, minor_radius, .. }
+                    | Surface::Spindle { major_radius, minor_radius, .. } => {
                         let dr = rho - major_radius;
                         (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
                     }
@@ -1471,6 +1708,7 @@ mod tests {
         ) {
             let v = if flip { -v } else { v };
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let n = s.normal(u, v);
                 prop_assert!((n.norm() - 1.0).abs() <= 1e-12, "{name}: |n|");
                 prop_assert!(n.dot(s.deriv_u(u, v)).abs() <= 1e-11, "{name}: n·∂u");
@@ -1486,6 +1724,7 @@ mod tests {
         #[test]
         fn first_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let sd = s.map_scalar(Dual::constant);
                 let pf = s.eval(u, v);
 
@@ -1512,6 +1751,7 @@ mod tests {
         #[test]
         fn second_derivatives_match_duals(u in -10.0..10.0f64, v in -1.4..1.4f64) {
             for (name, s) in all_surfaces() {
+                let v = sheet_v(&s, v);
                 let sd = s.map_scalar(Dual::constant);
 
                 let duu = sd.deriv_u(Dual::variable(u), Dual::constant(v));
@@ -2072,6 +2312,63 @@ mod tests {
             // promise is the whole point.
             let q = n.eval(Interval::zero(), Interval::zero());
             assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
+        }
+    }
+
+    /// **The sheet's range at both ends and at the sphere between**:
+    /// a lemon, an apple and a horn pass; `R = −r`, `R = 0` and a ring
+    /// past `r` each refuse naming their end, decided; a margin inside
+    /// the band refuses undecided.
+    #[test]
+    fn a_spindle_sheet_is_decided_inside_its_range() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for (major, minor) in [(-0.4, 1.0), (0.4, 1.0), (1.0, 1.0)] {
+            assert_eq!(
+                spindle_sheet(major, minor, band),
+                Ok(()),
+                "R = {major}, r = {minor} is a sheet"
+            );
+        }
+        for (major, minor, end) in [
+            (-1.0, 1.0, SpindleEnd::Far),
+            (-1.5, 1.0, SpindleEnd::Far),
+            (0.0, 1.0, SpindleEnd::Sphere),
+            (1.5, 1.0, SpindleEnd::Horn),
+        ] {
+            let miss = spindle_sheet(major, minor, band).unwrap_err();
+            assert_eq!(miss.end, end, "R = {major}, r = {minor}");
+            assert!(miss.verdict.is_ok(), "R = {major}: decided, not in band");
+        }
+        let in_band = spindle_sheet(1.0 + 5e-9, 1.0, band).unwrap_err();
+        assert_eq!(in_band.end, SpindleEnd::Horn);
+        assert!(in_band.verdict.is_err(), "a horn in band is undecided");
+    }
+
+    /// **The apex's one home is total on the accepted range**: a lemon
+    /// and an apple read `cos v* = −R/r` and height `r·sin v*`; a horn,
+    /// and one a hair past `R = r` that `spindle_sheet` accepts in band,
+    /// both close at the centre with `v* = π`, finite.
+    #[test]
+    fn a_sheet_apex_is_finite_on_every_accepted_sheet() {
+        for (major, minor) in [(-0.3, 0.5), (0.4, 1.0)] {
+            let apex = sheet_apex(major, minor);
+            assert!((apex.v.cos() + major / minor).abs() <= 1e-15, "R = {major}");
+            assert!(
+                (apex.height - minor * apex.v.sin()).abs() <= 1e-15,
+                "R = {major}"
+            );
+        }
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for major in [1.0, 1.0 + 0.25 * band.zero()] {
+            assert_eq!(spindle_sheet(major, 1.0, band), Ok(()));
+            assert_eq!(
+                sheet_apex(major, 1.0),
+                SheetApex {
+                    height: 0.0,
+                    v: core::f64::consts::PI
+                },
+                "R = {major}"
+            );
         }
     }
 

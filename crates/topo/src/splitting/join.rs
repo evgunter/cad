@@ -508,11 +508,15 @@ fn line_pairs<T: Decide>(
         Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
     }
     let along: Vec<&Crossing<T>> = crossings.iter().collect();
-    Ok(pair_along_line(face, &along, red.plane.origin, d.normalize(), band)?.0)
+    let line = geom::Line {
+        origin: red.plane.origin,
+        dir: d.normalize(),
+    };
+    Ok(pair_along_line(face, &along, line, band)?.0)
 }
 
-/// Crossings on one line through `origin` along unit `d`, paired along
-/// it: keyed by `(p − origin)·d`, ordered by
+/// Crossings on one line (its `dir` unit), paired along it: keyed by
+/// their parameters on it, ordered by
 /// [`super::order::sort_along_line`], each taking the first unpaired
 /// one before it of opposite sense. Returns the pairs and the number
 /// of crossings left unpaired.
@@ -524,14 +528,10 @@ fn line_pairs<T: Decide>(
 fn pair_along_line<T: Decide>(
     face: FaceKey,
     crossings: &[&Crossing<T>],
-    origin: Point3<T>,
-    d: geom_core::Vec3<T>,
+    line: geom::Line<T>,
     band: Band,
 ) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
-    let keys: Vec<T> = crossings
-        .iter()
-        .map(|c| (c.point - origin).dot(d))
-        .collect();
+    let keys: Vec<T> = crossings.iter().map(|c| line.param(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
@@ -592,9 +592,12 @@ fn ruling_pairs<T: Decide>(
                 what: "a ruling section carried a non-line",
             });
         };
-        lines.push((origin, dir.normalize()));
+        lines.push(geom::Line {
+            origin,
+            dir: dir.normalize(),
+        });
     }
-    let off = |p: Point3<T>, (o, d): (Point3<T>, geom_core::Vec3<T>)| (p - o).cross(d).norm();
+    let off = |p: Point3<T>, line: geom::Line<T>| (p - line.origin).cross(line.dir).norm();
     let mut on: [Vec<&Crossing<T>>; 2] = [Vec::new(), Vec::new()];
     for c in crossings {
         let reading = match c.germ {
@@ -604,7 +607,7 @@ fn ruling_pairs<T: Decide>(
             Some(germ) => decide_nonzero(
                 "split_join_ruling_germ",
                 Margin::levered(
-                    germ.cross(lines[1].1).norm() - germ.cross(lines[0].1).norm(),
+                    germ.cross(lines[1].dir).norm() - germ.cross(lines[0].dir).norm(),
                     crossing_reach(crossings, c.point),
                 ),
                 band,
@@ -621,8 +624,8 @@ fn ruling_pairs<T: Decide>(
         }
     }
     let mut pairs = Vec::new();
-    for (side, &(origin, d)) in on.iter().zip(&lines) {
-        let (along, loose) = pair_along_line(face, side, origin, d, band)?;
+    for (side, &line) in on.iter().zip(&lines) {
+        let (along, loose) = pair_along_line(face, side, line, band)?;
         if loose > 0 {
             return Err(SplitJoinError::SectionCrossings {
                 face,

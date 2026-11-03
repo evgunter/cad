@@ -962,6 +962,14 @@ impl<'a> Writer<'a> {
                     kind: surface_kind(surface),
                 });
             }
+            // AP214's twin is `DEGENERATE_TOROIDAL_SURFACE`, whose
+            // printer is not written yet.
+            Surface::Spindle { .. } => {
+                return Err(StepExportError::UnsupportedSurface {
+                    face: face_key,
+                    kind: surface_kind(surface),
+                });
+            }
         };
         let mut bounds = Vec::with_capacity(1 + rings.len());
         bounds.push(self.face_bound(outer, true)?);

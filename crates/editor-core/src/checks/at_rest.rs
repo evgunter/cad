@@ -1395,6 +1395,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::ApproxLaneUnsupported { .. }
         | E::DegenerateTorus { .. }
         | E::DegenerateTorusEscalated { .. }
+        | E::DegenerateSpindle { .. }
+        | E::SheetApexReached { .. }
         | E::PoisonedSurfaceDatum { .. }
         | E::UnrepresentableSurfaceDatum { .. }
         | E::PoisonedCurveDatum { .. }

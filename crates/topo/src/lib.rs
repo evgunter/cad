@@ -722,11 +722,11 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let line = geom::Line { origin, dir };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
-            let t = (p - origin).dot(dir);
-            let off = (p - origin - dir * t).norm();
-            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+            let off = (p - line.foot(p)).norm();
+            (off < 1e-9).then_some((line.param(p) * 1e6).round() / 1e6)
         };
         let mut spans: Vec<(f64, f64)> = body
             .edges()

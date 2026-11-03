@@ -4987,7 +4987,10 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         } => line_cone_roots(origin, dir, (apex, axis, half_angle), (t0, t1), band)?,
         // No root lane: the caller reads the span against the face as it
         // reads a door's refusal.
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Plane { .. }
+        | geom::Surface::Spindle { .. }
+        | geom::Surface::Nurbs(_)
+        | geom::Surface::Approx(_) => {
             return Ok(None);
         }
     })))
@@ -5075,7 +5078,8 @@ fn line_cone_roots<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
-    let foot = ((T::zero() - w0.dot(dir)) / dd)
+    let foot = geom::Line { origin, dir }
+        .param(apex)
         .max(t0.min(t1))
         .min(t0.max(t1));
     let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(

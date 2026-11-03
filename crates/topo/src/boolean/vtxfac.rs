@@ -1925,8 +1925,10 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                     super::contain::CurvedPlacement::OffCarrier
                     | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
-                // A spline face's trim never places a point In; were one
-                // to, the face has no residual and no normal to build on.
+                // A spline face read In has no residual to put the point on
+                // its carrier, and no arm reads its normal: no operand
+                // reaches it
+                // (`work/splice/a-spline-wall-holding-a-pierce-point-has-no-operand-that-reaches-it.md`).
                 let Some(side) = side else {
                     return Err(unbuilt(face, kind, true));
                 };

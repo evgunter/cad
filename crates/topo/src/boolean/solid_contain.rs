@@ -1012,10 +1012,12 @@ fn face_geo_arms<T: Decide>(
         }
         // Refused in `face_geo` through `uncrossable`: only this
         // dispatch read alone reaches here, and it refuses the same way.
-        s @ (Surface::Nurbs(_) | Surface::Approx(_)) => Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: s.kind(),
-        }),
+        s @ (Surface::Spindle { .. } | Surface::Nurbs(_) | Surface::Approx(_)) => {
+            Err(PointInSolidError::KindUnsupported {
+                face,
+                kind: s.kind(),
+            })
+        }
     }
 }
 
@@ -1078,7 +1080,7 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
         | SurfaceKind::Cone
         | SurfaceKind::Sphere
         | SurfaceKind::Torus => true,
-        SurfaceKind::Nurbs | SurfaceKind::Approx => false,
+        SurfaceKind::Spindle | SurfaceKind::Nurbs | SurfaceKind::Approx => false,
     }
 }
 
@@ -6047,6 +6049,13 @@ mod kind_arm_tests {
                         axis: z,
                         major_radius: 0.4,
                         minor_radius: 0.1,
+                        u_ref: x,
+                    },
+                    SurfaceKind::Spindle => Surface::Spindle {
+                        center: o,
+                        axis: z,
+                        major_radius: -0.3,
+                        minor_radius: 0.5,
                         u_ref: x,
                     },
                     SurfaceKind::Nurbs => Surface::nurbs_placeholder(),

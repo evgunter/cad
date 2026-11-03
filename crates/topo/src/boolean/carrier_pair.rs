@@ -234,7 +234,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
             half_angle: *half_angle,
             outward,
         }),
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
@@ -684,7 +684,7 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
             half_angle: *half_angle,
             outward: true,
         }),
-        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
+        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
     }
 }
 
