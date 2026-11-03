@@ -228,6 +228,21 @@ impl core::fmt::Display for SplineError {
     }
 }
 
+impl SplineError {
+    /// What was refused, without its recourse: every arm's text is its
+    /// payload, then `. Recourse: ` and the recourse
+    /// (`every_spline_error_arm_names_a_recourse`), for a holder whose
+    /// door ends it by a decision of its own.
+    #[must_use]
+    pub fn payload(&self) -> String {
+        let text = self.to_string();
+        match text.find(". Recourse: ") {
+            Some(at) => text[..at].to_owned(),
+            None => text,
+        }
+    }
+}
+
 impl core::error::Error for SplineError {}
 
 /// **The weight regime**: a rational net's weight is strictly positive
@@ -2438,6 +2453,12 @@ mod tests {
                 | SplineError::CarrierWeightNotAPoint { .. }
                 | SplineError::WeightSignUndecided { .. } => {}
             }
+            // Its payload is its text up to its recourse, and carries none.
+            let (text, payload) = (e.to_string(), e.payload());
+            assert!(
+                !payload.contains("Recourse") && text.starts_with(&payload),
+                "{payload} | {text}"
+            );
         }
         assert_eq!(arms.len(), 12, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this

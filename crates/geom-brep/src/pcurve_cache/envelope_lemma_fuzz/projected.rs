@@ -2215,7 +2215,7 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
                     lane_gaps += 1;
                 }
                 for reading in [Reading::Build, Reading::AtRest] {
-                    let ending = e.ending(reading).unwrap_or_default();
+                    let ending = e.ending(reading);
                     if !ending.starts_with(geom_core::NOT_YET_ENDING)
                         || ending.contains("defect")
                         || ending.contains("tolerance")

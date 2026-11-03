@@ -4,6 +4,8 @@ kind: issue
 title: A circle's general (projected) lane is written only on the sphere: on a cone, torus or cylinder a circle no closed form images refuses not yet, because the projected envelope has no certified circle-to-chart incidence sup there
 status: open
 opened: 2026-10-20
+priority: P1
+cost: H
 ---
 
 

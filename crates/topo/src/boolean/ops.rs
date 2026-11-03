@@ -1746,6 +1746,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         | C::NoGeneralLane { .. }
         | C::SectorRefused { .. }
         | C::FittedLaneUnsupported { .. }
+        | C::FittedGradeAtClosedFormDoor { .. }
         | C::CarrierDomain(_)
         | C::PlacementTurnsExceeded
         | C::CarrierEnclosure(_)
@@ -10061,7 +10062,7 @@ mod tests {
                     geom_core::test_support::fixture_lever(1.0),
                     band()
                 ),
-                geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
+                geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations::Class {
                     transverse: 3,
                     smooth: 4
                 }),
@@ -10075,10 +10076,12 @@ mod tests {
             assert!(
                 matches!(
                     got,
-                    Err(super::SeamRefusal::Mixed(Some(geom_brep::MixedStations {
-                        transverse: 3,
-                        smooth: 4
-                    })))
+                    Err(super::SeamRefusal::Mixed(Some(
+                        geom_brep::MixedStations::Class {
+                            transverse: 3,
+                            smooth: 4
+                        }
+                    )))
                 ),
                 "order {order}: a seam that is a corner somewhere refuses as mixed, got {got:?}"
             );
@@ -10115,8 +10118,8 @@ mod tests {
             .map(|i| {
                 let p = arc.eval(geom_brep::sample_param(span.0, span.1, i));
                 match geom_brep::classify_dihedral(&torus, &bitangent, p, extent, band()) {
-                    Ok(geom_brep::DihedralClass::Transverse) => 'T',
-                    Ok(geom_brep::DihedralClass::Smooth) => 'S',
+                    Ok(geom_brep::Dihedral::Corner(_)) => 'T',
+                    Ok(geom_brep::Dihedral::Tangent(_)) => 'S',
                     Err(_) => 'E',
                 }
             })

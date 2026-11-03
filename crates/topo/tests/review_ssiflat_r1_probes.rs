@@ -47,6 +47,7 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
         limb: None,
         what: "probe",
         magnitude: None,
+        ending: geom_brep::pcurve_cache::FittedEnding::NotYet,
     }
     .render(geom_brep::recourse::Reading::Build);
 

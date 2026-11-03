@@ -7,7 +7,6 @@ opened: 2026-08-31
 refs: [1378, 1382, 1390, G9]
 priority: P1
 cost: H
-design: true
 ---
 
 ## From GitHub issue 1391
@@ -89,3 +88,39 @@ Until then `merge_coplanar_faces`' debug postcondition
 `describe_edges` described) is the tripwire for that one-face hole: it
 panics in a debug build, by intent, rather than return a body tier 3
 refuses.
+
+## Weighed (ONEDOOR, 2026-11-03)
+
+Two designers converged after two reconciliation rounds; the recommendation is `[ev]` PR 6427. Ratified `[edges]` (PR 5216) leaves no stored kind choice at a two-surface edge, so this ladder needs no home. The question it answers goes away instead:
+- the form is read off the sides by key;
+- one restatement over the target form;
+- one door re-describes an existing edge through the gate;
+- the act that decides a coincidence leaves one surface record.
+
+Once ratified, the row re-homes to SELECT, after SELECT's selector and in-band units. The one-record-per-coincidence part is its own unit, ahead of SELECT.
+
+**Evidence for SELECT's in-band unit, found by the designers:**
+- `describe_edges` (`boolean/ops.rs`, the `stale` match) keeps a witness `Intersection` on an edge it now reads smooth and under-determined, and tier 3 refuses it `NotTransverse`. Example: two trimmed planes at an angle below ε/reach.
+- The split's `describe_section_boundary` reads a spline neighbour with `classify_dihedral` (always in band), where the boolean reads `classify_seam`.
+
+**Correction to this row's table:** the "unconditional writes" in `crates/sweep` (revolve upgrade, extrude strut and cap rim, blend contact) are scaffold conversions. They are further spellings of the same ladder.
+
+## Moved to SELECT (ONEDOOR, 2026-11-03)
+
+Ev ratified the final state on PR 6427 (`[one-way.places]` and `[coincidence.door]` in `docs/DESIGN.md`, and `crates/geom-brep/README.md`'s edge-description paragraph):
+- an edge's form is read off its sides by key (wrap, chart or pair);
+- one restatement over the target form carries only the old description's data;
+- one door re-describes an existing edge through the write gate;
+- no door states a description for an existing edge; only a mint does.
+
+The build is SELECT's. It lands after SELECT's selector and in-band units (the `onpair-has-no-incidence-lane-on-a-spline-adjacent-pair` units, and the in-band refusal), because the door's core matches the three ratified forms, not today's five arms.
+
+When it lands, these retire:
+- `describe_section_boundary`'s and `describe_edges`' smooth arms;
+- `rest_parted_wrap_edges`;
+- `reask_pair`/`reask_chart` and the per-variant re-ask matches;
+- the sweeps' scaffold upgrade ladders.
+
+It also closes `a-smooth-chart-describe-edges-keeps-reads-under-determined-only-at-its-extent` and `the-onpair-re-ask-doors-have-no-under-determined-fixture`.
+
+Prerequisite outside SELECT: the act deciding a coincidence leaves one surface record (`onedoor/coincidence-leaves-one-surface-record`, ONEDOOR). The form reading off keys is exact only once that holds.

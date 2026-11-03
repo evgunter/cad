@@ -248,7 +248,7 @@
 
 mod window;
 
-use geom::{Curve3, CurveKind};
+use geom::{Azimuth, Curve3, CurveKind};
 use geom_core::k_stats::{decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
@@ -449,21 +449,6 @@ fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
 /// `v` scaled to unit length.
 fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
     v * (T::one() / v.norm())
-}
-
-/// **The angle of `(x, y)`, read clear of its branch cut**: `atan2(y, x)`
-/// where `x` does not read negative, and otherwise the same angle a
-/// turn on, `atan2(−y, −x) + π`, whose cut lies half a turn from it. An
-/// enclosure of a direction near the negative `x` axis then stays as
-/// narrow as the direction, where the principal value would wrap the
-/// whole turn. Every reader takes the angle modulo a turn, so either
-/// branch serves.
-fn angle<T: Decide>(y: T, x: T) -> T {
-    if super::compare(row::BRANCH, x, T::zero()) == Some(Sign::Negative) {
-        (T::zero() - y).atan2(T::zero() - x) + T::pi()
-    } else {
-        y.atan2(x)
-    }
 }
 
 /// **How far round the turn `theta` lies from `at`**, in `[0, π]`, read
@@ -963,7 +948,12 @@ fn line_conic<T: Decide>(
             pose: "a conic the band reads as thin as the line it lies beside",
         });
     }
-    let range = Range::first_harmonic(c0, swing, angle(sp, cp), noise);
+    let range = Range::first_harmonic(
+        c0,
+        swing,
+        Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
+        noise,
+    );
     let place = |theta: T| {
         let point = k.point_at(theta);
         Candidate {
@@ -1140,7 +1130,12 @@ fn transverse<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    let range = Range::first_harmonic(c0, swing, angle(sp, cp), noise);
+    let range = Range::first_harmonic(
+        c0,
+        swing,
+        Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
+        noise,
+    );
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -1241,7 +1236,8 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = angle(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref));
+    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref))
+        .principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
         hi,

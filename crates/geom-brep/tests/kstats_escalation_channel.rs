@@ -23,8 +23,7 @@
 
 use geom::Surface;
 use geom_brep::{
-    OutwardNormal, ReferenceNormal, classify_dihedral, classify_material_pairing, enters_material,
-    enters_material_order2,
+    OutwardNormal, ReferenceNormal, classify_dihedral, enters_material, enters_material_order2,
 };
 use geom_core::k_stats::{Bracket, Recorded};
 use geom_core::test_support::fixture_lever;
@@ -166,34 +165,38 @@ fn the_dihedral_arm_gate_records_its_escalation() {
     );
 }
 
-/// The material-pairing discriminant, definitely zero: perpendicular
-/// outward normals name no side, so the gate that admits only a nonzero
-/// sign escalates — and records it.
+/// The corner's sign, definitely zero: a direction across the edge of
+/// two perpendicular planes meters no signed wedge, so the gate that
+/// admits only a nonzero sign escalates — and records it.
 #[test]
-fn the_material_pairing_gate_records_its_escalation() {
+fn the_dihedral_sign_gate_records_its_escalation() {
     let band = Band::linear(Tol::witness()).unwrap();
     let s_plus = plane(Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
     let s_minus = plane(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-    let bracket = Bracket::open();
-    let out = classify_material_pairing(
+    let geom_brep::Dihedral::Corner(corner) = classify_dihedral(
         &s_plus,
-        true,
         &s_minus,
-        true,
         Point3::origin(),
         fixture_lever(1.0f64),
         band,
-    );
+    )
+    .expect("perpendicular planes decide") else {
+        panic!("perpendicular planes read a corner");
+    };
+    let across = geom::Curve3::line(Point3::origin(), Vec3::new(0.0, 1.0, 0.0));
+    let station = geom_brep::Station::on(&across, 0.0);
+    let bracket = Bracket::open();
+    let out = corner.convexity(&station, [true, true], band);
     let recorded = bracket.finish();
     assert_eq!(
-        out.expect_err("a zero discriminant escalates").predicate,
-        Some("material_wedge_side")
+        out.expect_err("a zero sign escalates").diag().predicate,
+        Some("dihedral_sign")
     );
-    assert_eq!(verdicts(&recorded), [("material_wedge_side", Sign::Zero)]);
+    assert_eq!(verdicts(&recorded), [("dihedral_sign", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
         (
-            "material_wedge_side",
+            "dihedral_sign",
             ErrorTextReading::Value(0.0),
             Some(Sign::Zero)
         )
