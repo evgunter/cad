@@ -52,3 +52,14 @@ Decide whether the sphere door steps over null scaffolding too:
 
 - Re-banded P2 → P1: one region gather, two rules for null scaffolding: a special case that should be handled uniformly, P1 by `work/README.md` Priority.
 - Moved to CHARTTAIL (`work/charttail/`) by `git mv`, id and body unchanged: which holds CHART's rows since CHART folded in today: chart readings and the region doors. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The spline reader steps over it too (SPLICE, 2026-11-03)
+
+`splice/held-pierce` moved `Scaffolding` and the placeholder predicate
+to one home, `topo::null` (`Scaffolding`, `is_placeholder`). Both
+`region::boundary` and the loop lift (`pcurves::loop_lift`, now with a
+`Scaffolding` policy) read them. The spline face's trim
+(`boolean::spline_region::Trim::of`) lifts its loops with
+`Scaffolding::Skipped`. The sphere region is now the only boundary
+reader that refuses a placeholder: `sphere_face_region` passes
+`Scaffolding::Refused`, pinned by its `a_zones_null_edge_leaves_no_region`.
