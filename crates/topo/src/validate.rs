@@ -18639,3 +18639,51 @@ mod door_roster {
         assert!(read(-0.3).is_empty(), "a lemon is inside the range");
     }
 }
+
+#[cfg(test)]
+mod spiricarm_rev6473_r1_probes {
+    /// PROBE (review of PR 6473): a brick face re-stored on a lemon whose
+    /// upper apex sits exactly at one of the face's vertices. The spec
+    /// says tier 3 refuses it `SheetApexReached`.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn probe_a_sheet_apex_at_a_vertex_is_reached() {
+        let tol = geom_core::Tol::witness();
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let face = body.faces().next().unwrap().0;
+        let f = body.get_face(face).unwrap();
+        let key = f.surface;
+        let crate::entity::LoopBoundary::Cycle { first } =
+            body.loops.get(f.outer).unwrap().boundary
+        else {
+            panic!("empty loop")
+        };
+        let he = body.half_edges.get(first).unwrap();
+        let vertex = *body
+            .points
+            .get(body.vertices.get(he.start).unwrap().point)
+            .unwrap();
+        // R = -0.3, r = 0.5: apex at center + axis * sqrt(r^2 - R^2) = +0.4 z.
+        *body.surfaces.get_mut(key).unwrap() = geom::Surface::Spindle {
+            center: geom_core::Point3::new(vertex.x, vertex.y, vertex.z - 0.4),
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            major_radius: -0.3,
+            minor_radius: 0.5,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        };
+        let errors = crate::AtRestBody::validate(body, tol)
+            .err()
+            .unwrap_or_default();
+        for e in &errors {
+            eprintln!("PROBE error: {e:?}");
+        }
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, crate::ValidationError::SheetApexReached { .. })),
+            "a face whose vertex is its sheet's apex reports SheetApexReached; got {} errors",
+            errors.len()
+        );
+    }
+}
