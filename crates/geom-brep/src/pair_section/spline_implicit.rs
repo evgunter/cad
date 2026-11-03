@@ -525,25 +525,17 @@ impl Bracketed<'_> {
     /// The certified sign of `φ` over `s`, an enclosure of a point:
     /// `Some(true)` on the positive side.
     fn sign(self, s: Box3) -> Option<bool> {
-        let h = match self {
+        crate::ssi::section::sign(match self {
             Self::Plane(heights) => heights.over(s),
             Self::Curved(_, curved) => curved.value(curved.framed(s)),
-        };
-        if !h.is_certified() {
-            None
-        } else if h.lo() > 0.0 {
-            Some(true)
-        } else if h.hi() < 0.0 {
-            Some(false)
-        } else {
-            None
-        }
+        })
     }
 
     /// At the wall's point `p`: `φ`'s value in metres there, the
     /// gradient whose chart image the bracket steps along, and the
     /// least step's floor, in metres, below which `φ` reads as no
-    /// distance.
+    /// distance: the rounding of the coordinates `φ` is read in, about
+    /// the plane's origin or the partner's centre or axis.
     fn at(self, p: Point3<f64>) -> (f64, Vec3<f64>, f64) {
         match self {
             Self::Plane(heights) => {
@@ -554,11 +546,14 @@ impl Bracketed<'_> {
                     f64::EPSILON * (p - heights.origin).norm() * m.norm(),
                 )
             }
-            Self::Curved(surface, _) => (
-                crate::implicit_residual(surface, p).abs(),
-                crate::implicit_gradient(surface, p),
-                f64::EPSILON * (p - Point3::new(0.0, 0.0, 0.0)).norm(),
-            ),
+            Self::Curved(surface, curved) => {
+                let q = curved.framed_point(p);
+                (
+                    crate::implicit_residual(surface, p).abs(),
+                    crate::implicit_gradient(surface, p),
+                    f64::EPSILON * geom_core::interval::norm_sup(&[q.x, q.y, q.z]),
+                )
+            }
         }
     }
 }

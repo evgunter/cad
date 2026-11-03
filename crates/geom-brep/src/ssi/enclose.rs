@@ -659,9 +659,9 @@ impl ChartPhi<'_> {
         w: Option<UvWindow>,
         along_u: bool,
     ) -> Interval {
-        let d = w.map_or_else(refused_box, |w| boxes.deriv_box(w, along_u));
-        let n = self.gradient(boxes, w);
-        n[0] * d.x + n[1] * d.y + n[2] * d.z
+        w.map_or_else(Interval::refused, |w| {
+            super::boundary::plane_partial(self.gradient(boxes, Some(w)), boxes, w, along_u)
+        })
     }
 }
 

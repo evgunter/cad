@@ -2375,8 +2375,9 @@ fn fit_branch(points: &[Point3<f64>], charts: ChartSamples<'_>) -> Result<Fitted
     // through `approximate_with_params` (which exists, and takes the
     // same shared parameters) is a profiled optimization for a later
     // PR, not a semantic change.
-    // One collocation system for the three fits: they share the
-    // parameters, so they share the matrix, factored once.
+    // One collocation system for every fit, the carrier's and each
+    // pcurve's: they share the parameters, so they share the matrix,
+    // factored once.
     let collocation = Collocation::new(&params, SSI_FIT_DEGREE)?;
     let carrier = NurbsCurve3::<f64>::interpolate_on(points, &collocation)?;
     // Pcurves interpolate the traced parameter samples ON THE CARRIER'S

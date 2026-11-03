@@ -294,9 +294,10 @@ pub(crate) trait Partner {
 
 /// The plane distance's partial along `u` (`along_u`) or `v` over the
 /// window `w`, on the wall's derivative box there: `n·S_d`, `n` the
-/// plane's unit normal. The plane partner's and the side arm's one
-/// reading of it.
-fn plane_partial<T: CertifiedBounds>(
+/// plane's unit normal or a curved partner's gradient over the window.
+/// The pass's, the side arm's and the chart tube's one reading of it
+/// ([`super::enclose::ChartPhi::partial`]).
+pub(crate) fn plane_partial<T: CertifiedBounds>(
     n: [Interval; 3],
     boxes: &NurbsBoxes<'_, T>,
     w: UvWindow,
@@ -1280,10 +1281,7 @@ fn plane_across<'b, T: CertifiedBounds>(
     boxes: &'b NurbsBoxes<'_, T>,
     n: [Interval; 3],
 ) -> impl Fn(Option<UvWindow>, bool) -> Interval + 'b {
-    move |w, along_u| {
-        let d = w.map_or_else(super::enclose::refused_box, |w| boxes.deriv_box(w, along_u));
-        n[0] * d.x + n[1] * d.y + n[2] * d.z
-    }
+    move |w, along_u| w.map_or_else(Interval::refused, |w| plane_partial(n, boxes, w, along_u))
 }
 
 /// **A stretch of a side, read as the boundary pass reads a side.** `r`
@@ -1465,7 +1463,9 @@ pub(crate) enum SideCover {
 }
 
 /// **The side cover.** `strip` has one edge on `side` of `domain`, and
-/// `|φ| ≤ sup` along that edge, in metres. A zero of the strip lies at
+/// `|φ| ≤ sup` along that edge, in `φ`'s own units (metres on a plane,
+/// the form's on a curved partner), the units `across` reads its slope
+/// in. A zero of the strip lies at
 /// most `depth` in from the side and `distance` from it
 /// ([`strip_reach`]). The cover lies inside the strip where `depth` is
 /// short of the strip's far face, or that face is the domain's opposite

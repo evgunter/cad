@@ -27,10 +27,10 @@
 //!   is excluded, in a tube, or in a region.
 //!
 //! **Exclusion.** Seeding and accounting exclude a cell where the
-//! partner's form over the wall's box there, read as a floor in metres
-//! ([`Curved::floor_metres`]), is clear of zero: the cell is certified
-//! apart from the partner. A floor's sign is the form's, so the reading
-//! is `f`'s own zero test, stated in metres.
+//! partner's form over the wall's box there is clear of zero: the cell
+//! is certified apart from the partner. The test is a zero test, not a
+//! band decision, so it reads the form itself; a distance in metres
+//! would carry its sign and no more.
 
 use std::cell::OnceCell;
 
@@ -38,6 +38,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Point3};
 
 use super::boundary::BoundaryPass;
+use super::enclose::ChartPhi;
 use super::ends::Ends;
 use super::exhaust::{self, FloorKind, SweepFloor, UvRect};
 use super::handle::{Banked, TubeCell, foot, passed};
@@ -77,25 +78,26 @@ impl Lane<'_> {
         ))
     }
 
-    /// Whether the partner's form over the cell's box is clear of zero,
-    /// read as a floor in metres (module docs).
+    /// Whether the partner's form over the cell's box is clear of zero
+    /// (module docs).
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::UnsupportedCertificate`] where the form over the cell
+    /// does not certify, as the plane lane refuses a height that does not
+    /// ([`exhaust::chart_plane_height`]).
     fn excluded(&self, cell: UvRect) -> Result<bool, SsiError> {
-        let b = cell.window().map_or_else(super::enclose::refused_box, |w| {
-            self.wall.boxes().rect_box(w)
-        });
-        let q = self.curved.framed(b);
-        let metres = self.curved.floor_metres(self.curved.value(q), q);
-        if !metres.is_certified() {
+        let f = ChartPhi::Curved(&self.curved).over(self.wall.boxes(), cell.window());
+        if !f.is_certified() {
             return Err(SsiError::UnsupportedCertificate { what: FORM_REFUSED });
         }
-        Ok(exhaust::excludes_zero(metres))
+        Ok(exhaust::excludes_zero(f))
     }
 }
 
 /// The exclusion's refusal of a cell whose form does not certify.
 const FORM_REFUSED: &str = "the curved partner's form over a cell of the NURBS wall does not \
-     certify — the wall's enclosure refused there, or the form's divisor has no positive finite \
-     bound";
+     certify — the wall's enclosure refused there";
 
 /// **The section of a cylinder, sphere or ring torus and a NURBS wall**
 /// (module docs): the operands checked, the boundary pass run once, and

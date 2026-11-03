@@ -427,13 +427,13 @@ fn refined_net(
 /// midpoint, never a guess. Retiring the gate means giving the
 /// composite enclosure-valued coefficients, which is a `geom_core`
 /// change with its own unit.
-fn exact<T: Bounds>(v: T) -> Option<f64> {
+pub(crate) fn exact<T: Bounds>(v: T) -> Option<f64> {
     let (lo, hi) = (v.lo(), v.hi());
     (lo == hi && !lo.is_nan()).then_some(lo)
 }
 
 /// Three coordinates of an exact point, or `None` if any is widened.
-fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
+pub(crate) fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
     Some([exact(p[0])?, exact(p[1])?, exact(p[2])?])
 }
 
@@ -1810,10 +1810,17 @@ pub(crate) const BOX_CHAIN_NEEDS_SPLINE: &str = "the ℝ³ uniqueness tube of tw
 
 /// [`certify_branch`]'s routing boundary for a NURBS operand whose
 /// analytic partner has no form the chart tube reads: not a plane, a
-/// cylinder, a sphere or a ring torus at exact `f64`.
+/// cylinder, a sphere or a ring torus.
 pub(crate) const CHART_TUBE_NEEDS_FORM: &str = "the chart uniqueness tube reads a plane, a \
      cylinder, a sphere or a ring torus against a NURBS surface; this partner has no form it \
      reads";
+
+/// [`certify_branch`]'s refusal of a curved partner whose parameters are
+/// not exact at the certificate's scalar: its canonical form is `f64`
+/// structure, and a widened partner is a family of surfaces.
+pub(crate) const CHART_TUBE_PARTNER_INEXACT: &str = "the chart uniqueness tube reads a curved \
+     partner through its canonical form at f64, and this partner's parameters are not exact at \
+     the certificate's scalar — refused rather than represented by a midpoint";
 
 /// The uniqueness tube of a certified carrier, as boxes — what the
 /// exhaustiveness accounting pass consumes to prove cells "accounted"
@@ -2416,15 +2423,25 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             // `f64`, so only where every scalar of it is an exact `f64`.
             let curved = match **partner {
                 Surface::Plane { .. } => None,
-                _ => Some(
-                    super::residual::Curved::of(&partner.map_scalar(|x| {
-                        let (lo, hi) = (Bounds::lo(x), Bounds::hi(x));
-                        if lo == hi { lo } else { f64::NAN }
-                    }))
-                    .map_err(|_| SsiError::UnsupportedCertificate {
-                        what: CHART_TUBE_NEEDS_FORM,
-                    })?,
-                ),
+                _ => {
+                    let inexact = core::cell::Cell::new(false);
+                    let at_f64 = partner.map_scalar(|x| {
+                        exact(x).unwrap_or_else(|| {
+                            inexact.set(true);
+                            f64::NAN
+                        })
+                    });
+                    if inexact.get() {
+                        return Err(SsiError::UnsupportedCertificate {
+                            what: CHART_TUBE_PARTNER_INEXACT,
+                        });
+                    }
+                    Some(super::residual::Curved::of(&at_f64).map_err(|_| {
+                        SsiError::UnsupportedCertificate {
+                            what: CHART_TUBE_NEEDS_FORM,
+                        }
+                    })?)
+                }
             };
             let phi = match (*partner, &curved) {
                 (Surface::Plane { origin, normal, .. }, _) => ChartPhi::from((*origin, *normal)),
@@ -3763,6 +3780,77 @@ mod tests {
             refused.error
         );
         assert!(refused.at.is_none(), "limb 3 was located: {:?}", refused.at);
+    }
+
+    /// **Limb 3's side arm holds a branch along a side lying on a curved
+    /// partner.** The exact quarter cylinder of radius 1 about the `z`
+    /// axis, its `u = 0` ruling from `(1, 0, 0)` to `(1, 0, 1)`, against
+    /// the cylinder about the `z`-parallel line through `(0, −√3, 0)`,
+    /// whose surface passes through that ruling and crosses the wall
+    /// there at 60°: the carrier is the ruling, its pcurve the wall's
+    /// side. No zero on the side is simple, so the windows on it hold the
+    /// side's stretch, read against the partner's form, or nothing. The
+    /// partner is read on the ruling itself and with its radius grown by
+    /// half the band's zero, where the side stands half an ε off it and
+    /// the form along it is about twice the band raw: the stretch is read
+    /// in metres and its quick reach test unclamped. Red against the
+    /// curved side readers dropped, against the stretch's `|φ|` read raw
+    /// against ε, and against the reach test's `≤ 1` clamp applied to the
+    /// curved form.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn the_side_arm_holds_a_branch_along_a_side_on_a_curved_partner() {
+        use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point2, Point3, Vec3};
+
+        use super::{Lane, certify_located};
+        use crate::ssi::ChartedNurbs;
+
+        let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let arc = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let wall = NurbsSurface::new(arc, lin(), control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap();
+        let carrier = NurbsCurve3::new(
+            lin(),
+            vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let pcurve = NurbsCurve2::new(
+            lin(),
+            vec![Point2::new(0.0, 0.0), Point2::new(0.0, 1.0)],
+            vec![1.0; 2],
+        )
+        .unwrap();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for grow in [0.0, 0.5 * band.zero()] {
+            let partner = Surface::Cylinder {
+                origin: Point3::new(0.0, -3.0_f64.sqrt(), 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                radius: 2.0 + grow,
+            };
+            let lane = Lane::Chart {
+                partner: &partner,
+                wall: ChartedNurbs::mint(&wall).unwrap(),
+                pcurve: &pcurve,
+            };
+            let got = certify_located(&carrier, lane, 1.0, band, super::Limbs::All);
+            assert!(
+                got.is_ok(),
+                "the ruling on the partner grown by {grow:e}: {:?}",
+                got.err().map(|e| e.error)
+            );
+        }
     }
 
     /// **An operand's cells are built once for its life, not once per

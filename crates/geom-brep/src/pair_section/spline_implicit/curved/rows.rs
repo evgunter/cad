@@ -126,10 +126,15 @@ fn read(a: &Surface<f64>, b: &Surface<f64>) -> Result<Components<f64>, SectionEr
 }
 
 /// Whether a reading refused at the whole reading's accounting cell
-/// budget: a region within the band of the partner that no cell
-/// certifies apart and no tube holds, read down to the budget.
+/// budget, the cause the value carries being that refusal's own text: a
+/// gap to the partner the exclusion's zero test cannot resolve within
+/// the budget, and no tube holds.
 fn unaccounted_at_the_budget(got: &Result<Components<f64>, SectionError>) -> bool {
-    matches!(got, Err(SectionError::Unaccounted { cause }) if cause.contains("cell budget"))
+    let budget = crate::ssi::SsiError::CellBudget {
+        budget: crate::ssi::exhaust::SSI_MAX_CELLS,
+    }
+    .to_string();
+    matches!(got, Err(SectionError::Unaccounted { cause }) if *cause == budget)
 }
 
 /// **An exact sphere patch on its sphere lies on it.** The hull's
@@ -590,9 +595,11 @@ fn a_wall_leaving_a_large_cylinder_in_the_band_is_held_tangent() {
 /// excluded top would be ringed by cells read regular, which the join
 /// does not walk (SPLICE's
 /// `the-plane-spline-sweep-declines-a-loop-free-dome-beside-a-saddle`), so
-/// the pose would decline either way. Read whole, the top's cells lie
-/// within the band of the sphere, so no cell about it is certified apart
-/// and no tube holds it, and the accounting refuses at its cell budget,
+/// the pose would decline either way. Read whole, the section is empty,
+/// but the top stands only `4ε` off the sphere: the accounting's zero
+/// test, on boxes of the wall that close on the top only as fast as
+/// their cells shrink, cannot clear the cells about it before its cell
+/// budget runs out, and no tube holds them, so it refuses there,
 /// unaccounted. Red against the sweep's exclusion read on the raw form
 /// rather than in metres.
 #[test]
@@ -686,9 +693,11 @@ fn a_dome_touching_a_sphere_is_one_touch() {
 /// **A top only in band of a sphere is not decided.** The same dome
 /// under the unit sphere raised half way between the band's zero and its
 /// escalation: the top is a critical point whose value is in band, so it
-/// is no touch, and the sweep declines there. Read whole, its cells
-/// within the band are neither certified apart nor in a tube, and the
-/// accounting refuses at its cell budget, unaccounted. Red against the
+/// is no touch, and the sweep declines there. Read whole, the section is
+/// empty, but the top stands within the band of the sphere: the
+/// accounting's zero test cannot clear the cells about it before its
+/// cell budget runs out, and no tube holds them, so it refuses there,
+/// unaccounted. Red against the
 /// value read past the band's zero rather than decided zero (it would
 /// read a touch).
 #[test]
